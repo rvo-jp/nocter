@@ -135,8 +135,9 @@ nocter run
 
 [async-http/index.nct](async-http/index.nct) runs a complete HTTP/1.1 exchange over a kernel-selected
 IPv4 loopback port. A structured join drives the async client and a small local peer together. The
-client uses validated text request conveniences, operation timeouts, and UTF-8 whole-body async
-collection without external DNS or Internet availability.
+client uses validated text request conveniences and a generic `Reader` algorithm that applies the
+same executor-safe per-read timeout to both a `TcpStream` and an HTTP `Response`. It collects and
+validates the response as UTF-8 without external DNS or Internet availability.
 
 ```sh
 cd examples/async-http

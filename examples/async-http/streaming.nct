@@ -1,0 +1,43 @@
+use std/io.Reader
+use std/string.String
+use std/task
+use std/task.Timeout
+use std/time.Duration
+use std/vec.Vec
+
+const STREAM_BUFFER_BYTES: usize = 8192
+
+const STREAM_LIMIT_BYTES: usize = 65536
+
+async func read_before<R>(
+    source: &+R,
+    output: &+[u8],
+    timeout: Duration,
+): usize! where R impl Reader {
+    let pending = task.with_timeout(source.read(output), timeout)
+    match await pending {
+        Timeout.completed(result) { return move result? }
+        Timeout.elapsed {
+            return error.new("async-http.timeout", "byte input exceeded the example timeout")
+        }
+    }
+}
+
+async func collect_text_before<R>(source: &+R, timeout: Duration): String! where R impl Reader {
+    var bytes: Vec<u8> = Vec.empty()
+    var scratch: Vec<u8> = Vec.with_capacity(STREAM_BUFFER_BYTES)
+    while scratch.len() < STREAM_BUFFER_BYTES { scratch.push(0) }
+    loop {
+        let received = await read_before(source, &+scratch, timeout)?
+        if received == 0 { return String.from_utf8(&bytes)? }
+        if received > scratch.len() || bytes.len() > STREAM_LIMIT_BYTES - received {
+            return error.new("async-http.limit", "byte input exceeded the example limit")
+        }
+        bytes.reserve(received)
+        var offset: usize = 0
+        while offset < received {
+            bytes.push(scratch[offset])
+            offset += 1
+        }
+    }
+}

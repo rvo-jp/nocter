@@ -1,5 +1,7 @@
 see ./index.nct
 
+see ./streaming.nct
+
 use std/http.{Client, Request}
 use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
@@ -43,7 +45,7 @@ async func serve_once(
         u8.truncate(0),
     ]
     while !ends_with(&request, "\r\n\r\nping".bytes()) {
-        let received = await stream.read_with_timeout(&+scratch, timeout)?
+        let received = await read_before(&+stream, &+scratch, timeout)?
         if received == 0 {
             return error.new("async-http.request", "client closed before its request was complete")
         }
@@ -89,7 +91,7 @@ async func run(): i32! {
     let _header = received.headers().first("x-example") otherwise {
         return error.new("async-http.header", "local response header was absent")
     }
-    let body = await received.read_to_string_with_timeout(timeout)?
+    let body = await collect_text_before(&+received, timeout)?
     if body != "pong" {
         return error.new("async-http.body", "local server returned an unexpected body")
     }

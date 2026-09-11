@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.46.0 is published and externally audited. v0.47.0 Phases 0–3 are complete on
+Nocter v0.46.0 is published and externally audited. v0.47.0 Phases 0–4 are complete on
 `develop-v0.47.0`. The new milestone makes the unqualified `Reader` and `Writer` names canonical
 asynchronous byte-stream contracts, gives synchronous contracts explicit `BlockingReader` and
 `BlockingWriter` names, and removes duplicated concrete collection logic through generic defaults.
 
 ## Next Work
 
-Complete application and semantic-editor integration for the canonical async byte contracts. Add
-one public program whose generic algorithm crosses multiple concrete byte sources or sinks, then
-qualify hover, completion, signature help, navigation, semantic tokens, and inlay hints. The
+Perform the v0.47.0 whole-area review and release-readiness qualification. Remove any remaining
+alias, duplicate collector, concrete-type branch, blocking future path, recomputed interface
+selection, reverse dependency, or caller-trust contract before changing release identity. The
 [v0.47.0 milestone](history/milestones/v0.47.0.md) owns phase gates; the
 [asynchronous byte-I/O design](design/asynchronous-byte-io-design.md) owns the cross-module
 contract and information flow.

@@ -2533,8 +2533,12 @@ mod tests {
     fn async_http_source() -> &'static str {
         concat!(
             "use std/http.{Client, Request}\n",
+            "use std/io.Reader\n",
             "use std/time.Duration\n",
             "use std/url.Url\n",
+            "async func collect<R>(source: &+R): String! where R impl Reader {\n",
+            "    return await source.read_to_string()?\n",
+            "}\n",
             "async func main(): void! {\n",
             "    let url = Url.parse(\"http://localhost/\")?\n",
             "    let request = Request.post(move url)?\n",
@@ -2542,14 +2546,14 @@ mod tests {
             "    let timeout = Duration.from_seconds(1)\n",
             "    let pending = client.send_with_timeout(move request, timeout)\n",
             "    var response = await pending?\n",
-            "    let body = await response.read_to_string_with_timeout(timeout)?\n",
+            "    let body = await collect(&+response)?\n",
             "    return\n",
             "}\n",
         )
     }
 
     #[test]
-    fn async_http_practical_contract_drives_hover_navigation_and_hints() {
+    fn async_http_generic_reader_contract_drives_the_complete_editor_surface() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
         let uri = format!("file://{}", source.display());
@@ -2596,27 +2600,64 @@ mod tests {
             send_definition.issue()
         );
 
-        let (read_line, read_character) = source_position(text, "read_to_string_with_timeout");
+        let (read_line, read_character) = source_position(text, "read_to_string");
         let read_hover = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{read_line},\"character\":{}}}}}}}",
             read_character + 5,
         ));
         let response = read_hover.response().unwrap();
-        assert!(
-            response.contains("read_to_string_with_timeout"),
-            "{response}"
-        );
-        assert!(response.contains("async method"), "{response}");
+        assert!(response.contains("Reader.read_to_string"), "{response}");
+        assert!(response.contains("async default method"), "{response}");
         assert!(response.contains(": String!"), "{response}");
         assert!(read_hover.issue().is_none(), "{:?}", read_hover.issue());
 
+        let read_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{read_line},\"character\":{}}}}}}}",
+            read_character + 5,
+        ));
+        let response = read_definition.response().unwrap();
+        assert!(response.contains("/std/io/index.nct"), "{response}");
+        assert!(!response.contains("async_core.nct"), "{response}");
+        assert!(
+            read_definition.issue().is_none(),
+            "{:?}",
+            read_definition.issue()
+        );
+
+        let read_signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{read_line},\"character\":{}}}}}}}",
+            read_character + "read_to_string(".len(),
+        ));
+        let response = read_signature.response().unwrap();
+        assert!(
+            response.contains("Reader.read_to_string(): String!"),
+            "{response}"
+        );
+        assert!(
+            read_signature.issue().is_none(),
+            "{:?}",
+            read_signature.issue()
+        );
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens.response().is_some_and(
+                |response| response.contains("\"data\":[") && !response.contains("\"data\":[]")
+            ),
+            "{:?}",
+            tokens.response()
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
         let hints = server.receive(&format!(
             concat!(
-                "{{\"jsonrpc\":\"2.0\",\"id\":5,",
+                "{{\"jsonrpc\":\"2.0\",\"id\":8,",
                 "\"method\":\"textDocument/inlayHint\",",
                 "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
                 "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
-                "\"end\":{{\"line\":13,\"character\":0}}}}}}}}"
+                "\"end\":{{\"line\":17,\"character\":0}}}}}}}}"
             ),
             uri = uri,
         ));
@@ -2642,39 +2683,37 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = async_http_source();
-        let incomplete = text.replace("response.read_to_string_with_timeout(timeout)", "response.");
+        let incomplete = text.replace("source.read_to_string()", "source.");
         let opened = set_completion_document(&mut server, &uri, &incomplete, 1);
         assert_eq!(
             opened.analysis().unwrap().snapshot().unwrap().status(),
             nocter_analysis::AnalysisStatus::SyntaxFailed
         );
-        let (completion_line, completion_character) = source_position(&incomplete, "response.");
+        let (completion_line, completion_character) = source_position(&incomplete, "source.");
         let completion = request_completion(
             &mut server,
             &uri,
-            6,
+            9,
             completion_line,
-            completion_character + "response.".len(),
+            completion_character + "source.".len(),
         );
         let response = completion.response().unwrap();
-        for method in [
-            "read",
-            "read_blocking",
-            "read_to_end",
-            "read_to_end_blocking",
-            "read_to_end_with_timeout",
-            "read_to_string",
-            "read_to_string_blocking",
-            "read_to_string_with_timeout",
-            "read_with_timeout",
-        ] {
+        for method in ["read", "read_to_end", "read_to_string"] {
             assert!(
                 response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
                 "{response}"
             );
         }
-        assert!(!response.contains("\"label\":\"complete\""), "{response}");
-        assert!(!response.contains("\"label\":\"decoder\""), "{response}");
+        for concrete in [
+            "read_blocking",
+            "read_with_timeout",
+            "read_to_end_with_timeout",
+        ] {
+            assert!(
+                !response.contains(&format!("\"label\":\"{concrete}\"")),
+                "{response}"
+            );
+        }
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
