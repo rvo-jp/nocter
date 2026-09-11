@@ -2,20 +2,19 @@
 
 ## Current State
 
-Publication of the qualified v0.46.0 candidate is authorized and in progress. The retained archive
-was built from release-content commit `ad30785c52479bd123c419887e081381051831c0`; its identity must
-remain unchanged through the public audit. Asynchronous datagrams cross closed target
-operations, shared blocking/async policy, the public standard surface, native IPv4/IPv6 execution,
+Nocter v0.46.0 is published and externally audited. The public asset is byte-identical to the
+retained qualified archive built from release-content commit
+`ad30785c52479bd123c419887e081381051831c0`. Asynchronous datagrams cross closed target operations,
+shared blocking/async policy, the public standard surface, native IPv4/IPv6 execution,
 cancellation and timeout behavior, a complete public example, and ordinary checked LSP queries.
 
 ## Next Work
 
-Integrate the public latest-release surfaces into `main`, create and push one annotated `v0.46.0`
-tag, upload the retained archive as the release's only asset, and verify the public tag,
-latest-release endpoint, asset bytes, extracted installation, and remote `main`. Record that
-evidence and stop.
+Plan the next milestone only when requested. Preserve the separation between closed target
+operations, standard-source retry and timeout policy, executor readiness, positive synchronous
+`blocking`, and result provenance; do not infer one fact from another.
 
-Preserve every published tag and asset, including v0.45.0.
+Preserve every published tag and asset, including v0.46.0.
 
 ## Blockers
 
