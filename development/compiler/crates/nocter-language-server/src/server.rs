@@ -2011,6 +2011,124 @@ mod tests {
     }
 
     #[test]
+    fn async_buffer_contracts_use_ordinary_generic_editor_semantics() {
+        let temporary = TemporaryDirectory::new();
+        let source_text = concat!(
+            "use std/io.Writer\n",
+            "use std/io/buffer.{BufReader, BufWriter}\n",
+            "use std/net.TcpStream\n",
+            "use std/string.String\n",
+            "async func inspect(\n",
+            "    reader: &+BufReader<TcpStream>,\n",
+            "    writer: &+BufWriter<TcpStream>,\n",
+            "    destination: &+String,\n",
+            "): void! {\n",
+            "    let line = await reader.read_line()?\n",
+            "    let has_line = await reader.read_line_into(destination)?\n",
+            "    await writer.write_line(\"ack\")?\n",
+            "    return\n",
+            "}\n",
+        );
+        let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
+
+        let read_line_line = source_text
+            .lines()
+            .position(|line| line.contains("reader.read_line()?"))
+            .unwrap();
+        let read_line_source = source_text.lines().nth(read_line_line).unwrap();
+        let read_line_character = read_line_source.find("read_line").unwrap();
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":40,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{read_line_line},\"character\":{read_line_character}}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"read_line\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"read_line_into\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":41,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{read_line_line},\"character\":{read_line_character}}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains(
+                "```nocter\\npub async method &+BufReader<R>.read_line(): String?!\\n```"
+            ),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{read_line_line},\"character\":{read_line_character}}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/io/buffer/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let implementation = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":43,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{read_line_line},\"character\":{read_line_character}}}}}}}"
+        ));
+        let response = implementation.response().unwrap();
+        assert!(
+            response.contains("/std/io/buffer/async_buffering.nct"),
+            "{response}"
+        );
+        assert!(
+            implementation.issue().is_none(),
+            "{:?}",
+            implementation.issue()
+        );
+
+        let read_into_line = source_text
+            .lines()
+            .position(|line| line.contains("read_line_into(destination)"))
+            .unwrap();
+        let read_into_source = source_text.lines().nth(read_into_line).unwrap();
+        let signature_character = read_into_source.find("destination").unwrap() + 2;
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":44,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{read_into_line},\"character\":{signature_character}}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains(
+                "pub async method &+BufReader<TcpStream>.read_line_into(destination: &+String): bool!"
+            ),
+            "{response}"
+        );
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":45,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens.response().unwrap().contains("\"data\":["),
+            "{:?}",
+            tokens.response()
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":46,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":14,\"character\":0}}}}}}}}"
+            ),
+            source_uri = source_uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(response.contains("\"label\":\": String?\""), "{response}");
+        assert!(response.contains("\"label\":\": bool\""), "{response}");
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+    }
+
+    #[test]
     fn collection_ordering_uses_slice_semantics_for_vec_editor_queries() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
