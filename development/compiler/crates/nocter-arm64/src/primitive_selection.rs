@@ -167,6 +167,8 @@ pub(crate) fn select(
         | PrimitiveRole::ProcessChangeDirectory
         | PrimitiveRole::ProcessExec
         | PrimitiveRole::ProcessObserve
+        | PrimitiveRole::ProcessTerminate
+        | PrimitiveRole::ProcessKill
         | PrimitiveRole::MonotonicCounterRead
         | PrimitiveRole::MonotonicCounterFrequency
         | PrimitiveRole::MonotonicCounterDelta

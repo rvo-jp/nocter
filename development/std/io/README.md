@@ -65,6 +65,16 @@ UTF-8 bytes and `write_line` follows them with exactly one LF operation; neither
 combined buffer. Transport-specific deadlines and configured timeouts are deliberately absent from
 these interfaces because their meaning is not portable across a generic byte stream.
 
+`copy` transfers from any `Reader` to any `Writer` until the reader returns end of stream;
+`copy_blocking` provides the same policy for `BlockingReader` and `BlockingWriter`. Both allocate
+one 8-KiB scratch buffer in the current allocation context, validate every implementation-reported
+read count, write exactly the initialized prefix, and return the checked total number of bytes.
+They do not flush the destination. Allocation follows the ordinary terminating allocation policy;
+`T!` reports source, destination, invalid-count, or `std.io.byte_count_overflow` failure. A writer
+failure may leave its already-observed prefix visible. Cancellation of the asynchronous operation
+destroys the scratch buffer and leaves reader and writer usability to their own cancellation
+contracts; the transfer loop owns neither stream.
+
 `BufReader<R>` and `BufWriter<W>` in `std/io/buffer` are the owning generic adapters for these
 executor-safe contracts. `BufReader.read` returns buffered progress without waiting for a second
 chunk; it awaits the underlying `Reader` only when no accepted byte remains. Line operations retain

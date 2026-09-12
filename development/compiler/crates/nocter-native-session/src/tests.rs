@@ -1213,7 +1213,28 @@ fn standard_spawned_child_and_pipe_values_cross_the_complete_native_session() {
         "main.nct",
         &format!(
             r#"use std/io.{{BlockingReader, BlockingWriter}}
+use std/io
 use std/process.{{Command, ProcessIo}}
+use std/vec.Vec
+
+struct ByteSink {{ bytes: Vec<u8> }}
+
+construct ByteSink {{
+    func empty(): Self {{ return ByteSink {{ bytes: Vec.empty() }} }}
+}}
+
+instance ByteSink {{
+    impl BlockingWriter
+
+    blocking method &+self.write_blocking(value: &[u8]): void! {{
+        var index: usize = 0
+        while index < value.len() {{
+            self.bytes.push(value[index])
+            index += 1
+        }}
+        return
+    }}
+}}
 
 func is_none<T>(value: T?): bool {{
     let _ = move value otherwise {{ return true }}
@@ -1231,7 +1252,8 @@ blocking func main(): i32 {{
 
     var stdout = child.take_stdout() otherwise {{ return 6 }}
     if !is_none(child.take_stdout()) {{ return 7 }}
-    let output = stdout.read_to_end_blocking() catch _ {{ return 8 }}
+    var output = ByteSink.empty()
+    let copied = io.copy_blocking(&+stdout, &+output) catch _ {{ return 8 }}
 
     var stderr = child.take_stderr() otherwise {{ return 9 }}
     if !is_none(child.take_stderr()) {{ return 10 }}
@@ -1239,7 +1261,8 @@ blocking func main(): i32 {{
 
     let status = child.wait_blocking() catch _ {{ return 12 }}
     if !status.success() {{ return 13 }}
-    if output.len() != 9 || output[0] != 114 || output[7] != 101 || output[8] != 10 {{
+    if copied != 9 || output.bytes.len() != 9 || output.bytes[0] != 114
+        || output.bytes[7] != 101 || output.bytes[8] != 10 {{
         return 14
     }}
     if diagnostic.len() != 5 || diagnostic[0] != 110 || diagnostic[4] != 10 {{
@@ -1275,7 +1298,28 @@ fn standard_async_spawn_and_pipe_values_cross_the_complete_native_session() {
         "main.nct",
         &format!(
             r#"use std/io.{{Reader, Writer}}
+use std/io
 use std/process.{{Command, ProcessIo, Stdio}}
+use std/vec.Vec
+
+struct ByteSink {{ bytes: Vec<u8> }}
+
+construct ByteSink {{
+    func empty(): Self {{ return ByteSink {{ bytes: Vec.empty() }} }}
+}}
+
+instance ByteSink {{
+    impl Writer
+
+    async method &+self.write(value: &[u8]): void! {{
+        var index: usize = 0
+        while index < value.len() {{
+            self.bytes.push(value[index])
+            index += 1
+        }}
+        return
+    }}
+}}
 
 func is_none<T>(value: T?): bool {{
     let _ = move value otherwise {{ return true }}
@@ -1284,21 +1328,23 @@ func is_none<T>(value: T?): bool {{
 
 async func main(): i32 {{
     let command = Command.new("{}") catch _ {{ return 1 }}
-    var io = ProcessIo.piped()
-    io.stderr(Stdio.null)
-    var child = await command.spawn(move io) catch _ {{ return 2 }}
+    var process_io = ProcessIo.piped()
+    process_io.stderr(Stdio.null)
+    var child = await command.spawn(move process_io) catch _ {{ return 2 }}
 
     var stdin = child.take_stdin() otherwise {{ return 3 }}
     await stdin.write_text("request\n") catch _ {{ return 4 }}
     stdin.close()
 
     var stdout = child.take_stdout() otherwise {{ return 5 }}
-    let output = await stdout.read_to_end() catch _ {{ return 6 }}
+    var output = ByteSink.empty()
+    let copied = await io.copy(&+stdout, &+output) catch _ {{ return 6 }}
     if !is_none(child.take_stderr()) {{ return 7 }}
 
     let status = await child.wait() catch _ {{ return 8 }}
     if !status.success() {{ return 9 }}
-    if output.len() != 9 || output[0] != 114 || output[7] != 101 || output[8] != 10 {{
+    if copied != 9 || output.bytes.len() != 9 || output.bytes[0] != 114
+        || output.bytes[7] != 101 || output.bytes[8] != 10 {{
         return 10
     }}
 
@@ -1512,7 +1558,7 @@ fn standard_subprocess_failures_and_lifecycle_cross_the_complete_native_session(
     package_root.source(
         "main.nct",
         &format!(
-            r#"use std/process.{{Command, ExitStatus}}
+            r#"use std/process.{{Command, ExitStatus, ProcessIo}}
 use std/string.String
 
 noalloc func exited_with(status: ExitStatus, expected: i32): bool {{
@@ -1529,6 +1575,11 @@ noalloc func signaled_with(status: ExitStatus, expected: i32): bool {{
 
 blocking func fails_with(command: Command, code: &str): bool {{
     let _status = command.status() catch failure {{ return failure.has_code(code) }}
+    return false
+}}
+
+func is_none<T>(value: T?): bool {{
+    let _ = move value otherwise {{ return true }}
     return false
 }}
 
@@ -1594,6 +1645,36 @@ blocking func main(): i32 {{
     let final_success = Command.new("{}") catch _ {{ return 34 }}
     let final_status = final_success.status() catch _ {{ return 35 }}
     if !exited_with(final_status, 0) {{ return 36 }}
+
+    let terminate_command = Command.new("{}") catch _ {{ return 37 }}
+    var terminated = terminate_command.spawn_blocking(ProcessIo.inherit()) catch _ {{ return 38 }}
+    let initially_ready = terminated.try_wait() catch _ {{ return 39 }}
+    if !is_none(initially_ready) {{ return 40 }}
+    terminated.terminate() catch _ {{ return 41 }}
+    var terminate_attempts: usize = 0
+    var terminate_observed = false
+    while terminate_attempts < 1000000 {{
+        let candidate = terminated.try_wait() catch _ {{ return 42 }}
+        let observed = candidate otherwise {{
+            terminate_attempts += 1
+            continue
+        }}
+        if !signaled_with(observed, 15) {{ return 43 }}
+        let repeated = terminated.try_wait() catch _ {{ return 44 }}
+        let cached = repeated otherwise {{ return 45 }}
+        if !signaled_with(cached, 15) {{ return 46 }}
+        let waited = terminated.wait_blocking() catch _ {{ return 47 }}
+        if !signaled_with(waited, 15) {{ return 48 }}
+        terminate_observed = true
+        break
+    }}
+    if !terminate_observed {{ return 49 }}
+
+    let kill_command = Command.new("{}") catch _ {{ return 50 }}
+    var killed = kill_command.spawn_blocking(ProcessIo.inherit()) catch _ {{ return 51 }}
+    killed.kill() catch _ {{ return 52 }}
+    let killed_status = killed.wait_blocking() catch _ {{ return 53 }}
+    if !signaled_with(killed_status, 9) {{ return 54 }}
     return 0
 }}
 "#,
@@ -1608,6 +1689,8 @@ blocking func main(): i32 {{
             success.display(),
             missing.display(),
             success.display(),
+            package_root.0.join("terminate-helper").display(),
+            package_root.0.join("kill-helper").display(),
         ),
     );
     compile_and_execute_subprocess_lifecycle(&package_root.0, &standard_root);
@@ -5870,6 +5953,11 @@ fn execute_subprocess_lifecycle_contract(image: &NativeImage, root: &Path) {
         (
             "argument-helper",
             "#!/bin/sh\n[ \"$#\" -eq 2 ] || exit 40\n[ \"$1\" = \"\" ] || exit 41\n[ \"$2\" = \"alpha beta\" ] || exit 42\nexit 0\n",
+        ),
+        ("terminate-helper", "#!/bin/sh\nwhile :; do :; done\n"),
+        (
+            "kill-helper",
+            "#!/bin/sh\ntrap '' TERM\nwhile :; do :; done\n",
         ),
     ] {
         let path = root.join(name);

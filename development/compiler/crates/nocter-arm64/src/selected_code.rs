@@ -384,6 +384,12 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinProcessObserve => {
             crate::system_primitive_code::emit_process_observe(code)
         }
+        Arm64SelectedInstruction::DarwinProcessTerminate => {
+            crate::system_primitive_code::emit_process_terminate(code)
+        }
+        Arm64SelectedInstruction::DarwinProcessKill => {
+            crate::system_primitive_code::emit_process_kill(code)
+        }
         Arm64SelectedInstruction::DarwinProcessFork => {
             crate::system_primitive_code::emit_fixed_system_call_pair(
                 crate::darwin_kernel_abi::DarwinSystemCall::Fork,

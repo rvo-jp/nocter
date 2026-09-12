@@ -281,6 +281,8 @@ pub const fn bundled_primitive_source_location(
         Role::MonotonicDeadline => (&["internal", "time"], "monotonic_deadline_raw"),
         Role::ProcessCompletion => (INTERNAL_TASK, "process_completion_raw"),
         Role::ProcessObserve => (&["process"], "observe_process_raw"),
+        Role::ProcessTerminate => (&["process"], "terminate_process_raw"),
+        Role::ProcessKill => (&["process"], "kill_process_raw"),
         Role::ProcessAbandon => (&["process"], "abandon_process_raw"),
         Role::TaskJoin => (&["task"], "join"),
         Role::TaskRace => (&["task"], "race_raw"),

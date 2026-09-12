@@ -33,12 +33,24 @@ directional pipes. The `stdin`, `stdout`, and `stderr` mutators replace those ch
 with `Stdio.inherit`, `Stdio.null`, or `Stdio.pipe`. Null streams connect to the target null device;
 they do not create a parent endpoint.
 
-A returned `Child` uniquely owns the still-unobserved process and every configured endpoint not
+A returned `Child` uniquely owns one process lifecycle record and every configured endpoint not
 yet transferred. Each `take_*` method transfers its endpoint at most once. Destroying the child
 closes untaken endpoints, terminates an unobserved process, and transfers its sole reaping
 obligation to the target cleanup service without synchronously waiting. Calling `wait` or
 `wait_blocking` also closes untaken endpoints before observing the process, so a child cannot
 remain blocked on output that its parent elected not to read.
+
+`try_wait` observes only that exact child without waiting. It returns `none` while the child is
+still running and caches an ordinary or signal terminal status before returning it. Repeated
+`try_wait` calls and a later `wait` or `wait_blocking` return the cached terminal state without a
+second kernel observation. An observation failure leaves the owner live so consuming wait or
+destruction still retains the cleanup obligation.
+
+`terminate` requests the target's graceful termination action and `kill` requests forced
+termination. Neither method consumes the child, closes an endpoint, waits, or reaps. A caller may
+continue transferring pipe data and must still call a wait operation when it requires the final
+status; otherwise destruction transfers cleanup as usual. Calling either method after cached
+terminal observation succeeds without another target request.
 
 `ChildStdin` implements `Writer` and `BlockingWriter`; `ChildStdout` and `ChildStderr` implement
 `Reader` and `BlockingReader`. Both execution surfaces share one endpoint ownership state and one
@@ -69,7 +81,8 @@ channel and returns one of:
 
 A nonzero child exit and signal termination are successful observations represented by
 `ExitStatus`; they are not `T!` failures. Failure to observe the already-created child's terminal
-state returns `std.process.wait_failed`.
+state returns `std.process.wait_failed`. Failure to request graceful or forced termination returns
+`std.process.termination_failed`.
 
 The launch-report channel is close-on-exec. A successful exec closes it without a payload. A failed
 exec writes only the target error fact needed by the parent and then terminates without returning
@@ -83,8 +96,9 @@ ordinary allocation-abort policy. Their `T!` layer reports validation, not recov
 All spawn operations may allocate launch metadata before creating the child and do not publish
 `noalloc`. `status`, `output`, and `spawn_blocking` may synchronously wait and therefore carry
 `blocking`; `spawn` is executor-safe. Endpoint close and transfer are allocation-free and
-nonblocking. Asynchronous endpoint I/O and `Child.wait` are executor-safe. `ExitStatus` inspection
-is allocation-free and nonblocking.
+nonblocking. `try_wait`, `terminate`, and `kill` are allocation-free and do not synchronously wait;
+their target operations may still fail. Asynchronous endpoint I/O and `Child.wait` are
+executor-safe. `ExitStatus` inspection is allocation-free and nonblocking.
 
 No child is created until all target arguments, pointers, and the launch-report channel can be
 prepared. After process creation, the child path performs only target operations required to close
@@ -318,5 +332,5 @@ remains the allocating convenience that collects all arguments.
 ## Non-goals
 
 This contract does not add `PATH` search, shell parsing, caller-provided descriptors, merged output,
-capture or input size limits, process groups, terminal control, or another target. Parent-directed
-termination, generic transfer operations, and process timeouts remain later v0.49.0 work.
+capture or input size limits, process groups, terminal control, arbitrary signals, or another
+target. Process timeouts remain later v0.49.0 work.

@@ -138,6 +138,15 @@ instance Child {
     /// Transfers the configured standard-error endpoint exactly once.
     pub noalloc method &+self.take_stderr(): ChildStderr?
 
+    /// Observes terminal state without waiting and retains the child for later operations.
+    pub noalloc method &+self.try_wait(): ExitStatus?!
+
+    /// Requests graceful termination while retaining the exact observation obligation.
+    pub noalloc method &self.terminate(): void!
+
+    /// Requests forced termination while retaining the exact observation obligation.
+    pub noalloc method &self.kill(): void!
+
     /// Consumes and asynchronously observes this exact child's terminal state.
     pub async method self.wait(): ExitStatus!
 

@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.49.0 Phase 4 Generic Transfer and Child Lifecycle Review](v0.49.0-phase-4.md)
 - [v0.49.0 Phase 3 Public Spawn and Pipe Review](v0.49.0-phase-3.md)
 - [v0.49.0 Phase 2 Child Ownership Review](v0.49.0-phase-2.md)
 - [v0.49.0 Phase 1 Unified Runtime Wait Review](v0.49.0-phase-1.md)

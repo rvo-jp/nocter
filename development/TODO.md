@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 3 is complete on
-`develop-v0.49.0`. Public `Stdio`, `ProcessIo`, `Child`, and pipe endpoint values have one shared
-ownership model with canonical executor-safe `spawn` and explicit `spawn_blocking`. Descriptor
-transfer is exact-once, untaken endpoints close before observation, and child/endpoint destruction
-remains cleanup-safe.
+Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 4 is complete on
+`develop-v0.49.0`. Generic blocking and executor-safe byte transfer now compose with public process
+pipes. Nonwaiting child observation caches one terminal result, graceful and forced termination
+retain the same child owner, and consuming wait or destruction remains the sole reaping boundary.
 
 ## Next Work
 
-Begin v0.49.0 Phase 4 by designing generic transfer and lifecycle operations over the Phase 3
-`Child` and endpoint contracts. Preserve one child owner, one endpoint state, and the shared
-reactor; do not add process-specific buffering or another polling loop.
+Begin v0.49.0 Phase 5 by rebuilding the closed status and output operations over the shared launch,
+endpoint, and observation authorities. Remove the terminal command-I/O session only after its fair
+finite-input and simultaneous-output behavior has migrated; do not create another polling loop or
+weaken failure precedence.
 
 Preserve every published tag and asset, including v0.48.0.
 

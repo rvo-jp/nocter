@@ -7,6 +7,7 @@
 see ./core.nct
 see ./async_core.nct
 see ./byte_helpers.nct
+see ./transfer.nct
 use /string.String
 use /vec.Vec
 see ./file.nct
@@ -68,6 +69,18 @@ pub interface Writer {
     /// Writes UTF-8 text followed by exactly one LF byte.
     pub async default method &+self.write_line(text: &str): void!
 }
+
+/// Transfers bytes from one executor-safe source to one destination until end of stream.
+pub async func copy<R, W>(
+    reader: &+R,
+    writer: &+W,
+): usize! where R impl Reader, W impl Writer
+
+/// Transfers bytes from one blocking source to one destination until end of stream.
+pub blocking func copy_blocking<R, W>(
+    reader: &+R,
+    writer: &+W,
+): usize! where R impl BlockingReader, W impl BlockingWriter
 
 /// Validates one implementation-reported read count against its supplied capacity.
 pub(/) noalloc func validate_read_count(received: usize, capacity: usize): usize!

@@ -276,6 +276,10 @@ pub enum Arm64SelectedInstruction {
     DarwinDescriptorWrite,
     /// Attempts one nonwaiting observation of an exact child.
     DarwinProcessObserve,
+    /// Requests graceful termination of an exact child.
+    DarwinProcessTerminate,
+    /// Requests forced termination of an exact child.
+    DarwinProcessKill,
     /// Forks without waiting for child progress and returns the Darwin pair result.
     DarwinProcessFork,
     /// Opens a prepared path with the supplied null-device access flags.

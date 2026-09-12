@@ -1,0 +1,52 @@
+//! Bounded-storage transfer loops shared by arbitrary byte-stream implementations.
+
+see ./index.nct
+see ./byte_helpers.nct
+
+use /internal/mem as internal_mem
+use /mem
+
+const COPY_BUFFER_SIZE: usize = 8192
+
+noalloc func transferred_count(total: usize, received: usize): usize! {
+    let next = internal_mem.checked_add(total, received) otherwise {
+        return error.new("std.io.byte_count_overflow", "copied byte count exceeded usize")
+    }
+    return next
+}
+
+async func copy<R, W>(
+    reader: &+R,
+    writer: &+W,
+): usize! where R impl Reader, W impl Writer {
+    var allocator = mem.current_allocator()
+    var scratch = allocator.alloc(COPY_BUFFER_SIZE, 1)
+    var total: usize = 0
+    while true {
+        let capacity = scratch.bytes().len()
+        let reported = await reader.read(scratch.bytes_mut())?
+        let received = validate_read_count(reported, capacity)?
+        if received == 0 { return total }
+        await writer.write(scratch.prefix(received)?)?
+        total = transferred_count(total, received)?
+    }
+    return total
+}
+
+blocking func copy_blocking<R, W>(
+    reader: &+R,
+    writer: &+W,
+): usize! where R impl BlockingReader, W impl BlockingWriter {
+    var allocator = mem.current_allocator()
+    var scratch = allocator.alloc(COPY_BUFFER_SIZE, 1)
+    var total: usize = 0
+    while true {
+        let capacity = scratch.bytes().len()
+        let reported = reader.read_blocking(scratch.bytes_mut())?
+        let received = validate_read_count(reported, capacity)?
+        if received == 0 { return total }
+        writer.write_blocking(scratch.prefix(received)?)?
+        total = transferred_count(total, received)?
+    }
+    return total
+}

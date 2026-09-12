@@ -73,6 +73,22 @@ instance Child {
         return ptr.replace_value(&+self.stderr, none)
     }
 
+    noalloc method &+self.try_wait(): ExitStatus?! {
+        let outcome = try_observe_child(&+self.owner) otherwise { return none }
+        let status: ExitStatus = status_from_wait(move outcome) catch failure {
+            return move failure
+        }
+        return status
+    }
+
+    noalloc method &self.terminate(): void! {
+        return terminate_child(&self.owner)?
+    }
+
+    noalloc method &self.kill(): void! {
+        return kill_child(&self.owner)?
+    }
+
     async method self.wait(): ExitStatus! {
         let child = move self
         let stdin = move child.stdin

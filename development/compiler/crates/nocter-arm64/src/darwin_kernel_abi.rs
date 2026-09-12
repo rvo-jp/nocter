@@ -183,6 +183,7 @@ pub(crate) struct DarwinProcessAbi;
 
 impl DarwinProcessAbi {
     pub(crate) const STANDARD_ERROR: u64 = 2;
+    pub(crate) const TERMINATE_SIGNAL: u64 = 15;
     pub(crate) const KILL_SIGNAL: u64 = 9;
     pub(crate) const MAX_PROCESS_ID: u64 = i32::MAX as u64;
     pub(crate) const OBSERVE_WITHOUT_WAITING: u64 = 1;

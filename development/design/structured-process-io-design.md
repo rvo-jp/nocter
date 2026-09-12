@@ -9,11 +9,11 @@ authorities.
 
 ## Problem
 
-`std/process` currently offers only closed synchronous `status` and `output` operations. Its
-private command-I/O session correctly owns fork, exec reporting, finite input, concurrent output
-draining, failure precedence, descriptor cleanup, and exact-child observation, but callers cannot
-compose a child with the executor, transfer bytes incrementally, apply generic buffering, or race
-process completion against another computation.
+Before v0.49.0, `std/process` offered only closed synchronous `status` and `output` operations. Its
+private command-I/O session owned fork, exec reporting, finite input, concurrent output draining,
+failure precedence, descriptor cleanup, and exact-child observation, but callers could not compose
+a child with the executor, transfer bytes incrementally, apply generic buffering, or race process
+completion against another computation.
 
 Adding only asynchronous `status` and `output` wrappers would leave the process model incomplete.
 It would also tempt the implementation to run `waitpid` or the existing blocking poll loop while
@@ -46,8 +46,8 @@ let stdout = child.take_stdout() otherwise { return missing_pipe() }
 stream and provides named constructors for the common inherited and fully piped configurations.
 The exact constructor and mutator spellings are fixed in `std/process/index.nct`, not here.
 
-One `Child` owns one live or unobserved child identity. A configured pipe initially belongs to that
-`Child`; a `take_*` operation transfers one endpoint exactly once. `ChildStdin` implements the
+One `Child` owns one live or cached-terminal child identity. A configured pipe initially belongs to
+that `Child`; a `take_*` operation transfers one endpoint exactly once. `ChildStdin` implements the
 canonical asynchronous `Writer` and explicit `BlockingWriter` contracts. `ChildStdout` and
 `ChildStderr` implement `Reader` and `BlockingReader`. They therefore use the existing generic
 buffer and byte-copy algorithms without a process-specific buffering path.
@@ -66,9 +66,11 @@ The process lifecycle has these semantic states:
    address before child creation;
 3. a launch attempt owns either no child or one exact created child plus every parent endpoint;
 4. successful exec reporting produces one `Child` owner and zero or more endpoint owners;
-5. explicit observation consumes the `Child` and produces one `ExitStatus`;
-6. destruction of an unobserved `Child` transfers the child to the abandonment authority;
-7. the abandonment authority terminates and reaps that exact child before releasing its record.
+5. nonwaiting observation either retains the pending owner or reaps once and records one terminal
+   result inside that owner;
+6. consuming observation returns either the cached result or reaps and records the exact child;
+7. destruction of a still-unobserved `Child` transfers the child to the abandonment authority;
+8. the abandonment authority terminates and reaps that exact child before releasing its record.
 
 A raw PID is an operating-system subject, not an ownership proof. The private standard-library
 owner pairs one PID with unique lifecycle authority and keeps that authority until observation or
@@ -177,6 +179,20 @@ No compiler or editor component may recognize `Command`, `Child`, `Stdio`, or pi
 No standard source may reproduce runtime interest tags or native event constants. No target layer
 may select a public `std.process` error.
 
+## Generic Transfer and Lifecycle Control
+
+Generic byte transfer belongs to `std/io`, not `std/process`. `io.copy` and `io.copy_blocking`
+own one bounded scratch allocation and depend only on their matching reader and writer contracts.
+They do not flush, close, or inspect either stream. A process pipe therefore composes with the same
+algorithm as any other stream without exposing descriptor state or process ownership.
+
+`Child.try_wait` is the sole nonwaiting observation entry. It may transition the private owner from
+pending to one cached terminal state; later calls and consuming wait use that state without another
+native observation. `terminate` and `kill` request graceful and forced target actions but never
+mark the child observed. The unreaped owner remains with `Child`, so a subsequent wait or ordinary
+destruction still proves exact cleanup. Closed primitive roles own the target meanings and signal
+encoding; source receives no arbitrary PID or numeric-signal interface.
+
 ## Rejected Alternatives
 
 - Async wrappers around blocking `waitpid` or `poll` would violate the guarantee that `future T`
@@ -197,7 +213,8 @@ may select a public `std.process` error.
 
 This boundary is complete when one launch authority supports closed and streaming execution, one
 process owner always reaches explicit observation or abandonment, pipe endpoints satisfy ordinary
-I/O interfaces, synchronous and asynchronous names follow the execution convention, generated and
-host reactors implement the same three-interest contract, and whole-area review finds no blocking
-future path, periodic process polling, raw-PID ownership assumption, duplicate session, hidden
-descriptor copy, caller-required cleanup, or source-name special case.
+I/O interfaces and generic transfer, nonwaiting observation cannot reap twice, termination retains
+the exact cleanup obligation, synchronous and asynchronous names follow the execution convention,
+generated and host reactors implement the same three-interest contract, and whole-area review finds
+no blocking future path, periodic process polling, raw-PID ownership assumption, duplicate session,
+hidden descriptor copy, caller-required cleanup, or source-name special case.

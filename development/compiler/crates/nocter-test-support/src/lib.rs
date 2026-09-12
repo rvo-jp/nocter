@@ -314,6 +314,10 @@ noalloc primitive func abandon_process_raw(pid: usize): void
 #target: \"arm64-darwin\"
 noalloc primitive func observe_process_raw(pid: usize, status: *i32): SyscallResult from static
 #target: \"arm64-darwin\"
+noalloc primitive func terminate_process_raw(pid: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func kill_process_raw(pid: usize): SyscallResult
+#target: \"arm64-darwin\"
 noalloc primitive func read_pipe_descriptor(fd: usize, address: usize, capacity: usize): SyscallResult
 #target: \"arm64-darwin\"
 noalloc primitive func write_pipe_descriptor(fd: usize, address: usize, length: usize): SyscallResult

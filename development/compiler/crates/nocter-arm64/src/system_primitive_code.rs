@@ -163,6 +163,36 @@ pub(crate) fn emit_process_observe(
     emit_system_call_result(code)
 }
 
+pub(crate) fn emit_process_terminate(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    emit_process_signal(
+        crate::darwin_kernel_abi::DarwinProcessAbi::TERMINATE_SIGNAL,
+        code,
+    )
+}
+
+pub(crate) fn emit_process_kill(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    emit_process_signal(
+        crate::darwin_kernel_abi::DarwinProcessAbi::KILL_SIGNAL,
+        code,
+    )
+}
+
+fn emit_process_signal(
+    signal: u64,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(code, argument(1), signal, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Kill,
+    );
+    emit_system_call_result(code)
+}
+
 pub(crate) fn emit_process_open_null(
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {

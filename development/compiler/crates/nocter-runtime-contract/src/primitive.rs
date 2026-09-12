@@ -201,6 +201,10 @@ closed_role_enum! {
         ProcessCompletion,
         /// Attempts to reap one completed child without synchronously waiting.
         ProcessObserve,
+        /// Requests graceful termination of one exact child without observing it.
+        ProcessTerminate,
+        /// Requests forced termination of one exact child without observing it.
+        ProcessKill,
         /// Terminates one unobserved child and transfers its sole reaping obligation.
         ProcessAbandon,
         /// Takes ownership of two lazy computations and produces both outputs concurrently.
@@ -360,6 +364,8 @@ impl PrimitiveRole {
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::ProcessCompletion => "process_completion",
             Self::ProcessObserve => "process_observe",
+            Self::ProcessTerminate => "process_terminate",
+            Self::ProcessKill => "process_kill",
             Self::ProcessAbandon => "process_abandon",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",
