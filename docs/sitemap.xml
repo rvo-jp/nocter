@@ -366,6 +366,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/design/structured-process-io-design/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/design/target-program-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

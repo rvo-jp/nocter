@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.49.0 Phase 0 Structured Process I/O Review](v0.49.0-phase-0.md)
 - [v0.48.0 Generic Buffered Byte I/O Final Review](v0.48.0-phase-5.md)
 - [v0.47.0 Phase 7 Source Snapshot Identity Closure](v0.47.0-phase-7.md)
 - [v0.47.0 Phase 6 Compiler Convention Authority Closure](v0.47.0-phase-6.md)

@@ -2,18 +2,20 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. Release-content commit
-`50ceaf9e3e215cb899ef1a572421bae6a881baa6` passed the complete compiler, documentation,
-reproducible-package, and installed-home gates. Publication commit
-`34f095e16af90558d2a33e23b6cd188b00c8f18d` is the peeled target of annotated tag `v0.48.0`.
-The public release is latest, contains exactly one asset, and the downloaded asset matches the
-retained qualified archive byte for byte.
+Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 0 is complete on
+`develop-v0.49.0`. The adopted structured-process design makes spawn, child ownership, standard
+stream endpoints, observation, and abandonment one model. It identifies the current generated
+runtime's descriptor/timer-only `poll` mapping as the first implementation boundary: process exit
+must become a target-independent wait interest and a native event, never a blocking or periodic
+standard-library probe.
 
 ## Next Work
 
-Define the next milestone before changing implementation. Preserve the v0.48.0 generic buffered
-I/O ownership, cancellation, terminal-state, and transport-independence contracts unless a future
-public design explicitly replaces them.
+Implement v0.49.0 Phase 1 as one runtime change: extend the sole semantic and ABI interest
+authority, migrate the host Darwin reactor and generated ARM64 Darwin root to a unified native
+event mapping, and qualify mixed descriptor, timer, and process completion including cancellation
+and stale events. Do not add a process wait primitive to standard source until that lower contract
+is complete.
 
 Preserve every published tag and asset, including v0.48.0.
 
