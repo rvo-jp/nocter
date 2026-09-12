@@ -54,6 +54,7 @@ mod darwin_network_owner_disposal;
 mod darwin_network_owner_event;
 mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
+mod darwin_process_service;
 mod darwin_timeout_code;
 mod darwin_tls_adapter;
 mod darwin_tls_callback;
@@ -194,6 +195,9 @@ pub use darwin_network_primitive_targets::{
     Arm64DarwinNetworkPrimitive, Arm64DarwinNetworkPrimitiveError,
     Arm64DarwinNetworkPrimitiveTargets,
 };
+pub use darwin_process_service::{
+    Arm64DarwinProcessServiceError, Arm64DarwinProcessServiceTargets,
+};
 pub use darwin_tls_adapter::Arm64DarwinTlsAdapterImports;
 pub use darwin_tls_callback::{Arm64DarwinTlsCallbackError, add_darwin_tls_configuration_callback};
 pub use darwin_tls_connection::{
@@ -229,6 +233,7 @@ pub use pack_callback::{Arm64PackCallbackKey, Arm64PackCallbackKind};
 pub use pack_layout::{
     Arm64PackDescriptorLayout, Arm64PackLayoutError, Arm64PackSegmentLayout, Arm64PackStateLayout,
 };
+pub use primitive_targets::Arm64PrimitiveTargetError;
 pub use program::{
     Arm64DataAddressFixup, Arm64DataImportId, Arm64DataPointerFixup, Arm64DataRange,
     Arm64FunctionImportId, Arm64FunctionRange, Arm64Program, Arm64ProgramBuilder,

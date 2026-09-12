@@ -7,6 +7,7 @@ use /mem.TryAllocator
 use /string.String
 use /vec.Vec
 see ./command_child_darwin.nct
+see ./child_owner_darwin.nct
 see ./command_io_darwin.nct
 see ./command_io_session_darwin.nct
 see ./command_io_tests_darwin.nct

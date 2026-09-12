@@ -445,7 +445,7 @@ pub enum Arm64LoweringError {
     AsyncResume(Arm64AsyncResumeError),
     AsyncCancel(Arm64AsyncCancelError),
     AsyncConsume(Arm64AsyncConsumeError),
-    NetworkPrimitive(crate::Arm64DarwinNetworkPrimitiveError),
+    PrimitiveTargets(crate::Arm64PrimitiveTargetError),
     FunctionTargets(Arm64FunctionTargetsError),
     Materialization(Arm64MaterializationError),
     Program(Arm64ProgramError),
@@ -466,7 +466,7 @@ impl std::error::Error for Arm64LoweringError {
             Self::AsyncResume(error) => Some(error),
             Self::AsyncCancel(error) => Some(error),
             Self::AsyncConsume(error) => Some(error),
-            Self::NetworkPrimitive(error) => Some(error),
+            Self::PrimitiveTargets(error) => Some(error),
             Self::FunctionTargets(error) => Some(error),
             Self::Materialization(error) => Some(error),
             Self::Program(error) => Some(error),
@@ -520,9 +520,9 @@ impl From<Arm64AsyncConsumeError> for Arm64LoweringError {
     }
 }
 
-impl From<crate::Arm64DarwinNetworkPrimitiveError> for Arm64LoweringError {
-    fn from(error: crate::Arm64DarwinNetworkPrimitiveError) -> Self {
-        Self::NetworkPrimitive(error)
+impl From<crate::Arm64PrimitiveTargetError> for Arm64LoweringError {
+    fn from(error: crate::Arm64PrimitiveTargetError) -> Self {
+        Self::PrimitiveTargets(error)
     }
 }
 

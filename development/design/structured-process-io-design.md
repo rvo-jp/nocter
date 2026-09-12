@@ -70,10 +70,11 @@ The process lifecycle has these semantic states:
 6. destruction of an unobserved `Child` transfers the child to the abandonment authority;
 7. the abandonment authority terminates and reaps that exact child before releasing its record.
 
-A raw PID is an operating-system subject, not an ownership proof. The active owner retains a
-generation-qualified process identity created with the child. Reactor registration binds that
-identity to one native process observation. Reusing a PID cannot validate an earlier logical
-registration or an abandoned-owner record.
+A raw PID is an operating-system subject, not an ownership proof. The private standard-library
+owner pairs one PID with unique lifecycle authority and keeps that authority until observation or
+abandonment. Darwin cannot reuse the PID while its terminal status remains unreaped. Reactor
+registration separately uses a generation-qualified logical identity, so replacing a registration
+cannot validate an earlier event even when it names the same still-unreaped process.
 
 Pipe endpoint ownership is independent after transfer, but process observation remains unique.
 Closing a pipe never implies child completion, and child completion never implies that all bytes
@@ -87,11 +88,18 @@ with the `Child` still owned by its caller. Cancelling a closed operation that o
 child destroys that owner and therefore enters the same abandonment path as ordinary `Child`
 destruction. There is no separate timeout cleanup rule.
 
-The abandonment operation must not synchronously wait on an executor thread. It transfers an exact
-child record to a compiler-owned target service that can terminate and reap independently. A
-transfer either succeeds completely or terminates the parent process; continuing after losing the
-only reaping owner is forbidden. The service cannot inspect `Command`, `Child`, source types,
-standard error values, or future frames.
+The abandonment operation must not synchronously wait on an executor thread. The standard-library
+owner passes only its exact unreaped PID through a closed primitive contract. The Darwin target
+service first sends the forced-termination signal on the calling thread, then transfers the PID to
+a private dispatch worker that performs the sole blocking reap. Sending termination before transfer
+ensures that immediate parent shutdown cannot leave a live child; the operating system adopts the
+already-terminated child if the private worker cannot finish before process exit.
+
+Allocation, dispatch transfer, and reaping invariants are fail-stop. A transfer either succeeds
+completely or terminates the parent process; continuing after losing the only reaping owner is
+forbidden. The service cannot inspect `Command`, `Child`, source types, standard error values, or
+future frames. Its hidden cleanup allocation is target bookkeeping and does not use or alter a
+Nocter allocation context.
 
 Normal programs pay no background-cleanup cost after explicit observation. The abandonment service
 exists solely to make destruction and cancellation safe. Its implementation strategy is owned by

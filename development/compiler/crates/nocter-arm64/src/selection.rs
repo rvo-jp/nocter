@@ -290,6 +290,8 @@ pub enum Arm64SelectedInstruction {
     },
     /// Calls one source-ABI entry from the compiler-owned plain connection target set.
     CallDarwinNetworkPrimitive(crate::Arm64DarwinNetworkPrimitive),
+    /// Transfers one exact unreaped child to the compiler-owned abandonment service.
+    CallDarwinProcessAbandon,
     ExitProcess {
         status: Arm64SelectedRegister,
     },

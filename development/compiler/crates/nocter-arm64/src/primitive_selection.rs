@@ -174,6 +174,12 @@ pub(crate) fn select(
         | PrimitiveRole::ProcessCompletion
         | PrimitiveRole::TaskJoin
         | PrimitiveRole::TaskRace => select_async_primitive(operation, target, selected),
+        PrimitiveRole::ProcessAbandon => {
+            validate_type_arguments(operation, target, 0)?;
+            validate_register_abi(operation, target, &[1], 0)?;
+            selected.push(Arm64SelectedInstruction::CallDarwinProcessAbandon);
+            Ok(())
+        }
         PrimitiveRole::NetworkConnectionCreate
         | PrimitiveRole::NetworkConnectionCreateHost
         | PrimitiveRole::NetworkTlsConnectionCreate
@@ -863,6 +869,13 @@ fn validate_register_abi(
         first = first
             .checked_add(*expected_words)
             .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
+    }
+    if result_words == 0 {
+        return if target.abi().result() == MachineResultAbi::Completion {
+            Ok(())
+        } else {
+            Err(Arm64SelectionError::PrimitiveCall(operation))
+        };
     }
     let MachineResultAbi::Value(result) = target.abi().result() else {
         return Err(Arm64SelectionError::PrimitiveCall(operation));

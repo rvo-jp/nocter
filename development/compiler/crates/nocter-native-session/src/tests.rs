@@ -1368,7 +1368,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 13);
+    assert_eq!(case_count, 14);
 }
 
 #[test]

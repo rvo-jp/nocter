@@ -63,6 +63,9 @@ pub(/) const SYS_OPEN: usize
 pub(/) const SYS_WAIT4: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_KILL: usize
+
+#target: "arm64-darwin"
 pub(/) const SYS_UNLINK: usize
 
 #target: "arm64-darwin"
@@ -124,6 +127,9 @@ pub(/) const CREATE_DIRECTORY_MODE: usize
 
 #target: "arm64-darwin"
 pub(/) const ERRNO_INTERRUPTED: i32
+
+#target: "arm64-darwin"
+pub(/) const ERRNO_MISSING_PROCESS: i32
 
 #target: "arm64-darwin"
 pub(/) const ERRNO_BROKEN_PIPE: i32

@@ -1132,6 +1132,33 @@ fn async_primitive_targets_follow_machine_dependencies() {
 }
 
 #[test]
+fn process_abandonment_target_follows_the_closed_primitive_dependency() {
+    let absent = crate::test_support::lower_machine("func main(): i32 { return 0 }\n");
+    let mut absent_builder = crate::Arm64ProgramBuilder::new();
+    let absent =
+        crate::primitive_targets::Arm64PrimitiveTargets::declare(&absent, &mut absent_builder)
+            .unwrap();
+    assert_eq!(absent.process(), None);
+
+    let present = crate::test_support::lower_machine_with_standard_uses(
+        "use std/process\n\
+         func main(): i32 {\n\
+             process.abandon_process_for_test(1)\n\
+             return 0\n\
+         }\n",
+        &[&["process"]],
+    );
+    let mut present_builder = crate::Arm64ProgramBuilder::new();
+    let present_targets =
+        crate::primitive_targets::Arm64PrimitiveTargets::declare(&present, &mut present_builder)
+            .unwrap()
+            .process()
+            .expect("one process abandonment service");
+    assert_ne!(present_targets.abandon(), present_targets.worker());
+    assert!(crate::Arm64Program::lower_machine(&present).is_ok());
+}
+
+#[test]
 fn lowers_structured_join_with_one_closed_native_lifecycle() {
     let machine = crate::test_support::lower_machine_with_standard_uses(
         "use std/task\n\

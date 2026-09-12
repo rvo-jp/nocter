@@ -8,6 +8,8 @@ pub(crate) enum DarwinSystemCall {
     Exit,
     Write,
     Close,
+    Wait4,
+    Kill,
     Socket,
     Connect,
     Bind,
@@ -33,6 +35,8 @@ impl DarwinSystemCall {
             Self::Exit => 1,
             Self::Write => 0x0200_0004,
             Self::Close => 0x0200_0006,
+            Self::Wait4 => 0x0200_0007,
+            Self::Kill => 0x0200_0025,
             Self::Socket => 0x0200_0061,
             Self::Connect => 0x0200_0062,
             Self::Bind => 0x0200_0068,
@@ -113,13 +117,19 @@ impl DarwinMemoryMapAbi {
 pub(crate) struct DarwinEventQueueAbi;
 
 impl DarwinEventQueueAbi {
-    pub(crate) const INTERRUPTED_ERROR: u64 = 4;
-    pub(crate) const MISSING_PROCESS_ERROR: u64 = 3;
     pub(crate) const MAX_SUBJECT: u64 = i32::MAX as u64;
     pub(crate) const MAX_EVENT_COUNT: u64 = i32::MAX as u64;
     pub(crate) const TIMESPEC_SIZE: u64 = 16;
     pub(crate) const TIMESPEC_SECONDS_OFFSET: u64 = 0;
     pub(crate) const TIMESPEC_NANOSECONDS_OFFSET: u64 = 8;
+}
+
+/// Darwin errno values shared by compiler-owned target services.
+pub(crate) struct DarwinErrorAbi;
+
+impl DarwinErrorAbi {
+    pub(crate) const INTERRUPTED: u64 = 4;
+    pub(crate) const MISSING_PROCESS: u64 = 3;
 }
 
 /// Darwin's five-argument `select` timeout ABI.
@@ -148,6 +158,8 @@ pub(crate) struct DarwinProcessAbi;
 
 impl DarwinProcessAbi {
     pub(crate) const STANDARD_ERROR: u64 = 2;
+    pub(crate) const KILL_SIGNAL: u64 = 9;
+    pub(crate) const MAX_PROCESS_ID: u64 = i32::MAX as u64;
 }
 
 #[cfg(test)]
@@ -167,6 +179,8 @@ mod tests {
             DarwinSystemCall::Exit,
             DarwinSystemCall::Write,
             DarwinSystemCall::Close,
+            DarwinSystemCall::Wait4,
+            DarwinSystemCall::Kill,
             DarwinSystemCall::Socket,
             DarwinSystemCall::Connect,
             DarwinSystemCall::Bind,

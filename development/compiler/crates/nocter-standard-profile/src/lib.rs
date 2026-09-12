@@ -268,6 +268,7 @@ pub const fn bundled_primitive_source_location(
         Role::DescriptorReadinessOrDeadline => (INTERNAL_TASK, READINESS_OR_DEADLINE),
         Role::MonotonicDeadline => (&["internal", "time"], "monotonic_deadline_raw"),
         Role::ProcessCompletion => (INTERNAL_TASK, "process_completion_raw"),
+        Role::ProcessAbandon => (&["process"], "abandon_process_raw"),
         Role::TaskJoin => (&["task"], "join"),
         Role::TaskRace => (&["task"], "race_raw"),
         Role::NetworkConnectionCreate => (DARWIN_NET, "network_connection_create_raw"),

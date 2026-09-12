@@ -2,18 +2,17 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 1 is complete on
-`develop-v0.49.0`. Descriptor readiness, fixed deadlines, and process completion now share one
-semantic wait vocabulary and one Darwin event model in both the host adapter and generated ARM64
-process root. Exit-before-registration becomes immediate readiness without reaping status or
-periodic probing.
+Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 2 is complete on
+`develop-v0.49.0`. Every synchronous launch now acquires one private child owner immediately after
+fork. Exact terminal observation disarms it; every remaining owner synchronously terminates its
+child and transfers only reaping to a compiler-owned Darwin worker without blocking the caller.
 
 ## Next Work
 
-Implement v0.49.0 Phase 2 as one ownership change: add the exact child-owner record and
-compiler-owned abandonment target service, keep explicit observation separate from cleanup, and
-prove that cancellation or destruction transfers every unobserved child without blocking the
-executor or losing its sole reaping obligation.
+Implement v0.49.0 Phase 3 as one public process-value change: add `Stdio`, `ProcessIo`, `Child`,
+`ChildStdin`, `ChildStdout`, and `ChildStderr`; expose async and explicit blocking spawn and
+observation; and make endpoint transfer consume exactly one owner while all untaken endpoints
+remain cleanup-safe.
 
 Preserve every published tag and asset, including v0.48.0.
 

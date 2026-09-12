@@ -174,6 +174,8 @@ closed_role_enum! {
         MonotonicDeadline,
         /// Creates one lazy computation that becomes completable when one process exits.
         ProcessCompletion,
+        /// Terminates one unobserved child and transfers its sole reaping obligation.
+        ProcessAbandon,
         /// Takes ownership of two lazy computations and produces both outputs concurrently.
         TaskJoin,
         /// Takes ownership of two same-output computations and selects one deterministic winner.
@@ -319,6 +321,7 @@ impl PrimitiveRole {
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::ProcessCompletion => "process_completion",
+            Self::ProcessAbandon => "process_abandon",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",
             Self::NetworkConnectionCreate

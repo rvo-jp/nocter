@@ -6,7 +6,7 @@ use crate::{
 };
 use nocter_runtime_contract::{DarwinEventAbiSchema, RuntimeAsyncAbiSchema};
 
-use crate::darwin_kernel_abi::DarwinEventQueueAbi;
+use crate::darwin_kernel_abi::{DarwinErrorAbi, DarwinEventQueueAbi};
 
 mod change;
 mod signal;
@@ -175,13 +175,9 @@ fn submit_native_interests(
     );
     let returned = code.create_label();
     code.branch_conditional(returned, Arm64BranchCondition::CarryClear);
-    compare_immediate(argument(0), DarwinEventQueueAbi::INTERRUPTED_ERROR, code);
+    compare_immediate(argument(0), DarwinErrorAbi::INTERRUPTED, code);
     code.branch_conditional(invoke, Arm64BranchCondition::Equal);
-    compare_immediate(
-        argument(0),
-        DarwinEventQueueAbi::MISSING_PROCESS_ERROR,
-        code,
-    );
+    compare_immediate(argument(0), DarwinErrorAbi::MISSING_PROCESS, code);
     code.branch_conditional(missing, Arm64BranchCondition::Equal);
     wait_failure(code);
     code.bind(returned)?;
@@ -244,7 +240,7 @@ fn wait_until_ready(
         crate::darwin_kernel_abi::DarwinSystemCall::Kevent64,
     );
     code.branch_conditional(returned, Arm64BranchCondition::CarryClear);
-    compare_immediate(argument(0), DarwinEventQueueAbi::INTERRUPTED_ERROR, code);
+    compare_immediate(argument(0), DarwinErrorAbi::INTERRUPTED, code);
     code.branch_conditional(invoke, Arm64BranchCondition::Equal);
     wait_failure(code);
 

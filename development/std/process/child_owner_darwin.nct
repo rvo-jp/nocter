@@ -1,0 +1,72 @@
+//! Unique ownership and terminal cleanup for one unreaped Darwin child.
+//!
+//! A child PID cannot be reused while its exit status remains unreaped. This private owner keeps
+//! that kernel identity live until explicit observation disarms it or destruction transfers it to
+//! the compiler-owned abandonment service.
+
+see ./subprocess_darwin.nct
+
+use /internal/os/darwin
+
+#target: "arm64-darwin"
+noalloc primitive func abandon_process_raw(pid: usize): void
+
+#target: "arm64-darwin"
+struct ChildOwner {
+    pid: usize
+    active: bool
+}
+
+#target: "arm64-darwin"
+noalloc func own_child(pid: usize): ChildOwner {
+    return ChildOwner { pid: pid, active: true }
+}
+
+#target: "arm64-darwin"
+noalloc blocking func observe_child(owner: ChildOwner): WaitOutcome {
+    var child = move owner
+    let observed = wait_for_child(child.pid)
+    match move observed {
+        WaitOutcome.exited(code) {
+            child.active = false
+            return WaitOutcome.exited(code)
+        }
+        WaitOutcome.signaled(signal) {
+            child.active = false
+            return WaitOutcome.signaled(signal)
+        }
+        WaitOutcome.failed(errno) { return WaitOutcome.failed(errno) }
+        WaitOutcome.invalid(status) { return WaitOutcome.invalid(status) }
+    }
+}
+
+noalloc drop ChildOwner(&+self) {
+    if self.active { abandon_process_raw(self.pid) }
+    return
+}
+
+test abandoned_child_is_terminated_and_reaped {
+    match fork_process() {
+        ForkAttempt.child { loop {} }
+        ForkAttempt.failed(_) {
+            return error.new("std.process.test", "abandonment child creation failed")
+        }
+        ForkAttempt.parent(pid) {
+            var child = own_child(pid)
+            drop child
+
+            // `kill(pid, 0)` observes existence without changing the child. A killed zombie remains
+            // observable until the private worker reaps it, so ESRCH proves both transitions.
+            var attempts: usize = 0
+            while attempts < 1000000 {
+                let probe = darwin.syscall2(darwin.SYS_KILL, pid, 0)
+                if probe.errno == darwin.ERRNO_MISSING_PROCESS { return }
+                if probe.errno != 0 {
+                    return error.new("std.process.test", "abandoned child probe failed")
+                }
+                attempts += 1
+            }
+            return error.new("std.process.test", "abandoned child remained observable")
+        }
+    }
+}

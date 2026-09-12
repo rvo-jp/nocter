@@ -99,6 +99,9 @@ const SYS_OPEN: usize = 0x02000005
 const SYS_WAIT4: usize = 0x02000007
 
 #target: "arm64-darwin"
+const SYS_KILL: usize = 0x02000025
+
+#target: "arm64-darwin"
 const SYS_UNLINK: usize = 0x0200000a
 
 #target: "arm64-darwin"
@@ -165,6 +168,9 @@ const CREATE_DIRECTORY_MODE: usize = 511
 
 #target: "arm64-darwin"
 const ERRNO_INTERRUPTED: i32 = 4
+
+#target: "arm64-darwin"
+const ERRNO_MISSING_PROCESS: i32 = 3
 
 #target: "arm64-darwin"
 const ERRNO_BROKEN_PIPE: i32 = 32

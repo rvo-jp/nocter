@@ -5,6 +5,7 @@
 
 see ./index.nct
 see ./command.nct
+see ./child_owner_darwin.nct
 see ./command_child_darwin.nct
 see ./command_io_session_darwin.nct
 see ./darwin.nct
@@ -19,7 +20,7 @@ use /internal/os/darwin
 #target: "arm64-darwin"
 enum CommandFork {
     child(prepared: PreparedCommand, report: OwnedPipe, io: CommandIoSession)
-    parent(prepared: PreparedCommand, pid: usize, report: OwnedPipe, io: CommandIoSession)
+    parent(prepared: PreparedCommand, child: ChildOwner, report: OwnedPipe, io: CommandIoSession)
 }
 
 #target: "arm64-darwin"
@@ -121,7 +122,7 @@ noalloc func require_successful_launch(launch: LaunchReportAttempt): void! {
 #target: "arm64-darwin"
 blocking func observe_command_parent(
     prepared: PreparedCommand,
-    pid: usize,
+    child: ChildOwner,
     report: OwnedPipe,
     io: CommandIoSession,
 ): CommandObservation! {
@@ -131,7 +132,7 @@ blocking func observe_command_parent(
 
     // Exact-child observation is the last fallible lifecycle transition and therefore has highest
     // public precedence over launch, capture, and input transport facts.
-    let status = status_from_wait(wait_for_child(pid))?
+    let status = status_from_wait(observe_child(move child))?
     drop command
     return CommandObservation {
         status: status,
@@ -164,7 +165,12 @@ blocking func fork_prepared_command(command: Command, captures_output: bool): Co
                     return CommandFork.child(move prepared, move report, move io)
                 }
                 ForkAttempt.parent(pid) {
-                    return CommandFork.parent(move prepared, pid, move report, move io)
+                    return CommandFork.parent(
+                        move prepared,
+                        own_child(pid),
+                        move report,
+                        move io,
+                    )
                 }
             }
         }
@@ -217,10 +223,10 @@ blocking func execute_command(command: Command, mode: CommandOutputMode): Comple
                 move io,
             )
         }
-        CommandFork.parent(prepared, pid, report, io) {
+        CommandFork.parent(prepared, child, report, io) {
             let observation = observe_command_parent(
                 move prepared,
-                pid,
+                move child,
                 move report,
                 move io,
             )?
