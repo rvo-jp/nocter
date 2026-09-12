@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Recent Milestones
 
 - [v0.48.0: Generic Buffered Byte I/O](v0.48.0.md)
+- [v0.48.0 Release Preparation](v0.48.0-release-preparation.md)
 - [v0.47.0: Canonical Asynchronous Byte I/O](v0.47.0.md)
 - [v0.47.0 Release Preparation](v0.47.0-release-preparation.md)
 - [v0.46.0: Asynchronous Datagram I/O](v0.46.0.md)
