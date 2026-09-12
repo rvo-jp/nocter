@@ -2,19 +2,19 @@
 
 ## Current State
 
-Nocter v0.47.0 is published and externally audited. The public asset is byte-identical to the
-retained qualified archive built from release-content commit
-`e191c63a881899e9e1df833184111d0ef4116026`. The release makes
-unqualified `Reader` and `Writer` canonical asynchronous byte-stream contracts, gives synchronous
-contracts explicit `BlockingReader` and `BlockingWriter` names, removes duplicated concrete
-collection logic through generic defaults, and closes compiler convention and source-snapshot
-authorities.
+Nocter v0.47.0 is published and externally audited. v0.48.0 Phase 0 is complete on
+`develop-v0.48.0`: the generic buffered-I/O ownership, progress, failure, cancellation, and naming
+contracts are fixed without adding compiler-recognized library names. Unqualified `BufReader<R>`
+and `BufWriter<W>` will follow the canonical asynchronous `Reader` and `Writer` contracts; explicit
+`BlockingBufReader<R>` and `BlockingBufWriter<W>` will replace the current file-specific blocking
+types without compatibility aliases.
 
 ## Next Work
 
-Plan the next milestone only when requested. Preserve canonical asynchronous `Reader` and `Writer`
-contracts, explicit blocking twins, transport-owned readiness and timeout policy, frozen semantic
-dispatch, and source-snapshot identity; do not infer one fact from another.
+Implement v0.48.0 Phase 1 as one closed migration: make the blocking buffers generic over their
+public contracts, rename them explicitly, migrate every standard source, example, fixture, and
+tooling expectation, and remove the file-specific representation. Preserve the exact public
+blocking line and flush behavior while making ownership of the underlying stream generic.
 
 Preserve every published tag and asset, including v0.47.0.
 
