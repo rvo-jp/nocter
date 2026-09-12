@@ -171,6 +171,7 @@ pub(crate) fn select(
         PrimitiveRole::DescriptorReadiness
         | PrimitiveRole::DescriptorReadinessOrDeadline
         | PrimitiveRole::MonotonicDeadline
+        | PrimitiveRole::ProcessCompletion
         | PrimitiveRole::TaskJoin
         | PrimitiveRole::TaskRace => select_async_primitive(operation, target, selected),
         PrimitiveRole::NetworkConnectionCreate
@@ -399,6 +400,9 @@ fn select_async_primitive(
         ),
         PrimitiveRole::MonotonicDeadline => {
             (&[1], Arm64SelectedInstruction::ConstructMonotonicDeadline)
+        }
+        PrimitiveRole::ProcessCompletion => {
+            (&[1], Arm64SelectedInstruction::ConstructProcessCompletion)
         }
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     };

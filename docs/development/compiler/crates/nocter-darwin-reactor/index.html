@@ -187,6 +187,7 @@
                     <li><a href="../nocter-conformance/index.html#content">nocter-conformance</a></li>
                     <li><a href="../nocter-constant-evaluation/index.html#content">nocter-constant-evaluation</a></li>
                     <li><a href="../nocter-content-integrity/index.html#content">nocter-content-integrity</a></li>
+                    <li><a href="../nocter-darwin-event-queue/index.html#content">nocter-darwin-event-queue</a></li>
                     <li><a href="./index.html#content" aria-current="page">nocter-darwin-reactor</a></li>
                     <li><a href="../nocter-declaration-lowering/index.html#content">nocter-declaration-lowering</a></li>
                     <li><a href="../nocter-declarations/index.html#content">nocter-declarations</a></li>
@@ -233,11 +234,12 @@
                 <span class="markdown-path-text">/development/compiler/crates/nocter-darwin-reactor/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-darwin-reactor">nocter-darwin-reactor</h1><h2 id="responsibility">Responsibility</h2><p>Implement and exercise the Darwin readiness boundary accepted by <code>nocter-task-runtime</code> without owning task lifecycle or computation frames.</p><h2 id="contract">Contract</h2><p>The adapter projects generation-qualified logical registrations onto kqueue-backed descriptor events and one monotonic timer domain. More than one logical registration may observe one native descriptor. Native tokens are never reused, so a queued event cannot acquire the meaning of a replacement descriptor.</p><p>This host implementation closes and tests native event semantics. Generated Nocter executables do not link this Rust crate; ARM64 runtime generation must implement the same <code>Reactor</code> contract and is qualified independently before v0.41.0 closes.</p><h2 id="invariants">Invariants</h2><ul><li>Registering a logical interest either completes fully or retains no registration.</li><li>Removing a registration invalidates its logical and native-token mapping before returning.</li><li>Cancelling the last logical waiter releases only its registration; the reactor never closes or
-  duplicates the observed descriptor, which may be registered again by its owner.</li><li>Native deregistration failure can leave only harmless surplus observation; current logical
-  registrations still filter every delivered event.</li><li>Read closure and descriptor errors wake readable waiters; write closure and descriptor errors
-  wake writable waiters so operation code can observe the actual result.</li><li>Timer deadlines are fixed observations in the adapter clock domain and never restart after an
-  interrupted or spurious poll.</li></ul>
+                <h1 id="nocter-darwin-reactor">nocter-darwin-reactor</h1><h2 id="responsibility">Responsibility</h2><p>Implement and exercise the Darwin readiness boundary accepted by <code>nocter-task-runtime</code> without owning task lifecycle or computation frames.</p><h2 id="contract">Contract</h2><p>The adapter projects generation-qualified logical registrations onto kqueue-backed descriptor and process-exit events plus one monotonic timer domain. More than one logical registration may observe one native descriptor direction or process. Native tokens are never reused, so a queued event cannot acquire the meaning of a replacement native subject.</p><p>This host implementation closes and tests native event semantics. Generated Nocter executables do not link this Rust crate; ARM64 runtime generation must implement the same <code>Reactor</code> contract and is qualified independently before v0.41.0 closes.</p><h2 id="invariants">Invariants</h2><ul><li>Registering a logical interest either completes fully or retains no registration.</li><li>Removing a registration invalidates its logical and native-token mapping before returning.</li><li>Cancelling the last logical waiter releases only its registration; the reactor never closes or
+  duplicates the observed descriptor, which may be registered again by its owner.</li><li>Native deregistration failure can leave only harmless surplus observation; opaque-token and
+  filter validation prevent it from reaching a current logical registration.</li><li>Read closure and descriptor errors wake readable waiters; write closure and descriptor errors
+  wake writable waiters so operation code can observe the actual result.</li><li>Process completion is readiness only; status collection and process ownership remain outside the
+  reactor.</li><li>Timer deadlines are fixed observations in the adapter clock domain and never restart after an
+  interrupted or spurious native wait.</li></ul>
             </div>
         </main>
     </div>

@@ -276,6 +276,8 @@ pub enum Arm64SelectedInstruction {
     /// Calls the compiler-owned descriptor-or-deadline computation constructor.
     ConstructDescriptorReadinessOrDeadline,
     ConstructMonotonicDeadline,
+    /// Calls the compiler-owned process-completion computation constructor.
+    ConstructProcessCompletion,
     /// Constructs one compiler-owned computation that owns and joins two child computations.
     ConstructTaskJoin {
         first_output_offset: u64,

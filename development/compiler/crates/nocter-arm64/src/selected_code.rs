@@ -410,6 +410,12 @@ pub(crate) fn emit_instruction(
             .monotonic_deadline()
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
+        Arm64SelectedInstruction::ConstructProcessCompletion => context
+            .primitives
+            .asynchronous()
+            .process_completion()
+            .map(|target| code.call(target))
+            .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
         Arm64SelectedInstruction::ConstructTaskJoin {
             first_output_offset,
             second_output_offset,

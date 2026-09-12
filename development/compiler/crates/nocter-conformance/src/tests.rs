@@ -65,6 +65,36 @@ fn deferred_process_waits_for_descriptor_readiness_without_spinning() {
 }
 
 #[test]
+fn deferred_process_waits_for_process_completion_without_polling() {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let mut observed = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let process = i32::try_from(observed.id()).unwrap();
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    let process = 1;
+
+    let fixture = CompilerFixture::with_app_standard_uses(
+        &format!(
+            "use std/internal/task\n\
+             async func main(): i32 {{\n\
+                 await task.process_completion_for_test({process})\n\
+                 return 47\n\
+             }}\n"
+        ),
+        &[&["internal", "task"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 47);
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    assert!(observed.wait().unwrap().success());
+}
+
+#[test]
 fn deferred_process_waits_for_tcp_loopback_readiness() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\

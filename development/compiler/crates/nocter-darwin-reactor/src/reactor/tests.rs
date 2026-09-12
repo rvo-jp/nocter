@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
+use std::process::Command;
 use std::time::Duration;
 
 use nocter_task_runtime::{ReactorInterest, ReadinessDirection, Scheduler, SchedulerProgress};
@@ -11,6 +12,12 @@ fn readable(stream: &UnixStream) -> ReactorInterest {
     ReactorInterest::Descriptor {
         descriptor: u64::try_from(stream.as_raw_fd()).unwrap(),
         direction: ReadinessDirection::Readable,
+    }
+}
+
+fn process_exit(process: u32) -> ReactorInterest {
+    ReactorInterest::ProcessExit {
+        process: process.into(),
     }
 }
 
@@ -125,4 +132,54 @@ fn cancelling_the_last_waiter_does_not_take_descriptor_ownership() {
         scheduler.next_progress().unwrap(),
         SchedulerProgress::Resume(replacement)
     );
+}
+
+#[test]
+fn process_exit_wakes_every_retained_logical_waiter() {
+    let mut child = Command::new("/bin/sh")
+        .args(["-c", "sleep 0.02"])
+        .spawn()
+        .unwrap();
+    let interest = process_exit(child.id());
+    let mut scheduler = Scheduler::new(DarwinReactor::new().unwrap());
+    let cancelled = scheduler.spawn().unwrap();
+    let retained = scheduler.spawn().unwrap();
+
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(cancelled)
+    );
+    scheduler.suspend(cancelled, [interest]).unwrap();
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(retained)
+    );
+    scheduler.suspend(retained, [interest]).unwrap();
+    scheduler.cancel(cancelled).unwrap();
+    scheduler.finish_cancellation(cancelled).unwrap();
+
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(retained)
+    );
+    assert!(child.wait().unwrap().success());
+}
+
+#[test]
+fn process_exit_before_registration_is_immediately_ready_without_reaping() {
+    let mut child = Command::new("/usr/bin/true").spawn().unwrap();
+    std::thread::sleep(Duration::from_millis(20));
+    let mut scheduler = Scheduler::new(DarwinReactor::new().unwrap());
+    let task = scheduler.spawn().unwrap();
+
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(task)
+    );
+    scheduler.suspend(task, [process_exit(child.id())]).unwrap();
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(task)
+    );
+    assert!(child.wait().unwrap().success());
 }

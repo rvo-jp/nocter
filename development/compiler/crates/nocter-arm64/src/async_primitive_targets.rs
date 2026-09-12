@@ -70,6 +70,7 @@ pub struct Arm64AsyncPrimitiveTargets {
     descriptor_readiness: Option<Arm64FunctionId>,
     descriptor_readiness_or_deadline: Option<Arm64FunctionId>,
     monotonic_deadline: Option<Arm64FunctionId>,
+    process_completion: Option<Arm64FunctionId>,
     single_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
     dual_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
     task_join: Option<Arm64AsyncPairTargets>,
@@ -85,10 +86,12 @@ impl Arm64AsyncPrimitiveTargets {
         let descriptor_readiness_or_deadline =
             roles.contains(&PrimitiveRole::DescriptorReadinessOrDeadline);
         let monotonic_deadline = roles.contains(&PrimitiveRole::MonotonicDeadline);
+        let process_completion = roles.contains(&PrimitiveRole::ProcessCompletion);
         let task_join = roles.contains(&PrimitiveRole::TaskJoin);
         let task_race = roles.contains(&PrimitiveRole::TaskRace);
         let single_interest_lifecycle =
-            (descriptor_readiness || monotonic_deadline).then(|| declare_lifecycle(builder, 1));
+            (descriptor_readiness || monotonic_deadline || process_completion)
+                .then(|| declare_lifecycle(builder, 1));
         let dual_interest_lifecycle =
             descriptor_readiness_or_deadline.then(|| declare_lifecycle(builder, 2));
         Self {
@@ -96,6 +99,7 @@ impl Arm64AsyncPrimitiveTargets {
             descriptor_readiness_or_deadline: descriptor_readiness_or_deadline
                 .then(|| builder.declare_function()),
             monotonic_deadline: monotonic_deadline.then(|| builder.declare_function()),
+            process_completion: process_completion.then(|| builder.declare_function()),
             single_interest_lifecycle,
             dual_interest_lifecycle,
             task_join: task_join.then(|| declare_pair(builder)),
@@ -116,6 +120,11 @@ impl Arm64AsyncPrimitiveTargets {
     #[must_use]
     pub const fn monotonic_deadline(self) -> Option<Arm64FunctionId> {
         self.monotonic_deadline
+    }
+
+    #[must_use]
+    pub const fn process_completion(self) -> Option<Arm64FunctionId> {
+        self.process_completion
     }
 
     #[must_use]

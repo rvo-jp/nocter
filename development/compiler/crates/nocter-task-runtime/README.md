@@ -7,11 +7,11 @@ and stable readiness-registration identity for the generated asynchronous runtim
 
 ## Contract
 
-The crate accepts opaque descriptor/timer interests through a `Reactor` boundary. `Scheduler`
-publishes only task transitions and cleanup obligations. `Executor` pairs those identities with
-opaque computations and owns the resume, cancel, and completed-output consumption order. Neither
-layer inspects compiler IR, computation-frame layout, descriptor implementation, operating-system
-event records, or source semantics.
+The crate accepts opaque descriptor, timer, and process-completion interests through a `Reactor`
+boundary. `Scheduler` publishes only task transitions and cleanup obligations. `Executor` pairs
+those identities with opaque computations and owns the resume, cancel, and completed-output
+consumption order. Neither layer inspects compiler IR, computation-frame layout, native-subject
+implementation, operating-system event records, or source semantics.
 
 ## Invariants
 

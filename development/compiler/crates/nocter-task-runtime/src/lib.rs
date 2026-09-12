@@ -1,8 +1,8 @@
 //! Target-independent task lifecycle and readiness-registration authority.
 //!
 //! This model is shared by deterministic runtime tests and native executor generation. It knows
-//! opaque descriptor/timer interests but no compiler IR, computation-frame layout, or native event
-//! record.
+//! opaque descriptor, timer, and process-completion interests but no compiler IR,
+//! computation-frame layout, or native event record.
 
 mod executor;
 mod identity;

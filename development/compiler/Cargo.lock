@@ -1666,7 +1666,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30d65c71f1ce40ab09135ce117d742b9f8a19ff91a41a8b57ed50bc2de59c427"
 dependencies = [
  "libc",
- "log",
  "wasi",
  "windows-sys 0.61.2",
 ]
@@ -1834,10 +1833,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-darwin-event-queue"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "nocter-runtime-contract",
+]
+
+[[package]]
 name = "nocter-darwin-reactor"
 version = "0.0.0"
 dependencies = [
- "mio",
+ "nocter-darwin-event-queue",
  "nocter-task-runtime",
 ]
 

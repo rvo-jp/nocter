@@ -79,16 +79,21 @@ source, loader commands, or package state.
   body is materialized.
 - A deferred process entry is driven only by the compiler-owned process root. The root consumes
   the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.
-- A pending process root converts the ABI interest slice into one temporary Darwin `pollfd` array
-  and the earliest timer deadline into a rounded-up relative timeout. It retries interrupted waits,
-  re-waits after a capped timeout until the wrapping absolute deadline is eligible, releases native
-  storage before resumption, and never polls a pending computation in a busy loop.
+- A pending process root converts the ABI interest slice into one temporary Darwin event change
+  list, event list, and rounded-up timer timeout. Descriptor readiness, process exit, and fixed
+  monotonic deadlines share one `kevent64` wait. Every returned event is validated against the
+  originating semantic record before readiness is published.
+- Native process registration treats `ESRCH` as immediate readiness only after validating that the
+  failed change originated from a process interest. This closes exit-before-registration without
+  reaping status or introducing periodic probes. Interrupted and capped waits always recalculate
+  from the fixed absolute deadline.
 - Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
   constructors and lifecycle entries are declared only from frozen Machine primitive roles; code
   emission cannot infer their presence from source names or synthesize targets on demand.
-- Descriptor readiness and monotonic deadlines are allocation-backed opaque computations. Each
-  frame owns one exact ABI interest record; their constructors differ, while resume, cancellation,
-  and consumption share one lifecycle implementation and validate only its state.
+- Descriptor readiness, process completion, and monotonic deadlines are allocation-backed opaque
+  computations. Each frame owns one exact ABI interest record; their constructors differ, while
+  resume, cancellation, and consumption share one lifecycle implementation and validate only its
+  state.
 - Resume restores only the Machine-selected state projection, uses ordinary selected-operation
   emission for body instructions, and persists exactly that projection when a child remains
   pending.

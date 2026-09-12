@@ -21,7 +21,8 @@ pub(crate) enum DarwinSystemCall {
     GetEntropy,
     MemoryUnmap,
     MemoryMap,
-    Poll,
+    Kqueue,
+    Kevent64,
     Select,
     GetTimeOfDay,
 }
@@ -45,7 +46,8 @@ impl DarwinSystemCall {
             Self::GetEntropy => 0x0200_01f4,
             Self::MemoryUnmap => 0x0200_0049,
             Self::MemoryMap => 0x0200_00c5,
-            Self::Poll => 0x0200_00e6,
+            Self::Kqueue => 0x0200_016a,
+            Self::Kevent64 => 0x0200_0171,
             Self::Select => 0x0200_005d,
             Self::GetTimeOfDay => 0x0200_0074,
         }
@@ -107,18 +109,17 @@ impl DarwinMemoryMapAbi {
     pub(crate) const ANONYMOUS_DESCRIPTOR: u64 = u64::MAX;
 }
 
-/// Darwin's native `pollfd` layout and value domain.
-pub(crate) struct DarwinPollAbi;
+/// Darwin event-queue limits and timeout layout not contained in one event record.
+pub(crate) struct DarwinEventQueueAbi;
 
-impl DarwinPollAbi {
+impl DarwinEventQueueAbi {
     pub(crate) const INTERRUPTED_ERROR: u64 = 4;
-    pub(crate) const INPUT_EVENT: u64 = 1;
-    pub(crate) const OUTPUT_EVENT: u64 = 4;
-    pub(crate) const DESCRIPTOR_SIZE: u64 = 8;
-    pub(crate) const EVENTS_OFFSET: u32 = 4;
-    pub(crate) const RETURNED_EVENTS_OFFSET: u32 = 6;
-    pub(crate) const MAX_DESCRIPTOR: u64 = i32::MAX as u64;
-    pub(crate) const MAX_COUNT: u64 = u32::MAX as u64;
+    pub(crate) const MISSING_PROCESS_ERROR: u64 = 3;
+    pub(crate) const MAX_SUBJECT: u64 = i32::MAX as u64;
+    pub(crate) const MAX_EVENT_COUNT: u64 = i32::MAX as u64;
+    pub(crate) const TIMESPEC_SIZE: u64 = 16;
+    pub(crate) const TIMESPEC_SECONDS_OFFSET: u64 = 0;
+    pub(crate) const TIMESPEC_NANOSECONDS_OFFSET: u64 = 8;
 }
 
 /// Darwin's five-argument `select` timeout ABI.
@@ -154,11 +155,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn poll_layout_fields_fit_the_native_record() {
-        assert!(u64::from(DarwinPollAbi::EVENTS_OFFSET) + 2 <= DarwinPollAbi::DESCRIPTOR_SIZE);
-        assert!(
-            u64::from(DarwinPollAbi::RETURNED_EVENTS_OFFSET) + 2 <= DarwinPollAbi::DESCRIPTOR_SIZE
-        );
+    fn event_queue_timeout_is_two_words() {
+        assert_eq!(DarwinEventQueueAbi::TIMESPEC_SIZE, 16);
+        assert_eq!(DarwinEventQueueAbi::TIMESPEC_SECONDS_OFFSET, 0);
+        assert_eq!(DarwinEventQueueAbi::TIMESPEC_NANOSECONDS_OFFSET, 8);
     }
 
     #[test]
@@ -180,7 +180,8 @@ mod tests {
             DarwinSystemCall::GetEntropy,
             DarwinSystemCall::MemoryUnmap,
             DarwinSystemCall::MemoryMap,
-            DarwinSystemCall::Poll,
+            DarwinSystemCall::Kqueue,
+            DarwinSystemCall::Kevent64,
             DarwinSystemCall::Select,
             DarwinSystemCall::GetTimeOfDay,
         ];

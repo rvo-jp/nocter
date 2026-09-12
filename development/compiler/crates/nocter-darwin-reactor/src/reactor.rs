@@ -3,8 +3,7 @@ use std::fmt;
 use std::os::fd::RawFd;
 use std::time::{Duration, Instant};
 
-use mio::unix::SourceFd;
-use mio::{Events, Interest, Poll, Token};
+use nocter_darwin_event_queue::{EventFilter, EventQueue, EventQueueError};
 use nocter_task_runtime::{Reactor, ReactorInterest, ReadinessDirection, RegistrationId};
 
 /// Monotonic counter conversion owned by one reactor instance.
@@ -58,35 +57,66 @@ enum RegistrationLocation {
     Timer {
         deadline: u64,
     },
+    Process {
+        process: i32,
+    },
+    Immediate,
 }
 
+#[derive(Debug)]
+struct NativeState {
+    token: u64,
+    registrations: BTreeSet<RegistrationId>,
+}
+
+#[derive(Default)]
 struct DescriptorState {
-    token: Token,
-    readable: BTreeSet<RegistrationId>,
-    writable: BTreeSet<RegistrationId>,
+    readable: Option<NativeState>,
+    writable: Option<NativeState>,
 }
 
 impl DescriptorState {
-    fn interest(&self) -> Option<Interest> {
-        match (self.readable.is_empty(), self.writable.is_empty()) {
-            (false, false) => Some(Interest::READABLE | Interest::WRITABLE),
-            (false, true) => Some(Interest::READABLE),
-            (true, false) => Some(Interest::WRITABLE),
-            (true, true) => None,
+    fn direction(&self, direction: ReadinessDirection) -> Option<&NativeState> {
+        match direction {
+            ReadinessDirection::Readable => self.readable.as_ref(),
+            ReadinessDirection::Writable => self.writable.as_ref(),
         }
     }
+
+    fn direction_mut(&mut self, direction: ReadinessDirection) -> &mut Option<NativeState> {
+        match direction {
+            ReadinessDirection::Readable => &mut self.readable,
+            ReadinessDirection::Writable => &mut self.writable,
+        }
+    }
+
+    const fn is_empty(&self) -> bool {
+        self.readable.is_none() && self.writable.is_none()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NativeLocation {
+    Descriptor {
+        descriptor: RawFd,
+        direction: ReadinessDirection,
+    },
+    Process {
+        process: i32,
+    },
 }
 
 /// kqueue-backed Darwin adapter. Task lifecycle remains entirely outside this type.
 pub struct DarwinReactor<C = ProcessMonotonicClock> {
-    poll: Poll,
-    events: Events,
+    queue: EventQueue,
     clock: C,
-    next_token: usize,
+    next_token: u64,
     registrations: BTreeMap<RegistrationId, RegistrationLocation>,
     descriptors: BTreeMap<RawFd, DescriptorState>,
-    descriptor_tokens: BTreeMap<Token, RawFd>,
+    processes: BTreeMap<i32, NativeState>,
+    native_tokens: BTreeMap<u64, NativeLocation>,
     timers: BTreeMap<u64, BTreeSet<RegistrationId>>,
+    immediate: BTreeSet<RegistrationId>,
 }
 
 impl DarwinReactor<ProcessMonotonicClock> {
@@ -94,7 +124,7 @@ impl DarwinReactor<ProcessMonotonicClock> {
     ///
     /// # Errors
     ///
-    /// Returns the native poll-construction error.
+    /// Returns the native event-queue construction error.
     pub fn new() -> Result<Self, DarwinReactorError> {
         Self::with_clock(ProcessMonotonicClock::new())
     }
@@ -110,17 +140,18 @@ impl<C> DarwinReactor<C> {
     ///
     /// # Errors
     ///
-    /// Returns the native poll-construction error.
+    /// Returns the native event-queue construction error.
     pub fn with_clock(clock: C) -> Result<Self, DarwinReactorError> {
         Ok(Self {
-            poll: Poll::new().map_err(DarwinReactorError::Io)?,
-            events: Events::with_capacity(128),
+            queue: EventQueue::new().map_err(DarwinReactorError::Native)?,
             clock,
             next_token: 0,
             registrations: BTreeMap::new(),
             descriptors: BTreeMap::new(),
-            descriptor_tokens: BTreeMap::new(),
+            processes: BTreeMap::new(),
+            native_tokens: BTreeMap::new(),
             timers: BTreeMap::new(),
+            immediate: BTreeSet::new(),
         })
     }
 
@@ -129,8 +160,8 @@ impl<C> DarwinReactor<C> {
         &self.clock
     }
 
-    fn allocate_token(&mut self) -> Result<Token, DarwinReactorError> {
-        let token = Token(self.next_token);
+    fn allocate_token(&mut self) -> Result<u64, DarwinReactorError> {
+        let token = self.next_token;
         self.next_token = self
             .next_token
             .checked_add(1)
@@ -146,43 +177,47 @@ impl<C> DarwinReactor<C> {
     ) -> Result<(), DarwinReactorError> {
         let descriptor = i32::try_from(descriptor)
             .map_err(|_| DarwinReactorError::InvalidDescriptor(descriptor))?;
-        if let Some(state) = self.descriptors.get_mut(&descriptor) {
-            let previous = state.interest();
-            registrations_for_direction(state, direction).insert(registration);
-            let next = state
-                .interest()
-                .expect("the new registration makes the set nonempty");
-            if previous != Some(next) {
-                let mut source = SourceFd(&descriptor);
-                if let Err(error) = self
-                    .poll
-                    .registry()
-                    .reregister(&mut source, state.token, next)
-                {
-                    registrations_for_direction(state, direction).remove(&registration);
-                    return Err(DarwinReactorError::Io(error));
-                }
-            }
-        } else {
-            let token = self.allocate_token()?;
-            let mut state = DescriptorState {
-                token,
-                readable: BTreeSet::new(),
-                writable: BTreeSet::new(),
-            };
-            registrations_for_direction(&mut state, direction).insert(registration);
-            let mut source = SourceFd(&descriptor);
-            self.poll
-                .registry()
-                .register(
-                    &mut source,
-                    token,
-                    state.interest().expect("one registration is present"),
-                )
-                .map_err(DarwinReactorError::Io)?;
-            self.descriptors.insert(descriptor, state);
-            self.descriptor_tokens.insert(token, descriptor);
+        if descriptor < 0 {
+            return Err(DarwinReactorError::InvalidDescriptor(
+                u64::try_from(descriptor).unwrap_or(u64::MAX),
+            ));
         }
+        if let Some(state) = self.descriptors.get_mut(&descriptor)
+            && let Some(native) = state.direction_mut(direction)
+        {
+            native.registrations.insert(registration);
+            self.registrations.insert(
+                registration,
+                RegistrationLocation::Descriptor {
+                    descriptor,
+                    direction,
+                },
+            );
+            return Ok(());
+        }
+
+        let token = self.allocate_token()?;
+        let filter = descriptor_filter(descriptor, direction);
+        self.queue
+            .register(filter, token)
+            .map_err(DarwinReactorError::Native)?;
+        let mut registrations = BTreeSet::new();
+        registrations.insert(registration);
+        *self
+            .descriptors
+            .entry(descriptor)
+            .or_default()
+            .direction_mut(direction) = Some(NativeState {
+            token,
+            registrations,
+        });
+        self.native_tokens.insert(
+            token,
+            NativeLocation::Descriptor {
+                descriptor,
+                direction,
+            },
+        );
         self.registrations.insert(
             registration,
             RegistrationLocation::Descriptor {
@@ -190,6 +225,48 @@ impl<C> DarwinReactor<C> {
                 direction,
             },
         );
+        Ok(())
+    }
+
+    fn register_process(
+        &mut self,
+        registration: RegistrationId,
+        process: u64,
+    ) -> Result<(), DarwinReactorError> {
+        let process = i32::try_from(process)
+            .ok()
+            .filter(|process| *process > 0)
+            .ok_or(DarwinReactorError::InvalidProcess(process))?;
+        if let Some(native) = self.processes.get_mut(&process) {
+            native.registrations.insert(registration);
+        } else {
+            let token = self.allocate_token()?;
+            if let Err(error) = self
+                .queue
+                .register(EventFilter::ProcessExit(process), token)
+            {
+                if error.is_missing_subject() {
+                    self.immediate.insert(registration);
+                    self.registrations
+                        .insert(registration, RegistrationLocation::Immediate);
+                    return Ok(());
+                }
+                return Err(DarwinReactorError::Native(error));
+            }
+            let mut registrations = BTreeSet::new();
+            registrations.insert(registration);
+            self.processes.insert(
+                process,
+                NativeState {
+                    token,
+                    registrations,
+                },
+            );
+            self.native_tokens
+                .insert(token, NativeLocation::Process { process });
+        }
+        self.registrations
+            .insert(registration, RegistrationLocation::Process { process });
         Ok(())
     }
 
@@ -211,21 +288,34 @@ impl<C> DarwinReactor<C> {
         let Some(state) = self.descriptors.get_mut(&descriptor) else {
             return;
         };
-        let previous = state.interest();
-        registrations_for_direction(state, direction).remove(&registration);
-        let next = state.interest();
-        let token = state.token;
-        let mut source = SourceFd(&descriptor);
-        match next {
-            Some(next) if previous != Some(next) => {
-                let _ = self.poll.registry().reregister(&mut source, token, next);
-            }
-            Some(_) => {}
-            None => {
-                self.descriptors.remove(&descriptor);
-                self.descriptor_tokens.remove(&token);
-                let _ = self.poll.registry().deregister(&mut source);
-            }
+        let native = state.direction_mut(direction);
+        let Some(current) = native else {
+            return;
+        };
+        current.registrations.remove(&registration);
+        if current.registrations.is_empty() {
+            let token = current.token;
+            *native = None;
+            self.native_tokens.remove(&token);
+            let _ = self
+                .queue
+                .deregister(descriptor_filter(descriptor, direction));
+        }
+        if state.is_empty() {
+            self.descriptors.remove(&descriptor);
+        }
+    }
+
+    fn remove_process_registration(&mut self, registration: RegistrationId, process: i32) {
+        let Some(native) = self.processes.get_mut(&process) else {
+            return;
+        };
+        native.registrations.remove(&registration);
+        if native.registrations.is_empty() {
+            let token = native.token;
+            self.processes.remove(&process);
+            self.native_tokens.remove(&token);
+            let _ = self.queue.deregister(EventFilter::ProcessExit(process));
         }
     }
 
@@ -248,21 +338,43 @@ impl<C> DarwinReactor<C> {
             .map(|(deadline, _)| self.clock.duration_until(*deadline))
     }
 
-    fn collect_descriptor_events(&self, ready: &mut Vec<RegistrationId>) {
-        for event in &self.events {
-            let Some(descriptor) = self.descriptor_tokens.get(&event.token()) else {
+    fn collect_native_events(
+        &self,
+        events: &[nocter_darwin_event_queue::NativeEvent],
+        ready: &mut Vec<RegistrationId>,
+    ) -> Result<(), DarwinReactorError> {
+        for event in events {
+            let Some(location) = self.native_tokens.get(&event.token()) else {
                 continue;
             };
-            let Some(state) = self.descriptors.get(descriptor) else {
-                continue;
-            };
-            if event.is_readable() || event.is_read_closed() || event.is_error() {
-                ready.extend(state.readable.iter().copied());
+            if event.failed() {
+                return Err(DarwinReactorError::FailedNativeEvent(event.filter()));
             }
-            if event.is_writable() || event.is_write_closed() || event.is_error() {
-                ready.extend(state.writable.iter().copied());
+            match *location {
+                NativeLocation::Descriptor {
+                    descriptor,
+                    direction,
+                } if event.filter() == descriptor_filter(descriptor, direction) => {
+                    let registrations = self
+                        .descriptors
+                        .get(&descriptor)
+                        .and_then(|state| state.direction(direction))
+                        .map(|native| &native.registrations);
+                    if let Some(registrations) = registrations {
+                        ready.extend(registrations.iter().copied());
+                    }
+                }
+                NativeLocation::Process { process }
+                    if event.filter() == EventFilter::ProcessExit(process) =>
+                {
+                    if let Some(native) = self.processes.get(&process) {
+                        ready.extend(native.registrations.iter().copied());
+                    }
+                }
+                NativeLocation::Descriptor { .. } | NativeLocation::Process { .. } => {}
             }
         }
+        Ok(())
     }
 
     fn collect_expired_timers(&self, ready: &mut Vec<RegistrationId>)
@@ -296,6 +408,9 @@ impl<C: ReactorClock> Reactor for DarwinReactor<C> {
                 self.register_timer(registration, deadline);
                 Ok(())
             }
+            ReactorInterest::ProcessExit { process } => {
+                self.register_process(registration, process)
+            }
         }
     }
 
@@ -311,17 +426,29 @@ impl<C: ReactorClock> Reactor for DarwinReactor<C> {
             RegistrationLocation::Timer { deadline } => {
                 self.remove_timer_registration(registration, deadline);
             }
+            RegistrationLocation::Process { process } => {
+                self.remove_process_registration(registration, process);
+            }
+            RegistrationLocation::Immediate => {
+                self.immediate.remove(&registration);
+            }
         }
     }
 
     fn wait(&mut self) -> Result<Box<[RegistrationId]>, Self::Error> {
-        self.events.clear();
-        let timeout = self.wait_timeout();
-        self.poll
-            .poll(&mut self.events, timeout)
-            .map_err(DarwinReactorError::Io)?;
-        let mut ready = Vec::new();
-        self.collect_descriptor_events(&mut ready);
+        let mut ready = self.immediate.iter().copied().collect::<Vec<_>>();
+        let immediate = !ready.is_empty();
+        let events = loop {
+            let timeout = immediate
+                .then_some(Duration::ZERO)
+                .or_else(|| self.wait_timeout());
+            match self.queue.wait(self.native_tokens.len(), timeout) {
+                Ok(events) => break events,
+                Err(error) if error.is_interrupted() => {}
+                Err(error) => return Err(DarwinReactorError::Native(error)),
+            }
+        };
+        self.collect_native_events(&events, &mut ready)?;
         self.collect_expired_timers(&mut ready);
         ready.sort_unstable();
         ready.dedup();
@@ -329,13 +456,10 @@ impl<C: ReactorClock> Reactor for DarwinReactor<C> {
     }
 }
 
-fn registrations_for_direction(
-    state: &mut DescriptorState,
-    direction: ReadinessDirection,
-) -> &mut BTreeSet<RegistrationId> {
+const fn descriptor_filter(descriptor: RawFd, direction: ReadinessDirection) -> EventFilter {
     match direction {
-        ReadinessDirection::Readable => &mut state.readable,
-        ReadinessDirection::Writable => &mut state.writable,
+        ReadinessDirection::Readable => EventFilter::Readable(descriptor),
+        ReadinessDirection::Writable => EventFilter::Writable(descriptor),
     }
 }
 
@@ -343,8 +467,10 @@ fn registrations_for_direction(
 pub enum DarwinReactorError {
     DuplicateRegistration(RegistrationId),
     InvalidDescriptor(u64),
+    InvalidProcess(u64),
     TokenExhausted,
-    Io(std::io::Error),
+    FailedNativeEvent(EventFilter),
+    Native(EventQueueError),
 }
 
 impl fmt::Display for DarwinReactorError {
@@ -356,10 +482,12 @@ impl fmt::Display for DarwinReactorError {
 impl std::error::Error for DarwinReactorError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Io(error) => Some(error),
-            Self::DuplicateRegistration(_) | Self::InvalidDescriptor(_) | Self::TokenExhausted => {
-                None
-            }
+            Self::Native(error) => Some(error),
+            Self::DuplicateRegistration(_)
+            | Self::InvalidDescriptor(_)
+            | Self::InvalidProcess(_)
+            | Self::TokenExhausted
+            | Self::FailedNativeEvent(_) => None,
         }
     }
 }

@@ -187,6 +187,7 @@
                     <li><a href="../nocter-conformance/index.html#content">nocter-conformance</a></li>
                     <li><a href="../nocter-constant-evaluation/index.html#content">nocter-constant-evaluation</a></li>
                     <li><a href="../nocter-content-integrity/index.html#content">nocter-content-integrity</a></li>
+                    <li><a href="../nocter-darwin-event-queue/index.html#content">nocter-darwin-event-queue</a></li>
                     <li><a href="../nocter-darwin-reactor/index.html#content">nocter-darwin-reactor</a></li>
                     <li><a href="../nocter-declaration-lowering/index.html#content">nocter-declaration-lowering</a></li>
                     <li><a href="../nocter-declarations/index.html#content">nocter-declarations</a></li>
@@ -267,14 +268,18 @@
   completed tags.</li><li>Deferred functions own four distinct native entries: constructor, resume, cancellation, and
   completed-output consumption. Whole-program lowering declares all four identities before any
   body is materialized.</li><li>A deferred process entry is driven only by the compiler-owned process root. The root consumes
-  the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.</li><li>A pending process root converts the ABI interest slice into one temporary Darwin <code>pollfd</code> array
-  and the earliest timer deadline into a rounded-up relative timeout. It retries interrupted waits,
-  re-waits after a capped timeout until the wrapping absolute deadline is eligible, releases native
-  storage before resumption, and never polls a pending computation in a busy loop.</li><li>Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
+  the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.</li><li>A pending process root converts the ABI interest slice into one temporary Darwin event change
+  list, event list, and rounded-up timer timeout. Descriptor readiness, process exit, and fixed
+  monotonic deadlines share one <code>kevent64</code> wait. Every returned event is validated against the
+  originating semantic record before readiness is published.</li><li>Native process registration treats <code>ESRCH</code> as immediate readiness only after validating that the
+  failed change originated from a process interest. This closes exit-before-registration without
+  reaping status or introducing periodic probes. Interrupted and capped waits always recalculate
+  from the fixed absolute deadline.</li><li>Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
   constructors and lifecycle entries are declared only from frozen Machine primitive roles; code
-  emission cannot infer their presence from source names or synthesize targets on demand.</li><li>Descriptor readiness and monotonic deadlines are allocation-backed opaque computations. Each
-  frame owns one exact ABI interest record; their constructors differ, while resume, cancellation,
-  and consumption share one lifecycle implementation and validate only its state.</li><li>Resume restores only the Machine-selected state projection, uses ordinary selected-operation
+  emission cannot infer their presence from source names or synthesize targets on demand.</li><li>Descriptor readiness, process completion, and monotonic deadlines are allocation-backed opaque
+  computations. Each frame owns one exact ABI interest record; their constructors differ, while
+  resume, cancellation, and consumption share one lifecycle implementation and validate only its
+  state.</li><li>Resume restores only the Machine-selected state projection, uses ordinary selected-operation
   emission for body instructions, and persists exactly that projection when a child remains
   pending.</li><li>Computation release loads the cancellation entry from the opaque runtime header. Callers never
   inspect a deferred function's state layout or cleanup plan.</li><li>Deferred variadic-pack construction moves a caller stack descriptor and callback state into one

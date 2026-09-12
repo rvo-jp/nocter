@@ -16,12 +16,13 @@ enum InterestConstructor {
     DescriptorReadiness,
     DescriptorReadinessOrDeadline,
     MonotonicDeadline,
+    ProcessCompletion,
 }
 
 impl InterestConstructor {
     const fn interest_count(self) -> u64 {
         match self {
-            Self::DescriptorReadiness | Self::MonotonicDeadline => 1,
+            Self::DescriptorReadiness | Self::MonotonicDeadline | Self::ProcessCompletion => 1,
             Self::DescriptorReadinessOrDeadline => 2,
         }
     }
@@ -37,6 +38,12 @@ pub(crate) fn materialize_deadline_constructor(
     lifecycle: Arm64AsyncInterestLifecycleTargets,
 ) -> Result<Arm64Code, crate::Arm64CodeError> {
     materialize_constructor(InterestConstructor::MonotonicDeadline, lifecycle)
+}
+
+pub(crate) fn materialize_process_constructor(
+    lifecycle: Arm64AsyncInterestLifecycleTargets,
+) -> Result<Arm64Code, crate::Arm64CodeError> {
+    materialize_constructor(InterestConstructor::ProcessCompletion, lifecycle)
 }
 
 pub(crate) fn materialize_descriptor_or_deadline_constructor(
@@ -132,6 +139,10 @@ fn materialize_constructor(
             write_timer_interest(argument(3), 0, SUBJECT_STACK_OFFSET, &mut code);
             write_readiness_target(argument(3), 0, kind.interest_count(), &mut code);
         }
+        InterestConstructor::ProcessCompletion => {
+            write_process_interest(argument(3), 0, &mut code);
+            write_readiness_target(argument(3), 0, kind.interest_count(), &mut code);
+        }
     }
     crate::address_code::move_register(&mut code, argument(3), argument(0));
     crate::frame_access::adjust_stack(&mut code, CAPTURE_STACK_SIZE, Arm64AddSubtract::Add);
@@ -219,6 +230,25 @@ fn write_timer_interest(
         code,
     );
     load_stack(subject_stack_offset, argument(4), code);
+    store(
+        frame,
+        offset + schema.interest_subject_offset(),
+        argument(4),
+        code,
+    );
+    store_immediate(frame, offset + schema.interest_detail_offset(), 0, code);
+}
+
+fn write_process_interest(frame: crate::Arm64Register, index: u64, code: &mut Arm64CodeBuilder) {
+    let schema = Arm64NocterAbi::asynchronous();
+    let offset = interest_offset(index);
+    store_immediate(
+        frame,
+        offset + schema.interest_kind_offset(),
+        schema.process_exit_interest_kind(),
+        code,
+    );
+    load_stack(SUBJECT_STACK_OFFSET, argument(4), code);
     store(
         frame,
         offset + schema.interest_subject_offset(),

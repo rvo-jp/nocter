@@ -15,6 +15,9 @@ primitive func descriptor_readiness_or_deadline_raw(
     deadline: u64,
 ): future void
 
+#target: "arm64-darwin"
+primitive func process_completion_raw(process: i32): future void
+
 async func wait_descriptor_ready(descriptor: usize, writable: bool): void {
     await descriptor_readiness_raw(descriptor, writable)
     return

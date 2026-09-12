@@ -1,15 +1,20 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AsyncWaitFrame, Arm64BaseRegister,
     Arm64BranchCondition, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction,
-    Arm64LoadStoreSize, Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
+    Arm64LoadStoreSize, Arm64Logical, Arm64MaterializationError, Arm64NocterAbi,
+    Arm64SelectedFunction,
 };
+use nocter_runtime_contract::{DarwinEventAbiSchema, RuntimeAsyncAbiSchema};
 
-use crate::darwin_kernel_abi::DarwinPollAbi;
+use crate::darwin_kernel_abi::DarwinEventQueueAbi;
 
-/// Converts one suspended computation's ABI interest slice into a Darwin `poll` wait.
-///
-/// The process root owns the temporary native descriptor array. The suspended computation owns
-/// the interest records and their readiness cells; copied records retain pointers to those cells.
+mod change;
+mod signal;
+
+const MILLISECONDS_PER_SECOND: u64 = 1_000;
+const NANOSECONDS_PER_MILLISECOND: u64 = 1_000_000;
+
+/// Projects one suspended computation's semantic wait set onto one Darwin event queue.
 pub(crate) fn emit(
     function: &Arm64SelectedFunction,
     code: &mut Arm64CodeBuilder,
@@ -17,130 +22,16 @@ pub(crate) fn emit(
     let offsets = WaitOffsets::from_function(function)?;
     validate_pending_result(code);
     save_pending_result(offsets, code);
-    allocate_poll_descriptors(offsets, code)?;
-    translate_interests(offsets, code)?;
+    allocate_event_mapping(offsets, code)?;
+    change::translate_interests(offsets, code)?;
+    open_event_queue(offsets, code)?;
+    submit_native_interests(offsets, code)?;
     wait_until_ready(offsets, code)?;
-    signal_ready_interests(offsets, code)?;
-    release_poll_descriptors(offsets, code)?;
+    close_event_queue(offsets, code)?;
+    signal::signal_native_events(offsets, code)?;
+    signal::signal_expired_timers(offsets, code)?;
+    release_event_mapping(offsets, code)?;
     Ok(())
-}
-
-fn signal_ready_interests(
-    offsets: WaitOffsets,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), crate::Arm64CodeError> {
-    let schema = Arm64NocterAbi::asynchronous();
-    load_word(offsets.interest_pointer, argument(0), code);
-    load_word(offsets.mapping_pointer, argument(1), code);
-    load_word(offsets.interest_count, argument(2), code);
-    code.append(Arm64Instruction::InstructionSynchronizationBarrier);
-    code.append(Arm64Instruction::ReadSystemRegister {
-        destination: argument(7),
-        register: crate::Arm64SystemRegister::CounterVirtual,
-    });
-
-    let scan = code.create_label();
-    let descriptor = code.create_label();
-    let timer = code.create_label();
-    let signal = code.create_label();
-    let advance = code.create_label();
-    let complete = code.create_label();
-    code.bind(scan)?;
-    compare_immediate(argument(2), 0, code);
-    code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    load_readiness_pointer(argument(0), argument(5), code)?;
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(3),
-        argument(0),
-        schema.interest_kind_offset(),
-    );
-    compare_immediate(argument(3), schema.descriptor_interest_kind(), code);
-    code.branch_conditional(descriptor, Arm64BranchCondition::Equal);
-    compare_immediate(argument(3), schema.timer_interest_kind(), code);
-    code.branch_conditional(timer, Arm64BranchCondition::Equal);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-
-    code.bind(descriptor)?;
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Half,
-        None,
-        argument(4),
-        argument(1),
-        u64::from(DarwinPollAbi::RETURNED_EVENTS_OFFSET),
-    );
-    compare_immediate(argument(4), 0, code);
-    code.branch_conditional(advance, Arm64BranchCondition::Equal);
-    code.branch(signal, false);
-
-    code.bind(timer)?;
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(4),
-        argument(0),
-        schema.interest_subject_offset(),
-    );
-    code.append(Arm64Instruction::AddSubtractRegister {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Subtract,
-        set_flags: false,
-        destination: Arm64DataRegister::General(argument(5)),
-        left: Arm64DataRegister::General(argument(4)),
-        right: Arm64DataRegister::General(argument(7)),
-    });
-    compare_immediate(argument(5), 0, code);
-    code.branch_conditional(signal, Arm64BranchCondition::Equal);
-    compare_register_with_immediate(argument(5), i64::MAX as u64, code);
-    code.branch_conditional(advance, Arm64BranchCondition::UnsignedLowerOrSame);
-
-    code.bind(signal)?;
-    load_readiness_pointer(argument(0), argument(4), code)?;
-    crate::frame_access::load_immediate(code, argument(5), 1, Arm64DataSize::Bits64);
-    crate::address_code::store_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        argument(5),
-        argument(4),
-        0,
-    );
-
-    code.bind(advance)?;
-    add_immediate(argument(0), schema.interest_record_size(), code);
-    add_immediate(argument(1), DarwinPollAbi::DESCRIPTOR_SIZE, code);
-    subtract_immediate(argument(2), 1, code);
-    code.branch(scan, false);
-    code.bind(complete)
-}
-
-fn load_readiness_pointer(
-    record: crate::Arm64Register,
-    destination: crate::Arm64Register,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), crate::Arm64CodeError> {
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        destination,
-        record,
-        Arm64NocterAbi::asynchronous().interest_readiness_pointer_offset(),
-    );
-    compare_immediate(destination, 0, code);
-    let valid = code.create_label();
-    code.branch_conditional(valid, Arm64BranchCondition::NotEqual);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-    code.bind(valid)
 }
 
 #[derive(Clone, Copy)]
@@ -150,6 +41,10 @@ struct WaitOffsets {
     mapping_pointer: u64,
     mapping_size: u64,
     earliest_deadline: u64,
+    native_count: u64,
+    event_count: u64,
+    queue_descriptor: u64,
+    immediate_ready: u64,
 }
 
 impl WaitOffsets {
@@ -175,6 +70,10 @@ impl WaitOffsets {
             mapping_pointer: field(Arm64AsyncWaitFrame::MAPPING_POINTER_OFFSET)?,
             mapping_size: field(Arm64AsyncWaitFrame::MAPPING_SIZE_OFFSET)?,
             earliest_deadline: field(Arm64AsyncWaitFrame::EARLIEST_DEADLINE_OFFSET)?,
+            native_count: field(Arm64AsyncWaitFrame::NATIVE_COUNT_OFFSET)?,
+            event_count: field(Arm64AsyncWaitFrame::EVENT_COUNT_OFFSET)?,
+            queue_descriptor: field(Arm64AsyncWaitFrame::QUEUE_DESCRIPTOR_OFFSET)?,
+            immediate_ready: field(Arm64AsyncWaitFrame::IMMEDIATE_READY_OFFSET)?,
         })
     }
 }
@@ -189,41 +88,42 @@ fn validate_pending_result(code: &mut Arm64CodeBuilder) {
         .expect("fresh async wait label binds once");
     compare_immediate(argument(2), 0, code);
     code.branch_conditional(invalid, Arm64BranchCondition::Equal);
-    compare_register_with_immediate(argument(2), DarwinPollAbi::MAX_COUNT, code);
+    compare_register_with_immediate(argument(2), DarwinEventQueueAbi::MAX_EVENT_COUNT, code);
     let valid = code.create_label();
     code.branch_conditional(valid, Arm64BranchCondition::UnsignedLowerOrSame);
     code.bind(invalid)
         .expect("fresh async wait label binds once");
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
+    corrupt(code);
     code.bind(valid).expect("fresh async wait label binds once");
 }
 
 fn save_pending_result(offsets: WaitOffsets, code: &mut Arm64CodeBuilder) {
+    let event = DarwinEventAbiSchema::ARM64_DARWIN;
     store_word(offsets.interest_pointer, argument(1), code);
     store_word(offsets.interest_count, argument(2), code);
-    let bytes = argument(3);
-    let width = argument(4);
     crate::frame_access::load_immediate(
         code,
-        width,
-        DarwinPollAbi::DESCRIPTOR_SIZE,
+        argument(3),
+        event.record_size() * 2,
         Arm64DataSize::Bits64,
     );
     code.append(Arm64Instruction::MultiplyAdd {
         size: Arm64DataSize::Bits64,
-        destination: bytes,
+        destination: argument(4),
         left: argument(2),
-        right: width,
+        right: argument(3),
         addend: Arm64DataRegister::Zero,
         subtract_product: false,
     });
-    store_word(offsets.mapping_size, bytes, code);
+    add_immediate(argument(4), DarwinEventQueueAbi::TIMESPEC_SIZE, code);
+    store_word(offsets.mapping_size, argument(4), code);
+    crate::frame_access::load_immediate(code, argument(3), 0, Arm64DataSize::Bits64);
+    store_word(offsets.native_count, argument(3), code);
+    store_word(offsets.event_count, argument(3), code);
+    store_word(offsets.immediate_ready, argument(3), code);
 }
 
-fn allocate_poll_descriptors(
+fn allocate_event_mapping(
     offsets: WaitOffsets,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), crate::Arm64CodeError> {
@@ -233,198 +133,94 @@ fn allocate_poll_descriptors(
     Ok(())
 }
 
-fn translate_interests(
+fn open_event_queue(
     offsets: WaitOffsets,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), crate::Arm64CodeError> {
-    let schema = Arm64NocterAbi::asynchronous();
-    load_word(offsets.interest_pointer, argument(0), code);
-    load_word(offsets.mapping_pointer, argument(1), code);
-    load_word(offsets.interest_count, argument(2), code);
-    crate::frame_access::load_immediate(code, argument(3), u64::MAX, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Kqueue,
+    );
+    let opened = code.create_label();
+    code.branch_conditional(opened, Arm64BranchCondition::CarryClear);
+    wait_failure(code);
+    code.bind(opened)?;
+    store_word(offsets.queue_descriptor, argument(0), code);
+    Ok(())
+}
 
+fn submit_native_interests(
+    offsets: WaitOffsets,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
     let scan = code.create_label();
-    let descriptor = code.create_label();
-    let timer = code.create_label();
+    let invoke = code.create_label();
+    let missing = code.create_label();
     let advance = code.create_label();
     let complete = code.create_label();
     code.bind(scan)?;
-    compare_immediate(argument(2), 0, code);
+    load_word(offsets.event_count, argument(7), code);
+    load_word(offsets.native_count, argument(2), code);
+    compare_register(argument(7), argument(2), code);
     code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    crate::address_code::load_native(
+    code.bind(invoke)?;
+    load_word(offsets.queue_descriptor, argument(0), code);
+    load_word(offsets.event_count, argument(7), code);
+    native_record_pointer(offsets, argument(7), argument(1), code);
+    crate::frame_access::load_immediate(code, argument(2), 1, Arm64DataSize::Bits64);
+    clear_arguments(3, 6, code);
+    crate::darwin_kernel_abi::emit_system_call(
         code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(5),
+        crate::darwin_kernel_abi::DarwinSystemCall::Kevent64,
+    );
+    let returned = code.create_label();
+    code.branch_conditional(returned, Arm64BranchCondition::CarryClear);
+    compare_immediate(argument(0), DarwinEventQueueAbi::INTERRUPTED_ERROR, code);
+    code.branch_conditional(invoke, Arm64BranchCondition::Equal);
+    compare_immediate(
         argument(0),
-        schema.interest_readiness_pointer_offset(),
-    );
-    compare_immediate(argument(5), 0, code);
-    let readiness_valid = code.create_label();
-    code.branch_conditional(readiness_valid, Arm64BranchCondition::NotEqual);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        DarwinEventQueueAbi::MISSING_PROCESS_ERROR,
         code,
     );
-    code.bind(readiness_valid)?;
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(4),
-        argument(0),
-        schema.interest_kind_offset(),
-    );
-    compare_immediate(argument(4), schema.descriptor_interest_kind(), code);
-    code.branch_conditional(descriptor, Arm64BranchCondition::Equal);
-    compare_immediate(argument(4), schema.timer_interest_kind(), code);
-    code.branch_conditional(timer, Arm64BranchCondition::Equal);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
+    code.branch_conditional(missing, Arm64BranchCondition::Equal);
+    wait_failure(code);
+    code.bind(returned)?;
+    compare_immediate(argument(0), 0, code);
+    code.branch_conditional(advance, Arm64BranchCondition::Equal);
+    wait_failure(code);
 
-    code.bind(descriptor)?;
-    emit_descriptor_record(schema, code)?;
-    code.branch(advance, false);
-
-    code.bind(timer)?;
-    emit_timer_record(schema, code)?;
+    code.bind(missing)?;
+    load_word(offsets.event_count, argument(7), code);
+    native_record_pointer(offsets, argument(7), argument(1), code);
+    load_record(
+        argument(1),
+        DarwinEventAbiSchema::ARM64_DARWIN.filter_offset(),
+        Arm64LoadStoreSize::Half,
+        argument(2),
+        code,
+    );
+    load_signed_half_immediate(
+        argument(3),
+        DarwinEventAbiSchema::ARM64_DARWIN.process_filter(),
+        code,
+    );
+    compare_register(argument(2), argument(3), code);
+    let process_missing = code.create_label();
+    code.branch_conditional(process_missing, Arm64BranchCondition::Equal);
+    wait_failure(code);
+    code.bind(process_missing)?;
+    signal::validate_and_signal_native_event(offsets, argument(1), code)?;
+    crate::frame_access::load_immediate(code, argument(2), 1, Arm64DataSize::Bits64);
+    store_word(offsets.immediate_ready, argument(2), code);
 
     code.bind(advance)?;
-    add_immediate(argument(0), schema.interest_record_size(), code);
-    add_immediate(argument(1), DarwinPollAbi::DESCRIPTOR_SIZE, code);
-    subtract_immediate(argument(2), 1, code);
+    load_word(offsets.event_count, argument(7), code);
+    add_immediate(argument(7), 1, code);
+    store_word(offsets.event_count, argument(7), code);
     code.branch(scan, false);
-
     code.bind(complete)?;
-    store_word(offsets.earliest_deadline, argument(3), code);
-    Ok(())
-}
-
-fn emit_descriptor_record(
-    schema: nocter_runtime_contract::RuntimeAsyncAbiSchema,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), crate::Arm64CodeError> {
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(5),
-        argument(0),
-        schema.interest_subject_offset(),
-    );
-    compare_register_with_immediate(argument(5), DarwinPollAbi::MAX_DESCRIPTOR, code);
-    let descriptor_valid = code.create_label();
-    code.branch_conditional(descriptor_valid, Arm64BranchCondition::UnsignedLowerOrSame);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-    code.bind(descriptor_valid)?;
-
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(6),
-        argument(0),
-        schema.interest_detail_offset(),
-    );
-    let readable = code.create_label();
-    let writable = code.create_label();
-    let detail_ready = code.create_label();
-    compare_immediate(argument(6), schema.readable_interest_detail(), code);
-    code.branch_conditional(readable, Arm64BranchCondition::Equal);
-    compare_immediate(argument(6), schema.writable_interest_detail(), code);
-    code.branch_conditional(writable, Arm64BranchCondition::Equal);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-    code.bind(readable)?;
-    crate::frame_access::load_immediate(
-        code,
-        argument(7),
-        DarwinPollAbi::INPUT_EVENT,
-        Arm64DataSize::Bits32,
-    );
-    code.branch(detail_ready, false);
-    code.bind(writable)?;
-    crate::frame_access::load_immediate(
-        code,
-        argument(7),
-        DarwinPollAbi::OUTPUT_EVENT,
-        Arm64DataSize::Bits32,
-    );
-    code.bind(detail_ready)?;
-    code.append(Arm64Instruction::StoreUnsigned {
-        size: Arm64LoadStoreSize::Word,
-        source: Arm64DataRegister::General(argument(5)),
-        base: Arm64BaseRegister::General(argument(1)),
-        offset: 0,
-    });
-    code.append(Arm64Instruction::StoreUnsigned {
-        size: Arm64LoadStoreSize::Half,
-        source: Arm64DataRegister::General(argument(7)),
-        base: Arm64BaseRegister::General(argument(1)),
-        offset: DarwinPollAbi::EVENTS_OFFSET,
-    });
-    code.append(Arm64Instruction::StoreUnsigned {
-        size: Arm64LoadStoreSize::Half,
-        source: Arm64DataRegister::Zero,
-        base: Arm64BaseRegister::General(argument(1)),
-        offset: DarwinPollAbi::RETURNED_EVENTS_OFFSET,
-    });
-    Ok(())
-}
-
-fn emit_timer_record(
-    schema: nocter_runtime_contract::RuntimeAsyncAbiSchema,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), crate::Arm64CodeError> {
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(6),
-        argument(0),
-        schema.interest_detail_offset(),
-    );
-    compare_immediate(argument(6), 0, code);
-    let detail_valid = code.create_label();
-    code.branch_conditional(detail_valid, Arm64BranchCondition::Equal);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-    code.bind(detail_valid)?;
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(5),
-        argument(0),
-        schema.interest_subject_offset(),
-    );
-    compare_register(argument(5), argument(3), code);
-    let retain = code.create_label();
-    code.branch_conditional(retain, Arm64BranchCondition::CarrySet);
-    crate::address_code::move_register(code, argument(5), argument(3));
-    code.bind(retain)?;
-    crate::frame_access::load_immediate(code, argument(7), u32::MAX.into(), Arm64DataSize::Bits32);
-    code.append(Arm64Instruction::StoreUnsigned {
-        size: Arm64LoadStoreSize::Word,
-        source: Arm64DataRegister::General(argument(7)),
-        base: Arm64BaseRegister::General(argument(1)),
-        offset: 0,
-    });
-    code.append(Arm64Instruction::StoreUnsigned {
-        size: Arm64LoadStoreSize::Word,
-        source: Arm64DataRegister::Zero,
-        base: Arm64BaseRegister::General(argument(1)),
-        offset: DarwinPollAbi::EVENTS_OFFSET,
-    });
+    crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);
+    store_word(offsets.event_count, argument(0), code);
     Ok(())
 }
 
@@ -436,37 +232,35 @@ fn wait_until_ready(
     let returned = code.create_label();
     let complete = code.create_label();
     code.bind(invoke)?;
-    load_word(offsets.earliest_deadline, argument(3), code);
-    crate::async_wait_timeout_code::emit(argument(3), argument(2), code)?;
-    load_word(offsets.mapping_pointer, argument(0), code);
-    load_word(offsets.interest_count, argument(1), code);
+    prepare_timeout(offsets, code)?;
+    load_word(offsets.queue_descriptor, argument(0), code);
+    crate::frame_access::load_immediate(code, argument(1), 0, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(code, argument(2), 0, Arm64DataSize::Bits64);
+    event_list_pointer(offsets, argument(3), code);
+    load_word(offsets.interest_count, argument(4), code);
+    crate::frame_access::load_immediate(code, argument(5), 0, Arm64DataSize::Bits64);
     crate::darwin_kernel_abi::emit_system_call(
         code,
-        crate::darwin_kernel_abi::DarwinSystemCall::Poll,
+        crate::darwin_kernel_abi::DarwinSystemCall::Kevent64,
     );
     code.branch_conditional(returned, Arm64BranchCondition::CarryClear);
-    compare_immediate(argument(0), DarwinPollAbi::INTERRUPTED_ERROR, code);
+    compare_immediate(argument(0), DarwinEventQueueAbi::INTERRUPTED_ERROR, code);
     code.branch_conditional(invoke, Arm64BranchCondition::Equal);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitFailure,
-        code,
-    );
+    wait_failure(code);
+
     code.bind(returned)?;
-    load_word(offsets.interest_count, argument(1), code);
+    load_word(offsets.native_count, argument(1), code);
     compare_register(argument(0), argument(1), code);
     let count_valid = code.create_label();
     code.branch_conditional(count_valid, Arm64BranchCondition::UnsignedLowerOrSame);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitFailure,
-        code,
-    );
+    wait_failure(code);
     code.bind(count_valid)?;
+    store_word(offsets.event_count, argument(0), code);
     compare_immediate(argument(0), 0, code);
     code.branch_conditional(complete, Arm64BranchCondition::NotEqual);
-
-    // Darwin's timeout is an i32 millisecond count. A distant absolute deadline is therefore
-    // represented by multiple capped polls. A zero-event return resumes the computation only
-    // after a fresh monotonic observation proves that the actual deadline has arrived.
+    load_word(offsets.immediate_ready, argument(1), code);
+    compare_immediate(argument(1), 0, code);
+    code.branch_conditional(complete, Arm64BranchCondition::NotEqual);
     load_word(offsets.earliest_deadline, argument(3), code);
     crate::async_wait_timeout_code::emit(argument(3), argument(2), code)?;
     compare_immediate(argument(2), 0, code);
@@ -475,7 +269,97 @@ fn wait_until_ready(
     code.bind(complete)
 }
 
-fn release_poll_descriptors(
+fn prepare_timeout(
+    offsets: WaitOffsets,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    let immediate = code.create_label();
+    let milliseconds_ready = code.create_label();
+    load_word(offsets.immediate_ready, argument(0), code);
+    compare_immediate(argument(0), 0, code);
+    code.branch_conditional(immediate, Arm64BranchCondition::NotEqual);
+    load_word(offsets.earliest_deadline, argument(3), code);
+    crate::async_wait_timeout_code::emit(argument(3), argument(2), code)?;
+    code.branch(milliseconds_ready, false);
+    code.bind(immediate)?;
+    crate::frame_access::load_immediate(code, argument(2), 0, Arm64DataSize::Bits64);
+    code.bind(milliseconds_ready)?;
+    let infinite = code.create_label();
+    let complete = code.create_label();
+    compare_immediate(argument(2), u64::MAX, code);
+    code.branch_conditional(infinite, Arm64BranchCondition::Equal);
+    timeout_pointer(offsets, argument(6), code);
+    crate::frame_access::load_immediate(
+        code,
+        argument(4),
+        MILLISECONDS_PER_SECOND,
+        Arm64DataSize::Bits64,
+    );
+    code.append(Arm64Instruction::Divide {
+        size: Arm64DataSize::Bits64,
+        destination: argument(5),
+        left: argument(2),
+        right: argument(4),
+        signed: false,
+    });
+    code.append(Arm64Instruction::MultiplyAdd {
+        size: Arm64DataSize::Bits64,
+        destination: argument(7),
+        left: argument(5),
+        right: argument(4),
+        addend: Arm64DataRegister::General(argument(2)),
+        subtract_product: true,
+    });
+    crate::frame_access::load_immediate(
+        code,
+        argument(4),
+        NANOSECONDS_PER_MILLISECOND,
+        Arm64DataSize::Bits64,
+    );
+    code.append(Arm64Instruction::MultiplyAdd {
+        size: Arm64DataSize::Bits64,
+        destination: argument(7),
+        left: argument(7),
+        right: argument(4),
+        addend: Arm64DataRegister::Zero,
+        subtract_product: false,
+    });
+    store_record(
+        argument(6),
+        DarwinEventQueueAbi::TIMESPEC_SECONDS_OFFSET,
+        Arm64LoadStoreSize::Double,
+        argument(5),
+        code,
+    );
+    store_record(
+        argument(6),
+        DarwinEventQueueAbi::TIMESPEC_NANOSECONDS_OFFSET,
+        Arm64LoadStoreSize::Double,
+        argument(7),
+        code,
+    );
+    code.branch(complete, false);
+    code.bind(infinite)?;
+    crate::frame_access::load_immediate(code, argument(6), 0, Arm64DataSize::Bits64);
+    code.bind(complete)
+}
+
+fn close_event_queue(
+    offsets: WaitOffsets,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    load_word(offsets.queue_descriptor, argument(0), code);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Close,
+    );
+    let closed = code.create_label();
+    code.branch_conditional(closed, Arm64BranchCondition::CarryClear);
+    wait_failure(code);
+    code.bind(closed)
+}
+
+fn release_event_mapping(
     offsets: WaitOffsets,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), crate::Arm64CodeError> {
@@ -488,6 +372,180 @@ fn release_poll_descriptors(
     crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);
     store_word(offsets.mapping_pointer, argument(0), code);
     Ok(())
+}
+
+fn require_native_subject(
+    subject: crate::Arm64Register,
+    positive: bool,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    if positive {
+        compare_immediate(subject, 0, code);
+        let positive_label = code.create_label();
+        code.branch_conditional(positive_label, Arm64BranchCondition::NotEqual);
+        corrupt(code);
+        code.bind(positive_label)?;
+    }
+    compare_register_with_immediate(subject, DarwinEventQueueAbi::MAX_SUBJECT, code);
+    let bounded = code.create_label();
+    code.branch_conditional(bounded, Arm64BranchCondition::UnsignedLowerOrSame);
+    corrupt(code);
+    code.bind(bounded)
+}
+
+fn require_readiness_pointer(
+    record: crate::Arm64Register,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    load_record_word(
+        record,
+        Arm64NocterAbi::asynchronous().interest_readiness_pointer_offset(),
+        destination,
+        code,
+    );
+    compare_immediate(destination, 0, code);
+    let valid = code.create_label();
+    code.branch_conditional(valid, Arm64BranchCondition::NotEqual);
+    corrupt(code);
+    code.bind(valid)
+}
+
+fn event_list_pointer(
+    offsets: WaitOffsets,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    load_word(offsets.mapping_pointer, destination, code);
+    add_scaled_interest_count(
+        offsets,
+        destination,
+        DarwinEventAbiSchema::ARM64_DARWIN.record_size(),
+        code,
+    );
+}
+
+fn timeout_pointer(
+    offsets: WaitOffsets,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    load_word(offsets.mapping_pointer, destination, code);
+    add_scaled_interest_count(
+        offsets,
+        destination,
+        DarwinEventAbiSchema::ARM64_DARWIN.record_size() * 2,
+        code,
+    );
+}
+
+fn add_scaled_interest_count(
+    offsets: WaitOffsets,
+    destination: crate::Arm64Register,
+    scale: u64,
+    code: &mut Arm64CodeBuilder,
+) {
+    load_word(offsets.interest_count, argument(7), code);
+    crate::frame_access::load_immediate(code, scratch(0), scale, Arm64DataSize::Bits64);
+    code.append(Arm64Instruction::MultiplyAdd {
+        size: Arm64DataSize::Bits64,
+        destination,
+        left: argument(7),
+        right: scratch(0),
+        addend: Arm64DataRegister::General(destination),
+        subtract_product: false,
+    });
+}
+
+fn native_record_pointer(
+    offsets: WaitOffsets,
+    index: crate::Arm64Register,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    load_word(offsets.mapping_pointer, destination, code);
+    crate::frame_access::load_immediate(
+        code,
+        scratch(0),
+        DarwinEventAbiSchema::ARM64_DARWIN.record_size(),
+        Arm64DataSize::Bits64,
+    );
+    code.append(Arm64Instruction::MultiplyAdd {
+        size: Arm64DataSize::Bits64,
+        destination,
+        left: index,
+        right: scratch(0),
+        addend: Arm64DataRegister::General(destination),
+        subtract_product: false,
+    });
+}
+
+fn clear_arguments(first: u8, last: u8, code: &mut Arm64CodeBuilder) {
+    for index in first..=last {
+        crate::frame_access::load_immediate(code, argument(index), 0, Arm64DataSize::Bits64);
+    }
+}
+
+fn load_signed_half_immediate(
+    destination: crate::Arm64Register,
+    value: i16,
+    code: &mut Arm64CodeBuilder,
+) {
+    crate::frame_access::load_immediate(
+        code,
+        destination,
+        u64::from(value.cast_unsigned()),
+        Arm64DataSize::Bits64,
+    );
+}
+
+fn load_record_word(
+    record: crate::Arm64Register,
+    offset: u64,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    load_record(
+        record,
+        offset,
+        Arm64LoadStoreSize::Double,
+        destination,
+        code,
+    );
+}
+
+fn load_record(
+    record: crate::Arm64Register,
+    offset: u64,
+    size: Arm64LoadStoreSize,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    crate::address_code::load_native(code, size, None, destination, record, offset);
+}
+
+fn store_record(
+    record: crate::Arm64Register,
+    offset: u64,
+    size: Arm64LoadStoreSize,
+    source: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    crate::address_code::store_native(code, size, source, record, offset);
+}
+
+fn store_record_zero(
+    record: crate::Arm64Register,
+    offset: u64,
+    size: Arm64LoadStoreSize,
+    code: &mut Arm64CodeBuilder,
+) {
+    code.append(Arm64Instruction::StoreUnsigned {
+        size,
+        source: Arm64DataRegister::Zero,
+        base: Arm64BaseRegister::General(record),
+        offset: u32::try_from(offset).expect("Darwin event record offsets fit immediate storage"),
+    });
 }
 
 fn store_word(offset: u64, source: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
@@ -570,6 +628,36 @@ fn subtract_immediate(value: crate::Arm64Register, immediate: u16, code: &mut Ar
         immediate,
         shift_12: false,
     });
+}
+
+fn subtract(
+    destination: crate::Arm64Register,
+    left: crate::Arm64Register,
+    right: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) {
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: false,
+        destination: Arm64DataRegister::General(destination),
+        left: Arm64DataRegister::General(left),
+        right: Arm64DataRegister::General(right),
+    });
+}
+
+fn corrupt(code: &mut Arm64CodeBuilder) {
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        code,
+    );
+}
+
+fn wait_failure(code: &mut Arm64CodeBuilder) {
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitFailure,
+        code,
+    );
 }
 
 fn trap(reason: crate::runtime_trap::Arm64RuntimeTrap, code: &mut Arm64CodeBuilder) {

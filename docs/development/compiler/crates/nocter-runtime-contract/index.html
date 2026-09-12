@@ -187,6 +187,7 @@
                     <li><a href="../nocter-conformance/index.html#content">nocter-conformance</a></li>
                     <li><a href="../nocter-constant-evaluation/index.html#content">nocter-constant-evaluation</a></li>
                     <li><a href="../nocter-content-integrity/index.html#content">nocter-content-integrity</a></li>
+                    <li><a href="../nocter-darwin-event-queue/index.html#content">nocter-darwin-event-queue</a></li>
                     <li><a href="../nocter-darwin-reactor/index.html#content">nocter-darwin-reactor</a></li>
                     <li><a href="../nocter-declaration-lowering/index.html#content">nocter-declaration-lowering</a></li>
                     <li><a href="../nocter-declarations/index.html#content">nocter-declarations</a></li>
@@ -236,7 +237,7 @@
                 <h1 id="nocter-runtime-contract">nocter-runtime-contract</h1><h2 id="responsibility">Responsibility</h2><p>Own source-independent runtime primitive roles, trusted typed import identities, canonical runtime representations, target runtime requirements, and the closed environment passed toward native lowering.</p><h2 id="contract">Contract</h2><p>Declaration lowering projects authorized source declarations onto runtime contracts. Target, MIR, machine, and executable stages consume selected identities; they do not rediscover them by function name or standard module path. Loader symbols in this crate are validated target-catalog values, not public source-level imports.</p><h2 id="internal-responsibilities">Internal Responsibilities</h2><ul><li>primitive role identities</li><li>closed allocation and synchronous-blocking evidence for primitive roles</li><li>explicit drive-safety certificates for primitive roles that construct <code>future T</code></li><li>kind-preserving trusted function/data symbol identities and operating-system library identities,
   without concrete loader paths</li><li>finite target-service roles, target identity, calling convention, and fixed foreign ABI classes</li><li>closed compiler-owned storage roles and their ABI-specific layouts</li><li>canonical representation classes</li><li>fixed async owning-handle and heap-frame-header ABI</li><li>the fixed Darwin Blocks ABI subset admitted by compiler-owned native adapters</li><li>the fixed Darwin network callback-event record, payload ownership table, provider state codes,
   and two-step release fence consumed through a descriptor channel</li><li>the closed Darwin network adapter import catalog, callback signatures, and complete-transfer
-  classification</li><li>closed async lifecycle-state tag sequences</li><li>target-independent descriptor and monotonic-timer wait interests</li><li>target runtime capability requirements</li><li>closed runtime environment schemas</li></ul><h2 id="invariants">Invariants</h2><ul><li>A role has one numeric and structural authority.</li><li>Source spelling and visibility are not runtime identities.</li><li>A closed operating-system role owns its syscall identity, fixed flags, and result convention in
+  classification</li><li>closed async lifecycle-state tag sequences</li><li>target-independent descriptor, monotonic-timer, and process-completion wait interests</li><li>target runtime capability requirements</li><li>closed runtime environment schemas</li></ul><h2 id="invariants">Invariants</h2><ul><li>A role has one numeric and structural authority.</li><li>Source spelling and visibility are not runtime identities.</li><li>A closed operating-system role owns its syscall identity, fixed flags, and result convention in
   the target backend. Standard-library source can select the semantic role but cannot reproduce or
   override those ABI constants.</li><li>A loader symbol is validated once, retains whether it denotes a function or data object, and
   cannot be selected from user source.</li><li>A target-service binding owns its closed descriptor; later stages cannot reconstruct the
@@ -249,8 +250,9 @@
   IPv4 or IPv6 socket records. Provider path and endpoint ownership never enters source storage.</li><li>Primitive effect facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.</li><li>A primitive role may immediately construct an opaque asynchronous value. This does not classify
   the primitive as a deferred Nocter body; the role, result contract, and target helper jointly
-  define the construction boundary.</li><li>Semantic descriptor/timer interests and their numeric ABI records have one mapping here. Reactors
-  and target backends consume that mapping instead of assigning independent meanings to tags.</li><li>A computation supplies only its suspension-state count. This contract assigns its initial,
+  define the construction boundary.</li><li>Semantic descriptor, timer, and process interests and their numeric ABI records have one mapping
+  here. Reactors and target backends consume that mapping instead of assigning independent meanings
+  to tags.</li><li>A computation supplies only its suspension-state count. This contract assigns its initial,
   suspension, and completed tags; a target backend cannot repeat the arithmetic or assume zero as
   the initial encoding.</li><li>Timer ordering is a half-domain wrapping-counter contract. A target wait-width cap may divide one
   deadline into multiple native waits, but cannot make the logical interest eligible early.</li></ul>

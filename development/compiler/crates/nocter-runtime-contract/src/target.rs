@@ -68,6 +68,7 @@ pub struct RuntimeAsyncAbiSchema {
     interest_record_size: u64,
     descriptor_interest_kind: u64,
     timer_interest_kind: u64,
+    process_exit_interest_kind: u64,
     readable_interest_detail: u64,
     writable_interest_detail: u64,
 }
@@ -175,6 +176,7 @@ impl RuntimeAbiIdentity {
                     interest_record_size: 32,
                     descriptor_interest_kind: 0,
                     timer_interest_kind: 1,
+                    process_exit_interest_kind: 2,
                     readable_interest_detail: 0,
                     writable_interest_detail: 1,
                 },
@@ -306,6 +308,12 @@ impl RuntimeAsyncAbiSchema {
                 detail: 0,
                 readiness_pointer,
             },
+            ReactorInterest::ProcessExit { process } => RuntimeWaitInterestRecord {
+                kind: self.process_exit_interest_kind,
+                subject: process,
+                detail: 0,
+                readiness_pointer,
+            },
         }
     }
 
@@ -334,6 +342,11 @@ impl RuntimeAsyncAbiSchema {
         if record.kind == self.timer_interest_kind && record.detail == 0 {
             return Some(ReactorInterest::Timer {
                 deadline: record.subject,
+            });
+        }
+        if record.kind == self.process_exit_interest_kind && record.detail == 0 {
+            return Some(ReactorInterest::ProcessExit {
+                process: record.subject,
             });
         }
         None
@@ -472,6 +485,11 @@ impl RuntimeAsyncAbiSchema {
     #[must_use]
     pub const fn timer_interest_kind(self) -> u64 {
         self.timer_interest_kind
+    }
+
+    #[must_use]
+    pub const fn process_exit_interest_kind(self) -> u64 {
+        self.process_exit_interest_kind
     }
 
     #[must_use]
@@ -678,6 +696,7 @@ mod tests {
         assert_eq!(asynchronous.interest_record_size(), 32);
         assert_eq!(asynchronous.descriptor_interest_kind(), 0);
         assert_eq!(asynchronous.timer_interest_kind(), 1);
+        assert_eq!(asynchronous.process_exit_interest_kind(), 2);
         assert_eq!(asynchronous.readable_interest_detail(), 0);
         assert_eq!(asynchronous.writable_interest_detail(), 1);
     }
@@ -695,6 +714,7 @@ mod tests {
                 direction: ReadinessDirection::Writable,
             },
             ReactorInterest::Timer { deadline: 91 },
+            ReactorInterest::ProcessExit { process: 37 },
         ];
         for interest in cases {
             let record = asynchronous.encode_interest(interest, 0x1000);
@@ -714,6 +734,15 @@ mod tests {
             asynchronous.decode_interest(RuntimeWaitInterestRecord::new(
                 asynchronous.timer_interest_kind(),
                 4,
+                1,
+                0x1000,
+            )),
+            None,
+        );
+        assert_eq!(
+            asynchronous.decode_interest(RuntimeWaitInterestRecord::new(
+                asynchronous.process_exit_interest_kind(),
+                37,
                 1,
                 0x1000,
             )),

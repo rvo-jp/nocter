@@ -880,6 +880,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::ProcessCompletion => make(
+            0,
+            vec![i32()],
+            TypeContract::asynchronous(void()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::TaskJoin => make(
             2,
             vec![

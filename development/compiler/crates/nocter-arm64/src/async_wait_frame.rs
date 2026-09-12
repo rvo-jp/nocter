@@ -1,9 +1,9 @@
 use crate::{Arm64FrameLayoutBuilder, Arm64FrameLayoutError, Arm64FrameObjectId, Arm64NocterAbi};
 
-/// Fixed process-root state retained while a native wait call may clobber argument registers.
+/// Fixed process-root state retained while native event calls may clobber argument registers.
 ///
-/// The pending interest slice remains owned by the suspended computation. The mapping is a
-/// temporary Darwin `pollfd` array owned by the process root and released before resumption.
+/// The pending interest slice remains owned by the suspended computation. The process root owns
+/// one temporary Darwin change/event mapping and one queue descriptor through the complete wait.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64AsyncWaitFrame {
     object: Arm64FrameObjectId,
@@ -15,7 +15,11 @@ impl Arm64AsyncWaitFrame {
     pub(crate) const MAPPING_POINTER_OFFSET: u64 = 16;
     pub(crate) const MAPPING_SIZE_OFFSET: u64 = 24;
     pub(crate) const EARLIEST_DEADLINE_OFFSET: u64 = 32;
-    const SIZE: u64 = 40;
+    pub(crate) const NATIVE_COUNT_OFFSET: u64 = 40;
+    pub(crate) const EVENT_COUNT_OFFSET: u64 = 48;
+    pub(crate) const QUEUE_DESCRIPTOR_OFFSET: u64 = 56;
+    pub(crate) const IMMEDIATE_READY_OFFSET: u64 = 64;
+    const SIZE: u64 = 72;
     const ALIGNMENT: u64 = 8;
 
     pub(crate) fn place(

@@ -20,10 +20,10 @@ It would also tempt the implementation to run `waitpid` or the existing blocking
 driving a `future T`. Adding public pipe values without an abandonment authority would be worse:
 ordinary destruction or cancellation could leave a live child or zombie process behind.
 
-The generated ARM64 Darwin process root currently converts descriptor and timer interests into a
-temporary `pollfd` array. `poll` cannot observe process completion. Periodic `waitpid` probes,
-blocking waits, and feature-specific sleeps are rejected because they introduce latency, consume
-CPU, and create a second scheduling policy outside the reactor contract.
+Before v0.49.0 Phase 1, the generated ARM64 Darwin process root converted descriptor and timer
+interests into a temporary `pollfd` array. `poll` could not observe process completion. Periodic
+`waitpid` probes, blocking waits, and feature-specific sleeps remain rejected because they
+introduce latency, consume CPU, and create a second scheduling policy outside the reactor contract.
 
 ## Adopted Public Shape
 
@@ -109,6 +109,12 @@ representing descriptor readiness, monotonic deadlines, and process exit in one 
 Target code owns kqueue filters, flags, record layout, syscall numbers, interrupted-wait retry, and
 native registration cleanup. Operation code still owns the interpretation of readiness after its
 future resumes.
+
+Darwin rejects a new process filter after the process has already exited, even while its status
+remains unreaped. Process registration therefore treats the native missing-process result as
+immediate readiness only after validating the semantic process record. Status remains untouched
+for the unique `Child` observer. This closes the exit-before-registration race without a periodic
+probe or a second status decoder.
 
 The reactor wakes computations; it does not reap children. `std/process` or the abandonment service
 performs the one exact observation transition through target process operations. This separation

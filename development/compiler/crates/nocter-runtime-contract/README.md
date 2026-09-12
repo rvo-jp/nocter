@@ -30,7 +30,7 @@ public source-level imports.
 - the closed Darwin network adapter import catalog, callback signatures, and complete-transfer
   classification
 - closed async lifecycle-state tag sequences
-- target-independent descriptor and monotonic-timer wait interests
+- target-independent descriptor, monotonic-timer, and process-completion wait interests
 - target runtime capability requirements
 - closed runtime environment schemas
 
@@ -63,8 +63,9 @@ public source-level imports.
 - A primitive role may immediately construct an opaque asynchronous value. This does not classify
   the primitive as a deferred Nocter body; the role, result contract, and target helper jointly
   define the construction boundary.
-- Semantic descriptor/timer interests and their numeric ABI records have one mapping here. Reactors
-  and target backends consume that mapping instead of assigning independent meanings to tags.
+- Semantic descriptor, timer, and process interests and their numeric ABI records have one mapping
+  here. Reactors and target backends consume that mapping instead of assigning independent meanings
+  to tags.
 - A computation supplies only its suspension-state count. This contract assigns its initial,
   suspension, and completed tags; a target backend cannot repeat the arithmetic or assume zero as
   the initial encoding.

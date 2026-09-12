@@ -334,6 +334,13 @@ fn define_async_primitives(
                     .map_err(Arm64MaterializationError::Code)?,
             )?;
         }
+        if let Some(constructor) = targets.process_completion() {
+            builder.define_function(
+                constructor,
+                crate::async_interest_code::materialize_process_constructor(lifecycle)
+                    .map_err(Arm64MaterializationError::Code)?,
+            )?;
+        }
         define_async_interest_lifecycle(lifecycle, builder)?;
     }
     if let (Some(constructor), Some(lifecycle)) = (

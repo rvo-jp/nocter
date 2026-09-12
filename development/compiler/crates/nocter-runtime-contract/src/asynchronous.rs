@@ -20,4 +20,12 @@ pub enum ReactorInterest {
     Timer {
         deadline: u64,
     },
+    /// Completion of one exact process owner selected before suspension.
+    ///
+    /// The subject is an opaque target process identity, not a source-visible PID ownership
+    /// token. Operation code remains responsible for observing and classifying termination after
+    /// wakeup.
+    ProcessExit {
+        process: u64,
+    },
 }

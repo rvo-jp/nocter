@@ -172,6 +172,8 @@ closed_role_enum! {
         DescriptorReadinessOrDeadline,
         /// Creates one lazy computation that becomes completable at a monotonic deadline.
         MonotonicDeadline,
+        /// Creates one lazy computation that becomes completable when one process exits.
+        ProcessCompletion,
         /// Takes ownership of two lazy computations and produces both outputs concurrently.
         TaskJoin,
         /// Takes ownership of two same-output computations and selects one deterministic winner.
@@ -316,6 +318,7 @@ impl PrimitiveRole {
             Self::DescriptorReadiness => "descriptor_readiness",
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
+            Self::ProcessCompletion => "process_completion",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",
             Self::NetworkConnectionCreate
@@ -412,6 +415,7 @@ impl PrimitiveRole {
                     | Self::DescriptorReadiness
                     | Self::DescriptorReadinessOrDeadline
                     | Self::MonotonicDeadline
+                    | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
             ),
@@ -435,6 +439,7 @@ impl PrimitiveRole {
                 Self::DescriptorReadiness
                     | Self::DescriptorReadinessOrDeadline
                     | Self::MonotonicDeadline
+                    | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
             ),
@@ -616,6 +621,7 @@ mod tests {
                 PrimitiveRole::DescriptorReadiness,
                 PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,
+                PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
             ]
@@ -661,6 +667,7 @@ mod tests {
                 PrimitiveRole::DescriptorReadiness,
                 PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,
+                PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
             ]

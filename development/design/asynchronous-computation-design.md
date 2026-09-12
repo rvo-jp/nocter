@@ -202,8 +202,9 @@ own assumptions.
 
 Resume receives only the opaque frame pointer. A pending result returns a pointer and count for
 frame-owned wait-interest records; a completed result returns no interests. A descriptor interest
-contains its descriptor and readable/writable direction, while a timer interest contains its fixed
-monotonic deadline. Every record also retains a pointer to a computation-owned readiness cell.
+contains its descriptor and readable/writable direction, a timer interest contains its fixed
+monotonic deadline, and a process interest contains the process subject whose exit permits
+progress. Every record also retains a pointer to a computation-owned readiness cell.
 The reactor signals only records that actually became ready; copying or forwarding a record keeps
 the same cell identity. A computation may therefore be resumed after an unrelated member of a
 composed wait set wakes without completing early. Nested `await` forwards the child's pending
@@ -222,22 +223,25 @@ selection freezes immediate versus deferred execution once; MIR and Machine rece
 cannot recover it from the result type. This special process boundary does not make ordinary
 synchronous calls start an executor.
 
-On ARM64 Darwin, the process adapter converts each pending ABI slice into one temporary `pollfd`
-array and one relative timeout derived from the earliest fixed monotonic deadline. A single
-`poll(2)` wait therefore preserves the wait set's OR semantics for descriptors and timers. An
-interrupted call retries against the same interests and recalculates the relative timeout. After a
-successful wait, the adapter writes only through the readiness pointers belonging to returned
-descriptor events or elapsed timers; the temporary mapping is released before the computation
-resumes. A target timeout narrower than the monotonic domain is only one wait segment: a zero-event
-return rechecks the absolute deadline and repeats the wait while it remains in the future.
-Deadlines use half-domain wrapping comparison, so a near-future deadline remains ordered across one
-counter wrap. Invalid record tags, an empty pending set, native wait failure, and release failure
-terminate through distinct compiler-owned trap reasons. The adapter never interprets computation
-frame layout.
+On ARM64 Darwin, the process adapter converts each pending ABI slice into compact `kevent64_s`
+changes and derives one relative timeout from the earliest fixed monotonic deadline. A single
+`kevent64` wait preserves the wait set's OR semantics for descriptor, process, and timer interests.
+An interrupted call retries against the same interests and recalculates the relative timeout.
+After a successful wait, the adapter validates each event token, filter, and subject against its
+semantic source before writing readiness. A process that exited before filter registration is
+immediately ready, but its status is not collected. The temporary queue and mapping are released
+before the computation resumes.
 
-The initial compiler-owned descriptor-readiness and monotonic-deadline computations use the same
-opaque header and interest-record schema as a generated deferred function. Each constructor writes
-its distinct record payload, while both use one resume/cancel/consume lifecycle. The first resume
+A target timeout narrower than the monotonic domain is only one wait segment: a zero-event return
+rechecks the absolute deadline and repeats while it remains in the future. Deadlines use
+half-domain wrapping comparison, so a near-future deadline remains ordered across one counter
+wrap. Invalid record tags, an empty pending set, native wait failure, and release failure terminate
+through distinct compiler-owned trap reasons. The adapter never interprets computation frame
+layout.
+
+The compiler-owned descriptor-readiness, process-completion, and monotonic-deadline computations
+use the same opaque header and interest-record schema as a generated deferred function. Each
+constructor writes its distinct record payload, while all use one resume/cancel/consume lifecycle. The first resume
 publishes the frame-owned interest; later resumes complete only after the reactor has signaled its
 shared readiness cell. Cancellation and completed-output consumption retire the frame through
 separate lifecycle entries. Cancellation is the destruction entry for every unconsumed owning

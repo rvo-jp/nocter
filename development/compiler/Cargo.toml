@@ -44,6 +44,7 @@ members = [
     "crates/nocter-target-program",
     "crates/nocter-target-selection",
     "crates/nocter-darwin-reactor",
+    "crates/nocter-darwin-event-queue",
     "crates/nocter-task-runtime",
     "crates/nocter-test-support",
     "crates/nocter-toolchain-contract",

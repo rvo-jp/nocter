@@ -2100,7 +2100,7 @@ fn deferred_process_root_owns_one_native_wait_frame() {
         .expect("deferred process root wait storage");
     let object = selected.frame().layout().object(wait.object()).unwrap();
 
-    assert_eq!(object.size(), 40);
+    assert_eq!(object.size(), 72);
     assert_eq!(object.alignment(), 8);
     assert!(
         selected

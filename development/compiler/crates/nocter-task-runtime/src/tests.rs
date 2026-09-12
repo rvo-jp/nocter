@@ -151,6 +151,39 @@ fn one_event_consumes_a_complete_wait_set_and_simultaneous_timeout_is_stale() {
 }
 
 #[test]
+fn process_completion_uses_the_same_generation_qualified_wait_set() {
+    let mut scheduler = Scheduler::new(ModelReactor::default());
+    let task = scheduler.spawn().unwrap();
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(task)
+    );
+    let registrations = scheduler
+        .suspend(
+            task,
+            [
+                ReactorInterest::ProcessExit { process: 41 },
+                ReactorInterest::Timer { deadline: 10 },
+            ],
+        )
+        .unwrap();
+    let process = registrations[0];
+    let timer = registrations[1];
+    scheduler
+        .reactor()
+        .batches
+        .borrow_mut()
+        .push_back(Box::new([timer, process]));
+
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(task)
+    );
+    assert_eq!(scheduler.reactor().removed.len(), 2);
+    assert_eq!(scheduler.state(task), Some(TaskState::Running));
+}
+
+#[test]
 fn cancellation_detaches_waiters_before_exposing_cleanup() {
     let mut scheduler = Scheduler::new(ModelReactor::default());
     let task = scheduler.spawn().unwrap();

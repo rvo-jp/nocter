@@ -1,0 +1,22 @@
+[package]
+name = "nocter-darwin-event-queue"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-runtime-contract = { path = "../nocter-runtime-contract" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.189"
+
+# This is the sole host-side unsafe FFI boundary in the workspace. Its safe API owns every native
+# pointer, buffer length, descriptor lifetime, and ABI validation used to call Darwin kqueue.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

@@ -7,10 +7,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-darwin-event-queue = { path = "../nocter-darwin-event-queue" }
 nocter-task-runtime = { path = "../nocter-task-runtime" }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-mio = { version = "1.2.2", features = ["os-ext", "os-poll"] }
 
 [lints]
 workspace = true
