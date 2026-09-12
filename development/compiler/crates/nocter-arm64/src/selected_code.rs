@@ -348,9 +348,6 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinSystemCall { argument_count } => {
             crate::system_primitive_code::emit_system_call(argument_count, code)
         }
-        Arm64SelectedInstruction::DarwinSystemCallPair => {
-            crate::system_primitive_code::emit_system_call_pair(code)
-        }
         Arm64SelectedInstruction::DarwinMemoryMap => {
             crate::darwin_memory_code::emit_map_result(code)
         }
@@ -360,6 +357,24 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinDescriptorClose => {
             crate::system_primitive_code::emit_descriptor_close(code)
         }
+        Arm64SelectedInstruction::DarwinDescriptorPipeCreate => {
+            crate::system_primitive_code::emit_fixed_system_call_pair(
+                crate::darwin_kernel_abi::DarwinSystemCall::Pipe,
+                code,
+            )
+        }
+        Arm64SelectedInstruction::DarwinDescriptorDuplicateCloseOnExec => {
+            crate::system_primitive_code::emit_descriptor_duplicate_close_on_exec(code)
+        }
+        Arm64SelectedInstruction::DarwinDescriptorStatusFlags => {
+            crate::system_primitive_code::emit_descriptor_status_flags(code)
+        }
+        Arm64SelectedInstruction::DarwinDescriptorSetStatusFlags => {
+            crate::system_primitive_code::emit_descriptor_set_status_flags(code)
+        }
+        Arm64SelectedInstruction::DarwinDescriptorSuppressBrokenPipe => {
+            crate::system_primitive_code::emit_descriptor_suppress_broken_pipe(code)
+        }
         Arm64SelectedInstruction::DarwinDescriptorRead => {
             crate::system_primitive_code::emit_descriptor_read(code)
         }
@@ -368,6 +383,24 @@ pub(crate) fn emit_instruction(
         }
         Arm64SelectedInstruction::DarwinProcessObserve => {
             crate::system_primitive_code::emit_process_observe(code)
+        }
+        Arm64SelectedInstruction::DarwinProcessFork => {
+            crate::system_primitive_code::emit_fixed_system_call_pair(
+                crate::darwin_kernel_abi::DarwinSystemCall::Fork,
+                code,
+            )
+        }
+        Arm64SelectedInstruction::DarwinProcessOpenNull => {
+            crate::system_primitive_code::emit_process_open_null(code)
+        }
+        Arm64SelectedInstruction::DarwinProcessInstallDescriptor => {
+            crate::system_primitive_code::emit_process_install_descriptor(code)
+        }
+        Arm64SelectedInstruction::DarwinProcessChangeDirectory => {
+            crate::system_primitive_code::emit_process_change_directory(code)
+        }
+        Arm64SelectedInstruction::DarwinProcessExec => {
+            crate::system_primitive_code::emit_process_exec(code)
         }
         Arm64SelectedInstruction::DarwinDatagram(operation) => {
             crate::darwin_datagram_code::emit(operation, code)

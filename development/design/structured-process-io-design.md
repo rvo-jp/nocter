@@ -81,6 +81,21 @@ Closing a pipe never implies child completion, and child completion never implie
 from inherited descendant endpoints have reached EOF. Generic I/O code observes only endpoint
 progress and EOF; it cannot inspect process state.
 
+## Executor-Safe Launch
+
+Launch preparation completes before `fork` and owns stable path, argument, environment, stream,
+and report storage. Pipe creation, descriptor normalization, null-device opening, fork, child-side
+descriptor installation, directory change, and executable replacement cross closed target
+operation roles. These roles describe exact transitions rather than exposing a generic syscall to
+an async body, and none waits for progress from another process.
+
+The parent immediately wraps the returned PID and every configured endpoint in standard-library
+owners. It then reads the nonblocking close-on-exec report. Canonical `spawn` suspends through the
+descriptor reactor when the report is not ready; `spawn_blocking` uses the synchronous readiness
+adapter. Both paths consume one read-attempt classifier, one payload decoder, and one public
+failure selector. Cancellation destroys the future frame, which closes report and stream owners
+and transfers the child owner to abandonment. The compiler never inspects those owners.
+
 ## Cancellation and Abandonment
 
 Cancelling a future that merely borrows a `Child` removes its wait registration and returns control

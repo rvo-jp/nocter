@@ -303,10 +303,10 @@
     <span class="token-comment">/// Copies finite bytes that replace inherited standard input.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
-    <span class="token-comment">/// Creates an owned child and configured pipe endpoints.</span>
-    <span class="token-comment">///</span>
-    <span class="token-comment">/// Process creation is an explicit blocking boundary. Once returned, endpoint I/O and child</span>
-    <span class="token-comment">/// observation are available through executor-safe futures.</span>
+    <span class="token-comment">/// Creates an owned child and configured pipe endpoints without blocking the executor.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">spawn</span><span class="token-operator">(</span>io<span class="token-operator">:</span> <span class="token-type">ProcessIo</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Child</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Creates an owned child and configured pipe endpoints while blocking the current thread.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">spawn_blocking</span><span class="token-operator">(</span>io<span class="token-operator">:</span> <span class="token-type">ProcessIo</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Child</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Launches the command, waits for its child, and consumes all command storage.</span>

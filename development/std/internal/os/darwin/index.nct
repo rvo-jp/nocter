@@ -2,7 +2,6 @@
 
 use /internal/os.{OSError, OSErrorKind, Platform}
 see ./implementation.nct
-see ./pair_tests.nct
 see ./resolver.nct
 
 #target: "arm64-darwin"
@@ -229,10 +228,6 @@ pub(/) noalloc blocking primitive func syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
-
-/// Performs a zero-argument syscall whose successful ABI result occupies two words.
-#target: "arm64-darwin"
-pub(/) noalloc blocking primitive func syscall_pair0(number: usize): SyscallPairResult
 
 #target: "arm64-darwin"
 pub(/) noalloc blocking primitive func syscall2(

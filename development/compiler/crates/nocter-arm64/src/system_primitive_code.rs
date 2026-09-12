@@ -50,6 +50,79 @@ pub(crate) fn emit_descriptor_close(
     emit_system_call_result(code)
 }
 
+pub(crate) fn emit_descriptor_duplicate_close_on_exec(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(
+        code,
+        argument(1),
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::DUPLICATE_CLOSE_ON_EXEC,
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(
+        code,
+        argument(2),
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::FIRST_PRIVATE_DESCRIPTOR,
+        Arm64DataSize::Bits64,
+    );
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Fcntl,
+    );
+    emit_system_call_result(code)
+}
+
+pub(crate) fn emit_descriptor_status_flags(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(
+        code,
+        argument(1),
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::GET_STATUS_FLAGS,
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(code, argument(2), 0, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Fcntl,
+    );
+    emit_system_call_result(code)
+}
+
+pub(crate) fn emit_descriptor_set_status_flags(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    move_register(argument(1), argument(2), code);
+    crate::frame_access::load_immediate(
+        code,
+        argument(1),
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::SET_STATUS_FLAGS,
+        Arm64DataSize::Bits64,
+    );
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Fcntl,
+    );
+    emit_system_call_result(code)
+}
+
+pub(crate) fn emit_descriptor_suppress_broken_pipe(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(
+        code,
+        argument(1),
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::SET_NO_SIGPIPE,
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(code, argument(2), 1, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Fcntl,
+    );
+    emit_system_call_result(code)
+}
+
 /// Reads once through the closed nonblocking-descriptor contract in `x0..x2`.
 pub(crate) fn emit_descriptor_read(
     code: &mut Arm64CodeBuilder,
@@ -90,6 +163,47 @@ pub(crate) fn emit_process_observe(
     emit_system_call_result(code)
 }
 
+pub(crate) fn emit_process_open_null(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(code, argument(2), 0, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Open,
+    );
+    emit_system_call_result(code)
+}
+
+pub(crate) fn emit_process_install_descriptor(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Dup2,
+    );
+    emit_system_call_result(code)
+}
+
+pub(crate) fn emit_process_change_directory(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Chdir,
+    );
+    emit_system_call_result(code)
+}
+
+pub(crate) fn emit_process_exec(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Execve,
+    );
+    emit_system_call_result(code)
+}
+
 /// Fills the `u64` addressed by `x0` and returns zero or the Darwin errno in `x0`.
 pub(crate) fn emit_entropy_seed_fill(
     code: &mut Arm64CodeBuilder,
@@ -113,14 +227,17 @@ pub(crate) fn emit_errno_result(
     Ok(())
 }
 
-/// Preserves both Darwin success registers and translates carry-set failure into the third word.
-pub(crate) fn emit_system_call_pair(
+pub(crate) fn emit_fixed_system_call_pair(
+    call: crate::darwin_kernel_abi::DarwinSystemCall,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    let syscall_number = crate::darwin_kernel_abi::system_call_register();
-    move_register(argument(0), syscall_number, code);
-    crate::darwin_kernel_abi::emit_loaded_system_call(code);
+    crate::darwin_kernel_abi::emit_system_call(code, call);
+    emit_system_call_pair_result(code)
+}
 
+fn emit_system_call_pair_result(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
     let success = code.create_label();
     let complete = code.create_label();
     code.branch_conditional(success, Arm64BranchCondition::CarryClear);

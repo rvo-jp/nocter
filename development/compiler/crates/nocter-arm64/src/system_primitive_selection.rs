@@ -21,6 +21,17 @@ pub(super) fn select(
             select_memory_operation(operation, target, selected)
         }
         PrimitiveRole::DescriptorClose => select_descriptor_close(operation, target, selected),
+        PrimitiveRole::DescriptorPipeCreate | PrimitiveRole::ProcessFork => {
+            select_fixed_pair(program, operation, target, selected)
+        }
+        PrimitiveRole::DescriptorDuplicateCloseOnExec
+        | PrimitiveRole::DescriptorStatusFlags
+        | PrimitiveRole::DescriptorSetStatusFlags
+        | PrimitiveRole::DescriptorSuppressBrokenPipe
+        | PrimitiveRole::ProcessOpenNull
+        | PrimitiveRole::ProcessInstallDescriptor
+        | PrimitiveRole::ProcessChangeDirectory
+        | PrimitiveRole::ProcessExec => select_fixed_system_operation(operation, target, selected),
         PrimitiveRole::DescriptorRead | PrimitiveRole::DescriptorWrite => {
             select_descriptor_transfer(operation, target, selected)
         }
@@ -45,7 +56,6 @@ pub(super) fn select(
             select_counter_read(operation, target, selected)
         }
         PrimitiveRole::MonotonicCounterDelta => select_counter_delta(operation, target, selected),
-        PrimitiveRole::SyscallPair0 => select_syscall_pair(program, operation, target, selected),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
@@ -130,6 +140,59 @@ fn select_descriptor_close(
     Ok(())
 }
 
+fn select_fixed_pair(
+    program: &nocter_machine::MachineProgram,
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 0)?;
+    validate_three_word_indirect_result(program, operation, target)?;
+    selected.push(match target.role() {
+        PrimitiveRole::DescriptorPipeCreate => Arm64SelectedInstruction::DarwinDescriptorPipeCreate,
+        PrimitiveRole::ProcessFork => Arm64SelectedInstruction::DarwinProcessFork,
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    });
+    store_three_word_indirect_result(selected)?;
+    Ok(())
+}
+
+fn select_fixed_system_operation(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let (argument_count, instruction) = match target.role() {
+        PrimitiveRole::DescriptorDuplicateCloseOnExec => (
+            1,
+            Arm64SelectedInstruction::DarwinDescriptorDuplicateCloseOnExec,
+        ),
+        PrimitiveRole::DescriptorStatusFlags => {
+            (1, Arm64SelectedInstruction::DarwinDescriptorStatusFlags)
+        }
+        PrimitiveRole::DescriptorSetStatusFlags => {
+            (2, Arm64SelectedInstruction::DarwinDescriptorSetStatusFlags)
+        }
+        PrimitiveRole::DescriptorSuppressBrokenPipe => (
+            1,
+            Arm64SelectedInstruction::DarwinDescriptorSuppressBrokenPipe,
+        ),
+        PrimitiveRole::ProcessOpenNull => (2, Arm64SelectedInstruction::DarwinProcessOpenNull),
+        PrimitiveRole::ProcessInstallDescriptor => {
+            (2, Arm64SelectedInstruction::DarwinProcessInstallDescriptor)
+        }
+        PrimitiveRole::ProcessChangeDirectory => {
+            (1, Arm64SelectedInstruction::DarwinProcessChangeDirectory)
+        }
+        PrimitiveRole::ProcessExec => (3, Arm64SelectedInstruction::DarwinProcessExec),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_ordinary_inputs(operation, target, argument_count)?;
+    validate_direct_result(operation, target, 2)?;
+    selected.push(instruction);
+    Ok(())
+}
+
 fn select_descriptor_transfer(
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
@@ -172,15 +235,9 @@ fn select_memory_operation(
     Ok(())
 }
 
-fn select_syscall_pair(
-    program: &nocter_machine::MachineProgram,
-    operation: MachineOperationId,
-    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+fn store_three_word_indirect_result(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    validate_ordinary_inputs(operation, target, 1)?;
-    validate_three_word_indirect_result(program, operation, target)?;
-    selected.push(Arm64SelectedInstruction::DarwinSystemCallPair);
     for lane in 0..3 {
         selected.push(Arm64SelectedInstruction::StoreMemory {
             bytes: 8,

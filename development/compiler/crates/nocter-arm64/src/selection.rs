@@ -254,19 +254,38 @@ pub enum Arm64SelectedInstruction {
     DarwinSystemCall {
         argument_count: u8,
     },
-    DarwinSystemCallPair,
     /// Performs a compiler-owned private anonymous mapping and returns `(value, errno)`.
     DarwinMemoryMap,
     /// Releases a compiler-owned page mapping and returns `(value, errno)`.
     DarwinMemoryUnmap,
     /// Closes one target descriptor and returns `(value, errno)`.
     DarwinDescriptorClose,
+    /// Creates one Darwin pipe and returns both descriptors plus errno.
+    DarwinDescriptorPipeCreate,
+    /// Duplicates one descriptor with close-on-exec in the private range.
+    DarwinDescriptorDuplicateCloseOnExec,
+    /// Reads one descriptor's status flags.
+    DarwinDescriptorStatusFlags,
+    /// Replaces one descriptor's status flags.
+    DarwinDescriptorSetStatusFlags,
+    /// Suppresses broken-pipe signals for one descriptor.
+    DarwinDescriptorSuppressBrokenPipe,
     /// Reads once from an owner-certified nonblocking descriptor.
     DarwinDescriptorRead,
     /// Writes once to an owner-certified nonblocking descriptor.
     DarwinDescriptorWrite,
     /// Attempts one nonwaiting observation of an exact child.
     DarwinProcessObserve,
+    /// Forks without waiting for child progress and returns the Darwin pair result.
+    DarwinProcessFork,
+    /// Opens a prepared path with the supplied null-device access flags.
+    DarwinProcessOpenNull,
+    /// Installs one descriptor at a child destination.
+    DarwinProcessInstallDescriptor,
+    /// Changes the child working directory.
+    DarwinProcessChangeDirectory,
+    /// Attempts executable replacement from prepared storage.
+    DarwinProcessExec,
     /// Performs one closed Darwin datagram operation and returns `(value, errno)`.
     DarwinDatagram(crate::DarwinDatagramOperation),
     /// Fills one 64-bit value from the target entropy source and returns its errno.

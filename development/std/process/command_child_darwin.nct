@@ -8,10 +8,15 @@ see ./launch_report_darwin.nct
 see ./pipe_darwin.nct
 see ./spawn_io_darwin.nct
 
+use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
 
+/// Enters one prepared working directory without exposing a raw syscall identity.
 #target: "arm64-darwin"
-noalloc blocking func reject_command_setup(
+noalloc primitive func change_directory_raw(path_address: usize): SyscallResult
+
+#target: "arm64-darwin"
+noalloc func reject_command_setup(
     report: &+OwnedPipe,
     stage: i32,
     errno: i32,
@@ -20,14 +25,14 @@ noalloc blocking func reject_command_setup(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func reject_malformed_command_setup(
+noalloc func reject_malformed_command_setup(
     report: &+OwnedPipe,
 ): never {
     write_launch_failure_and_exit(report, 0, 1)
 }
 
 #target: "arm64-darwin"
-noalloc blocking func install_child_input(
+noalloc func install_child_input(
     report: &+OwnedPipe,
     channel: &+CommandInputChannel,
 ): void {
@@ -51,7 +56,7 @@ noalloc blocking func install_child_input(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func install_child_captures(
+noalloc func install_child_captures(
     report: &+OwnedPipe,
     channels: &+CommandCaptureChannels,
 ): void {
@@ -86,14 +91,14 @@ noalloc blocking func install_child_captures(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func enter_child_directory(
+noalloc func enter_child_directory(
     path_address: usize,
     report: &+OwnedPipe,
 ): void {
     if path_address == 0 { return }
-    var result = darwin.syscall1(darwin.SYS_CHDIR, path_address)
+    var result = change_directory_raw(path_address)
     while result.errno == darwin.ERRNO_INTERRUPTED {
-        result = darwin.syscall1(darwin.SYS_CHDIR, path_address)
+        result = change_directory_raw(path_address)
     }
     if result.errno != 0 {
         reject_command_setup(report, LAUNCH_STAGE_DIRECTORY, result.errno)
@@ -102,7 +107,7 @@ noalloc blocking func enter_child_directory(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func exec_command_child(
+noalloc func exec_command_child(
     path_address: usize,
     argv_address: usize,
     environment_address: usize,
@@ -125,7 +130,7 @@ noalloc blocking func exec_command_child(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func exec_spawn_child(
+noalloc func exec_spawn_child(
     path_address: usize,
     argv_address: usize,
     environment_address: usize,

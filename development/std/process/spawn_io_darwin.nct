@@ -67,6 +67,10 @@ enum SpawnOutputAttempt {
     failed(errno: i32)
 }
 
+/// Opens one prepared null-device path with exact target access flags.
+#target: "arm64-darwin"
+noalloc primitive func open_null_raw(path_address: usize, flags: usize): SyscallResult
+
 #target: "arm64-darwin"
 noalloc func close_owned_descriptor(descriptor: &+OwnedDescriptor): void {
     if descriptor.open {
@@ -77,25 +81,15 @@ noalloc func close_owned_descriptor(descriptor: &+OwnedDescriptor): void {
 }
 
 #target: "arm64-darwin"
-blocking func open_null_descriptor(writable: bool): DescriptorAttempt {
+func open_null_descriptor(writable: bool): DescriptorAttempt {
     let path = internal_path.target_path_argument("/dev/null") catch _ {
         return DescriptorAttempt.failed(0)
     }
     var flags = darwin.OPEN_READ_ONLY
     if writable { flags = darwin.OPEN_WRITE_ONLY }
-    var opened: SyscallResult = darwin.syscall3(
-        darwin.SYS_OPEN,
-        internal_path.target_path_address(&path),
-        flags,
-        0,
-    )
+    var opened = open_null_raw(internal_path.target_path_address(&path), flags)
     while opened.errno == darwin.ERRNO_INTERRUPTED {
-        opened = darwin.syscall3(
-            darwin.SYS_OPEN,
-            internal_path.target_path_address(&path),
-            flags,
-            0,
-        )
+        opened = open_null_raw(internal_path.target_path_address(&path), flags)
     }
     if opened.errno != 0 { return DescriptorAttempt.failed(opened.errno) }
     let normalized = duplicate_cloexec(opened.value)
@@ -105,7 +99,7 @@ blocking func open_null_descriptor(writable: bool): DescriptorAttempt {
 }
 
 #target: "arm64-darwin"
-blocking func create_spawn_input(mode: Stdio): SpawnInputAttempt {
+func create_spawn_input(mode: Stdio): SpawnInputAttempt {
     match mode {
         Stdio.inherit { return SpawnInputAttempt.ready(SpawnInputChannel.inherited) }
         Stdio.null {
@@ -136,7 +130,7 @@ blocking func create_spawn_input(mode: Stdio): SpawnInputAttempt {
 }
 
 #target: "arm64-darwin"
-blocking func create_spawn_output(mode: Stdio): SpawnOutputAttempt {
+func create_spawn_output(mode: Stdio): SpawnOutputAttempt {
     match mode {
         Stdio.inherit { return SpawnOutputAttempt.ready(SpawnOutputChannel.inherited) }
         Stdio.null {
@@ -167,7 +161,7 @@ blocking func create_spawn_output(mode: Stdio): SpawnOutputAttempt {
 }
 
 #target: "arm64-darwin"
-blocking func create_spawn_io(io: ProcessIo): SpawnIoAttempt {
+func create_spawn_io(io: ProcessIo): SpawnIoAttempt {
     let policy = move io
     match create_spawn_input(policy.stdin_mode) {
         SpawnInputAttempt.failed(errno) { return SpawnIoAttempt.failed(errno) }
@@ -199,7 +193,7 @@ blocking func create_spawn_io(io: ProcessIo): SpawnIoAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc blocking func install_input_channel(
+noalloc func install_input_channel(
     channel: &+SpawnInputChannel,
 ): DescriptorInstallAttempt {
     match channel {
@@ -219,7 +213,7 @@ noalloc blocking func install_input_channel(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func install_output_channel(
+noalloc func install_output_channel(
     channel: &+SpawnOutputChannel,
     target: usize,
 ): DescriptorInstallAttempt {
@@ -237,23 +231,6 @@ noalloc blocking func install_output_channel(
             return move installed
         }
     }
-}
-
-#target: "arm64-darwin"
-noalloc blocking func prepare_spawn_child_io(
-    session: &+SpawnIoSession,
-): DescriptorInstallAttempt {
-    match install_input_channel(&+session.stdin) {
-        DescriptorInstallAttempt.ready {}
-        DescriptorInstallAttempt.failed(errno) { return DescriptorInstallAttempt.failed(errno) }
-        DescriptorInstallAttempt.invalid { return DescriptorInstallAttempt.invalid }
-    }
-    match install_output_channel(&+session.stdout, darwin.STDOUT_FD) {
-        DescriptorInstallAttempt.ready {}
-        DescriptorInstallAttempt.failed(errno) { return DescriptorInstallAttempt.failed(errno) }
-        DescriptorInstallAttempt.invalid { return DescriptorInstallAttempt.invalid }
-    }
-    return install_output_channel(&+session.stderr, darwin.STDERR_FD)
 }
 
 #target: "arm64-darwin"

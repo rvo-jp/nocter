@@ -34,6 +34,10 @@ enum WaitOutcome {
     invalid(status: i32)
 }
 
+/// Forks once without waiting for progress from another process.
+#target: "arm64-darwin"
+noalloc primitive func fork_process_raw(): SyscallPairResult
+
 #target: "arm64-darwin"
 noalloc func classify_fork_attempt(result: SyscallPairResult): ForkAttempt {
     if result.errno != 0 { return ForkAttempt.failed(result.errno) }
@@ -42,8 +46,8 @@ noalloc func classify_fork_attempt(result: SyscallPairResult): ForkAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc blocking func fork_process(): ForkAttempt {
-    return classify_fork_attempt(darwin.syscall_pair0(darwin.SYS_FORK))
+noalloc func fork_process(): ForkAttempt {
+    return classify_fork_attempt(fork_process_raw())
 }
 
 #target: "arm64-darwin"

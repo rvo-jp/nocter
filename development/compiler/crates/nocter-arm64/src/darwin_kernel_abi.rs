@@ -6,8 +6,10 @@ const SUPERVISOR_CALL_IMMEDIATE: u16 = 0x80;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DarwinSystemCall {
     Exit,
+    Fork,
     Read,
     Write,
+    Open,
     Close,
     Wait4,
     Kill,
@@ -21,6 +23,10 @@ pub(crate) enum DarwinSystemCall {
     GetSocketName,
     GetPeerName,
     Fcntl,
+    Pipe,
+    Execve,
+    Dup2,
+    Chdir,
     GetEntropy,
     MemoryUnmap,
     MemoryMap,
@@ -34,8 +40,10 @@ impl DarwinSystemCall {
     const fn number(self) -> u64 {
         match self {
             Self::Exit => 1,
+            Self::Fork => 0x0200_0002,
             Self::Read => 0x0200_0003,
             Self::Write => 0x0200_0004,
+            Self::Open => 0x0200_0005,
             Self::Close => 0x0200_0006,
             Self::Wait4 => 0x0200_0007,
             Self::Kill => 0x0200_0025,
@@ -49,6 +57,10 @@ impl DarwinSystemCall {
             Self::GetSocketName => 0x0200_0020,
             Self::GetPeerName => 0x0200_001f,
             Self::Fcntl => 0x0200_005c,
+            Self::Pipe => 0x0200_002a,
+            Self::Execve => 0x0200_003b,
+            Self::Dup2 => 0x0200_005a,
+            Self::Chdir => 0x0200_000c,
             Self::GetEntropy => 0x0200_01f4,
             Self::MemoryUnmap => 0x0200_0049,
             Self::MemoryMap => 0x0200_00c5,
@@ -77,6 +89,17 @@ impl DarwinDatagramAbi {
     pub(crate) const SET_NO_SIGPIPE: u64 = 73;
     pub(crate) const CLOSE_ON_EXEC: u64 = 1;
     pub(crate) const NONBLOCKING: u64 = 4;
+}
+
+/// Darwin descriptor commands fixed by closed compiler-selected operations.
+pub(crate) struct DarwinDescriptorAbi;
+
+impl DarwinDescriptorAbi {
+    pub(crate) const GET_STATUS_FLAGS: u64 = 3;
+    pub(crate) const SET_STATUS_FLAGS: u64 = 4;
+    pub(crate) const DUPLICATE_CLOSE_ON_EXEC: u64 = 67;
+    pub(crate) const SET_NO_SIGPIPE: u64 = 73;
+    pub(crate) const FIRST_PRIVATE_DESCRIPTOR: u64 = 3;
 }
 
 /// Emits a compiler-selected Darwin system call after its arguments have been prepared.
@@ -180,8 +203,10 @@ mod tests {
     fn compiler_owned_system_calls_have_distinct_numbers() {
         let calls = [
             DarwinSystemCall::Exit,
+            DarwinSystemCall::Fork,
             DarwinSystemCall::Read,
             DarwinSystemCall::Write,
+            DarwinSystemCall::Open,
             DarwinSystemCall::Close,
             DarwinSystemCall::Wait4,
             DarwinSystemCall::Kill,
@@ -195,6 +220,10 @@ mod tests {
             DarwinSystemCall::GetSocketName,
             DarwinSystemCall::GetPeerName,
             DarwinSystemCall::Fcntl,
+            DarwinSystemCall::Pipe,
+            DarwinSystemCall::Execve,
+            DarwinSystemCall::Dup2,
+            DarwinSystemCall::Chdir,
             DarwinSystemCall::GetEntropy,
             DarwinSystemCall::MemoryUnmap,
             DarwinSystemCall::MemoryMap,

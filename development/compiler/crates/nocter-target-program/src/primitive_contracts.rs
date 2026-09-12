@@ -565,6 +565,35 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::DescriptorPipeCreate | PrimitiveRole::ProcessFork => make(
+            0,
+            vec![],
+            syscall_pair_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DescriptorDuplicateCloseOnExec
+        | PrimitiveRole::DescriptorStatusFlags
+        | PrimitiveRole::DescriptorSuppressBrokenPipe
+        | PrimitiveRole::ProcessChangeDirectory => make(
+            0,
+            vec![usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DescriptorSetStatusFlags
+        | PrimitiveRole::ProcessInstallDescriptor
+        | PrimitiveRole::ProcessOpenNull => make(
+            0,
+            vec![usize(), usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::DescriptorRead | PrimitiveRole::DescriptorWrite => make(
             0,
             vec![usize(), usize(), usize()],
@@ -839,6 +868,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         }
         PrimitiveRole::U64LeadingZeros => make(0, vec![u64()], u64(), private, None, vec![]),
         PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
+        PrimitiveRole::ProcessExec => make(
+            0,
+            vec![usize(), usize(), usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::ProcessAbandon => {
             make(0, vec![usize()], void(), private, arm64_darwin, vec![])
         }
@@ -1139,14 +1176,6 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 vec![],
             )
         }
-        PrimitiveRole::SyscallPair0 => make(
-            0,
-            vec![usize()],
-            syscall_pair_result(),
-            package,
-            arm64_darwin,
-            vec![],
-        ),
         PrimitiveRole::Trap => make(0, vec![], never(), package, arm64_darwin, vec![]),
         PrimitiveRole::Unreachable => make(0, vec![], never(), private, arm64_darwin, vec![]),
     }

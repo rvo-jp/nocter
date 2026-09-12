@@ -4,9 +4,13 @@
 //! exact setup or exec stage selected in the child without relying on an exit-code convention.
 
 see ./darwin.nct
+see ./command_io_darwin.nct
 see ./pipe_darwin.nct
+see ./pipe_endpoint_darwin.nct
 
+use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
+use /internal/task
 use /ptr
 
 #target: "arm64-darwin"
@@ -17,6 +21,16 @@ enum LaunchReportAttempt {
     directory_rejected(errno: i32)
     exec_rejected(errno: i32)
     channel_failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
+enum LaunchReportReadAttempt {
+    progress(count: usize)
+    end
+    would_block
+    interrupted
+    failed(errno: i32)
     malformed
 }
 
@@ -41,8 +55,42 @@ const LAUNCH_STAGE_DIRECTORY: i32 = 3
 #target: "arm64-darwin"
 const LAUNCH_STAGE_EXEC: i32 = 4
 
+/// Attempts executable replacement from fully prepared child storage.
 #target: "arm64-darwin"
-noalloc blocking func write_launch_failure_and_exit(
+noalloc primitive func exec_process_raw(
+    path_address: usize,
+    argv_address: usize,
+    environment_address: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+noalloc func create_launch_report_pipe(): PipeAttempt {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(errno) { return PipeAttempt.failed(errno) }
+        PipeAttempt.ready(pipe) {
+            match configure_pipe_reader_for_async_io(&pipe) {
+                PipeConfigurationAttempt.failed(errno) {
+                    drop pipe
+                    return PipeAttempt.failed(errno)
+                }
+                PipeConfigurationAttempt.ready {
+                    match configure_pipe_writer_for_async_io(&pipe) {
+                        PipeConfigurationAttempt.failed(errno) {
+                            drop pipe
+                            return PipeAttempt.failed(errno)
+                        }
+                        PipeConfigurationAttempt.ready {
+                            return PipeAttempt.ready(move pipe)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func write_launch_failure_and_exit(
     report: &+OwnedPipe,
     stage: i32,
     errno: i32,
@@ -51,8 +99,7 @@ noalloc blocking func write_launch_failure_and_exit(
     let address = ptr.addr(ptr.from_ref(&payload))
     var offset: usize = 0
     while offset < LAUNCH_REPORT_BYTES {
-        let result = darwin.syscall3(
-            darwin.SYS_WRITE,
+        let result = write_pipe_descriptor(
             pipe_write_fd(report),
             address + offset,
             LAUNCH_REPORT_BYTES - offset,
@@ -70,14 +117,13 @@ noalloc blocking func write_launch_failure_and_exit(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func exec_child_after_setup(
+noalloc func exec_child_after_setup(
     path_address: usize,
     argv_address: usize,
     environment_address: usize,
     report: &+OwnedPipe,
 ): never {
-    let result = darwin.syscall3(
-        darwin.SYS_EXECVE,
+    let result = exec_process_raw(
         path_address,
         argv_address,
         environment_address,
@@ -86,31 +132,37 @@ noalloc blocking func exec_child_after_setup(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func read_launch_report(report: OwnedPipe): LaunchReportAttempt {
-    var channel = move report
-    close_pipe_write(&+channel)
-    var payload = LaunchFailurePayload { stage: 0, errno: 0 }
-    let address = ptr.addr(ptr.from_ref_mut(&+payload))
-    var offset: usize = 0
-    while offset < LAUNCH_REPORT_BYTES {
-        let result = darwin.syscall3(
-            darwin.SYS_READ,
-            pipe_read_fd(&channel),
-            address + offset,
-            LAUNCH_REPORT_BYTES - offset,
-        )
-        if result.errno == darwin.ERRNO_INTERRUPTED {
-        } else if result.errno != 0 {
-            return LaunchReportAttempt.channel_failed(result.errno)
-        } else if result.value == 0 {
-            if offset == 0 { return LaunchReportAttempt.executed }
-            return LaunchReportAttempt.malformed
-        } else if result.value > LAUNCH_REPORT_BYTES - offset {
-            return LaunchReportAttempt.malformed
-        } else {
-            offset += result.value
-        }
-    }
+noalloc func classify_launch_report_read(
+    result: SyscallResult,
+    remaining: usize,
+): LaunchReportReadAttempt {
+    if result.errno == darwin.ERRNO_INTERRUPTED { return LaunchReportReadAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return LaunchReportReadAttempt.would_block }
+    if result.errno != 0 { return LaunchReportReadAttempt.failed(result.errno) }
+    if result.value == 0 { return LaunchReportReadAttempt.end }
+    if result.value > remaining { return LaunchReportReadAttempt.malformed }
+    return LaunchReportReadAttempt.progress(result.value)
+}
+
+#target: "arm64-darwin"
+noalloc func try_read_launch_report(
+    report: &OwnedPipe,
+    payload: &+LaunchFailurePayload,
+    offset: usize,
+): LaunchReportReadAttempt {
+    let remaining = LAUNCH_REPORT_BYTES - offset
+    return classify_launch_report_read(
+        read_pipe_descriptor(
+            pipe_read_fd(report),
+            ptr.addr(ptr.from_ref_mut(payload)) + offset,
+            remaining,
+        ),
+        remaining,
+    )
+}
+
+#target: "arm64-darwin"
+noalloc func finish_launch_report(payload: LaunchFailurePayload): LaunchReportAttempt {
     if payload.errno == 0 { return LaunchReportAttempt.malformed }
     if payload.stage == LAUNCH_STAGE_INPUT_SETUP {
         return LaunchReportAttempt.input_setup_rejected(payload.errno)
@@ -125,4 +177,63 @@ noalloc blocking func read_launch_report(report: OwnedPipe): LaunchReportAttempt
         return LaunchReportAttempt.exec_rejected(payload.errno)
     }
     return LaunchReportAttempt.malformed
+}
+
+#target: "arm64-darwin"
+noalloc blocking func read_launch_report(report: OwnedPipe): LaunchReportAttempt {
+    var channel = move report
+    close_pipe_write(&+channel)
+    var payload = LaunchFailurePayload { stage: 0, errno: 0 }
+    var offset: usize = 0
+    while offset < LAUNCH_REPORT_BYTES {
+        match try_read_launch_report(&channel, &+payload, offset) {
+            LaunchReportReadAttempt.progress(count) { offset += count }
+            LaunchReportReadAttempt.end {
+                if offset == 0 { return LaunchReportAttempt.executed }
+                return LaunchReportAttempt.malformed
+            }
+            LaunchReportReadAttempt.interrupted {}
+            LaunchReportReadAttempt.would_block {
+                match poll_descriptor_once(pipe_read_fd(&channel), false) {
+                    DescriptorPollAttempt.ready {}
+                    DescriptorPollAttempt.interrupted {}
+                    DescriptorPollAttempt.failed(errno) {
+                        return LaunchReportAttempt.channel_failed(errno)
+                    }
+                    DescriptorPollAttempt.malformed { return LaunchReportAttempt.malformed }
+                }
+            }
+            LaunchReportReadAttempt.failed(errno) {
+                return LaunchReportAttempt.channel_failed(errno)
+            }
+            LaunchReportReadAttempt.malformed { return LaunchReportAttempt.malformed }
+        }
+    }
+    return finish_launch_report(payload)
+}
+
+#target: "arm64-darwin"
+async func read_launch_report_async(report: OwnedPipe): LaunchReportAttempt {
+    var channel = move report
+    close_pipe_write(&+channel)
+    var payload = LaunchFailurePayload { stage: 0, errno: 0 }
+    var offset: usize = 0
+    while offset < LAUNCH_REPORT_BYTES {
+        match try_read_launch_report(&channel, &+payload, offset) {
+            LaunchReportReadAttempt.progress(count) { offset += count }
+            LaunchReportReadAttempt.end {
+                if offset == 0 { return LaunchReportAttempt.executed }
+                return LaunchReportAttempt.malformed
+            }
+            LaunchReportReadAttempt.interrupted {}
+            LaunchReportReadAttempt.would_block {
+                await task.wait_descriptor_ready(pipe_read_fd(&channel), false)
+            }
+            LaunchReportReadAttempt.failed(errno) {
+                return LaunchReportAttempt.channel_failed(errno)
+            }
+            LaunchReportReadAttempt.malformed { return LaunchReportAttempt.malformed }
+        }
+    }
+    return finish_launch_report(payload)
 }

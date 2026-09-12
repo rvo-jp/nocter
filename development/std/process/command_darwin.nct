@@ -162,7 +162,7 @@ blocking func fork_prepared_command(command: Command, captures_output: bool): Co
         CommandIoPreparationAttempt.input_failed(_) { return input_failed() }
         CommandIoPreparationAttempt.capture_failed(_) { return capture_failed() }
     }
-    match create_cloexec_pipe() {
+    match create_launch_report_pipe() {
         PipeAttempt.failed(_) {
             drop io
             return spawn_failed()
@@ -191,13 +191,13 @@ blocking func fork_prepared_command(command: Command, captures_output: bool): Co
 }
 
 #target: "arm64-darwin"
-blocking func fork_spawn_command(command: Command, io: ProcessIo): SpawnFork! {
+func fork_spawn_command(command: Command, io: ProcessIo): SpawnFork! {
     let prepared = prepare_command(move command)
     let streams = match create_spawn_io(move io) {
         SpawnIoAttempt.ready(session) { move session }
         SpawnIoAttempt.failed(_) { return spawn_failed() }
     }
-    match create_cloexec_pipe() {
+    match create_launch_report_pipe() {
         PipeAttempt.failed(_) {
             drop streams
             return spawn_failed()
@@ -241,6 +241,29 @@ blocking func spawn_command(command: Command, io: ProcessIo): Child! {
         SpawnFork.parent(prepared, child, report, streams) {
             let endpoints = take_spawn_parent_endpoints(move streams)
             let launch = read_launch_report(move report)
+            drop prepared
+            require_successful_launch(move launch)?
+            return make_child(move child, move endpoints)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+async func spawn_command_async(command: Command, io: ProcessIo): Child! {
+    match fork_spawn_command(move command, move io)? {
+        SpawnFork.child(prepared, report, streams) {
+            exec_spawn_child(
+                prepared_path_address(&prepared),
+                prepared_argv_address(&prepared),
+                prepared_environment_address(&prepared),
+                prepared_working_directory_address(&prepared),
+                move report,
+                move streams,
+            )
+        }
+        SpawnFork.parent(prepared, child, report, streams) {
+            let endpoints = take_spawn_parent_endpoints(move streams)
+            let launch = await read_launch_report_async(move report)
             drop prepared
             require_successful_launch(move launch)?
             return make_child(move child, move endpoints)
@@ -323,6 +346,10 @@ blocking func output_command(command: Command): Output! {
 }
 
 instance Command {
+    async method self.spawn(io: ProcessIo): Child! {
+        return await spawn_command_async(move self, move io)?
+    }
+
     blocking method self.spawn_blocking(io: ProcessIo): Child! {
         return spawn_command(move self, move io)?
     }

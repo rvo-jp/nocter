@@ -71,6 +71,16 @@ closed_role_enum! {
         MemoryUnmap,
         /// Closes one Darwin descriptor without exposing the raw syscall-number boundary.
         DescriptorClose,
+        /// Creates one raw Darwin descriptor pair without waiting for external progress.
+        DescriptorPipeCreate,
+        /// Duplicates one descriptor into the private close-on-exec range.
+        DescriptorDuplicateCloseOnExec,
+        /// Reads one descriptor's current status flags.
+        DescriptorStatusFlags,
+        /// Replaces one descriptor's status flags.
+        DescriptorSetStatusFlags,
+        /// Suppresses broken-pipe signals for one descriptor.
+        DescriptorSuppressBrokenPipe,
         /// Performs one read attempt on a descriptor whose owner proves nonblocking mode.
         DescriptorRead,
         /// Performs one write attempt on a descriptor whose owner proves nonblocking mode and
@@ -154,6 +164,16 @@ closed_role_enum! {
         U64RotateRight,
         U64LeadingZeros,
         ProcessExit,
+        /// Forks the current process without observing child progress.
+        ProcessFork,
+        /// Opens the fixed null-device path prepared by the process adapter.
+        ProcessOpenNull,
+        /// Installs one child descriptor at its standard-stream destination.
+        ProcessInstallDescriptor,
+        /// Enters one prepared child working directory.
+        ProcessChangeDirectory,
+        /// Attempts executable replacement from prepared path, argument, and environment storage.
+        ProcessExec,
         ProcessArgumentCount,
         ProcessArgument,
         ProcessEnvironmentCount,
@@ -216,7 +236,6 @@ closed_role_enum! {
         NetworkListenerDispose,
         Syscall0,
         /// Preserves both successful result words of one zero-argument target syscall.
-        SyscallPair0,
         Syscall1,
         Syscall2,
         Syscall3,
@@ -247,6 +266,11 @@ impl PrimitiveRole {
             Self::MemoryMap => "memory_map",
             Self::MemoryUnmap => "memory_unmap",
             Self::DescriptorClose => "descriptor_close",
+            Self::DescriptorPipeCreate => "descriptor_pipe_create",
+            Self::DescriptorDuplicateCloseOnExec => "descriptor_duplicate_close_on_exec",
+            Self::DescriptorStatusFlags => "descriptor_status_flags",
+            Self::DescriptorSetStatusFlags => "descriptor_set_status_flags",
+            Self::DescriptorSuppressBrokenPipe => "descriptor_suppress_broken_pipe",
             Self::DescriptorRead => "descriptor_read",
             Self::DescriptorWrite => "descriptor_write",
             Self::DatagramSocketOpen => "datagram_socket_open",
@@ -316,6 +340,11 @@ impl PrimitiveRole {
             Self::U64RotateRight => "u64_rotate_right",
             Self::U64LeadingZeros => "u64_leading_zeros",
             Self::ProcessExit => "process_exit",
+            Self::ProcessFork => "process_fork",
+            Self::ProcessOpenNull => "process_open_null",
+            Self::ProcessInstallDescriptor => "process_install_descriptor",
+            Self::ProcessChangeDirectory => "process_change_directory",
+            Self::ProcessExec => "process_exec",
             Self::ProcessArgumentCount => "process_argument_count",
             Self::ProcessArgument => "process_argument",
             Self::ProcessEnvironmentCount => "process_environment_count",
@@ -362,7 +391,6 @@ impl PrimitiveRole {
             | Self::NetworkListenerRelease
             | Self::NetworkListenerDispose => self.network_listener_name(),
             Self::Syscall0 => "syscall_0",
-            Self::SyscallPair0 => "syscall_pair_0",
             Self::Syscall1 => "syscall_1",
             Self::Syscall2 => "syscall_2",
             Self::Syscall3 => "syscall_3",
@@ -440,7 +468,6 @@ impl PrimitiveRole {
                     | Self::NetworkListenerReceiveEvent
                     | Self::NetworkListenerReleaseBarrier
                     | Self::Syscall0
-                    | Self::SyscallPair0
                     | Self::Syscall1
                     | Self::Syscall2
                     | Self::Syscall3
@@ -657,7 +684,6 @@ mod tests {
                 PrimitiveRole::NetworkListenerReceiveEvent,
                 PrimitiveRole::NetworkListenerReleaseBarrier,
                 PrimitiveRole::Syscall0,
-                PrimitiveRole::SyscallPair0,
                 PrimitiveRole::Syscall1,
                 PrimitiveRole::Syscall2,
                 PrimitiveRole::Syscall3,

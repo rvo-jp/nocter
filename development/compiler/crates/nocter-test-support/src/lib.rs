@@ -286,9 +286,29 @@ pub primitive type void
 pub primitive type never
 ";
 const PROCESS_SOURCE: &str = "\
-use /internal/os/darwin.SyscallResult
+use /internal/os/darwin.{SyscallPairResult, SyscallResult}
 #target: \"arm64-darwin\"
 noalloc primitive func exit_raw(code: i32): never
+#target: \"arm64-darwin\"
+noalloc primitive func create_pipe_raw(): SyscallPairResult
+#target: \"arm64-darwin\"
+noalloc primitive func duplicate_cloexec_raw(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func descriptor_status_flags_raw(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func set_descriptor_status_flags_raw(fd: usize, flags: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func suppress_broken_pipe_raw(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func fork_process_raw(): SyscallPairResult
+#target: \"arm64-darwin\"
+noalloc primitive func open_null_raw(address: usize, writable: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func install_descriptor_raw(source: usize, target: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func change_directory_raw(address: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func exec_process_raw(path: usize, argv: usize, environment: usize): SyscallResult
 #target: \"arm64-darwin\"
 noalloc primitive func abandon_process_raw(pid: usize): void
 #target: \"arm64-darwin\"
@@ -489,8 +509,6 @@ pub(/) copy struct SyscallPairResult {
 pub(/) noalloc primitive func close_descriptor(fd: usize): SyscallResult
 #target: \"arm64-darwin\"
 blocking primitive func syscall0(number: usize): SyscallResult
-#target: \"arm64-darwin\"
-pub(/) blocking primitive func syscall_pair0(number: usize): SyscallPairResult
 #target: \"arm64-darwin\"
 pub(/) blocking primitive func syscall1(number: usize, a0: usize): SyscallResult
 #target: \"arm64-darwin\"

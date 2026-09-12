@@ -115,10 +115,10 @@ instance Command {
     /// Copies finite bytes that replace inherited standard input.
     pub method &+self.input(value: &[u8]): void
 
-    /// Creates an owned child and configured pipe endpoints.
-    ///
-    /// Process creation is an explicit blocking boundary. Once returned, endpoint I/O and child
-    /// observation are available through executor-safe futures.
+    /// Creates an owned child and configured pipe endpoints without blocking the executor.
+    pub async method self.spawn(io: ProcessIo): Child!
+
+    /// Creates an owned child and configured pipe endpoints while blocking the current thread.
     pub blocking method self.spawn_blocking(io: ProcessIo): Child!
 
     /// Launches the command, waits for its child, and consumes all command storage.

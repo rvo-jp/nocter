@@ -140,6 +140,11 @@ pub(crate) fn select(
         | PrimitiveRole::MemoryMap
         | PrimitiveRole::MemoryUnmap
         | PrimitiveRole::DescriptorClose
+        | PrimitiveRole::DescriptorPipeCreate
+        | PrimitiveRole::DescriptorDuplicateCloseOnExec
+        | PrimitiveRole::DescriptorStatusFlags
+        | PrimitiveRole::DescriptorSetStatusFlags
+        | PrimitiveRole::DescriptorSuppressBrokenPipe
         | PrimitiveRole::DescriptorRead
         | PrimitiveRole::DescriptorWrite
         | PrimitiveRole::DatagramSocketOpen
@@ -156,12 +161,16 @@ pub(crate) fn select(
         | PrimitiveRole::WallClockRead
         | PrimitiveRole::TimeoutWait
         | PrimitiveRole::ProcessExit
+        | PrimitiveRole::ProcessFork
+        | PrimitiveRole::ProcessOpenNull
+        | PrimitiveRole::ProcessInstallDescriptor
+        | PrimitiveRole::ProcessChangeDirectory
+        | PrimitiveRole::ProcessExec
         | PrimitiveRole::ProcessObserve
         | PrimitiveRole::MonotonicCounterRead
         | PrimitiveRole::MonotonicCounterFrequency
         | PrimitiveRole::MonotonicCounterDelta
         | PrimitiveRole::Syscall0
-        | PrimitiveRole::SyscallPair0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3

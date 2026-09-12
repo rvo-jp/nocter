@@ -75,10 +75,10 @@ The v0.45.0 migration inventory classifies current roles as follows:
 
 | Classification | Current roles | Required action |
 |---|---|---|
-| generic possibly-blocking entry | `Syscall0` through `Syscall6`, `SyscallPair0` | mark invocation blocking; never infer safety from the runtime syscall number |
+| generic possibly-blocking entry | `Syscall0`, `Syscall1`, `Syscall2`, `Syscall3`, `Syscall4`, `Syscall6` | mark invocation blocking; never infer safety from the runtime syscall number |
 | synchronous external barrier | `NetworkConnectionReleaseBarrier`, `NetworkListenerReleaseBarrier` | mark blocking and remove from any asynchronous drive/cancellation path before Phase 2 closes |
 | synchronous callback receive | `NetworkConnectionReceiveEvent`, `NetworkListenerReceiveEvent` | retain for explicitly blocking policy only; asynchronous policy uses the distinct nonblocking try-receive roles |
-| drive-safe future constructor | `DescriptorReadiness`, `DescriptorReadinessOrDeadline`, `MonotonicDeadline`, `TaskJoin` | certify constructor-call effect and future-drive safety separately |
+| drive-safe future constructor | `DescriptorReadiness`, `DescriptorReadinessOrDeadline`, `MonotonicDeadline`, `ProcessCompletion`, `TaskJoin`, `TaskRace` | certify constructor-call effect and future-drive safety separately |
 | instantiated cleanup | `DropValueAtPointer` | consume the ownership-selected drop dependency rather than assigning a universal primitive blocking fact |
 | closed nonwaiting operation | every remaining current role | certify nonblocking invocation; adding a role requires an explicit classification |
 

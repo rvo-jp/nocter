@@ -23,10 +23,10 @@ output, and standard error as they exist at launch. Environment entries are inhe
 UTF-8 decoding or reconstruction. No shell parses the path or arguments, and no text is joined into
 a command line.
 
-`spawn_blocking` consumes a command and a `ProcessIo` policy. It returns one owning `Child` only
-after the close-on-exec report proves successful executable replacement. Process creation and that
-confirmation are one explicit blocking boundary. The canonical executor-safe spawn operation is
-not yet part of the checked API.
+`spawn` and `spawn_blocking` consume a command and a `ProcessIo` policy. Each returns one owning
+`Child` only after the close-on-exec report proves successful executable replacement. `spawn`
+awaits that report through descriptor readiness without blocking the executor; `spawn_blocking`
+waits through the synchronous descriptor adapter.
 
 `ProcessIo.inherit` selects inherited descriptors for all streams. `ProcessIo.piped` selects three
 directional pipes. The `stdin`, `stdout`, and `stderr` mutators replace those choices independently
@@ -80,10 +80,11 @@ cannot be mistaken for an exec failure.
 
 Construction and `arg` own their copied text in the current allocation context and follow the
 ordinary allocation-abort policy. Their `T!` layer reports validation, not recoverable allocation.
-`status`, `output`, and `spawn_blocking` may allocate launch metadata before creating the child and
-may synchronously wait; they therefore carry `blocking` and do not publish `noalloc`. Endpoint
-close and transfer are allocation-free and nonblocking. Asynchronous endpoint I/O and `Child.wait`
-are executor-safe. `ExitStatus` inspection is allocation-free and nonblocking.
+All spawn operations may allocate launch metadata before creating the child and do not publish
+`noalloc`. `status`, `output`, and `spawn_blocking` may synchronously wait and therefore carry
+`blocking`; `spawn` is executor-safe. Endpoint close and transfer are allocation-free and
+nonblocking. Asynchronous endpoint I/O and `Child.wait` are executor-safe. `ExitStatus` inspection
+is allocation-free and nonblocking.
 
 No child is created until all target arguments, pointers, and the launch-report channel can be
 prepared. After process creation, the child path performs only target operations required to close
@@ -99,9 +100,9 @@ program selected through `PATH`.
 ## Responsibility Boundaries
 
 `std/process` owns `Command`, `ProcessIo`, child and endpoint states, argument validation and
-ownership, launch policy, public errors, wait retry, and status decoding. Closed descriptor
-read/write and process-observation primitives are source-private to this module; another standard
-module cannot invoke them with an unproved blocking descriptor or reinterpret their target facts.
+ownership, launch policy, public errors, wait retry, and status decoding. Closed descriptor,
+process-launch, and process-observation primitives are source-private to this module; another
+standard module cannot invoke them with unproved ownership or reinterpret their target facts.
 The compiler owns process-entry context access, semantic reactor interests, and selected target
 operations. It does not know `Command`, `Child`, `Stdio`, public error codes, or wait-status
 encoding.
@@ -194,12 +195,13 @@ It publishes neither `noalloc` nor a nonblocking guarantee and explicitly carrie
 synchronous lifecycle. Its target-independent command representation does not know readiness
 record layouts or syscall numbers.
 
-Target-specific standard source owns descriptor normalization, redirection constants, readiness
-record layout, syscall selection, and one-attempt raw transitions. One shared private pipe
-abstraction owns close-on-exec creation and descriptor lifetime; output capture must not construct a
-second pipe protocol beside the launch-report implementation.
+Target-specific standard source owns descriptor-normalization policy, redirection and readiness
+records, and one-attempt result classification. The selected target owns syscall identities and
+native calling conventions behind exact primitive roles. One shared private pipe abstraction owns
+close-on-exec creation and descriptor lifetime; output capture must not construct a second pipe
+protocol beside the launch-report implementation.
 
-The compiler continues to expose only generic syscall roles and immutable process-entry facts. It
+The compiler exposes closed target-operation roles and immutable process-entry facts. It
 does not know `Output`, distinguish standard output from standard error, decode readiness events,
 or choose public process failures.
 
@@ -296,12 +298,12 @@ size limit or an asynchronous progress API.
 
 `std/process` owns command configuration, prepared `argv` and environment storage, stream policy,
 failure precedence, and the complete create-and-reap lifecycle. Target-specific standard-library
-source owns raw `chdir`, descriptor installation, readiness records, no-SIGPIPE descriptor setup,
-and syscall classification.
+source owns child setup policy, readiness records, no-SIGPIPE requirements, and native result
+classification. The selected target owns the exact `chdir` and descriptor-installation operations.
 
 One command-I/O session owns every configured pipe and all three direction states. It replaces the
 capture-only two-descriptor session rather than creating a second polling and cleanup authority.
-The compiler continues to expose only generic syscall roles and immutable process-entry facts; it
+The compiler exposes closed target-operation roles and immutable process-entry facts; it
 does not know command configuration, environment edits, pipe direction, or public process errors.
 
 ## Process Context
@@ -316,6 +318,5 @@ remains the allocating convenience that collects all arguments.
 ## Non-goals
 
 This contract does not add `PATH` search, shell parsing, caller-provided descriptors, merged output,
-capture or input size limits, process groups, terminal control, or another target. Executor-safe
-spawn, parent-directed termination, generic transfer operations, and process timeouts remain later
-v0.49.0 work; they are not approximated by calling a blocking operation from a future.
+capture or input size limits, process groups, terminal control, or another target. Parent-directed
+termination, generic transfer operations, and process timeouts remain later v0.49.0 work.

@@ -1265,6 +1265,69 @@ blocking func main(): i32 {{
     execute_spawned_child_contract(image.image(), &package_root.0);
 }
 
+#[test]
+fn standard_async_spawn_and_pipe_values_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let helper = package_root.0.join("streaming-child-helper");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/io.{{Reader, Writer}}
+use std/process.{{Command, ProcessIo, Stdio}}
+
+func is_none<T>(value: T?): bool {{
+    let _ = move value otherwise {{ return true }}
+    return false
+}}
+
+async func main(): i32 {{
+    let command = Command.new("{}") catch _ {{ return 1 }}
+    var io = ProcessIo.piped()
+    io.stderr(Stdio.null)
+    var child = await command.spawn(move io) catch _ {{ return 2 }}
+
+    var stdin = child.take_stdin() otherwise {{ return 3 }}
+    await stdin.write_text("request\n") catch _ {{ return 4 }}
+    stdin.close()
+
+    var stdout = child.take_stdout() otherwise {{ return 5 }}
+    let output = await stdout.read_to_end() catch _ {{ return 6 }}
+    if !is_none(child.take_stderr()) {{ return 7 }}
+
+    let status = await child.wait() catch _ {{ return 8 }}
+    if !status.success() {{ return 9 }}
+    if output.len() != 9 || output[0] != 114 || output[7] != 101 || output[8] != 10 {{
+        return 10
+    }}
+
+    let missing = Command.new("{}") catch _ {{ return 11 }}
+    let _missing_child = await missing.spawn(ProcessIo.inherit()) catch failure {{
+        if failure.has_code("std.process.not_found") {{ return 0 }}
+        return 12
+    }}
+    return 13
+}}
+"#,
+            helper.display(),
+            package_root.0.join("missing-executable").display(),
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_spawned_child_contract(image.image(), &package_root.0);
+}
+
 const CONFIGURED_SUBPROCESS_HELPERS_SOURCE: &str = r"use std/process.Command
 use std/vec.Vec
 
@@ -1430,7 +1493,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 14);
+    assert_eq!(case_count, 15);
 }
 
 #[test]
