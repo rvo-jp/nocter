@@ -1,6 +1,6 @@
 use std/io.BlockingWriter
 use std/io
-use std/io/buffer.BufReader
+use std/io/buffer.BlockingBufReader
 use std/process
 use std/string.String
 
@@ -24,7 +24,7 @@ blocking func run(): i32 {
 }
 
 blocking func prefix_lines(prefix: &str): void! {
-    var input = BufReader.new(io.stdin())
+    var input = BlockingBufReader.new(io.stdin())
     var output = io.stdout()
     var line = String.empty()
     while input.read_line_into_blocking(&+line)? {

@@ -4,7 +4,7 @@ use std/fs.FileType
 use std/fs
 use std/io.{File, BlockingWriter}
 use std/io
-use std/io/buffer.{BufReader, BufWriter}
+use std/io/buffer.{BlockingBufReader, BlockingBufWriter}
 use std/process
 use std/string.String
 use std/vec.Vec
@@ -53,14 +53,14 @@ blocking func search_tree(needle: &str, root: &str): bool! {
     collect_directory(root, "", &+paths)?
     paths.sort()
 
-    var output = BufWriter.new(io.stdout())
+    var output = BlockingBufWriter.new(io.stdout())
     var matched = false
     for path in &paths {
         if search_file(&+output, needle, path)? {
             matched = true
         }
     }
-    output.close()?
+    let _ = output.finish()?
     return matched
 }
 
@@ -116,12 +116,16 @@ func display_child(parent: &str, name: &str): String {
     return String.concat(parent, "/", name)
 }
 
-blocking func search_file(output: &+BufWriter, needle: &str, path: &SearchPath): bool! {
+blocking func search_file(
+    output: &+BlockingBufWriter<File>,
+    needle: &str,
+    path: &SearchPath,
+): bool! {
     let source = File.open(&path.full) catch failure {
         let context = String.concat("cannot open ", &path.display)
         return failure.context(&context)
     }
-    var reader = BufReader.new(move source)
+    var reader = BlockingBufReader.new(move source)
     var line = String.empty()
     var line_number: usize = 1
     var matched = false
@@ -139,12 +143,11 @@ blocking func search_file(output: &+BufWriter, needle: &str, path: &SearchPath):
         }
         line_number += 1
     }
-    reader.close()
     return matched
 }
 
 blocking func write_match(
-    output: &+BufWriter,
+    output: &+BlockingBufWriter<File>,
     path: &str,
     line_number: usize,
     line: &str,

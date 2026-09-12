@@ -2,19 +2,19 @@
 
 ## Current State
 
-Nocter v0.47.0 is published and externally audited. v0.48.0 Phase 0 is complete on
-`develop-v0.48.0`: the generic buffered-I/O ownership, progress, failure, cancellation, and naming
-contracts are fixed without adding compiler-recognized library names. Unqualified `BufReader<R>`
-and `BufWriter<W>` will follow the canonical asynchronous `Reader` and `Writer` contracts; explicit
-`BlockingBufReader<R>` and `BlockingBufWriter<W>` will replace the current file-specific blocking
-types without compatibility aliases.
+Nocter v0.47.0 is published and externally audited. v0.48.0 Phases 0 and 1 are complete on
+`develop-v0.48.0`: the buffered-I/O ownership, progress, failure, cancellation, and naming contracts
+are fixed, and the blocking surface is now generic `BlockingBufReader<R>` and
+`BlockingBufWriter<W>` over the ordinary blocking interfaces. The old file-specific representation,
+close-shaped wrapper API, and unqualified blocking names have no compatibility path.
 
 ## Next Work
 
-Implement v0.48.0 Phase 1 as one closed migration: make the blocking buffers generic over their
-public contracts, rename them explicitly, migrate every standard source, example, fixture, and
-tooling expectation, and remove the file-specific representation. Preserve the exact public
-blocking line and flush behavior while making ownership of the underlying stream generic.
+Implement v0.48.0 Phase 2 as one asynchronous state-machine boundary. Add canonical generic
+`BufReader<R>` and `BufWriter<W>` over `Reader` and `Writer`, including line reuse, complete writes,
+flush, consuming finish, cancellation-safe terminal transitions, and native qualification for both
+immediate and suspended progress. Share only pure byte, capacity, validation, and error policy with
+the blocking surface; do not merge their control loops or add compiler-recognized library names.
 
 Preserve every published tag and asset, including v0.47.0.
 

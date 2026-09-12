@@ -1845,11 +1845,11 @@ fn standard_streaming_lines_cross_the_complete_native_session() {
     package_root.source(
         "main.nct",
         r#"use std/io.{File, BlockingWriter}
-use std/io/buffer.{BufReader, BufWriter}
+use std/io/buffer.{BlockingBufReader, BlockingBufWriter}
 use std/string.String
 
 blocking func check_lines(): i32! {
-    var reader = BufReader.with_capacity(File.open("lines.txt")?, 3)
+    var reader = BlockingBufReader.with_capacity(File.open("lines.txt")?, 3)
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
 
@@ -1867,7 +1867,7 @@ blocking func check_lines(): i32! {
 }
 
 blocking func check_invalid_utf8(): i32! {
-    var reader = BufReader.with_capacity(File.open("invalid.txt")?, 2)
+    var reader = BlockingBufReader.with_capacity(File.open("invalid.txt")?, 2)
     var line = String.copy("sentinel")
     if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "good" { return 1 }
     let _present = reader.read_line_into_blocking(&+line) catch failure {
@@ -1879,34 +1879,45 @@ blocking func check_invalid_utf8(): i32! {
     return 5
 }
 
-blocking func check_zero_capacity_and_close(): i32! {
-    var reader = BufReader.with_capacity(File.open("single.txt")?, 0)
+blocking func check_zero_capacity_and_finish(): i32! {
+    var reader = BlockingBufReader.with_capacity(File.open("single.txt")?, 0)
     let line = reader.read_line_blocking()? otherwise { return 1 }
     if (&line as &str) != "z" { return 2 }
     let _after_eof = reader.read_line_blocking()? otherwise {
-        var closed = BufReader.new(File.open("single.txt")?)
-        closed.close()
-        let _after_close = closed.read_line_blocking()? otherwise { return 0 }
-        return 3
+        var source = reader.finish()
+        source.close()
+        return 0
     }
-    return 4
+    return 3
 }
 
 blocking func check_closed_output(): i32! {
+    var destination = File.create("writer.txt")?
+    var nested = BlockingBufWriter.with_capacity(move destination, 8)
+    var completed = BlockingBufWriter.with_capacity(move nested, 2)
+    completed.write_text_blocking("abc")?
+    nested = completed.finish()?
+    var returned_destination = nested.finish()?
+    returned_destination.close()
+
     var file = File.create("closed-file.txt")?
     file.close()
     file.write_text_blocking("not written") catch failure {
         if !failure.has_code("std.io.closed") { return 1 }
-        var writer = BufWriter.with_capacity(File.create("writer.txt")?, 0)
-        writer.write_text_blocking("abc")?
-        writer.close()?
-        writer.write_text_blocking("not written") catch writer_failure {
-            if !writer_failure.has_code("std.io.closed") { return 2 }
-            return 0
+        var closed_destination = File.create("closed-buffer.txt")?
+        closed_destination.close()
+        var writer = BlockingBufWriter.with_capacity(move closed_destination, 1)
+        writer.write_text_blocking("abc") catch first_failure {
+            if !first_failure.has_code("std.io.closed") { return 2 }
+            writer.write_text_blocking("not written") catch writer_failure {
+                if !writer_failure.has_code("std.io.closed") { return 3 }
+                return 0
+            }
+            return 4
         }
-        return 3
+        return 5
     }
-    return 4
+    return 6
 }
 
 blocking func main(): i32 {
@@ -1914,7 +1925,7 @@ blocking func main(): i32 {
     if lines != 0 { return lines }
     let invalid = check_invalid_utf8() catch _ { return 21 }
     if invalid != 0 { return 10 + invalid }
-    let terminal = check_zero_capacity_and_close() catch _ { return 22 }
+    let terminal = check_zero_capacity_and_finish() catch _ { return 22 }
     if terminal != 0 { return 30 + terminal }
     let output = check_closed_output() catch _ { return 23 }
     if output != 0 { return 40 + output }
@@ -2011,11 +2022,11 @@ fn standard_buffered_input_crosses_the_complete_native_session() {
     package_root.source(
         "main.nct",
         r#"use std/io
-use std/io/buffer.BufReader
+use std/io/buffer.BlockingBufReader
 use std/string.String
 
 blocking func main(): i32! {
-    var input = BufReader.with_capacity(io.stdin(), 3)
+    var input = BlockingBufReader.with_capacity(io.stdin(), 3)
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
 

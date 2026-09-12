@@ -36,18 +36,18 @@ input instead uses the existing owning buffer explicitly:
 
 ```nct
 use std/io
-use std/io/buffer.BufReader
+use std/io/buffer.BlockingBufReader
 
-var input = BufReader.new(io.stdin())
+var input = BlockingBufReader.new(io.stdin())
 let line = input.read_line_blocking()?
 ```
 
 The containing callable must admit `blocking`, because `read_line_blocking` may wait for input.
 
-Each `BufReader` owns its unread bytes and line state. Creating two buffered wrappers for the same
-process descriptor therefore creates two independent consumers; the library does not coordinate
-their buffered state. EOF, CR/LF removal, UTF-8 validation, allocation failure, and terminal-state
-behavior remain exactly the common `BufReader` contract.
+Each `BlockingBufReader` owns its unread bytes and line state. Creating two buffered wrappers for
+the same process descriptor therefore creates two independent consumers; the library does not
+coordinate their buffered state. EOF, CR/LF removal, UTF-8 validation, allocation failure, and
+terminal-state behavior remain exactly the common `BlockingBufReader` contract.
 
 
 ## Byte I/O and Buffering
@@ -80,16 +80,19 @@ remain unqualified.
 
 `BlockingWriter.write_text_blocking` is a default adapter from UTF-8 text to the complete-byte
 `write_blocking` contract.
-`BufReader` and `BufWriter` in `std/io/buffer` own their buffering storage and receive these common
-operations through static interface dispatch. A buffered writer reports I/O failure only through
-an explicit `flush_blocking` or `close`; dropping it discards unflushed bytes because destruction
-cannot return an error. Successful flush clears the buffer only after the underlying write succeeds. A
-failed flush makes the writer terminal because the destination may already have accepted an
-unreported prefix; retrying the complete retained buffer could duplicate output. Explicit close
-also makes the wrapper terminal, and later write or flush operations fail with `std.io.closed`.
+`BlockingBufReader<R>` and `BlockingBufWriter<W>` in `std/io/buffer` own their buffering storage
+and receive these common operations through static interface dispatch. They accept any underlying
+type that implements the matching blocking interface; neither representation depends on `File`.
+A buffered writer reports I/O failure only through an explicit `flush_blocking` or `finish`;
+dropping it discards unflushed bytes because destruction cannot return an error. Successful flush
+clears the buffer only after the underlying write succeeds. A failed flush makes the writer
+terminal because the destination may already have accepted an unreported prefix; retrying the
+complete retained buffer could duplicate output. Explicit close of the underlying stream is
+performed after a successful `finish` returns that stream; the generic buffer does not invent a
+close capability. Later write or flush operations after failure report `std.io.closed`.
 A requested writer capacity of zero is normalized to one byte.
 
-`BufReader` additionally exposes the line-oriented text operations declared in the
+`BlockingBufReader` additionally exposes the line-oriented text operations declared in the
 [`std/io/buffer` contract](buffer/index.nct).
 
 `read_line_blocking` returns an owned string, `none` only when end of stream is reached before
@@ -101,8 +104,9 @@ condition. An empty line therefore returns an empty present `String` or `true`, 
 
 Line results exclude the terminating LF byte. One CR byte immediately before that LF is also
 excluded; a lone CR and every other byte are retained. EOF after line bytes returns that final
-unterminated line once. Repeated line reads after EOF or explicit `close` return `none` or `false`,
-and byte reads through `BlockingReader.read_blocking` return zero.
+unterminated line once. Repeated line reads after EOF return `none` or `false`, and byte reads
+through `BlockingReader.read_blocking` return zero. Consuming `finish` instead discards unread
+buffered input and returns the underlying reader.
 
 UTF-8 validation applies to the complete line after newline removal, so one scalar may cross any
 number of partial underlying reads. Invalid input fails with `std.string.invalid_utf8`; it is not

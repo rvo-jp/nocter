@@ -1,49 +1,53 @@
-//! Buffered file I/O.
+//! Generic buffered byte I/O.
 //!
 //! Fallible flushes are always explicit. Dropping a writer discards an
 //! unflushed buffer instead of hiding an I/O failure in destruction.
 
-use /io.{File, BlockingReader, BlockingWriter}
+use /io.{BlockingReader, BlockingWriter}
 use /string.String
 see ./buffering.nct
 
-/// An owning buffered reader with explicit line state.
-pub struct BufReader
+/// An owning synchronous buffered reader with explicit line state.
+pub struct BlockingBufReader<R>
 
-construct BufReader {
+construct BlockingBufReader<R> {
     /// Wraps `source` with the default positive buffer capacity.
-    pub func new(source: File): Self
+    pub func new(source: R): Self where R impl BlockingReader
 
     /// Wraps `source`, normalizing a zero requested capacity to one byte.
-    pub func with_capacity(source: File, requested_capacity: usize): Self
+    pub func with_capacity(source: R, requested_capacity: usize): Self where R impl BlockingReader
 }
 
-instance BufReader {
+instance BlockingBufReader<R> where R impl BlockingReader {
     /// Returns one owned line without its LF or immediately preceding CR.
     pub blocking method &+self.read_line_blocking(): String?!
 
     /// Replaces `destination` with one line and reports false only at clean end of stream.
     pub blocking method &+self.read_line_into_blocking(destination: &+String): bool!
 
-    /// Closes the source and makes every later read observe end of stream.
-    pub method &+self.close(): void
+    /// Consumes this buffer, discards unread bytes, and returns its underlying source.
+    pub method self.finish(): R
 
     impl BlockingReader
 }
 
-/// An owning buffered writer whose fallible flush remains explicit.
-pub struct BufWriter
+/// An owning synchronous buffered writer whose fallible flush remains explicit.
+pub struct BlockingBufWriter<W>
 
-construct BufWriter {
+construct BlockingBufWriter<W> {
     /// Wraps `destination` with the default positive buffer capacity.
-    pub func new(destination: File): Self
+    pub func new(destination: W): Self where W impl BlockingWriter
 
     /// Wraps `destination`, normalizing a zero requested capacity to one byte.
-    pub func with_capacity(destination: File, requested_capacity: usize): Self
+    pub func with_capacity(
+        destination: W,
+        requested_capacity: usize,
+    ): Self where W impl BlockingWriter
 }
 
-instance BufWriter {
-    /// Flushes pending bytes, closes the destination, and makes this writer terminal.
-    pub blocking method &+self.close(): void!
+instance BlockingBufWriter<W> where W impl BlockingWriter {
+    /// Flushes pending bytes, consumes this buffer, and returns its underlying destination.
+    pub blocking method self.finish(): W!
+
     impl BlockingWriter
 }

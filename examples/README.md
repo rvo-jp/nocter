@@ -237,7 +237,8 @@ nocter run -- "  alpha beta  "
 
 [stdin-prefix/index.nct](stdin-prefix/index.nct) prefixes every logical standard-input line with
 one exact command-line argument. Its [prefix.nct](stdin-prefix/prefix.nct) implementation combines
-the borrowed `io.stdin()` stream with explicit `BufReader` state and ordinary `BlockingWriter` output;
+the borrowed `io.stdin()` stream with explicit `BlockingBufReader` state and ordinary
+`BlockingWriter` output;
 there is no global line buffer or input-specific compiler path.
 
 ```sh

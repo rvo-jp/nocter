@@ -188,7 +188,7 @@
             <div class="markdown-body">
                 <h1>prefix.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">BlockingWriter</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">/</span>buffer<span class="token-operator">.</span><span class="token-type">BufReader</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">/</span>buffer<span class="token-operator">.</span><span class="token-type">BlockingBufReader</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>process
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
@@ -212,7 +212,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">prefix_lines</span><span class="token-operator">(</span>prefix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> input <span class="token-operator">=</span> <span class="token-type">BufReader</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>io<span class="token-operator">.</span><span class="token-function">stdin</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> input <span class="token-operator">=</span> <span class="token-type">BlockingBufReader</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>io<span class="token-operator">.</span><span class="token-function">stdin</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> output <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> line <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">while</span> input<span class="token-operator">.</span><span class="token-function">read_line_into_blocking</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>line<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>

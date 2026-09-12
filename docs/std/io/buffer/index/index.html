@@ -187,53 +187,57 @@
                 <span class="markdown-path-text">/std/io/buffer/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Buffered file I/O.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Generic buffered byte I/O.</span>
 <span class="token-comment">//!</span>
 <span class="token-comment">//! Fallible flushes are always explicit. Dropping a writer discards an</span>
 <span class="token-comment">//! unflushed buffer instead of hiding an I/O failure in destruction.</span>
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">BlockingReader</span><span class="token-operator">,</span> <span class="token-type">BlockingWriter</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">BlockingReader</span><span class="token-operator">,</span> <span class="token-type">BlockingWriter</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>buffering<span class="token-operator">.</span>nct
 
-<span class="token-comment">/// An owning buffered reader with explicit line state.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BufReader</span>
+<span class="token-comment">/// An owning synchronous buffered reader with explicit line state.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BlockingBufReader</span><span class="token-operator">&lt;</span><span class="token-type">R</span><span class="token-operator">&gt;</span>
 
-<span class="token-keyword">construct</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
+<span class="token-keyword">construct</span> <span class="token-type">BlockingBufReader</span><span class="token-operator">&lt;</span><span class="token-type">R</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Wraps `source` with the default positive buffer capacity.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">R</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">R</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
 
     <span class="token-comment">/// Wraps `source`, normalizing a zero requested capacity to one byte.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>source<span class="token-operator">:</span> <span class="token-type">R</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">R</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">BufReader</span> <span class="token-operator">{</span>
+<span class="token-keyword">instance</span> <span class="token-type">BlockingBufReader</span><span class="token-operator">&lt;</span><span class="token-type">R</span><span class="token-operator">&gt;</span> where <span class="token-type">R</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns one owned line without its LF or immediately preceding CR.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_line_blocking</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Replaces `destination` with one line and reports false only at clean end of stream.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_line_into_blocking</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span>
 
-    <span class="token-comment">/// Closes the source and makes every later read observe end of stream.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-comment">/// Consumes this buffer, discards unread bytes, and returns its underlying source.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">finish</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">R</span>
 
     <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
 <span class="token-operator">}</span>
 
-<span class="token-comment">/// An owning buffered writer whose fallible flush remains explicit.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BufWriter</span>
+<span class="token-comment">/// An owning synchronous buffered writer whose fallible flush remains explicit.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">BlockingBufWriter</span><span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span>
 
-<span class="token-keyword">construct</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
+<span class="token-keyword">construct</span> <span class="token-type">BlockingBufWriter</span><span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Wraps `destination` with the default positive buffer capacity.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-type">W</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 
     <span class="token-comment">/// Wraps `destination`, normalizing a zero requested capacity to one byte.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">,</span> requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>
+        destination<span class="token-operator">:</span> <span class="token-type">W</span><span class="token-operator">,</span>
+        requested_capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Flushes pending bytes, closes the destination, and makes this writer terminal.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-keyword">instance</span> <span class="token-type">BlockingBufWriter</span><span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Flushes pending bytes, consumes this buffer, and returns its underlying destination.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">finish</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">W</span><span class="token-operator">!</span>
+
     <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 <span class="token-operator">}</span>
 </code></pre>

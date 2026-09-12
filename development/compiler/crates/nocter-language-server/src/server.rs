@@ -1941,11 +1941,11 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BufReader\\nblocking func inspect(reader: &+BufReader): void! {{\\n    let _line = reader.read_line_blocking()?\\n    return\\n}}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BlockingBufReader\\nuse std/io.File\\nblocking func inspect(reader: &+BlockingBufReader<File>): void! {{\\n    let _line = reader.read_line_blocking()?\\n    return\\n}}\\n\"}}}}}}"
         ));
 
         let completion = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":23}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":3,\"character\":23}}}}}}"
         ));
         let response = completion.response().unwrap();
         assert!(
@@ -1983,7 +1983,7 @@ mod tests {
         let response = hover.response().unwrap();
         assert!(
             response.contains(
-                "```nocter\\npub blocking method &+BufReader.read_line_blocking(): String?!\\n```"
+                "```nocter\\npub blocking method &+BlockingBufReader<R>.read_line_blocking(): String?!\\n```"
             ),
             "{response}"
         );

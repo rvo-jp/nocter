@@ -2,31 +2,32 @@
 
 see ./index.nct
 
-use /io.{File, BlockingReader, BlockingWriter}
-use /internal/io
+use /io.{BlockingReader, BlockingWriter}
+use /io
+use /internal/io as internal_io
 use /string.String
 use /vec.Vec
 
-struct BufReader {
-    source: File
+struct BlockingBufReader<R> {
+    source: R
     buffer: Vec<u8>
     next: usize
     line_buffer: Vec<u8>
     is_finished: bool
 }
 
-construct BufReader {
-    func new(source: File): Self {
-        return BufReader.with_capacity(move source, 8192)
+construct BlockingBufReader<R> {
+    func new(source: R): Self where R impl BlockingReader {
+        return BlockingBufReader.with_capacity(move source, 8192)
     }
 
-    func with_capacity(source: File, requested_capacity: usize): Self {
+    func with_capacity(source: R, requested_capacity: usize): Self where R impl BlockingReader {
         var capacity = requested_capacity
         if capacity == 0 {
             capacity = 1
         }
         let storage: Vec<u8> = Vec.with_capacity(capacity)
-        return BufReader {
+        return BlockingBufReader<R> {
             source: move source,
             buffer: move storage,
             next: 0,
@@ -36,7 +37,7 @@ construct BufReader {
     }
 }
 
-blocking func read(reader: &+BufReader, destination: &+[u8]): usize! {
+blocking func read<R>(reader: &+BlockingBufReader<R>, destination: &+[u8]): usize! where R impl BlockingReader {
     if reader.is_finished {
         return 0
     }
@@ -56,7 +57,7 @@ blocking func read(reader: &+BufReader, destination: &+[u8]): usize! {
     return written
 }
 
-blocking func refill(reader: &+BufReader): usize! {
+blocking func refill<R>(reader: &+BlockingBufReader<R>): usize! where R impl BlockingReader {
     if reader.is_finished {
         return 0
     }
@@ -66,7 +67,11 @@ blocking func refill(reader: &+BufReader): usize! {
         reader.buffer.push(0)
         initialized += 1
     }
-    let received = reader.source.read_blocking(&+reader.buffer) catch failure {
+    let reported = reader.source.read_blocking(&+reader.buffer) catch failure {
+        terminate_reader(reader)
+        return move failure
+    }
+    let received = io.validate_read_count(reported, reader.buffer.len()) catch failure {
         terminate_reader(reader)
         return move failure
     }
@@ -78,7 +83,7 @@ blocking func refill(reader: &+BufReader): usize! {
     return received
 }
 
-blocking func read_line(reader: &+BufReader): String?! {
+blocking func read_line<R>(reader: &+BlockingBufReader<R>): String?! where R impl BlockingReader {
     var result = String.empty()
     let present = read_line_into(reader, &+result)?
     if !present {
@@ -87,7 +92,10 @@ blocking func read_line(reader: &+BufReader): String?! {
     return move result
 }
 
-blocking func read_line_into(reader: &+BufReader, destination: &+String): bool! {
+blocking func read_line_into<R>(
+    reader: &+BlockingBufReader<R>,
+    destination: &+String,
+): bool! where R impl BlockingReader {
     destination.clear()
     if reader.is_finished {
         return false
@@ -124,7 +132,7 @@ blocking func read_line_into(reader: &+BufReader, destination: &+String): bool! 
     return false
 }
 
-func commit_line(reader: &+BufReader, destination: &+String): bool! {
+func commit_line<R>(reader: &+BlockingBufReader<R>, destination: &+String): bool! {
     write_validated_line(&reader.line_buffer, destination) catch failure {
         terminate_reader(reader)
         return move failure
@@ -139,9 +147,8 @@ func write_validated_line(line: &Vec<u8>, destination: &+String): void! {
     return
 }
 
-func end_reader(reader: &+BufReader): void {
+func end_reader<R>(reader: &+BlockingBufReader<R>): void {
     if !reader.is_finished {
-        reader.source.close()
         reader.is_finished = true
     }
     reader.buffer.clear()
@@ -149,13 +156,13 @@ func end_reader(reader: &+BufReader): void {
     return
 }
 
-func terminate_reader(reader: &+BufReader): void {
+func terminate_reader<R>(reader: &+BlockingBufReader<R>): void {
     end_reader(reader)
     reader.line_buffer.clear()
     return
 }
 
-instance BufReader {
+instance BlockingBufReader<R> where R impl BlockingReader {
     blocking method &+self.read_line_blocking(): String?! {
         return read_line(self)
     }
@@ -164,9 +171,8 @@ instance BufReader {
         return read_line_into(self, destination)?
     }
 
-    method &+self.close(): void {
-        terminate_reader(self)
-        return
+    method self.finish(): R {
+        return move self.source
     }
 
     blocking method &+self.read_blocking(destination: &+[u8]): usize! {
@@ -174,25 +180,28 @@ instance BufReader {
     }
 }
 
-struct BufWriter {
-    destination: File
+struct BlockingBufWriter<W> {
+    destination: W
     buffer: Vec<u8>
     limit: usize
     is_open: bool
 }
 
-construct BufWriter {
-    func new(destination: File): Self {
-        return BufWriter.with_capacity(move destination, 8192)
+construct BlockingBufWriter<W> {
+    func new(destination: W): Self where W impl BlockingWriter {
+        return BlockingBufWriter.with_capacity(move destination, 8192)
     }
 
-    func with_capacity(destination: File, requested_capacity: usize): Self {
+    func with_capacity(
+        destination: W,
+        requested_capacity: usize,
+    ): Self where W impl BlockingWriter {
         var capacity = requested_capacity
         if capacity == 0 {
             capacity = 1
         }
         let storage: Vec<u8> = Vec.with_capacity(capacity)
-        return BufWriter {
+        return BlockingBufWriter<W> {
             destination: move destination,
             buffer: move storage,
             limit: capacity,
@@ -201,9 +210,9 @@ construct BufWriter {
     }
 }
 
-blocking func write(writer: &+BufWriter, bytes: &[u8]): void! {
+blocking func write<W>(writer: &+BlockingBufWriter<W>, bytes: &[u8]): void! where W impl BlockingWriter {
     if !writer.is_open {
-        return io.closed_stream_error()
+        return internal_io.closed_stream_error()
     }
     var offset: usize = 0
     while offset < bytes.len() {
@@ -216,18 +225,17 @@ blocking func write(writer: &+BufWriter, bytes: &[u8]): void! {
     return
 }
 
-blocking func flush(writer: &+BufWriter): void! {
+blocking func flush<W>(writer: &+BlockingBufWriter<W>): void! where W impl BlockingWriter {
     if !writer.is_open {
-        return io.closed_stream_error()
+        return internal_io.closed_stream_error()
     }
-    if writer.buffer.len() == 0 {
-        return
+    if writer.buffer.len() != 0 {
+        writer.destination.write_blocking(&writer.buffer) catch failure {
+            terminate_writer(writer)
+            return move failure
+        }
+        writer.buffer.clear()
     }
-    writer.destination.write_blocking(&writer.buffer) catch failure {
-        terminate_writer(writer)
-        return move failure
-    }
-    writer.buffer.clear()
     writer.destination.flush_blocking() catch failure {
         terminate_writer(writer)
         return move failure
@@ -235,26 +243,18 @@ blocking func flush(writer: &+BufWriter): void! {
     return
 }
 
-blocking func close(writer: &+BufWriter): void! {
-    if !writer.is_open {
-        return
-    }
-    flush(writer)?
-    terminate_writer(writer)
-    return
-}
-
-func terminate_writer(writer: &+BufWriter): void {
-    writer.destination.close()
+func terminate_writer<W>(writer: &+BlockingBufWriter<W>): void {
     writer.buffer.clear()
     writer.is_open = false
     return
 }
 
-instance BufWriter {
-    blocking method &+self.close(): void! {
-        close(self)?
-        return
+instance BlockingBufWriter<W> where W impl BlockingWriter {
+    blocking method self.finish(): W! {
+        var writer = move self
+        flush(&+writer)?
+        writer.is_open = false
+        return move writer.destination
     }
 
     blocking method &+self.write_blocking(bytes: &[u8]): void! {
