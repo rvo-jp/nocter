@@ -980,6 +980,128 @@ fn configured_subprocess_uses_one_public_contract_across_editor_features() {
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
 }
 
+#[test]
+fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts() {
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/subprocess-pipeline");
+    let source = root.join("pipeline.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (copy_line, copy_source) = source_line(&text, "await io.copy");
+    let copy_character = copy_source.find("copy").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        copy_line,
+        copy_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub async func copy<R, W>("),
+        "{response}"
+    );
+    assert!(
+        response.contains("R impl Reader, W impl Writer"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        copy_line,
+        copy_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/io/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        copy_line,
+        copy_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/io/transfer.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let copy_argument = copy_source.find("&+writer").unwrap() + 2;
+    let signature = server.receive(&position_request(
+        5,
+        "textDocument/signatureHelp",
+        &source,
+        copy_line,
+        copy_argument,
+    ));
+    let response = signature.response().unwrap();
+    assert!(
+        response.contains("func copy<ChildStdout, ChildStdin>("),
+        "{response}"
+    );
+    assert!(
+        response.contains("ChildStdout impl Reader, ChildStdin impl Writer"),
+        "{response}"
+    );
+    assert!(response.contains("\"activeParameter\":1"), "{response}");
+    assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+    let (producer_line, producer_source) = source_line(&text, "producer.take_stdout");
+    let completion_character = producer_source.find("producer.").unwrap() + "producer.".len();
+    let completion = server.receive(&position_request(
+        6,
+        "textDocument/completion",
+        &source,
+        producer_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in [
+        "kill",
+        "take_stderr",
+        "take_stdin",
+        "take_stdout",
+        "terminate",
+        "try_wait",
+    ] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+    let tokens = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+        source.display()
+    ));
+    let response = tokens.response().unwrap();
+    assert!(response.contains("\"data\":["), "{response}");
+    assert!(!response.contains("\"data\":[]"), "{response}");
+    assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+    let end_line = text.lines().count();
+    let hints = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{end_line},\"character\":0}}}}}}}}",
+        source.display()
+    ));
+    let response = hints.response().unwrap();
+    for inferred in [": ProcessIo", ": Command", ": Child"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{inferred}\"")),
+            "{response}"
+        );
+    }
+    assert!(hints.issue().is_none(), "{:?}", hints.issue());
+}
+
 fn open_package_source(root: &Path, source: &Path) -> (super::LanguageServer, String) {
     let text = fs::read_to_string(source).unwrap();
     let mut server = semantic_server(root);

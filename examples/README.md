@@ -213,6 +213,18 @@ nocter check
 nocter run
 ```
 
+[subprocess-pipeline/index.nct](subprocess-pipeline/index.nct) connects one producer's stdout to a
+consumer's stdin through generic executor-safe `io.copy`. Producer diagnostics, consumer output,
+consumer diagnostics, and both exact-child observations progress as structured computations under
+one finite timeout. Each producer stream exceeds ordinary pipe capacity, so sequential transfer
+would deadlock; cancellation instead destroys the complete owned operation graph.
+
+```sh
+cd examples/subprocess-pipeline
+nocter check
+nocter run
+```
+
 [subprocess-status/index.nct](subprocess-status/index.nct) launches the repository-owned
 `helper.sh` by the exact relative path `./helper.sh`, passes one
 whitespace-bearing argument, waits synchronously, and reports the resulting typed nonzero exit

@@ -226,6 +226,29 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         }],
     },
     PublicPackageExample {
+        directory: "subprocess-pipeline",
+        package_identity: "workspace:subprocess-pipeline",
+        executable: "subprocess-pipeline",
+        fixtures: &[
+            PublicExampleFixture::ExecutableFile {
+                path: "producer.sh",
+                contents: include_bytes!("../../../../../examples/subprocess-pipeline/producer.sh"),
+            },
+            PublicExampleFixture::ExecutableFile {
+                path: "consumer.sh",
+                contents: include_bytes!("../../../../../examples/subprocess-pipeline/consumer.sh"),
+            },
+        ],
+        runs: &[PublicExampleRun {
+            name: "structured-process-pipeline",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"",
+            stderr: b"",
+        }],
+    },
+    PublicPackageExample {
         directory: "subprocess-status",
         package_identity: "workspace:subprocess-status",
         executable: "subprocess-status",

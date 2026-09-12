@@ -2,18 +2,20 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 5 is complete on
-`develop-v0.49.0`. Closed status and output operations now compose the same launch, endpoint, and
-exact-child observation authorities as streaming spawn. Their canonical forms are executor-safe;
-the synchronous twins use `_blocking`. The former terminal command-I/O session and its duplicate
-pipe construction and byte classifiers are gone.
+Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 6 is complete on
+`develop-v0.49.0`. A complete subprocess pipeline now composes generic byte transfer, concurrent
+stream capture, exact child observation, and one structured timeout through public APIs. Native
+qualification covers early stdin closure and proves that timeout cancellation terminates and reaps
+the exact owned child. LSP qualification consumes the same checked source and interface evidence.
 
 ## Next Work
 
-Begin v0.49.0 Phase 6 with one complete pipeline application and editor qualification over ordinary
-checked declarations. Cover output larger than pipe capacity, simultaneous stdout and stderr,
-early stdin closure, exec rejection, nonzero and signal termination, timeout, cancellation, and
-exact cleanup without adding another process or descriptor authority.
+Begin v0.49.0 Phase 7 with a whole-area review and release-readiness pass. Review blocking future
+paths, periodic probes, duplicate launch or session policy, raw-PID ownership, repeated status
+decoding, hidden descriptor copies, reverse dependencies, source-name recognition, and
+caller-required cleanup. Then run the complete compiler, standard-library, native, LSP, examples,
+documentation, packaging, formatting, and repository gates. Stop before changing release identity
+or publishing.
 
 Preserve every published tag and asset, including v0.48.0.
 

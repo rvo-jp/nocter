@@ -201,6 +201,7 @@
                     <li><a href="./stdin-prefix/index/index.html#content">stdin-prefix</a></li>
                     <li><a href="./subprocess-configured/index/index.html#content">subprocess-configured</a></li>
                     <li><a href="./subprocess-output/index/index.html#content">subprocess-output</a></li>
+                    <li><a href="./subprocess-pipeline/index/index.html#content">subprocess-pipeline</a></li>
                     <li><a href="./subprocess-status/index/index.html#content">subprocess-status</a></li>
                     <li><a href="./text-banner/index/index.html#content">text-banner</a></li>
                     <li><a href="./text-report/index/index.html#content">text-report</a></li>
@@ -263,6 +264,9 @@
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> run
 </code></pre><p><a href="./subprocess-output/index/index.html#content">subprocess-output/index.nct</a> captures complete standard output and standard error from the repository-owned <code>helper.sh</code>, validates both byte streams as UTF-8 text, and inspects the helper's typed nonzero exit status. Capture preserves arbitrary bytes; the example chooses text conversion explicitly because it knows the helper's output contract.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-output
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> run
+</code></pre><p><a href="./subprocess-pipeline/index/index.html#content">subprocess-pipeline/index.nct</a> connects one producer's stdout to a consumer's stdin through generic executor-safe <code>io.copy</code>. Producer diagnostics, consumer output, consumer diagnostics, and both exact-child observations progress as structured computations under one finite timeout. Each producer stream exceeds ordinary pipe capacity, so sequential transfer would deadlock; cancellation instead destroys the complete owned operation graph.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-pipeline
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> run
 </code></pre><p><a href="./subprocess-status/index/index.html#content">subprocess-status/index.nct</a> launches the repository-owned <code>helper.sh</code> by the exact relative path <code>./helper.sh</code>, passes one whitespace-bearing argument, waits synchronously, and reports the resulting typed nonzero exit status. The example does not invoke a shell API or perform <code>PATH</code> lookup.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-status

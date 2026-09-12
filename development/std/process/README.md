@@ -113,6 +113,12 @@ constructs an exact `./helper.sh` command, passes one argument without command-l
 the explicit blocking twin, and reports the typed nonzero exit status. Its helper is a
 repository-owned executable fixture rather than a program selected through `PATH`.
 
+The [subprocess-pipeline example](../../../examples/subprocess-pipeline/index.nct) connects two
+children through generic executor-safe `io.copy`, concurrently captures the producer's diagnostic
+stream and both consumer output streams, and observes both children under one finite timeout. Both
+producer streams exceed ordinary pipe capacity, so the example qualifies structured progress and
+cleanup through public contracts rather than a process-specific transfer loop.
+
 ## Responsibility Boundaries
 
 `std/process` owns `Command`, `ProcessIo`, child and endpoint states, argument validation and

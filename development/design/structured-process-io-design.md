@@ -122,6 +122,12 @@ Normal programs pay no background-cleanup cost after explicit observation. The a
 exists solely to make destruction and cancellation safe. Its implementation strategy is owned by
 the target service contract and may change without changing `std/process` declarations.
 
+The repository `subprocess-pipeline` package is the reference composition of these boundaries. It
+runs generic `io.copy`, three independent `Reader` collections, and two exact waits beneath one
+structured timeout. It needs no pipeline object, process-specific progress loop, or secondary
+lifecycle registry. Cancelling the parent computation destroys the same endpoint and child owners
+that ordinary lexical destruction would destroy.
+
 ## Reactor Extension
 
 The target-independent wait vocabulary gains a process-completion interest beside descriptor and

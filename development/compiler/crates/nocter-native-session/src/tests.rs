@@ -1107,11 +1107,13 @@ fn standard_subprocess_output_crosses_the_complete_native_session() {
     let empty = package_root.0.join("empty-capture-helper");
     let text = package_root.0.join("text-capture-helper");
     let signaled = package_root.0.join("signal-capture-helper");
+    let early = package_root.0.join("early-close-capture-helper");
     let missing = package_root.0.join("missing-capture-helper");
     package_root.source(
         "main.nct",
         &format!(
             r#"use std/process.Command
+use std/string.String
 
 noalloc func matches_stream(
     bytes: &[u8],
@@ -1175,27 +1177,40 @@ async func main(): i32 {{
         || signal_output.stderr[9] != 114 || signal_output.stderr[10] != 111
         || signal_output.stderr[11] != 114 {{ return 16 }}
 
+    var early_input = String.with_capacity(1048576)
+    var early_block: usize = 0
+    while early_block < 16384 {{
+        early_input.push_str("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII")
+        early_block += 1
+    }}
+    var early = Command.new("{}") catch _ {{ return 17 }}
+    early.input(early_input.bytes())
+    let early_output = await early.output() catch _ {{ return 18 }}
+    if !early_output.status.success() || early_output.stdout.len() != 0
+        || early_output.stderr.len() != 0 {{ return 19 }}
+
     var attempt: usize = 0
     while attempt < 48 {{
-        let repeated = Command.new("{}") catch _ {{ return 17 }}
-        let repeated_output = await repeated.output() catch _ {{ return 18 }}
+        let repeated = Command.new("{}") catch _ {{ return 20 }}
+        let repeated_output = await repeated.output() catch _ {{ return 21 }}
         if !repeated_output.status.success() || repeated_output.stdout.len() != 0
-            || repeated_output.stderr.len() != 0 {{ return 19 }}
+            || repeated_output.stderr.len() != 0 {{ return 22 }}
         attempt += 1
     }}
 
-    let missing = Command.new("{}") catch _ {{ return 20 }}
+    let missing = Command.new("{}") catch _ {{ return 23 }}
     let _missing_output = await missing.output() catch failure {{
         if failure.has_code("std.process.not_found") {{ return 0 }}
-        return 21
+        return 24
     }}
-    return 22
+    return 25
 }}
 "#,
             helper.display(),
             empty.display(),
             text.display(),
             signaled.display(),
+            early.display(),
             empty.display(),
             missing.display(),
         ),
@@ -1694,6 +1709,65 @@ blocking func main(): i32 {{
         ),
     );
     compile_and_execute_subprocess_lifecycle(&package_root.0, &standard_root);
+}
+
+#[test]
+fn subprocess_timeout_cancellation_reaps_the_exact_child() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let helper = package_root.0.join("timeout-helper");
+    let pid_file = package_root.0.join("timeout-child.pid");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/io.Reader
+use std/process.{{Command, ProcessIo, Stdio}}
+use std/task
+use std/task.Timeout
+use std/time.Duration
+use std/vec.Vec
+
+async func main(): i32 {{
+    var command = Command.new("{}") catch _ {{ return 1 }}
+    command.arg("{}") catch _ {{ return 2 }}
+    var io = ProcessIo.inherit()
+    io.stdout(Stdio.pipe)
+    var child = await command.spawn(move io) catch _ {{ return 3 }}
+    var ready = child.take_stdout() otherwise {{ return 4 }}
+    var marker: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    let received = await ready.read(&+marker) catch _ {{ return 5 }}
+    if received == 0 {{ return 6 }}
+    ready.close()
+    let bounded = await task.with_timeout(
+        child.wait(),
+        Duration.from_milliseconds(250),
+    )
+    match move bounded {{
+        Timeout.completed(_) {{ return 7 }}
+        Timeout.elapsed {{ return 0 }}
+    }}
+}}
+"#,
+            helper.display(),
+            pid_file.display(),
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_subprocess_timeout_cancellation(image.image(), &package_root.0);
 }
 
 fn compile_and_execute_subprocess_lifecycle(package_root: &Path, standard_root: &Path) {
@@ -5791,6 +5865,7 @@ fn execute_subprocess_output_contract(image: &NativeImage, root: &Path) {
             "signal-capture-helper",
             "#!/bin/sh\nprintf 'signal-out'\nprintf 'signal-error' >&2\nkill -TERM $$\nexit 90\n",
         ),
+        ("early-close-capture-helper", "#!/bin/sh\nexit 0\n"),
     ] {
         let path = root.join(name);
         fs::write(&path, source).unwrap();
@@ -5985,6 +6060,57 @@ fn execute_subprocess_lifecycle_contract(image: &NativeImage, root: &Path) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_subprocess_timeout_cancellation(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::Duration;
+
+    let executable = root.join("subprocess-timeout-cancellation");
+    let helper = root.join("timeout-helper");
+    let pid_file = root.join("timeout-child.pid");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(
+        &helper,
+        "#!/bin/sh\nprintf '%s\\n' \"$$\" > \"$1\"\nprintf 'ready\\n'\nwhile :; do :; done\n",
+    )
+    .unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "subprocess timeout contract exited with {status:?}"
+    );
+    let pid = fs::read_to_string(&pid_file)
+        .unwrap()
+        .trim()
+        .parse::<u32>()
+        .unwrap();
+    let pid_argument = pid.to_string();
+    let mut absent = false;
+    for _ in 0..200 {
+        let observed = Command::new("/bin/kill")
+            .args(["-0", pid_argument.as_str()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+        if !observed.success() {
+            absent = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(absent, "cancelled subprocess {pid} remained observable");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn prepare_path_directory_fixture(root: &Path) {
     use std::os::unix::fs::symlink;
 
@@ -6020,6 +6146,9 @@ fn execute_configured_subprocess_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_lifecycle_contract(_image: &NativeImage, _root: &Path) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_subprocess_timeout_cancellation(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn prepare_path_directory_fixture(_root: &Path) {}

@@ -876,6 +876,16 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/examples/subprocess-pipeline/index/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/examples/subprocess-pipeline/pipeline/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/examples/subprocess-status/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

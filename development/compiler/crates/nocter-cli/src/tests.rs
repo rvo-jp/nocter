@@ -1037,6 +1037,7 @@ fn public_system_examples_run_through_the_installed_standard_library() {
         "subprocess-status",
         "subprocess-output",
         "subprocess-configured",
+        "subprocess-pipeline",
         "async-udp",
         "network-loopback",
     ] {
