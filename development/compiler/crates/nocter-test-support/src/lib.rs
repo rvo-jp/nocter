@@ -606,8 +606,7 @@ fn fixture_module(sources: &mut SourceMap, path: &[&str], text: &str) -> Fixture
     let source_path = format!("/std/{}/index.nct", path.join("/"));
     let syntax = add_parsed(sources, &source_path, text, ParseGoal::SourceFile);
     let use_targets: &[&[&str]] = match path {
-        ["mem"] => &[&["internal", "os", "darwin"]],
-        ["process"] => &[&["internal", "os", "darwin"]],
+        ["mem" | "process"] => &[&["internal", "os", "darwin"]],
         ["internal", "net", "darwin"] => {
             &[&["internal", "net", "model"], &["internal", "os", "darwin"]]
         }

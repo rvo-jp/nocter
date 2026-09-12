@@ -987,12 +987,22 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
     let source = root.join("pipeline.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (copy_line, copy_source) = source_line(&text, "await io.copy");
+    assert_pipeline_generic_copy_contracts(&mut server, &source, &text);
+    assert_pipeline_child_completion(&mut server, &source, &text);
+    assert_pipeline_source_projection(&mut server, &source, &text);
+}
+
+fn assert_pipeline_generic_copy_contracts(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (copy_line, copy_source) = source_line(text, "await io.copy");
     let copy_character = copy_source.find("copy").unwrap();
     let hover = server.receive(&position_request(
         2,
         "textDocument/hover",
-        &source,
+        source,
         copy_line,
         copy_character,
     ));
@@ -1010,7 +1020,7 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
     let definition = server.receive(&position_request(
         3,
         "textDocument/definition",
-        &source,
+        source,
         copy_line,
         copy_character,
     ));
@@ -1021,7 +1031,7 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
     let implementation = server.receive(&position_request(
         4,
         "textDocument/implementation",
-        &source,
+        source,
         copy_line,
         copy_character,
     ));
@@ -1037,7 +1047,7 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
     let signature = server.receive(&position_request(
         5,
         "textDocument/signatureHelp",
-        &source,
+        source,
         copy_line,
         copy_argument,
     ));
@@ -1052,13 +1062,15 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
     );
     assert!(response.contains("\"activeParameter\":1"), "{response}");
     assert!(signature.issue().is_none(), "{:?}", signature.issue());
+}
 
-    let (producer_line, producer_source) = source_line(&text, "producer.take_stdout");
+fn assert_pipeline_child_completion(server: &mut super::LanguageServer, source: &Path, text: &str) {
+    let (producer_line, producer_source) = source_line(text, "producer.take_stdout");
     let completion_character = producer_source.find("producer.").unwrap() + "producer.".len();
     let completion = server.receive(&position_request(
         6,
         "textDocument/completion",
-        &source,
+        source,
         producer_line,
         completion_character,
     ));
@@ -1077,7 +1089,13 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
 
+fn assert_pipeline_source_projection(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
     let tokens = server.receive(&format!(
         "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
         source.display()

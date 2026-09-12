@@ -1099,6 +1099,7 @@ async func main(): i32 {{
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // Keeps one complete async-output source scenario contiguous.
 fn standard_subprocess_output_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
@@ -1558,6 +1559,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // Keeps one complete child-lifecycle source scenario contiguous.
 fn standard_subprocess_failures_and_lifecycle_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

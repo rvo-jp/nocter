@@ -541,22 +541,6 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             make(0, vec![], usize(), private, None, vec![])
         }
         PrimitiveRole::AllocationAbort => make(0, vec![], never(), package, None, vec![]),
-        PrimitiveRole::MemoryMap => make(
-            0,
-            vec![usize()],
-            syscall_result(),
-            private,
-            arm64_darwin,
-            vec![],
-        ),
-        PrimitiveRole::MemoryUnmap => make(
-            0,
-            vec![usize(), usize()],
-            syscall_result(),
-            private,
-            arm64_darwin,
-            vec![],
-        ),
         PrimitiveRole::DescriptorClose => make(
             0,
             vec![usize()],
@@ -573,10 +557,13 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::DescriptorDuplicateCloseOnExec
+        PrimitiveRole::MemoryMap
+        | PrimitiveRole::DescriptorDuplicateCloseOnExec
         | PrimitiveRole::DescriptorStatusFlags
         | PrimitiveRole::DescriptorSuppressBrokenPipe
-        | PrimitiveRole::ProcessChangeDirectory => make(
+        | PrimitiveRole::ProcessChangeDirectory
+        | PrimitiveRole::ProcessTerminate
+        | PrimitiveRole::ProcessKill => make(
             0,
             vec![usize()],
             syscall_result(),
@@ -584,7 +571,8 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::DescriptorSetStatusFlags
+        PrimitiveRole::MemoryUnmap
+        | PrimitiveRole::DescriptorSetStatusFlags
         | PrimitiveRole::ProcessInstallDescriptor
         | PrimitiveRole::ProcessOpenNull => make(
             0,
@@ -594,7 +582,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::DescriptorRead | PrimitiveRole::DescriptorWrite => make(
+        PrimitiveRole::DescriptorRead
+        | PrimitiveRole::DescriptorWrite
+        | PrimitiveRole::ProcessExec => make(
             0,
             vec![usize(), usize(), usize()],
             syscall_result(),
@@ -868,28 +858,12 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         }
         PrimitiveRole::U64LeadingZeros => make(0, vec![u64()], u64(), private, None, vec![]),
         PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
-        PrimitiveRole::ProcessExec => make(
-            0,
-            vec![usize(), usize(), usize()],
-            syscall_result(),
-            private,
-            arm64_darwin,
-            vec![],
-        ),
         PrimitiveRole::ProcessAbandon => {
             make(0, vec![usize()], void(), private, arm64_darwin, vec![])
         }
         PrimitiveRole::ProcessObserve => make(
             0,
             vec![usize(), TypeContract::pointer(i32())],
-            syscall_result(),
-            private,
-            arm64_darwin,
-            vec![],
-        ),
-        PrimitiveRole::ProcessTerminate | PrimitiveRole::ProcessKill => make(
-            0,
-            vec![usize()],
             syscall_result(),
             private,
             arm64_darwin,
