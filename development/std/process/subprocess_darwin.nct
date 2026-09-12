@@ -19,6 +19,7 @@ enum ForkAttempt {
 
 #target: "arm64-darwin"
 enum WaitAttempt {
+    pending
     exited(code: i32)
     signaled(signal: i32)
     interrupted
@@ -51,9 +52,15 @@ noalloc func fork_process(): ForkAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func classify_wait_attempt(result: SyscallResult, status: i32): WaitAttempt {
+noalloc func classify_wait_attempt(
+    result: SyscallResult,
+    status: i32,
+    expected_pid: usize,
+): WaitAttempt {
     if result.errno == darwin.ERRNO_INTERRUPTED { return WaitAttempt.interrupted }
     if result.errno != 0 { return WaitAttempt.failed(result.errno) }
+    if result.value == 0 { return WaitAttempt.pending }
+    if result.value != expected_pid { return WaitAttempt.invalid(status) }
 
     let terminal = status % 128
     if terminal == 0 { return WaitAttempt.exited((status / 256) % 256) }
@@ -74,7 +81,8 @@ noalloc blocking func wait_for_child(pid: usize): WaitOutcome {
             0,
             0,
         )
-        match classify_wait_attempt(result, status) {
+        match classify_wait_attempt(result, status, pid) {
+            WaitAttempt.pending { return WaitOutcome.invalid(status) }
             WaitAttempt.interrupted {}
             WaitAttempt.exited(code) { return WaitOutcome.exited(code) }
             WaitAttempt.signaled(signal) { return WaitOutcome.signaled(signal) }
@@ -103,7 +111,8 @@ test raw_subprocess_results_have_one_typed_interpretation {
         ForkAttempt.child { return error.new("std.process.test", "failure result became child") }
     }
 
-    match classify_wait_attempt(SyscallResult { value: 41, errno: 0 }, 1792) {
+    match classify_wait_attempt(SyscallResult { value: 41, errno: 0 }, 1792, 41) {
+        WaitAttempt.pending { return error.new("std.process.test", "exit became pending") }
         WaitAttempt.exited(code) { if code != 7 { return error.new("std.process.test", "exit code changed") } }
         WaitAttempt.signaled(_) { return error.new("std.process.test", "exit became signal") }
         WaitAttempt.interrupted { return error.new("std.process.test", "exit became interruption") }
@@ -111,7 +120,8 @@ test raw_subprocess_results_have_one_typed_interpretation {
         WaitAttempt.invalid(_) { return error.new("std.process.test", "exit became invalid") }
     }
 
-    match classify_wait_attempt(SyscallResult { value: 41, errno: 0 }, 9) {
+    match classify_wait_attempt(SyscallResult { value: 41, errno: 0 }, 9, 41) {
+        WaitAttempt.pending { return error.new("std.process.test", "signal became pending") }
         WaitAttempt.signaled(signal) { if signal != 9 { return error.new("std.process.test", "signal changed") } }
         WaitAttempt.exited(_) { return error.new("std.process.test", "signal became exit") }
         WaitAttempt.interrupted { return error.new("std.process.test", "signal became interruption") }
@@ -122,7 +132,9 @@ test raw_subprocess_results_have_one_typed_interpretation {
     match classify_wait_attempt(
         SyscallResult { value: 0, errno: darwin.ERRNO_INTERRUPTED },
         0,
+        41,
     ) {
+        WaitAttempt.pending { return error.new("std.process.test", "interruption became pending") }
         WaitAttempt.interrupted {}
         WaitAttempt.exited(_) { return error.new("std.process.test", "interruption became exit") }
         WaitAttempt.signaled(_) { return error.new("std.process.test", "interruption became signal") }
@@ -130,7 +142,8 @@ test raw_subprocess_results_have_one_typed_interpretation {
         WaitAttempt.invalid(_) { return error.new("std.process.test", "interruption became invalid") }
     }
 
-    match classify_wait_attempt(SyscallResult { value: 0, errno: 10 }, 0) {
+    match classify_wait_attempt(SyscallResult { value: 0, errno: 10 }, 0, 41) {
+        WaitAttempt.pending { return error.new("std.process.test", "wait failure became pending") }
         WaitAttempt.failed(errno) { if errno != 10 { return error.new("std.process.test", "wait errno changed") } }
         WaitAttempt.exited(_) { return error.new("std.process.test", "wait failure became exit") }
         WaitAttempt.signaled(_) { return error.new("std.process.test", "wait failure became signal") }
@@ -138,12 +151,23 @@ test raw_subprocess_results_have_one_typed_interpretation {
         WaitAttempt.invalid(_) { return error.new("std.process.test", "wait failure became invalid") }
     }
 
-    match classify_wait_attempt(SyscallResult { value: 41, errno: 0 }, 127) {
+    match classify_wait_attempt(SyscallResult { value: 41, errno: 0 }, 127, 41) {
+        WaitAttempt.pending { return error.new("std.process.test", "invalid wait became pending") }
         WaitAttempt.invalid(status) { if status != 127 { return error.new("std.process.test", "invalid wait status changed") } }
         WaitAttempt.exited(_) { return error.new("std.process.test", "invalid wait became exit") }
         WaitAttempt.signaled(_) { return error.new("std.process.test", "invalid wait became signal") }
         WaitAttempt.interrupted { return error.new("std.process.test", "invalid wait became interruption") }
         WaitAttempt.failed(_) { return error.new("std.process.test", "invalid wait became failure") }
+    }
+
+    match classify_wait_attempt(SyscallResult { value: 0, errno: 0 }, 0, 41) {
+        WaitAttempt.pending {}
+        _ { return error.new("std.process.test", "pending wait was not preserved") }
+    }
+
+    match classify_wait_attempt(SyscallResult { value: 42, errno: 0 }, 1792, 41) {
+        WaitAttempt.invalid(status) { if status != 1792 { return error.new("std.process.test", "mismatched child status changed") } }
+        _ { return error.new("std.process.test", "mismatched child identity was accepted") }
     }
 
     return

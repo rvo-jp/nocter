@@ -29,7 +29,9 @@ diagnosis, help, package initialization, locked and
 offline checking, native tests, deterministic JSON graphs, native run and build, direct execution,
 every public example, exact child arguments with piped standard input, exact synchronous subprocess
 status, captured-output behavior, and configured environment, working-directory, finite-input, and
-captured-output behavior, plus LSP analysis of installed standard-library contract and
+captured-output behavior. It runs the structured subprocess pipeline against the installed
+standard library to qualify concurrent generic transfer and observation under one timeout. The
+remaining gates include LSP analysis of installed standard-library contract and
 implementation sources, generated Unicode static tables, and Unicode casing bodies. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.

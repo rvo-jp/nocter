@@ -197,10 +197,12 @@ algorithm as any other stream without exposing descriptor state or process owner
 
 `Child.try_wait` is the sole nonwaiting observation entry. It may transition the private owner from
 pending to one cached terminal state; later calls and consuming wait use that state without another
-native observation. `terminate` and `kill` request graceful and forced target actions but never
-mark the child observed. The unreaped owner remains with `Child`, so a subsequent wait or ordinary
-destruction still proves exact cleanup. Closed primitive roles own the target meanings and signal
-encoding; source receives no arbitrary PID or numeric-signal interface.
+native observation. One wait-attempt classifier owns interruption, pending state, exact returned
+child identity, and status decoding for both nonwaiting and consuming observation. Callers do not
+preclassify a raw wait result. `terminate` and `kill` request graceful and forced target actions but
+never mark the child observed. The unreaped owner remains with `Child`, so a subsequent wait or
+ordinary destruction still proves exact cleanup. Closed primitive roles own the target meanings
+and signal encoding; source receives no arbitrary PID or numeric-signal interface.
 
 ## Rejected Alternatives
 

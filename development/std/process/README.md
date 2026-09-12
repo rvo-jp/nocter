@@ -45,7 +45,9 @@ remain blocked on output that its parent elected not to read.
 still running and caches an ordinary or signal terminal status before returning it. Repeated
 `try_wait` calls and a later `wait` or `wait_blocking` return the cached terminal state without a
 second kernel observation. An observation failure leaves the owner live so consuming wait or
-destruction still retains the cleanup obligation.
+destruction still retains the cleanup obligation. An interrupted nonwaiting observation is retried;
+it does not become a spurious `none`. The shared wait classifier also requires the returned child
+identity to match the exact owned child before decoding terminal status.
 
 `terminate` requests the target's graceful termination action and `kill` requests forced
 termination. Neither method consumes the child, closes an endpoint, waits, or reaps. A caller may

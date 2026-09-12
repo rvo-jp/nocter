@@ -177,6 +177,24 @@ cmp "$repository_root/examples/subprocess-configured/sample-output.txt" \
   "$subprocess_configured_stdout"
 cmp "$expected_subprocess_configured_stderr" "$subprocess_configured_stderr"
 
+subprocess_pipeline_stdout="$temporary_root/subprocess-pipeline.stdout"
+subprocess_pipeline_stderr="$temporary_root/subprocess-pipeline.stderr"
+expected_subprocess_pipeline_stdout="$temporary_root/subprocess-pipeline.expected.stdout"
+expected_subprocess_pipeline_stderr="$temporary_root/subprocess-pipeline.expected.stderr"
+: > "$expected_subprocess_pipeline_stdout"
+: > "$expected_subprocess_pipeline_stderr"
+(
+  cd "$repository_root/examples/subprocess-pipeline"
+  "${environment[@]}" "$home/nocter" run \
+    --root . \
+    --locked \
+    --offline \
+    > "$subprocess_pipeline_stdout" \
+    2> "$subprocess_pipeline_stderr"
+)
+cmp "$expected_subprocess_pipeline_stdout" "$subprocess_pipeline_stdout"
+cmp "$expected_subprocess_pipeline_stderr" "$subprocess_pipeline_stderr"
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"

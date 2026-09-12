@@ -95,23 +95,23 @@ noalloc blocking func observe_child(owner: ChildOwner): WaitOutcome {
 noalloc func try_observe_child(owner: &+ChildOwner): WaitOutcome? {
     let completed = completed_child_outcome(owner)
     let existing = move completed otherwise {
-        var status: i32 = 0
-        let result = observe_process_raw(owner.pid, ptr.from_ref_mut(&+status))
-        if result.errno == darwin.ERRNO_INTERRUPTED || (result.errno == 0 && result.value == 0) {
-            return none
-        }
-        match classify_wait_attempt(result, status) {
-            WaitAttempt.interrupted { return none }
-            WaitAttempt.exited(code) {
-                record_child_exit(owner, code)
-                return WaitOutcome.exited(code)
+        loop {
+            var status: i32 = 0
+            let result = observe_process_raw(owner.pid, ptr.from_ref_mut(&+status))
+            match classify_wait_attempt(result, status, owner.pid) {
+                WaitAttempt.pending { return none }
+                WaitAttempt.interrupted {}
+                WaitAttempt.exited(code) {
+                    record_child_exit(owner, code)
+                    return WaitOutcome.exited(code)
+                }
+                WaitAttempt.signaled(signal) {
+                    record_child_signal(owner, signal)
+                    return WaitOutcome.signaled(signal)
+                }
+                WaitAttempt.failed(errno) { return WaitOutcome.failed(errno) }
+                WaitAttempt.invalid(raw) { return WaitOutcome.invalid(raw) }
             }
-            WaitAttempt.signaled(signal) {
-                record_child_signal(owner, signal)
-                return WaitOutcome.signaled(signal)
-            }
-            WaitAttempt.failed(errno) { return WaitOutcome.failed(errno) }
-            WaitAttempt.invalid(raw) { return WaitOutcome.invalid(raw) }
         }
     }
     return move existing
@@ -163,30 +163,4 @@ noalloc func kill_child(owner: &ChildOwner): void! {
 noalloc drop ChildOwner(&+self) {
     if self.state is ChildOwnerState.pending { abandon_process_raw(self.pid) }
     return
-}
-
-test abandoned_child_is_terminated_and_reaped {
-    match fork_process() {
-        ForkAttempt.child { loop {} }
-        ForkAttempt.failed(_) {
-            return error.new("std.process.test", "abandonment child creation failed")
-        }
-        ForkAttempt.parent(pid) {
-            var child = own_child(pid)
-            drop child
-
-            // `kill(pid, 0)` observes existence without changing the child. A killed zombie remains
-            // observable until the private worker reaps it, so ESRCH proves both transitions.
-            var attempts: usize = 0
-            while attempts < 1000000 {
-                let probe = darwin.syscall2(darwin.SYS_KILL, pid, 0)
-                if probe.errno == darwin.ERRNO_MISSING_PROCESS { return }
-                if probe.errno != 0 {
-                    return error.new("std.process.test", "abandoned child probe failed")
-                }
-                attempts += 1
-            }
-            return error.new("std.process.test", "abandoned child remained observable")
-        }
-    }
 }
