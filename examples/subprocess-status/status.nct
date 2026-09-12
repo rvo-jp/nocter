@@ -4,7 +4,7 @@ use std/process.{Command, ExitStatus}
 blocking func run(): i32! {
     var command = Command.new("./helper.sh")?
     command.arg("Nocter subprocess")?
-    let status = command.status()?
+    let status = command.status_blocking()?
     report(status)?
     return 0
 }

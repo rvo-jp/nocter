@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 4 is complete on
-`develop-v0.49.0`. Generic blocking and executor-safe byte transfer now compose with public process
-pipes. Nonwaiting child observation caches one terminal result, graceful and forced termination
-retain the same child owner, and consuming wait or destruction remains the sole reaping boundary.
+Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 5 is complete on
+`develop-v0.49.0`. Closed status and output operations now compose the same launch, endpoint, and
+exact-child observation authorities as streaming spawn. Their canonical forms are executor-safe;
+the synchronous twins use `_blocking`. The former terminal command-I/O session and its duplicate
+pipe construction and byte classifiers are gone.
 
 ## Next Work
 
-Begin v0.49.0 Phase 5 by rebuilding the closed status and output operations over the shared launch,
-endpoint, and observation authorities. Remove the terminal command-I/O session only after its fair
-finite-input and simultaneous-output behavior has migrated; do not create another polling loop or
-weaken failure precedence.
+Begin v0.49.0 Phase 6 with one complete pipeline application and editor qualification over ordinary
+checked declarations. Cover output larger than pipe capacity, simultaneous stdout and stderr,
+early stdin closure, exec rejection, nonzero and signal termination, timeout, cancellation, and
+exact cleanup without adding another process or descriptor authority.
 
 Preserve every published tag and asset, including v0.48.0.
 

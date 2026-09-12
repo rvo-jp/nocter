@@ -1,0 +1,314 @@
+//! Closed process operations composed from shared launch, endpoint, and observation authorities.
+//!
+//! The asynchronous path uses structured tasks. The blocking path delegates only simultaneous
+//! pipe progress to `closed_io_blocking_darwin.nct`; launch and exact-child observation remain the
+//! same operations used by public `spawn` and `Child`.
+
+see ./index.nct
+see ./child_darwin.nct
+see ./closed_io_blocking_darwin.nct
+see ./command.nct
+see ./command_darwin.nct
+see ./configuration.nct
+see ./launch_report_darwin.nct
+see ./process_io.nct
+
+use /io.Reader
+use /io.Writer
+use /task
+use /vec.Vec
+
+#target: "arm64-darwin"
+enum ClosedInputResult {
+    complete
+    failed
+}
+
+#target: "arm64-darwin"
+enum ClosedCaptureResult {
+    captured(bytes: Vec<u8>)
+    failed
+}
+
+#target: "arm64-darwin"
+enum ClosedWaitResult {
+    observed(status: ExitStatus)
+    failed
+}
+
+#target: "arm64-darwin"
+noalloc func closed_process_io(has_input: bool, capture: bool): ProcessIo {
+    var io = ProcessIo.inherit()
+    if has_input { io.stdin(Stdio.pipe) }
+    if capture {
+        io.stdout(Stdio.pipe)
+        io.stderr(Stdio.pipe)
+    }
+    return move io
+}
+
+#target: "arm64-darwin"
+noalloc func require_closed_launch(
+    attempt: CommandLaunchAttempt,
+    captures_output: bool,
+): LaunchedChild! {
+    match move attempt {
+        CommandLaunchAttempt.launched(value) { return move value }
+        CommandLaunchAttempt.failed(reason) {
+            match reason {
+                LaunchPreparationFailure.input { return input_failed() }
+                LaunchPreparationFailure.output {
+                    if captures_output { return capture_failed() }
+                    return spawn_failed()
+                }
+                LaunchPreparationFailure.process { return spawn_failed() }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+async func transfer_closed_input(
+    stream: ChildStdin?,
+    input: Vec<u8>?,
+): ClosedInputResult {
+    let bytes = move input otherwise {
+        let unexpected = move stream otherwise { return ClosedInputResult.complete }
+        var endpoint = move unexpected
+        endpoint.close()
+        return ClosedInputResult.failed
+    }
+    let writer = move stream otherwise { return ClosedInputResult.failed }
+    var endpoint = move writer
+    let view: &[u8] = &bytes
+    await endpoint.write(view) catch failure {
+        endpoint.close()
+        if failure.has_code("std.io.broken_pipe") { return ClosedInputResult.complete }
+        return ClosedInputResult.failed
+    }
+    endpoint.close()
+    return ClosedInputResult.complete
+}
+
+#target: "arm64-darwin"
+blocking func transfer_closed_input_blocking(
+    stream: ChildStdin?,
+    input: Vec<u8>?,
+): ClosedInputResult {
+    let bytes = move input otherwise {
+        let unexpected = move stream otherwise { return ClosedInputResult.complete }
+        var endpoint = move unexpected
+        endpoint.close()
+        return ClosedInputResult.failed
+    }
+    let writer = move stream otherwise { return ClosedInputResult.failed }
+    var endpoint = move writer
+    let view: &[u8] = &bytes
+    endpoint.write_blocking(view) catch failure {
+        endpoint.close()
+        if failure.has_code("std.io.broken_pipe") { return ClosedInputResult.complete }
+        return ClosedInputResult.failed
+    }
+    endpoint.close()
+    return ClosedInputResult.complete
+}
+
+#target: "arm64-darwin"
+async func capture_closed_stdout(stream: ChildStdout?): ClosedCaptureResult {
+    let reader = move stream otherwise { return ClosedCaptureResult.failed }
+    var endpoint = move reader
+    let bytes = await endpoint.read_to_end() catch _ {
+        endpoint.close()
+        return ClosedCaptureResult.failed
+    }
+    endpoint.close()
+    return ClosedCaptureResult.captured(move bytes)
+}
+
+#target: "arm64-darwin"
+async func capture_closed_stderr(stream: ChildStderr?): ClosedCaptureResult {
+    let reader = move stream otherwise { return ClosedCaptureResult.failed }
+    var endpoint = move reader
+    let bytes = await endpoint.read_to_end() catch _ {
+        endpoint.close()
+        return ClosedCaptureResult.failed
+    }
+    endpoint.close()
+    return ClosedCaptureResult.captured(move bytes)
+}
+
+#target: "arm64-darwin"
+async func observe_closed_child(child: Child): ClosedWaitResult {
+    let status = await child.wait() catch _ { return ClosedWaitResult.failed }
+    return ClosedWaitResult.observed(status)
+}
+
+#target: "arm64-darwin"
+noalloc blocking func observe_closed_child_blocking(child: Child): ClosedWaitResult {
+    let status = child.wait_blocking() catch _ { return ClosedWaitResult.failed }
+    return ClosedWaitResult.observed(status)
+}
+
+#target: "arm64-darwin"
+noalloc func complete_closed_status(
+    launch: LaunchReportAttempt,
+    input: ClosedInputResult,
+    wait: ClosedWaitResult,
+): ExitStatus! {
+    let status = match move wait {
+        ClosedWaitResult.observed(status) { status }
+        ClosedWaitResult.failed { return wait_failed() }
+    }
+    require_successful_launch(move launch)?
+    match input {
+        ClosedInputResult.complete {}
+        ClosedInputResult.failed { return input_failed() }
+    }
+    return status
+}
+
+#target: "arm64-darwin"
+func complete_closed_output(
+    launch: LaunchReportAttempt,
+    input: ClosedInputResult,
+    stdout: ClosedCaptureResult,
+    stderr: ClosedCaptureResult,
+    wait: ClosedWaitResult,
+): Output! {
+    let status = match move wait {
+        ClosedWaitResult.observed(status) { status }
+        ClosedWaitResult.failed { return wait_failed() }
+    }
+    require_successful_launch(move launch)?
+    let stdout_bytes = match move stdout {
+        ClosedCaptureResult.captured(bytes) { move bytes }
+        ClosedCaptureResult.failed { return capture_failed() }
+    }
+    let stderr_bytes = match move stderr {
+        ClosedCaptureResult.captured(bytes) { move bytes }
+        ClosedCaptureResult.failed { return capture_failed() }
+    }
+    match input {
+        ClosedInputResult.complete {}
+        ClosedInputResult.failed { return input_failed() }
+    }
+    return Output {
+        status: status,
+        stdout: move stdout_bytes,
+        stderr: move stderr_bytes,
+    }
+}
+
+#target: "arm64-darwin"
+async func command_status(command: Command): ExitStatus! {
+    var source = move command
+    let input = take_command_input(&+source)
+    let launch_attempt = await launch_command(
+        move source,
+        closed_process_io(input.configured, false),
+    )
+    let launched = require_closed_launch(move launch_attempt, false)?
+    var child = move launched.child
+    let stdin = child.take_stdin()
+    let completed = await task.join(
+        transfer_closed_input(move stdin, move input.bytes),
+        observe_closed_child(move child),
+    )
+    return complete_closed_status(
+        move launched.launch,
+        completed.0,
+        move completed.1,
+    )?
+}
+
+#target: "arm64-darwin"
+blocking func command_status_blocking(command: Command): ExitStatus! {
+    var source = move command
+    let input = take_command_input(&+source)
+    let launched = require_closed_launch(
+        launch_command_blocking(move source, closed_process_io(input.configured, false)),
+        false,
+    )?
+    var child = move launched.child
+    let stdin = child.take_stdin()
+    let transferred = transfer_closed_input_blocking(move stdin, move input.bytes)
+    let waited = observe_closed_child_blocking(move child)
+    return complete_closed_status(move launched.launch, transferred, move waited)?
+}
+
+#target: "arm64-darwin"
+async func command_output(command: Command): Output! {
+    var source = move command
+    let input = take_command_input(&+source)
+    let launch_attempt = await launch_command(
+        move source,
+        closed_process_io(input.configured, true),
+    )
+    let launched = require_closed_launch(move launch_attempt, true)?
+    var child = move launched.child
+    let stdin = child.take_stdin()
+    let stdout = child.take_stdout()
+    let stderr = child.take_stderr()
+    let transferred = task.join(
+        transfer_closed_input(move stdin, move input.bytes),
+        capture_closed_stdout(move stdout),
+    )
+    let observed = task.join(
+        capture_closed_stderr(move stderr),
+        observe_closed_child(move child),
+    )
+    let completed = await task.join(move transferred, move observed)
+    return complete_closed_output(
+        move launched.launch,
+        completed.0.0,
+        move completed.0.1,
+        move completed.1.0,
+        move completed.1.1,
+    )?
+}
+
+#target: "arm64-darwin"
+blocking func command_output_blocking(command: Command): Output! {
+    var source = move command
+    let input = take_command_input(&+source)
+    let launched = require_closed_launch(
+        launch_command_blocking(move source, closed_process_io(input.configured, true)),
+        true,
+    )?
+    var child = move launched.child
+    let stdin = child.take_stdin()
+    let stdout = child.take_stdout()
+    let stderr = child.take_stderr()
+    let transferred = transfer_closed_output_blocking(
+        move stdin,
+        move stdout,
+        move stderr,
+        move input.bytes,
+    )
+    let waited = observe_closed_child_blocking(move child)
+    return complete_closed_output(
+        move launched.launch,
+        transferred.input,
+        move transferred.stdout,
+        move transferred.stderr,
+        move waited,
+    )?
+}
+
+instance Command {
+    async method self.status(): ExitStatus! {
+        return await command_status(move self)?
+    }
+
+    blocking method self.status_blocking(): ExitStatus! {
+        return command_status_blocking(move self)?
+    }
+
+    async method self.output(): Output! {
+        return await command_output(move self)?
+    }
+
+    blocking method self.output_blocking(): Output! {
+        return command_output_blocking(move self)?
+    }
+}

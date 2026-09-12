@@ -1,7 +1,7 @@
 //! Raw Darwin fork and terminal-observation transitions.
 //!
 //! This source is the sole owner of fork result classification and wait-status decoding. Launch
-//! reporting, pipe ownership, and command-I/O readiness are separate responsibilities.
+//! reporting, pipe ownership, and blocking pipe-group readiness are separate responsibilities.
 
 see ./darwin.nct
 

@@ -1,49 +1,23 @@
-//! Native qualification for three-direction readiness and bounded transfer facts.
+//! Native qualification for blocking descriptor and pipe-group readiness.
 
-see ./command_io_darwin.nct
 see ./pipe_darwin.nct
+see ./pipe_endpoint_darwin.nct
+see ./pipe_readiness_darwin.nct
 
-use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
-use /internal/ptr as internal_ptr
 use /ptr
 
-test command_io_classification_preserves_direction_and_broken_pipe {
+test pipe_readiness_preserves_interest_direction {
     if !events_match_interest(POLL_INPUT, POLL_INPUT)
         || !events_match_interest(POLL_OUTPUT, POLL_OUTPUT)
         || events_match_interest(POLL_INPUT, POLL_OUTPUT)
         || events_match_interest(POLL_OUTPUT, POLL_INPUT) {
         return error.new("std.process.test", "poll direction validation changed")
     }
-
-    match classify_command_io_read(SyscallResult { value: 1, errno: 0 }, 1) {
-        CommandIoReadAttempt.bytes(count) {
-            if count != 1 { return error.new("std.process.test", "read count changed") }
-        }
-        _ { return error.new("std.process.test", "read bytes changed classification") }
-    }
-    match classify_command_io_write(
-        SyscallResult { value: 0, errno: darwin.ERRNO_BROKEN_PIPE },
-        1,
-    ) {
-        CommandIoWriteAttempt.broken_pipe {}
-        _ { return error.new("std.process.test", "broken pipe changed classification") }
-    }
-    match classify_command_io_write(SyscallResult { value: 2, errno: 0 }, 1) {
-        CommandIoWriteAttempt.malformed {}
-        _ { return error.new("std.process.test", "oversized write became progress") }
-    }
-    match classify_command_io_write(
-        SyscallResult { value: 0, errno: darwin.ERRNO_WOULD_BLOCK },
-        1,
-    ) {
-        CommandIoWriteAttempt.would_block {}
-        _ { return error.new("std.process.test", "would-block write changed classification") }
-    }
     return
 }
 
-test command_io_poll_observes_writer_and_reader_together {
+test pipe_group_poll_observes_writer_and_reader_together {
     match create_cloexec_pipe() {
         PipeAttempt.failed(_) {
             return error.new("std.process.test", "input readiness pipe creation failed")
@@ -72,7 +46,7 @@ test command_io_poll_observes_writer_and_reader_together {
                     if written.errno != 0 || written.value != 1 {
                         return error.new("std.process.test", "readiness fixture write failed")
                     }
-                    match poll_command_io_once(
+                    match poll_pipe_group_once(
                         pipe_write_fd(&input),
                         true,
                         pipe_read_fd(&output),
@@ -80,27 +54,16 @@ test command_io_poll_observes_writer_and_reader_together {
                         0,
                         false,
                     ) {
-                        CommandIoPollAttempt.ready(input_events, stdout_events, stderr_events) {
+                        PipeGroupPollAttempt.ready(input_events, stdout_events, stderr_events) {
                             if !input_events.writable || input_events.readable
                                 || !stdout_events.readable || stdout_events.writable
                                 || stderr_events.readable || stderr_events.writable
                                 || stderr_events.error || stderr_events.hangup
                                 || stderr_events.invalid {
-                                return error.new("std.process.test", "three-direction readiness changed")
+                                return error.new("std.process.test", "pipe-group readiness changed")
                             }
                         }
-                        _ { return error.new("std.process.test", "three-direction poll failed") }
-                    }
-
-                    close_pipe_read(&+input)
-                    let byte: u8 = 1
-                    match write_command_input_once(
-                        pipe_write_fd(&input),
-                        internal_input_byte(&byte),
-                        0,
-                    ) {
-                        CommandIoWriteAttempt.broken_pipe {}
-                        _ { return error.new("std.process.test", "owned writer raised SIGPIPE or lost EPIPE") }
+                        _ { return error.new("std.process.test", "pipe-group poll failed") }
                     }
                     drop output
                     drop input
@@ -109,8 +72,4 @@ test command_io_poll_observes_writer_and_reader_together {
         }
     }
     return
-}
-
-noalloc func internal_input_byte(value: &u8): &[u8] {
-    return internal_ptr.slice_from_raw_parts_value(ptr.from_ref(value), 1)
 }

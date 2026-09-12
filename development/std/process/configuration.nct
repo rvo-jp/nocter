@@ -12,6 +12,12 @@ use /mem as mem_module
 use /string
 use /vec.Vec
 
+/// One removed command-input policy and its optional finite payload.
+struct TakenCommandInput {
+    configured: bool
+    bytes: Vec<u8>?
+}
+
 noalloc func valid_environment_name_for_command(name: &str): bool {
     if name.len() == 0 || !string.is_valid_utf8(name.bytes()) { return false }
     let bytes = name.bytes()
@@ -94,6 +100,23 @@ func replace_command_input(command: &+Command, value: CommandInput): void {
     let previous = ptr.replace_value(&+command.standard_input, move value)
     drop previous
     return
+}
+
+/// Removes the finite-input payload from a command before its launch storage is prepared.
+///
+/// Closed operations own the returned bytes while the shared launch path owns the remaining
+/// command. Ordinary `spawn` never calls this operation and therefore retains no hidden input
+/// policy.
+noalloc func take_command_input(command: &+Command): TakenCommandInput {
+    let previous = ptr.replace_value(&+command.standard_input, CommandInput.inherited)
+    match move previous {
+        CommandInput.inherited {
+            return TakenCommandInput { configured: false, bytes: none }
+        }
+        CommandInput.configured(bytes) {
+            return TakenCommandInput { configured: true, bytes: move bytes }
+        }
+    }
 }
 
 instance Command {

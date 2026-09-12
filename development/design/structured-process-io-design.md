@@ -148,9 +148,12 @@ prevents native event delivery from becoming a second exit-status decoder.
 ## Closed Operations and Streaming
 
 `status` inherits standard output and error. `output` owns finite input and captures both output
-streams through the same endpoint types exposed by streaming spawn. Its internal tasks advance
-stdin, stdout, stderr, exec reporting, and child observation without waiting for one bounded pipe
-to finish before servicing another.
+streams through the same endpoint types exposed by streaming spawn. After the shared launch path
+produces a child and one close-on-exec fact, the asynchronous closed operations advance stdin,
+stdout, stderr, and child observation through structured tasks without waiting for one bounded pipe
+to finish before servicing another. Their blocking twins use the same launch, endpoint, and child
+owners; only blocking output adds one three-direction readiness coordinator. That coordinator
+cannot create or observe a child and does not implement another byte-transfer classifier.
 
 When a caller takes output endpoints, it also takes responsibility for driving or closing them.
 The safe convenience path remains `output`; advanced streaming code composes endpoint futures and

@@ -192,8 +192,9 @@ nocter run -- ../../README.md
 
 [subprocess-configured/index.nct](subprocess-configured/index.nct) configures an exact child
 environment and working directory, replaces finite standard input, captures both output streams,
-and observes the terminal status as one synchronous operation. Repeated `env` calls demonstrate
-last-write-wins replacement; `clear_env` and `remove_env` make the final child environment exact.
+and observes the terminal status through the explicit blocking closed operation. Repeated `env`
+calls demonstrate last-write-wins replacement; `clear_env` and `remove_env` make the final child
+environment exact.
 
 ```sh
 cd examples/subprocess-configured

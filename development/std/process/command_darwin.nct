@@ -1,14 +1,14 @@
-//! Darwin command orchestration and public failure selection.
+//! Shared Darwin command launch and public failure policy.
 //!
-//! Raw target transitions expose typed facts. This layer is their only public-policy consumer: it
-//! prepares all storage, creates one I/O session, reaps every child, and applies failure precedence.
+//! This source is the only command-to-child launch authority. Public spawn and closed operations
+//! consume the same `LaunchedChild` fact; only the consumer decides whether a rejected launch is
+//! returned immediately or after exact child observation.
 
 see ./index.nct
 see ./command.nct
 see ./child_owner_darwin.nct
 see ./child_darwin.nct
 see ./command_child_darwin.nct
-see ./command_io_session_darwin.nct
 see ./darwin.nct
 see ./launch_report_darwin.nct
 see ./launch_plan_darwin.nct
@@ -16,14 +16,8 @@ see ./pipe_darwin.nct
 see ./spawn_io_darwin.nct
 see ./subprocess_darwin.nct
 
-use /internal/os.{OSErrorKind}
+use /internal/os.OSErrorKind
 use /internal/os/darwin
-
-#target: "arm64-darwin"
-enum CommandFork {
-    child(prepared: PreparedCommand, report: OwnedPipe, io: CommandIoSession)
-    parent(prepared: PreparedCommand, child: ChildOwner, report: OwnedPipe, io: CommandIoSession)
-}
 
 #target: "arm64-darwin"
 enum SpawnFork {
@@ -37,30 +31,29 @@ enum SpawnFork {
 }
 
 #target: "arm64-darwin"
-struct CommandObservation {
-    status: ExitStatus
+enum LaunchPreparationFailure {
+    input
+    output
+    process
+}
+
+#target: "arm64-darwin"
+enum SpawnForkAttempt {
+    ready(value: SpawnFork)
+    failed(reason: LaunchPreparationFailure)
+}
+
+/// One created child paired with the exact close-on-exec observation from that launch.
+#target: "arm64-darwin"
+struct LaunchedChild {
+    child: Child
     launch: LaunchReportAttempt
-    io: CommandIoResult
 }
 
 #target: "arm64-darwin"
-enum CommandOutputMode {
-    inherited
-    captured
-}
-
-#target: "arm64-darwin"
-enum CompletedCommand {
-    status(value: ExitStatus)
-    output(value: Output)
-}
-
-#target: "arm64-darwin"
-noalloc func captures_command_output(mode: &CommandOutputMode): bool {
-    match mode {
-        CommandOutputMode.inherited { return false }
-        CommandOutputMode.captured { return true }
-    }
+enum CommandLaunchAttempt {
+    launched(value: LaunchedChild)
+    failed(reason: LaunchPreparationFailure)
 }
 
 #target: "arm64-darwin"
@@ -133,170 +126,70 @@ noalloc func require_successful_launch(launch: LaunchReportAttempt): void! {
 }
 
 #target: "arm64-darwin"
-blocking func observe_command_parent(
-    prepared: PreparedCommand,
-    child: ChildOwner,
-    report: OwnedPipe,
-    io: CommandIoSession,
-): CommandObservation! {
-    var command = move prepared
-    let launch = read_launch_report(move report)
-    let transferred = drain_command_io(move io, prepared_input(&command))
-
-    // Exact-child observation is the last fallible lifecycle transition and therefore has highest
-    // public precedence over launch, capture, and input transport facts.
-    let status = status_from_wait(observe_child(move child))?
-    drop command
-    return CommandObservation {
-        status: status,
-        launch: move launch,
-        io: move transferred,
-    }
-}
-
-#target: "arm64-darwin"
-blocking func fork_prepared_command(command: Command, captures_output: bool): CommandFork! {
-    let prepared = prepare_command(move command)
-    let io = match create_command_io_session(prepared_has_input(&prepared), captures_output) {
-        CommandIoPreparationAttempt.ready(session) { move session }
-        CommandIoPreparationAttempt.input_failed(_) { return input_failed() }
-        CommandIoPreparationAttempt.capture_failed(_) { return capture_failed() }
-    }
-    match create_launch_report_pipe() {
-        PipeAttempt.failed(_) {
-            drop io
-            return spawn_failed()
-        }
-        PipeAttempt.ready(report) {
-            match fork_process() {
-                ForkAttempt.failed(_) {
-                    drop report
-                    drop io
-                    return spawn_failed()
-                }
-                ForkAttempt.child {
-                    return CommandFork.child(move prepared, move report, move io)
-                }
-                ForkAttempt.parent(pid) {
-                    return CommandFork.parent(
-                        move prepared,
-                        own_child(pid),
-                        move report,
-                        move io,
-                    )
-                }
-            }
-        }
-    }
-}
-
-#target: "arm64-darwin"
-func fork_spawn_command(command: Command, io: ProcessIo): SpawnFork! {
+func fork_spawn_command(command: Command, io: ProcessIo): SpawnForkAttempt {
     let prepared = prepare_command(move command)
     let streams = match create_spawn_io(move io) {
         SpawnIoAttempt.ready(session) { move session }
-        SpawnIoAttempt.failed(_) { return spawn_failed() }
+        SpawnIoAttempt.input_failed(_) {
+            return SpawnForkAttempt.failed(LaunchPreparationFailure.input)
+        }
+        SpawnIoAttempt.output_failed(_) {
+            return SpawnForkAttempt.failed(LaunchPreparationFailure.output)
+        }
     }
     match create_launch_report_pipe() {
         PipeAttempt.failed(_) {
             drop streams
-            return spawn_failed()
+            return SpawnForkAttempt.failed(LaunchPreparationFailure.process)
         }
         PipeAttempt.ready(report) {
             match fork_process() {
                 ForkAttempt.failed(_) {
                     drop report
                     drop streams
-                    return spawn_failed()
+                    return SpawnForkAttempt.failed(LaunchPreparationFailure.process)
                 }
                 ForkAttempt.child {
-                    return SpawnFork.child(move prepared, move report, move streams)
+                    return SpawnForkAttempt.ready(
+                        SpawnFork.child(move prepared, move report, move streams),
+                    )
                 }
                 ForkAttempt.parent(pid) {
-                    return SpawnFork.parent(
+                    return SpawnForkAttempt.ready(SpawnFork.parent(
                         move prepared,
                         own_child(pid),
                         move report,
                         move streams,
+                    ))
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+blocking func launch_command_blocking(command: Command, io: ProcessIo): CommandLaunchAttempt {
+    match fork_spawn_command(move command, move io) {
+        SpawnForkAttempt.failed(reason) { return CommandLaunchAttempt.failed(reason) }
+        SpawnForkAttempt.ready(value) {
+            match move value {
+                SpawnFork.child(prepared, report, streams) {
+                    exec_spawn_child(
+                        prepared_path_address(&prepared),
+                        prepared_argv_address(&prepared),
+                        prepared_environment_address(&prepared),
+                        prepared_working_directory_address(&prepared),
+                        move report,
+                        move streams,
                     )
                 }
-            }
-        }
-    }
-}
-
-#target: "arm64-darwin"
-blocking func spawn_command(command: Command, io: ProcessIo): Child! {
-    match fork_spawn_command(move command, move io)? {
-        SpawnFork.child(prepared, report, streams) {
-            exec_spawn_child(
-                prepared_path_address(&prepared),
-                prepared_argv_address(&prepared),
-                prepared_environment_address(&prepared),
-                prepared_working_directory_address(&prepared),
-                move report,
-                move streams,
-            )
-        }
-        SpawnFork.parent(prepared, child, report, streams) {
-            let endpoints = take_spawn_parent_endpoints(move streams)
-            let launch = read_launch_report(move report)
-            drop prepared
-            require_successful_launch(move launch)?
-            return make_child(move child, move endpoints)
-        }
-    }
-}
-
-#target: "arm64-darwin"
-async func spawn_command_async(command: Command, io: ProcessIo): Child! {
-    match fork_spawn_command(move command, move io)? {
-        SpawnFork.child(prepared, report, streams) {
-            exec_spawn_child(
-                prepared_path_address(&prepared),
-                prepared_argv_address(&prepared),
-                prepared_environment_address(&prepared),
-                prepared_working_directory_address(&prepared),
-                move report,
-                move streams,
-            )
-        }
-        SpawnFork.parent(prepared, child, report, streams) {
-            let endpoints = take_spawn_parent_endpoints(move streams)
-            let launch = await read_launch_report_async(move report)
-            drop prepared
-            require_successful_launch(move launch)?
-            return make_child(move child, move endpoints)
-        }
-    }
-}
-
-#target: "arm64-darwin"
-blocking func complete_command_observation(
-    observation: CommandObservation,
-    mode: CommandOutputMode,
-): CompletedCommand! {
-    let result = move observation
-    require_successful_launch(move result.launch)?
-    if result.io.capture_failed { return capture_failed() }
-    if result.io.input_failed { return input_failed() }
-    match move result.io.output {
-        CapturedCommandOutput.inherited {
-            match mode {
-                CommandOutputMode.inherited {
-                    return CompletedCommand.status(result.status)
-                }
-                CommandOutputMode.captured { return capture_failed() }
-            }
-        }
-        CapturedCommandOutput.captured(stdout, stderr) {
-            match mode {
-                CommandOutputMode.inherited { return capture_failed() }
-                CommandOutputMode.captured {
-                    return CompletedCommand.output(Output {
-                        status: result.status,
-                        stdout: move stdout,
-                        stderr: move stderr,
+                SpawnFork.parent(prepared, child, report, streams) {
+                    let endpoints = take_spawn_parent_endpoints(move streams)
+                    let launch = read_launch_report(move report)
+                    drop prepared
+                    return CommandLaunchAttempt.launched(LaunchedChild {
+                        child: make_child(move child, move endpoints),
+                        launch: move launch,
                     })
                 }
             }
@@ -305,44 +198,54 @@ blocking func complete_command_observation(
 }
 
 #target: "arm64-darwin"
-blocking func execute_command(command: Command, mode: CommandOutputMode): CompletedCommand! {
-    match fork_prepared_command(move command, captures_command_output(&mode))? {
-        CommandFork.child(prepared, report, io) {
-            exec_command_child(
-                prepared_path_address(&prepared),
-                prepared_argv_address(&prepared),
-                prepared_environment_address(&prepared),
-                prepared_working_directory_address(&prepared),
-                move report,
-                move io,
-            )
-        }
-        CommandFork.parent(prepared, child, report, io) {
-            let observation = observe_command_parent(
-                move prepared,
-                move child,
-                move report,
-                move io,
-            )?
-            return complete_command_observation(move observation, mode)?
+async func launch_command(command: Command, io: ProcessIo): CommandLaunchAttempt {
+    match fork_spawn_command(move command, move io) {
+        SpawnForkAttempt.failed(reason) { return CommandLaunchAttempt.failed(reason) }
+        SpawnForkAttempt.ready(value) {
+            match move value {
+                SpawnFork.child(prepared, report, streams) {
+                    exec_spawn_child(
+                        prepared_path_address(&prepared),
+                        prepared_argv_address(&prepared),
+                        prepared_environment_address(&prepared),
+                        prepared_working_directory_address(&prepared),
+                        move report,
+                        move streams,
+                    )
+                }
+                SpawnFork.parent(prepared, child, report, streams) {
+                    let endpoints = take_spawn_parent_endpoints(move streams)
+                    let launch = await read_launch_report_async(move report)
+                    drop prepared
+                    return CommandLaunchAttempt.launched(LaunchedChild {
+                        child: make_child(move child, move endpoints),
+                        launch: move launch,
+                    })
+                }
+            }
         }
     }
 }
 
 #target: "arm64-darwin"
-blocking func run_command(command: Command): ExitStatus! {
-    match execute_command(move command, CommandOutputMode.inherited)? {
-        CompletedCommand.status(status) { return status }
-        CompletedCommand.output(_) { return capture_failed() }
+blocking func spawn_command(command: Command, io: ProcessIo): Child! {
+    let launched = match launch_command_blocking(move command, move io) {
+        CommandLaunchAttempt.launched(value) { move value }
+        CommandLaunchAttempt.failed(_) { return spawn_failed() }
     }
+    require_successful_launch(move launched.launch)?
+    return move launched.child
 }
 
 #target: "arm64-darwin"
-blocking func output_command(command: Command): Output! {
-    match execute_command(move command, CommandOutputMode.captured)? {
-        CompletedCommand.status(_) { return capture_failed() }
-        CompletedCommand.output(output) { return move output }
+async func spawn_command_async(command: Command, io: ProcessIo): Child! {
+    let attempt = await launch_command(move command, move io)
+    let launched = match move attempt {
+        CommandLaunchAttempt.launched(value) { move value }
+        CommandLaunchAttempt.failed(_) { return spawn_failed() }
     }
+    require_successful_launch(move launched.launch)?
+    return move launched.child
 }
 
 instance Command {
@@ -352,13 +255,5 @@ instance Command {
 
     blocking method self.spawn_blocking(io: ProcessIo): Child! {
         return spawn_command(move self, move io)?
-    }
-
-    blocking method self.status(): ExitStatus! {
-        return run_command(move self)?
-    }
-
-    blocking method self.output(): Output! {
-        return output_command(move self)?
     }
 }

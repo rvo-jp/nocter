@@ -10,9 +10,8 @@ use /vec.Vec
 see ./command_child_darwin.nct
 see ./child_owner_darwin.nct
 see ./child_darwin.nct
-see ./command_io_darwin.nct
-see ./command_io_session_darwin.nct
-see ./command_io_tests_darwin.nct
+see ./closed_command_darwin.nct
+see ./closed_io_blocking_darwin.nct
 see ./configuration.nct
 see ./darwin.nct
 see ./command.nct
@@ -22,6 +21,8 @@ see ./launch_report_darwin.nct
 see ./launch_report_tests_darwin.nct
 see ./pipe_darwin.nct
 see ./pipe_endpoint_darwin.nct
+see ./pipe_readiness_darwin.nct
+see ./pipe_readiness_tests_darwin.nct
 see ./pipe_tests_darwin.nct
 see ./subprocess_darwin.nct
 see ./process_io.nct
@@ -60,7 +61,7 @@ pub struct ChildStderr
 /// One observed terminal state of a reaped child process.
 pub copy struct ExitStatus
 
-/// Complete owned output from one synchronously observed child process.
+/// Complete owned output from one closed child-process operation.
 pub struct Output {
     /// The child's observed terminal state.
     pub status: ExitStatus
@@ -121,11 +122,17 @@ instance Command {
     /// Creates an owned child and configured pipe endpoints while blocking the current thread.
     pub blocking method self.spawn_blocking(io: ProcessIo): Child!
 
-    /// Launches the command, waits for its child, and consumes all command storage.
-    pub blocking method self.status(): ExitStatus!
+    /// Launches the command and asynchronously observes its terminal status.
+    pub async method self.status(): ExitStatus!
 
-    /// Launches the command and returns its terminal state and complete output streams.
-    pub blocking method self.output(): Output!
+    /// Launches the command and synchronously observes its terminal status.
+    pub blocking method self.status_blocking(): ExitStatus!
+
+    /// Launches the command and asynchronously captures both complete output streams.
+    pub async method self.output(): Output!
+
+    /// Launches the command and synchronously captures both complete output streams.
+    pub blocking method self.output_blocking(): Output!
 }
 
 instance Child {

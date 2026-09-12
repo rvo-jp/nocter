@@ -1,0 +1,341 @@
+//! Fair blocking transfer for one closed command operation.
+//!
+//! This is the sole multi-pipe blocking coordinator. It owns no launch or child-observation
+//! policy and advances only endpoint operations exposed by `pipe_endpoint_darwin.nct`.
+
+see ./index.nct
+see ./child_darwin.nct
+see ./closed_command_darwin.nct
+see ./pipe_endpoint_darwin.nct
+see ./pipe_readiness_darwin.nct
+
+use /internal/os/darwin
+use /mem.RawBuffer
+use /mem
+use /vec.Vec
+
+#target: "arm64-darwin"
+enum BlockingInputChannel {
+    inactive
+    active(state: BlockingInputState)
+}
+
+#target: "arm64-darwin"
+struct BlockingInputState {
+    stream: ChildStdin
+    input: Vec<u8>
+    offset: usize
+}
+
+#target: "arm64-darwin"
+enum BlockingInputPreparation {
+    ready(channel: BlockingInputChannel)
+    failed
+}
+
+#target: "arm64-darwin"
+struct BlockingClosedIo {
+    input: BlockingInputChannel
+    stdout: ChildStdout
+    stderr: ChildStderr
+    stdout_open: bool
+    stderr_open: bool
+    stdout_bytes: Vec<u8>
+    stderr_bytes: Vec<u8>
+    scratch: RawBuffer
+}
+
+#target: "arm64-darwin"
+struct BlockingClosedOutputResult {
+    input: ClosedInputResult
+    stdout: ClosedCaptureResult
+    stderr: ClosedCaptureResult
+}
+
+#target: "arm64-darwin"
+const CLOSED_IO_CHUNK_BYTES: usize = 8192
+
+#target: "arm64-darwin"
+func prepare_blocking_input(
+    stream: ChildStdin?,
+    input: Vec<u8>?,
+): BlockingInputPreparation {
+    let bytes = move input otherwise {
+        let unexpected = move stream otherwise {
+            return BlockingInputPreparation.ready(BlockingInputChannel.inactive)
+        }
+        var endpoint = move unexpected
+        endpoint.close()
+        return BlockingInputPreparation.failed
+    }
+    let writer = move stream otherwise { return BlockingInputPreparation.failed }
+    var endpoint = move writer
+    if bytes.len() == 0 {
+        endpoint.close()
+        return BlockingInputPreparation.ready(BlockingInputChannel.inactive)
+    }
+    return BlockingInputPreparation.ready(BlockingInputChannel.active(BlockingInputState {
+        stream: move endpoint,
+        input: move bytes,
+        offset: 0,
+    }))
+}
+
+#target: "arm64-darwin"
+noalloc func blocking_input_active(channel: &BlockingInputChannel): bool {
+    match channel {
+        BlockingInputChannel.inactive { return false }
+        BlockingInputChannel.active(state) { return state.stream.endpoint.open }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func blocking_input_fd(channel: &BlockingInputChannel): usize {
+    match channel {
+        BlockingInputChannel.inactive { return 0 }
+        BlockingInputChannel.active(state) { return state.stream.endpoint.fd }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func close_blocking_input(channel: &+BlockingInputChannel): void {
+    match channel {
+        BlockingInputChannel.inactive {}
+        BlockingInputChannel.active(state) { state.stream.close() }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func advance_blocking_input(channel: &+BlockingInputChannel): bool {
+    match channel {
+        BlockingInputChannel.inactive { return false }
+        BlockingInputChannel.active(state) {
+            let bytes: &[u8] = &state.input
+            match try_endpoint_write(&state.stream.endpoint, bytes, state.offset) {
+                EndpointWriteAttempt.ready(count) {
+                    state.offset += count
+                    if state.offset == bytes.len() { state.stream.close() }
+                    return true
+                }
+                EndpointWriteAttempt.would_block { return true }
+                EndpointWriteAttempt.interrupted { return true }
+                EndpointWriteAttempt.failed(errno) {
+                    state.stream.close()
+                    return errno == darwin.ERRNO_BROKEN_PIPE
+                }
+                EndpointWriteAttempt.malformed {
+                    state.stream.close()
+                    return false
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func append_closed_bytes(
+    output: &+Vec<u8>,
+    scratch: &RawBuffer,
+    count: usize,
+): void {
+    let bytes = scratch.bytes()
+    var index: usize = 0
+    while index < count {
+        output.push(bytes[index])
+        index += 1
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func close_blocking_stdout(state: &+BlockingClosedIo): void {
+    state.stdout.close()
+    state.stdout_open = false
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func close_blocking_stderr(state: &+BlockingClosedIo): void {
+    state.stderr.close()
+    state.stderr_open = false
+    return
+}
+
+#target: "arm64-darwin"
+func advance_blocking_stdout(state: &+BlockingClosedIo): bool {
+    match try_endpoint_read(&state.stdout.endpoint, state.scratch.bytes_mut()) {
+        EndpointReadAttempt.ready(count) {
+            if count == 0 {
+                close_blocking_stdout(state)
+            } else {
+                append_closed_bytes(&+state.stdout_bytes, &state.scratch, count)
+            }
+            return true
+        }
+        EndpointReadAttempt.would_block { return true }
+        EndpointReadAttempt.interrupted { return true }
+        EndpointReadAttempt.failed(_) {
+            close_blocking_stdout(state)
+            return false
+        }
+        EndpointReadAttempt.malformed {
+            close_blocking_stdout(state)
+            return false
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func advance_blocking_stderr(state: &+BlockingClosedIo): bool {
+    match try_endpoint_read(&state.stderr.endpoint, state.scratch.bytes_mut()) {
+        EndpointReadAttempt.ready(count) {
+            if count == 0 {
+                close_blocking_stderr(state)
+            } else {
+                append_closed_bytes(&+state.stderr_bytes, &state.scratch, count)
+            }
+            return true
+        }
+        EndpointReadAttempt.would_block { return true }
+        EndpointReadAttempt.interrupted { return true }
+        EndpointReadAttempt.failed(_) {
+            close_blocking_stderr(state)
+            return false
+        }
+        EndpointReadAttempt.malformed {
+            close_blocking_stderr(state)
+            return false
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func failed_blocking_output(
+    input: ClosedInputResult,
+    stdout: ChildStdout?,
+    stderr: ChildStderr?,
+): BlockingClosedOutputResult {
+    drop stdout
+    drop stderr
+    return BlockingClosedOutputResult {
+        input: input,
+        stdout: ClosedCaptureResult.failed,
+        stderr: ClosedCaptureResult.failed,
+    }
+}
+
+#target: "arm64-darwin"
+blocking func transfer_closed_output_blocking(
+    stdin: ChildStdin?,
+    stdout: ChildStdout?,
+    stderr: ChildStderr?,
+    input: Vec<u8>?,
+): BlockingClosedOutputResult {
+    let prepared_input = prepare_blocking_input(move stdin, move input)
+    let input_channel = match move prepared_input {
+        BlockingInputPreparation.ready(channel) { move channel }
+        BlockingInputPreparation.failed {
+            return failed_blocking_output(ClosedInputResult.failed, move stdout, move stderr)
+        }
+    }
+    let stdout_stream = move stdout otherwise {
+        drop input_channel
+        return failed_blocking_output(ClosedInputResult.complete, none, move stderr)
+    }
+    let stderr_stream = move stderr otherwise {
+        drop input_channel
+        drop stdout_stream
+        return failed_blocking_output(ClosedInputResult.complete, none, none)
+    }
+
+    var allocator = mem.current_allocator()
+    var state = BlockingClosedIo {
+        input: move input_channel,
+        stdout: move stdout_stream,
+        stderr: move stderr_stream,
+        stdout_open: true,
+        stderr_open: true,
+        stdout_bytes: Vec.empty(),
+        stderr_bytes: Vec.empty(),
+        scratch: allocator.alloc(CLOSED_IO_CHUNK_BYTES, 1),
+    }
+    var input_ok = true
+    var stdout_ok = true
+    var stderr_ok = true
+
+    while blocking_input_active(&state.input) || state.stdout_open || state.stderr_open {
+        match poll_pipe_group_once(
+            blocking_input_fd(&state.input),
+            blocking_input_active(&state.input),
+            state.stdout.endpoint.fd,
+            state.stdout_open,
+            state.stderr.endpoint.fd,
+            state.stderr_open,
+        ) {
+            PipeGroupPollAttempt.interrupted {}
+            PipeGroupPollAttempt.failed(_) {
+                if blocking_input_active(&state.input) { input_ok = false }
+                if state.stdout_open { stdout_ok = false }
+                if state.stderr_open { stderr_ok = false }
+                close_blocking_input(&+state.input)
+                close_blocking_stdout(&+state)
+                close_blocking_stderr(&+state)
+            }
+            PipeGroupPollAttempt.malformed {
+                if blocking_input_active(&state.input) { input_ok = false }
+                if state.stdout_open { stdout_ok = false }
+                if state.stderr_open { stderr_ok = false }
+                close_blocking_input(&+state.input)
+                close_blocking_stdout(&+state)
+                close_blocking_stderr(&+state)
+            }
+            PipeGroupPollAttempt.ready(input_events, stdout_events, stderr_events) {
+                if input_events.invalid {
+                    input_ok = false
+                    close_blocking_input(&+state.input)
+                } else if blocking_input_active(&state.input)
+                    && (input_events.writable || input_events.error || input_events.hangup) {
+                    if !advance_blocking_input(&+state.input) { input_ok = false }
+                }
+
+                if stdout_events.invalid {
+                    stdout_ok = false
+                    close_blocking_stdout(&+state)
+                } else if state.stdout_open
+                    && (stdout_events.readable || stdout_events.error || stdout_events.hangup) {
+                    if !advance_blocking_stdout(&+state) { stdout_ok = false }
+                }
+
+                if stderr_events.invalid {
+                    stderr_ok = false
+                    close_blocking_stderr(&+state)
+                } else if state.stderr_open
+                    && (stderr_events.readable || stderr_events.error || stderr_events.hangup) {
+                    if !advance_blocking_stderr(&+state) { stderr_ok = false }
+                }
+            }
+        }
+    }
+
+    let input_result = if input_ok {
+        ClosedInputResult.complete
+    } else {
+        ClosedInputResult.failed
+    }
+    let stdout_result = if stdout_ok {
+        ClosedCaptureResult.captured(move state.stdout_bytes)
+    } else {
+        ClosedCaptureResult.failed
+    }
+    let stderr_result = if stderr_ok {
+        ClosedCaptureResult.captured(move state.stderr_bytes)
+    } else {
+        ClosedCaptureResult.failed
+    }
+    return BlockingClosedOutputResult {
+        input: input_result,
+        stdout: move stdout_result,
+        stderr: move stderr_result,
+    }
+}

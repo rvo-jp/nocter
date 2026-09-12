@@ -4,7 +4,7 @@
 //! exact setup or exec stage selected in the child without relying on an exit-code convention.
 
 see ./darwin.nct
-see ./command_io_darwin.nct
+see ./pipe_readiness_darwin.nct
 see ./pipe_darwin.nct
 see ./pipe_endpoint_darwin.nct
 

@@ -1059,7 +1059,7 @@ noalloc func has_signal(status: ExitStatus): bool {{
     return true
 }}
 
-blocking func main(): i32 {{
+async func main(): i32 {{
     var path = String.copy("{}")
     var first = String.copy("alpha beta")
     var command = Command.new(&path as &str) catch _ {{ return 1 }}
@@ -1068,12 +1068,12 @@ blocking func main(): i32 {{
     path.clear()
     first.clear()
 
-    let status = command.status() catch _ {{ return 4 }}
+    let status = await command.status() catch _ {{ return 4 }}
     let code = status.code() otherwise {{ return 5 }}
     if status.success() || code != 7 || has_signal(status) {{ return 6 }}
 
     let missing = Command.new("{}") catch _ {{ return 8 }}
-    let _status = missing.status() catch failure {{
+    let _status = await missing.status() catch failure {{
         if failure.has_code("std.process.not_found") {{ return 0 }}
         return 9
     }}
@@ -1130,9 +1130,9 @@ noalloc func matches_stream(
         && bytes[repeated_len + 1] == second_tail
 }}
 
-blocking func main(): i32 {{
+async func main(): i32 {{
     let command = Command.new("{}") catch _ {{ return 1 }}
-    let output = command.output() catch _ {{ return 2 }}
+    let output = await command.output() catch _ {{ return 2 }}
     let code = output.status.code() otherwise {{ return 3 }}
     if output.status.success() || code != 23 {{ return 4 }}
 
@@ -1142,12 +1142,12 @@ blocking func main(): i32 {{
     if !matches_stream(stderr, 69, 262144, 0, 254) {{ return 6 }}
 
     let empty = Command.new("{}") catch _ {{ return 7 }}
-    let empty_output = empty.output() catch _ {{ return 8 }}
+    let empty_output = await empty.output() catch _ {{ return 8 }}
     if !empty_output.status.success() || empty_output.stdout.len() != 0
         || empty_output.stderr.len() != 0 {{ return 9 }}
 
     let text = Command.new("{}") catch _ {{ return 10 }}
-    let text_output = text.output() catch _ {{ return 11 }}
+    let text_output = await text.output() catch _ {{ return 11 }}
     if !text_output.status.success() || text_output.stdout.len() != 6
         || text_output.stdout[0] != 104 || text_output.stdout[1] != 101
         || text_output.stdout[2] != 108 || text_output.stdout[3] != 108
@@ -1159,7 +1159,7 @@ blocking func main(): i32 {{
         || text_output.stderr[7] != 10 {{ return 12 }}
 
     let signaled = Command.new("{}") catch _ {{ return 13 }}
-    let signal_output = signaled.output() catch _ {{ return 14 }}
+    let signal_output = await signaled.output() catch _ {{ return 14 }}
     let signal = signal_output.status.signal() otherwise {{ return 15 }}
     if signal != 15 || signal_output.stdout.len() != 10
         || signal_output.stdout[0] != 115 || signal_output.stdout[1] != 105
@@ -1178,14 +1178,14 @@ blocking func main(): i32 {{
     var attempt: usize = 0
     while attempt < 48 {{
         let repeated = Command.new("{}") catch _ {{ return 17 }}
-        let repeated_output = repeated.output() catch _ {{ return 18 }}
+        let repeated_output = await repeated.output() catch _ {{ return 18 }}
         if !repeated_output.status.success() || repeated_output.stdout.len() != 0
             || repeated_output.stderr.len() != 0 {{ return 19 }}
         attempt += 1
     }}
 
     let missing = Command.new("{}") catch _ {{ return 20 }}
-    let _missing_output = missing.output() catch failure {{
+    let _missing_output = await missing.output() catch failure {{
         if failure.has_code("std.process.not_found") {{ return 0 }}
         return 21
     }}
@@ -1398,12 +1398,12 @@ noalloc func range_matches(bytes: &[u8], start: usize, count: usize, byte: u8): 
 }
 
 blocking func status_fails_with(command: Command, code: &str): bool {
-    let _status = command.status() catch failure { return failure.has_code(code) }
+    let _status = command.status_blocking() catch failure { return failure.has_code(code) }
     return false
 }
 
 blocking func output_fails_with(command: Command, code: &str): bool {
-    let _output = command.output() catch failure { return failure.has_code(code) }
+    let _output = command.output_blocking() catch failure { return failure.has_code(code) }
     return false
 }
 ";
@@ -1431,7 +1431,7 @@ blocking func main(): i32 {{
     exact.env("KEEP", "final=value") catch _ {{ return 4 }}
     exact.env("REMOVE", "present") catch _ {{ return 5 }}
     exact.remove_env("REMOVE") catch _ {{ return 6 }}
-    let exact_status = exact.status() catch _ {{ return 7 }}
+    let exact_status = exact.status_blocking() catch _ {{ return 7 }}
     if !exact_status.success() {{
         return exact_status.code() otherwise {{ return 8 }}
     }}
@@ -1439,7 +1439,7 @@ blocking func main(): i32 {{
     var inherited = Command.new("{}") catch _ {{ return 9 }}
     inherited.env("NOCTER_CHANGED", "child=value") catch _ {{ return 10 }}
     inherited.remove_env("NOCTER_REMOVED") catch _ {{ return 11 }}
-    let inherited_status = inherited.status() catch _ {{ return 12 }}
+    let inherited_status = inherited.status_blocking() catch _ {{ return 12 }}
     if !inherited_status.success() {{
         return inherited_status.code() otherwise {{ return 13 }}
     }}
@@ -1451,7 +1451,7 @@ blocking func main(): i32 {{
     let input = repeated(input_byte, transfer_count)
     var transfer = Command.new("{}") catch _ {{ return 14 }}
     transfer.input(&input)
-    let output = transfer.output() catch _ {{ return 15 }}
+    let output = transfer.output_blocking() catch _ {{ return 15 }}
     if !output.status.success() || output.stdout.len() != transfer_count * 2
         || output.stderr.len() != transfer_count {{ return 16 }}
     if !range_matches(&output.stdout, 0, transfer_count, stdout_byte)
@@ -1461,13 +1461,13 @@ blocking func main(): i32 {{
     let empty: Vec<u8> = Vec.empty()
     var empty_command = Command.new("{}") catch _ {{ return 18 }}
     empty_command.input(&empty)
-    let empty_status = empty_command.status() catch _ {{ return 19 }}
+    let empty_status = empty_command.status_blocking() catch _ {{ return 19 }}
     if !empty_status.success() {{ return 20 }}
 
     let early_bytes = repeated(input_byte, 1048576)
     var early = Command.new("{}") catch _ {{ return 21 }}
     early.input(&early_bytes)
-    let early_output = early.output() catch _ {{ return 22 }}
+    let early_output = early.output_blocking() catch _ {{ return 22 }}
     if !early_output.status.success() || early_output.stdout.len() != 0
         || early_output.stderr.len() != 0 {{ return 23 }}
 
@@ -1574,7 +1574,7 @@ noalloc func signaled_with(status: ExitStatus, expected: i32): bool {{
 }}
 
 blocking func fails_with(command: Command, code: &str): bool {{
-    let _status = command.status() catch failure {{ return failure.has_code(code) }}
+    let _status = command.status_blocking() catch failure {{ return failure.has_code(code) }}
     return false
 }}
 
@@ -1585,19 +1585,19 @@ func is_none<T>(value: T?): bool {{
 
 blocking func main(): i32 {{
     let success = Command.new("{}") catch _ {{ return 1 }}
-    let success_status = success.status() catch _ {{ return 2 }}
+    let success_status = success.status_blocking() catch _ {{ return 2 }}
     if !success_status.success() || !exited_with(success_status, 0) {{ return 3 }}
 
     let nonzero = Command.new("{}") catch _ {{ return 4 }}
-    let nonzero_status = nonzero.status() catch _ {{ return 5 }}
+    let nonzero_status = nonzero.status_blocking() catch _ {{ return 5 }}
     if nonzero_status.success() || !exited_with(nonzero_status, 23) {{ return 6 }}
 
     let ordinary_127 = Command.new("{}") catch _ {{ return 7 }}
-    let ordinary_127_status = ordinary_127.status() catch _ {{ return 8 }}
+    let ordinary_127_status = ordinary_127.status_blocking() catch _ {{ return 8 }}
     if ordinary_127_status.success() || !exited_with(ordinary_127_status, 127) {{ return 9 }}
 
     let signaled = Command.new("{}") catch _ {{ return 10 }}
-    let signal_status = signaled.status() catch _ {{ return 11 }}
+    let signal_status = signaled.status_blocking() catch _ {{ return 11 }}
     if signal_status.success() || !signaled_with(signal_status, 15) {{ return 12 }}
 
     let missing = Command.new("{}") catch _ {{ return 13 }}
@@ -1610,7 +1610,7 @@ blocking func main(): i32 {{
     if !fails_with(move invalid, "std.process.invalid_input") {{ return 18 }}
 
     let relative = Command.new("./relative-helper") catch _ {{ return 19 }}
-    let relative_status = relative.status() catch _ {{ return 20 }}
+    let relative_status = relative.status_blocking() catch _ {{ return 20 }}
     if !exited_with(relative_status, 31) {{ return 21 }}
 
     var argument_command = Command.new("{}") catch _ {{ return 22 }}
@@ -1622,7 +1622,7 @@ blocking func main(): i32 {{
         rejected_nul = true
     }}
     if !rejected_nul {{ return 26 }}
-    let argument_status = argument_command.status() catch _ {{ return 27 }}
+    let argument_status = argument_command.status_blocking() catch _ {{ return 27 }}
     if !exited_with(argument_status, 0) {{ return 28 }}
 
     var oversized = String.with_capacity(2097152)
@@ -1643,7 +1643,7 @@ blocking func main(): i32 {{
     }}
 
     let final_success = Command.new("{}") catch _ {{ return 34 }}
-    let final_status = final_success.status() catch _ {{ return 35 }}
+    let final_status = final_success.status_blocking() catch _ {{ return 35 }}
     if !exited_with(final_status, 0) {{ return 36 }}
 
     let terminate_command = Command.new("{}") catch _ {{ return 37 }}

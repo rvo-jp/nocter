@@ -732,7 +732,7 @@ fn subprocess_status_uses_one_public_contract_across_editor_features() {
     let source = root.join("status.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (status_line, status_source) = source_line(&text, "command.status()");
+    let (status_line, status_source) = source_line(&text, "command.status_blocking()");
     let status_character = status_source.rfind("status").unwrap();
     let hover = server.receive(&position_request(
         2,
@@ -743,7 +743,7 @@ fn subprocess_status_uses_one_public_contract_across_editor_features() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub blocking method Command.status(): ExitStatus!"),
+        response.contains("pub blocking method Command.status_blocking(): ExitStatus!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -768,7 +768,7 @@ fn subprocess_status_uses_one_public_contract_across_editor_features() {
     ));
     let response = implementation.response().unwrap();
     assert!(
-        response.contains("/std/process/command_darwin.nct"),
+        response.contains("/std/process/closed_command_darwin.nct"),
         "{response}"
     );
     assert!(
@@ -813,7 +813,7 @@ fn subprocess_output_uses_one_public_contract_across_editor_features() {
     let source = root.join("capture.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (output_line, output_source) = source_line(&text, "command.output()");
+    let (output_line, output_source) = source_line(&text, "command.output_blocking()");
     let output_character = output_source.rfind("output").unwrap();
     let hover = server.receive(&position_request(
         2,
@@ -824,7 +824,7 @@ fn subprocess_output_uses_one_public_contract_across_editor_features() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub blocking method Command.output(): Output!"),
+        response.contains("pub blocking method Command.output_blocking(): Output!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -849,7 +849,7 @@ fn subprocess_output_uses_one_public_contract_across_editor_features() {
     ));
     let response = implementation.response().unwrap();
     assert!(
-        response.contains("/std/process/command_darwin.nct"),
+        response.contains("/std/process/closed_command_darwin.nct"),
         "{response}"
     );
     assert!(

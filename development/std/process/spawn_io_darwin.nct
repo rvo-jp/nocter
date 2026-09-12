@@ -52,7 +52,8 @@ struct SpawnParentEndpoints {
 #target: "arm64-darwin"
 enum SpawnIoAttempt {
     ready(session: SpawnIoSession)
-    failed(errno: i32)
+    input_failed(errno: i32)
+    output_failed(errno: i32)
 }
 
 #target: "arm64-darwin"
@@ -164,19 +165,19 @@ func create_spawn_output(mode: Stdio): SpawnOutputAttempt {
 func create_spawn_io(io: ProcessIo): SpawnIoAttempt {
     let policy = move io
     match create_spawn_input(policy.stdin_mode) {
-        SpawnInputAttempt.failed(errno) { return SpawnIoAttempt.failed(errno) }
+        SpawnInputAttempt.failed(errno) { return SpawnIoAttempt.input_failed(errno) }
         SpawnInputAttempt.ready(stdin) {
             match create_spawn_output(policy.stdout_mode) {
                 SpawnOutputAttempt.failed(errno) {
                     drop stdin
-                    return SpawnIoAttempt.failed(errno)
+                    return SpawnIoAttempt.output_failed(errno)
                 }
                 SpawnOutputAttempt.ready(stdout) {
                     match create_spawn_output(policy.stderr_mode) {
                         SpawnOutputAttempt.failed(errno) {
                             drop stdin
                             drop stdout
-                            return SpawnIoAttempt.failed(errno)
+                            return SpawnIoAttempt.output_failed(errno)
                         }
                         SpawnOutputAttempt.ready(stderr) {
                             return SpawnIoAttempt.ready(SpawnIoSession {

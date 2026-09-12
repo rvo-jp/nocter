@@ -1,7 +1,7 @@
-//! Darwin command-I/O readiness and bounded transfer transitions.
+//! Darwin readiness observation for one descriptor or one closed-operation pipe group.
 //!
-//! This source owns poll record layout and raw read/write classification. It returns closed typed
-//! facts and does not allocate buffers, own descriptors, or select public process failures.
+//! This source owns the blocking `poll` record and returns typed readiness facts. Byte transfer,
+//! endpoint ownership, command launch, buffering, and public failure selection remain elsewhere.
 
 see ./index.nct
 
@@ -20,7 +20,7 @@ copy struct DescriptorEvents {
 }
 
 #target: "arm64-darwin"
-enum CommandIoPollAttempt {
+enum PipeGroupPollAttempt {
     ready(input: DescriptorEvents, stdout: DescriptorEvents, stderr: DescriptorEvents)
     interrupted
     failed(errno: i32)
@@ -30,25 +30,6 @@ enum CommandIoPollAttempt {
 #target: "arm64-darwin"
 enum DescriptorPollAttempt {
     ready
-    interrupted
-    failed(errno: i32)
-    malformed
-}
-
-#target: "arm64-darwin"
-enum CommandIoReadAttempt {
-    bytes(count: usize)
-    end
-    interrupted
-    failed(errno: i32)
-    malformed
-}
-
-#target: "arm64-darwin"
-enum CommandIoWriteAttempt {
-    bytes(count: usize)
-    broken_pipe
-    would_block
     interrupted
     failed(errno: i32)
     malformed
@@ -169,25 +150,25 @@ noalloc blocking func poll_descriptor_once(
 }
 
 #target: "arm64-darwin"
-noalloc blocking func poll_command_io_once(
+noalloc blocking func poll_pipe_group_once(
     input_fd: usize,
     input_active: bool,
     stdout_fd: usize,
     stdout_active: bool,
     stderr_fd: usize,
     stderr_active: bool,
-): CommandIoPollAttempt {
+): PipeGroupPollAttempt {
     if !input_active && !stdout_active && !stderr_active {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     let input = descriptor_i32(input_fd, input_active) otherwise {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     let stdout = descriptor_i32(stdout_fd, stdout_active) otherwise {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     let stderr = descriptor_i32(stderr_fd, stderr_active) otherwise {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     var descriptors: [PollDescriptor; 3] = [
         PollDescriptor { fd: input, events: POLL_OUTPUT, returned_events: 0 },
@@ -202,87 +183,32 @@ noalloc blocking func poll_command_io_once(
     )
     match classify_poll_syscall(result) {
         PollSyscallAttempt.ready {}
-        PollSyscallAttempt.interrupted { return CommandIoPollAttempt.interrupted }
-        PollSyscallAttempt.failed(errno) { return CommandIoPollAttempt.failed(errno) }
-        PollSyscallAttempt.malformed { return CommandIoPollAttempt.malformed }
+        PollSyscallAttempt.interrupted { return PipeGroupPollAttempt.interrupted }
+        PollSyscallAttempt.failed(errno) { return PipeGroupPollAttempt.failed(errno) }
+        PollSyscallAttempt.malformed { return PipeGroupPollAttempt.malformed }
     }
     if !input_active && descriptors[0].returned_events != 0 {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     if !stdout_active && descriptors[1].returned_events != 0 {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     if !stderr_active && descriptors[2].returned_events != 0 {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     if !events_match_interest(descriptors[0].returned_events, POLL_OUTPUT)
         || !events_match_interest(descriptors[1].returned_events, POLL_INPUT)
         || !events_match_interest(descriptors[2].returned_events, POLL_INPUT) {
-        return CommandIoPollAttempt.malformed
+        return PipeGroupPollAttempt.malformed
     }
     var observed: usize = 0
     if descriptors[0].returned_events != 0 { observed += 1 }
     if descriptors[1].returned_events != 0 { observed += 1 }
     if descriptors[2].returned_events != 0 { observed += 1 }
-    if observed != result.value { return CommandIoPollAttempt.malformed }
-    return CommandIoPollAttempt.ready(
+    if observed != result.value { return PipeGroupPollAttempt.malformed }
+    return PipeGroupPollAttempt.ready(
         descriptor_events(descriptors[0].returned_events),
         descriptor_events(descriptors[1].returned_events),
         descriptor_events(descriptors[2].returned_events),
     )
-}
-
-#target: "arm64-darwin"
-noalloc blocking func read_command_io_once(fd: usize, buffer: &+[u8]): CommandIoReadAttempt {
-    if buffer.len() == 0 { return CommandIoReadAttempt.malformed }
-    let result = darwin.syscall3(
-        darwin.SYS_READ,
-        fd,
-        ptr.addr(buffer.ptr()),
-        buffer.len(),
-    )
-    return classify_command_io_read(result, buffer.len())
-}
-
-#target: "arm64-darwin"
-noalloc func classify_command_io_read(
-    result: SyscallResult,
-    capacity: usize,
-): CommandIoReadAttempt {
-    if capacity == 0 { return CommandIoReadAttempt.malformed }
-    if result.errno == darwin.ERRNO_INTERRUPTED { return CommandIoReadAttempt.interrupted }
-    if result.errno != 0 { return CommandIoReadAttempt.failed(result.errno) }
-    if result.value > capacity { return CommandIoReadAttempt.malformed }
-    if result.value == 0 { return CommandIoReadAttempt.end }
-    return CommandIoReadAttempt.bytes(result.value)
-}
-
-#target: "arm64-darwin"
-noalloc blocking func write_command_input_once(
-    fd: usize,
-    input: &[u8],
-    offset: usize,
-): CommandIoWriteAttempt {
-    if offset >= input.len() { return CommandIoWriteAttempt.malformed }
-    let result = darwin.syscall3(
-        darwin.SYS_WRITE,
-        fd,
-        ptr.addr(input.ptr()) + offset,
-        input.len() - offset,
-    )
-    return classify_command_io_write(result, input.len() - offset)
-}
-
-#target: "arm64-darwin"
-noalloc func classify_command_io_write(
-    result: SyscallResult,
-    available: usize,
-): CommandIoWriteAttempt {
-    if available == 0 { return CommandIoWriteAttempt.malformed }
-    if result.errno == darwin.ERRNO_INTERRUPTED { return CommandIoWriteAttempt.interrupted }
-    if result.errno == darwin.ERRNO_BROKEN_PIPE { return CommandIoWriteAttempt.broken_pipe }
-    if result.errno == darwin.ERRNO_WOULD_BLOCK { return CommandIoWriteAttempt.would_block }
-    if result.errno != 0 { return CommandIoWriteAttempt.failed(result.errno) }
-    if result.value == 0 || result.value > available { return CommandIoWriteAttempt.malformed }
-    return CommandIoWriteAttempt.bytes(result.value)
 }

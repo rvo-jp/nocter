@@ -1,8 +1,8 @@
 //! One ownership state shared by asynchronous and blocking child-pipe interfaces.
 
 see ./index.nct
-see ./command_io_darwin.nct
 see ./pipe_darwin.nct
+see ./pipe_readiness_darwin.nct
 
 use /internal/io
 use /internal/os/darwin.SyscallResult

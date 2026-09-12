@@ -198,9 +198,8 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_child_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>child_owner_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>child_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_session_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_tests_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>closed_command_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>closed_io_blocking_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>configuration<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command<span class="token-operator">.</span>nct
@@ -210,6 +209,8 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_endpoint_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_readiness_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_readiness_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>subprocess_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>process_io<span class="token-operator">.</span>nct
@@ -248,7 +249,7 @@
 <span class="token-comment">/// One observed terminal state of a reaped child process.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">ExitStatus</span>
 
-<span class="token-comment">/// Complete owned output from one synchronously observed child process.</span>
+<span class="token-comment">/// Complete owned output from one closed child-process operation.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Output</span> <span class="token-operator">{</span>
     <span class="token-comment">/// The child's observed terminal state.</span>
     <span class="token-keyword">pub</span> status<span class="token-operator">:</span> <span class="token-type">ExitStatus</span>
@@ -309,11 +310,17 @@
     <span class="token-comment">/// Creates an owned child and configured pipe endpoints while blocking the current thread.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">spawn_blocking</span><span class="token-operator">(</span>io<span class="token-operator">:</span> <span class="token-type">ProcessIo</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Child</span><span class="token-operator">!</span>
 
-    <span class="token-comment">/// Launches the command, waits for its child, and consumes all command storage.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+    <span class="token-comment">/// Launches the command and asynchronously observes its terminal status.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
 
-    <span class="token-comment">/// Launches the command and returns its terminal state and complete output streams.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
+    <span class="token-comment">/// Launches the command and synchronously observes its terminal status.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status_blocking</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Launches the command and asynchronously captures both complete output streams.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Launches the command and synchronously captures both complete output streams.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output_blocking</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Child</span> <span class="token-operator">{</span>

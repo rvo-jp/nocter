@@ -209,6 +209,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("process", "mem"),
     ("process", "ptr"),
     ("process", "string"),
+    ("process", "task"),
     ("process", "vec"),
     ("set", "hash"),
     ("set", "internal/table"),

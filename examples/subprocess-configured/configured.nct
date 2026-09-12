@@ -12,7 +12,7 @@ blocking func run(): i32! {
     command.remove_env("REMOVED")?
     command.input("input\n".bytes())
 
-    let output = command.output()?
+    let output = command.output_blocking()?
     if !output.status.success() {
         return error.new("example.subprocess.status", "configured helper failed")
     }

@@ -2,8 +2,8 @@
 
 This chapter defines child-process ownership and standard-stream behavior in `std/process`. A
 command owns its executable path, arguments, configuration, and finite input. It can execute as a
-closed synchronous operation or transfer one child and its configured stream endpoints to the
-caller.
+closed asynchronous or blocking operation, or transfer one child and its configured stream
+endpoints to the caller.
 
 The compiler-checked [public declarations](index.nct) are the sole authority for exact signatures.
 
@@ -17,11 +17,12 @@ The child receives the command path as argument zero and the added values in ins
 later arguments. The argument vector is terminated according to the target ABI, but the terminator
 is not a source-visible argument.
 
-`status` consumes the command, starts one child, and waits for that child to terminate. The child
-inherits the parent's current working directory, environment byte vector, standard input, standard
-output, and standard error as they exist at launch. Environment entries are inherited without
-UTF-8 decoding or reconstruction. No shell parses the path or arguments, and no text is joined into
-a command line.
+`status` and `status_blocking` consume the command, start one child, and wait for that child to
+terminate. Unless command configuration replaces a value, the child inherits the parent's current
+working directory, environment byte vector, standard input, standard output, and standard error as
+they exist at launch. Environment entries are inherited without UTF-8 decoding or reconstruction.
+No shell parses the path or arguments, and no text is joined into a command line. The unqualified
+name is executor-safe; the `_blocking` name is the explicit synchronous twin.
 
 `spawn` and `spawn_blocking` consume a command and a `ProcessIo` policy. Each returns one owning
 `Child` only after the close-on-exec report proves successful executable replacement. `spawn`
@@ -93,12 +94,13 @@ cannot be mistaken for an exec failure.
 
 Construction and `arg` own their copied text in the current allocation context and follow the
 ordinary allocation-abort policy. Their `T!` layer reports validation, not recoverable allocation.
-All spawn operations may allocate launch metadata before creating the child and do not publish
-`noalloc`. `status`, `output`, and `spawn_blocking` may synchronously wait and therefore carry
-`blocking`; `spawn` is executor-safe. Endpoint close and transfer are allocation-free and
-nonblocking. `try_wait`, `terminate`, and `kill` are allocation-free and do not synchronously wait;
-their target operations may still fail. Asynchronous endpoint I/O and `Child.wait` are
-executor-safe. `ExitStatus` inspection is allocation-free and nonblocking.
+All launch operations may allocate metadata before creating the child and do not publish
+`noalloc`. `spawn`, `status`, and `output` are executor-safe. `spawn_blocking`, `status_blocking`,
+and `output_blocking` may synchronously wait and therefore carry `blocking`. Endpoint close and
+transfer are allocation-free and nonblocking. `try_wait`, `terminate`, and `kill` are
+allocation-free and do not synchronously wait; their target operations may still fail.
+Asynchronous endpoint I/O and `Child.wait` are executor-safe. `ExitStatus` inspection is
+allocation-free and nonblocking.
 
 No child is created until all target arguments, pointers, and the launch-report channel can be
 prepared. After process creation, the child path performs only target operations required to close
@@ -106,10 +108,10 @@ descriptors, execute the new image, report exec failure, and terminate.
 
 ## Runnable Example
 
-The repository [subprocess-status example](../../../examples/subprocess-status/index.nct) constructs an
-exact `./helper.sh` command, passes one argument without command-line joining, waits, and reports
-the typed nonzero exit status. Its helper is a repository-owned executable fixture rather than a
-program selected through `PATH`.
+The repository [subprocess-status example](../../../examples/subprocess-status/index.nct)
+constructs an exact `./helper.sh` command, passes one argument without command-line joining, calls
+the explicit blocking twin, and reports the typed nonzero exit status. Its helper is a
+repository-owned executable fixture rather than a program selected through `PATH`.
 
 ## Responsibility Boundaries
 
@@ -128,16 +130,17 @@ reconstruct the inherited environment through the UTF-8 public query API.
 
 ## Output Capture
 
-The owning synchronous operation can capture standard output and standard error simultaneously
-without exposing an independently owned child process.
+The owning closed operations can capture standard output and standard error simultaneously without
+exposing an independently owned child process.
 
-The `Output` fields and `Command.output` signature are defined only by the
+The `Output` fields and both output-operation signatures are defined only by the
 [public declarations](index.nct).
 
-`output` consumes the command, starts exactly one child, captures that child's standard output and
-standard error, waits for the child to terminate, and returns both complete byte streams with the
-terminal status. Standard input, the current working directory, and the environment remain
-inherited exactly as for `Command.status`.
+`output` and `output_blocking` consume the command, start exactly one child, capture that child's
+standard output and standard error, wait for the child to terminate, and return both complete byte
+streams with the terminal status. Standard input, the current working directory, and the
+environment remain inherited exactly as for the corresponding status operation. The unqualified
+name is executor-safe; `_blocking` identifies the synchronous twin.
 
 Captured streams contain arbitrary bytes. They are not required to be UTF-8 and are therefore
 represented by `Vec<u8>`. A caller that requires text validates it explicitly, for example with
@@ -151,8 +154,10 @@ borrow either stream, or move the captured buffers without a process resource re
 
 The parent must observe both captured descriptors while the child can still run. It must not read
 one stream to completion before servicing the other: a child may fill either finite pipe buffer
-while waiting for the parent to drain it. When both descriptors are readable, the implementation
-services them in a deterministic order but promises no cross-stream merge order.
+while waiting for the parent to drain it. The asynchronous operation gives stdin, stdout, stderr,
+and child observation independent structured computations under one parent future. The blocking
+twin uses the sole three-direction readiness coordinator and gives every ready direction one
+bounded operation per observation. Neither surface defines a cross-stream merge order.
 
 A readiness notification does not itself mean end of stream. The parent reads a bounded chunk from
 a ready descriptor and considers that descriptor complete only after a read returns end of file.
@@ -196,18 +201,19 @@ Captured bytes written before either terminal condition are returned normally.
 
 ### Allocation and Blocking
 
-`output` may allocate without a source-visible upper bound while collecting either stream. It uses
-the ordinary current allocation context and follows the standard allocation-abort policy; `T!`
-reports process and I/O failures rather than recoverable allocation exhaustion.
+Both output operations may allocate without a source-visible upper bound while collecting either
+stream. They use the ordinary current allocation context and follow the standard allocation-abort
+policy; `T!` reports process and I/O failures rather than recoverable allocation exhaustion.
 
-The operation may block until the child terminates and every inherited captured descriptor closes.
-It publishes neither `noalloc` nor a nonblocking guarantee and explicitly carries `blocking`.
+`output` suspends on descriptor and process interests without blocking an executor thread.
+`output_blocking` may block until the child terminates and every inherited captured descriptor
+closes, and explicitly carries `blocking`.
 
 ### Responsibility Boundaries
 
-`std/process` owns public capture semantics, buffer ownership, failure precedence, and the complete
-synchronous lifecycle. Its target-independent command representation does not know readiness
-record layouts or syscall numbers.
+`std/process` owns public capture semantics, buffer ownership, failure precedence, and both closed
+lifecycles. Its target-independent command representation does not know readiness record layouts
+or syscall numbers.
 
 Target-specific standard source owns descriptor-normalization policy, redirection and readiness
 records, and one-attempt result classification. The selected target owns syscall identities and
@@ -222,7 +228,7 @@ or choose public process failures.
 ## Command Configuration
 
 A command can select its working directory, construct an exact child environment, and provide
-finite standard-input bytes while retaining the closed `status` and `output` lifecycles.
+finite standard-input bytes while retaining the closed asynchronous and blocking lifecycles.
 
 The exact configuration operations are defined only by the
 [compiler-checked `Command` declarations](index.nct).
@@ -233,8 +239,9 @@ new value has been prepared. `clear_env` also discards earlier explicit environm
 subsequent `env` calls build an exact environment from empty state.
 
 If `input` is never called, the child inherits standard input. Calling it with an empty view is
-different: the child receives a pipe that reaches end of file without any bytes. `status` continues
-to inherit standard output and standard error. `output` continues to capture both streams.
+different: the child receives a pipe that reaches end of file without any bytes. Both status
+operations continue to inherit standard output and standard error. Both output operations continue
+to capture both streams.
 
 ### Working Directory
 
@@ -270,11 +277,11 @@ The parent closes the input pipe after writing every byte. If the child closes i
 the parent treats the resulting broken pipe as the child's decision not to consume the remaining
 input; terminal status and captured output remain observable.
 
-When `output` and configured input are combined, stdin writes and stdout/stderr reads must progress
-within one readiness loop. Writing all input before reading either output stream, or reading one
+When an output operation and configured input are combined, stdin writes and stdout/stderr reads
+must progress concurrently. Writing all input before reading either output stream, or reading one
 output stream to completion before servicing the others, is forbidden because finite pipes can
-deadlock in either direction. Each ready direction receives one bounded operation before another
-poll so no stream can starve the others.
+deadlock in either direction. Structured tasks provide asynchronous fairness; the sole blocking
+pipe-group coordinator provides synchronous fairness.
 
 The implementation suppresses process-wide `SIGPIPE` termination only for its owned input writer.
 It must not change the calling process's global signal disposition. Interrupted operations are
@@ -304,9 +311,10 @@ Configuration copies use the current allocation context and follow the ordinary 
 policy. The `T!` results report invalid process text or operating-system failures, not recoverable
 allocation exhaustion. Configuration methods do not publish `noalloc`.
 
-Both terminal operations may block until the child terminates. `output` may additionally wait for
-descendants that inherited a captured output descriptor. Finite input does not create a public
-size limit or an asynchronous progress API.
+The `_blocking` terminal operations may block until the child terminates. `output_blocking` may
+additionally wait for descendants that inherited a captured output descriptor. The unqualified
+operations suspend through the executor instead. Finite input creates neither a public size limit
+nor a separate progress API.
 
 ### Responsibility Boundaries
 
@@ -315,10 +323,12 @@ failure precedence, and the complete create-and-reap lifecycle. Target-specific 
 source owns child setup policy, readiness records, no-SIGPIPE requirements, and native result
 classification. The selected target owns the exact `chdir` and descriptor-installation operations.
 
-One command-I/O session owns every configured pipe and all three direction states. It replaces the
-capture-only two-descriptor session rather than creating a second polling and cleanup authority.
-The compiler exposes closed target-operation roles and immutable process-entry facts; it
-does not know command configuration, environment edits, pipe direction, or public process errors.
+One shared launch path creates public `Child` and endpoint owners for spawn and closed operations.
+Asynchronous closed operations compose ordinary endpoint methods and exact observation with
+structured tasks. Only the blocking output twin owns a pipe-group readiness coordinator, and that
+coordinator cannot launch or observe a process. The compiler exposes closed target-operation roles
+and immutable process-entry facts; it does not know command configuration, environment edits, pipe
+direction, closed-operation composition, or public process errors.
 
 ## Process Context
 

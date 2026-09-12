@@ -120,17 +120,6 @@ noalloc func prepared_working_directory_address(command: &PreparedCommand): usiz
     return ptr.addr(path.bytes().ptr())
 }
 
-#target: "arm64-darwin"
-noalloc func prepared_has_input(command: &PreparedCommand): bool {
-    let _ = command_input_view(&command.command.standard_input) otherwise { return false }
-    return true
-}
-
-#target: "arm64-darwin"
-noalloc func prepared_input(command: &PreparedCommand): &[u8]? {
-    return command_input_view(&command.command.standard_input)?
-}
-
 test prepared_launch_plan_owns_exact_vectors_and_configuration {
     var command = Command.new("./helper")?
     command.arg("one")?
@@ -157,10 +146,10 @@ test prepared_launch_plan_owns_exact_vectors_and_configuration {
     }
     let directory_pointer: *u8 = internal_ptr.from_addr(prepared_working_directory_address(&prepared))
     let directory = internal_ptr.str_from_raw_parts(directory_pointer, 9)
-    let input = prepared_input(&prepared) otherwise {
+    let input = command_input_view(&prepared.command.standard_input) otherwise {
         return error.new("std.process.test", "prepared input was absent")
     }
-    if directory != "workspace" || !prepared_has_input(&prepared) || input.len() != 0 {
+    if directory != "workspace" || input.len() != 0 {
         return error.new("std.process.test", "prepared configuration changed")
     }
     return
