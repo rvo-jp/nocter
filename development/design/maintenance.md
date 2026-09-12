@@ -48,7 +48,8 @@ Do not preserve unresolved alternatives as compiler modes or fallback behavior.
 ## Verification
 
 ```sh
-node development/site/build-docs.js
+node development/site/test-generation.js
+node development/site/build-docs.js --output /tmp/nocter-site
 git diff --check
 ```
 
@@ -58,6 +59,7 @@ narrowest authoritative compiler test and the complete workspace gate before a p
 
 ## Documentation
 
-Public-facing documentation is written in English. Edit source Markdown and regenerate generated
-HTML with `node development/site/build-docs.js`. Root documentation remains user-facing;
-compiler-development material remains under `development/`.
+Public-facing documentation is written in English. Edit source Markdown and validate an explicit
+out-of-tree HTML build. Generated HTML is deployed from `main` as a GitHub Pages artifact and is
+never committed. Root documentation remains user-facing; compiler-development material remains
+under `development/`.

@@ -97,8 +97,7 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 - `development/history/milestones/` and `development/history/reviews/`: plans, historical
   rationale, findings, and remediation evidence; never current crate-internal authority
 - `development/history/release-audits/`: immutable published release evidence only
-- `development/site/`: documentation build mechanism and static website inputs; `docs/` is generated
-  output only
+- `development/site/`: documentation build mechanism and website-only static inputs
 
 Every workspace member must have one colocated `README.md`. `development/compiler/Cargo.toml` owns
 workspace membership, crate manifests own exact dependencies, and Rust source/rustdoc owns exact
@@ -106,15 +105,17 @@ APIs. Do not duplicate those lists in prose. When a crate's internal responsibil
 its README in the same commit. When only a cross-crate edge changes, update architecture or the
 owning boundary document instead.
 
-Write public documentation in English. Edit source Markdown and regenerate the website with
-`node development/site/build-docs.js`.
+Write public documentation in English. Edit source Markdown, test the generator, and build only
+into an explicit directory outside the repository. Generated website output is a GitHub Pages
+artifact and must not be committed.
 
 ## Verification
 
 Documentation checkpoints must run:
 
 ```sh
-node development/site/build-docs.js
+node development/site/test-generation.js
+node development/site/build-docs.js --output /tmp/nocter-site
 git diff --check
 ```
 

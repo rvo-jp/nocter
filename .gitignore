@@ -1,6 +1,5 @@
 /target/
 /development/compiler/target/
 /dist/
+/docs/
 /.nocter/
-/.docs-generated-*/
-/.docs-previous-*/

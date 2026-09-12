@@ -10,8 +10,9 @@ Internal agent instructions and handoff files that are excluded from the public 
 such as `AGENTS.md` and `development/TODO.md`, may use another language when it improves team
 communication.
 
-Edit the source Markdown rather than generated HTML. After changing public Markdown, run
-`node development/site/build-docs.js` and commit the corresponding generated website changes.
+Edit the source Markdown rather than generated HTML. After changing public Markdown, run the
+documentation generator tests and build into an explicit directory outside the repository. Do not
+commit generated website output; GitHub Pages receives an artifact built from `main`.
 
 ## Documentation Placement
 

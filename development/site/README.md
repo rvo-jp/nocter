@@ -1,24 +1,32 @@
 # Documentation Site Generator
 
-This directory owns the build mechanism and static inputs for the Nocter website. The repository
-`docs/` directory is generated output only: no contributor instruction or manually maintained
-website asset belongs there.
+This directory owns the build mechanism and website-only static inputs for the Nocter website.
+Authored documentation remains on `main`; generated HTML exists only as an out-of-tree build or a
+GitHub Pages deployment artifact.
 
 ## Responsibility
 
-- `build-docs.js` validates authored documentation and generates the complete `docs/` tree.
+- `build-docs.js` validates authored documentation and generates one complete website into an
+  explicit directory outside the repository.
 - `document-tree.js` owns the immutable hierarchy derived from the complete published-source set.
 - `highlight.js` provides build-time syntax highlighting for Nocter and shell code blocks.
 - `markdown-table.js` owns table-cell boundaries across code spans and escaped pipe characters.
-- `output-transaction.js` owns temporary output, complete publication, and failure restoration.
+- `output-transaction.js` owns sibling staging, complete output replacement, and failure
+  restoration without writing into the source repository.
 - `static/` owns files copied verbatim to the website, including styles, runtime JavaScript,
-  images, and `CNAME`.
+  website-only images, and `CNAME`.
+- root `assets/` owns assets shared by repository documentation and the website.
 - `test-generation.js` exercises determinism, complete output replacement, publication boundaries,
-  and structural navigation in isolated repository copies.
+  output isolation, deployment identity, and structural navigation in isolated repository copies.
+- `.github/workflows/documentation.yml` validates every pull request and deploys an artifact built
+  from `main` to the protected `github-pages` environment.
 
-The generator writes into a temporary sibling of `docs/` and replaces the previous output only
-after every page has rendered successfully. A failed build therefore cannot leave a partly updated
-website, and files removed from authored inputs cannot survive as stale generated pages.
+The generator rejects an omitted output path and any path that contains or is contained by the
+source repository. It writes into a temporary sibling of the requested output and replaces the
+previous output only after every page has rendered successfully. A failed build therefore cannot
+leave a partly updated website, and files removed from authored inputs cannot survive as stale
+generated pages. Canonicalizing the nearest existing output ancestor prevents a symlink alias from
+bypassing source-tree isolation.
 
 ## Publication Boundary
 
@@ -64,11 +72,19 @@ filter before the tree is built, so filesystem discovery cannot make them public
 Run from the repository root:
 
 ```sh
-node development/site/build-docs.js
+node development/site/build-docs.js --output /tmp/nocter-site
 ```
+
+Deployment passes the exact lowercase 40-digit source commit through `--source-revision`. The
+generator records it in `deployment.json` and uses it for links to repository files that are not
+published as pages. A local build may omit this option and records `null`; such output is useful for
+inspection but is not deployment evidence.
 
 Generation fails when:
 
+- the output directory is omitted, aliases the source repository, or names a filesystem root;
+- a supplied source revision is not an exact lowercase commit identity;
+- the Pages artifact contains a hidden entry, symbolic link, hard link, or other unsupported node;
 - two authored sources claim one output path;
 - a local Markdown link or heading anchor is unresolved or escapes the repository;
 - the syntax highlighter keyword set differs from the lexical specification;
@@ -96,18 +112,32 @@ node development/site/test-generation.js
 ```
 
 It builds source trees with different timestamps and compares every output byte. It also proves
-that stale generated files are removed, private standard-library implementation sources stay
-private, newly discovered public pages enter navigation without README registration, historical
-records remain excluded, every standard-library behavior guide links its checked contract,
-named built-in declarations cannot drift from the language catalog, unrelated Rust text cannot
-register diagnostics, diagnostic drift is rejected, every behavior guide remains assigned by the
-standard-library catalog, and table pipes inside code spans or escapes cannot corrupt the generated
-columns.
+that output cannot enter the source repository, stale generated files are removed, the deployment
+manifest preserves the exact source revision, unsupported artifact nodes are rejected, private
+standard-library implementation sources stay private, newly discovered public pages enter
+navigation without README registration, historical records remain excluded, every standard-library
+behavior guide links its checked contract, named built-in declarations cannot drift from the
+language catalog, unrelated Rust text cannot register diagnostics, diagnostic drift is rejected,
+every behavior guide remains assigned by the standard-library catalog, and table pipes inside code
+spans or escapes cannot corrupt the generated columns.
+
+## Deployment
+
+Pull requests run the adversarial generator test and an exact out-of-tree build but upload
+nothing. A push or manual run on `main` performs the same build, uploads its complete directory as
+the `github-pages` artifact, and gives only the deployment job `pages: write` and `id-token: write`.
+The deployment job publishes through the protected `github-pages` environment. No generated branch
+or generated repository directory exists.
+
+GitHub repository settings must select **GitHub Actions** as the Pages source. The workflow uses
+GitHub's official checkout, Pages configuration, Pages artifact, and Pages deployment actions. No
+website build dependency enters the compiler, standard library, release archive, or installed
+Nocter home.
 
 ## Editing Rule
 
 Edit public Markdown in the repository root, `examples/`, `releases/`, and `spec/`. Standard-library
 API documentation is the deliberate exception colocated under `development/std/`. Edit other
-compiler and contributor documentation under `development/`. Edit website-only assets in
-`static/`. Never edit `docs/` directly; regenerate it and commit the resulting output with the
-authored change.
+compiler and contributor documentation under `development/`. Edit shared assets under root
+`assets/` and website-only assets in `static/`. Commit only authored sources and build machinery;
+never copy generated HTML into the repository.

@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.49.0 Documentation Artifact Migration](v0.49.0-documentation-artifact.md)
 - [v0.49.0 Phase 7 Structured Process I/O Final Review](v0.49.0-phase-7.md)
 - [v0.49.0 Phase 6 Structured Process Application Review](v0.49.0-phase-6.md)
 - [v0.49.0 Phase 5 Closed Process Operation Review](v0.49.0-phase-5.md)

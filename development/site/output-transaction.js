@@ -2,19 +2,20 @@ const fs = require("fs");
 const path = require("path");
 
 class OutputTransaction {
-    constructor(projectRoot, staticRoot, finalRoot) {
-        this.staticRoot = staticRoot;
+    constructor(finalRoot) {
         this.finalRoot = finalRoot;
-        this.directory = path.join(projectRoot, `.docs-generated-${process.pid}`);
-        this.previousRoot = path.join(projectRoot, `.docs-previous-${process.pid}`);
+        const parent = path.dirname(finalRoot);
+        const name = path.basename(finalRoot);
+        this.directory = path.join(parent, `.${name}.generated-${process.pid}`);
+        this.previousRoot = path.join(parent, `.${name}.previous-${process.pid}`);
         this.state = "new";
     }
 
     prepare() {
         this.requireState("new");
+        fs.mkdirSync(path.dirname(this.finalRoot), { recursive: true });
         fs.rmSync(this.directory, { recursive: true, force: true });
         fs.mkdirSync(this.directory, { recursive: true });
-        fs.cpSync(this.staticRoot, this.directory, { recursive: true });
         this.state = "prepared";
     }
 

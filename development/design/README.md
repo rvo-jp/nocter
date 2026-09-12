@@ -69,7 +69,8 @@ generated website. It must not be consulted to determine current compiler behavi
 | Next concrete work and blockers | `development/TODO.md` |
 | Published-candidate qualification evidence | `development/history/release-audits/` |
 | Website build mechanism and static inputs | `development/site/` |
-| Generated website output | `docs/` |
+| Shared repository and website assets | root `assets/` |
+| Generated website output | ephemeral GitHub Pages artifact built from `main` |
 
 Do not copy a crate's module layout into a cross-crate document. Do not copy milestone progress into
 architecture. A cross-crate document may name the contracts on both sides of a boundary, but it must

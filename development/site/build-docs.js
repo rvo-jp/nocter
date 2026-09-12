@@ -8,11 +8,14 @@ const { splitTableRow } = require("./markdown-table");
 const { OutputTransaction } = require("./output-transaction");
 
 const SITE_ORIGIN = "https://nocter.dev";
-const SOURCE_ORIGIN = "https://github.com/rvo-jp/nocter/blob/main";
-const PROJECT_ROOT = path.resolve(__dirname, "../..");
-const FINAL_OUTPUT_ROOT = path.join(PROJECT_ROOT, "docs");
+const SOURCE_REPOSITORY = "https://github.com/rvo-jp/nocter";
+const PROJECT_ROOT = fs.realpathSync(path.resolve(__dirname, "../.."));
 const STATIC_ROOT = path.join(__dirname, "static");
-const outputTransaction = new OutputTransaction(PROJECT_ROOT, STATIC_ROOT, FINAL_OUTPUT_ROOT);
+const PUBLIC_ASSET_ROOT = path.join(PROJECT_ROOT, "assets");
+const BUILD_OPTIONS = parseArguments(process.argv.slice(2));
+const FINAL_OUTPUT_ROOT = BUILD_OPTIONS.outputRoot;
+const SOURCE_ORIGIN = `${SOURCE_REPOSITORY}/blob/${BUILD_OPTIONS.sourceRevision || "main"}`;
+const outputTransaction = new OutputTransaction(FINAL_OUTPUT_ROOT);
 const OUTPUT_ROOT = outputTransaction.directory;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
@@ -88,6 +91,8 @@ validateDocumentTreeNavigation();
 
 try {
     outputTransaction.prepare();
+    fs.cpSync(STATIC_ROOT, OUTPUT_ROOT, { recursive: true });
+    fs.cpSync(PUBLIC_ASSET_ROOT, path.join(OUTPUT_ROOT, "assets"), { recursive: true });
 
     for (const file of sourceFiles) {
         const html = renderPage(file);
@@ -99,10 +104,79 @@ try {
 
     writeRobots();
     writeSitemap(sourceFiles);
+    writeDeploymentManifest();
+    validatePagesArtifact(OUTPUT_ROOT);
     outputTransaction.publish();
-    console.log(`Generated ${sourceFiles.length} HTML pages in docs/`);
+    console.log(`Generated ${sourceFiles.length} HTML pages in ${FINAL_OUTPUT_ROOT}`);
 } finally {
     outputTransaction.cleanup();
+}
+
+function parseArguments(arguments_) {
+    let outputRoot = null;
+    let sourceRevision = null;
+
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const argument = arguments_[index];
+        if (argument === "--output") {
+            if (outputRoot) {
+                throw new Error("Documentation output may be specified only once");
+            }
+            outputRoot = requiredArgumentValue(arguments_, ++index, argument);
+        } else if (argument === "--source-revision") {
+            if (sourceRevision) {
+                throw new Error("Documentation source revision may be specified only once");
+            }
+            sourceRevision = requiredArgumentValue(arguments_, ++index, argument);
+        } else {
+            throw new Error(`Unknown documentation build argument: ${argument}`);
+        }
+    }
+
+    if (!outputRoot) {
+        throw new Error("Documentation generation requires --output <directory>");
+    }
+
+    const resolvedOutput = canonicalizePotentialPath(path.resolve(outputRoot));
+    const relativeToProject = path.relative(PROJECT_ROOT, resolvedOutput);
+    const relativeFromOutput = path.relative(resolvedOutput, PROJECT_ROOT);
+    if (
+        relativeToProject === ""
+        || (!relativeToProject.startsWith("..") && !path.isAbsolute(relativeToProject))
+        || (!relativeFromOutput.startsWith("..") && !path.isAbsolute(relativeFromOutput))
+    ) {
+        throw new Error("Documentation output and the source repository must be disjoint");
+    }
+    if (resolvedOutput === path.parse(resolvedOutput).root) {
+        throw new Error("Documentation output cannot be a filesystem root");
+    }
+    if (sourceRevision && !/^[0-9a-f]{40}$/.test(sourceRevision)) {
+        throw new Error("Documentation source revision must be a lowercase 40-digit commit ID");
+    }
+
+    return Object.freeze({ outputRoot: resolvedOutput, sourceRevision });
+}
+
+function canonicalizePotentialPath(candidate) {
+    let existing = candidate;
+    const missingSegments = [];
+    while (!fs.existsSync(existing)) {
+        const parent = path.dirname(existing);
+        if (parent === existing) {
+            throw new Error(`Documentation output has no existing ancestor: ${candidate}`);
+        }
+        missingSegments.unshift(path.basename(existing));
+        existing = parent;
+    }
+    return path.join(fs.realpathSync(existing), ...missingSegments);
+}
+
+function requiredArgumentValue(arguments_, index, option) {
+    const value = arguments_[index];
+    if (!value || value.startsWith("--")) {
+        throw new Error(`${option} requires a value`);
+    }
+    return value;
 }
 
 function validateNocterLexicon() {
@@ -293,7 +367,7 @@ function validateOutputPaths(files) {
         const existingOwner = ownersByOutput.get(output);
 
         if (existingOwner) {
-            throw new Error(`Documentation sources ${existingOwner} and ${owner} both generate docs/${output}`);
+            throw new Error(`Documentation sources ${existingOwner} and ${owner} both generate /${output}`);
         }
 
         ownersByOutput.set(output, owner);
@@ -360,7 +434,7 @@ function validateSourceLinks(files) {
                 throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} has an invalid encoded link: ${href}`);
             }
 
-            let target = validationTarget(path.resolve(path.dirname(file), rawPath));
+            let target = path.resolve(path.dirname(file), rawPath);
 
             if (!target.startsWith(`${PROJECT_ROOT}${path.sep}`) && target !== PROJECT_ROOT) {
                 throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} links outside the repository: ${href}`);
@@ -447,7 +521,6 @@ function collectSourceFiles(directory) {
         if (entry.isDirectory()) {
             if (
                 !SKIP_DIRS.has(entry.name)
-                && relative !== "docs"
                 && !SKIP_PUBLICATION_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
             ) {
                 files.push(...collectSourceFiles(fullPath));
@@ -460,7 +533,6 @@ function collectSourceFiles(directory) {
             entry.isFile()
             && isPublishedSource(relative)
             && entry.name !== "AGENTS.md"
-            && !relative.startsWith("docs/")
             && !SKIP_SOURCE_PATHS.has(relative)
             && !SKIP_PUBLICATION_PREFIXES.some(prefix => relative.startsWith(prefix))
         ) {
@@ -491,15 +563,6 @@ function isPublishedSource(relative) {
             && !relative.startsWith("development/std/internal/")
             && path.basename(relative) === "index.nct"
         );
-}
-
-function validationTarget(target) {
-    const relativeOutput = path.relative(FINAL_OUTPUT_ROOT, target);
-    if (!relativeOutput.startsWith("..") && !path.isAbsolute(relativeOutput)) {
-        return path.join(STATIC_ROOT, relativeOutput);
-    }
-
-    return target;
 }
 
 function renderPage(sourcePath) {
@@ -853,11 +916,11 @@ function resolveLinkUrl(markdownPath, href) {
         return relativeUrl(currentOutputDir, targetOutput) + (hash ? `#${hash}` : "#content");
     }
 
-    if (/\.(?:md|nct)$/.test(rawPath) && fs.existsSync(targetSource) && !relativeTarget.startsWith("docs/")) {
+    if (/\.(?:md|nct)$/.test(rawPath) && fs.existsSync(targetSource)) {
         return `${SOURCE_ORIGIN}/${relativeTarget}${hash ? `#${hash}` : ""}`;
     }
 
-    if (fs.existsSync(targetSource) && !relativeTarget.startsWith("docs/")) {
+    if (fs.existsSync(targetSource)) {
         return `${SOURCE_ORIGIN}/${relativeTarget}${hash ? `#${hash}` : ""}`;
     }
 
@@ -870,9 +933,9 @@ function resolveAssetUrl(markdownPath, src) {
     }
 
     let target = path.resolve(path.dirname(markdownPath), src);
-    const relativeOutput = path.relative(FINAL_OUTPUT_ROOT, target);
-    if (!relativeOutput.startsWith("..") && !path.isAbsolute(relativeOutput)) {
-        target = path.join(OUTPUT_ROOT, relativeOutput);
+    const relativeAsset = path.relative(PUBLIC_ASSET_ROOT, target);
+    if (!relativeAsset.startsWith("..") && !path.isAbsolute(relativeAsset)) {
+        target = path.join(OUTPUT_ROOT, "assets", relativeAsset);
     }
     const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
     return relativeUrl(currentOutputDir, target);
@@ -1062,6 +1125,37 @@ function writeRobots() {
 function writeSitemap(files) {
     const urls = files.map(file => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(file))}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${normalizePath(path.relative(PROJECT_ROOT, file)) === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
     fs.writeFileSync(path.join(OUTPUT_ROOT, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`);
+}
+
+function writeDeploymentManifest() {
+    const manifest = {
+        schema: "nocter.documentation-deployment",
+        version: 1,
+        source_repository: SOURCE_REPOSITORY,
+        source_revision: BUILD_OPTIONS.sourceRevision
+    };
+    fs.writeFileSync(
+        path.join(OUTPUT_ROOT, "deployment.json"),
+        `${JSON.stringify(manifest, null, 2)}\n`
+    );
+}
+
+function validatePagesArtifact(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const target = path.join(directory, entry.name);
+        if (entry.name.startsWith(".")) {
+            throw new Error(`GitHub Pages artifact contains a hidden entry: ${target}`);
+        }
+        if (entry.isDirectory()) {
+            validatePagesArtifact(target);
+        } else if (entry.isFile()) {
+            if (fs.statSync(target).nlink !== 1) {
+                throw new Error(`GitHub Pages artifact contains a hard-linked file: ${target}`);
+            }
+        } else {
+            throw new Error(`GitHub Pages artifact contains an unsupported entry: ${target}`);
+        }
+    }
 }
 
 function escapeHtml(text) {

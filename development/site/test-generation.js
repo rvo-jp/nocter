@@ -8,21 +8,25 @@ const { splitTableRow } = require("./markdown-table");
 
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "nocter-doc-generation-"));
-const SKIP_NAMES = new Set([".git", "dist", "docs", "target"]);
+const SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567";
+const SKIP_NAMES = new Set([".git", "dist", "target"]);
 
 try {
     assertMarkdownTableTokenizer();
     const early = prepareTree("early", new Date("2001-01-01T00:00:00Z"));
     const late = prepareTree("late", new Date("2037-12-31T23:59:59Z"));
 
+    assertOutputIsolation(early);
     build(early);
     build(late);
-    assertEqualTrees(path.join(early, "docs"), path.join(late, "docs"));
+    assertEqualTrees(generatedRoot(early), generatedRoot(late));
     assertPublicationBoundary(early);
     assertDocumentTreeNavigation(early);
     assertMarkdownTableRendering(early);
+    assertDeploymentManifest(early);
+    assertRepositoryLinksUseDeploymentRevision(early);
 
-    const staleOutput = path.join(early, "docs/stale-output.txt");
+    const staleOutput = path.join(generatedRoot(early), "stale-output.txt");
     fs.writeFileSync(staleOutput, "stale\n");
     build(early);
     if (fs.existsSync(staleOutput)) {
@@ -86,10 +90,10 @@ try {
     fs.writeFileSync(unindexedGuide, "# Unindexed Guide\n");
     build(early);
     for (const relative of [
-        "docs/spec/language/unindexed-language-rule/index.html",
-        "docs/spec/guides/unindexed-guide/index.html"
+        "spec/language/unindexed-language-rule/index.html",
+        "spec/guides/unindexed-guide/index.html"
     ]) {
-        if (!fs.existsSync(path.join(early, relative))) {
+        if (!fs.existsSync(path.join(generatedRoot(early), relative))) {
             throw new Error(`directory navigation omitted automatically discovered page ${relative}`);
         }
     }
@@ -100,7 +104,7 @@ try {
     const unindexedReview = path.join(early, "development/history/reviews/unindexed-review.md");
     fs.writeFileSync(unindexedReview, "# Unindexed Review\n");
     build(early);
-    if (fs.existsSync(path.join(early, "docs/development/history/reviews/unindexed-review/index.html"))) {
+    if (fs.existsSync(path.join(generatedRoot(early), "development/history/reviews/unindexed-review/index.html"))) {
         throw new Error("directory navigation published an excluded historical record");
     }
     fs.rmSync(unindexedReview);
@@ -119,6 +123,17 @@ try {
     }
     fs.rmSync(malformedTable);
     fs.rmSync(generatedGuideFixtureDirectory, { recursive: true });
+
+    const unsupportedStaticEntry = path.join(early, "development/site/static/style-link.css");
+    fs.symlinkSync("style.css", unsupportedStaticEntry);
+    const unsupportedArtifact = runBuild(early);
+    if (
+        unsupportedArtifact.status === 0
+        || !combinedOutput(unsupportedArtifact).includes("unsupported entry")
+    ) {
+        throw new Error("documentation generation accepted a symbolic link in its Pages artifact");
+    }
+    fs.rmSync(unsupportedStaticEntry);
 
     const catalog = path.join(
         early,
@@ -160,43 +175,113 @@ function build(root) {
 }
 
 function runBuild(root) {
-    return childProcess.spawnSync(process.execPath, ["development/site/build-docs.js"], {
+    return childProcess.spawnSync(process.execPath, [
+        "development/site/build-docs.js",
+        "--output",
+        generatedRoot(root),
+        "--source-revision",
+        SOURCE_REVISION
+    ], {
         cwd: root,
         encoding: "utf8"
     });
 }
 
+function generatedRoot(root) {
+    return path.join(TEMP_ROOT, `${path.basename(root)}-output`);
+}
+
+function assertOutputIsolation(root) {
+    const missingOutput = childProcess.spawnSync(
+        process.execPath,
+        ["development/site/build-docs.js"],
+        { cwd: root, encoding: "utf8" }
+    );
+    if (
+        missingOutput.status === 0
+        || !combinedOutput(missingOutput).includes("requires --output <directory>")
+    ) {
+        throw new Error("documentation generation accepted an implicit repository output");
+    }
+
+    const repositoryOutput = childProcess.spawnSync(process.execPath, [
+        "development/site/build-docs.js",
+        "--output",
+        path.join(root, "generated-site")
+    ], { cwd: root, encoding: "utf8" });
+    if (
+        repositoryOutput.status === 0
+        || !combinedOutput(repositoryOutput).includes("must be disjoint")
+    ) {
+        throw new Error(
+            `documentation generation accepted output inside its source repository:\n${combinedOutput(repositoryOutput)}`
+        );
+    }
+
+    const ancestorOutput = childProcess.spawnSync(process.execPath, [
+        "development/site/build-docs.js",
+        "--output",
+        path.dirname(root)
+    ], { cwd: root, encoding: "utf8" });
+    if (
+        ancestorOutput.status === 0
+        || !combinedOutput(ancestorOutput).includes("must be disjoint")
+    ) {
+        throw new Error(
+            `documentation generation accepted an ancestor of its source repository:\n${combinedOutput(ancestorOutput)}`
+        );
+    }
+
+    const duplicateOutput = childProcess.spawnSync(process.execPath, [
+        "development/site/build-docs.js",
+        "--output",
+        generatedRoot(root),
+        "--output",
+        `${generatedRoot(root)}-other`
+    ], { cwd: root, encoding: "utf8" });
+    if (
+        duplicateOutput.status === 0
+        || !combinedOutput(duplicateOutput).includes("may be specified only once")
+    ) {
+        throw new Error("documentation generation accepted two output authorities");
+    }
+}
+
 function assertPublicationBoundary(root) {
     const required = [
-        "docs/assets/logo.svg",
-        "docs/examples/hello/index.html",
-        "docs/spec/language/index.html",
-        "docs/std/index.html",
-        "docs/std/str/index/index.html"
+        "assets/logo.svg",
+        "examples/hello/index.html",
+        "spec/language/index.html",
+        "std/index.html",
+        "std/str/index/index.html"
     ];
     for (const relative of required) {
-        if (!fs.existsSync(path.join(root, relative))) {
+        if (!fs.existsSync(path.join(generatedRoot(root), relative))) {
             throw new Error(`documentation generation omitted published input ${relative}`);
         }
     }
+    const home = fs.readFileSync(path.join(generatedRoot(root), "index.html"), "utf8");
+    if (!home.includes('src="./assets/logo.svg"')) {
+        throw new Error("repository and website logo paths no longer share one public asset");
+    }
 
     const privateSources = [
-        "docs/development/history/index.html",
-        "docs/development/history/milestones/index.html",
-        "docs/development/std/index.html",
-        "docs/std/str/text/index.html",
-        "docs/std/json/output/index/index.html",
-        "docs/std/internal/utf8/index/index.html"
+        "development/history/index.html",
+        "development/history/milestones/index.html",
+        "development/std/index.html",
+        "std/str/text/index.html",
+        "std/json/output/index/index.html",
+        "std/internal/utf8/index/index.html"
     ];
     for (const relative of privateSources) {
-        if (fs.existsSync(path.join(root, relative))) {
+        if (fs.existsSync(path.join(generatedRoot(root), relative))) {
             throw new Error(`documentation generation published private standard-library source ${relative}`);
         }
     }
 }
 
 function assertDocumentTreeNavigation(root) {
-    const docsRoot = path.join(root, "docs");
+    const docsRoot = generatedRoot(root);
     const pages = collectFiles(docsRoot).filter(file => file.endsWith("index.html"));
     const pageSet = new Set(pages.map(file => path.resolve(file)));
     const reachable = new Set();
@@ -240,7 +325,7 @@ function assertDocumentTreeNavigation(root) {
 
 function assertMarkdownTableRendering(root) {
     const grammar = fs.readFileSync(
-        path.join(root, "docs/development/design/grammar-conformance/index.html"),
+        path.join(generatedRoot(root), "development/design/grammar-conformance/index.html"),
         "utf8"
     );
     const row = grammar.match(/<tr><td>G006<\/td>([\s\S]*?)<\/tr>/)?.[0];
@@ -252,6 +337,31 @@ function assertMarkdownTableRendering(root) {
     }
     if (!row.includes("<code>func choose&lt;T&gt;(left: &amp;T, right: &amp;T): &amp;T from left | right</code>")) {
         throw new Error("a pipe inside a Markdown code span did not remain in its source cell");
+    }
+}
+
+function assertDeploymentManifest(root) {
+    const manifest = JSON.parse(
+        fs.readFileSync(path.join(generatedRoot(root), "deployment.json"), "utf8")
+    );
+    if (
+        manifest.schema !== "nocter.documentation-deployment"
+        || manifest.version !== 1
+        || manifest.source_repository !== "https://github.com/rvo-jp/nocter"
+        || manifest.source_revision !== SOURCE_REVISION
+    ) {
+        throw new Error(`documentation deployment identity changed: ${JSON.stringify(manifest)}`);
+    }
+}
+
+function assertRepositoryLinksUseDeploymentRevision(root) {
+    const contributorPage = fs.readFileSync(
+        path.join(generatedRoot(root), "development/index.html"),
+        "utf8"
+    );
+    const expected = `https://github.com/rvo-jp/nocter/blob/${SOURCE_REVISION}/development/history/`;
+    if (!contributorPage.includes(expected)) {
+        throw new Error("generated repository links do not use the deployment source revision");
     }
 }
 
