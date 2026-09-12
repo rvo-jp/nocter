@@ -1,6 +1,7 @@
 //! Buffered reader and writer state machines.
 
 see ./index.nct
+see ./storage.nct
 
 use /io.{BlockingReader, BlockingWriter}
 use /io
@@ -12,6 +13,7 @@ struct BlockingBufReader<R> {
     source: R
     buffer: Vec<u8>
     next: usize
+    valid_len: usize
     line_buffer: Vec<u8>
     is_finished: bool
 }
@@ -22,15 +24,12 @@ construct BlockingBufReader<R> {
     }
 
     func with_capacity(source: R, requested_capacity: usize): Self where R impl BlockingReader {
-        var capacity = requested_capacity
-        if capacity == 0 {
-            capacity = 1
-        }
-        let storage: Vec<u8> = Vec.with_capacity(capacity)
+        let capacity = normalized_capacity(requested_capacity)
         return BlockingBufReader<R> {
             source: move source,
-            buffer: move storage,
+            buffer: initialized_byte_storage(capacity),
             next: 0,
+            valid_len: 0,
             line_buffer: Vec.empty(),
             is_finished: false,
         }
@@ -43,7 +42,7 @@ blocking func read<R>(reader: &+BlockingBufReader<R>, destination: &+[u8]): usiz
     }
     var written: usize = 0
     while written < destination.len() {
-        if reader.next == reader.buffer.len() {
+        if reader.next == reader.valid_len {
             let received = refill(reader)?
             if received == 0 {
                 break
@@ -61,12 +60,6 @@ blocking func refill<R>(reader: &+BlockingBufReader<R>): usize! where R impl Blo
     if reader.is_finished {
         return 0
     }
-    reader.buffer.clear()
-    var initialized: usize = 0
-    while initialized < reader.buffer.capacity() {
-        reader.buffer.push(0)
-        initialized += 1
-    }
     let reported = reader.source.read_blocking(&+reader.buffer) catch failure {
         terminate_reader(reader)
         return move failure
@@ -75,8 +68,8 @@ blocking func refill<R>(reader: &+BlockingBufReader<R>): usize! where R impl Blo
         terminate_reader(reader)
         return move failure
     }
-    reader.buffer.truncate(received)
     reader.next = 0
+    reader.valid_len = received
     if received == 0 {
         end_reader(reader)
     }
@@ -100,10 +93,8 @@ blocking func read_line_into<R>(
     if reader.is_finished {
         return false
     }
-    reader.line_buffer.clear()
-
     while true {
-        if reader.next == reader.buffer.len() {
+        if reader.next == reader.valid_len {
             let received = refill(reader)?
             if received == 0 {
                 if reader.line_buffer.len() == 0 {
@@ -141,18 +132,13 @@ func commit_line<R>(reader: &+BlockingBufReader<R>, destination: &+String): bool
     return true
 }
 
-func write_validated_line(line: &Vec<u8>, destination: &+String): void! {
-    let bytes: &[u8] = line
-    destination.try_push_utf8(bytes)?
-    return
-}
-
 func end_reader<R>(reader: &+BlockingBufReader<R>): void {
     if !reader.is_finished {
         reader.is_finished = true
     }
     reader.buffer.clear()
     reader.next = 0
+    reader.valid_len = 0
     return
 }
 
@@ -196,10 +182,7 @@ construct BlockingBufWriter<W> {
         destination: W,
         requested_capacity: usize,
     ): Self where W impl BlockingWriter {
-        var capacity = requested_capacity
-        if capacity == 0 {
-            capacity = 1
-        }
+        let capacity = normalized_capacity(requested_capacity)
         let storage: Vec<u8> = Vec.with_capacity(capacity)
         return BlockingBufWriter<W> {
             destination: move destination,

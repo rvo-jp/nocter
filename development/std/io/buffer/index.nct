@@ -4,8 +4,10 @@
 //! unflushed buffer instead of hiding an I/O failure in destruction.
 
 use /io.{BlockingReader, BlockingWriter}
+use /io.{Reader, Writer}
 use /string.String
 see ./buffering.nct
+see ./async_buffering.nct
 
 /// An owning synchronous buffered reader with explicit line state.
 pub struct BlockingBufReader<R>
@@ -50,4 +52,49 @@ instance BlockingBufWriter<W> where W impl BlockingWriter {
     pub blocking method self.finish(): W!
 
     impl BlockingWriter
+}
+
+/// An owning executor-safe buffered reader with cancellation-stable line state.
+pub struct BufReader<R>
+
+construct BufReader<R> {
+    /// Wraps `source` with the default positive buffer capacity.
+    pub func new(source: R): Self where R impl Reader
+
+    /// Wraps `source`, normalizing a zero requested capacity to one byte.
+    pub func with_capacity(source: R, requested_capacity: usize): Self where R impl Reader
+}
+
+instance BufReader<R> where R impl Reader {
+    /// Returns one owned line without its LF or immediately preceding CR.
+    pub async method &+self.read_line(): String?!
+
+    /// Replaces `destination` with one line and reports false only at clean end of stream.
+    pub async method &+self.read_line_into(destination: &+String): bool!
+
+    /// Consumes this buffer, discards unread bytes, and returns its underlying source.
+    pub method self.finish(): R
+
+    impl Reader
+}
+
+/// An owning executor-safe buffered writer with explicit fallible flush.
+pub struct BufWriter<W>
+
+construct BufWriter<W> {
+    /// Wraps `destination` with the default positive buffer capacity.
+    pub func new(destination: W): Self where W impl Writer
+
+    /// Wraps `destination`, normalizing a zero requested capacity to one byte.
+    pub func with_capacity(
+        destination: W,
+        requested_capacity: usize,
+    ): Self where W impl Writer
+}
+
+instance BufWriter<W> where W impl Writer {
+    /// Flushes pending bytes, consumes this buffer, and returns its underlying destination.
+    pub async method self.finish(): W!
+
+    impl Writer
 }

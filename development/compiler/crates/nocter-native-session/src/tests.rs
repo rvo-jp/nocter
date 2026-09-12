@@ -4216,6 +4216,218 @@ fn public_async_tcp_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn standard_async_buffers_cross_generic_tcp_and_line_contracts() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/io.{Reader, Writer}\n\
+         use std/io/buffer.{BufReader, BufWriter}\n\
+         use std/net\n\
+         use std/string.String\n\
+         use std/task\n\
+         \n\
+         struct Sent {}\n\
+         \n\
+         async func send(stream: net.TcpStream): Sent! {\n\
+             var writer = BufWriter.with_capacity(move stream, 3)\n\
+             await writer.write_text(\"\\nalpha\\r\\nfinal\")?\n\
+             var returned = await writer.finish()?\n\
+             returned.close()\n\
+             return Sent {}\n\
+         }\n\
+         \n\
+         async func receive(stream: net.TcpStream): i32! {\n\
+             var reader = BufReader.with_capacity(move stream, 2)\n\
+             var line = String.with_capacity(16)\n\
+             if !await reader.read_line_into(&+line)? || (&line as &str) != \"\" { return 1 }\n\
+             if !await reader.read_line_into(&+line)? || (&line as &str) != \"alpha\" { return 2 }\n\
+             let final_line = await reader.read_line()? otherwise { return 3 }\n\
+             if (&final_line as &str) != \"final\" { return 4 }\n\
+             let _after_eof = await reader.read_line()? otherwise {\n\
+                 var source = reader.finish()\n\
+                 source.close()\n\
+                 return 0\n\
+             }\n\
+             return 5\n\
+         }\n\
+         \n\
+         async func main(): i32! {\n\
+             let address = net.SocketAddress.new(\n\
+                 net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
+                 0,\n\
+             )\n\
+             var listener = await net.bind_tcp(address)?\n\
+             let listening = listener.local_address()?\n\
+             let connection = await task.join(\n\
+                 net.connect_tcp(listening),\n\
+                 listener.accept(),\n\
+             )\n\
+             let client_result = move connection.0\n\
+             let accepted_result = move connection.1\n\
+             let client = move client_result?\n\
+             let accepted = move accepted_result?\n\
+             let streams = await task.join(\n\
+                 send(move client),\n\
+                 receive(move accepted.0),\n\
+             )\n\
+             let status = move streams.1?\n\
+             if status != 0 { return status }\n\
+             let _sent = move streams.0?\n\
+             return status\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-buffers", 0);
+}
+
+#[test]
+fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_writer() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/io.{Reader, Writer}\n\
+         use std/io/buffer.{BufReader, BufWriter}\n\
+         use std/string.String\n\
+         use std/task\n\
+         use std/task.Timeout\n\
+         use std/time\n\
+         use std/time.Duration\n\
+         use std/vec.Vec\n\
+         \n\
+         struct StagedReader {\n\
+             stage: usize\n\
+         }\n\
+         \n\
+         instance StagedReader {\n\
+             impl Reader\n\
+         \n\
+             async method &+self.read(buffer: &+[u8]): usize! {\n\
+                 if self.stage == 0 {\n\
+                     buffer[0] = 112\n\
+                     buffer[1] = 97\n\
+                     buffer[2] = 114\n\
+                     buffer[3] = 116\n\
+                     buffer[4] = 105\n\
+                     buffer[5] = 97\n\
+                     buffer[6] = 108\n\
+                     self.stage = 1\n\
+                     return 7\n\
+                 }\n\
+                 if self.stage == 1 {\n\
+                     await time.sleep(Duration.from_milliseconds(20))\n\
+                     buffer[0] = 32\n\
+                     buffer[1] = 108\n\
+                     buffer[2] = 105\n\
+                     buffer[3] = 110\n\
+                     buffer[4] = 101\n\
+                     buffer[5] = 10\n\
+                     self.stage = 2\n\
+                     return 6\n\
+                 }\n\
+                 return 0\n\
+             }\n\
+         }\n\
+         \n\
+         struct DelayedWriter {}\n\
+         \n\
+         instance DelayedWriter {\n\
+             impl Writer\n\
+         \n\
+             async method &+self.write(bytes: &[u8]): void! {\n\
+                 await time.sleep(Duration.from_milliseconds(20))\n\
+                 let _length = bytes.len()\n\
+                 return\n\
+             }\n\
+         }\n\
+         \n\
+         struct Flushed {}\n\
+         \n\
+         async func flush_marker(writer: &+BufWriter<DelayedWriter>): Flushed! {\n\
+             await writer.flush()?\n\
+             return Flushed {}\n\
+         }\n\
+         \n\
+         async func check_reader(): i32! {\n\
+             var reader = BufReader.with_capacity(StagedReader { stage: 0 }, 8)\n\
+             let cancelled = await task.with_timeout(\n\
+                 reader.read_line(),\n\
+                 Duration.from_milliseconds(2),\n\
+             )\n\
+             match move cancelled {\n\
+                 Timeout.completed(_) { return 1 }\n\
+                 Timeout.elapsed {}\n\
+             }\n\
+             var prefix: Vec<u8> = Vec [\n\
+                 u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),\n\
+                 u8.truncate(0), u8.truncate(0), u8.truncate(0),\n\
+             ]\n\
+             if await reader.read(&+prefix)? != 7 { return 2 }\n\
+             let prefix_text = String.from_utf8(&prefix)?\n\
+             if (&prefix_text as &str) != \"partial\" { return 3 }\n\
+             let remainder = await reader.read_line()? otherwise { return 4 }\n\
+             if (&remainder as &str) != \" line\" { return 5 }\n\
+             let _after_eof = await reader.read_line()? otherwise { return 0 }\n\
+             return 6\n\
+         }\n\
+         \n\
+         async func check_writer(): i32! {\n\
+             var writer = BufWriter.with_capacity(DelayedWriter {}, 8)\n\
+             await writer.write_text(\"x\")?\n\
+             let cancelled = await task.with_timeout(\n\
+                 flush_marker(&+writer),\n\
+                 Duration.from_milliseconds(2),\n\
+             )\n\
+             match move cancelled {\n\
+                 Timeout.completed(_) { return 1 }\n\
+                 Timeout.elapsed {}\n\
+             }\n\
+             await writer.write_text(\"y\") catch failure {\n\
+                 if failure.has_code(\"std.io.closed\") { return 0 }\n\
+                 return 2\n\
+             }\n\
+             return 3\n\
+         }\n\
+         \n\
+         async func main(): i32! {\n\
+             let reader = await check_reader()?\n\
+             if reader != 0 { return reader }\n\
+             let writer = await check_writer()?\n\
+             if writer != 0 { return 10 + writer }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(
+        image.image(),
+        &package_root.0,
+        "async-buffer-cancellation",
+        0,
+    );
+}
+
+#[test]
 fn public_async_udp_crosses_readiness_timeout_cancellation_and_datagram_boundaries() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

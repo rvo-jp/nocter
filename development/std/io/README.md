@@ -65,6 +65,25 @@ UTF-8 bytes and `write_line` follows them with exactly one LF operation; neither
 combined buffer. Transport-specific deadlines and configured timeouts are deliberately absent from
 these interfaces because their meaning is not portable across a generic byte stream.
 
+`BufReader<R>` and `BufWriter<W>` in `std/io/buffer` are the owning generic adapters for these
+executor-safe contracts. `BufReader.read` returns buffered progress without waiting for a second
+chunk; it awaits the underlying `Reader` only when no accepted byte remains. Line operations retain
+an incomplete line across suspension and return the same newline-normalized UTF-8 results as the
+blocking surface. A cancelled line operation leaves its accepted prefix inside the reader. A later
+line operation resumes that prefix, while a later byte read returns the prefix before consuming
+newer bytes. The reader keeps one initialized byte allocation and publishes only the prefix covered
+by separately committed logical length. A cancelled refill cannot update that length, so scratch
+initialization cannot become received input. Whether the underlying reader itself remains usable
+after cancellation is determined by that reader's own contract.
+
+`BufWriter.write` accepts bytes into private bounded storage and flushes full chunks through its
+underlying `Writer`. `flush` always propagates through the underlying writer, including when the
+outer buffer is empty. It makes the wrapper terminal before awaiting output because cancellation or
+failure may follow an externally visible prefix whose length is unknown. A successful write and
+underlying flush restore the open state; cancellation or failure leaves later write and flush
+operations reporting `std.io.closed`. `finish` performs the same fallible flush, consumes the
+buffer, and returns the underlying writer. Dropping an unfinished buffer discards retained bytes.
+
 `BlockingReader` and `BlockingWriter` define the shared byte-I/O contracts.
 `BlockingReader.read_blocking` initializes no more than the supplied buffer length and returns zero
 at end of stream. The

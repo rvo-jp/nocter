@@ -1,0 +1,269 @@
+//! Cancellation-safe asynchronous buffered reader and writer state machines.
+
+see ./index.nct
+see ./storage.nct
+
+use /io.{Reader, Writer}
+use /io
+use /internal/io as internal_io
+use /string.String
+use /vec.Vec
+
+struct BufReader<R> {
+    source: R
+    buffer: Vec<u8>
+    next: usize
+    valid_len: usize
+    line_buffer: Vec<u8>
+    line_next: usize
+    is_finished: bool
+}
+
+construct BufReader<R> {
+    func new(source: R): Self where R impl Reader {
+        return BufReader.with_capacity(move source, 8192)
+    }
+
+    func with_capacity(source: R, requested_capacity: usize): Self where R impl Reader {
+        let capacity = normalized_capacity(requested_capacity)
+        return BufReader<R> {
+            source: move source,
+            buffer: initialized_byte_storage(capacity),
+            next: 0,
+            valid_len: 0,
+            line_buffer: Vec.empty(),
+            line_next: 0,
+            is_finished: false,
+        }
+    }
+}
+
+async func read_async_buffer<R>(reader: &+BufReader<R>, destination: &+[u8]): usize! where R impl Reader {
+    if reader.is_finished || destination.len() == 0 {
+        return 0
+    }
+    if reader.line_next < reader.line_buffer.len() {
+        var written: usize = 0
+        while written < destination.len() && reader.line_next < reader.line_buffer.len() {
+            destination[written] = reader.line_buffer[reader.line_next]
+            written += 1
+            reader.line_next += 1
+        }
+        if reader.line_next == reader.line_buffer.len() {
+            reader.line_buffer.clear()
+            reader.line_next = 0
+        }
+        return written
+    }
+    if reader.next == reader.valid_len {
+        let received = await refill_async_buffer(reader)?
+        if received == 0 {
+            return 0
+        }
+    }
+    var written: usize = 0
+    while written < destination.len() && reader.next < reader.valid_len {
+        destination[written] = reader.buffer[reader.next]
+        written += 1
+        reader.next += 1
+    }
+    return written
+}
+
+async func refill_async_buffer<R>(reader: &+BufReader<R>): usize! where R impl Reader {
+    if reader.is_finished {
+        return 0
+    }
+    let reported = await reader.source.read(&+reader.buffer) catch failure {
+        terminate_async_reader(reader)
+        return move failure
+    }
+    let received = io.validate_read_count(reported, reader.buffer.len()) catch failure {
+        terminate_async_reader(reader)
+        return move failure
+    }
+    reader.next = 0
+    reader.valid_len = received
+    if received == 0 {
+        end_async_reader(reader)
+    }
+    return received
+}
+
+async func read_async_line<R>(reader: &+BufReader<R>): String?! where R impl Reader {
+    var result = String.empty()
+    let present = await read_async_line_into(reader, &+result)?
+    if !present {
+        return none
+    }
+    return move result
+}
+
+async func read_async_line_into<R>(
+    reader: &+BufReader<R>,
+    destination: &+String,
+): bool! where R impl Reader {
+    destination.clear()
+    if reader.is_finished {
+        return false
+    }
+    discard_byte_prefix(&+reader.line_buffer, reader.line_next)
+    reader.line_next = 0
+
+    while true {
+        if reader.next == reader.valid_len {
+            let received = await refill_async_buffer(reader)?
+            if received == 0 {
+                if reader.line_buffer.len() == 0 {
+                    return false
+                }
+                return commit_async_line(reader, destination)?
+            }
+        }
+
+        let byte = reader.buffer[reader.next]
+        reader.next += 1
+        if byte == 10 {
+            let line: &[u8] = &reader.line_buffer
+            let ends_with_cr = line.len() != 0 && line[line.len() - 1] == 13
+            if ends_with_cr {
+                let _ = reader.line_buffer.pop()
+            }
+            return commit_async_line(reader, destination)?
+        }
+        reader.line_buffer.try_push(byte) catch failure {
+            terminate_async_reader(reader)
+            return move failure
+        }
+    }
+    return false
+}
+
+func commit_async_line<R>(reader: &+BufReader<R>, destination: &+String): bool! {
+    write_validated_line(&reader.line_buffer, destination) catch failure {
+        terminate_async_reader(reader)
+        return move failure
+    }
+    reader.line_buffer.clear()
+    reader.line_next = 0
+    return true
+}
+
+func end_async_reader<R>(reader: &+BufReader<R>): void {
+    reader.is_finished = true
+    reader.buffer.clear()
+    reader.next = 0
+    reader.valid_len = 0
+    return
+}
+
+func terminate_async_reader<R>(reader: &+BufReader<R>): void {
+    end_async_reader(reader)
+    reader.line_buffer.clear()
+    reader.line_next = 0
+    return
+}
+
+instance BufReader<R> where R impl Reader {
+    async method &+self.read_line(): String?! {
+        return await read_async_line(self)?
+    }
+
+    async method &+self.read_line_into(destination: &+String): bool! {
+        return await read_async_line_into(self, destination)?
+    }
+
+    method self.finish(): R {
+        return move self.source
+    }
+
+    async method &+self.read(destination: &+[u8]): usize! {
+        return await read_async_buffer(self, destination)?
+    }
+}
+
+struct BufWriter<W> {
+    destination: W
+    buffer: Vec<u8>
+    limit: usize
+    is_open: bool
+}
+
+construct BufWriter<W> {
+    func new(destination: W): Self where W impl Writer {
+        return BufWriter.with_capacity(move destination, 8192)
+    }
+
+    func with_capacity(
+        destination: W,
+        requested_capacity: usize,
+    ): Self where W impl Writer {
+        let capacity = normalized_capacity(requested_capacity)
+        return BufWriter<W> {
+            destination: move destination,
+            buffer: Vec.with_capacity(capacity),
+            limit: capacity,
+            is_open: true,
+        }
+    }
+}
+
+async func write_async_buffer<W>(writer: &+BufWriter<W>, bytes: &[u8]): void! where W impl Writer {
+    if !writer.is_open {
+        return internal_io.closed_stream_error()
+    }
+    var offset: usize = 0
+    while offset < bytes.len() {
+        if writer.buffer.len() == writer.limit {
+            await flush_async_buffer(writer)?
+        }
+        writer.buffer.push(bytes[offset])
+        offset += 1
+    }
+    return
+}
+
+async func flush_async_buffer<W>(writer: &+BufWriter<W>): void! where W impl Writer {
+    if !writer.is_open {
+        return internal_io.closed_stream_error()
+    }
+    writer.is_open = false
+    if writer.buffer.len() != 0 {
+        await writer.destination.write(&writer.buffer) catch failure {
+            terminate_async_writer(writer)
+            return move failure
+        }
+        writer.buffer.clear()
+    }
+    await writer.destination.flush() catch failure {
+        terminate_async_writer(writer)
+        return move failure
+    }
+    writer.is_open = true
+    return
+}
+
+func terminate_async_writer<W>(writer: &+BufWriter<W>): void {
+    writer.buffer.clear()
+    writer.is_open = false
+    return
+}
+
+instance BufWriter<W> where W impl Writer {
+    async method self.finish(): W! {
+        var writer = move self
+        await flush_async_buffer(&+writer)?
+        writer.is_open = false
+        return move writer.destination
+    }
+
+    async method &+self.write(bytes: &[u8]): void! {
+        await write_async_buffer(self, bytes)?
+        return
+    }
+
+    async method &+self.flush(): void! {
+        await flush_async_buffer(self)?
+        return
+    }
+}
