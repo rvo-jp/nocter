@@ -1844,9 +1844,20 @@ fn standard_streaming_lines_cross_the_complete_native_session() {
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        r#"use std/io.{File, BlockingWriter}
+        r#"use std/io.{File, BlockingReader, BlockingWriter}
 use std/io/buffer.{BlockingBufReader, BlockingBufWriter}
 use std/string.String
+use std/vec.Vec
+
+struct InvalidBlockingReader {}
+
+instance InvalidBlockingReader {
+    impl BlockingReader
+
+    blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
+        return buffer.len() + 1
+    }
+}
 
 blocking func check_lines(): i32! {
     var reader = BlockingBufReader.with_capacity(File.open("lines.txt")?, 3)
@@ -1920,6 +1931,17 @@ blocking func check_closed_output(): i32! {
     return 6
 }
 
+blocking func check_invalid_count(): i32! {
+    var reader = BlockingBufReader.with_capacity(InvalidBlockingReader {}, 4)
+    var bytes: Vec<u8> = Vec [u8.truncate(0)]
+    let _count = reader.read_blocking(&+bytes) catch failure {
+        if !failure.has_code("std.io.invalid_read_count") { return 1 }
+        if reader.read_blocking(&+bytes)? != 0 { return 2 }
+        return 0
+    }
+    return 3
+}
+
 blocking func main(): i32 {
     let lines = check_lines() catch _ { return 20 }
     if lines != 0 { return lines }
@@ -1929,6 +1951,8 @@ blocking func main(): i32 {
     if terminal != 0 { return 30 + terminal }
     let output = check_closed_output() catch _ { return 23 }
     if output != 0 { return 40 + output }
+    let invalid_count = check_invalid_count() catch _ { return 24 }
+    if invalid_count != 0 { return 50 + invalid_count }
     return 42
 }
 "#,
@@ -4231,26 +4255,27 @@ fn standard_async_buffers_cross_generic_tcp_and_line_contracts() {
          struct Sent {}\n\
          \n\
          async func send(stream: net.TcpStream): Sent! {\n\
-             var writer = BufWriter.with_capacity(move stream, 3)\n\
-             await writer.write_text(\"\\nalpha\\r\\nfinal\")?\n\
+             var writer = BufWriter.with_capacity(move stream, 0)\n\
+             await writer.write_text(\"\\nalpha\\r\\n😀 split\\nfinal\")?\n\
              var returned = await writer.finish()?\n\
              returned.close()\n\
              return Sent {}\n\
          }\n\
          \n\
          async func receive(stream: net.TcpStream): i32! {\n\
-             var reader = BufReader.with_capacity(move stream, 2)\n\
+             var reader = BufReader.with_capacity(move stream, 0)\n\
              var line = String.with_capacity(16)\n\
              if !await reader.read_line_into(&+line)? || (&line as &str) != \"\" { return 1 }\n\
              if !await reader.read_line_into(&+line)? || (&line as &str) != \"alpha\" { return 2 }\n\
-             let final_line = await reader.read_line()? otherwise { return 3 }\n\
-             if (&final_line as &str) != \"final\" { return 4 }\n\
+             if !await reader.read_line_into(&+line)? || (&line as &str) != \"😀 split\" { return 3 }\n\
+             let final_line = await reader.read_line()? otherwise { return 4 }\n\
+             if (&final_line as &str) != \"final\" { return 5 }\n\
              let _after_eof = await reader.read_line()? otherwise {\n\
                  var source = reader.finish()\n\
                  source.close()\n\
                  return 0\n\
              }\n\
-             return 5\n\
+             return 6\n\
          }\n\
          \n\
          async func main(): i32! {\n\
@@ -4307,8 +4332,13 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
          use std/time.Duration\n\
          use std/vec.Vec\n\
          \n\
+         struct Counter {\n\
+             value: i32\n\
+         }\n\
+         \n\
          struct StagedReader {\n\
              stage: usize\n\
+             counter: &+Counter\n\
          }\n\
          \n\
          instance StagedReader {\n\
@@ -4341,7 +4371,14 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
              }\n\
          }\n\
          \n\
-         struct DelayedWriter {}\n\
+         drop StagedReader(&+self) {\n\
+             self.counter.value += 1\n\
+             return\n\
+         }\n\
+         \n\
+         struct DelayedWriter {\n\
+             counter: &+Counter\n\
+         }\n\
          \n\
          instance DelayedWriter {\n\
              impl Writer\n\
@@ -4353,6 +4390,32 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
              }\n\
          }\n\
          \n\
+         drop DelayedWriter(&+self) {\n\
+             self.counter.value += 1\n\
+             return\n\
+         }\n\
+         \n\
+         struct InvalidReader {}\n\
+         \n\
+         instance InvalidReader {\n\
+             impl Reader\n\
+         \n\
+             async method &+self.read(buffer: &+[u8]): usize! {\n\
+                 return buffer.len() + 1\n\
+             }\n\
+         }\n\
+         \n\
+         struct FailingWriter {}\n\
+         \n\
+         instance FailingWriter {\n\
+             impl Writer\n\
+         \n\
+             async method &+self.write(bytes: &[u8]): void! {\n\
+                 let _length = bytes.len()\n\
+                 return error.new(\"fixture.write\", \"fixture rejected output\")\n\
+             }\n\
+         }\n\
+         \n\
          struct Flushed {}\n\
          \n\
          async func flush_marker(writer: &+BufWriter<DelayedWriter>): Flushed! {\n\
@@ -4360,8 +4423,11 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
              return Flushed {}\n\
          }\n\
          \n\
-         async func check_reader(): i32! {\n\
-             var reader = BufReader.with_capacity(StagedReader { stage: 0 }, 8)\n\
+         async func check_reader(counter: &+Counter): i32! {\n\
+             var reader = BufReader.with_capacity(\n\
+                 StagedReader { stage: 0, counter: counter },\n\
+                 8,\n\
+             )\n\
              let cancelled = await task.with_timeout(\n\
                  reader.read_line(),\n\
                  Duration.from_milliseconds(2),\n\
@@ -4383,8 +4449,8 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
              return 6\n\
          }\n\
          \n\
-         async func check_writer(): i32! {\n\
-             var writer = BufWriter.with_capacity(DelayedWriter {}, 8)\n\
+         async func check_writer(counter: &+Counter): i32! {\n\
+             var writer = BufWriter.with_capacity(DelayedWriter { counter: counter }, 8)\n\
              await writer.write_text(\"x\")?\n\
              let cancelled = await task.with_timeout(\n\
                  flush_marker(&+writer),\n\
@@ -4401,11 +4467,43 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
              return 3\n\
          }\n\
          \n\
+         async func check_invalid_count(): i32! {\n\
+             var reader = BufReader.with_capacity(InvalidReader {}, 4)\n\
+             var bytes: Vec<u8> = Vec [u8.truncate(0)]\n\
+             let _count = await reader.read(&+bytes) catch failure {\n\
+                 if !failure.has_code(\"std.io.invalid_read_count\") { return 1 }\n\
+                 if await reader.read(&+bytes)? != 0 { return 2 }\n\
+                 return 0\n\
+             }\n\
+             return 3\n\
+         }\n\
+         \n\
+         async func check_failed_writer(): i32! {\n\
+             var writer = BufWriter.with_capacity(FailingWriter {}, 1)\n\
+             await writer.write_text(\"ab\") catch failure {\n\
+                 if !failure.has_code(\"fixture.write\") { return 1 }\n\
+                 await writer.flush() catch terminal {\n\
+                     if terminal.has_code(\"std.io.closed\") { return 0 }\n\
+                     return 2\n\
+                 }\n\
+                 return 3\n\
+             }\n\
+             return 4\n\
+         }\n\
+         \n\
          async func main(): i32! {\n\
-             let reader = await check_reader()?\n\
+             var reader_drops = Counter { value: 0 }\n\
+             let reader = await check_reader(&+reader_drops)?\n\
              if reader != 0 { return reader }\n\
-             let writer = await check_writer()?\n\
+             if reader_drops.value != 1 { return 7 }\n\
+             var writer_drops = Counter { value: 0 }\n\
+             let writer = await check_writer(&+writer_drops)?\n\
              if writer != 0 { return 10 + writer }\n\
+             if writer_drops.value != 1 { return 14 }\n\
+             let invalid = await check_invalid_count()?\n\
+             if invalid != 0 { return 20 + invalid }\n\
+             let failed = await check_failed_writer()?\n\
+             if failed != 0 { return 30 + failed }\n\
              return 0\n\
          }\n",
     );

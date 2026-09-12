@@ -2,20 +2,21 @@
 
 ## Current State
 
-Nocter v0.47.0 is published and externally audited. v0.48.0 Phases 0 through 2 are complete on
-`develop-v0.48.0`: both execution surfaces now have generic buffered byte adapters over their
+Nocter v0.47.0 is published and externally audited. v0.48.0 Phases 0 through 3 are complete on
+`develop-v0.48.0`: both execution surfaces now have qualified generic buffered byte adapters over their
 ordinary interfaces. `BlockingBufReader<R>` and `BlockingBufWriter<W>` are explicit synchronous
 types; `BufReader<R>` and `BufWriter<W>` are canonical executor-safe types with cancellation-stable
 reader scratch and terminal-before-await writer transitions. No type is tied to `File`, and no old
-blocking name or close-shaped wrapper API remains.
+blocking name or close-shaped wrapper API remains. Native qualification covers one-byte TCP
+refills, memory-backed suspension, malformed progress, failure, cancellation, and exact-once drop.
 
 ## Next Work
 
-Implement v0.48.0 Phase 3 as one portable state-machine qualification boundary. Exercise both
-memory-backed and transport-backed adapters, malformed read counts, zero capacity and progress,
-UTF-8 scalars split across refills, CRLF and unterminated lines, nested flush, explicit failure,
-cancellation, and exact-once cleanup. The tests must prove that scratch initialization and ambiguous
-output prefixes never become retryable user data.
+Implement v0.48.0 Phase 4 as one application and tooling integration boundary. Add a complete
+asynchronous line-oriented public application over TCP or TLS, reuse the async buffer contract over
+a second concrete stream, and qualify hover, completion, signature help, navigation, semantic
+tokens, and inlay hints through ordinary generic/interface evidence. Update only the existing I/O
+behavior authority; do not duplicate declarations in prose.
 
 Preserve every published tag and asset, including v0.47.0.
 
