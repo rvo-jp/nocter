@@ -10,6 +10,9 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.49.0 Phase 7 Structured Process I/O Final Review](v0.49.0-phase-7.md)
+- [v0.49.0 Phase 6 Structured Process Application Review](v0.49.0-phase-6.md)
+- [v0.49.0 Phase 5 Closed Process Operation Review](v0.49.0-phase-5.md)
 - [v0.49.0 Phase 4 Generic Transfer and Child Lifecycle Review](v0.49.0-phase-4.md)
 - [v0.49.0 Phase 3 Public Spawn and Pipe Review](v0.49.0-phase-3.md)
 - [v0.49.0 Phase 2 Child Ownership Review](v0.49.0-phase-2.md)

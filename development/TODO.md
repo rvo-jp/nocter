@@ -2,20 +2,18 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 6 is complete on
-`develop-v0.49.0`. A complete subprocess pipeline now composes generic byte transfer, concurrent
-stream capture, exact child observation, and one structured timeout through public APIs. Native
-qualification covers early stdin closure and proves that timeout cancellation terminates and reaps
-the exact owned child. LSP qualification consumes the same checked source and interface evidence.
+Nocter v0.48.0 is published and externally audited. v0.49.0 implementation and Phase 7
+release-readiness review are complete on `develop-v0.49.0`. Structured blocking and asynchronous
+process I/O share one launch, endpoint, exact-observation, and abandonment model. A fully disposable
+compiler gate and an optimized installed-package smoke test pass. No practical release-blocking
+implementation finding remains.
 
 ## Next Work
 
-Begin v0.49.0 Phase 7 with a whole-area review and release-readiness pass. Review blocking future
-paths, periodic probes, duplicate launch or session policy, raw-PID ownership, repeated status
-decoding, hidden descriptor copies, reverse dependencies, source-name recognition, and
-caller-required cleanup. Then run the complete compiler, standard-library, native, LSP, examples,
-documentation, packaging, formatting, and repository gates. Stop before changing release identity
-or publishing.
+Begin v0.49.0 release preparation. Change the sole release identity to `0.49.0`, align generated
+release-facing documentation and notes, and run the identity-gated two-build deterministic local
+qualifier. Audit the resulting archive, installed home, checksums, release notes, and publication
+assets. Stop before tagging, pushing, uploading, merging, or publishing until explicitly authorized.
 
 Preserve every published tag and asset, including v0.48.0.
 
