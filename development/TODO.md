@@ -2,23 +2,20 @@
 
 ## Current State
 
-Nocter v0.47.0 is published and externally audited. v0.48.0 implementation Phases 0 through 5 are
-complete, and release-content commit `50ceaf9e3e215cb899ef1a572421bae6a881baa6` has passed the
-complete compiler, documentation, reproducible-package, and installed-home qualification gates.
-The publication metadata now selects v0.48.0 as the latest release. Both execution surfaces have
-qualified generic
-buffered byte adapters over their ordinary interfaces. `BlockingBufReader<R>` and
-`BlockingBufWriter<W>` are explicit synchronous types; `BufReader<R>` and `BufWriter<W>` are
-canonical executor-safe types with cancellation-stable reader scratch and terminal-before-await
-writer transitions. No type is tied to `File`, and no old blocking name or close-shaped wrapper API
-remains. Whole-area review passes with no open practical implementation finding.
+Nocter v0.48.0 is published and externally audited. Release-content commit
+`50ceaf9e3e215cb899ef1a572421bae6a881baa6` passed the complete compiler, documentation,
+reproducible-package, and installed-home gates. Publication commit
+`34f095e16af90558d2a33e23b6cd188b00c8f18d` is the peeled target of annotated tag `v0.48.0`.
+The public release is latest, contains exactly one asset, and the downloaded asset matches the
+retained qualified archive byte for byte.
 
 ## Next Work
 
-Integrate the publication commit into `main`, create and push one annotated tag, upload exactly one
-retained qualified asset, and record a byte-for-byte public audit.
+Define the next milestone before changing implementation. Preserve the v0.48.0 generic buffered
+I/O ownership, cancellation, terminal-state, and transport-independence contracts unless a future
+public design explicitly replaces them.
 
-Preserve every published tag and asset, including v0.47.0.
+Preserve every published tag and asset, including v0.48.0.
 
 ## Blockers
 
