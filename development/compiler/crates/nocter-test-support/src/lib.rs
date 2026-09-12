@@ -286,10 +286,17 @@ pub primitive type void
 pub primitive type never
 ";
 const PROCESS_SOURCE: &str = "\
+use /internal/os/darwin.SyscallResult
 #target: \"arm64-darwin\"
 noalloc primitive func exit_raw(code: i32): never
 #target: \"arm64-darwin\"
 noalloc primitive func abandon_process_raw(pid: usize): void
+#target: \"arm64-darwin\"
+noalloc primitive func observe_process_raw(pid: usize, status: *i32): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func read_pipe_descriptor(fd: usize, address: usize, capacity: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func write_pipe_descriptor(fd: usize, address: usize, length: usize): SyscallResult
 #target: \"arm64-darwin\"
 primitive func arg_count_raw(): usize
 #target: \"arm64-darwin\"
@@ -364,7 +371,7 @@ primitive func descriptor_readiness_or_deadline_raw(
     deadline: u64,
 ): future void
 #target: \"arm64-darwin\"
-primitive func process_completion_raw(process: i32): future void
+primitive func process_completion_raw(process: usize): future void
 pub async func descriptor_readiness_for_test(
     descriptor: usize,
     writable: bool,
@@ -380,7 +387,7 @@ pub async func descriptor_readiness_or_deadline_for_test(
     await descriptor_readiness_or_deadline_raw(descriptor, writable, deadline)
     return
 }
-pub async func process_completion_for_test(process: i32): void {
+pub async func process_completion_for_test(process: usize): void {
     await process_completion_raw(process)
     return
 }
@@ -578,6 +585,7 @@ fn fixture_module(sources: &mut SourceMap, path: &[&str], text: &str) -> Fixture
     let syntax = add_parsed(sources, &source_path, text, ParseGoal::SourceFile);
     let use_targets: &[&[&str]] = match path {
         ["mem"] => &[&["internal", "os", "darwin"]],
+        ["process"] => &[&["internal", "os", "darwin"]],
         ["internal", "net", "darwin"] => {
             &[&["internal", "net", "model"], &["internal", "os", "darwin"]]
         }

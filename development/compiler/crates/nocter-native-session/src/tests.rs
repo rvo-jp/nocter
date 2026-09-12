@@ -1203,6 +1203,68 @@ blocking func main(): i32 {{
     compile_and_execute_subprocess_output(&package_root.0, &standard_root);
 }
 
+#[test]
+fn standard_spawned_child_and_pipe_values_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let helper = package_root.0.join("streaming-child-helper");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/io.{{BlockingReader, BlockingWriter}}
+use std/process.{{Command, ProcessIo}}
+
+func is_none<T>(value: T?): bool {{
+    let _ = move value otherwise {{ return true }}
+    return false
+}}
+
+blocking func main(): i32 {{
+    let command = Command.new("{}") catch _ {{ return 1 }}
+    var child = command.spawn_blocking(ProcessIo.piped()) catch _ {{ return 2 }}
+
+    var stdin = child.take_stdin() otherwise {{ return 3 }}
+    if !is_none(child.take_stdin()) {{ return 4 }}
+    stdin.write_text_blocking("request\n") catch _ {{ return 5 }}
+    stdin.close()
+
+    var stdout = child.take_stdout() otherwise {{ return 6 }}
+    if !is_none(child.take_stdout()) {{ return 7 }}
+    let output = stdout.read_to_end_blocking() catch _ {{ return 8 }}
+
+    var stderr = child.take_stderr() otherwise {{ return 9 }}
+    if !is_none(child.take_stderr()) {{ return 10 }}
+    let diagnostic = stderr.read_to_end_blocking() catch _ {{ return 11 }}
+
+    let status = child.wait_blocking() catch _ {{ return 12 }}
+    if !status.success() {{ return 13 }}
+    if output.len() != 9 || output[0] != 114 || output[7] != 101 || output[8] != 10 {{
+        return 14
+    }}
+    if diagnostic.len() != 5 || diagnostic[0] != 110 || diagnostic[4] != 10 {{
+        return 15
+    }}
+    return 0
+}}
+"#,
+            helper.display(),
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_spawned_child_contract(image.image(), &package_root.0);
+}
+
 const CONFIGURED_SUBPROCESS_HELPERS_SOURCE: &str = r"use std/process.Command
 use std/vec.Vec
 
@@ -5617,6 +5679,33 @@ fn execute_subprocess_output_contract(image: &NativeImage, root: &Path) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_spawned_child_contract(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("spawned-child-contract");
+    let helper = root.join("streaming-child-helper");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(
+        &helper,
+        b"#!/bin/sh\nIFS= read -r line || exit 31\n[ \"$line\" = \"request\" ] || exit 32\nprintf 'response\\n'\nprintf 'note\\n' >&2\n",
+    )
+    .unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "spawned child contract exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_configured_subprocess_contract(image: &NativeImage, root: &Path) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
@@ -5771,6 +5860,9 @@ fn execute_subprocess_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_output_contract(_image: &NativeImage, _root: &Path) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_spawned_child_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_configured_subprocess_contract(_image: &NativeImage, _root: &Path) {}

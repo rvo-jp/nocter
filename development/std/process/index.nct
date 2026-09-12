@@ -4,10 +4,12 @@
 //! implementation calls the active target boundary.
 
 use /mem.TryAllocator
+use /io.{BlockingReader, BlockingWriter, Reader, Writer}
 use /string.String
 use /vec.Vec
 see ./command_child_darwin.nct
 see ./child_owner_darwin.nct
+see ./child_darwin.nct
 see ./command_io_darwin.nct
 see ./command_io_session_darwin.nct
 see ./command_io_tests_darwin.nct
@@ -19,11 +21,41 @@ see ./launch_plan_darwin.nct
 see ./launch_report_darwin.nct
 see ./launch_report_tests_darwin.nct
 see ./pipe_darwin.nct
+see ./pipe_endpoint_darwin.nct
 see ./pipe_tests_darwin.nct
 see ./subprocess_darwin.nct
+see ./process_io.nct
+see ./spawn_io_darwin.nct
 
 /// An owning exact-path subprocess request.
 pub struct Command
+
+/// One standard-stream policy selected before a child is created.
+pub enum Stdio {
+    /// Preserves the corresponding descriptor inherited by the parent.
+    inherit
+
+    /// Connects the child stream to the target's null device.
+    null
+
+    /// Creates one directional pipe and returns its parent endpoint with the child.
+    pipe
+}
+
+/// Independent input, output, and error policies for one spawn operation.
+pub struct ProcessIo
+
+/// Unique ownership of one live or not-yet-observed child process.
+pub struct Child
+
+/// The owning parent-side writer connected to one child's standard input.
+pub struct ChildStdin
+
+/// The owning parent-side reader connected to one child's standard output.
+pub struct ChildStdout
+
+/// The owning parent-side reader connected to one child's standard error.
+pub struct ChildStderr
 
 /// One observed terminal state of a reaped child process.
 pub copy struct ExitStatus
@@ -45,6 +77,25 @@ construct Command {
     pub func new(path: &str): Self!
 }
 
+construct ProcessIo {
+    /// Selects inherited descriptors for all three standard streams.
+    pub noalloc func inherit(): Self
+
+    /// Selects pipes for all three standard streams.
+    pub noalloc func piped(): Self
+}
+
+instance ProcessIo {
+    /// Replaces the child standard-input policy.
+    pub noalloc method &+self.stdin(mode: Stdio): void
+
+    /// Replaces the child standard-output policy.
+    pub noalloc method &+self.stdout(mode: Stdio): void
+
+    /// Replaces the child standard-error policy.
+    pub noalloc method &+self.stderr(mode: Stdio): void
+}
+
 instance Command {
     /// Appends one exact argument after copying and validating it.
     pub method &+self.arg(value: &str): void!
@@ -64,11 +115,55 @@ instance Command {
     /// Copies finite bytes that replace inherited standard input.
     pub method &+self.input(value: &[u8]): void
 
+    /// Creates an owned child and configured pipe endpoints.
+    ///
+    /// Process creation is an explicit blocking boundary. Once returned, endpoint I/O and child
+    /// observation are available through executor-safe futures.
+    pub blocking method self.spawn_blocking(io: ProcessIo): Child!
+
     /// Launches the command, waits for its child, and consumes all command storage.
     pub blocking method self.status(): ExitStatus!
 
     /// Launches the command and returns its terminal state and complete output streams.
     pub blocking method self.output(): Output!
+}
+
+instance Child {
+    /// Transfers the configured standard-input endpoint exactly once.
+    pub noalloc method &+self.take_stdin(): ChildStdin?
+
+    /// Transfers the configured standard-output endpoint exactly once.
+    pub noalloc method &+self.take_stdout(): ChildStdout?
+
+    /// Transfers the configured standard-error endpoint exactly once.
+    pub noalloc method &+self.take_stderr(): ChildStderr?
+
+    /// Consumes and asynchronously observes this exact child's terminal state.
+    pub async method self.wait(): ExitStatus!
+
+    /// Consumes and synchronously observes this exact child's terminal state.
+    pub blocking method self.wait_blocking(): ExitStatus!
+}
+
+instance ChildStdin {
+    /// Closes the input endpoint without affecting child ownership.
+    pub noalloc method &+self.close(): void
+    impl Writer
+    impl BlockingWriter
+}
+
+instance ChildStdout {
+    /// Closes the output endpoint without affecting child ownership.
+    pub noalloc method &+self.close(): void
+    impl Reader
+    impl BlockingReader
+}
+
+instance ChildStderr {
+    /// Closes the error endpoint without affecting child ownership.
+    pub noalloc method &+self.close(): void
+    impl Reader
+    impl BlockingReader
 }
 
 instance ExitStatus {

@@ -1,8 +1,9 @@
-# Synchronous Subprocesses
+# Child Processes and Standard Streams
 
-This chapter defines synchronous child-process execution in `std/process`. A command owns its
-executable path, arguments, configuration, and finite input; each terminal operation launches
-exactly one child and observes it before returning.
+This chapter defines child-process ownership and standard-stream behavior in `std/process`. A
+command owns its executable path, arguments, configuration, and finite input. It can execute as a
+closed synchronous operation or transfer one child and its configured stream endpoints to the
+caller.
 
 The compiler-checked [public declarations](index.nct) are the sole authority for exact signatures.
 
@@ -22,10 +23,27 @@ output, and standard error as they exist at launch. Environment entries are inhe
 UTF-8 decoding or reconstruction. No shell parses the path or arguments, and no text is joined into
 a command line.
 
-The public surface has no independently owned `Child` handle. This makes waiting part of the operation
-that creates the child, so ordinary source cannot accidentally discard a live child or leave a
-terminated child unreaped. It also keeps process creation distinct from future pipe and
-nonblocking-process contracts.
+`spawn_blocking` consumes a command and a `ProcessIo` policy. It returns one owning `Child` only
+after the close-on-exec report proves successful executable replacement. Process creation and that
+confirmation are one explicit blocking boundary. The canonical executor-safe spawn operation is
+not yet part of the checked API.
+
+`ProcessIo.inherit` selects inherited descriptors for all streams. `ProcessIo.piped` selects three
+directional pipes. The `stdin`, `stdout`, and `stderr` mutators replace those choices independently
+with `Stdio.inherit`, `Stdio.null`, or `Stdio.pipe`. Null streams connect to the target null device;
+they do not create a parent endpoint.
+
+A returned `Child` uniquely owns the still-unobserved process and every configured endpoint not
+yet transferred. Each `take_*` method transfers its endpoint at most once. Destroying the child
+closes untaken endpoints, terminates an unobserved process, and transfers its sole reaping
+obligation to the target cleanup service without synchronously waiting. Calling `wait` or
+`wait_blocking` also closes untaken endpoints before observing the process, so a child cannot
+remain blocked on output that its parent elected not to read.
+
+`ChildStdin` implements `Writer` and `BlockingWriter`; `ChildStdout` and `ChildStderr` implement
+`Reader` and `BlockingReader`. Both execution surfaces share one endpoint ownership state and one
+read/write result classifier. The asynchronous methods suspend on compiler-owned descriptor
+readiness and never drive a blocking syscall. Closing an endpoint is idempotent.
 
 ## Exit Status
 
@@ -62,9 +80,10 @@ cannot be mistaken for an exec failure.
 
 Construction and `arg` own their copied text in the current allocation context and follow the
 ordinary allocation-abort policy. Their `T!` layer reports validation, not recoverable allocation.
-`status` may allocate launch metadata before creating the child and may wait until termination; it
-therefore carries `blocking` and does not publish `noalloc`. `ExitStatus` inspection is
-allocation-free and nonblocking.
+`status`, `output`, and `spawn_blocking` may allocate launch metadata before creating the child and
+may synchronously wait; they therefore carry `blocking` and do not publish `noalloc`. Endpoint
+close and transfer are allocation-free and nonblocking. Asynchronous endpoint I/O and `Child.wait`
+are executor-safe. `ExitStatus` inspection is allocation-free and nonblocking.
 
 No child is created until all target arguments, pointers, and the launch-report channel can be
 prepared. After process creation, the child path performs only target operations required to close
@@ -79,11 +98,13 @@ program selected through `PATH`.
 
 ## Responsibility Boundaries
 
-`std/process` owns `Command`, argument validation and ownership, synchronous launch policy, public
-errors, wait retry, and status decoding. Target-specific standard-library source owns raw process
-syscall constants, close-on-exec channel layout, and one-attempt fork, exec, wait, read, and write
-facts. The compiler owns only process-entry context access and generic target syscall lowering; it
-does not know `Command`, `ExitStatus`, public error codes, or wait-status encoding.
+`std/process` owns `Command`, `ProcessIo`, child and endpoint states, argument validation and
+ownership, launch policy, public errors, wait retry, and status decoding. Closed descriptor
+read/write and process-observation primitives are source-private to this module; another standard
+module cannot invoke them with an unproved blocking descriptor or reinterpret their target facts.
+The compiler owns process-entry context access, semantic reactor interests, and selected target
+operations. It does not know `Command`, `Child`, `Stdio`, public error codes, or wait-status
+encoding.
 
 The inherited environment-vector address is an immutable process-entry fact. It may cross one
 private compiler-owned primitive role into trusted standard-library source so `exec` can preserve
@@ -294,6 +315,7 @@ remains the allocating convenience that collects all arguments.
 
 ## Non-goals
 
-This contract does not add `PATH` search, shell parsing, asynchronous children, incremental stream
-access, caller-provided descriptors, merged output, capture or input size limits, timeouts,
-parent-sent signals, process groups, terminal control, or another target.
+This contract does not add `PATH` search, shell parsing, caller-provided descriptors, merged output,
+capture or input size limits, process groups, terminal control, or another target. Executor-safe
+spawn, parent-directed termination, generic transfer operations, and process timeouts remain later
+v0.49.0 work; they are not approximated by calling a blocking operation from a future.

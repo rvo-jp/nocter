@@ -565,6 +565,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::DescriptorRead | PrimitiveRole::DescriptorWrite => make(
+            0,
+            vec![usize(), usize(), usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::DatagramSocketOpen => make(
             0,
             vec![boolean()],
@@ -834,6 +842,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::ProcessAbandon => {
             make(0, vec![usize()], void(), private, arm64_darwin, vec![])
         }
+        PrimitiveRole::ProcessObserve => make(
+            0,
+            vec![usize(), TypeContract::pointer(i32())],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => {
             make(0, vec![], usize(), private, arm64_darwin, vec![])
         }
@@ -885,7 +901,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::ProcessCompletion => make(
             0,
-            vec![i32()],
+            vec![usize()],
             TypeContract::asynchronous(void()),
             private,
             arm64_darwin,

@@ -1,0 +1,60 @@
+//! Target-independent standard-stream policy values.
+
+see ./index.nct
+
+struct ProcessIo {
+    stdin_mode: Stdio
+    stdout_mode: Stdio
+    stderr_mode: Stdio
+}
+
+construct ProcessIo {
+    noalloc func inherit(): Self {
+        return ProcessIo {
+            stdin_mode: Stdio.inherit,
+            stdout_mode: Stdio.inherit,
+            stderr_mode: Stdio.inherit,
+        }
+    }
+
+    noalloc func piped(): Self {
+        return ProcessIo {
+            stdin_mode: Stdio.pipe,
+            stdout_mode: Stdio.pipe,
+            stderr_mode: Stdio.pipe,
+        }
+    }
+}
+
+instance ProcessIo {
+    noalloc method &+self.stdin(mode: Stdio): void {
+        self.stdin_mode = mode
+        return
+    }
+
+    noalloc method &+self.stdout(mode: Stdio): void {
+        self.stdout_mode = mode
+        return
+    }
+
+    noalloc method &+self.stderr(mode: Stdio): void {
+        self.stderr_mode = mode
+        return
+    }
+}
+
+test process_io_modes_are_independent {
+    var io = ProcessIo.inherit()
+    io.stdin(Stdio.null)
+    io.stdout(Stdio.pipe)
+    if io.stdin_mode is Stdio.null {} else {
+        return error.new("std.process.test", "standard input mode did not change")
+    }
+    if io.stdout_mode is Stdio.pipe {} else {
+        return error.new("std.process.test", "standard output mode did not change")
+    }
+    if io.stderr_mode is Stdio.inherit {} else {
+        return error.new("std.process.test", "standard error mode changed with another stream")
+    }
+    return
+}

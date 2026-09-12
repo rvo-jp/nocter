@@ -1,0 +1,142 @@
+//! Public child and endpoint wrappers over one private ownership state per resource.
+
+see ./index.nct
+see ./child_owner_darwin.nct
+see ./command_darwin.nct
+see ./pipe_endpoint_darwin.nct
+see ./spawn_io_darwin.nct
+
+use /internal/ptr
+
+#target: "arm64-darwin"
+struct Child {
+    owner: ChildOwner
+    stdin: ChildStdin?
+    stdout: ChildStdout?
+    stderr: ChildStderr?
+}
+
+#target: "arm64-darwin"
+struct ChildStdin {
+    endpoint: PipeEndpoint
+}
+
+#target: "arm64-darwin"
+struct ChildStdout {
+    endpoint: PipeEndpoint
+}
+
+#target: "arm64-darwin"
+struct ChildStderr {
+    endpoint: PipeEndpoint
+}
+
+#target: "arm64-darwin"
+noalloc func child_stdin(endpoint: PipeEndpoint?): ChildStdin? {
+    let value = move endpoint otherwise { return none }
+    return ChildStdin { endpoint: move value }
+}
+
+#target: "arm64-darwin"
+noalloc func child_stdout(endpoint: PipeEndpoint?): ChildStdout? {
+    let value = move endpoint otherwise { return none }
+    return ChildStdout { endpoint: move value }
+}
+
+#target: "arm64-darwin"
+noalloc func child_stderr(endpoint: PipeEndpoint?): ChildStderr? {
+    let value = move endpoint otherwise { return none }
+    return ChildStderr { endpoint: move value }
+}
+
+#target: "arm64-darwin"
+noalloc func make_child(owner: ChildOwner, endpoints: SpawnParentEndpoints): Child {
+    let streams = move endpoints
+    return Child {
+        owner: move owner,
+        stdin: child_stdin(move streams.stdin),
+        stdout: child_stdout(move streams.stdout),
+        stderr: child_stderr(move streams.stderr),
+    }
+}
+
+instance Child {
+    noalloc method &+self.take_stdin(): ChildStdin? {
+        return ptr.replace_value(&+self.stdin, none)
+    }
+
+    noalloc method &+self.take_stdout(): ChildStdout? {
+        return ptr.replace_value(&+self.stdout, none)
+    }
+
+    noalloc method &+self.take_stderr(): ChildStderr? {
+        return ptr.replace_value(&+self.stderr, none)
+    }
+
+    async method self.wait(): ExitStatus! {
+        let child = move self
+        let stdin = move child.stdin
+        let stdout = move child.stdout
+        let stderr = move child.stderr
+        drop stdin
+        drop stdout
+        drop stderr
+        return status_from_wait(await observe_child_async(move child.owner))?
+    }
+
+    blocking method self.wait_blocking(): ExitStatus! {
+        let child = move self
+        let stdin = move child.stdin
+        let stdout = move child.stdout
+        let stderr = move child.stderr
+        drop stdin
+        drop stdout
+        drop stderr
+        return status_from_wait(observe_child(move child.owner))?
+    }
+}
+
+instance ChildStdin {
+    noalloc method &+self.close(): void {
+        close_pipe_endpoint(&+self.endpoint)
+        return
+    }
+
+    async method &+self.write(value: &[u8]): void! {
+        return await write_endpoint(&+self.endpoint, value)
+    }
+
+    noalloc blocking method &+self.write_blocking(value: &[u8]): void! {
+        return write_endpoint_blocking(&+self.endpoint, value)
+    }
+}
+
+instance ChildStdout {
+    noalloc method &+self.close(): void {
+        close_pipe_endpoint(&+self.endpoint)
+        return
+    }
+
+    async method &+self.read(buffer: &+[u8]): usize! {
+        return await read_endpoint(&+self.endpoint, buffer)
+    }
+
+    noalloc blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
+        return read_endpoint_blocking(&+self.endpoint, buffer)
+    }
+}
+
+instance ChildStderr {
+    noalloc method &+self.close(): void {
+        close_pipe_endpoint(&+self.endpoint)
+        return
+    }
+
+    async method &+self.read(buffer: &+[u8]): usize! {
+        return await read_endpoint(&+self.endpoint, buffer)
+    }
+
+    noalloc blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
+        return read_endpoint_blocking(&+self.endpoint, buffer)
+    }
+}

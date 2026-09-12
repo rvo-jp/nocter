@@ -21,6 +21,9 @@ pub(super) fn select(
             select_memory_operation(operation, target, selected)
         }
         PrimitiveRole::DescriptorClose => select_descriptor_close(operation, target, selected),
+        PrimitiveRole::DescriptorRead | PrimitiveRole::DescriptorWrite => {
+            select_descriptor_transfer(operation, target, selected)
+        }
         PrimitiveRole::DatagramSocketOpen
         | PrimitiveRole::DatagramSocketConfigure
         | PrimitiveRole::DatagramBind
@@ -37,6 +40,7 @@ pub(super) fn select(
         }
         PrimitiveRole::TimeoutWait => select_timeout_wait(operation, target, selected),
         PrimitiveRole::ProcessExit => select_exit(operation, target, selected),
+        PrimitiveRole::ProcessObserve => select_process_observe(operation, target, selected),
         PrimitiveRole::MonotonicCounterRead | PrimitiveRole::MonotonicCounterFrequency => {
             select_counter_read(operation, target, selected)
         }
@@ -123,6 +127,32 @@ fn select_descriptor_close(
     validate_ordinary_inputs(operation, target, 1)?;
     validate_direct_result(operation, target, 2)?;
     selected.push(Arm64SelectedInstruction::DarwinDescriptorClose);
+    Ok(())
+}
+
+fn select_descriptor_transfer(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 3)?;
+    validate_direct_result(operation, target, 2)?;
+    selected.push(match target.role() {
+        PrimitiveRole::DescriptorRead => Arm64SelectedInstruction::DarwinDescriptorRead,
+        PrimitiveRole::DescriptorWrite => Arm64SelectedInstruction::DarwinDescriptorWrite,
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    });
+    Ok(())
+}
+
+fn select_process_observe(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 2)?;
+    validate_direct_result(operation, target, 2)?;
+    selected.push(Arm64SelectedInstruction::DarwinProcessObserve);
     Ok(())
 }
 

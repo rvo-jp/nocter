@@ -6,15 +6,27 @@
 
 see ./subprocess_darwin.nct
 
+use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
+use /internal/task
+use /ptr
 
 #target: "arm64-darwin"
 noalloc primitive func abandon_process_raw(pid: usize): void
 
 #target: "arm64-darwin"
+noalloc primitive func observe_process_raw(pid: usize, status: *i32): SyscallResult from static
+
+#target: "arm64-darwin"
 struct ChildOwner {
     pid: usize
     active: bool
+}
+
+#target: "arm64-darwin"
+enum ChildObservationAttempt {
+    pending
+    terminal(outcome: WaitOutcome)
 }
 
 #target: "arm64-darwin"
@@ -37,6 +49,44 @@ noalloc blocking func observe_child(owner: ChildOwner): WaitOutcome {
         }
         WaitOutcome.failed(errno) { return WaitOutcome.failed(errno) }
         WaitOutcome.invalid(status) { return WaitOutcome.invalid(status) }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func try_observe_child(owner: &+ChildOwner): ChildObservationAttempt {
+    var status: i32 = 0
+    let result = observe_process_raw(owner.pid, ptr.from_ref_mut(&+status))
+    if result.errno == darwin.ERRNO_INTERRUPTED || (result.errno == 0 && result.value == 0) {
+        return ChildObservationAttempt.pending
+    }
+    match classify_wait_attempt(result, status) {
+        WaitAttempt.interrupted { return ChildObservationAttempt.pending }
+        WaitAttempt.exited(code) {
+            owner.active = false
+            return ChildObservationAttempt.terminal(WaitOutcome.exited(code))
+        }
+        WaitAttempt.signaled(signal) {
+            owner.active = false
+            return ChildObservationAttempt.terminal(WaitOutcome.signaled(signal))
+        }
+        WaitAttempt.failed(errno) {
+            return ChildObservationAttempt.terminal(WaitOutcome.failed(errno))
+        }
+        WaitAttempt.invalid(raw) {
+            return ChildObservationAttempt.terminal(WaitOutcome.invalid(raw))
+        }
+    }
+}
+
+#target: "arm64-darwin"
+async func observe_child_async(owner: ChildOwner): WaitOutcome {
+    var child = move owner
+    loop {
+        await task.wait_process_complete(child.pid)
+        match try_observe_child(&+child) {
+            ChildObservationAttempt.pending {}
+            ChildObservationAttempt.terminal(outcome) { return move outcome }
+        }
     }
 }
 

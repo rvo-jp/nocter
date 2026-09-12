@@ -147,6 +147,9 @@ const STDERR_FD: usize = 2
 const OPEN_READ_ONLY: usize = 0
 
 #target: "arm64-darwin"
+const OPEN_WRITE_ONLY: usize = 1
+
+#target: "arm64-darwin"
 // O_RDONLY | O_DIRECTORY | O_CLOEXEC
 const OPEN_DIRECTORY_ONLY: usize = 0x01100000
 

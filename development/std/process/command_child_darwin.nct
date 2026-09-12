@@ -6,6 +6,7 @@
 see ./command_io_session_darwin.nct
 see ./launch_report_darwin.nct
 see ./pipe_darwin.nct
+see ./spawn_io_darwin.nct
 
 use /internal/os/darwin
 
@@ -114,6 +115,48 @@ noalloc blocking func exec_command_child(
     close_pipe_read(&+launch_report)
     install_child_input(&+launch_report, &+command_io.input)
     install_child_captures(&+launch_report, &+command_io.captures)
+    enter_child_directory(working_directory_address, &+launch_report)
+    exec_child_after_setup(
+        path_address,
+        argv_address,
+        environment_address,
+        &+launch_report,
+    )
+}
+
+#target: "arm64-darwin"
+noalloc blocking func exec_spawn_child(
+    path_address: usize,
+    argv_address: usize,
+    environment_address: usize,
+    working_directory_address: usize,
+    report: OwnedPipe,
+    session: SpawnIoSession,
+): never {
+    var launch_report = move report
+    var process_io = move session
+    close_pipe_read(&+launch_report)
+    match install_input_channel(&+process_io.stdin) {
+        DescriptorInstallAttempt.ready {}
+        DescriptorInstallAttempt.failed(errno) {
+            reject_command_setup(&+launch_report, LAUNCH_STAGE_INPUT_SETUP, errno)
+        }
+        DescriptorInstallAttempt.invalid { reject_malformed_command_setup(&+launch_report) }
+    }
+    match install_output_channel(&+process_io.stdout, darwin.STDOUT_FD) {
+        DescriptorInstallAttempt.ready {}
+        DescriptorInstallAttempt.failed(errno) {
+            reject_command_setup(&+launch_report, LAUNCH_STAGE_OUTPUT_SETUP, errno)
+        }
+        DescriptorInstallAttempt.invalid { reject_malformed_command_setup(&+launch_report) }
+    }
+    match install_output_channel(&+process_io.stderr, darwin.STDERR_FD) {
+        DescriptorInstallAttempt.ready {}
+        DescriptorInstallAttempt.failed(errno) {
+            reject_command_setup(&+launch_report, LAUNCH_STAGE_OUTPUT_SETUP, errno)
+        }
+        DescriptorInstallAttempt.invalid { reject_malformed_command_setup(&+launch_report) }
+    }
     enter_child_directory(working_directory_address, &+launch_report)
     exec_child_after_setup(
         path_address,

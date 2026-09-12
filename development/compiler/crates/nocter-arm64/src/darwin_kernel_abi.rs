@@ -6,6 +6,7 @@ const SUPERVISOR_CALL_IMMEDIATE: u16 = 0x80;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DarwinSystemCall {
     Exit,
+    Read,
     Write,
     Close,
     Wait4,
@@ -33,6 +34,7 @@ impl DarwinSystemCall {
     const fn number(self) -> u64 {
         match self {
             Self::Exit => 1,
+            Self::Read => 0x0200_0003,
             Self::Write => 0x0200_0004,
             Self::Close => 0x0200_0006,
             Self::Wait4 => 0x0200_0007,
@@ -160,6 +162,7 @@ impl DarwinProcessAbi {
     pub(crate) const STANDARD_ERROR: u64 = 2;
     pub(crate) const KILL_SIGNAL: u64 = 9;
     pub(crate) const MAX_PROCESS_ID: u64 = i32::MAX as u64;
+    pub(crate) const OBSERVE_WITHOUT_WAITING: u64 = 1;
 }
 
 #[cfg(test)]
@@ -177,6 +180,7 @@ mod tests {
     fn compiler_owned_system_calls_have_distinct_numbers() {
         let calls = [
             DarwinSystemCall::Exit,
+            DarwinSystemCall::Read,
             DarwinSystemCall::Write,
             DarwinSystemCall::Close,
             DarwinSystemCall::Wait4,

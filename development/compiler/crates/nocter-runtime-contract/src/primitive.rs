@@ -71,6 +71,11 @@ closed_role_enum! {
         MemoryUnmap,
         /// Closes one Darwin descriptor without exposing the raw syscall-number boundary.
         DescriptorClose,
+        /// Performs one read attempt on a descriptor whose owner proves nonblocking mode.
+        DescriptorRead,
+        /// Performs one write attempt on a descriptor whose owner proves nonblocking mode and
+        /// broken-pipe signal suppression.
+        DescriptorWrite,
         /// Opens one Darwin datagram socket for a selected logical address family.
         DatagramSocketOpen,
         /// Applies the compiler-owned nonblocking descriptor policy to one datagram socket.
@@ -174,6 +179,8 @@ closed_role_enum! {
         MonotonicDeadline,
         /// Creates one lazy computation that becomes completable when one process exits.
         ProcessCompletion,
+        /// Attempts to reap one completed child without synchronously waiting.
+        ProcessObserve,
         /// Terminates one unobserved child and transfers its sole reaping obligation.
         ProcessAbandon,
         /// Takes ownership of two lazy computations and produces both outputs concurrently.
@@ -240,6 +247,8 @@ impl PrimitiveRole {
             Self::MemoryMap => "memory_map",
             Self::MemoryUnmap => "memory_unmap",
             Self::DescriptorClose => "descriptor_close",
+            Self::DescriptorRead => "descriptor_read",
+            Self::DescriptorWrite => "descriptor_write",
             Self::DatagramSocketOpen => "datagram_socket_open",
             Self::DatagramSocketConfigure => "datagram_socket_configure",
             Self::DatagramBind => "datagram_bind",
@@ -321,6 +330,7 @@ impl PrimitiveRole {
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::ProcessCompletion => "process_completion",
+            Self::ProcessObserve => "process_observe",
             Self::ProcessAbandon => "process_abandon",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",

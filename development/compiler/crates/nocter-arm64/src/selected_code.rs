@@ -360,6 +360,15 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinDescriptorClose => {
             crate::system_primitive_code::emit_descriptor_close(code)
         }
+        Arm64SelectedInstruction::DarwinDescriptorRead => {
+            crate::system_primitive_code::emit_descriptor_read(code)
+        }
+        Arm64SelectedInstruction::DarwinDescriptorWrite => {
+            crate::system_primitive_code::emit_descriptor_write(code)
+        }
+        Arm64SelectedInstruction::DarwinProcessObserve => {
+            crate::system_primitive_code::emit_process_observe(code)
+        }
         Arm64SelectedInstruction::DarwinDatagram(operation) => {
             crate::darwin_datagram_code::emit(operation, code)
         }

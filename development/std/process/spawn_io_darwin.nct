@@ -1,0 +1,302 @@
+//! Independent standard-stream launch ownership for public child creation.
+
+see ./index.nct
+see ./pipe_darwin.nct
+see ./pipe_endpoint_darwin.nct
+see ./process_io.nct
+
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+use /internal/path as internal_path
+
+#target: "arm64-darwin"
+struct OwnedDescriptor {
+    fd: usize
+    open: bool
+}
+
+#target: "arm64-darwin"
+enum DescriptorAttempt {
+    ready(descriptor: OwnedDescriptor)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum SpawnInputChannel {
+    inherited
+    null(descriptor: OwnedDescriptor)
+    piped(pipe: OwnedPipe)
+}
+
+#target: "arm64-darwin"
+enum SpawnOutputChannel {
+    inherited
+    null(descriptor: OwnedDescriptor)
+    piped(pipe: OwnedPipe)
+}
+
+#target: "arm64-darwin"
+struct SpawnIoSession {
+    stdin: SpawnInputChannel
+    stdout: SpawnOutputChannel
+    stderr: SpawnOutputChannel
+}
+
+#target: "arm64-darwin"
+struct SpawnParentEndpoints {
+    stdin: PipeEndpoint?
+    stdout: PipeEndpoint?
+    stderr: PipeEndpoint?
+}
+
+#target: "arm64-darwin"
+enum SpawnIoAttempt {
+    ready(session: SpawnIoSession)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum SpawnInputAttempt {
+    ready(channel: SpawnInputChannel)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum SpawnOutputAttempt {
+    ready(channel: SpawnOutputChannel)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+noalloc func close_owned_descriptor(descriptor: &+OwnedDescriptor): void {
+    if descriptor.open {
+        close_raw_fd(descriptor.fd)
+        descriptor.open = false
+    }
+    return
+}
+
+#target: "arm64-darwin"
+blocking func open_null_descriptor(writable: bool): DescriptorAttempt {
+    let path = internal_path.target_path_argument("/dev/null") catch _ {
+        return DescriptorAttempt.failed(0)
+    }
+    var flags = darwin.OPEN_READ_ONLY
+    if writable { flags = darwin.OPEN_WRITE_ONLY }
+    var opened: SyscallResult = darwin.syscall3(
+        darwin.SYS_OPEN,
+        internal_path.target_path_address(&path),
+        flags,
+        0,
+    )
+    while opened.errno == darwin.ERRNO_INTERRUPTED {
+        opened = darwin.syscall3(
+            darwin.SYS_OPEN,
+            internal_path.target_path_address(&path),
+            flags,
+            0,
+        )
+    }
+    if opened.errno != 0 { return DescriptorAttempt.failed(opened.errno) }
+    let normalized = duplicate_cloexec(opened.value)
+    close_raw_fd(opened.value)
+    if normalized.errno != 0 { return DescriptorAttempt.failed(normalized.errno) }
+    return DescriptorAttempt.ready(OwnedDescriptor { fd: normalized.value, open: true })
+}
+
+#target: "arm64-darwin"
+blocking func create_spawn_input(mode: Stdio): SpawnInputAttempt {
+    match mode {
+        Stdio.inherit { return SpawnInputAttempt.ready(SpawnInputChannel.inherited) }
+        Stdio.null {
+            match open_null_descriptor(false) {
+                DescriptorAttempt.ready(descriptor) {
+                    return SpawnInputAttempt.ready(SpawnInputChannel.null(move descriptor))
+                }
+                DescriptorAttempt.failed(errno) { return SpawnInputAttempt.failed(errno) }
+            }
+        }
+        Stdio.pipe {
+            match create_cloexec_pipe() {
+                PipeAttempt.failed(errno) { return SpawnInputAttempt.failed(errno) }
+                PipeAttempt.ready(pipe) {
+                    match configure_pipe_writer_for_async_io(&pipe) {
+                        PipeConfigurationAttempt.ready {
+                            return SpawnInputAttempt.ready(SpawnInputChannel.piped(move pipe))
+                        }
+                        PipeConfigurationAttempt.failed(errno) {
+                            drop pipe
+                            return SpawnInputAttempt.failed(errno)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+blocking func create_spawn_output(mode: Stdio): SpawnOutputAttempt {
+    match mode {
+        Stdio.inherit { return SpawnOutputAttempt.ready(SpawnOutputChannel.inherited) }
+        Stdio.null {
+            match open_null_descriptor(true) {
+                DescriptorAttempt.ready(descriptor) {
+                    return SpawnOutputAttempt.ready(SpawnOutputChannel.null(move descriptor))
+                }
+                DescriptorAttempt.failed(errno) { return SpawnOutputAttempt.failed(errno) }
+            }
+        }
+        Stdio.pipe {
+            match create_cloexec_pipe() {
+                PipeAttempt.failed(errno) { return SpawnOutputAttempt.failed(errno) }
+                PipeAttempt.ready(pipe) {
+                    match configure_pipe_reader_for_async_io(&pipe) {
+                        PipeConfigurationAttempt.ready {
+                            return SpawnOutputAttempt.ready(SpawnOutputChannel.piped(move pipe))
+                        }
+                        PipeConfigurationAttempt.failed(errno) {
+                            drop pipe
+                            return SpawnOutputAttempt.failed(errno)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+blocking func create_spawn_io(io: ProcessIo): SpawnIoAttempt {
+    let policy = move io
+    match create_spawn_input(policy.stdin_mode) {
+        SpawnInputAttempt.failed(errno) { return SpawnIoAttempt.failed(errno) }
+        SpawnInputAttempt.ready(stdin) {
+            match create_spawn_output(policy.stdout_mode) {
+                SpawnOutputAttempt.failed(errno) {
+                    drop stdin
+                    return SpawnIoAttempt.failed(errno)
+                }
+                SpawnOutputAttempt.ready(stdout) {
+                    match create_spawn_output(policy.stderr_mode) {
+                        SpawnOutputAttempt.failed(errno) {
+                            drop stdin
+                            drop stdout
+                            return SpawnIoAttempt.failed(errno)
+                        }
+                        SpawnOutputAttempt.ready(stderr) {
+                            return SpawnIoAttempt.ready(SpawnIoSession {
+                                stdin: move stdin,
+                                stdout: move stdout,
+                                stderr: move stderr,
+                            })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc blocking func install_input_channel(
+    channel: &+SpawnInputChannel,
+): DescriptorInstallAttempt {
+    match channel {
+        SpawnInputChannel.inherited { return DescriptorInstallAttempt.ready }
+        SpawnInputChannel.null(descriptor) {
+            let installed = install_descriptor(descriptor.fd, darwin.STDIN_FD)
+            close_owned_descriptor(descriptor)
+            return move installed
+        }
+        SpawnInputChannel.piped(pipe) {
+            close_pipe_write(pipe)
+            let installed = install_descriptor(pipe_read_fd(pipe), darwin.STDIN_FD)
+            close_pipe_read(pipe)
+            return move installed
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc blocking func install_output_channel(
+    channel: &+SpawnOutputChannel,
+    target: usize,
+): DescriptorInstallAttempt {
+    match channel {
+        SpawnOutputChannel.inherited { return DescriptorInstallAttempt.ready }
+        SpawnOutputChannel.null(descriptor) {
+            let installed = install_descriptor(descriptor.fd, target)
+            close_owned_descriptor(descriptor)
+            return move installed
+        }
+        SpawnOutputChannel.piped(pipe) {
+            close_pipe_read(pipe)
+            let installed = install_descriptor(pipe_write_fd(pipe), target)
+            close_pipe_write(pipe)
+            return move installed
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc blocking func prepare_spawn_child_io(
+    session: &+SpawnIoSession,
+): DescriptorInstallAttempt {
+    match install_input_channel(&+session.stdin) {
+        DescriptorInstallAttempt.ready {}
+        DescriptorInstallAttempt.failed(errno) { return DescriptorInstallAttempt.failed(errno) }
+        DescriptorInstallAttempt.invalid { return DescriptorInstallAttempt.invalid }
+    }
+    match install_output_channel(&+session.stdout, darwin.STDOUT_FD) {
+        DescriptorInstallAttempt.ready {}
+        DescriptorInstallAttempt.failed(errno) { return DescriptorInstallAttempt.failed(errno) }
+        DescriptorInstallAttempt.invalid { return DescriptorInstallAttempt.invalid }
+    }
+    return install_output_channel(&+session.stderr, darwin.STDERR_FD)
+}
+
+#target: "arm64-darwin"
+noalloc func take_parent_input(channel: &+SpawnInputChannel): PipeEndpoint? {
+    match channel {
+        SpawnInputChannel.inherited { return none }
+        SpawnInputChannel.null(descriptor) {
+            close_owned_descriptor(descriptor)
+            return none
+        }
+        SpawnInputChannel.piped(pipe) {
+            close_pipe_read(pipe)
+            return take_pipe_write(pipe)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func take_parent_output(channel: &+SpawnOutputChannel): PipeEndpoint? {
+    match channel {
+        SpawnOutputChannel.inherited { return none }
+        SpawnOutputChannel.null(descriptor) {
+            close_owned_descriptor(descriptor)
+            return none
+        }
+        SpawnOutputChannel.piped(pipe) {
+            close_pipe_write(pipe)
+            return take_pipe_read(pipe)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func take_spawn_parent_endpoints(session: SpawnIoSession): SpawnParentEndpoints {
+    var source = move session
+    return SpawnParentEndpoints {
+        stdin: take_parent_input(&+source.stdin),
+        stdout: take_parent_output(&+source.stdout),
+        stderr: take_parent_output(&+source.stderr),
+    }
+}
+
+noalloc drop OwnedDescriptor(&+self) {
+    close_owned_descriptor(self)
+    return
+}

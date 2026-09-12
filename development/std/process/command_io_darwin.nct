@@ -28,6 +28,14 @@ enum CommandIoPollAttempt {
 }
 
 #target: "arm64-darwin"
+enum DescriptorPollAttempt {
+    ready
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
 enum CommandIoReadAttempt {
     bytes(count: usize)
     end
@@ -132,6 +140,32 @@ noalloc func classify_poll_syscall(result: SyscallResult): PollSyscallAttempt {
     if result.errno != 0 { return PollSyscallAttempt.failed(result.errno) }
     if result.value == 0 || result.value > 3 { return PollSyscallAttempt.malformed }
     return PollSyscallAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc blocking func poll_descriptor_once(
+    fd: usize,
+    writable: bool,
+): DescriptorPollAttempt {
+    let narrowed = descriptor_i32(fd, true) otherwise { return DescriptorPollAttempt.malformed }
+    var interest = POLL_INPUT
+    if writable { interest = POLL_OUTPUT }
+    var descriptor = PollDescriptor { fd: narrowed, events: interest, returned_events: 0 }
+    let result = darwin.syscall3(
+        darwin.SYS_POLL,
+        ptr.addr(ptr.from_ref_mut(&+descriptor)),
+        1,
+        POLL_INFINITE_TIMEOUT,
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return DescriptorPollAttempt.interrupted }
+    if result.errno != 0 { return DescriptorPollAttempt.failed(result.errno) }
+    if result.value != 1 || !events_match_interest(descriptor.returned_events, interest) {
+        return DescriptorPollAttempt.malformed
+    }
+    if event_is_set(descriptor.returned_events, POLL_INVALID) {
+        return DescriptorPollAttempt.malformed
+    }
+    return DescriptorPollAttempt.ready
 }
 
 #target: "arm64-darwin"

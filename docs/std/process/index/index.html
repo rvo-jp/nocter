@@ -176,7 +176,7 @@
                 <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Standard Library</a></li></ol>
                 <p class="document-tree-title">std/process/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../index.html#content">Synchronous Subprocesses</a></li>
+                    <li><a href="../index.html#content">Child Processes and Standard Streams</a></li>
                     <li><a href="./index.html#content" aria-current="page">Module Contract</a></li>
                 </ul>
             </nav>
@@ -192,10 +192,12 @@
 <span class="token-comment">//! implementation calls the active target boundary.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">BlockingReader</span><span class="token-operator">,</span> <span class="token-type">BlockingWriter</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_child_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>child_owner_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>child_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_session_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_tests_darwin<span class="token-operator">.</span>nct
@@ -207,11 +209,41 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_endpoint_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>subprocess_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>process_io<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>spawn_io_darwin<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// An owning exact-path subprocess request.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Command</span>
+
+<span class="token-comment">/// One standard-stream policy selected before a child is created.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">enum</span> <span class="token-type">Stdio</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Preserves the corresponding descriptor inherited by the parent.</span>
+    inherit
+
+    <span class="token-comment">/// Connects the child stream to the target's null device.</span>
+    null
+
+    <span class="token-comment">/// Creates one directional pipe and returns its parent endpoint with the child.</span>
+    pipe
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// Independent input, output, and error policies for one spawn operation.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">ProcessIo</span>
+
+<span class="token-comment">/// Unique ownership of one live or not-yet-observed child process.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Child</span>
+
+<span class="token-comment">/// The owning parent-side writer connected to one child's standard input.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">ChildStdin</span>
+
+<span class="token-comment">/// The owning parent-side reader connected to one child's standard output.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">ChildStdout</span>
+
+<span class="token-comment">/// The owning parent-side reader connected to one child's standard error.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">ChildStderr</span>
 
 <span class="token-comment">/// One observed terminal state of a reaped child process.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">ExitStatus</span>
@@ -233,6 +265,25 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
+<span class="token-keyword">construct</span> <span class="token-type">ProcessIo</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Selects inherited descriptors for all three standard streams.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">inherit</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Selects pipes for all three standard streams.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">piped</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">ProcessIo</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Replaces the child standard-input policy.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">stdin</span><span class="token-operator">(</span>mode<span class="token-operator">:</span> <span class="token-type">Stdio</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Replaces the child standard-output policy.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">stdout</span><span class="token-operator">(</span>mode<span class="token-operator">:</span> <span class="token-type">Stdio</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Replaces the child standard-error policy.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">stderr</span><span class="token-operator">(</span>mode<span class="token-operator">:</span> <span class="token-type">Stdio</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">instance</span> <span class="token-type">Command</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Appends one exact argument after copying and validating it.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
@@ -252,11 +303,55 @@
     <span class="token-comment">/// Copies finite bytes that replace inherited standard input.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
+    <span class="token-comment">/// Creates an owned child and configured pipe endpoints.</span>
+    <span class="token-comment">///</span>
+    <span class="token-comment">/// Process creation is an explicit blocking boundary. Once returned, endpoint I/O and child</span>
+    <span class="token-comment">/// observation are available through executor-safe futures.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">spawn_blocking</span><span class="token-operator">(</span>io<span class="token-operator">:</span> <span class="token-type">ProcessIo</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Child</span><span class="token-operator">!</span>
+
     <span class="token-comment">/// Launches the command, waits for its child, and consumes all command storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Launches the command and returns its terminal state and complete output streams.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Child</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Transfers the configured standard-input endpoint exactly once.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">take_stdin</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ChildStdin</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Transfers the configured standard-output endpoint exactly once.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">take_stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ChildStdout</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Transfers the configured standard-error endpoint exactly once.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">take_stderr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ChildStderr</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Consumes and asynchronously observes this exact child's terminal state.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wait</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Consumes and synchronously observes this exact child's terminal state.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wait_blocking</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">ChildStdin</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Closes the input endpoint without affecting child ownership.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">ChildStdout</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Closes the output endpoint without affecting child ownership.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">ChildStderr</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Closes the error endpoint without affecting child ownership.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">ExitStatus</span> <span class="token-operator">{</span>

@@ -50,6 +50,46 @@ pub(crate) fn emit_descriptor_close(
     emit_system_call_result(code)
 }
 
+/// Reads once through the closed nonblocking-descriptor contract in `x0..x2`.
+pub(crate) fn emit_descriptor_read(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Read,
+    );
+    emit_system_call_result(code)
+}
+
+/// Writes once through the closed nonblocking-descriptor contract in `x0..x2`.
+pub(crate) fn emit_descriptor_write(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Write,
+    );
+    emit_system_call_result(code)
+}
+
+/// Calls `wait4(pid, status, WNOHANG, NULL)` and returns `(value, errno)`.
+pub(crate) fn emit_process_observe(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(
+        code,
+        argument(2),
+        crate::darwin_kernel_abi::DarwinProcessAbi::OBSERVE_WITHOUT_WAITING,
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(code, argument(3), 0, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Wait4,
+    );
+    emit_system_call_result(code)
+}
+
 /// Fills the `u64` addressed by `x0` and returns zero or the Darwin errno in `x0`.
 pub(crate) fn emit_entropy_seed_fill(
     code: &mut Arm64CodeBuilder,

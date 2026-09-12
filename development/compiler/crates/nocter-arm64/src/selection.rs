@@ -261,6 +261,12 @@ pub enum Arm64SelectedInstruction {
     DarwinMemoryUnmap,
     /// Closes one target descriptor and returns `(value, errno)`.
     DarwinDescriptorClose,
+    /// Reads once from an owner-certified nonblocking descriptor.
+    DarwinDescriptorRead,
+    /// Writes once to an owner-certified nonblocking descriptor.
+    DarwinDescriptorWrite,
+    /// Attempts one nonwaiting observation of an exact child.
+    DarwinProcessObserve,
     /// Performs one closed Darwin datagram operation and returns `(value, errno)`.
     DarwinDatagram(crate::DarwinDatagramOperation),
     /// Fills one 64-bit value from the target entropy source and returns its errno.

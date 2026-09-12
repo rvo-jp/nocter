@@ -132,6 +132,30 @@ noalloc func close_pipe_write(pipe: &+OwnedPipe): void {
 }
 
 #target: "arm64-darwin"
+noalloc blocking func configure_descriptor_nonblocking(fd: usize): PipeConfigurationAttempt {
+    var flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFL, 0)
+    while flags.errno == darwin.ERRNO_INTERRUPTED {
+        flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFL, 0)
+    }
+    if flags.errno != 0 { return PipeConfigurationAttempt.failed(flags.errno) }
+    var configured_flags = flags.value
+    if configured_flags / darwin.O_NONBLOCK % 2 == 0 {
+        configured_flags += darwin.O_NONBLOCK
+    }
+    var result = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_SETFL, configured_flags)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_SETFL, configured_flags)
+    }
+    if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
+    return PipeConfigurationAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc blocking func configure_pipe_reader_for_async_io(pipe: &OwnedPipe): PipeConfigurationAttempt {
+    return configure_descriptor_nonblocking(pipe_read_fd(pipe))
+}
+
+#target: "arm64-darwin"
 noalloc blocking func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): PipeConfigurationAttempt {
     var result = darwin.syscall3(
         darwin.SYS_FCNTL,
@@ -148,42 +172,7 @@ noalloc blocking func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): Pipe
         )
     }
     if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
-
-    var flags = darwin.syscall3(
-        darwin.SYS_FCNTL,
-        pipe_write_fd(pipe),
-        darwin.F_GETFL,
-        0,
-    )
-    while flags.errno == darwin.ERRNO_INTERRUPTED {
-        flags = darwin.syscall3(
-            darwin.SYS_FCNTL,
-            pipe_write_fd(pipe),
-            darwin.F_GETFL,
-            0,
-        )
-    }
-    if flags.errno != 0 { return PipeConfigurationAttempt.failed(flags.errno) }
-    var configured_flags = flags.value
-    if configured_flags / darwin.O_NONBLOCK % 2 == 0 {
-        configured_flags += darwin.O_NONBLOCK
-    }
-    result = darwin.syscall3(
-        darwin.SYS_FCNTL,
-        pipe_write_fd(pipe),
-        darwin.F_SETFL,
-        configured_flags,
-    )
-    while result.errno == darwin.ERRNO_INTERRUPTED {
-        result = darwin.syscall3(
-            darwin.SYS_FCNTL,
-            pipe_write_fd(pipe),
-            darwin.F_SETFL,
-            configured_flags,
-        )
-    }
-    if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
-    return PipeConfigurationAttempt.ready
+    return configure_descriptor_nonblocking(pipe_write_fd(pipe))
 }
 
 #target: "arm64-darwin"

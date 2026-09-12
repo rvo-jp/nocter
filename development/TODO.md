@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 2 is complete on
-`develop-v0.49.0`. Every synchronous launch now acquires one private child owner immediately after
-fork. Exact terminal observation disarms it; every remaining owner synchronously terminates its
-child and transfers only reaping to a compiler-owned Darwin worker without blocking the caller.
+Nocter v0.48.0 is published and externally audited. v0.49.0 Phase 3 is in progress on
+`develop-v0.49.0`. Public `Stdio`, `ProcessIo`, `Child`, and pipe endpoint values now have one shared
+ownership model and a qualified `spawn_blocking` path. Descriptor transfer is exact-once, untaken
+endpoints close before observation, and child/endpoint destruction remains cleanup-safe.
 
 ## Next Work
 
-Implement v0.49.0 Phase 3 as one public process-value change: add `Stdio`, `ProcessIo`, `Child`,
-`ChildStdin`, `ChildStdout`, and `ChildStderr`; expose async and explicit blocking spawn and
-observation; and make endpoint transfer consume exactly one owner while all untaken endpoints
-remain cleanup-safe.
+Complete v0.49.0 Phase 3 with a canonical executor-safe `Command.spawn`. A blocking implementation
+cannot be called from an async body, so do not alias or wrap `spawn_blocking`. Introduce one closed
+nonblocking launch authority whose future owns every prepared command, report channel, child, and
+endpoint across cancellation; then prove async spawn, endpoint I/O, observation, and cancellation
+in a generated native image.
 
 Preserve every published tag and asset, including v0.48.0.
 

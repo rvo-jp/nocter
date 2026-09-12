@@ -11,3 +11,6 @@ pub(/) async func wait_descriptor_ready_or_deadline(
     writable: bool,
     deadline: u64,
 ): void
+
+/// Suspends until the target reports that one exact process may be observed without waiting.
+pub(/) async func wait_process_complete(process: usize): void

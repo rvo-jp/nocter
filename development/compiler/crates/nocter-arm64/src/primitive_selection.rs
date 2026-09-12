@@ -140,6 +140,8 @@ pub(crate) fn select(
         | PrimitiveRole::MemoryMap
         | PrimitiveRole::MemoryUnmap
         | PrimitiveRole::DescriptorClose
+        | PrimitiveRole::DescriptorRead
+        | PrimitiveRole::DescriptorWrite
         | PrimitiveRole::DatagramSocketOpen
         | PrimitiveRole::DatagramSocketConfigure
         | PrimitiveRole::DatagramBind
@@ -154,6 +156,7 @@ pub(crate) fn select(
         | PrimitiveRole::WallClockRead
         | PrimitiveRole::TimeoutWait
         | PrimitiveRole::ProcessExit
+        | PrimitiveRole::ProcessObserve
         | PrimitiveRole::MonotonicCounterRead
         | PrimitiveRole::MonotonicCounterFrequency
         | PrimitiveRole::MonotonicCounterDelta

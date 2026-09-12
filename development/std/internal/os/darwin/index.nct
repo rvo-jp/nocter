@@ -111,6 +111,9 @@ pub(/) const STDERR_FD: usize
 pub(/) const OPEN_READ_ONLY: usize
 
 #target: "arm64-darwin"
+pub(/) const OPEN_WRITE_ONLY: usize
+
+#target: "arm64-darwin"
 pub(/) const OPEN_DIRECTORY_ONLY: usize
 
 #target: "arm64-darwin"
