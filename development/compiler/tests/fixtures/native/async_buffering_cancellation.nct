@@ -1,0 +1,188 @@
+use std/io.{Reader, Writer}
+use std/io/buffer.{BufReader, BufWriter}
+use std/string.String
+use std/task
+use std/task.Timeout
+use std/time
+use std/time.Duration
+use std/vec.Vec
+
+struct Counter {
+    value: i32
+}
+
+struct StagedReader {
+    stage: usize
+    counter: &+Counter
+}
+
+instance StagedReader {
+    impl Reader
+
+    async method &+self.read(buffer: &+[u8]): usize! {
+        if self.stage == 0 {
+            buffer[0] = 112
+            buffer[1] = 97
+            buffer[2] = 114
+            buffer[3] = 116
+            buffer[4] = 105
+            buffer[5] = 97
+            buffer[6] = 108
+            self.stage = 1
+            return 7
+        }
+        if self.stage == 1 {
+            await time.sleep(Duration.from_milliseconds(20))
+            buffer[0] = 32
+            buffer[1] = 108
+            buffer[2] = 105
+            buffer[3] = 110
+            buffer[4] = 101
+            buffer[5] = 10
+            self.stage = 2
+            return 6
+        }
+        return 0
+    }
+}
+
+drop StagedReader(&+self) {
+    self.counter.value += 1
+    return
+}
+
+struct DelayedWriter {
+    counter: &+Counter
+}
+
+instance DelayedWriter {
+    impl Writer
+
+    async method &+self.write(bytes: &[u8]): void! {
+        await time.sleep(Duration.from_milliseconds(20))
+        let _length = bytes.len()
+        return
+    }
+}
+
+drop DelayedWriter(&+self) {
+    self.counter.value += 1
+    return
+}
+
+struct InvalidReader {}
+
+instance InvalidReader {
+    impl Reader
+
+    async method &+self.read(buffer: &+[u8]): usize! {
+        return buffer.len() + 1
+    }
+}
+
+struct FailingWriter {}
+
+instance FailingWriter {
+    impl Writer
+
+    async method &+self.write(bytes: &[u8]): void! {
+        let _length = bytes.len()
+        return error.new("fixture.write", "fixture rejected output")
+    }
+}
+
+struct Flushed {}
+
+async func flush_marker(writer: &+BufWriter<DelayedWriter>): Flushed! {
+    await writer.flush()?
+    return Flushed {}
+}
+
+async func check_reader(counter: &+Counter): i32! {
+    var reader = BufReader.with_capacity(
+        StagedReader { stage: 0, counter: counter },
+        8,
+    )
+    let cancelled = await task.with_timeout(
+        reader.read_line(),
+        Duration.from_milliseconds(2),
+    )
+    match move cancelled {
+        Timeout.completed(_) { return 1 }
+        Timeout.elapsed {}
+    }
+    var prefix: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    if await reader.read(&+prefix)? != 7 { return 2 }
+    let prefix_text = String.from_utf8(&prefix)?
+    if (&prefix_text as &str) != "partial" { return 3 }
+    let remainder = await reader.read_line()? otherwise { return 4 }
+    if (&remainder as &str) != " line" { return 5 }
+    let _after_eof = await reader.read_line()? otherwise { return 0 }
+    return 6
+}
+
+async func check_writer(counter: &+Counter): i32! {
+    var writer = BufWriter.with_capacity(DelayedWriter { counter: counter }, 8)
+    await writer.write_text("x")?
+    let cancelled = await task.with_timeout(
+        flush_marker(&+writer),
+        Duration.from_milliseconds(2),
+    )
+    match move cancelled {
+        Timeout.completed(_) { return 1 }
+        Timeout.elapsed {}
+    }
+    await writer.write_text("y") catch failure {
+        if failure.has_code("std.io.closed") { return 0 }
+        return 2
+    }
+    return 3
+}
+
+async func check_invalid_count(): i32! {
+    var reader = BufReader.with_capacity(InvalidReader {}, 4)
+    var bytes: Vec<u8> = Vec [u8.truncate(0)]
+    let _count = await reader.read(&+bytes) catch failure {
+        if !failure.has_code("std.io.invalid_read_count") { return 1 }
+        if await reader.read(&+bytes)? != 0 { return 2 }
+        return 0
+    }
+    return 3
+}
+
+async func check_failed_writer(): i32! {
+    var writer = BufWriter.with_capacity(FailingWriter {}, 1)
+    await writer.write_text("ab") catch failure {
+        if !failure.has_code("fixture.write") { return 1 }
+        await writer.flush() catch terminal {
+            if terminal.has_code("std.io.closed") { return 0 }
+            return 2
+        }
+        return 3
+    }
+    return 4
+}
+
+async func main(): i32! {
+    var reader_drops = Counter { value: 0 }
+    let reader = await check_reader(&+reader_drops)?
+    if reader != 0 { return reader }
+    if reader_drops.value != 1 { return 7 }
+    var writer_drops = Counter { value: 0 }
+    let writer = await check_writer(&+writer_drops)?
+    if writer != 0 { return 10 + writer }
+    if writer_drops.value != 1 { return 14 }
+    let invalid = await check_invalid_count()?
+    if invalid != 0 { return 20 + invalid }
+    let failed = await check_failed_writer()?
+    if failed != 0 { return 30 + failed }
+    return 0
+}

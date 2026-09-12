@@ -2,23 +2,22 @@
 
 ## Current State
 
-Nocter v0.47.0 is published and externally audited. v0.48.0 Phases 0 through 4 are complete on
-`develop-v0.48.0`: both execution surfaces now have qualified generic buffered byte adapters over
-their ordinary interfaces. `BlockingBufReader<R>` and `BlockingBufWriter<W>` are explicit
-synchronous types; `BufReader<R>` and `BufWriter<W>` are canonical executor-safe types with
-cancellation-stable reader scratch and terminal-before-await writer transitions. No type is tied to
-`File`, and no old blocking name or close-shaped wrapper API remains. Native qualification covers
-one-byte TCP refills, memory-backed suspension, malformed progress, failure, cancellation, and
-exact-once drop. The public async loopback application and the complete semantic-editor query
-surface now exercise the generic async adapters without special treatment.
+Nocter v0.47.0 is published and externally audited. v0.48.0 Phases 0 through 5 are complete on
+`develop-v0.48.0`. Both execution surfaces have qualified generic buffered byte adapters over their
+ordinary interfaces. `BlockingBufReader<R>` and `BlockingBufWriter<W>` are explicit synchronous
+types; `BufReader<R>` and `BufWriter<W>` are canonical executor-safe types with cancellation-stable
+reader scratch and terminal-before-await writer transitions. No type is tied to `File`, and no old
+blocking name or close-shaped wrapper API remains. Native qualification covers one-byte TCP
+refills, memory-backed suspension, malformed progress, failure, cancellation, and exact-once drop.
+The public async loopback application and complete semantic-editor query surface exercise the
+generic async adapters without special treatment. Whole-area review and the complete disposable
+compiler gate pass with no open practical implementation finding.
 
 ## Next Work
 
-Implement v0.48.0 Phase 5 as one whole-area review and release-readiness boundary. Review for
-file-specific remnants, compatibility aliases, execution-name inversion, duplicate buffering
-loops, transport branches, repeated dispatch, cancellation holes, reverse dependencies, and
-caller-trust contracts. Run the complete compiler, standard-library, examples, documentation,
-formatting, and repository gates. Stop before changing release identity or publishing.
+Prepare v0.48.0 for release only after explicit user direction. Release preparation must update the
+candidate identity, rebuild and qualify the installation archive, rerun the release gates against
+the exact candidate, and stop before publication unless publication is separately authorized.
 
 Preserve every published tag and asset, including v0.47.0.
 

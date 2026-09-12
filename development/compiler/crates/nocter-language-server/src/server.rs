@@ -2031,6 +2031,15 @@ mod tests {
         );
         let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
 
+        assert_async_buffer_read_assistance(&mut server, &source_uri, source_text);
+        assert_async_buffer_source_projection(&mut server, &source_uri, source_text);
+    }
+
+    fn assert_async_buffer_read_assistance(
+        server: &mut LanguageServer,
+        source_uri: &str,
+        source_text: &str,
+    ) {
         let read_line_line = source_text
             .lines()
             .position(|line| line.contains("reader.read_line()?"))
@@ -2083,7 +2092,13 @@ mod tests {
             "{:?}",
             implementation.issue()
         );
+    }
 
+    fn assert_async_buffer_source_projection(
+        server: &mut LanguageServer,
+        source_uri: &str,
+        source_text: &str,
+    ) {
         let read_into_line = source_text
             .lines()
             .position(|line| line.contains("read_line_into(destination)"))

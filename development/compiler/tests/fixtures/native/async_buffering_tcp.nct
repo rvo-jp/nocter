@@ -1,0 +1,56 @@
+use std/io.{Reader, Writer}
+use std/io/buffer.{BufReader, BufWriter}
+use std/net
+use std/string.String
+use std/task
+
+struct Sent {}
+
+async func send(stream: net.TcpStream): Sent! {
+    var writer = BufWriter.with_capacity(move stream, 0)
+    await writer.write_text("\nalpha\r\n😀 split\nfinal")?
+    var returned = await writer.finish()?
+    returned.close()
+    return Sent {}
+}
+
+async func receive(stream: net.TcpStream): i32! {
+    var reader = BufReader.with_capacity(move stream, 0)
+    var line = String.with_capacity(16)
+    if !await reader.read_line_into(&+line)? || (&line as &str) != "" { return 1 }
+    if !await reader.read_line_into(&+line)? || (&line as &str) != "alpha" { return 2 }
+    if !await reader.read_line_into(&+line)? || (&line as &str) != "😀 split" { return 3 }
+    let final_line = await reader.read_line()? otherwise { return 4 }
+    if (&final_line as &str) != "final" { return 5 }
+    let _after_eof = await reader.read_line()? otherwise {
+        var source = reader.finish()
+        source.close()
+        return 0
+    }
+    return 6
+}
+
+async func main(): i32! {
+    let address = net.SocketAddress.new(
+        net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),
+        0,
+    )
+    var listener = await net.bind_tcp(address)?
+    let listening = listener.local_address()?
+    let connection = await task.join(
+        net.connect_tcp(listening),
+        listener.accept(),
+    )
+    let client_result = move connection.0
+    let accepted_result = move connection.1
+    let client = move client_result?
+    let accepted = move accepted_result?
+    let streams = await task.join(
+        send(move client),
+        receive(move accepted.0),
+    )
+    let status = move streams.1?
+    if status != 0 { return status }
+    let _sent = move streams.0?
+    return status
+}
