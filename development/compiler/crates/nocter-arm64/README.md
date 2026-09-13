@@ -98,6 +98,9 @@ source, loader commands, or package state.
   drop, explicit-close future drive/cancel/consume, worker dispatch, wake notification, and group
   accounting. Reusable records publish `Available` only after transient descriptor, failure,
   readiness, and allocation-context state is cleared.
+- Generated service counts use shared acquire/release bounded-increment and non-zero-decrement
+  emitters. Saturation and underflow cannot wrap, and callers cannot omit lost-reservation retry or
+  exclusive-reservation cleanup.
 - Native process registration treats `ESRCH` as immediate readiness only after validating that the
   failed change originated from a process interest. This closes exit-before-registration without
   reaping status or introducing periodic probes. Interrupted and capped waits always recalculate

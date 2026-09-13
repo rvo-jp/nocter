@@ -119,6 +119,136 @@ impl Arm64CodeBuilder {
         self.branch(mismatch, false);
         Ok(())
     }
+
+    /// Atomically increments one 64-bit count only while it is below `maximum`.
+    ///
+    /// The successful path has acquire/release ordering and leaves the incremented value in the
+    /// observed register. Saturation clears the exclusive reservation before branching. Lost
+    /// reservations retry internally.
+    ///
+    /// # Errors
+    ///
+    /// Propagates an internal label-binding failure.
+    pub fn append_atomic_bounded_increment(
+        &mut self,
+        registers: Arm64AtomicUpdateRegisters,
+        maximum: u16,
+        success: Arm64LabelId,
+        saturated: Arm64LabelId,
+    ) -> Result<(), Arm64CodeError> {
+        let retry = self.create_label();
+        let limit_reached = self.create_label();
+        self.bind(retry)?;
+        self.append(Arm64Instruction::LoadAcquireExclusive {
+            size: Arm64DataSize::Bits64,
+            destination: Arm64DataRegister::General(registers.observed),
+            base: Arm64BaseRegister::General(registers.address),
+        });
+        self.append(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: true,
+            destination: Arm64AddSubtractDestination::Zero,
+            source: Arm64BaseRegister::General(registers.observed),
+            immediate: maximum,
+            shift_12: false,
+        });
+        self.branch_conditional(limit_reached, Arm64BranchCondition::CarrySet);
+        self.append(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::General(registers.observed),
+            source: Arm64BaseRegister::General(registers.observed),
+            immediate: 1,
+            shift_12: false,
+        });
+        self.append(Arm64Instruction::StoreReleaseExclusive {
+            size: Arm64DataSize::Bits64,
+            status: registers.status,
+            source: Arm64DataRegister::General(registers.observed),
+            base: Arm64BaseRegister::General(registers.address),
+        });
+        self.append(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits32,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: true,
+            destination: Arm64AddSubtractDestination::Zero,
+            source: Arm64BaseRegister::General(registers.status),
+            immediate: 0,
+            shift_12: false,
+        });
+        self.branch_conditional(retry, Arm64BranchCondition::NotEqual);
+        self.branch(success, false);
+        self.bind(limit_reached)?;
+        self.append(Arm64Instruction::ClearExclusive);
+        self.branch(saturated, false);
+        Ok(())
+    }
+
+    /// Atomically decrements one non-zero 64-bit count.
+    ///
+    /// The successful path has acquire/release ordering and leaves the decremented value in the
+    /// observed register. Zero is rejected without wrapping, and lost reservations retry.
+    ///
+    /// # Errors
+    ///
+    /// Propagates an internal label-binding failure.
+    pub fn append_atomic_nonzero_decrement(
+        &mut self,
+        registers: Arm64AtomicUpdateRegisters,
+        success: Arm64LabelId,
+        underflow: Arm64LabelId,
+    ) -> Result<(), Arm64CodeError> {
+        let retry = self.create_label();
+        let zero = self.create_label();
+        self.bind(retry)?;
+        self.append(Arm64Instruction::LoadAcquireExclusive {
+            size: Arm64DataSize::Bits64,
+            destination: Arm64DataRegister::General(registers.observed),
+            base: Arm64BaseRegister::General(registers.address),
+        });
+        self.append(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: true,
+            destination: Arm64AddSubtractDestination::Zero,
+            source: Arm64BaseRegister::General(registers.observed),
+            immediate: 0,
+            shift_12: false,
+        });
+        self.branch_conditional(zero, Arm64BranchCondition::Equal);
+        self.append(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: false,
+            destination: Arm64AddSubtractDestination::General(registers.observed),
+            source: Arm64BaseRegister::General(registers.observed),
+            immediate: 1,
+            shift_12: false,
+        });
+        self.append(Arm64Instruction::StoreReleaseExclusive {
+            size: Arm64DataSize::Bits64,
+            status: registers.status,
+            source: Arm64DataRegister::General(registers.observed),
+            base: Arm64BaseRegister::General(registers.address),
+        });
+        self.append(Arm64Instruction::AddSubtractImmediate {
+            size: Arm64DataSize::Bits32,
+            operation: Arm64AddSubtract::Subtract,
+            set_flags: true,
+            destination: Arm64AddSubtractDestination::Zero,
+            source: Arm64BaseRegister::General(registers.status),
+            immediate: 0,
+            shift_12: false,
+        });
+        self.branch_conditional(retry, Arm64BranchCondition::NotEqual);
+        self.branch(success, false);
+        self.bind(zero)?;
+        self.append(Arm64Instruction::ClearExclusive);
+        self.branch(underflow, false);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -128,6 +258,10 @@ mod tests {
 
     fn x(number: u8) -> Arm64Register {
         Arm64Register::new(number).unwrap()
+    }
+
+    fn registers() -> Arm64AtomicUpdateRegisters {
+        Arm64AtomicUpdateRegisters::new(x(0), x(1), x(2)).unwrap()
     }
 
     #[test]
@@ -168,5 +302,36 @@ mod tests {
         assert_eq!(words[8], 0xd503_3f5f);
         assert_eq!(code.label_offset(success), Some(40));
         assert_eq!(code.label_offset(mismatch), Some(44));
+    }
+
+    #[test]
+    fn bounded_count_operations_close_saturation_and_underflow() {
+        let mut code = Arm64CodeBuilder::new();
+        let incremented = code.create_label();
+        let saturated = code.create_label();
+        code.append_atomic_bounded_increment(registers(), 64, incremented, saturated)
+            .unwrap();
+        code.bind(incremented).unwrap();
+        code.append(Arm64Instruction::NoOperation);
+        code.bind(saturated).unwrap();
+        let decremented = code.create_label();
+        let underflow = code.create_label();
+        code.append_atomic_nonzero_decrement(registers(), decremented, underflow)
+            .unwrap();
+        code.bind(decremented).unwrap();
+        code.append(Arm64Instruction::NoOperation);
+        code.bind(underflow).unwrap();
+        code.append(Arm64Instruction::NoOperation);
+        let code = code.finish().unwrap();
+        let words = code
+            .bytes()
+            .chunks_exact(4)
+            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+            .collect::<Vec<_>>();
+        assert_eq!(words.iter().filter(|word| **word == 0xd503_3f5f).count(), 2);
+        assert!(code.label_offset(incremented).is_some());
+        assert!(code.label_offset(saturated).is_some());
+        assert!(code.label_offset(decremented).is_some());
+        assert!(code.label_offset(underflow).is_some());
     }
 }
