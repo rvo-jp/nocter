@@ -231,6 +231,14 @@ pub struct BlockingJobService<I, O> {
     inner: Arc<Mutex<Inner<I, O>>>,
 }
 
+impl<I, O> Clone for BlockingJobService<I, O> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
 impl<I, O> BlockingJobService<I, O> {
     #[must_use]
     pub fn new(capacity: ServiceCapacity) -> Self {

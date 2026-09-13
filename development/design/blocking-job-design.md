@@ -12,14 +12,16 @@ standard operation policy
   -> bounded blocking-job service
   -> target worker adapter
   -> typed owned job outcome
-  -> generation-qualified completion interest
+  -> wake-only descriptor readiness
+  -> exact JobId observation
   -> task reactor and suspended computation
 ```
 
 `nocter-blocking-runtime` is the sole lifecycle and capacity authority. It does not execute or
 classify a filesystem operation. A target adapter owns native worker creation, synchronization, and
-wakeup transport. The runtime contract owns the closed completion identity and ABI projection. The
-task runtime consumes only an opaque interest and cannot access job inputs or outcomes.
+wakeup transport. The task runtime consumes only its existing readable-descriptor interest and
+cannot access job identities, inputs, or outcomes. Job-specific completion remains a query against
+the lifecycle authority after wakeup; the reactor never becomes a second result index.
 
 ## Ownership
 
@@ -46,7 +48,9 @@ saturation is not reported as an operating-system or public filesystem failure.
 
 An epoch signals only that admission capacity changed. It cannot identify, complete, or consume a
 job. Job IDs are monotonic and never reused, so a stale completion cannot become valid for a later
-job. The completion adapter still validates current lifecycle state before publishing readiness.
+job. A shared nonblocking descriptor wakes suspended computations after completion or capacity
+change. Its bytes contain no result identity and may be coalesced: every resumed computation polls
+its exact JobId or epoch before deciding whether to complete or suspend again.
 
 ## Shutdown
 

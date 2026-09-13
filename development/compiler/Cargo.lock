@@ -1837,6 +1837,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-darwin-blocking-service"
+version = "0.0.0"
+dependencies = [
+ "nocter-blocking-runtime",
+ "nocter-darwin-reactor",
+ "nocter-task-runtime",
+]
+
+[[package]]
 name = "nocter-darwin-event-queue"
 version = "0.0.0"
 dependencies = [

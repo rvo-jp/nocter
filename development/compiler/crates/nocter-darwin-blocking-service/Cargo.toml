@@ -1,0 +1,17 @@
+[package]
+name = "nocter-darwin-blocking-service"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-blocking-runtime = { path = "../nocter-blocking-runtime" }
+
+[dev-dependencies]
+nocter-darwin-reactor = { path = "../nocter-darwin-reactor" }
+nocter-task-runtime = { path = "../nocter-task-runtime" }
+
+[lints]
+workspace = true
