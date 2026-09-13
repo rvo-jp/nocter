@@ -172,9 +172,22 @@ semantic readiness destination before any future performs its exact state query.
 The closed file-service import catalog is the only layer allowed to select these Darwin system
 symbols; generated instruction code receives typed import identities.
 
+The source primitive boundary uses two package-internal opaque storage declarations. `FileOwner`
+is one retirement-record handle; `FileCompletion` has the runtime-owned uniform completion layout.
+Target-program validation binds both declarations to closed storage roles before Machine assigns
+their ABI. Source policy can take the owner or read an individual scalar only through exact
+primitive roles. Taking or disposing clears the owner slot first, so subsequent implicit
+destruction is inert and cannot retire the same descriptor twice.
+
+ARM64 scans the frozen Machine primitive targets once and declares the complete file target family
+only when a file role is reachable. That family is the sole mapping from source roles to job
+constructors, explicit close, ownership disposal, and completion accessors. Its shutdown entry is
+published through the generic process-finalizer catalog and runs once on each ordinary process-root
+return after source cleanup. A target with no file role has no file-service code or imports.
+
 ## Completion Gate
 
-Phase 1 is complete only after generated Darwin executables use this ownership path, `File` and
+Phase 1 is complete only after `File` and
 `BlockingFile` replace the former blocking-only surface in one migration, standard whole-file
 helpers select the correct execution surface, compiler and editor projections show the checked
 contracts, cancellation and drop are exercised through native execution, and no old alias or

@@ -55,7 +55,7 @@ impl Arm64SelectedFunction {
             for instruction in block.instructions() {
                 emit_instruction(context, instruction, &mut code)?;
             }
-            emit_terminator(self, block.terminator(), &labels, &mut code)?;
+            emit_terminator(self, primitives, block.terminator(), &labels, &mut code)?;
         }
         code.finish().map_err(Arm64MaterializationError::Code)
     }
@@ -520,6 +520,11 @@ pub(crate) fn emit_instruction(
             .and_then(|targets| targets.target(primitive))
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingNetworkPrimitiveTarget),
+        Arm64SelectedInstruction::CallDarwinFilePrimitive(primitive) => context
+            .primitives
+            .file()
+            .map(|targets| code.call(targets.target(primitive)))
+            .ok_or(Arm64MaterializationError::MissingFilePrimitiveTarget),
         Arm64SelectedInstruction::CallDarwinProcessAbandon => context
             .primitives
             .process()
@@ -974,6 +979,7 @@ fn load_from_address(
 
 pub(crate) fn emit_terminator(
     function: &Arm64SelectedFunction,
+    primitives: &crate::primitive_targets::Arm64PrimitiveTargets,
     terminator: &Arm64SelectedTerminator,
     labels: &[(MachineBlockId, crate::Arm64LabelId)],
     code: &mut Arm64CodeBuilder,
@@ -1016,6 +1022,7 @@ pub(crate) fn emit_terminator(
             fallback,
         } => crate::switch_code::emit(function, subject, cases, fallback, labels, code)?,
         Arm64SelectedTerminator::Return => {
+            crate::process_finalizer_code::emit(function, primitives, code)?;
             Arm64FrameCode::emit_epilogue(function.frame().layout(), code);
         }
         Arm64SelectedTerminator::Suspend { .. } | Arm64SelectedTerminator::DeferredReturn(_) => {
@@ -1315,6 +1322,7 @@ pub enum Arm64MaterializationError {
     MissingAsyncFramePointer,
     MissingAsyncPrimitiveTarget,
     MissingNetworkPrimitiveTarget,
+    MissingFilePrimitiveTarget,
     MissingProcessPrimitiveTarget,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),

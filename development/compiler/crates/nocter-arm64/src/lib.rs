@@ -41,6 +41,7 @@ mod darwin_file_job_constructor;
 mod darwin_file_job_execution;
 mod darwin_file_job_worker;
 mod darwin_file_lifecycle;
+mod darwin_file_primitive_targets;
 mod darwin_file_retirement;
 mod darwin_file_service;
 mod darwin_file_service_root;
@@ -103,6 +104,7 @@ mod primitive_memory_selection;
 mod primitive_selection;
 mod primitive_targets;
 mod process_code;
+mod process_finalizer_code;
 mod process_selection;
 mod program;
 mod region_code;
@@ -156,6 +158,9 @@ pub use darwin_file_job::{Arm64DarwinFileJobError, Arm64DarwinFileJobTargets};
 pub use darwin_file_lifecycle::{
     Arm64DarwinFileLifecycleError, emit_darwin_file_job_transition,
     emit_darwin_file_retirement_transition, emit_darwin_file_service_transition,
+};
+pub use darwin_file_primitive_targets::{
+    Arm64DarwinFilePrimitive, Arm64DarwinFilePrimitiveError, Arm64DarwinFilePrimitiveTargets,
 };
 pub use darwin_file_retirement::{
     Arm64DarwinFileRetirementError, Arm64DarwinFileRetirementTargets,

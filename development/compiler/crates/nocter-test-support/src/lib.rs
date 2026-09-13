@@ -418,6 +418,51 @@ pub async func process_completion_for_test(process: usize): void {
 ";
 const INTERNAL_IO_SOURCE: &str = "\
 pub(/) primitive type FileOwner
+pub(/) primitive type FileCompletion
+#target: \"arm64-darwin\"
+primitive func file_open_raw(path: &str, access: usize): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_flush_raw(owner: FileOwner): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_seek_raw(owner: FileOwner, origin: usize, displacement: i64): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_truncate_raw(owner: FileOwner, length: usize): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_read_at_raw(owner: FileOwner, destination: &+[u8], offset: u64): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_write_at_raw(owner: FileOwner, source: &[u8], offset: u64): future FileCompletion from static
+#target: \"arm64-darwin\"
+noalloc primitive func file_close_raw(owner: FileOwner): future FileCompletion from static
+#target: \"arm64-darwin\"
+noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_take_owner_raw(completion: &+FileCompletion): FileOwner from static
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_transferred_byte_count_raw(completion: &FileCompletion): usize
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_result_position_raw(completion: &FileCompletion): usize
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_failure_kind_raw(completion: &FileCompletion): usize
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_failure_errno_raw(completion: &FileCompletion): usize
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_dispose_raw(completion: &+FileCompletion): void
+noalloc drop FileOwner(&+self) {
+    file_owner_dispose_raw(self)
+    return
+}
+noalloc drop FileCompletion(&+self) {
+    file_completion_dispose_raw(self)
+    return
+}
+pub async func file_open_for_test(path: &str): usize {
+    let completion = await file_open_raw(path, 0)
+    return file_completion_failure_kind_raw(&completion)
+}
 ";
 const INTERNAL_NET_MODEL_SOURCE: &str = "\
 pub(/) primitive type NetworkOwner

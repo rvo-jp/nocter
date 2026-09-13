@@ -1,11 +1,85 @@
 //! Package-internal policy shared by public I/O modules.
 
 see ./errors.nct
+see ./lifecycle.nct
 
 use /internal/os.{OSError, OSErrorKind}
 
 /// Opaque, uniquely owned generated-service handle for one open local file.
 pub(/) primitive type FileOwner
+
+/// Opaque, uniformly laid-out result of one generated local-file operation.
+pub(/) primitive type FileCompletion
+
+#target: "arm64-darwin"
+primitive func file_open_raw(path: &str, access: usize): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_flush_raw(owner: FileOwner): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_seek_raw(
+    owner: FileOwner,
+    origin: usize,
+    displacement: i64,
+): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_truncate_raw(owner: FileOwner, length: usize): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_read_at_raw(
+    owner: FileOwner,
+    destination: &+[u8],
+    offset: u64,
+): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_write_at_raw(
+    owner: FileOwner,
+    source: &[u8],
+    offset: u64,
+): future FileCompletion from static
+
+#target: "arm64-darwin"
+noalloc primitive func file_close_raw(owner: FileOwner): future FileCompletion from static
+
+#target: "arm64-darwin"
+noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_take_owner_raw(
+    completion: &+FileCompletion,
+): FileOwner from static
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_transferred_byte_count_raw(
+    completion: &FileCompletion,
+): usize
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_result_position_raw(
+    completion: &FileCompletion,
+): usize
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_failure_kind_raw(
+    completion: &FileCompletion,
+): usize
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_failure_errno_raw(
+    completion: &FileCompletion,
+): usize
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_dispose_raw(completion: &+FileCompletion): void
 
 /// Maps one target-independent OS classification to the stable public I/O error family.
 pub(/) noalloc func io_error_from_os(os_error: OSError): error

@@ -104,6 +104,12 @@ source, loader commands, or package state.
   completion record. Workers retain their notification descriptor and group before publishing
   completion, so successful publication is also the point after which they never inspect frame
   storage again.
+- Source-visible file roles select that family through two opaque runtime-storage declarations.
+  `FileCompletion` owns the uniform five-word result layout; compiler-generated drop calls clear
+  and retire an unclaimed owner rather than requiring source policy to reconstruct target fields.
+  When any file role is reachable, the process root invokes the family's shutdown target after
+  source cleanup and before its normal return epilogue. A program with no file role declares
+  neither the family nor its loader imports.
 - Generated service counts use shared acquire/release bounded-increment and non-zero-decrement
   emitters. Saturation and underflow cannot wrap, and callers cannot omit lost-reservation retry or
   exclusive-reservation cleanup.

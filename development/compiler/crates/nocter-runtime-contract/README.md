@@ -17,6 +17,7 @@ public source-level imports.
 
 - primitive role identities
 - closed allocation and synchronous-blocking evidence for primitive roles
+- hidden allocation/process context requirements for primitive roles
 - explicit drive-safety certificates for primitive roles that construct `future T`
 - kind-preserving trusted function/data symbol identities and operating-system library identities,
   without concrete loader paths
@@ -67,6 +68,8 @@ public source-level imports.
   IPv4 or IPv6 socket records. Provider path and endpoint ownership never enters source storage.
 - Primitive effect facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
+- Primitive hidden-context requirements are keyed by the same closed roles. Machine planning
+  consumes that contract and cannot maintain a second target-call classification.
 - A primitive role may immediately construct an opaque asynchronous value. This does not classify
   the primitive as a deferred Nocter body; the role, result contract, and target helper jointly
   define the construction boundary.

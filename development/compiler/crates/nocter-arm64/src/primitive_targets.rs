@@ -5,7 +5,8 @@ use nocter_machine::{MachineCallTarget, MachineOperationKind};
 use nocter_runtime_contract::RuntimeAbiIdentity;
 
 use crate::{
-    Arm64AsyncPrimitiveTargets, Arm64DarwinNetworkPrimitiveAbis, Arm64DarwinNetworkPrimitiveError,
+    Arm64AsyncPrimitiveTargets, Arm64DarwinFilePrimitiveError, Arm64DarwinFilePrimitiveTargets,
+    Arm64DarwinNetworkPrimitiveAbis, Arm64DarwinNetworkPrimitiveError,
     Arm64DarwinNetworkPrimitiveTargets, Arm64DarwinProcessServiceError,
     Arm64DarwinProcessServiceTargets, Arm64ProgramBuilder,
 };
@@ -17,6 +18,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Arm64PrimitiveTargets {
     asynchronous: Arm64AsyncPrimitiveTargets,
+    file: Option<Arm64DarwinFilePrimitiveTargets>,
     network: Option<Arm64DarwinNetworkPrimitiveTargets>,
     process: Option<Arm64DarwinProcessServiceTargets>,
 }
@@ -51,8 +53,18 @@ impl Arm64PrimitiveTargets {
         {
             return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi.into());
         }
+        if roles
+            .iter()
+            .copied()
+            .any(|role| crate::Arm64DarwinFilePrimitive::from_role(role).is_some())
+            && machine.layouts().target().runtime_schema()
+                != RuntimeAbiIdentity::Arm64DarwinV1.schema()
+        {
+            return Err(Arm64DarwinFilePrimitiveError::RuntimeAbi.into());
+        }
         Ok(Self {
             asynchronous: Arm64AsyncPrimitiveTargets::declare(&roles, builder),
+            file: Arm64DarwinFilePrimitiveTargets::declare(&roles, builder)?,
             network: Arm64DarwinNetworkPrimitiveTargets::declare(
                 machine,
                 &roles,
@@ -71,14 +83,26 @@ impl Arm64PrimitiveTargets {
         self.network
     }
 
+    pub(crate) const fn file(self) -> Option<Arm64DarwinFilePrimitiveTargets> {
+        self.file
+    }
+
     pub(crate) const fn process(self) -> Option<Arm64DarwinProcessServiceTargets> {
         self.process
+    }
+
+    /// Returns target-service finalizers in their fixed process-exit order.
+    pub(crate) fn process_finalizers(self) -> impl Iterator<Item = crate::Arm64FunctionId> {
+        [self.file.map(|file| file.root().shutdown())]
+            .into_iter()
+            .flatten()
     }
 }
 
 /// Failure while declaring one compiler-owned primitive helper family.
 #[derive(Debug)]
 pub enum Arm64PrimitiveTargetError {
+    File(Arm64DarwinFilePrimitiveError),
     Network(Arm64DarwinNetworkPrimitiveError),
     Process(Arm64DarwinProcessServiceError),
 }
@@ -95,9 +119,16 @@ impl fmt::Display for Arm64PrimitiveTargetError {
 impl std::error::Error for Arm64PrimitiveTargetError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::File(error) => Some(error),
             Self::Network(error) => Some(error),
             Self::Process(error) => Some(error),
         }
+    }
+}
+
+impl From<Arm64DarwinFilePrimitiveError> for Arm64PrimitiveTargetError {
+    fn from(error: Arm64DarwinFilePrimitiveError) -> Self {
+        Self::File(error)
     }
 }
 

@@ -1,0 +1,13 @@
+//! Destruction for generated local-file ownership values.
+
+see ./index.nct
+
+noalloc drop FileOwner(&+self) {
+    file_owner_dispose_raw(self)
+    return
+}
+
+noalloc drop FileCompletion(&+self) {
+    file_completion_dispose_raw(self)
+    return
+}

@@ -1138,7 +1138,7 @@ fn async_primitive_targets_follow_machine_dependencies() {
     assert_eq!(absent.task_join(), None);
     assert_eq!(absent.task_race(), None);
 
-    let present = crate::test_support::lower_machine_with_standard_uses(
+    let present_machine = crate::test_support::lower_machine_with_standard_uses(
         "use std/internal/task\n\
          use std/internal/time\n\
          func main(): i32 {\n\
@@ -1152,10 +1152,12 @@ fn async_primitive_targets_follow_machine_dependencies() {
         &[&["internal", "task"], &["internal", "time"]],
     );
     let mut present_builder = crate::Arm64ProgramBuilder::new();
-    let present =
-        crate::primitive_targets::Arm64PrimitiveTargets::declare(&present, &mut present_builder)
-            .unwrap()
-            .asynchronous();
+    let present = crate::primitive_targets::Arm64PrimitiveTargets::declare(
+        &present_machine,
+        &mut present_builder,
+    )
+    .unwrap()
+    .asynchronous();
     assert!(present.descriptor_readiness().is_some());
     assert!(present.monotonic_deadline().is_some());
     assert_eq!(
@@ -1167,6 +1169,41 @@ fn async_primitive_targets_follow_machine_dependencies() {
     assert_eq!(present.descriptor_readiness_or_deadline(), None);
     assert_eq!(present.dual_interest_lifecycle(), None);
     assert_ne!(present.descriptor_readiness(), present.monotonic_deadline());
+}
+
+#[test]
+fn file_primitive_targets_follow_one_closed_source_role_family() {
+    let absent = crate::test_support::lower_machine("func main(): i32 { return 0 }\n");
+    let mut absent_builder = crate::Arm64ProgramBuilder::new();
+    let absent =
+        crate::primitive_targets::Arm64PrimitiveTargets::declare(&absent, &mut absent_builder)
+            .unwrap();
+    assert_eq!(absent.file(), None);
+
+    let present_machine = crate::test_support::lower_machine_with_standard_uses(
+        "use std/internal/io\n\
+         async func main(): void {\n\
+             let failure = await io.file_open_for_test(\"/dev/null\")\n\
+             return\n\
+         }\n",
+        &[&["internal", "io"]],
+    );
+    let mut present_builder = crate::Arm64ProgramBuilder::new();
+    let present = crate::primitive_targets::Arm64PrimitiveTargets::declare(
+        &present_machine,
+        &mut present_builder,
+    )
+    .unwrap()
+    .file()
+    .expect("file source role declares the complete generated target family");
+    assert_ne!(
+        present.target(crate::Arm64DarwinFilePrimitive::Open),
+        present.target(crate::Arm64DarwinFilePrimitive::CompletionDispose)
+    );
+    assert_ne!(present.root().ensure(), present.root().shutdown());
+
+    let lowered = crate::Arm64Program::lower_machine(&present_machine).unwrap();
+    assert!(!lowered.text().is_empty());
 }
 
 #[test]

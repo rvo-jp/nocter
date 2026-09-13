@@ -55,6 +55,7 @@ pub const fn bundled_runtime_storage_source_location(
     role: RuntimeStorageRole,
 ) -> (&'static [&'static str], &'static str) {
     match role {
+        RuntimeStorageRole::FileCompletion => (&["internal", "io"], "FileCompletion"),
         RuntimeStorageRole::FileOwner => (&["internal", "io"], "FileOwner"),
         RuntimeStorageRole::NetworkOwner => (&["internal", "net", "model"], "NetworkOwner"),
     }
@@ -295,6 +296,31 @@ pub const fn bundled_primitive_source_location(
         Role::ProcessAbandon => (&["process"], "abandon_process_raw"),
         Role::TaskJoin => (&["task"], "join"),
         Role::TaskRace => (&["task"], "race_raw"),
+        Role::FileOpen => (&["internal", "io"], "file_open_raw"),
+        Role::FileRead => (&["internal", "io"], "file_read_raw"),
+        Role::FileWrite => (&["internal", "io"], "file_write_raw"),
+        Role::FileFlush => (&["internal", "io"], "file_flush_raw"),
+        Role::FileSeek => (&["internal", "io"], "file_seek_raw"),
+        Role::FileTruncate => (&["internal", "io"], "file_truncate_raw"),
+        Role::FileReadAt => (&["internal", "io"], "file_read_at_raw"),
+        Role::FileWriteAt => (&["internal", "io"], "file_write_at_raw"),
+        Role::FileClose => (&["internal", "io"], "file_close_raw"),
+        Role::FileOwnerDispose => (&["internal", "io"], "file_owner_dispose_raw"),
+        Role::FileCompletionTakeOwner => (&["internal", "io"], "file_completion_take_owner_raw"),
+        Role::FileCompletionTransferredByteCount => (
+            &["internal", "io"],
+            "file_completion_transferred_byte_count_raw",
+        ),
+        Role::FileCompletionResultPosition => {
+            (&["internal", "io"], "file_completion_result_position_raw")
+        }
+        Role::FileCompletionFailureKind => {
+            (&["internal", "io"], "file_completion_failure_kind_raw")
+        }
+        Role::FileCompletionFailureErrno => {
+            (&["internal", "io"], "file_completion_failure_errno_raw")
+        }
+        Role::FileCompletionDispose => (&["internal", "io"], "file_completion_dispose_raw"),
         Role::NetworkConnectionCreate => (DARWIN_NET, "network_connection_create_raw"),
         Role::NetworkConnectionCreateHost => (DARWIN_NET, "network_connection_create_host_raw"),
         Role::NetworkTlsConnectionCreate => (DARWIN_NET, "network_tls_connection_create_raw"),

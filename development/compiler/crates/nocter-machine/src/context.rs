@@ -317,18 +317,8 @@ fn target_requires_context(
 
 fn primitive_uses_context(kind: MachineContextKind, role: PrimitiveRole) -> bool {
     match kind {
-        MachineContextKind::Allocation => matches!(
-            role,
-            PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind
-        ),
-        MachineContextKind::Process => matches!(
-            role,
-            PrimitiveRole::ProcessArgumentCount
-                | PrimitiveRole::ProcessArgument
-                | PrimitiveRole::ProcessEnvironmentCount
-                | PrimitiveRole::ProcessEnvironmentName
-                | PrimitiveRole::ProcessEnvironmentValue
-        ),
+        MachineContextKind::Allocation => role.contexts().allocation(),
+        MachineContextKind::Process => role.contexts().process(),
     }
 }
 

@@ -33,6 +33,29 @@ pub struct PrimitiveEffects {
     returns_drive_safe_future: bool,
 }
 
+/// Ambient compiler-owned capabilities required by one primitive invocation.
+///
+/// These are hidden ABI inputs, not source arguments. Keeping the requirement beside the closed
+/// primitive role prevents machine planning and target adapters from maintaining independent
+/// classifications of the same invocation contract.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PrimitiveContexts {
+    allocation: bool,
+    process: bool,
+}
+
+impl PrimitiveContexts {
+    #[must_use]
+    pub const fn allocation(self) -> bool {
+        self.allocation
+    }
+
+    #[must_use]
+    pub const fn process(self) -> bool {
+        self.process
+    }
+}
+
 impl PrimitiveEffects {
     #[must_use]
     pub const fn may_allocate(self) -> bool {
@@ -211,6 +234,34 @@ closed_role_enum! {
         TaskJoin,
         /// Takes ownership of two same-output computations and selects one deterministic winner.
         TaskRace,
+        /// Constructs one generated local-file open computation.
+        FileOpen,
+        /// Constructs one generated local-file sequential read computation.
+        FileRead,
+        /// Constructs one generated local-file sequential write computation.
+        FileWrite,
+        /// Constructs one generated local-file flush computation.
+        FileFlush,
+        /// Constructs one generated local-file seek computation.
+        FileSeek,
+        /// Constructs one generated local-file length-change computation.
+        FileTruncate,
+        /// Constructs one generated local-file positional read computation.
+        FileReadAt,
+        /// Constructs one generated local-file positional write computation.
+        FileWriteAt,
+        /// Constructs one generated local-file explicit-close computation.
+        FileClose,
+        /// Retires and clears one still-live generated local-file owner.
+        FileOwnerDispose,
+        /// Moves the returned owner out of one file completion and clears its source slot.
+        FileCompletionTakeOwner,
+        FileCompletionTransferredByteCount,
+        FileCompletionResultPosition,
+        FileCompletionFailureKind,
+        FileCompletionFailureErrno,
+        /// Retires and clears a completion's owner when policy did not take it.
+        FileCompletionDispose,
         NetworkConnectionCreate,
         NetworkConnectionCreateHost,
         NetworkTlsConnectionCreate,
@@ -369,6 +420,22 @@ impl PrimitiveRole {
             Self::ProcessAbandon => "process_abandon",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",
+            Self::FileOpen => "file_open",
+            Self::FileRead => "file_read",
+            Self::FileWrite => "file_write",
+            Self::FileFlush => "file_flush",
+            Self::FileSeek => "file_seek",
+            Self::FileTruncate => "file_truncate",
+            Self::FileReadAt => "file_read_at",
+            Self::FileWriteAt => "file_write_at",
+            Self::FileClose => "file_close",
+            Self::FileOwnerDispose => "file_owner_dispose",
+            Self::FileCompletionTakeOwner => "file_completion_take_owner",
+            Self::FileCompletionTransferredByteCount => "file_completion_transferred_byte_count",
+            Self::FileCompletionResultPosition => "file_completion_result_position",
+            Self::FileCompletionFailureKind => "file_completion_failure_kind",
+            Self::FileCompletionFailureErrno => "file_completion_failure_errno",
+            Self::FileCompletionDispose => "file_completion_dispose",
             Self::NetworkConnectionCreate
             | Self::NetworkConnectionCreateHost
             | Self::NetworkTlsConnectionCreate
@@ -465,6 +532,14 @@ impl PrimitiveRole {
                     | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
+                    | Self::FileOpen
+                    | Self::FileRead
+                    | Self::FileWrite
+                    | Self::FileFlush
+                    | Self::FileSeek
+                    | Self::FileTruncate
+                    | Self::FileReadAt
+                    | Self::FileWriteAt
             ),
             may_block: matches!(
                 self,
@@ -488,6 +563,57 @@ impl PrimitiveRole {
                     | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
+                    | Self::FileOpen
+                    | Self::FileRead
+                    | Self::FileWrite
+                    | Self::FileFlush
+                    | Self::FileSeek
+                    | Self::FileTruncate
+                    | Self::FileReadAt
+                    | Self::FileWriteAt
+                    | Self::FileClose
+            ),
+        }
+    }
+
+    /// Returns the hidden ambient capabilities consumed by this primitive's implementation.
+    #[must_use]
+    pub const fn contexts(self) -> PrimitiveContexts {
+        PrimitiveContexts {
+            allocation: matches!(
+                self,
+                Self::CurrentAllocatorState
+                    | Self::CurrentAllocatorKind
+                    | Self::DescriptorReadiness
+                    | Self::DescriptorReadinessOrDeadline
+                    | Self::MonotonicDeadline
+                    | Self::ProcessCompletion
+                    | Self::TaskJoin
+                    | Self::TaskRace
+                    | Self::FileOpen
+                    | Self::FileRead
+                    | Self::FileWrite
+                    | Self::FileFlush
+                    | Self::FileSeek
+                    | Self::FileTruncate
+                    | Self::FileReadAt
+                    | Self::FileWriteAt
+            ),
+            process: matches!(
+                self,
+                Self::ProcessArgumentCount
+                    | Self::ProcessArgument
+                    | Self::ProcessEnvironmentCount
+                    | Self::ProcessEnvironmentName
+                    | Self::ProcessEnvironmentValue
+                    | Self::FileOpen
+                    | Self::FileRead
+                    | Self::FileWrite
+                    | Self::FileFlush
+                    | Self::FileSeek
+                    | Self::FileTruncate
+                    | Self::FileReadAt
+                    | Self::FileWriteAt
             ),
         }
     }
@@ -670,6 +796,14 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
+                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileRead,
+                PrimitiveRole::FileWrite,
+                PrimitiveRole::FileFlush,
+                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileTruncate,
+                PrimitiveRole::FileReadAt,
+                PrimitiveRole::FileWriteAt,
             ]
         );
     }
@@ -715,6 +849,69 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
+                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileRead,
+                PrimitiveRole::FileWrite,
+                PrimitiveRole::FileFlush,
+                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileTruncate,
+                PrimitiveRole::FileReadAt,
+                PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FileClose,
+            ]
+        );
+    }
+
+    #[test]
+    fn hidden_context_requirements_are_owned_by_closed_primitive_roles() {
+        let allocation = PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.contexts().allocation())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            allocation,
+            vec![
+                PrimitiveRole::CurrentAllocatorState,
+                PrimitiveRole::CurrentAllocatorKind,
+                PrimitiveRole::DescriptorReadiness,
+                PrimitiveRole::DescriptorReadinessOrDeadline,
+                PrimitiveRole::MonotonicDeadline,
+                PrimitiveRole::ProcessCompletion,
+                PrimitiveRole::TaskJoin,
+                PrimitiveRole::TaskRace,
+                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileRead,
+                PrimitiveRole::FileWrite,
+                PrimitiveRole::FileFlush,
+                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileTruncate,
+                PrimitiveRole::FileReadAt,
+                PrimitiveRole::FileWriteAt,
+            ]
+        );
+
+        let process = PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.contexts().process())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            process,
+            vec![
+                PrimitiveRole::ProcessArgumentCount,
+                PrimitiveRole::ProcessArgument,
+                PrimitiveRole::ProcessEnvironmentCount,
+                PrimitiveRole::ProcessEnvironmentName,
+                PrimitiveRole::ProcessEnvironmentValue,
+                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileRead,
+                PrimitiveRole::FileWrite,
+                PrimitiveRole::FileFlush,
+                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileTruncate,
+                PrimitiveRole::FileReadAt,
+                PrimitiveRole::FileWriteAt,
             ]
         );
     }

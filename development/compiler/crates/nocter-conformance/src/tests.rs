@@ -36,6 +36,24 @@ fn deferred_process_entry_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
+fn generated_file_primitive_crosses_source_async_and_process_shutdown() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/io\n\
+         async func main(): i32 {\n\
+             let failure = await io.file_open_for_test(\"/dev/null\")\n\
+             if failure == 0 { return 42 }\n\
+             return 1\n\
+         }\n",
+        &[&["internal", "io"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn deferred_process_failure_uses_the_existing_error_exit_policy() {
     let machine = lower_machine(
         "async func main(): void! {\n\

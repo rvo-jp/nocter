@@ -486,8 +486,11 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let character = || builtin(BuiltinType::Char);
     let str_ref = || TypeContract::readonly(builtin(BuiltinType::Str));
     let byte_pointer = || TypeContract::pointer(u8());
+    let file_completion = || TypeContract::RuntimeStorage(RuntimeStorageRole::FileCompletion);
+    let file_owner = || TypeContract::RuntimeStorage(RuntimeStorageRole::FileOwner);
     let network_owner = || TypeContract::RuntimeStorage(RuntimeStorageRole::NetworkOwner);
     let readonly_bytes = || TypeContract::readonly(TypeContract::slice(u8()));
+    let readwrite_bytes = || TypeContract::readwrite(TypeContract::slice(u8()));
     let syscall_result = || TypeContract::SyscallResult;
     let syscall_pair_result = || TypeContract::SyscallPairResult;
     let private = PrimitiveExposure::SourcePrivate;
@@ -953,6 +956,105 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             private,
             None,
             vec![0, 1],
+        ),
+        PrimitiveRole::FileOpen => make(
+            0,
+            vec![str_ref(), usize()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileRead => make(
+            0,
+            vec![file_owner(), readwrite_bytes()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileWrite => make(
+            0,
+            vec![file_owner(), readonly_bytes()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileFlush | PrimitiveRole::FileClose => make(
+            0,
+            vec![file_owner()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileSeek => make(
+            0,
+            vec![file_owner(), usize(), i64()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileTruncate => make(
+            0,
+            vec![file_owner(), usize()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileReadAt => make(
+            0,
+            vec![file_owner(), readwrite_bytes(), u64()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileWriteAt => make(
+            0,
+            vec![file_owner(), readonly_bytes(), u64()],
+            TypeContract::asynchronous(file_completion()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileOwnerDispose => make(
+            0,
+            vec![TypeContract::readwrite(file_owner())],
+            void(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileCompletionTakeOwner => make(
+            0,
+            vec![TypeContract::readwrite(file_completion())],
+            file_owner(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileCompletionTransferredByteCount
+        | PrimitiveRole::FileCompletionResultPosition
+        | PrimitiveRole::FileCompletionFailureKind
+        | PrimitiveRole::FileCompletionFailureErrno => make(
+            0,
+            vec![TypeContract::readonly(file_completion())],
+            usize(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileCompletionDispose => make(
+            0,
+            vec![TypeContract::readwrite(file_completion())],
+            void(),
+            private,
+            arm64_darwin,
+            vec![],
         ),
         PrimitiveRole::NetworkConnectionCreate | PrimitiveRole::NetworkListenerCreate => make(
             0,

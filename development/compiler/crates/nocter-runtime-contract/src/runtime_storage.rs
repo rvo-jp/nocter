@@ -6,6 +6,8 @@ use nocter_model::NominalTypeId;
 /// Closed compiler-owned storage representations attached to exact standard declarations.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimeStorageRole {
+    /// Opaque uniform result produced by every generated local-file job.
+    FileCompletion,
     /// Opaque generated-service owner for one open local file.
     FileOwner,
     /// Fixed native owner shared by Network.framework connections and listeners.
@@ -14,12 +16,18 @@ pub enum RuntimeStorageRole {
 
 impl RuntimeStorageRole {
     /// Every storage role required by this compiler release.
-    pub const ALL: &'static [Self] = &[Self::FileOwner, Self::NetworkOwner];
+    pub const ALL: &'static [Self] = &[Self::FileCompletion, Self::FileOwner, Self::NetworkOwner];
 
     /// Returns the size and alignment owned by the runtime ABI contract.
     #[must_use]
     pub const fn layout(self, abi: super::RuntimeAbiIdentity) -> Option<RuntimeStorageLayout> {
         match (self, abi) {
+            (Self::FileCompletion, super::RuntimeAbiIdentity::Arm64DarwinV1) => {
+                Some(RuntimeStorageLayout::new(
+                    super::DarwinFileCompletionAbiSchema::ARM64_DARWIN.size(),
+                    super::DarwinFileCompletionAbiSchema::ARM64_DARWIN.alignment(),
+                ))
+            }
             (Self::FileOwner, super::RuntimeAbiIdentity::Arm64DarwinV1) => {
                 Some(RuntimeStorageLayout::new(
                     super::DarwinFileOwnerAbiSchema::ARM64_DARWIN.size(),
@@ -182,10 +190,12 @@ mod tests {
     fn registry_requires_one_distinct_declaration_per_closed_role() {
         let mut declarations = ArenaBuilder::new();
         let file_owner = declarations.insert(());
+        let file_completion = declarations.insert(());
         let network_owner = declarations.insert(());
         let registry = RuntimeStorageRegistry::new([
             RuntimeStorageBinding::new(RuntimeStorageRole::NetworkOwner, network_owner),
             RuntimeStorageBinding::new(RuntimeStorageRole::FileOwner, file_owner),
+            RuntimeStorageBinding::new(RuntimeStorageRole::FileCompletion, file_completion),
         ])
         .unwrap();
         assert_eq!(
@@ -203,6 +213,10 @@ mod tests {
         assert_eq!(
             registry.declaration(RuntimeStorageRole::FileOwner),
             Some(file_owner)
+        );
+        assert_eq!(
+            registry.declaration(RuntimeStorageRole::FileCompletion),
+            Some(file_completion)
         );
         assert_eq!(
             RuntimeStorageRegistry::new([]).unwrap(),

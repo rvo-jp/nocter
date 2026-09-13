@@ -66,7 +66,13 @@ pub(crate) fn materialize(
                 emit_completion(plan, *value, &mut code)?;
             }
             terminator => {
-                crate::selected_code::emit_terminator(selected, terminator, &labels, &mut code)?;
+                crate::selected_code::emit_terminator(
+                    selected,
+                    resources.primitives(),
+                    terminator,
+                    &labels,
+                    &mut code,
+                )?;
             }
         }
     }

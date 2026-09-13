@@ -81,7 +81,8 @@ pub use import::{
     RuntimeLibraryIdentity,
 };
 pub use primitive::{
-    PrimitiveBinding, PrimitiveBindingError, PrimitiveEffects, PrimitiveRegistry, PrimitiveRole,
+    PrimitiveBinding, PrimitiveBindingError, PrimitiveContexts, PrimitiveEffects,
+    PrimitiveRegistry, PrimitiveRole,
 };
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,

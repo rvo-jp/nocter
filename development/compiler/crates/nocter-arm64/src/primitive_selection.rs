@@ -194,6 +194,24 @@ pub(crate) fn select(
             selected.push(Arm64SelectedInstruction::CallDarwinProcessAbandon);
             Ok(())
         }
+        PrimitiveRole::FileOpen
+        | PrimitiveRole::FileRead
+        | PrimitiveRole::FileWrite
+        | PrimitiveRole::FileFlush
+        | PrimitiveRole::FileSeek
+        | PrimitiveRole::FileTruncate
+        | PrimitiveRole::FileReadAt
+        | PrimitiveRole::FileWriteAt
+        | PrimitiveRole::FileClose
+        | PrimitiveRole::FileOwnerDispose
+        | PrimitiveRole::FileCompletionTakeOwner
+        | PrimitiveRole::FileCompletionTransferredByteCount
+        | PrimitiveRole::FileCompletionResultPosition
+        | PrimitiveRole::FileCompletionFailureKind
+        | PrimitiveRole::FileCompletionFailureErrno
+        | PrimitiveRole::FileCompletionDispose => {
+            select_file_primitive(operation, target, selected)
+        }
         PrimitiveRole::NetworkConnectionCreate
         | PrimitiveRole::NetworkConnectionCreateHost
         | PrimitiveRole::NetworkTlsConnectionCreate
@@ -224,6 +242,35 @@ pub(crate) fn select(
             select_network_primitive(operation, target, selected)
         }
     }
+}
+
+fn select_file_primitive(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    use nocter_runtime_contract::PrimitiveRole as Role;
+
+    validate_type_arguments(operation, target, 0)?;
+    let (arguments, result) = match target.role() {
+        Role::FileOpen => (&[2, 1][..], 1),
+        Role::FileRead | Role::FileWrite => (&[1, 2][..], 1),
+        Role::FileFlush | Role::FileTruncate => (&[1, 1][..], 1),
+        Role::FileSeek | Role::FileReadAt | Role::FileWriteAt => (&[1, 1, 1][..], 1),
+        Role::FileOwnerDispose | Role::FileCompletionDispose => (&[1][..], 0),
+        Role::FileClose
+        | Role::FileCompletionTakeOwner
+        | Role::FileCompletionTransferredByteCount
+        | Role::FileCompletionResultPosition
+        | Role::FileCompletionFailureKind
+        | Role::FileCompletionFailureErrno => (&[1][..], 1),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_register_abi(operation, target, arguments, result)?;
+    let primitive = crate::Arm64DarwinFilePrimitive::from_role(target.role())
+        .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
+    selected.push(Arm64SelectedInstruction::CallDarwinFilePrimitive(primitive));
+    Ok(())
 }
 
 fn select_network_primitive(

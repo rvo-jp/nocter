@@ -8,15 +8,17 @@ in [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Continue v0.50.0 Phase 1 by binding the exact source primitive roles and then replacing the public
-blocking-only `File` surface in one migration. The generated target family now owns all eight
+Continue v0.50.0 Phase 1 by replacing the public blocking-only `File` surface in one migration.
+The exact source primitive roles are now bound through opaque `FileOwner` and `FileCompletion`
+runtime-storage declarations. The generated target family owns all eight
 operation constructors, bounded admission, four-queue dispatch, direct worker syscalls, partial
 write progress, cancellation, retirement, read-output transfer, one completion ABI, and exact
 capacity release. Native qualification opens and reads a real descriptor through construction,
 worker publication, consumption, and explicit close. The worker retains every post-publication
 resource before its completion transition and never reads a frame that a consumer may release.
-Standard source must not learn worker records, queue state, wake transport, or native error
-encoding when the primitive boundary is added.
+The target emits service shutdown once at the process-root return boundary, after source cleanup
+and before the ordinary ABI epilogue. Standard source cannot observe worker records, queue state,
+wake transport, or native error encoding.
 
 Preserve every published tag and asset, including v0.49.0.
 

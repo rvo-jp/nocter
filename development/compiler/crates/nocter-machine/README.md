@@ -19,6 +19,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - one canonical imported-service identity domain retained independently of MIR
 - stack objects, machine control flow, and dataflow
 - deferred function execution, suspension frames, and frozen cancellation/output destruction
+- whole-program propagation of runtime-contract-owned ambient capability requirements
 - explicit process-root ownership and output storage for a deferred executable entry
 - structural copy/destruction expansion
 - deterministic linkage and primitive dependency closure
@@ -42,6 +43,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   liveness or ownership analysis.
 - Deferred invocation and its state-machine body remain distinct from the ordinary callable ABI.
   The initial allocation-backed representation always requests an incoming allocation context.
+- Machine computes the least fixed point that carries hidden allocation and process contexts to
+  direct calls and callbacks, but it does not decide which primitive roles consume those contexts.
 
 The cross-stage boundary is documented in
 [Machine Program and Native Target Design](../../../design/machine-program-design.md).
