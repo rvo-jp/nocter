@@ -28,6 +28,7 @@ public source-level imports.
 - the closed Darwin file-operation, raw-failure, partial-write, access, seek, capacity, and loader
   dependency vocabularies
 - the generated Darwin file-job and pre-reserved retirement ownership state machines
+- the generated Darwin file-service root and pre-reserved close-record ABI
 - the fixed Darwin network callback-event record, payload ownership table, provider state codes,
   and two-step release fence consumed through a descriptor channel
 - the closed Darwin network adapter import catalog, callback signatures, and complete-transfer
