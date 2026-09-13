@@ -2,8 +2,8 @@ use super::{
     Arm64BranchCondition, Arm64CodeBuilder, Arm64DataSize, Arm64LoadStoreSize, Arm64NocterAbi,
     DarwinEventAbiSchema, RuntimeAsyncAbiSchema, WaitOffsets, add_immediate, argument,
     compare_immediate, compare_register, corrupt, load_record_word, load_signed_half_immediate,
-    load_word, require_native_subject, require_readiness_pointer, store_record, store_record_zero,
-    store_word, subtract_immediate,
+    load_word, require_native_subject, require_readiness_pointer, scratch, store_record,
+    store_record_zero, store_word, subtract_immediate,
 };
 
 /// Validates semantic records and compacts native interests into one Darwin change list.
@@ -42,11 +42,13 @@ pub(super) fn translate_interests(
     corrupt(code);
 
     code.bind(descriptor)?;
+    branch_if_prior_native_interest(offsets, schema, argument(0), advance_interest, code)?;
     emit_descriptor_change(schema, argument(0), argument(1), code)?;
     advance_native_change(offsets, argument(1), code);
     code.branch(advance_interest, false);
 
     code.bind(process)?;
+    branch_if_prior_native_interest(offsets, schema, argument(0), advance_interest, code)?;
     emit_process_change(schema, argument(0), argument(1), code)?;
     advance_native_change(offsets, argument(1), code);
     code.branch(advance_interest, false);
@@ -62,6 +64,59 @@ pub(super) fn translate_interests(
     code.bind(complete)?;
     store_word(offsets.earliest_deadline, argument(3), code);
     Ok(())
+}
+
+/// Coalesces one native registration key while retaining every semantic readiness destination.
+///
+/// Darwin permits one registration per native subject and filter in a kqueue. The first matching
+/// semantic interest owns that registration; event publication later scans and signals every
+/// matching interest rather than allowing a later `EV_ADD` to replace its `user_data` pointer.
+fn branch_if_prior_native_interest(
+    offsets: WaitOffsets,
+    schema: RuntimeAsyncAbiSchema,
+    source: crate::Arm64Register,
+    duplicate: crate::Arm64LabelId,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    load_record_word(source, schema.interest_kind_offset(), scratch(0), code);
+    load_record_word(source, schema.interest_subject_offset(), argument(5), code);
+    load_record_word(source, schema.interest_detail_offset(), argument(6), code);
+    load_word(offsets.interest_pointer, argument(4), code);
+
+    let scan = code.create_label();
+    let advance = code.create_label();
+    let unique = code.create_label();
+    code.bind(scan)?;
+    compare_register(argument(4), source, code);
+    code.branch_conditional(unique, Arm64BranchCondition::Equal);
+    load_record_word(
+        argument(4),
+        schema.interest_kind_offset(),
+        argument(7),
+        code,
+    );
+    compare_register(argument(7), scratch(0), code);
+    code.branch_conditional(advance, Arm64BranchCondition::NotEqual);
+    load_record_word(
+        argument(4),
+        schema.interest_subject_offset(),
+        argument(7),
+        code,
+    );
+    compare_register(argument(7), argument(5), code);
+    code.branch_conditional(advance, Arm64BranchCondition::NotEqual);
+    load_record_word(
+        argument(4),
+        schema.interest_detail_offset(),
+        argument(7),
+        code,
+    );
+    compare_register(argument(7), argument(6), code);
+    code.branch_conditional(duplicate, Arm64BranchCondition::Equal);
+    code.bind(advance)?;
+    add_immediate(argument(4), schema.interest_record_size(), code);
+    code.branch(scan, false);
+    code.bind(unique)
 }
 
 fn emit_descriptor_change(

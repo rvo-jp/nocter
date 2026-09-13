@@ -125,6 +125,9 @@ publication uses target atomic operations, so resume and cancellation never wait
 queue and retain the drive-safe future guarantee. Accepted blocking work executes on four private
 serial dispatch queues, providing the fixed worker bound. A dispatch group accounts for every
 active worker callback so root shutdown can drain exact ownership before freeing service state.
+The service wake descriptor is shared and carries no identity. The generated wait projection
+coalesces its equal native registration keys and fans one returned event back out to every matching
+semantic readiness destination before any future performs its exact state query.
 The closed file-service import catalog is the only layer allowed to select these Darwin system
 symbols; generated instruction code receives typed import identities.
 

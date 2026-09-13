@@ -75,7 +75,7 @@ pub(super) fn validate_and_signal_native_event(
     );
     let descriptor = code.create_label();
     let process = code.create_label();
-    let signal = code.create_label();
+    let complete = code.create_label();
     compare_immediate(argument(5), schema.descriptor_interest_kind(), code);
     code.branch_conditional(descriptor, Arm64BranchCondition::Equal);
     compare_immediate(argument(5), schema.process_exit_interest_kind(), code);
@@ -83,20 +83,69 @@ pub(super) fn validate_and_signal_native_event(
     corrupt(code);
     code.bind(descriptor)?;
     validate_descriptor_event(schema, argument(4), native, code)?;
-    code.branch(signal, false);
+    signal_matching_native_interests(offsets, schema, argument(4), code)?;
+    code.branch(complete, false);
     code.bind(process)?;
     validate_process_event(schema, argument(4), native, code)?;
-    code.bind(signal)?;
-    require_readiness_pointer(argument(4), argument(5), code)?;
-    crate::frame_access::load_immediate(code, argument(6), 1, Arm64DataSize::Bits64);
-    store_record(
-        argument(5),
-        0,
-        Arm64LoadStoreSize::Double,
-        argument(6),
+    signal_matching_native_interests(offsets, schema, argument(4), code)?;
+    code.bind(complete)
+}
+
+/// Signals every semantic waiter represented by one coalesced native registration event.
+fn signal_matching_native_interests(
+    offsets: WaitOffsets,
+    schema: RuntimeAsyncAbiSchema,
+    source: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    load_record_word(source, schema.interest_kind_offset(), argument(5), code);
+    load_record_word(source, schema.interest_subject_offset(), argument(6), code);
+    load_record_word(source, schema.interest_detail_offset(), argument(7), code);
+    load_word(offsets.interest_pointer, scratch(0), code);
+    load_word(offsets.interest_count, scratch(1), code);
+
+    let scan = code.create_label();
+    let signal = code.create_label();
+    let advance = code.create_label();
+    let complete = code.create_label();
+    code.bind(scan)?;
+    compare_immediate(scratch(1), 0, code);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    load_record_word(scratch(0), schema.interest_kind_offset(), argument(2), code);
+    compare_register(argument(2), argument(5), code);
+    code.branch_conditional(advance, Arm64BranchCondition::NotEqual);
+    load_record_word(
+        scratch(0),
+        schema.interest_subject_offset(),
+        argument(2),
         code,
     );
-    Ok(())
+    compare_register(argument(2), argument(6), code);
+    code.branch_conditional(advance, Arm64BranchCondition::NotEqual);
+    load_record_word(
+        scratch(0),
+        schema.interest_detail_offset(),
+        argument(2),
+        code,
+    );
+    compare_register(argument(2), argument(7), code);
+    code.branch_conditional(signal, Arm64BranchCondition::Equal);
+    code.branch(advance, false);
+    code.bind(signal)?;
+    require_readiness_pointer(scratch(0), argument(3), code)?;
+    crate::frame_access::load_immediate(code, argument(2), 1, Arm64DataSize::Bits64);
+    store_record(
+        argument(3),
+        0,
+        Arm64LoadStoreSize::Double,
+        argument(2),
+        code,
+    );
+    code.bind(advance)?;
+    add_immediate(scratch(0), schema.interest_record_size(), code);
+    subtract_immediate(scratch(1), 1, code);
+    code.branch(scan, false);
+    code.bind(complete)
 }
 
 fn validate_source_pointer(

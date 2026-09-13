@@ -83,6 +83,9 @@ source, loader commands, or package state.
   list, event list, and rounded-up timer timeout. Descriptor readiness, process exit, and fixed
   monotonic deadlines share one `kevent64` wait. Every returned event is validated against the
   originating semantic record before readiness is published.
+- The wait projection coalesces equal native registration keys for descriptor-direction and
+  process-exit interests, then publishes a returned event to every matching semantic destination.
+  Darwin's single registration key can therefore never discard a later computation's waiter.
 - Native process registration treats `ESRCH` as immediate readiness only after validating that the
   failed change originated from a process interest. This closes exit-before-registration without
   reaping status or introducing periodic probes. Interrupted and capped waits always recalculate
