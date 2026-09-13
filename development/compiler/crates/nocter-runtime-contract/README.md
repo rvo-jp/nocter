@@ -55,7 +55,8 @@ public source-level imports.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
 - A generated file job has one fixed field schema, one operation-to-field contract, and one checked
-  allocation-size calculation. Workers never retain authored path or transfer-buffer storage.
+  allocation-size calculation. Workers never retain authored path or transfer-buffer storage; a
+  read destination is consumer-only state and cancellation clears it before detaching the worker.
 - The Darwin callback channel carries complete event records. A shared queue, lock, and wake-only
   signal are not part of the runtime contract.
 - Network adapter consumers select typed catalog roles; they cannot reproduce loader symbols,

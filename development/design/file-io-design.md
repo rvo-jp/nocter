@@ -144,6 +144,9 @@ storage. Positioned offsets, truncate lengths, seek displacements, transferred b
 result positions have distinct fields rather than an operation-dependent anonymous payload slot.
 The closed operation contract assigns each operation its exact owned-byte, retirement-state,
 operand, and scalar-result interpretation.
+Read frames separately retain a consumer-only destination pointer. The target worker cannot access
+that field, and cancellation clears it before atomically detaching the worker, so worker ownership
+never extends the caller's buffer borrow.
 The service wake descriptor is shared and carries no identity. The generated wait projection
 coalesces its equal native registration keys and fans one returned event back out to every matching
 semantic readiness destination before any future performs its exact state query.

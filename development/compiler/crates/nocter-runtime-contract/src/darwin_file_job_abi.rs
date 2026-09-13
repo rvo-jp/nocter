@@ -3,8 +3,9 @@ use crate::{DarwinFileOperation, RuntimeAbiIdentity, RuntimeAsyncAbiSchema};
 /// Fields of one generated Darwin file-operation computation.
 ///
 /// The first five fields are the canonical opaque-future header. The fixed record is followed by
-/// operation-owned bytes. No field points into a caller's path or transfer buffer: open and write
-/// copy their input before admission, while read owns its output storage until consumption.
+/// operation-owned bytes. Open and write never retain caller storage. Read keeps its destination
+/// only in a consumer field that the worker cannot inspect and cancellation clears before
+/// detaching; the worker initializes only the job-owned trailing region.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(usize)]
 pub enum DarwinFileJobField {
@@ -18,6 +19,7 @@ pub enum DarwinFileJobField {
     RetirementRecord,
     AllocationSize,
     OwnedByteLength,
+    ConsumerBytePointer,
     PositionedOffset,
     TruncateLength,
     SeekDisplacement,
@@ -46,6 +48,7 @@ impl DarwinFileJobField {
         Self::RetirementRecord,
         Self::AllocationSize,
         Self::OwnedByteLength,
+        Self::ConsumerBytePointer,
         Self::PositionedOffset,
         Self::TruncateLength,
         Self::SeekDisplacement,
@@ -211,9 +214,9 @@ impl DarwinFileJobAbiSchema {
         asynchronous: RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous(),
         field_offsets: [
             0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152,
-            160, 168, 176, 184,
+            160, 168, 176, 184, 192,
         ],
-        fixed_size: 192,
+        fixed_size: 200,
         alignment: 8,
     };
 
@@ -289,11 +292,11 @@ mod tests {
         for (index, field) in DarwinFileJobField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.fixed_size(), 192);
+        assert_eq!(schema.fixed_size(), 200);
         assert_eq!(schema.alignment(), asynchronous.fixed_header_alignment());
         assert_eq!(schema.owned_bytes_offset(), schema.fixed_size());
-        assert_eq!(schema.allocation_size(0), Some(192));
-        assert_eq!(schema.allocation_size(31), Some(223));
+        assert_eq!(schema.allocation_size(0), Some(200));
+        assert_eq!(schema.allocation_size(31), Some(231));
         assert_eq!(schema.allocation_size(u64::MAX), None);
     }
 
