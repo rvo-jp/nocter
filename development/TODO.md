@@ -8,11 +8,12 @@ in [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Continue v0.50.0 Phase 1 by implementing the generated Darwin operation and resource-retirement
-adapters over the reviewed `File` ownership contract. A retirement permit must be reserved before
-an asynchronous native file exists, so drop never depends on ordinary job capacity. Complete this
-target boundary before replacing the public blocking-only `File` surface; standard source must not
-know worker records, queue state, wake transport, or native error encoding.
+Continue v0.50.0 Phase 1 by translating the host-qualified file-operation and resource-retirement
+contracts into generated Darwin helpers and compiler-owned primitive roles. The host model already
+proves retained-owner results, initialized read prefixes, partial write facts, exact close
+completion, cancellation cleanup, and bounded retirement. Complete the generated target boundary
+before replacing the public blocking-only `File` surface; standard source must not know worker
+records, queue state, wake transport, or native error encoding.
 
 Preserve every published tag and asset, including v0.49.0.
 

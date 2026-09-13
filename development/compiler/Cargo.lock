@@ -1854,6 +1854,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-darwin-file-service"
+version = "0.0.0"
+dependencies = [
+ "nocter-blocking-runtime",
+ "nocter-darwin-blocking-service",
+ "tempfile",
+]
+
+[[package]]
 name = "nocter-darwin-reactor"
 version = "0.0.0"
 dependencies = [

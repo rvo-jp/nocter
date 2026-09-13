@@ -302,6 +302,18 @@ fn darwin_blocking_service_depends_only_on_the_job_lifecycle_contract() {
 }
 
 #[test]
+fn darwin_file_service_composes_only_the_two_blocking_service_contracts() {
+    assert_eq!(
+        production_dependencies("nocter-darwin-file-service"),
+        BTreeSet::from([
+            "nocter-blocking-runtime".to_owned(),
+            "nocter-darwin-blocking-service".to_owned(),
+        ]),
+        "file operation policy must not inherit compiler, task, reactor, or standard source state"
+    );
+}
+
+#[test]
 fn compiler_computation_owns_the_shared_query_entry_without_consumer_policy() {
     assert_eq!(
         production_dependencies("nocter-compiler-computation"),

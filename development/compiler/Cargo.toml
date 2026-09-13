@@ -47,6 +47,7 @@ members = [
     "crates/nocter-darwin-reactor",
     "crates/nocter-darwin-event-queue",
     "crates/nocter-darwin-blocking-service",
+    "crates/nocter-darwin-file-service",
     "crates/nocter-task-runtime",
     "crates/nocter-test-support",
     "crates/nocter-toolchain-contract",

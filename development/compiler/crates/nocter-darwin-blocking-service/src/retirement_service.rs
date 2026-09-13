@@ -146,11 +146,13 @@ impl<R: Send + 'static> DarwinRetirementService<R> {
     /// all externally owned resources have been surrendered.
     pub fn shutdown(&mut self) -> Result<(), RetirementShutdownError> {
         self.resources.close_admission();
+        self.resources.detach_all();
         let snapshot = self.resources.snapshot();
-        if !snapshot.drained() {
-            return Err(RetirementShutdownError::OutstandingOwners(
-                snapshot.reserved(),
-            ));
+        let external = snapshot
+            .reserved()
+            .saturating_sub(snapshot.queued() + snapshot.running());
+        if external != 0 {
+            return Err(RetirementShutdownError::OutstandingOwners(external));
         }
         join_workers(&mut self.workers).map_err(|_| RetirementShutdownError::WorkerPanicked)?;
         self.worker_signal.close();
@@ -167,7 +169,10 @@ impl<R> Drop for DarwinRetirementService<R> {
         self.resources.close_admission();
         self.resources.detach_all();
         let snapshot = self.resources.snapshot();
-        if snapshot.drained() {
+        let external = snapshot
+            .reserved()
+            .saturating_sub(snapshot.queued() + snapshot.running());
+        if external == 0 {
             let _ = join_workers(&mut self.workers);
             self.worker_signal.close();
         } else {

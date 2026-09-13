@@ -159,7 +159,7 @@ struct Inner<R> {
     capacity: RetirementCapacity,
     accepting: bool,
     reserved: usize,
-    running: usize,
+    unobserved_running: usize,
     next_retirement: u64,
     capacity_epoch: RetirementEpoch,
     queue: VecDeque<QueuedRetirement<R>>,
@@ -168,12 +168,26 @@ struct Inner<R> {
 }
 
 impl<R> Inner<R> {
+    fn running_count(&self) -> usize {
+        self.unobserved_running
+            + self
+                .active
+                .values()
+                .filter(|state| {
+                    matches!(
+                        state,
+                        ActiveRetirement::Running | ActiveRetirement::DetachedRunning
+                    )
+                })
+                .count()
+    }
+
     fn snapshot(&self) -> RetirementSnapshot {
         RetirementSnapshot {
             accepting: self.accepting,
             reserved: self.reserved,
             queued: self.queue.len(),
-            running: self.running,
+            running: self.running_count(),
             completed: self
                 .active
                 .values()
@@ -222,7 +236,7 @@ impl<R> RetirementService<R> {
                 capacity,
                 accepting: true,
                 reserved: 0,
-                running: 0,
+                unobserved_running: 0,
                 next_retirement: 0,
                 capacity_epoch: RetirementEpoch::initial(identity),
                 queue: VecDeque::new(),
@@ -403,14 +417,15 @@ impl<R> RetirementService<R> {
     #[must_use]
     pub fn claim(&self) -> Option<RetiringResource<R>> {
         let mut inner = lock(&self.inner);
-        if inner.running == inner.capacity.workers {
+        if inner.running_count() == inner.capacity.workers {
             return None;
         }
         let queued = inner.queue.pop_front()?;
-        inner.running += 1;
         if let Some(identity) = queued.identity {
             let previous = inner.active.insert(identity, ActiveRetirement::Running);
             debug_assert!(previous.is_none());
+        } else {
+            inner.unobserved_running += 1;
         }
         Some(RetiringResource {
             identity: queued.identity,
@@ -526,7 +541,7 @@ impl<R> ResourceOwner<R> {
                 state.next_retirement = next;
                 identity
             });
-            debug_assert!(state.queue.len() + state.running < state.reserved);
+            debug_assert!(state.queue.len() + state.running_count() < state.reserved);
             state
                 .queue
                 .push_back(QueuedRetirement { identity, resource });
@@ -547,7 +562,7 @@ impl<R> Drop for ResourceOwner<R> {
         };
         let notify = {
             let mut state = lock(&inner);
-            debug_assert!(state.queue.len() + state.running < state.reserved);
+            debug_assert!(state.queue.len() + state.running_count() < state.reserved);
             state.queue.push_back(QueuedRetirement {
                 identity: None,
                 resource,
@@ -603,10 +618,8 @@ impl<R> Drop for RetiringResource<R> {
         drop(self.resource.take());
         let notify = {
             let mut inner = lock(&self.inner);
-            debug_assert!(inner.running > 0);
-            inner.running -= 1;
-            match self.identity {
-                Some(identity) => match inner.active.get_mut(&identity) {
+            if let Some(identity) = self.identity {
+                match inner.active.get_mut(&identity) {
                     Some(state @ ActiveRetirement::Running) => {
                         *state = ActiveRetirement::Completed;
                     }
@@ -617,8 +630,11 @@ impl<R> Drop for RetiringResource<R> {
                     Some(ActiveRetirement::Completed) | None => {
                         unreachable!("running retirement identity has one active state")
                     }
-                },
-                None => inner.release_reservation(),
+                }
+            } else {
+                debug_assert!(inner.unobserved_running > 0);
+                inner.unobserved_running -= 1;
+                inner.release_reservation();
             }
             Arc::clone(&inner.notify)
         };

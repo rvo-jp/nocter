@@ -1,0 +1,17 @@
+[package]
+name = "nocter-darwin-file-service"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-blocking-runtime = { path = "../nocter-blocking-runtime" }
+nocter-darwin-blocking-service = { path = "../nocter-darwin-blocking-service" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

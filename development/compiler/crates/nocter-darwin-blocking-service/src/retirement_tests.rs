@@ -83,6 +83,27 @@ fn explicit_retirement_publishes_exact_completion_before_releasing_capacity() {
 }
 
 #[test]
+fn shutdown_detaches_waiters_and_joins_already_queued_cleanup() {
+    let cleaned = Arc::new(AtomicUsize::new(0));
+    let worker_cleaned = Arc::clone(&cleaned);
+    let mut service = DarwinRetirementService::new(
+        RetirementCapacity::new(1, 1).unwrap(),
+        move |_: &mut String| {
+            worker_cleaned.fetch_add(1, Ordering::SeqCst);
+        },
+    )
+    .unwrap();
+    let _retirement = service
+        .reserve()
+        .unwrap()
+        .attach(String::from("file"))
+        .retire()
+        .unwrap();
+    service.shutdown().unwrap();
+    assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn adapter_drop_detaches_but_does_not_abandon_an_issued_owner() {
     let cleaned = Arc::new(AtomicUsize::new(0));
     let worker_cleaned = Arc::clone(&cleaned);
