@@ -1,10 +1,11 @@
 use std::fmt;
 
 use nocter_runtime_contract::{
-    DarwinFileFailureKind, DarwinFileRetirementAbiSchema, DarwinFileRetirementAction,
-    DarwinFileRetirementEvent, DarwinFileRetirementField, DarwinFileRetirementState,
-    DarwinFileServiceAbiSchema, DarwinFileServiceAdmission, DarwinFileServiceField,
-    DarwinFileServiceFunction, DarwinFileServiceState,
+    DarwinFileCompletionAbiSchema, DarwinFileCompletionField, DarwinFileFailureKind,
+    DarwinFileRetirementAbiSchema, DarwinFileRetirementAction, DarwinFileRetirementEvent,
+    DarwinFileRetirementField, DarwinFileRetirementState, DarwinFileServiceAbiSchema,
+    DarwinFileServiceAdmission, DarwinFileServiceField, DarwinFileServiceFunction,
+    DarwinFileServiceState,
 };
 
 use crate::darwin_kernel_abi::{DarwinSystemCall, emit_system_call};
@@ -15,7 +16,7 @@ use crate::{
     Arm64Register,
 };
 
-const STACK_SIZE: u64 = 80;
+const STACK_SIZE: u64 = 96;
 const NOTIFICATION_BYTE_OFFSET: u64 = 0;
 
 /// Generated lifecycle entries for pre-reserved Darwin file retirement.
@@ -414,6 +415,7 @@ fn build_consume_close(
     let mut code = Arm64CodeBuilder::new();
     prologue(&mut code);
     move_register(&mut code, x(19), x(0));
+    move_register(&mut code, x(26), x(1));
     load(
         &mut code,
         x(25),
@@ -437,8 +439,27 @@ fn build_consume_close(
         imports,
     )?;
     signal_record(&mut code, x(19));
-    move_register(&mut code, x(0), x(25));
-    move_register(&mut code, x(1), x(21));
+    let completion = DarwinFileCompletionAbiSchema::ARM64_DARWIN;
+    immediate(&mut code, x(8), 0);
+    for field in [
+        DarwinFileCompletionField::RetirementRecord,
+        DarwinFileCompletionField::TransferredByteCount,
+        DarwinFileCompletionField::ResultPosition,
+    ] {
+        store(&mut code, x(26), completion.offset(field), x(8));
+    }
+    store(
+        &mut code,
+        x(26),
+        completion.offset(DarwinFileCompletionField::FailureKind),
+        x(25),
+    );
+    store(
+        &mut code,
+        x(26),
+        completion.offset(DarwinFileCompletionField::FailureErrno),
+        x(21),
+    );
     epilogue(&mut code);
     Ok(code)
 }
@@ -789,6 +810,7 @@ fn prologue(code: &mut Arm64CodeBuilder) {
         (23, 48),
         (24, 56),
         (25, 64),
+        (26, 72),
     ] {
         crate::frame_access::store_at_stack_offset(
             code,
@@ -809,6 +831,7 @@ fn epilogue(code: &mut Arm64CodeBuilder) {
         (23, 48),
         (24, 56),
         (25, 64),
+        (26, 72),
     ] {
         crate::frame_access::load_at_stack_offset(
             code,

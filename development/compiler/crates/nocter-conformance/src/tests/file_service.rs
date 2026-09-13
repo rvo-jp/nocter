@@ -4,7 +4,10 @@ use nocter_arm64::{
     Arm64DarwinFileServiceRootTargets, Arm64DataRegister, Arm64DataSize, Arm64Instruction,
     Arm64LoadStoreSize, Arm64MoveWide, Arm64ProgramBuilder, Arm64Register,
 };
-use nocter_runtime_contract::{DarwinFileServiceAdmission, RuntimeAbiIdentity};
+use nocter_runtime_contract::{
+    DarwinFileCompletionAbiSchema, DarwinFileCompletionField, DarwinFileServiceAdmission,
+    RuntimeAbiIdentity,
+};
 
 #[test]
 fn generated_root_is_reused_and_released_natively() {
@@ -114,7 +117,11 @@ fn generated_retirement_reserves_owns_and_closes_a_descriptor_natively() {
     let register = |number| Arm64Register::new(number).unwrap();
     let context = RuntimeAbiIdentity::Arm64DarwinV1.schema().process_context();
     let asynchronous = RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous();
-    let frame_size = u16::try_from(context.size().next_multiple_of(16)).unwrap();
+    let context_size = context.size().next_multiple_of(16);
+    let completion = DarwinFileCompletionAbiSchema::ARM64_DARWIN;
+    let completion_offset = u32::try_from(context_size).unwrap();
+    let frame_size =
+        u16::try_from((context_size + completion.size()).next_multiple_of(16)).unwrap();
     let service_offset = u32::try_from(context.blocking_service_pointer_offset()).unwrap();
     let mut program = Arm64ProgramBuilder::new();
     let imports = Arm64DarwinFileServiceImports::declare(&mut program).unwrap();
@@ -233,14 +240,29 @@ fn generated_retirement_reserves_owns_and_closes_a_descriptor_natively() {
     });
     code.branch_conditional(poll, Arm64BranchCondition::NotEqual);
     move_register(&mut code, register(0), register(20));
+    code.append(Arm64Instruction::AddSubtractImmediate {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Add,
+        set_flags: false,
+        destination: Arm64AddSubtractDestination::General(register(1)),
+        source: Arm64BaseRegister::StackPointer,
+        immediate: u16::try_from(completion_offset).unwrap(),
+        shift_12: false,
+    });
     code.call(retirement.consume_close());
-    for result in [register(0), register(1)] {
+    for field in DarwinFileCompletionField::ALL {
+        code.append(Arm64Instruction::LoadUnsigned {
+            size: Arm64LoadStoreSize::Double,
+            destination: Arm64DataRegister::General(register(0)),
+            base: Arm64BaseRegister::StackPointer,
+            offset: completion_offset + u32::try_from(completion.offset(*field)).unwrap(),
+        });
         code.append(Arm64Instruction::AddSubtractImmediate {
             size: Arm64DataSize::Bits64,
             operation: Arm64AddSubtract::Subtract,
             set_flags: true,
             destination: Arm64AddSubtractDestination::Zero,
-            source: Arm64BaseRegister::General(result),
+            source: Arm64BaseRegister::General(register(0)),
             immediate: 0,
             shift_12: false,
         });

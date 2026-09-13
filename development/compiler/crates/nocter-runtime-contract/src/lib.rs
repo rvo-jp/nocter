@@ -38,8 +38,9 @@ pub use darwin_file::{
 };
 pub use darwin_file_import::DarwinFileServiceFunction;
 pub use darwin_file_job_abi::{
-    DarwinFileJobAbiSchema, DarwinFileJobContract, DarwinFileJobField, DarwinFileJobOperand,
-    DarwinFileJobOwnedBytes, DarwinFileJobResult, DarwinFileJobRetirementInput,
+    DarwinFileCompletionAbiSchema, DarwinFileCompletionField, DarwinFileJobAbiSchema,
+    DarwinFileJobContract, DarwinFileJobField, DarwinFileJobOperand, DarwinFileJobOwnedBytes,
+    DarwinFileJobResult, DarwinFileJobRetirementInput,
 };
 pub use darwin_file_lifecycle::{
     DarwinFileJobAction, DarwinFileJobEvent, DarwinFileJobState, DarwinFileJobTransition,

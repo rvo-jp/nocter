@@ -36,6 +36,63 @@ pub enum DarwinFileJobField {
     InterestReadinessPointer,
 }
 
+/// Fields published by every generated Darwin file computation.
+///
+/// A single completion shape keeps target execution independent from source-level `File` and
+/// error representations. `RetirementRecord` is either the retained live owner or zero; all
+/// unused scalar fields are zero. `FailureKind == 0` is success and otherwise names one
+/// [`crate::DarwinFileFailureKind`].
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(usize)]
+pub enum DarwinFileCompletionField {
+    RetirementRecord,
+    TransferredByteCount,
+    ResultPosition,
+    FailureKind,
+    FailureErrno,
+}
+
+impl DarwinFileCompletionField {
+    pub const ALL: &'static [Self] = &[
+        Self::RetirementRecord,
+        Self::TransferredByteCount,
+        Self::ResultPosition,
+        Self::FailureKind,
+        Self::FailureErrno,
+    ];
+}
+
+/// Source-independent output layout written by every generated file consume entry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinFileCompletionAbiSchema {
+    field_offsets: [u64; DarwinFileCompletionField::ALL.len()],
+    size: u64,
+    alignment: u64,
+}
+
+impl DarwinFileCompletionAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        field_offsets: [0, 8, 16, 24, 32],
+        size: 40,
+        alignment: 8,
+    };
+
+    #[must_use]
+    pub const fn offset(self, field: DarwinFileCompletionField) -> u64 {
+        self.field_offsets[field as usize]
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.alignment
+    }
+}
+
 impl DarwinFileJobField {
     pub const ALL: &'static [Self] = &[
         Self::ResumeFunction,
@@ -256,10 +313,21 @@ impl DarwinFileJobAbiSchema {
 #[cfg(test)]
 mod tests {
     use super::{
-        DarwinFileJobAbiSchema, DarwinFileJobField, DarwinFileJobOperand, DarwinFileJobOwnedBytes,
-        DarwinFileJobResult, DarwinFileJobRetirementInput,
+        DarwinFileCompletionAbiSchema, DarwinFileCompletionField, DarwinFileJobAbiSchema,
+        DarwinFileJobField, DarwinFileJobOperand, DarwinFileJobOwnedBytes, DarwinFileJobResult,
+        DarwinFileJobRetirementInput,
     };
     use crate::DarwinFileOperation;
+
+    #[test]
+    fn completion_layout_is_one_dense_source_independent_record() {
+        let schema = DarwinFileCompletionAbiSchema::ARM64_DARWIN;
+        for (index, field) in DarwinFileCompletionField::ALL.iter().copied().enumerate() {
+            assert_eq!(schema.offset(field), (index as u64) * 8);
+        }
+        assert_eq!(schema.size(), 40);
+        assert_eq!(schema.alignment(), 8);
+    }
 
     #[test]
     fn job_layout_extends_the_single_async_header_and_has_one_trailing_region() {

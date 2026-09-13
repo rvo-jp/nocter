@@ -16,6 +16,10 @@ pub enum DarwinFileOperation {
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
+///
+/// The all-zero representation is the empty owner. Every non-zero value is a pointer to exactly
+/// one live pre-reserved retirement record. This makes moved-from storage and failed-open
+/// completions safe to destroy without inventing a second optional-owner ABI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DarwinFileOwnerAbiSchema {
     size: u64,
