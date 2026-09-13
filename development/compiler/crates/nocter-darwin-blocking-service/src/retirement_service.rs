@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
 use nocter_blocking_runtime::{
-    ResourcePermit, RetirementCapacity, RetirementEpoch, RetirementError, RetirementReserveError,
-    RetirementService, RetirementSnapshot,
+    ResourcePermit, RetirementCapacity, RetirementEpoch, RetirementError, RetirementId,
+    RetirementReserveError, RetirementService, RetirementSnapshot, RetirementStatus,
 };
 
 use crate::{BuildError, WorkerSignal, drain_channel, join_workers, notification_channel, signal};
@@ -106,6 +106,29 @@ impl<R: Send + 'static> DarwinRetirementService<R> {
         self.resources.capacity_changed_since(observed)
     }
 
+    #[must_use]
+    pub fn status(&self, retirement: RetirementId) -> Option<RetirementStatus> {
+        self.resources.status(retirement)
+    }
+
+    /// Consumes one exact completed retirement.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown, detached, or incomplete retirement.
+    pub fn consume(&self, retirement: RetirementId) -> Result<(), RetirementError> {
+        self.resources.consume(retirement)
+    }
+
+    /// Detaches one waiter without cancelling cleanup.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown or already detached retirement.
+    pub fn detach(&self, retirement: RetirementId) -> Result<(), RetirementError> {
+        self.resources.detach(retirement)
+    }
+
     /// Drains every currently readable wake byte.
     ///
     /// # Errors
@@ -124,11 +147,10 @@ impl<R: Send + 'static> DarwinRetirementService<R> {
     pub fn shutdown(&mut self) -> Result<(), RetirementShutdownError> {
         self.resources.close_admission();
         let snapshot = self.resources.snapshot();
-        let external = snapshot
-            .reserved()
-            .saturating_sub(snapshot.queued() + snapshot.running());
-        if external != 0 {
-            return Err(RetirementShutdownError::OutstandingOwners(external));
+        if !snapshot.drained() {
+            return Err(RetirementShutdownError::OutstandingOwners(
+                snapshot.reserved(),
+            ));
         }
         join_workers(&mut self.workers).map_err(|_| RetirementShutdownError::WorkerPanicked)?;
         self.worker_signal.close();
@@ -143,11 +165,9 @@ impl<R> Drop for DarwinRetirementService<R> {
             return;
         }
         self.resources.close_admission();
+        self.resources.detach_all();
         let snapshot = self.resources.snapshot();
-        let external = snapshot
-            .reserved()
-            .saturating_sub(snapshot.queued() + snapshot.running());
-        if external == 0 {
+        if snapshot.drained() {
             let _ = join_workers(&mut self.workers);
             self.worker_signal.close();
         } else {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use nocter_blocking_runtime::{RetirementCapacity, RetirementReserveError};
+use nocter_blocking_runtime::{RetirementCapacity, RetirementReserveError, RetirementStatus};
 
 use crate::{DarwinRetirementService, RetirementShutdownError};
 
@@ -61,6 +61,24 @@ fn shutdown_rejects_external_owners_then_drains_their_guaranteed_retirement() {
     ));
     drop(owner);
     wait_until(|| service.snapshot().drained());
+    service.shutdown().unwrap();
+}
+
+#[test]
+fn explicit_retirement_publishes_exact_completion_before_releasing_capacity() {
+    let mut service =
+        DarwinRetirementService::new(RetirementCapacity::new(1, 1).unwrap(), |_: &mut String| {})
+            .unwrap();
+    let retirement = service
+        .reserve()
+        .unwrap()
+        .attach(String::from("file"))
+        .retire()
+        .unwrap();
+    wait_until(|| service.status(retirement) == Some(RetirementStatus::Completed));
+    assert_eq!(service.snapshot().reserved(), 1);
+    service.consume(retirement).unwrap();
+    assert!(service.snapshot().drained());
     service.shutdown().unwrap();
 }
 

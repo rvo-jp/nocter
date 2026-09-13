@@ -29,6 +29,10 @@ callers already destroyed them. Dropping the adapter with a live owner detaches 
 handles: the lifecycle notifier and fixed workers remain reachable until the final issued owner
 enters cleanup and the closed service drains.
 
+An explicit close receives one exact `RetirementId`, observes completion after descriptor wakeup,
+and consumes that identity before capacity is reusable. Adapter drop detaches any remaining close
+waiters as one lifecycle transition; it never abandons the corresponding native cleanup.
+
 ## Invariants
 
 - Construction either owns every configured worker and both channel endpoints or joins every

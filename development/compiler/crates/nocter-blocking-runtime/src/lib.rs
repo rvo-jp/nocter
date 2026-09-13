@@ -7,10 +7,11 @@ mod identity;
 mod retirement;
 mod service;
 
-pub use identity::{CapacityEpoch, JobId, RetirementEpoch};
+pub use identity::{CapacityEpoch, JobId, RetirementEpoch, RetirementId};
 pub use retirement::{
     ResourceOwner, ResourcePermit, RetirementBackpressure, RetirementCapacity, RetirementError,
-    RetirementReserveError, RetirementService, RetirementSnapshot, RetiringResource,
+    RetirementReserveError, RetirementService, RetirementSnapshot, RetirementStatus,
+    RetiringResource,
 };
 pub use service::{
     Backpressure, BlockingJobService, Cancellation, JobOutcome, JobStatus, RunningJob,

@@ -1,9 +1,9 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::RetirementEpoch;
 use crate::identity::ServiceIdentity;
+use crate::{RetirementEpoch, RetirementId};
 
 /// Fixed cleanup-worker and live-resource limits for one retirement service.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,6 +52,7 @@ pub struct RetirementSnapshot {
     reserved: usize,
     queued: usize,
     running: usize,
+    completed: usize,
     capacity_epoch: RetirementEpoch,
 }
 
@@ -75,6 +76,11 @@ impl RetirementSnapshot {
     #[must_use]
     pub const fn running(self) -> usize {
         self.running
+    }
+
+    #[must_use]
+    pub const fn completed(self) -> usize {
+        self.completed
     }
 
     #[must_use]
@@ -116,6 +122,9 @@ pub enum RetirementError {
         maximum_resources: usize,
     },
     ForeignCapacityEpoch(RetirementEpoch),
+    IdentityExhausted,
+    UnknownRetirement(RetirementId),
+    InvalidRetirementState(RetirementId),
 }
 
 impl fmt::Display for RetirementError {
@@ -126,14 +135,35 @@ impl fmt::Display for RetirementError {
 
 impl std::error::Error for RetirementError {}
 
+struct QueuedRetirement<R> {
+    identity: Option<RetirementId>,
+    resource: R,
+}
+
+enum ActiveRetirement {
+    Running,
+    DetachedRunning,
+    Completed,
+}
+
+/// Waiter-visible state of one explicit retirement.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RetirementStatus {
+    Queued,
+    Running,
+    Completed,
+}
+
 struct Inner<R> {
     identity: ServiceIdentity,
     capacity: RetirementCapacity,
     accepting: bool,
     reserved: usize,
     running: usize,
+    next_retirement: u64,
     capacity_epoch: RetirementEpoch,
-    queue: VecDeque<R>,
+    queue: VecDeque<QueuedRetirement<R>>,
+    active: BTreeMap<RetirementId, ActiveRetirement>,
     notify: Arc<dyn Fn() + Send + Sync>,
 }
 
@@ -144,6 +174,11 @@ impl<R> Inner<R> {
             reserved: self.reserved,
             queued: self.queue.len(),
             running: self.running,
+            completed: self
+                .active
+                .values()
+                .filter(|state| matches!(state, ActiveRetirement::Completed))
+                .count(),
             capacity_epoch: self.capacity_epoch,
         }
     }
@@ -188,8 +223,10 @@ impl<R> RetirementService<R> {
                 accepting: true,
                 reserved: 0,
                 running: 0,
+                next_retirement: 0,
                 capacity_epoch: RetirementEpoch::initial(identity),
                 queue: VecDeque::new(),
+                active: BTreeMap::new(),
                 notify: Arc::new(notify),
             })),
         }
@@ -241,6 +278,127 @@ impl<R> RetirementService<R> {
         Ok(inner.capacity_epoch != observed)
     }
 
+    /// Returns the exact waiter-visible state while this explicit retirement remains current.
+    #[must_use]
+    pub fn status(&self, retirement: RetirementId) -> Option<RetirementStatus> {
+        let inner = lock(&self.inner);
+        if inner
+            .queue
+            .iter()
+            .any(|queued| queued.identity == Some(retirement))
+        {
+            return Some(RetirementStatus::Queued);
+        }
+        inner.active.get(&retirement).and_then(|state| match state {
+            ActiveRetirement::Running => Some(RetirementStatus::Running),
+            ActiveRetirement::Completed => Some(RetirementStatus::Completed),
+            ActiveRetirement::DetachedRunning => None,
+        })
+    }
+
+    /// Consumes exact observed completion and releases its resource reservation.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown, queued, running, or already detached retirement.
+    pub fn consume(&self, retirement: RetirementId) -> Result<(), RetirementError> {
+        let notify = {
+            let mut inner = lock(&self.inner);
+            if !matches!(
+                inner.active.get(&retirement),
+                Some(ActiveRetirement::Completed)
+            ) {
+                return Err(
+                    if inner.active.contains_key(&retirement)
+                        || inner
+                            .queue
+                            .iter()
+                            .any(|queued| queued.identity == Some(retirement))
+                    {
+                        RetirementError::InvalidRetirementState(retirement)
+                    } else {
+                        RetirementError::UnknownRetirement(retirement)
+                    },
+                );
+            }
+            inner.active.remove(&retirement);
+            inner.release_reservation();
+            Arc::clone(&inner.notify)
+        };
+        notify();
+        Ok(())
+    }
+
+    /// Detaches an explicit waiter without cancelling resource cleanup.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown or already detached retirement.
+    pub fn detach(&self, retirement: RetirementId) -> Result<(), RetirementError> {
+        let mut notify = None;
+        {
+            let mut inner = lock(&self.inner);
+            if let Some(queued) = inner
+                .queue
+                .iter_mut()
+                .find(|queued| queued.identity == Some(retirement))
+            {
+                queued.identity = None;
+                return Ok(());
+            }
+            match inner.active.get_mut(&retirement) {
+                Some(state @ ActiveRetirement::Running) => {
+                    *state = ActiveRetirement::DetachedRunning;
+                }
+                Some(ActiveRetirement::Completed) => {
+                    inner.active.remove(&retirement);
+                    inner.release_reservation();
+                    notify = Some(Arc::clone(&inner.notify));
+                }
+                Some(ActiveRetirement::DetachedRunning) | None => {
+                    return Err(RetirementError::UnknownRetirement(retirement));
+                }
+            }
+        }
+        if let Some(notify) = notify {
+            notify();
+        }
+        Ok(())
+    }
+
+    /// Detaches every explicit waiter while preserving all queued and running cleanup.
+    ///
+    /// This is the adapter-destruction boundary. It cannot cancel native retirement and does not
+    /// alter resources that are still held by external `ResourceOwner` values.
+    pub fn detach_all(&self) {
+        let notify = {
+            let mut inner = lock(&self.inner);
+            let mut changed = false;
+            for queued in &mut inner.queue {
+                changed |= queued.identity.take().is_some();
+            }
+            let identities = inner.active.keys().copied().collect::<Vec<_>>();
+            for identity in identities {
+                match inner.active.get_mut(&identity) {
+                    Some(state @ ActiveRetirement::Running) => {
+                        *state = ActiveRetirement::DetachedRunning;
+                        changed = true;
+                    }
+                    Some(ActiveRetirement::Completed) => {
+                        inner.active.remove(&identity);
+                        inner.release_reservation();
+                        changed = true;
+                    }
+                    Some(ActiveRetirement::DetachedRunning) | None => {}
+                }
+            }
+            changed.then(|| Arc::clone(&inner.notify))
+        };
+        if let Some(notify) = notify {
+            notify();
+        }
+    }
+
     /// Transfers the next queued resource to one cleanup worker.
     #[must_use]
     pub fn claim(&self) -> Option<RetiringResource<R>> {
@@ -248,10 +406,15 @@ impl<R> RetirementService<R> {
         if inner.running == inner.capacity.workers {
             return None;
         }
-        let resource = inner.queue.pop_front()?;
+        let queued = inner.queue.pop_front()?;
         inner.running += 1;
+        if let Some(identity) = queued.identity {
+            let previous = inner.active.insert(identity, ActiveRetirement::Running);
+            debug_assert!(previous.is_none());
+        }
         Some(RetiringResource {
-            resource: Some(resource),
+            identity: queued.identity,
+            resource: Some(queued.resource),
             inner: Arc::clone(&self.inner),
         })
     }
@@ -332,6 +495,46 @@ impl<R> ResourceOwner<R> {
             .as_mut()
             .expect("live retirement owner retains its resource")
     }
+
+    /// Enqueues cleanup with one exact identity that an explicit close operation can await.
+    ///
+    /// Cleanup admission itself cannot fail: identity exhaustion still enqueues the resource as an
+    /// unobserved retirement before reporting the inability to construct a waiter identity.
+    ///
+    /// # Errors
+    ///
+    /// Reports permanent retirement-identity exhaustion after transferring the resource to its
+    /// pre-reserved queue.
+    ///
+    /// # Panics
+    ///
+    /// Panics only after an internal ownership invariant is violated; no public transition can
+    /// detach the resource or service while the owner remains observable.
+    pub fn retire(mut self) -> Result<RetirementId, RetirementError> {
+        let resource = self
+            .resource
+            .take()
+            .expect("live retirement owner retains its resource");
+        let inner = self
+            .inner
+            .take()
+            .expect("live retirement owner retains its service");
+        let (identity, notify) = {
+            let mut state = lock(&inner);
+            let identity = state.next_retirement.checked_add(1).map(|next| {
+                let identity = RetirementId::new(state.identity, state.next_retirement);
+                state.next_retirement = next;
+                identity
+            });
+            debug_assert!(state.queue.len() + state.running < state.reserved);
+            state
+                .queue
+                .push_back(QueuedRetirement { identity, resource });
+            (identity, Arc::clone(&state.notify))
+        };
+        notify();
+        identity.ok_or(RetirementError::IdentityExhausted)
+    }
 }
 
 impl<R> Drop for ResourceOwner<R> {
@@ -345,7 +548,10 @@ impl<R> Drop for ResourceOwner<R> {
         let notify = {
             let mut state = lock(&inner);
             debug_assert!(state.queue.len() + state.running < state.reserved);
-            state.queue.push_back(resource);
+            state.queue.push_back(QueuedRetirement {
+                identity: None,
+                resource,
+            });
             Arc::clone(&state.notify)
         };
         notify();
@@ -354,6 +560,7 @@ impl<R> Drop for ResourceOwner<R> {
 
 /// One cleanup-worker owner. Destruction releases its reservation even after cleanup failure.
 pub struct RetiringResource<R> {
+    identity: Option<RetirementId>,
     resource: Option<R>,
     inner: Arc<Mutex<Inner<R>>>,
 }
@@ -398,7 +605,21 @@ impl<R> Drop for RetiringResource<R> {
             let mut inner = lock(&self.inner);
             debug_assert!(inner.running > 0);
             inner.running -= 1;
-            inner.release_reservation();
+            match self.identity {
+                Some(identity) => match inner.active.get_mut(&identity) {
+                    Some(state @ ActiveRetirement::Running) => {
+                        *state = ActiveRetirement::Completed;
+                    }
+                    Some(ActiveRetirement::DetachedRunning) => {
+                        inner.active.remove(&identity);
+                        inner.release_reservation();
+                    }
+                    Some(ActiveRetirement::Completed) | None => {
+                        unreachable!("running retirement identity has one active state")
+                    }
+                },
+                None => inner.release_reservation(),
+            }
             Arc::clone(&inner.notify)
         };
         notify();
@@ -416,7 +637,10 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use super::{RetirementCapacity, RetirementError, RetirementReserveError, RetirementService};
+    use super::{
+        RetirementCapacity, RetirementError, RetirementReserveError, RetirementService,
+        RetirementStatus,
+    };
 
     fn service(maximum: usize) -> RetirementService<String> {
         RetirementService::new(RetirementCapacity::new(1, maximum).unwrap())
@@ -449,6 +673,71 @@ mod tests {
         let retirement = service.claim().unwrap();
         assert_eq!(retirement.resource(), "file");
         retirement.finish();
+        assert!(service.snapshot().drained());
+    }
+
+    #[test]
+    fn explicit_retirement_keeps_exact_completion_until_consumed() {
+        let service = service(1);
+        let retirement = service
+            .reserve()
+            .unwrap()
+            .attach(String::from("file"))
+            .retire()
+            .unwrap();
+        assert_eq!(service.status(retirement), Some(RetirementStatus::Queued));
+        service.claim().unwrap().finish();
+        assert_eq!(
+            service.status(retirement),
+            Some(RetirementStatus::Completed)
+        );
+        assert_eq!(service.snapshot().reserved(), 1);
+        service.consume(retirement).unwrap();
+        assert!(service.snapshot().drained());
+        assert_eq!(
+            service.consume(retirement),
+            Err(RetirementError::UnknownRetirement(retirement))
+        );
+    }
+
+    #[test]
+    fn detached_waiter_never_prevents_resource_cleanup_or_capacity_release() {
+        let service = service(1);
+        let retirement = service
+            .reserve()
+            .unwrap()
+            .attach(String::from("file"))
+            .retire()
+            .unwrap();
+        let worker = service.claim().unwrap();
+        service.detach(retirement).unwrap();
+        assert_eq!(service.status(retirement), None);
+        worker.finish();
+        assert!(service.snapshot().drained());
+    }
+
+    #[test]
+    fn adapter_detach_removes_every_waiter_without_cancelling_cleanup() {
+        let service = service(2);
+        let queued = service
+            .reserve()
+            .unwrap()
+            .attach(String::from("queued"))
+            .retire()
+            .unwrap();
+        let completed = service
+            .reserve()
+            .unwrap()
+            .attach(String::from("completed"))
+            .retire()
+            .unwrap();
+        service.claim().unwrap().finish();
+        assert_eq!(service.status(queued), Some(RetirementStatus::Completed));
+        service.detach_all();
+        assert_eq!(service.status(queued), None);
+        assert_eq!(service.status(completed), None);
+        assert_eq!(service.snapshot().reserved(), 1);
+        service.claim().unwrap().finish();
         assert!(service.snapshot().drained());
     }
 

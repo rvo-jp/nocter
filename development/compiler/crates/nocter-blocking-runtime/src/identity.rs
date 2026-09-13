@@ -55,6 +55,24 @@ pub struct RetirementEpoch {
     sequence: u64,
 }
 
+/// Service-qualified identity of one retirement observed by an explicit waiter.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct RetirementId {
+    service: ServiceIdentity,
+    sequence: u64,
+}
+
+impl RetirementId {
+    pub(crate) const fn new(service: ServiceIdentity, sequence: u64) -> Self {
+        Self { service, sequence }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.sequence
+    }
+}
+
 impl RetirementEpoch {
     pub(crate) const fn initial(service: ServiceIdentity) -> Self {
         Self {

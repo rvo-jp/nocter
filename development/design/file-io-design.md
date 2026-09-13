@@ -58,9 +58,11 @@ service-qualified capacity epoch, and retries. Retirement queues cannot exceed t
 and ordinary operation saturation cannot consume their admission.
 
 Explicit asynchronous close uses the same retirement transition but retains a waiter until cleanup
-finishes. Destruction uses it without a waiter. Runtime shutdown closes new permits first, cancels
-or abandons operation waiters, and continues draining every existing retirement reservation before
-releasing worker storage.
+finishes. Its service-qualified retirement identity cannot alias another service or a later close,
+and its reservation remains occupied until the waiter consumes or detaches completion. Destruction
+uses the same queue without a waiter. Runtime shutdown closes new permits first, cancels or
+abandons operation waiters, detaches close waiters, and continues draining every existing
+retirement reservation before releasing worker storage.
 
 ## Result Facts and Policy
 

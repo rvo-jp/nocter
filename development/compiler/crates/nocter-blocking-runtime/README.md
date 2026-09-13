@@ -27,8 +27,10 @@ exact identity after resuming.
 block. A permit is reserved before the resource exists. Attaching a successfully created resource
 produces a `ResourceOwner`; dropping that owner transfers the resource into its already reserved
 queue without allocation, waiting, or fallible admission. A cleanup worker owns destruction and
-releases the permit afterward. Ordinary operation capacity therefore cannot prevent required
-cleanup, while the permit bound prevents an unbounded retirement queue.
+releases the permit afterward. Explicit retirement instead receives a service-qualified identity;
+the completed cleanup retains its reservation until the waiter consumes or detaches it. Ordinary
+operation capacity therefore cannot prevent required cleanup, while the permit bound prevents an
+unbounded retirement queue or completion set.
 
 ## Invariants
 
@@ -55,3 +57,5 @@ cleanup, while the permit bound prevents an unbounded retirement queue.
   cleanup.
 - Resource-owner destruction is the retirement transition. A caller does not need to invoke a
   second cleanup callback, and worker-guard destruction releases capacity after cleanup failure.
+- Explicit close observes one exact retirement identity. Adapter destruction detaches all such
+  waiters without cancelling cleanup, so an unconsumed completion cannot retain the service.
