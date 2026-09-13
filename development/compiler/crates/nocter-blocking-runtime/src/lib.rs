@@ -8,8 +8,8 @@ mod service;
 
 pub use identity::{CapacityEpoch, JobId};
 pub use service::{
-    Backpressure, BlockingJobService, Cancellation, JobOutcome, RunningJob, ServiceCapacity,
-    ServiceError, ServiceSnapshot, ShutdownCleanup, SubmitError,
+    Backpressure, BlockingJobService, Cancellation, JobOutcome, JobStatus, RunningJob,
+    ServiceCapacity, ServiceError, ServiceSnapshot, ShutdownCleanup, SubmitError,
 };
 
 #[cfg(test)]

@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 use crate::{
-    BlockingJobService, Cancellation, JobOutcome, ServiceCapacity, ServiceError, SubmitError,
+    BlockingJobService, Cancellation, JobOutcome, JobStatus, ServiceCapacity, ServiceError,
+    SubmitError,
 };
 
 fn service(workers: usize, maximum_jobs: usize) -> BlockingJobService<&'static str, usize> {
@@ -64,7 +66,7 @@ fn completion_event_and_consumption_have_one_owner() {
     let service = service(1, 2);
     let job = service.submit("input").unwrap();
     service.claim().unwrap().complete(7).unwrap();
-    assert_eq!(service.completion_events().as_ref(), &[job]);
+    assert_eq!(service.status(job), Some(JobStatus::Completed));
     assert_eq!(service.consume(job).unwrap(), JobOutcome::Completed(7));
     assert_eq!(service.consume(job), Err(ServiceError::UnknownJob(job)));
     assert!(service.is_drained());
@@ -76,9 +78,9 @@ fn cancelling_running_work_detaches_waiter_but_not_worker_owner() {
     let job = service.submit("input").unwrap();
     let work = service.claim().unwrap();
     assert_eq!(service.cancel(job).unwrap(), Cancellation::Running);
+    assert_eq!(service.status(job), None);
     assert!(!service.is_drained());
     assert_eq!(work.complete(9).unwrap(), Some(9));
-    assert!(service.completion_events().is_empty());
     assert!(service.is_drained());
 }
 
@@ -87,7 +89,7 @@ fn dropping_a_worker_owner_cannot_strand_a_waiter() {
     let service = service(1, 1);
     let job = service.submit("input").unwrap();
     drop(service.claim().unwrap());
-    assert_eq!(service.completion_events().as_ref(), &[job]);
+    assert_eq!(service.status(job), Some(JobStatus::Completed));
     assert_eq!(service.consume(job).unwrap(), JobOutcome::WorkerLost);
     assert!(service.is_drained());
 }
@@ -100,8 +102,30 @@ fn running_guard_closes_lifecycle_when_moved_to_another_thread() {
     thread::spawn(move || work.complete(42).unwrap())
         .join()
         .unwrap();
-    assert_eq!(service.completion_events().as_ref(), &[job]);
+    assert_eq!(service.status(job), Some(JobStatus::Completed));
     assert_eq!(service.consume(job).unwrap(), JobOutcome::Completed(42));
+}
+
+#[test]
+fn lifecycle_transitions_own_wake_publication() {
+    let notifications = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&notifications);
+    let service =
+        BlockingJobService::with_notifier(ServiceCapacity::new(1, 2).unwrap(), move || {
+            observed.fetch_add(1, Ordering::SeqCst);
+        });
+    let completed = service.submit("completed").unwrap();
+    service.claim().unwrap().complete(1).unwrap();
+    assert_eq!(notifications.load(Ordering::SeqCst), 1);
+    service.consume(completed).unwrap();
+    assert_eq!(notifications.load(Ordering::SeqCst), 2);
+
+    let abandoned = service.submit("abandoned").unwrap();
+    let work = service.claim().unwrap();
+    service.cancel(abandoned).unwrap();
+    assert_eq!(notifications.load(Ordering::SeqCst), 2);
+    drop(work);
+    assert_eq!(notifications.load(Ordering::SeqCst), 3);
 }
 
 #[test]

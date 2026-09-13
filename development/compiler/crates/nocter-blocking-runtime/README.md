@@ -16,8 +16,9 @@ a closed worker-loss transition, so a missing completion call cannot strand capa
 
 Saturation retains no input: `submit` returns the exact input and a capacity epoch. A completion
 adapter may wait for a later epoch and retry without reconstructing the job. Job identities are
-monotonic and never reused. Completion delivery may therefore contain stale identities, but a stale
-event cannot name a later job.
+monotonic and never reused. The service itself invokes one wake-only notifier after every
+waiter-relevant transition; an adapter cannot strand a waiter by forgetting a second publication
+call. A wake carries no job meaning, so a waiter always queries its exact identity after resuming.
 
 ## Invariants
 
@@ -35,4 +36,6 @@ event cannot name a later job.
   remains alive through the running owners until they retire.
 - Capacity epochs advance whenever a previously occupied admission slot becomes free. They never
   assign job meaning and cannot be used to consume a result.
+- Wake notification runs after releasing the state lock, so it may safely re-enter read-only service
+  queries without becoming a lifecycle mutation path.
 - Public methods validate identities and states; callers cannot mutate lifecycle fields directly.

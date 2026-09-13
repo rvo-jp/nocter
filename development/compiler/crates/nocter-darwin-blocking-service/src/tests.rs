@@ -1,7 +1,7 @@
 use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
 
-use nocter_blocking_runtime::{Cancellation, JobOutcome, ServiceCapacity, SubmitError};
+use nocter_blocking_runtime::{Cancellation, JobOutcome, JobStatus, ServiceCapacity, SubmitError};
 use nocter_darwin_reactor::DarwinReactor;
 use nocter_task_runtime::{
     ReactorInterest, ReadinessDirection, Scheduler, SchedulerProgress, TaskState,
@@ -36,9 +36,8 @@ fn fixed_workers_execute_owned_jobs_and_publish_exact_completion() {
         );
         std::thread::yield_now();
     }
-    let mut completed = Vec::from(service.completion_events());
-    completed.sort_unstable();
-    assert_eq!(completed, vec![first, second]);
+    assert_eq!(service.status(first), Some(JobStatus::Completed));
+    assert_eq!(service.status(second), Some(JobStatus::Completed));
     assert_eq!(service.consume(first).unwrap(), JobOutcome::Completed(3));
     assert_eq!(service.consume(second).unwrap(), JobOutcome::Completed(6));
     service.shutdown().unwrap();
@@ -73,7 +72,7 @@ fn wake_descriptor_composes_with_the_existing_reactor_interest() {
     );
     assert_eq!(scheduler.state(task), Some(TaskState::Running));
     assert!(service.drain_notifications().unwrap() > 0);
-    assert_eq!(service.completion_events().as_ref(), &[job]);
+    assert_eq!(service.status(job), Some(JobStatus::Completed));
     assert_eq!(service.consume(job).unwrap(), JobOutcome::Completed(5));
     scheduler.complete(task).unwrap();
     scheduler.consume_completed(task).unwrap();
@@ -102,7 +101,7 @@ fn cancellation_during_execution_never_publishes_the_abandoned_output() {
         assert!(Instant::now() < deadline, "abandoned worker did not retire");
         std::thread::yield_now();
     }
-    assert!(service.completion_events().is_empty());
+    assert_eq!(service.status(job), None);
     service.shutdown().unwrap();
 }
 

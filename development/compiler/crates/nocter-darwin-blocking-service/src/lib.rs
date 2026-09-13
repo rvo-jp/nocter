@@ -9,7 +9,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
 use nocter_blocking_runtime::{
-    BlockingJobService, Cancellation, CapacityEpoch, JobId, JobOutcome, ServiceCapacity,
+    BlockingJobService, Cancellation, CapacityEpoch, JobId, JobOutcome, JobStatus, ServiceCapacity,
     ServiceError, ServiceSnapshot, ShutdownCleanup, SubmitError,
 };
 
@@ -67,7 +67,6 @@ pub struct DarwinBlockingService<I, O> {
     workers: Vec<JoinHandle<()>>,
     worker_signal: Arc<WorkerSignal>,
     notification_reader: UnixStream,
-    notification_writer: UnixStream,
     stopped: bool,
 }
 
@@ -91,7 +90,10 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
             .set_nonblocking(true)
             .map_err(BuildError::Channel)?;
 
-        let jobs = BlockingJobService::new(capacity);
+        let notifier = notification_writer
+            .try_clone()
+            .map_err(BuildError::Channel)?;
+        let jobs = BlockingJobService::with_notifier(capacity, move || signal(&notifier));
         let worker_signal = Arc::new(WorkerSignal::new());
         let operation = Arc::new(operation);
         let mut workers = Vec::with_capacity(capacity.workers());
@@ -99,16 +101,9 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
             let worker_jobs = jobs.clone();
             let worker_control = Arc::clone(&worker_signal);
             let operation = Arc::clone(&operation);
-            let writer = match notification_writer.try_clone() {
-                Ok(writer) => writer,
-                Err(error) => {
-                    stop_workers(&jobs, &worker_signal, &mut workers);
-                    return Err(BuildError::Channel(error));
-                }
-            };
             match thread::Builder::new()
                 .name(format!("nocter-blocking-{index}"))
-                .spawn(move || worker_loop(&worker_jobs, &worker_control, &writer, &*operation))
+                .spawn(move || worker_loop(&worker_jobs, &worker_control, &*operation))
             {
                 Ok(worker) => workers.push(worker),
                 Err(error) => {
@@ -122,7 +117,6 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
             workers,
             worker_signal,
             notification_reader,
-            notification_writer,
             stopped: false,
         })
     }
@@ -135,6 +129,11 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
     #[must_use]
     pub fn snapshot(&self) -> ServiceSnapshot {
         self.jobs.snapshot()
+    }
+
+    #[must_use]
+    pub fn status(&self, job: JobId) -> Option<JobStatus> {
+        self.jobs.status(job)
     }
 
     #[must_use]
@@ -160,12 +159,6 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
     /// Returns identity or lifecycle mismatch from the sole lifecycle authority.
     pub fn cancel(&self, job: JobId) -> Result<Cancellation<I, O>, ServiceError> {
         let cancellation = self.jobs.cancel(job)?;
-        if matches!(
-            cancellation,
-            Cancellation::Queued(_) | Cancellation::Completed(_)
-        ) {
-            signal(&self.notification_writer);
-        }
         Ok(cancellation)
     }
 
@@ -176,13 +169,7 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
     /// Returns identity or lifecycle mismatch from the sole lifecycle authority.
     pub fn consume(&self, job: JobId) -> Result<JobOutcome<O>, ServiceError> {
         let output = self.jobs.consume(job)?;
-        signal(&self.notification_writer);
         Ok(output)
-    }
-
-    #[must_use]
-    pub fn completion_events(&self) -> Box<[JobId]> {
-        self.jobs.completion_events()
     }
 
     /// Drains every currently readable wake byte.
@@ -233,7 +220,6 @@ impl<I, O> Drop for DarwinBlockingService<I, O> {
 fn worker_loop<I, O, F>(
     jobs: &BlockingJobService<I, O>,
     worker_signal: &WorkerSignal,
-    notification_writer: &UnixStream,
     operation: &F,
 ) where
     F: Fn(&mut I) -> O,
@@ -248,7 +234,6 @@ fn worker_loop<I, O, F>(
                 }
                 Err(_) => drop(job),
             }
-            signal(notification_writer);
             continue;
         }
         if worker_signal.wait_for_change(observed) {

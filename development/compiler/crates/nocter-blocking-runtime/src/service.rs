@@ -142,6 +142,14 @@ pub enum JobOutcome<O> {
     WorkerLost,
 }
 
+/// Waiter-visible lifecycle state of one current job identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum JobStatus {
+    Queued,
+    Running,
+    Completed,
+}
+
 /// Ownership returned when cancellation detaches a future from one job.
 #[derive(Debug, Eq, PartialEq)]
 pub enum Cancellation<I, O> {
@@ -180,8 +188,7 @@ impl fmt::Display for ServiceError {
 
 impl std::error::Error for ServiceError {}
 
-enum JobState<I, O> {
-    Queued(I),
+enum ActiveJobState<O> {
     Running,
     AbandonedRunning,
     Completed(JobOutcome<O>),
@@ -192,29 +199,31 @@ struct Inner<I, O> {
     accepting: bool,
     next_job: u64,
     capacity_epoch: CapacityEpoch,
-    states: BTreeMap<JobId, JobState<I, O>>,
-    queue: VecDeque<JobId>,
-    running: usize,
-    completions: VecDeque<JobId>,
+    queue: VecDeque<(JobId, I)>,
+    active: BTreeMap<JobId, ActiveJobState<O>>,
+    notify: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl<I, O> Inner<I, O> {
     fn snapshot(&self) -> ServiceSnapshot {
-        let mut queued = 0;
         let mut completed = 0;
         let mut abandoned_running = 0;
-        for state in self.states.values() {
+        for state in self.active.values() {
             match state {
-                JobState::Queued(_) => queued += 1,
-                JobState::Completed(_) => completed += 1,
-                JobState::AbandonedRunning => abandoned_running += 1,
-                JobState::Running => {}
+                ActiveJobState::Completed(_) => completed += 1,
+                ActiveJobState::AbandonedRunning => abandoned_running += 1,
+                ActiveJobState::Running => {}
             }
         }
+        let running = self
+            .active
+            .values()
+            .filter(|state| matches!(state, ActiveJobState::Running))
+            .count();
         ServiceSnapshot {
             accepting: self.accepting,
-            queued,
-            running: self.running.saturating_sub(abandoned_running),
+            queued: self.queue.len(),
+            running,
             completed,
             abandoned_running,
             capacity_epoch: self.capacity_epoch,
@@ -223,6 +232,22 @@ impl<I, O> Inner<I, O> {
 
     fn release_capacity(&mut self) {
         self.capacity_epoch.advance();
+    }
+
+    fn running_count(&self) -> usize {
+        self.active
+            .values()
+            .filter(|state| {
+                matches!(
+                    state,
+                    ActiveJobState::Running | ActiveJobState::AbandonedRunning
+                )
+            })
+            .count()
+    }
+
+    fn admitted_count(&self) -> usize {
+        self.queue.len() + self.active.len()
     }
 }
 
@@ -242,16 +267,27 @@ impl<I, O> Clone for BlockingJobService<I, O> {
 impl<I, O> BlockingJobService<I, O> {
     #[must_use]
     pub fn new(capacity: ServiceCapacity) -> Self {
+        Self::with_notifier(capacity, || {})
+    }
+
+    /// Creates a service whose lifecycle transitions invoke one wake-only notifier.
+    ///
+    /// The notifier runs after the state lock is released. It must not assign meaning to a wake;
+    /// observers query their exact job or capacity epoch after resuming.
+    #[must_use]
+    pub fn with_notifier<N>(capacity: ServiceCapacity, notify: N) -> Self
+    where
+        N: Fn() + Send + Sync + 'static,
+    {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 capacity,
                 accepting: true,
                 next_job: 0,
                 capacity_epoch: CapacityEpoch::INITIAL,
-                states: BTreeMap::new(),
                 queue: VecDeque::new(),
-                running: 0,
-                completions: VecDeque::new(),
+                active: BTreeMap::new(),
+                notify: Arc::new(notify),
             })),
         }
     }
@@ -264,6 +300,20 @@ impl<I, O> BlockingJobService<I, O> {
     #[must_use]
     pub fn snapshot(&self) -> ServiceSnapshot {
         lock(&self.inner).snapshot()
+    }
+
+    /// Returns the waiter-visible state only while this exact identity remains current.
+    #[must_use]
+    pub fn status(&self, job: JobId) -> Option<JobStatus> {
+        let inner = lock(&self.inner);
+        if inner.queue.iter().any(|(queued, _)| *queued == job) {
+            return Some(JobStatus::Queued);
+        }
+        inner.active.get(&job).and_then(|state| match state {
+            ActiveJobState::Running => Some(JobStatus::Running),
+            ActiveJobState::Completed(_) => Some(JobStatus::Completed),
+            ActiveJobState::AbandonedRunning => None,
+        })
     }
 
     /// Whether capacity has changed since a rejected admission observed its epoch.
@@ -282,7 +332,7 @@ impl<I, O> BlockingJobService<I, O> {
         if !inner.accepting {
             return Err(SubmitError::Closed(input));
         }
-        if inner.states.len() == inner.capacity.maximum_jobs {
+        if inner.admitted_count() >= inner.capacity.maximum_jobs {
             return Err(SubmitError::Saturated(Backpressure {
                 input,
                 observed_epoch: inner.capacity_epoch,
@@ -293,9 +343,7 @@ impl<I, O> BlockingJobService<I, O> {
         };
         let job = JobId::new(inner.next_job);
         inner.next_job = next_job;
-        let previous = inner.states.insert(job, JobState::Queued(input));
-        debug_assert!(previous.is_none());
-        inner.queue.push_back(job);
+        inner.queue.push_back((job, input));
         Ok(job)
     }
 
@@ -303,19 +351,12 @@ impl<I, O> BlockingJobService<I, O> {
     #[must_use]
     pub fn claim(&self) -> Option<RunningJob<I, O>> {
         let mut inner = lock(&self.inner);
-        if inner.running == inner.capacity.workers {
+        if inner.running_count() >= inner.capacity.workers {
             return None;
         }
-        while let Some(job) = inner.queue.pop_front() {
-            let Some(state) = inner.states.remove(&job) else {
-                continue;
-            };
-            let JobState::Queued(input) = state else {
-                inner.states.insert(job, state);
-                continue;
-            };
-            inner.states.insert(job, JobState::Running);
-            inner.running += 1;
+        if let Some((job, input)) = inner.queue.pop_front() {
+            let previous = inner.active.insert(job, ActiveJobState::Running);
+            debug_assert!(previous.is_none());
             return Some(RunningJob {
                 job,
                 input,
@@ -333,25 +374,36 @@ impl<I, O> BlockingJobService<I, O> {
     /// Rejects an unknown or already abandoned identity.
     pub fn cancel(&self, job: JobId) -> Result<Cancellation<I, O>, ServiceError> {
         let mut inner = lock(&self.inner);
+        if let Some(position) = inner.queue.iter().position(|(queued, _)| *queued == job) {
+            let input = inner
+                .queue
+                .remove(position)
+                .map(|(_, input)| input)
+                .ok_or(ServiceError::UnknownJob(job))?;
+            inner.release_capacity();
+            let notify = Arc::clone(&inner.notify);
+            drop(inner);
+            notify();
+            return Ok(Cancellation::Queued(input));
+        }
         let state = inner
-            .states
+            .active
             .remove(&job)
             .ok_or(ServiceError::UnknownJob(job))?;
         match state {
-            JobState::Queued(input) => {
-                inner.release_capacity();
-                Ok(Cancellation::Queued(input))
-            }
-            JobState::Running => {
-                inner.states.insert(job, JobState::AbandonedRunning);
+            ActiveJobState::Running => {
+                inner.active.insert(job, ActiveJobState::AbandonedRunning);
                 Ok(Cancellation::Running)
             }
-            JobState::Completed(output) => {
+            ActiveJobState::Completed(output) => {
                 inner.release_capacity();
+                let notify = Arc::clone(&inner.notify);
+                drop(inner);
+                notify();
                 Ok(Cancellation::Completed(output))
             }
-            JobState::AbandonedRunning => {
-                inner.states.insert(job, JobState::AbandonedRunning);
+            ActiveJobState::AbandonedRunning => {
+                inner.active.insert(job, ActiveJobState::AbandonedRunning);
                 Err(ServiceError::InvalidJobState(job))
             }
         }
@@ -365,28 +417,18 @@ impl<I, O> BlockingJobService<I, O> {
     pub fn consume(&self, job: JobId) -> Result<JobOutcome<O>, ServiceError> {
         let mut inner = lock(&self.inner);
         let state = inner
-            .states
+            .active
             .remove(&job)
             .ok_or(ServiceError::UnknownJob(job))?;
-        let JobState::Completed(output) = state else {
-            inner.states.insert(job, state);
+        let ActiveJobState::Completed(output) = state else {
+            inner.active.insert(job, state);
             return Err(ServiceError::InvalidJobState(job));
         };
         inner.release_capacity();
+        let notify = Arc::clone(&inner.notify);
+        drop(inner);
+        notify();
         Ok(output)
-    }
-
-    /// Drains completion identities in worker-publication order.
-    ///
-    /// An identity may already have been cancelled. Consumers validate it with `consume`; job IDs
-    /// are never reused, so a stale event cannot refer to another job.
-    #[must_use]
-    pub fn completion_events(&self) -> Box<[JobId]> {
-        lock(&self.inner)
-            .completions
-            .drain(..)
-            .collect::<Vec<_>>()
-            .into_boxed_slice()
     }
 
     /// Closes admission and detaches every value not owned by a running worker.
@@ -397,35 +439,40 @@ impl<I, O> BlockingJobService<I, O> {
     pub fn begin_shutdown(&self) -> ShutdownCleanup<I, O> {
         let mut inner = lock(&self.inner);
         inner.accepting = false;
-        let jobs = inner.states.keys().copied().collect::<Vec<_>>();
-        let mut queued = Vec::new();
+        let queued = inner
+            .queue
+            .drain(..)
+            .map(|(_, input)| input)
+            .collect::<Vec<_>>();
+        for _ in &queued {
+            inner.release_capacity();
+        }
+        let jobs = inner.active.keys().copied().collect::<Vec<_>>();
         let mut completed = Vec::new();
         for job in jobs {
-            let Some(state) = inner.states.remove(&job) else {
+            let Some(state) = inner.active.remove(&job) else {
                 continue;
             };
             match state {
-                JobState::Queued(input) => {
-                    queued.push(input);
-                    inner.release_capacity();
-                }
-                JobState::Completed(output) => {
+                ActiveJobState::Completed(output) => {
                     completed.push(output);
                     inner.release_capacity();
                 }
-                JobState::Running | JobState::AbandonedRunning => {
-                    inner.states.insert(job, JobState::AbandonedRunning);
+                ActiveJobState::Running | ActiveJobState::AbandonedRunning => {
+                    inner.active.insert(job, ActiveJobState::AbandonedRunning);
                 }
             }
         }
-        inner.queue.clear();
-        inner.completions.clear();
+        let notify = Arc::clone(&inner.notify);
+        drop(inner);
+        notify();
         ShutdownCleanup { queued, completed }
     }
 
     #[must_use]
     pub fn is_drained(&self) -> bool {
-        lock(&self.inner).states.is_empty()
+        let inner = lock(&self.inner);
+        inner.queue.is_empty() && inner.active.is_empty()
     }
 }
 
@@ -461,27 +508,32 @@ impl<I, O> RunningJob<I, O> {
     pub fn complete(mut self, output: O) -> Result<Option<O>, ServiceError> {
         let mut inner = lock(&self.inner);
         let state = inner
-            .states
+            .active
             .remove(&self.job)
             .ok_or(ServiceError::UnknownJob(self.job))?;
         let abandoned = match state {
-            JobState::Running => false,
-            JobState::AbandonedRunning => true,
-            state @ (JobState::Queued(_) | JobState::Completed(_)) => {
-                inner.states.insert(self.job, state);
+            ActiveJobState::Running => false,
+            ActiveJobState::AbandonedRunning => true,
+            state @ ActiveJobState::Completed(_) => {
+                inner.active.insert(self.job, state);
                 return Err(ServiceError::InvalidJobState(self.job));
             }
         };
-        inner.running -= 1;
         self.retired = true;
         if abandoned {
             inner.release_capacity();
+            let notify = Arc::clone(&inner.notify);
+            drop(inner);
+            notify();
             Ok(Some(output))
         } else {
-            inner
-                .states
-                .insert(self.job, JobState::Completed(JobOutcome::Completed(output)));
-            inner.completions.push_back(self.job);
+            inner.active.insert(
+                self.job,
+                ActiveJobState::Completed(JobOutcome::Completed(output)),
+            );
+            let notify = Arc::clone(&inner.notify);
+            drop(inner);
+            notify();
             Ok(None)
         }
     }
@@ -492,25 +544,30 @@ impl<I, O> Drop for RunningJob<I, O> {
         if self.retired {
             return;
         }
-        let mut inner = lock(&self.inner);
-        let Some(state) = inner.states.remove(&self.job) else {
-            return;
+        let notify = {
+            let mut inner = lock(&self.inner);
+            let Some(state) = inner.active.remove(&self.job) else {
+                return;
+            };
+            match state {
+                ActiveJobState::Running => {
+                    inner
+                        .active
+                        .insert(self.job, ActiveJobState::Completed(JobOutcome::WorkerLost));
+                    Some(Arc::clone(&inner.notify))
+                }
+                ActiveJobState::AbandonedRunning => {
+                    inner.release_capacity();
+                    Some(Arc::clone(&inner.notify))
+                }
+                state @ ActiveJobState::Completed(_) => {
+                    inner.active.insert(self.job, state);
+                    None
+                }
+            }
         };
-        match state {
-            JobState::Running => {
-                inner.running -= 1;
-                inner
-                    .states
-                    .insert(self.job, JobState::Completed(JobOutcome::WorkerLost));
-                inner.completions.push_back(self.job);
-            }
-            JobState::AbandonedRunning => {
-                inner.running -= 1;
-                inner.release_capacity();
-            }
-            state @ (JobState::Queued(_) | JobState::Completed(_)) => {
-                inner.states.insert(self.job, state);
-            }
+        if let Some(notify) = notify {
+            notify();
         }
     }
 }
