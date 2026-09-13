@@ -99,6 +99,121 @@ pub enum DarwinFileSeekOrigin {
     Current,
 }
 
+/// Closed classification of one target-level file-operation failure.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DarwinFileFailureKind {
+    Allocation,
+    Target,
+    OffsetOverflow,
+    ZeroProgress,
+    InvalidProgress,
+    Unclassified,
+}
+
+/// One validated file-operation failure before standard-library error policy is applied.
+///
+/// Darwin errno remains an opaque positive target code. Private representation prevents an
+/// adapter from constructing the otherwise ambiguous `Target(0)` state.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct DarwinFileFailure {
+    kind: DarwinFileFailureKind,
+    target_errno: i32,
+}
+
+impl DarwinFileFailure {
+    pub const ALLOCATION: Self = Self::without_errno(DarwinFileFailureKind::Allocation);
+    pub const OFFSET_OVERFLOW: Self = Self::without_errno(DarwinFileFailureKind::OffsetOverflow);
+    pub const ZERO_PROGRESS: Self = Self::without_errno(DarwinFileFailureKind::ZeroProgress);
+    pub const INVALID_PROGRESS: Self = Self::without_errno(DarwinFileFailureKind::InvalidProgress);
+    /// A target adapter reported failure without a classifiable Darwin errno.
+    pub const UNCLASSIFIED: Self = Self::without_errno(DarwinFileFailureKind::Unclassified);
+
+    const fn without_errno(kind: DarwinFileFailureKind) -> Self {
+        Self {
+            kind,
+            target_errno: 0,
+        }
+    }
+
+    /// Creates one raw target failure only for a positive errno value.
+    #[must_use]
+    pub const fn target(errno: i32) -> Option<Self> {
+        if errno <= 0 {
+            None
+        } else {
+            Some(Self {
+                kind: DarwinFileFailureKind::Target,
+                target_errno: errno,
+            })
+        }
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> DarwinFileFailureKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn target_errno(self) -> Option<i32> {
+        if matches!(self.kind, DarwinFileFailureKind::Target) {
+            Some(self.target_errno)
+        } else {
+            None
+        }
+    }
+}
+
+/// Exact prefix progress from one complete-write attempt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinFileWriteFact {
+    attempted: usize,
+    transferred: usize,
+    failure: Option<DarwinFileFailure>,
+}
+
+impl DarwinFileWriteFact {
+    #[must_use]
+    pub const fn complete(attempted: usize) -> Self {
+        Self {
+            attempted,
+            transferred: attempted,
+            failure: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn failed(attempted: usize, transferred: usize, failure: DarwinFileFailure) -> Self {
+        if transferred <= attempted {
+            Self {
+                attempted,
+                transferred,
+                failure: Some(failure),
+            }
+        } else {
+            Self {
+                attempted,
+                transferred: attempted,
+                failure: Some(DarwinFileFailure::INVALID_PROGRESS),
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn attempted(self) -> usize {
+        self.attempted
+    }
+
+    #[must_use]
+    pub const fn transferred(self) -> usize {
+        self.transferred
+    }
+
+    #[must_use]
+    pub const fn failure(self) -> Option<DarwinFileFailure> {
+        self.failure
+    }
+}
+
 impl DarwinFileSeekOrigin {
     pub const ALL: &'static [Self] = &[Self::Start, Self::End, Self::Current];
 
@@ -124,7 +239,10 @@ impl DarwinFileSeekOrigin {
 
 #[cfg(test)]
 mod tests {
-    use super::{DarwinFileAccess, DarwinFileOperation, DarwinFileSeekOrigin};
+    use super::{
+        DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
+        DarwinFileSeekOrigin, DarwinFileWriteFact,
+    };
 
     #[test]
     fn closed_file_service_tags_are_unique_and_round_trip() {
@@ -151,5 +269,30 @@ mod tests {
             assert_eq!(DarwinFileSeekOrigin::from_code(origin.code()), Some(origin));
         }
         assert_eq!(DarwinFileSeekOrigin::from_code(u8::MAX), None);
+    }
+
+    #[test]
+    fn raw_failures_and_write_progress_do_not_depend_on_host_error_objects() {
+        assert_eq!(DarwinFileFailure::target(0), None);
+        assert_eq!(DarwinFileFailure::target(-1), None);
+        let target = DarwinFileFailure::target(5).unwrap();
+        assert_eq!(target.kind(), DarwinFileFailureKind::Target);
+        assert_eq!(target.target_errno(), Some(5));
+        assert_eq!(DarwinFileFailure::ALLOCATION.target_errno(), None);
+
+        let complete = DarwinFileWriteFact::complete(7);
+        assert_eq!(complete.attempted(), 7);
+        assert_eq!(complete.transferred(), 7);
+        assert_eq!(complete.failure(), None);
+        let failed = DarwinFileWriteFact::failed(7, 3, DarwinFileFailure::ZERO_PROGRESS);
+        assert_eq!(failed.attempted(), 7);
+        assert_eq!(failed.transferred(), 3);
+        assert_eq!(failed.failure(), Some(DarwinFileFailure::ZERO_PROGRESS));
+        let malformed = DarwinFileWriteFact::failed(7, 9, DarwinFileFailure::ZERO_PROGRESS);
+        assert_eq!(malformed.transferred(), 7);
+        assert_eq!(
+            malformed.failure(),
+            Some(DarwinFileFailure::INVALID_PROGRESS)
+        );
     }
 }

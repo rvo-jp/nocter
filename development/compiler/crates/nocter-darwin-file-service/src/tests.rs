@@ -118,8 +118,9 @@ fn write_flush_and_truncate_publish_complete_operation_facts() {
     else {
         panic!("write job returned the wrong outcome")
     };
+    assert_eq!(fact.attempted(), 6);
     assert_eq!(fact.transferred(), 6);
-    assert!(fact.error().is_none());
+    assert!(fact.failure().is_none());
 
     let truncate = service.submit(DarwinFileJob::truncate(owner, 3)).unwrap();
     wait_for_job(&service, truncate);
@@ -228,8 +229,9 @@ fn positioned_transfers_preserve_cursor_and_exact_progress() {
     else {
         panic!("initial write returned the wrong outcome")
     };
+    assert_eq!(fact.attempted(), 6);
     assert_eq!(fact.transferred(), 6);
-    assert!(fact.error().is_none());
+    assert!(fact.failure().is_none());
 
     let positioned = DarwinFileJob::write_at(owner, &b"XY"[..], 1);
     assert_eq!(positioned.kind(), FileJobKind::WriteAt);
@@ -240,8 +242,9 @@ fn positioned_transfers_preserve_cursor_and_exact_progress() {
     else {
         panic!("positioned write returned the wrong outcome")
     };
+    assert_eq!(fact.attempted(), 2);
     assert_eq!(fact.transferred(), 2);
-    assert!(fact.error().is_none());
+    assert!(fact.failure().is_none());
 
     let sequential = service
         .submit(DarwinFileJob::write(owner, &b"Z"[..]))
@@ -252,8 +255,9 @@ fn positioned_transfers_preserve_cursor_and_exact_progress() {
     else {
         panic!("sequential write returned the wrong outcome")
     };
+    assert_eq!(fact.attempted(), 1);
     assert_eq!(fact.transferred(), 1);
-    assert!(fact.error().is_none());
+    assert!(fact.failure().is_none());
     drop(owner);
     wait_until(|| service.retirement_snapshot().drained());
     service.shutdown().unwrap();

@@ -27,7 +27,10 @@ mod target_service;
 pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_event::DarwinEventAbiSchema;
-pub use darwin_file::{DarwinFileAccess, DarwinFileOperation, DarwinFileSeekOrigin};
+pub use darwin_file::{
+    DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
+    DarwinFileSeekOrigin, DarwinFileWriteFact,
+};
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
     DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionEventObservationAbiSchema,

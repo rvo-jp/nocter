@@ -8,10 +8,15 @@ retirement over the generic bounded blocking services.
 ## Contract
 
 The adapter owns file access modes, operation inputs, initialized read output, partial write facts,
-position results, and host I/O failures. Each job owns its path, byte input, or retirement-aware
-file owner. It cannot retain a caller buffer. Every result that keeps a file usable returns the same
-owner; dropping a queued input, ignored output, or cancelled completion sends that owner through
-its pre-reserved cleanup service.
+position results, and target-level I/O failures. Each job owns its path, byte input, or
+retirement-aware file owner. It cannot retain a caller buffer. Every result that keeps a file usable
+returns the same owner; dropping a queued input, ignored output, or cancelled completion sends that
+owner through its pre-reserved cleanup service.
+
+Worker results contain `DarwinFileFailure` and `DarwinFileWriteFact` from the runtime contract,
+never `std::io::Error`. Host APIs are reduced once to positive Darwin errno or a closed adapter
+failure before publication. Generated target code therefore consumes the same raw fact vocabulary
+instead of reconstructing a parallel error representation.
 
 The adapter does not define public `std/io` names or errors, task scheduling, compiler primitive
 identity, worker lifecycle, queue layout, or wake encoding. It composes lifecycle execution through

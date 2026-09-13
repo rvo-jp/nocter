@@ -17,7 +17,8 @@ use nocter_darwin_blocking_service::{
     ShutdownError,
 };
 pub use nocter_runtime_contract::{
-    DarwinFileAccess as FileAccess, DarwinFileOperation as FileJobKind, DarwinFileSeekOrigin,
+    DarwinFileAccess as FileAccess, DarwinFileFailure as FileOperationError,
+    DarwinFileOperation as FileJobKind, DarwinFileSeekOrigin, DarwinFileWriteFact as FileWriteFact,
 };
 
 /// Portable positioning input retained by one owned seek job.
@@ -204,53 +205,6 @@ impl DarwinFileJob {
             FileJobPayload::ReadAt { .. } => FileJobKind::ReadAt,
             FileJobPayload::WriteAt { .. } => FileJobKind::WriteAt,
         }
-    }
-}
-
-/// Allocation or host-I/O failure produced on a blocking worker.
-#[derive(Debug)]
-pub enum FileOperationError {
-    Allocation,
-    Io(io::Error),
-}
-
-impl fmt::Display for FileOperationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Darwin file operation failed: {self:?}")
-    }
-}
-
-impl std::error::Error for FileOperationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Allocation => None,
-            Self::Io(error) => Some(error),
-        }
-    }
-}
-
-impl From<io::Error> for FileOperationError {
-    fn from(error: io::Error) -> Self {
-        Self::Io(error)
-    }
-}
-
-/// Exact write progress retained even when the terminal operation result is an error.
-#[derive(Debug)]
-pub struct FileWriteFact {
-    transferred: usize,
-    error: Option<io::Error>,
-}
-
-impl FileWriteFact {
-    #[must_use]
-    pub const fn transferred(&self) -> usize {
-        self.transferred
-    }
-
-    #[must_use]
-    pub const fn error(&self) -> Option<&io::Error> {
-        self.error.as_ref()
     }
 }
 
@@ -471,7 +425,7 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
         } => DarwinFileOutcome::Open(
             open_file(&path, access)
                 .map(|file| DarwinFileOwner::new(permit.attach(file)))
-                .map_err(FileOperationError::from),
+                .map_err(|error| file_failure(&error)),
         ),
         FileJobPayload::Read { mut owner, maximum } => {
             let result = read_file(owner.0.resource_mut(), maximum);
@@ -486,7 +440,7 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
                 .0
                 .resource_mut()
                 .flush()
-                .map_err(FileOperationError::from);
+                .map_err(|error| file_failure(&error));
             DarwinFileOutcome::Flush { owner, result }
         }
         FileJobPayload::Seek {
@@ -497,7 +451,7 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
                 .0
                 .resource_mut()
                 .seek(position.into())
-                .map_err(FileOperationError::from);
+                .map_err(|error| file_failure(&error));
             DarwinFileOutcome::Seek { owner, result }
         }
         FileJobPayload::Truncate { mut owner, length } => {
@@ -505,7 +459,7 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
                 .0
                 .resource_mut()
                 .set_len(length)
-                .map_err(FileOperationError::from);
+                .map_err(|error| file_failure(&error));
             DarwinFileOutcome::Truncate { owner, result }
         }
         FileJobPayload::ReadAt {
@@ -554,58 +508,81 @@ fn read_into_owned(
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(maximum)
-        .map_err(|_| FileOperationError::Allocation)?;
+        .map_err(|_| FileOperationError::ALLOCATION)?;
     bytes.resize(maximum, 0);
-    let received = read(&mut bytes).map_err(FileOperationError::from)?;
+    let received = read(&mut bytes).map_err(|error| file_failure(&error))?;
     bytes.truncate(received);
     Ok(bytes.into_boxed_slice())
 }
 
 fn write_file(file: &mut File, bytes: &[u8]) -> FileWriteFact {
-    write_complete(bytes, |remaining, _| file.write(remaining))
+    write_complete(bytes, |remaining, _| {
+        file.write(remaining)
+            .map_err(|error| file_write_failure(&error))
+    })
 }
 
 fn write_file_at(file: &File, bytes: &[u8], offset: u64) -> FileWriteFact {
     write_complete(bytes, |remaining, transferred| {
-        let position = offset.checked_add(transferred as u64).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "positioned write offset overflow",
-            )
-        })?;
+        let position =
+            offset
+                .checked_add(transferred as u64)
+                .ok_or(FileWriteAttemptError::Failure(
+                    FileOperationError::OFFSET_OVERFLOW,
+                ))?;
         file.write_at(remaining, position)
+            .map_err(|error| file_write_failure(&error))
     })
 }
 
 fn write_complete(
     bytes: &[u8],
-    mut write: impl FnMut(&[u8], usize) -> io::Result<usize>,
+    mut write: impl FnMut(&[u8], usize) -> Result<usize, FileWriteAttemptError>,
 ) -> FileWriteFact {
     let mut transferred = 0;
     while transferred < bytes.len() {
         match write(&bytes[transferred..], transferred) {
             Ok(0) => {
-                return FileWriteFact {
+                return FileWriteFact::failed(
+                    bytes.len(),
                     transferred,
-                    error: Some(io::Error::new(
-                        io::ErrorKind::WriteZero,
-                        "write made no progress",
-                    )),
-                };
+                    FileOperationError::ZERO_PROGRESS,
+                );
+            }
+            Ok(count) if count > bytes.len() - transferred => {
+                return FileWriteFact::failed(
+                    bytes.len(),
+                    bytes.len(),
+                    FileOperationError::INVALID_PROGRESS,
+                );
             }
             Ok(count) => transferred += count,
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) => {
-                return FileWriteFact {
-                    transferred,
-                    error: Some(error),
-                };
+            Err(FileWriteAttemptError::Interrupted) => {}
+            Err(FileWriteAttemptError::Failure(error)) => {
+                return FileWriteFact::failed(bytes.len(), transferred, error);
             }
         }
     }
-    FileWriteFact {
-        transferred,
-        error: None,
+    FileWriteFact::complete(transferred)
+}
+
+fn file_failure(error: &io::Error) -> FileOperationError {
+    error
+        .raw_os_error()
+        .and_then(FileOperationError::target)
+        .unwrap_or(FileOperationError::UNCLASSIFIED)
+}
+
+enum FileWriteAttemptError {
+    Interrupted,
+    Failure(FileOperationError),
+}
+
+fn file_write_failure(error: &io::Error) -> FileWriteAttemptError {
+    if error.kind() == io::ErrorKind::Interrupted {
+        FileWriteAttemptError::Interrupted
+    } else {
+        FileWriteAttemptError::Failure(file_failure(error))
     }
 }
 

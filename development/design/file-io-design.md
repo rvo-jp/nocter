@@ -71,6 +71,11 @@ applicable, initialized read length, completed write prefix, resulting position,
 It does not construct `std` errors or interpret UTF-8. Standard source maps those facts once through
 the existing portable I/O error authority.
 
+Those facts use the closed `DarwinFileFailure` and `DarwinFileWriteFact` runtime contracts. A host
+conformance adapter reduces `std::io::Error` to a positive Darwin errno or an explicit adapter
+failure before publication; generated code never receives a Rust error object. Zero-progress and
+position-overflow failures have their own variants and are not disguised as target errno.
+
 A failed read, positioned read, seek, truncate, or flush restores the file owner before returning
 its error. A write or positioned-write failure restores the owner but retains an observable
 completed prefix; retrying the whole input is not implied. Positioned operations leave the shared
