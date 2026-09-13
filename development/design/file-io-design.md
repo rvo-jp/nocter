@@ -71,10 +71,11 @@ applicable, initialized read length, completed write prefix, resulting position,
 It does not construct `std` errors or interpret UTF-8. Standard source maps those facts once through
 the existing portable I/O error authority.
 
-A failed read, seek, truncate, or flush restores the file owner before returning its error. A write
-failure restores the owner but retains an observable completed prefix; retrying the whole input is
-not implied. Close is terminal whether its target operation succeeds or fails. A malformed target
-fact is an internal target-contract failure rather than a fabricated filesystem result.
+A failed read, positioned read, seek, truncate, or flush restores the file owner before returning
+its error. A write or positioned-write failure restores the owner but retains an observable
+completed prefix; retrying the whole input is not implied. Positioned operations leave the shared
+cursor unchanged. Close is terminal whether its target operation succeeds or fails. A malformed
+target fact is an internal target-contract failure rather than a fabricated filesystem result.
 
 ## Dependency Direction
 
@@ -104,3 +105,7 @@ Phase 1 is complete only after generated Darwin executables use this ownership p
 helpers select the correct execution surface, compiler and editor projections show the checked
 contracts, cancellation and drop are exercised through native execution, and no old alias or
 executor-blocking implementation remains.
+
+The closed worker-operation, access-mode, and seek-origin vocabularies are owned by
+`nocter-runtime-contract`. Host conformance and generated target code consume those tags; neither
+may maintain a private operation list.

@@ -3,6 +3,7 @@
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
 
 use nocter_blocking_runtime::{
@@ -15,14 +16,9 @@ use nocter_darwin_blocking_service::{
     BuildError, DarwinBlockingService, DarwinRetirementService, RetirementShutdownError,
     ShutdownError,
 };
-
-/// File access semantics selected before a target open job begins.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FileAccess {
-    Read,
-    Create,
-    Append,
-}
+pub use nocter_runtime_contract::{
+    DarwinFileAccess as FileAccess, DarwinFileOperation as FileJobKind, DarwinFileSeekOrigin,
+};
 
 /// Portable positioning input retained by one owned seek job.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,6 +34,18 @@ impl From<FilePosition> for SeekFrom {
             FilePosition::Start(offset) => Self::Start(offset),
             FilePosition::End(offset) => Self::End(offset),
             FilePosition::Current(offset) => Self::Current(offset),
+        }
+    }
+}
+
+impl FilePosition {
+    /// Returns the closed target seek base without exposing host `SeekFrom` representation.
+    #[must_use]
+    pub const fn origin(self) -> DarwinFileSeekOrigin {
+        match self {
+            Self::Start(_) => DarwinFileSeekOrigin::Start,
+            Self::End(_) => DarwinFileSeekOrigin::End,
+            Self::Current(_) => DarwinFileSeekOrigin::Current,
         }
     }
 }
@@ -58,17 +66,6 @@ impl DarwinFileOwner {
     pub fn retire(self) -> Result<RetirementId, RetirementError> {
         self.0.retire()
     }
-}
-
-/// Exact operation family retained beside a job identity.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FileJobKind {
-    Open,
-    Read,
-    Write,
-    Flush,
-    Seek,
-    Truncate,
 }
 
 enum FileJobPayload {
@@ -93,6 +90,16 @@ enum FileJobPayload {
     Truncate {
         owner: DarwinFileOwner,
         length: u64,
+    },
+    ReadAt {
+        owner: DarwinFileOwner,
+        maximum: usize,
+        offset: u64,
+    },
+    WriteAt {
+        owner: DarwinFileOwner,
+        bytes: Box<[u8]>,
+        offset: u64,
     },
 }
 
@@ -160,6 +167,30 @@ impl DarwinFileJob {
         }
     }
 
+    /// Creates one positioned read that does not change the shared file cursor.
+    #[must_use]
+    pub fn read_at(owner: DarwinFileOwner, maximum: usize, offset: u64) -> Self {
+        Self {
+            payload: Some(FileJobPayload::ReadAt {
+                owner,
+                maximum,
+                offset,
+            }),
+        }
+    }
+
+    /// Creates one positioned complete-write attempt that does not change the shared file cursor.
+    #[must_use]
+    pub fn write_at(owner: DarwinFileOwner, bytes: impl Into<Box<[u8]>>, offset: u64) -> Self {
+        Self {
+            payload: Some(FileJobPayload::WriteAt {
+                owner,
+                bytes: bytes.into(),
+                offset,
+            }),
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     ///
     /// # Panics
@@ -179,6 +210,8 @@ impl DarwinFileJob {
             FileJobPayload::Flush(_) => FileJobKind::Flush,
             FileJobPayload::Seek { .. } => FileJobKind::Seek,
             FileJobPayload::Truncate { .. } => FileJobKind::Truncate,
+            FileJobPayload::ReadAt { .. } => FileJobKind::ReadAt,
+            FileJobPayload::WriteAt { .. } => FileJobKind::WriteAt,
         }
     }
 }
@@ -252,6 +285,14 @@ pub enum DarwinFileOutcome {
     Truncate {
         owner: DarwinFileOwner,
         result: Result<(), FileOperationError>,
+    },
+    ReadAt {
+        owner: DarwinFileOwner,
+        result: Result<Box<[u8]>, FileOperationError>,
+    },
+    WriteAt {
+        owner: DarwinFileOwner,
+        fact: FileWriteFact,
     },
 }
 
@@ -480,6 +521,22 @@ fn execute_job(job: &mut DarwinFileJob) -> DarwinFileOutcome {
                 .map_err(FileOperationError::from);
             DarwinFileOutcome::Truncate { owner, result }
         }
+        FileJobPayload::ReadAt {
+            mut owner,
+            maximum,
+            offset,
+        } => {
+            let result = read_file_at(owner.0.resource_mut(), maximum, offset);
+            DarwinFileOutcome::ReadAt { owner, result }
+        }
+        FileJobPayload::WriteAt {
+            mut owner,
+            bytes,
+            offset,
+        } => {
+            let fact = write_file_at(owner.0.resource_mut(), &bytes, offset);
+            DarwinFileOutcome::WriteAt { owner, fact }
+        }
     }
 }
 
@@ -496,20 +553,50 @@ fn open_file(path: &PathBuf, access: FileAccess) -> io::Result<File> {
 }
 
 fn read_file(file: &mut File, maximum: usize) -> Result<Box<[u8]>, FileOperationError> {
+    read_into_owned(maximum, |bytes| file.read(bytes))
+}
+
+fn read_file_at(file: &File, maximum: usize, offset: u64) -> Result<Box<[u8]>, FileOperationError> {
+    read_into_owned(maximum, |bytes| file.read_at(bytes, offset))
+}
+
+fn read_into_owned(
+    maximum: usize,
+    read: impl FnOnce(&mut [u8]) -> io::Result<usize>,
+) -> Result<Box<[u8]>, FileOperationError> {
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(maximum)
         .map_err(|_| FileOperationError::Allocation)?;
     bytes.resize(maximum, 0);
-    let received = file.read(&mut bytes).map_err(FileOperationError::from)?;
+    let received = read(&mut bytes).map_err(FileOperationError::from)?;
     bytes.truncate(received);
     Ok(bytes.into_boxed_slice())
 }
 
 fn write_file(file: &mut File, bytes: &[u8]) -> FileWriteFact {
+    write_complete(bytes, |remaining, _| file.write(remaining))
+}
+
+fn write_file_at(file: &File, bytes: &[u8], offset: u64) -> FileWriteFact {
+    write_complete(bytes, |remaining, transferred| {
+        let position = offset.checked_add(transferred as u64).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "positioned write offset overflow",
+            )
+        })?;
+        file.write_at(remaining, position)
+    })
+}
+
+fn write_complete(
+    bytes: &[u8],
+    mut write: impl FnMut(&[u8], usize) -> io::Result<usize>,
+) -> FileWriteFact {
     let mut transferred = 0;
     while transferred < bytes.len() {
-        match file.write(&bytes[transferred..]) {
+        match write(&bytes[transferred..], transferred) {
             Ok(0) => {
                 return FileWriteFact {
                     transferred,

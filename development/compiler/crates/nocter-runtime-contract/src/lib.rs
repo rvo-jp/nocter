@@ -7,6 +7,7 @@
 mod asynchronous;
 mod darwin_block;
 mod darwin_event;
+mod darwin_file;
 mod darwin_network;
 mod darwin_network_address;
 mod darwin_network_import;
@@ -26,6 +27,7 @@ mod target_service;
 pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_event::DarwinEventAbiSchema;
+pub use darwin_file::{DarwinFileAccess, DarwinFileOperation, DarwinFileSeekOrigin};
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
     DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionEventObservationAbiSchema,

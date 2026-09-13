@@ -8,7 +8,7 @@ use tempfile::NamedTempFile;
 
 use crate::{
     DarwinFileJob, DarwinFileOutcome, DarwinFileOwner, DarwinFileService, FileAccess,
-    FileCancellation, FilePosition,
+    FileCancellation, FileJobKind, FilePosition,
 };
 
 fn service() -> DarwinFileService {
@@ -159,4 +159,103 @@ fn cancelling_completed_open_destroys_its_unpublished_owner_on_retirement_worker
     assert_eq!(service.cancel(open).unwrap(), FileCancellation::Completed);
     wait_until(|| service.retirement_snapshot().drained());
     service.shutdown().unwrap();
+}
+
+#[test]
+fn positioned_transfers_preserve_cursor_and_exact_progress() {
+    let mut temporary = NamedTempFile::new().unwrap();
+    temporary.write_all(b"abcdef").unwrap();
+    temporary.flush().unwrap();
+    let path = temporary.path().to_path_buf();
+    {
+        let mut service = service();
+        let owner = open_for_read(&service, &path);
+
+        let seek = DarwinFileJob::seek(owner, FilePosition::Start(4));
+        assert_eq!(seek.kind(), FileJobKind::Seek);
+        let seek = service.submit(seek).unwrap();
+        wait_for_job(&service, seek);
+        let JobOutcome::Completed(DarwinFileOutcome::Seek { owner, result }) =
+            service.consume(seek).unwrap()
+        else {
+            panic!("seek job returned the wrong outcome")
+        };
+        assert_eq!(result.unwrap(), 4);
+
+        let positioned = DarwinFileJob::read_at(owner, 3, 1);
+        assert_eq!(positioned.kind(), FileJobKind::ReadAt);
+        let positioned = service.submit(positioned).unwrap();
+        wait_for_job(&service, positioned);
+        let JobOutcome::Completed(DarwinFileOutcome::ReadAt { owner, result }) =
+            service.consume(positioned).unwrap()
+        else {
+            panic!("positioned read returned the wrong outcome")
+        };
+        assert_eq!(&*result.unwrap(), b"bcd");
+
+        let sequential = service.submit(DarwinFileJob::read(owner, 2)).unwrap();
+        wait_for_job(&service, sequential);
+        let JobOutcome::Completed(DarwinFileOutcome::Read { owner, result }) =
+            service.consume(sequential).unwrap()
+        else {
+            panic!("sequential read returned the wrong outcome")
+        };
+        assert_eq!(&*result.unwrap(), b"ef");
+        drop(owner);
+        wait_until(|| service.retirement_snapshot().drained());
+        service.shutdown().unwrap();
+    }
+
+    let mut service = service();
+    let open = service
+        .submit(DarwinFileJob::open(
+            service.reserve_file().unwrap(),
+            path.clone(),
+            FileAccess::Create,
+        ))
+        .unwrap();
+    wait_for_job(&service, open);
+    let JobOutcome::Completed(DarwinFileOutcome::Open(result)) = service.consume(open).unwrap()
+    else {
+        panic!("create open returned the wrong outcome")
+    };
+    let initial = service
+        .submit(DarwinFileJob::write(result.unwrap(), &b"abcdef"[..]))
+        .unwrap();
+    wait_for_job(&service, initial);
+    let JobOutcome::Completed(DarwinFileOutcome::Write { owner, fact }) =
+        service.consume(initial).unwrap()
+    else {
+        panic!("initial write returned the wrong outcome")
+    };
+    assert_eq!(fact.transferred(), 6);
+    assert!(fact.error().is_none());
+
+    let positioned = DarwinFileJob::write_at(owner, &b"XY"[..], 1);
+    assert_eq!(positioned.kind(), FileJobKind::WriteAt);
+    let positioned = service.submit(positioned).unwrap();
+    wait_for_job(&service, positioned);
+    let JobOutcome::Completed(DarwinFileOutcome::WriteAt { owner, fact }) =
+        service.consume(positioned).unwrap()
+    else {
+        panic!("positioned write returned the wrong outcome")
+    };
+    assert_eq!(fact.transferred(), 2);
+    assert!(fact.error().is_none());
+
+    let sequential = service
+        .submit(DarwinFileJob::write(owner, &b"Z"[..]))
+        .unwrap();
+    wait_for_job(&service, sequential);
+    let JobOutcome::Completed(DarwinFileOutcome::Write { owner, fact }) =
+        service.consume(sequential).unwrap()
+    else {
+        panic!("sequential write returned the wrong outcome")
+    };
+    assert_eq!(fact.transferred(), 1);
+    assert!(fact.error().is_none());
+    drop(owner);
+    wait_until(|| service.retirement_snapshot().drained());
+    service.shutdown().unwrap();
+    assert_eq!(std::fs::read(path).unwrap(), b"aXYdefZ");
 }

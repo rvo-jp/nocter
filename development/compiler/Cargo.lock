@@ -1859,6 +1859,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-blocking-runtime",
  "nocter-darwin-blocking-service",
+ "nocter-runtime-contract",
  "tempfile",
 ]
 

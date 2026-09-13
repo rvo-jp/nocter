@@ -14,8 +14,9 @@ owner; dropping a queued input, ignored output, or cancelled completion sends th
 its pre-reserved cleanup service.
 
 The adapter does not define public `std/io` names or errors, task scheduling, compiler primitive
-identity, worker lifecycle, queue layout, or wake encoding. It composes those responsibilities
-through `nocter-blocking-runtime` and `nocter-darwin-blocking-service` only.
+identity, worker lifecycle, queue layout, or wake encoding. It composes lifecycle execution through
+`nocter-blocking-runtime` and `nocter-darwin-blocking-service`, and consumes the same closed
+file-operation vocabulary that generated target code receives from `nocter-runtime-contract`.
 
 This Rust crate is conformance evidence for the generated Darwin file adapter. Generated Nocter
 executables do not link it.
@@ -25,6 +26,8 @@ executables do not link it.
 - A retirement permit is acquired before open can produce a host file owner.
 - Read output owns only its initialized prefix; write output records the exact completed prefix even
   when a later write fails.
+- Positioned read and write preserve the shared cursor while retaining the same initialized-prefix
+  and partial-progress rules as their cursor-changing counterparts.
 - Seek, truncate, flush, read, and write always return the file owner before public error policy can
   inspect their operation fact.
 - Job cancellation drops all immediately available ownership and never asks a caller to select a
