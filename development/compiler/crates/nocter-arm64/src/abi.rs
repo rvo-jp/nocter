@@ -48,6 +48,11 @@ impl Arm64NocterAbi {
     }
 
     #[must_use]
+    pub const fn process_context() -> nocter_runtime_contract::RuntimeProcessContextAbiSchema {
+        Self::SCHEMA.process_context()
+    }
+
+    #[must_use]
     pub const fn argument_register(index: u8) -> Option<Arm64Register> {
         if index < Self::SCHEMA.argument_register_count() {
             Arm64Register::new(index)
@@ -100,7 +105,7 @@ impl Arm64NocterAbi {
         }
     }
 
-    /// Compiler-propagated pointer to immutable process-lifetime entry state.
+    /// Compiler-propagated pointer to process-lifetime entry state and target-service roots.
     #[must_use]
     pub const fn process_context_register() -> Arm64Register {
         match Arm64Register::new(10) {

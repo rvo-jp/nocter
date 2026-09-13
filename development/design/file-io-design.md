@@ -98,6 +98,12 @@ or source declaration. The Darwin adapter knows no public API or task identity. 
 only its existing descriptor-readiness interest. MIR and Machine consume a compiler-owned primitive
 role and frozen target ABI; neither rediscovers a file operation from declaration names.
 
+The process context contains one compiler-owned pointer slot for the lazily created blocking
+service. The runtime ABI schema is the only authority for that slot and for the entry argument and
+environment fields surrounding it. ARM64 frame layout and generated service code consume the
+schema; neither owns a private copy of its offsets. The root initializes the slot to zero before
+any authored call can observe the context.
+
 ## Completion Gate
 
 Phase 1 is complete only after generated Darwin executables use this ownership path, `File` and

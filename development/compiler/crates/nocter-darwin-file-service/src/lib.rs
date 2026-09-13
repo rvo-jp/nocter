@@ -192,11 +192,6 @@ impl DarwinFileJob {
     }
 
     /// Returns the operation family projected from the owned payload variant.
-    ///
-    /// # Panics
-    ///
-    /// Panics only after an internal worker invokes this method on the already consumed payload;
-    /// submitted jobs are never returned to public callers.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
         match &self.payload {

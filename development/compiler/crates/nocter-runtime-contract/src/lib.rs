@@ -79,5 +79,6 @@ pub use types::{
 mod types;
 pub use target::{
     RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeAsyncAbiSchema, RuntimeAsyncStateTags,
-    RuntimeEndianness, RuntimeErrorAbiSchema, RuntimeWaitInterestRecord,
+    RuntimeEndianness, RuntimeErrorAbiSchema, RuntimeProcessContextAbiSchema,
+    RuntimeWaitInterestRecord,
 };

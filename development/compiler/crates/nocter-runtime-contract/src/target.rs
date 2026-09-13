@@ -73,6 +73,22 @@ pub struct RuntimeAsyncAbiSchema {
     writable_interest_detail: u64,
 }
 
+/// Process-lifetime state passed through the compiler-reserved process-context lane.
+///
+/// The context owns entry arguments and target-service roots. Its numeric layout belongs to the
+/// runtime contract so machine planning, instruction lowering, and generated services cannot
+/// reproduce offsets independently.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeProcessContextAbiSchema {
+    argument_count_offset: u64,
+    argument_vector_offset: u64,
+    environment_vector_offset: u64,
+    environment_count_offset: u64,
+    blocking_service_pointer_offset: u64,
+    size: u64,
+    alignment: u64,
+}
+
 /// One closed lifecycle-state tag sequence derived from the selected async ABI.
 ///
 /// A computation owns how many distinct suspension states it has. The runtime contract owns how
@@ -114,6 +130,7 @@ pub struct RuntimeAbiSchema {
     endianness: RuntimeEndianness,
     error: RuntimeErrorAbiSchema,
     asynchronous: RuntimeAsyncAbiSchema,
+    process_context: RuntimeProcessContextAbiSchema,
 }
 
 impl RuntimeAbiIdentity {
@@ -180,6 +197,15 @@ impl RuntimeAbiIdentity {
                     readable_interest_detail: 0,
                     writable_interest_detail: 1,
                 },
+                process_context: RuntimeProcessContextAbiSchema {
+                    argument_count_offset: 0,
+                    argument_vector_offset: 8,
+                    environment_vector_offset: 16,
+                    environment_count_offset: 24,
+                    blocking_service_pointer_offset: 32,
+                    size: 40,
+                    alignment: 8,
+                },
             },
         }
     }
@@ -238,6 +264,10 @@ impl RuntimeAbiSchema {
     pub const fn asynchronous(self) -> RuntimeAsyncAbiSchema {
         self.asynchronous
     }
+    #[must_use]
+    pub const fn process_context(self) -> RuntimeProcessContextAbiSchema {
+        self.process_context
+    }
 
     /// Encodes the immutable allocation-failure leaf admitted by this runtime ABI.
     ///
@@ -278,6 +308,44 @@ impl RuntimeAbiSchema {
         bytes[payload..message].copy_from_slice(ALLOCATION_FAILURE_ERROR_CODE.as_bytes());
         bytes[message..].copy_from_slice(ALLOCATION_FAILURE_ERROR_MESSAGE.as_bytes());
         bytes.into_boxed_slice()
+    }
+}
+
+impl RuntimeProcessContextAbiSchema {
+    #[must_use]
+    pub const fn argument_count_offset(self) -> u64 {
+        self.argument_count_offset
+    }
+
+    #[must_use]
+    pub const fn argument_vector_offset(self) -> u64 {
+        self.argument_vector_offset
+    }
+
+    #[must_use]
+    pub const fn environment_vector_offset(self) -> u64 {
+        self.environment_vector_offset
+    }
+
+    #[must_use]
+    pub const fn environment_count_offset(self) -> u64 {
+        self.environment_count_offset
+    }
+
+    /// Address of the lazily created process-owned blocking service, or zero before first use.
+    #[must_use]
+    pub const fn blocking_service_pointer_offset(self) -> u64 {
+        self.blocking_service_pointer_offset
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.alignment
     }
 }
 
@@ -699,6 +767,18 @@ mod tests {
         assert_eq!(asynchronous.process_exit_interest_kind(), 2);
         assert_eq!(asynchronous.readable_interest_detail(), 0);
         assert_eq!(asynchronous.writable_interest_detail(), 1);
+    }
+
+    #[test]
+    fn one_runtime_schema_owns_process_entry_and_service_roots() {
+        let process = RuntimeAbiIdentity::Arm64DarwinV1.schema().process_context();
+        assert_eq!(process.argument_count_offset(), 0);
+        assert_eq!(process.argument_vector_offset(), 8);
+        assert_eq!(process.environment_vector_offset(), 16);
+        assert_eq!(process.environment_count_offset(), 24);
+        assert_eq!(process.blocking_service_pointer_offset(), 32);
+        assert_eq!(process.size(), 40);
+        assert_eq!(process.alignment(), 8);
     }
 
     #[test]

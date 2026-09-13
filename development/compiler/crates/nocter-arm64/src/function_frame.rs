@@ -529,8 +529,8 @@ fn place_hidden_objects(
         MachineContextRequirement::None => Arm64ProcessContextFrame::None,
         MachineContextRequirement::ProgramRoot => {
             Arm64ProcessContextFrame::ProgramRoot(builder.add_object(
-                crate::process_layout::Arm64ProcessContextLayout::SIZE,
-                crate::process_layout::Arm64ProcessContextLayout::ALIGNMENT,
+                crate::Arm64NocterAbi::process_context().size(),
+                crate::Arm64NocterAbi::process_context().alignment(),
             )?)
         }
         MachineContextRequirement::Incoming => Arm64ProcessContextFrame::IncomingPointer(

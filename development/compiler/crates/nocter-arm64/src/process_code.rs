@@ -4,38 +4,44 @@ use crate::{
     Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
 };
 
-use crate::process_layout::Arm64ProcessContextLayout;
-
 pub(crate) fn emit_initialize(
     function: &Arm64SelectedFunction,
     context: crate::Arm64FrameObjectId,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
+    let layout = Arm64NocterAbi::process_context();
     let offset = context_offset(function, context)?;
     crate::frame_access::store_at_stack_offset(
         code,
         Arm64LoadStoreSize::Double,
         argument(0),
-        checked_add(offset, Arm64ProcessContextLayout::ARGUMENT_COUNT_OFFSET)?,
+        checked_add(offset, layout.argument_count_offset())?,
     );
     crate::frame_access::store_at_stack_offset(
         code,
         Arm64LoadStoreSize::Double,
         argument(1),
-        checked_add(offset, Arm64ProcessContextLayout::ARGUMENT_VECTOR_OFFSET)?,
+        checked_add(offset, layout.argument_vector_offset())?,
     );
     crate::frame_access::store_at_stack_offset(
         code,
         Arm64LoadStoreSize::Double,
         argument(2),
-        checked_add(offset, Arm64ProcessContextLayout::ENVIRONMENT_VECTOR_OFFSET)?,
+        checked_add(offset, layout.environment_vector_offset())?,
     );
     emit_count_null_terminated_vector(argument(2), argument(0), code)?;
     crate::frame_access::store_at_stack_offset(
         code,
         Arm64LoadStoreSize::Double,
         argument(0),
-        checked_add(offset, Arm64ProcessContextLayout::ENVIRONMENT_COUNT_OFFSET)?,
+        checked_add(offset, layout.environment_count_offset())?,
+    );
+    load_immediate(argument(0), 0, code);
+    crate::frame_access::store_at_stack_offset(
+        code,
+        Arm64LoadStoreSize::Double,
+        argument(0),
+        checked_add(offset, layout.blocking_service_pointer_offset())?,
     );
     crate::frame_access::form_stack_address(
         code,
@@ -48,7 +54,7 @@ pub(crate) fn emit_initialize(
 pub(crate) fn emit_argument_count(code: &mut Arm64CodeBuilder) {
     load_context_word(
         argument(0),
-        Arm64ProcessContextLayout::ARGUMENT_COUNT_OFFSET,
+        Arm64NocterAbi::process_context().argument_count_offset(),
         code,
     );
 }
@@ -60,7 +66,7 @@ pub(crate) fn emit_argument(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Mate
 pub(crate) fn emit_environment_count(code: &mut Arm64CodeBuilder) {
     load_context_word(
         argument(0),
-        Arm64ProcessContextLayout::ENVIRONMENT_COUNT_OFFSET,
+        Arm64NocterAbi::process_context().environment_count_offset(),
         code,
     );
 }
@@ -95,16 +101,18 @@ enum ProcessVector {
 
 impl ProcessVector {
     const fn count_offset(self) -> u64 {
+        let layout = Arm64NocterAbi::process_context();
         match self {
-            Self::Arguments => Arm64ProcessContextLayout::ARGUMENT_COUNT_OFFSET,
-            Self::Environment => Arm64ProcessContextLayout::ENVIRONMENT_COUNT_OFFSET,
+            Self::Arguments => layout.argument_count_offset(),
+            Self::Environment => layout.environment_count_offset(),
         }
     }
 
     const fn vector_offset(self) -> u64 {
+        let layout = Arm64NocterAbi::process_context();
         match self {
-            Self::Arguments => Arm64ProcessContextLayout::ARGUMENT_VECTOR_OFFSET,
-            Self::Environment => Arm64ProcessContextLayout::ENVIRONMENT_VECTOR_OFFSET,
+            Self::Arguments => layout.argument_vector_offset(),
+            Self::Environment => layout.environment_vector_offset(),
         }
     }
 }
@@ -327,14 +335,13 @@ fn context_offset(
     function: &Arm64SelectedFunction,
     context: crate::Arm64FrameObjectId,
 ) -> Result<u64, Arm64MaterializationError> {
+    let layout = Arm64NocterAbi::process_context();
     let object = function
         .frame()
         .layout()
         .object(context)
         .ok_or(Arm64MaterializationError::UnknownFrameObject(context))?;
-    if object.size() != Arm64ProcessContextLayout::SIZE
-        || object.alignment() != Arm64ProcessContextLayout::ALIGNMENT
-    {
+    if object.size() != layout.size() || object.alignment() != layout.alignment() {
         return Err(Arm64MaterializationError::InvalidProcessContextFrame(
             context,
         ));
