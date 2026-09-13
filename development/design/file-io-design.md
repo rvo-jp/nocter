@@ -80,6 +80,10 @@ Those facts use the closed `DarwinFileFailure` and `DarwinFileWriteFact` runtime
 conformance adapter reduces `std::io::Error` to a positive Darwin errno or an explicit adapter
 failure before publication; generated code never receives a Rust error object. Zero-progress and
 position-overflow failures have their own variants and are not disguised as target errno.
+The optional failure occupies exactly two target words: a closed non-zero failure kind and a
+positive errno admitted only by the Darwin-target kind. The all-zero record is success. Every
+other encoding is an invalid target fact, so standard source never guesses whether a numeric word
+is an errno or an adapter classification.
 
 A failed read, positioned read, seek, truncate, or flush restores the file owner before returning
 its error. A write or positioned-write failure restores the owner but retains an observable

@@ -173,6 +173,45 @@ pub enum DarwinFileFailureKind {
     Unclassified,
 }
 
+impl DarwinFileFailureKind {
+    /// Every non-success failure class in stable target-contract order.
+    pub const ALL: &'static [Self] = &[
+        Self::Allocation,
+        Self::Target,
+        Self::OffsetOverflow,
+        Self::ZeroProgress,
+        Self::InvalidProgress,
+        Self::Unclassified,
+    ];
+
+    /// Returns the non-zero raw fact tag for this failure class.
+    #[must_use]
+    pub const fn code(self) -> u64 {
+        match self {
+            Self::Allocation => 1,
+            Self::Target => 2,
+            Self::OffsetOverflow => 3,
+            Self::ZeroProgress => 4,
+            Self::InvalidProgress => 5,
+            Self::Unclassified => 6,
+        }
+    }
+
+    /// Decodes one non-zero raw fact tag.
+    #[must_use]
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            1 => Some(Self::Allocation),
+            2 => Some(Self::Target),
+            3 => Some(Self::OffsetOverflow),
+            4 => Some(Self::ZeroProgress),
+            5 => Some(Self::InvalidProgress),
+            6 => Some(Self::Unclassified),
+            _ => None,
+        }
+    }
+}
+
 /// One validated file-operation failure before standard-library error policy is applied.
 ///
 /// Darwin errno remains an opaque positive target code. Private representation prevents an
@@ -222,6 +261,102 @@ impl DarwinFileFailure {
             Some(self.target_errno)
         } else {
             None
+        }
+    }
+}
+
+/// Validated interpretation of the two-word file-failure ABI record.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DarwinFileFailureObservation {
+    Success,
+    Failure(DarwinFileFailure),
+    Invalid,
+}
+
+/// Closed raw representation of one optional generated file-operation failure.
+///
+/// The zero kind is success and requires a zero errno word. Non-target failures also require a
+/// zero errno word. Only the target failure kind admits a positive Darwin errno representable as
+/// `i32`; every other bit pattern is invalid rather than an invented public I/O error.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinFileFailureAbiSchema {
+    kind_offset: u64,
+    target_errno_offset: u64,
+    size: u64,
+    alignment: u64,
+}
+
+impl DarwinFileFailureAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        kind_offset: 0,
+        target_errno_offset: 8,
+        size: 16,
+        alignment: 8,
+    };
+
+    #[must_use]
+    pub const fn kind_offset(self) -> u64 {
+        self.kind_offset
+    }
+
+    #[must_use]
+    pub const fn target_errno_offset(self) -> u64 {
+        self.target_errno_offset
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.alignment
+    }
+
+    /// Encodes a validated host fact into the generated target representation.
+    #[must_use]
+    pub fn encode(self, failure: Option<DarwinFileFailure>) -> [u64; 2] {
+        match failure {
+            None => [0, 0],
+            Some(failure) => [
+                failure.kind().code(),
+                match failure.target_errno() {
+                    Some(errno) => u64::from(errno.unsigned_abs()),
+                    None => 0,
+                },
+            ],
+        }
+    }
+
+    /// Validates and classifies one record produced by generated target code.
+    #[must_use]
+    pub fn observe(self, kind: u64, target_errno: u64) -> DarwinFileFailureObservation {
+        if kind == 0 {
+            return if target_errno == 0 {
+                DarwinFileFailureObservation::Success
+            } else {
+                DarwinFileFailureObservation::Invalid
+            };
+        }
+        let Some(kind) = DarwinFileFailureKind::from_code(kind) else {
+            return DarwinFileFailureObservation::Invalid;
+        };
+        if matches!(kind, DarwinFileFailureKind::Target) {
+            if target_errno == 0 || target_errno > i32::MAX as u64 {
+                return DarwinFileFailureObservation::Invalid;
+            }
+            let Ok(target_errno) = i32::try_from(target_errno) else {
+                return DarwinFileFailureObservation::Invalid;
+            };
+            let Some(failure) = DarwinFileFailure::target(target_errno) else {
+                return DarwinFileFailureObservation::Invalid;
+            };
+            DarwinFileFailureObservation::Failure(failure)
+        } else if target_errno == 0 {
+            DarwinFileFailureObservation::Failure(DarwinFileFailure::without_errno(kind))
+        } else {
+            DarwinFileFailureObservation::Invalid
         }
     }
 }
@@ -303,9 +438,9 @@ impl DarwinFileSeekOrigin {
 #[cfg(test)]
 mod tests {
     use super::{
-        DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
-        DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin, DarwinFileServiceConfiguration,
-        DarwinFileWriteFact,
+        DarwinFileAccess, DarwinFileFailure, DarwinFileFailureAbiSchema, DarwinFileFailureKind,
+        DarwinFileFailureObservation, DarwinFileOperation, DarwinFileOwnerAbiSchema,
+        DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
     };
 
     #[test]
@@ -358,6 +493,45 @@ mod tests {
             malformed.failure(),
             Some(DarwinFileFailure::INVALID_PROGRESS)
         );
+    }
+
+    #[test]
+    fn file_failure_abi_rejects_every_ambiguous_encoding() {
+        let abi = DarwinFileFailureAbiSchema::ARM64_DARWIN;
+        assert_eq!(abi.kind_offset(), 0);
+        assert_eq!(abi.target_errno_offset(), 8);
+        assert_eq!(abi.size(), 16);
+        assert_eq!(abi.alignment(), 8);
+        assert_eq!(abi.observe(0, 0), DarwinFileFailureObservation::Success);
+        assert_eq!(abi.observe(0, 1), DarwinFileFailureObservation::Invalid);
+        assert_eq!(
+            abi.observe(u64::MAX, 0),
+            DarwinFileFailureObservation::Invalid
+        );
+        assert_eq!(
+            abi.observe(DarwinFileFailureKind::Target.code(), 0),
+            DarwinFileFailureObservation::Invalid
+        );
+        assert_eq!(
+            abi.observe(DarwinFileFailureKind::Allocation.code(), 1),
+            DarwinFileFailureObservation::Invalid
+        );
+
+        for failure in [
+            DarwinFileFailure::ALLOCATION,
+            DarwinFileFailure::target(5).unwrap(),
+            DarwinFileFailure::OFFSET_OVERFLOW,
+            DarwinFileFailure::ZERO_PROGRESS,
+            DarwinFileFailure::INVALID_PROGRESS,
+            DarwinFileFailure::UNCLASSIFIED,
+        ] {
+            let [kind, errno] = abi.encode(Some(failure));
+            assert_eq!(
+                abi.observe(kind, errno),
+                DarwinFileFailureObservation::Failure(failure)
+            );
+        }
+        assert_eq!(abi.encode(None), [0, 0]);
     }
 
     #[test]
