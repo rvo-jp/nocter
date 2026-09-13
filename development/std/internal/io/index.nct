@@ -4,6 +4,9 @@ see ./errors.nct
 
 use /internal/os.{OSError, OSErrorKind}
 
+/// Opaque, uniquely owned generated-service handle for one open local file.
+pub(/) primitive type FileOwner
+
 /// Maps one target-independent OS classification to the stable public I/O error family.
 pub(/) noalloc func io_error_from_os(os_error: OSError): error
 

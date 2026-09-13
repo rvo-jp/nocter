@@ -90,7 +90,7 @@ fn target_rejection_returns_the_unchanged_checked_program() {
 fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
     let fixture =
         Fixture::with_app("struct Impostor { value: i32 }\nfunc main(): void { return }\n");
-    let (output, registry, _) = checked_fixture(&fixture);
+    let (output, registry, storage) = checked_fixture(&fixture);
     let graph = output.program().graph();
     let standard_package = graph.standard_package().unwrap();
     let impostor = graph
@@ -101,10 +101,13 @@ fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
             (graph.symbols().spelling(declaration.name()) == Some("Impostor")).then_some(id)
         })
         .unwrap();
-    let storage = RuntimeStorageRegistry::new([RuntimeStorageBinding::new(
-        RuntimeStorageRole::NetworkOwner,
-        impostor,
-    )])
+    let storage = RuntimeStorageRegistry::new(storage.bindings().iter().map(|binding| {
+        if binding.role() == RuntimeStorageRole::NetworkOwner {
+            RuntimeStorageBinding::new(binding.role(), impostor)
+        } else {
+            *binding
+        }
+    }))
     .unwrap();
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,

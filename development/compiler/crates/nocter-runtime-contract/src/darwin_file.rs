@@ -15,6 +15,30 @@ pub enum DarwinFileOperation {
     WriteAt,
 }
 
+/// Opaque owning handle stored in standard source for one generated file-service resource.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinFileOwnerAbiSchema {
+    size: u64,
+    alignment: u64,
+}
+
+impl DarwinFileOwnerAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        size: 8,
+        alignment: 8,
+    };
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.alignment
+    }
+}
+
 /// Bounded generated-service capacity selected by the runtime contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DarwinFileServiceConfiguration {
@@ -280,7 +304,8 @@ impl DarwinFileSeekOrigin {
 mod tests {
     use super::{
         DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
-        DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
+        DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin, DarwinFileServiceConfiguration,
+        DarwinFileWriteFact,
     };
 
     #[test]
@@ -342,5 +367,12 @@ mod tests {
         assert!(capacity.maximum_operations() >= capacity.operation_workers());
         assert!(capacity.retirement_workers() > 0);
         assert!(capacity.maximum_retirements() >= capacity.retirement_workers());
+    }
+
+    #[test]
+    fn source_file_owner_is_one_opaque_native_handle() {
+        let owner = DarwinFileOwnerAbiSchema::ARM64_DARWIN;
+        assert_eq!(owner.size(), 8);
+        assert_eq!(owner.alignment(), 8);
     }
 }

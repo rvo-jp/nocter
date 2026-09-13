@@ -6,18 +6,26 @@ use nocter_model::NominalTypeId;
 /// Closed compiler-owned storage representations attached to exact standard declarations.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimeStorageRole {
+    /// Opaque generated-service owner for one open local file.
+    FileOwner,
     /// Fixed native owner shared by Network.framework connections and listeners.
     NetworkOwner,
 }
 
 impl RuntimeStorageRole {
     /// Every storage role required by this compiler release.
-    pub const ALL: &'static [Self] = &[Self::NetworkOwner];
+    pub const ALL: &'static [Self] = &[Self::FileOwner, Self::NetworkOwner];
 
     /// Returns the size and alignment owned by the runtime ABI contract.
     #[must_use]
     pub const fn layout(self, abi: super::RuntimeAbiIdentity) -> Option<RuntimeStorageLayout> {
         match (self, abi) {
+            (Self::FileOwner, super::RuntimeAbiIdentity::Arm64DarwinV1) => {
+                Some(RuntimeStorageLayout::new(
+                    super::DarwinFileOwnerAbiSchema::ARM64_DARWIN.size(),
+                    super::DarwinFileOwnerAbiSchema::ARM64_DARWIN.alignment(),
+                ))
+            }
             (Self::NetworkOwner, super::RuntimeAbiIdentity::Arm64DarwinV1) => {
                 Some(RuntimeStorageLayout::new(
                     super::DarwinNetworkOwnerAbiSchema::ARM64_DARWIN.size(),
@@ -173,16 +181,28 @@ mod tests {
     #[test]
     fn registry_requires_one_distinct_declaration_per_closed_role() {
         let mut declarations = ArenaBuilder::new();
-        let owner = declarations.insert(());
-        let registry = RuntimeStorageRegistry::new([RuntimeStorageBinding::new(
-            RuntimeStorageRole::NetworkOwner,
-            owner,
-        )])
+        let file_owner = declarations.insert(());
+        let network_owner = declarations.insert(());
+        let registry = RuntimeStorageRegistry::new([
+            RuntimeStorageBinding::new(RuntimeStorageRole::NetworkOwner, network_owner),
+            RuntimeStorageBinding::new(RuntimeStorageRole::FileOwner, file_owner),
+        ])
         .unwrap();
-        assert_eq!(registry.role(owner), Some(RuntimeStorageRole::NetworkOwner));
+        assert_eq!(
+            registry.role(network_owner),
+            Some(RuntimeStorageRole::NetworkOwner)
+        );
+        assert_eq!(
+            registry.role(file_owner),
+            Some(RuntimeStorageRole::FileOwner)
+        );
         assert_eq!(
             registry.declaration(RuntimeStorageRole::NetworkOwner),
-            Some(owner)
+            Some(network_owner)
+        );
+        assert_eq!(
+            registry.declaration(RuntimeStorageRole::FileOwner),
+            Some(file_owner)
         );
         assert_eq!(
             RuntimeStorageRegistry::new([]).unwrap(),

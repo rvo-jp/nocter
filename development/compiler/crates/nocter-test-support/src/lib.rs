@@ -416,6 +416,9 @@ pub async func process_completion_for_test(process: usize): void {
     return
 }
 ";
+const INTERNAL_IO_SOURCE: &str = "\
+pub(/) primitive type FileOwner
+";
 const INTERNAL_NET_MODEL_SOURCE: &str = "\
 pub(/) primitive type NetworkOwner
 ";
@@ -590,6 +593,7 @@ fn fixture_modules(sources: &mut SourceMap) -> Vec<FixtureModule> {
         (&["task"][..], TASK_SOURCE),
         (&["internal", "time"][..], INTERNAL_TIME_SOURCE),
         (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
+        (&["internal", "io"][..], INTERNAL_IO_SOURCE),
         (&["internal", "net", "model"][..], INTERNAL_NET_MODEL_SOURCE),
         (
             &["internal", "net", "darwin"][..],
@@ -965,11 +969,21 @@ impl CompilerFixture {
             self.standard_role_inputs(),
         )
         .with_primitive_roles(Self::primitive_role_inputs(standard))
-        .with_runtime_storage_roles(vec![RuntimeStorageRoleLocator::new(
-            RuntimeStorageRole::NetworkOwner,
-            ModuleIdentity::new(standard.clone(), ["internal", "net", "model"]),
-            "NetworkOwner",
-        )])
+        .with_runtime_storage_roles(
+            RuntimeStorageRole::ALL
+                .iter()
+                .copied()
+                .map(|role| {
+                    let (path, name) =
+                        nocter_standard_profile::bundled_runtime_storage_source_location(role);
+                    RuntimeStorageRoleLocator::new(
+                        role,
+                        ModuleIdentity::new(standard.clone(), path.iter().copied()),
+                        name,
+                    )
+                })
+                .collect(),
+        )
         .with_builtin_types(Self::builtin_type_inputs())
     }
 

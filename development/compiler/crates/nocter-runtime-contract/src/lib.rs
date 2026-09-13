@@ -30,7 +30,8 @@ pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_event::DarwinEventAbiSchema;
 pub use darwin_file::{
     DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
-    DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
+    DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin, DarwinFileServiceConfiguration,
+    DarwinFileWriteFact,
 };
 pub use darwin_file_import::DarwinFileServiceFunction;
 pub use darwin_network::{

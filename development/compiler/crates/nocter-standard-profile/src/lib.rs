@@ -39,16 +39,25 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
 }
 
 fn runtime_storage_roles(package: &PackageIdentity) -> Vec<RuntimeStorageRoleLocator> {
-    [(RuntimeStorageRole::NetworkOwner, "NetworkOwner")]
-        .into_iter()
-        .map(|(role, name)| {
-            RuntimeStorageRoleLocator::new(
-                role,
-                module(package, &["internal", "net", "model"]),
-                name,
-            )
+    RuntimeStorageRole::ALL
+        .iter()
+        .copied()
+        .map(|role| {
+            let (path, name) = bundled_runtime_storage_source_location(role);
+            RuntimeStorageRoleLocator::new(role, module(package, path), name)
         })
         .collect()
+}
+
+/// Returns the sole physical source location of a bundled runtime-storage role.
+#[must_use]
+pub const fn bundled_runtime_storage_source_location(
+    role: RuntimeStorageRole,
+) -> (&'static [&'static str], &'static str) {
+    match role {
+        RuntimeStorageRole::FileOwner => (&["internal", "io"], "FileOwner"),
+        RuntimeStorageRole::NetworkOwner => (&["internal", "net", "model"], "NetworkOwner"),
+    }
 }
 
 fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
