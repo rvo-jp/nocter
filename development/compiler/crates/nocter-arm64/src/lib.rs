@@ -30,10 +30,12 @@ mod async_resume_error;
 mod async_wait_code;
 mod async_wait_frame;
 mod async_wait_timeout_code;
+mod atomic_code;
 mod call_selection;
 mod code;
 mod darwin_block;
 mod darwin_datagram_code;
+mod darwin_file_lifecycle;
 mod darwin_file_service;
 mod darwin_kernel_abi;
 mod darwin_memory_code;
@@ -135,6 +137,7 @@ pub use async_primitive_targets::{
 };
 pub use async_resume_error::Arm64AsyncResumeError;
 pub use async_wait_frame::Arm64AsyncWaitFrame;
+pub use atomic_code::Arm64AtomicUpdateRegisters;
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use darwin_block::{
     Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError,
@@ -142,6 +145,10 @@ pub use darwin_block::{
     materialize_darwin_pointer_capture_stack_block,
 };
 pub use darwin_datagram_code::DarwinDatagramOperation;
+pub use darwin_file_lifecycle::{
+    Arm64DarwinFileLifecycleError, emit_darwin_file_job_transition,
+    emit_darwin_file_retirement_transition,
+};
 pub use darwin_file_service::Arm64DarwinFileServiceImports;
 pub use darwin_network_adapter::Arm64DarwinNetworkAdapterImports;
 pub use darwin_network_callback::{
