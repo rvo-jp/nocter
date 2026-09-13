@@ -9,6 +9,7 @@ mod darwin_block;
 mod darwin_event;
 mod darwin_file;
 mod darwin_file_import;
+mod darwin_file_job_abi;
 mod darwin_file_lifecycle;
 mod darwin_file_service_abi;
 mod darwin_network;
@@ -36,6 +37,10 @@ pub use darwin_file::{
     DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
 };
 pub use darwin_file_import::DarwinFileServiceFunction;
+pub use darwin_file_job_abi::{
+    DarwinFileJobAbiSchema, DarwinFileJobContract, DarwinFileJobField, DarwinFileJobOperand,
+    DarwinFileJobOwnedBytes, DarwinFileJobResult, DarwinFileJobRetirementInput,
+};
 pub use darwin_file_lifecycle::{
     DarwinFileJobAction, DarwinFileJobEvent, DarwinFileJobState, DarwinFileJobTransition,
     DarwinFileRetirementAction, DarwinFileRetirementEvent, DarwinFileRetirementState,

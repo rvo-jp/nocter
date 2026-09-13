@@ -28,7 +28,7 @@ public source-level imports.
 - the closed Darwin file-operation, raw-failure, partial-write, access, seek, capacity, and loader
   dependency vocabularies
 - the generated Darwin file-job and pre-reserved retirement ownership state machines
-- the generated Darwin file-service root and pre-reserved close-record ABI
+- the generated Darwin file-service root, operation-job frame, and pre-reserved close-record ABI
 - the fixed Darwin network callback-event record, payload ownership table, provider state codes,
   and two-step release fence consumed through a descriptor channel
 - the closed Darwin network adapter import catalog, callback signatures, and complete-transfer
@@ -54,6 +54,8 @@ public source-level imports.
   distinct roles even where their current layouts happen to have equal dimensions.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
+- A generated file job has one fixed field schema, one operation-to-field contract, and one checked
+  allocation-size calculation. Workers never retain authored path or transfer-buffer storage.
 - The Darwin callback channel carries complete event records. A shared queue, lock, and wake-only
   signal are not part of the runtime contract.
 - Network adapter consumers select typed catalog roles; they cannot reproduce loader symbols,

@@ -138,6 +138,12 @@ publication uses target atomic operations, so resume and cancellation never wait
 queue and retain the drive-safe future guarantee. Accepted blocking work executes on four private
 serial dispatch queues, providing the fixed worker bound. A dispatch group accounts for every
 active worker callback so root shutdown can drain exact ownership before freeing service state.
+The runtime contract owns the frame's fixed prefix, operation-owned trailing-byte region, and sole
+checked allocation-size calculation. Open, read, and write bytes never point into authored
+storage. Positioned offsets, truncate lengths, seek displacements, transferred byte counts, and
+result positions have distinct fields rather than an operation-dependent anonymous payload slot.
+The closed operation contract assigns each operation its exact owned-byte, retirement-state,
+operand, and scalar-result interpretation.
 The service wake descriptor is shared and carries no identity. The generated wait projection
 coalesces its equal native registration keys and fans one returned event back out to every matching
 semantic readiness destination before any future performs its exact state query.
