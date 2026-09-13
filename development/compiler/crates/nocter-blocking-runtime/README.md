@@ -11,9 +11,12 @@ progress.
 
 The service accepts opaque owned job inputs and publishes opaque owned outcomes. It does not know
 filesystem operations, paths, descriptors, public errors, compiler IR, computation frames, target
-queue records, threads, or native synchronization. A target worker claims one `RunningJob`, moves
-that owner to its execution context, and completes it with one output. Dropping the owner is itself
-a closed worker-loss transition, so a missing completion call cannot strand capacity or a waiter.
+queue records, threads, or native synchronization. A target worker claims one `RunningJob` and
+calls `begin` to receive the input by value plus an independent `RunningJobCompletion` guard. The
+worker consumes the input without partially mutating lifecycle storage, then completes the guard
+with one output. Dropping either an unstarted job or a begun completion guard is itself a closed
+worker-loss transition, so unwinding or a missing completion call cannot strand capacity or a
+waiter.
 
 Saturation retains no input: `submit` returns the exact input and a capacity epoch. A completion
 adapter may wait for a later epoch and retry without reconstructing the job. Job identities and
@@ -35,12 +38,12 @@ unbounded retirement queue or completion set.
 ## Invariants
 
 - Accepted jobs never exceed `maximum_jobs`; running jobs never exceed `workers`.
-- The queue owns each queued input, one `RunningJob` owns each claimed input, and the service owns
-  each completed outcome.
+- The queue owns each queued input. Claim transfers it to one `RunningJob`; `begin` atomically
+  separates that input from the sole completion guard. The service owns each completed outcome.
 - Cancellation removes queued and completed ownership immediately. Cancelling a running job marks
-  its future result abandoned; its `RunningJob` remains the sole execution owner until completion
-  or destruction.
-- Completing or dropping a running owner always releases one worker. An ordinary completion keeps
+  its future result abandoned; its `RunningJob` or `RunningJobCompletion` remains the sole
+  lifecycle owner until completion or destruction.
+- Completing or dropping a running completion guard always releases one worker. An ordinary completion keeps
   its admission slot until consumed; an abandoned completion releases it immediately.
 - Dropping a non-abandoned running owner publishes `WorkerLost` rather than leaving a waiter
   suspended forever. Dropping an abandoned owner only retires its slot.

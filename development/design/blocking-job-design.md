@@ -26,13 +26,17 @@ the lifecycle authority after wakeup; the reactor never becomes a second result 
 ## Ownership
 
 Submission transfers a complete input into the service. Claim transfers it into a `RunningJob`
-owner that remains valid when moved to another thread. Completion transfers one output back to the
-service only while a waiter remains. Cancellation of running work detaches the waiter but does not
-pretend a synchronous syscall stopped; the running owner later destroys its unpublished output.
+owner that remains valid when moved to another thread. Starting execution consumes that owner and
+returns the input by value alongside an independent `RunningJobCompletion` guard. Native operation
+code therefore never receives mutable access to lifecycle-owned input and cannot leave a
+half-consumed record after unwinding. Completion transfers one output back to the service only
+while a waiter remains. Cancellation of running work detaches the waiter but does not pretend a
+synchronous syscall stopped; the completion guard later destroys its unpublished output.
 
-Dropping a running owner is a lifecycle transition, not an omitted callback. A waiting job receives
-an explicit worker-loss outcome. An abandoned job releases capacity. Consequently neither a native
-adapter nor a future destructor must remember a second bookkeeping call to keep the service valid.
+Dropping an unstarted running owner or a begun completion guard is a lifecycle transition, not an
+omitted callback. A waiting job receives an explicit worker-loss outcome. An abandoned job releases
+capacity. Consequently neither a native adapter nor a future destructor must remember a second
+bookkeeping call to keep the service valid.
 
 Target work never retains a borrow into an abandonable future frame. Read operations use worker-
 owned result storage and copy into caller storage only after the future resumes. Write, path, and

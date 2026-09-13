@@ -3,12 +3,17 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 use crate::{
-    BlockingJobService, Cancellation, JobOutcome, JobStatus, ServiceCapacity, ServiceError,
-    SubmitError,
+    BlockingJobService, Cancellation, JobOutcome, JobStatus, RunningJob, ServiceCapacity,
+    ServiceError, SubmitError,
 };
 
 fn service(workers: usize, maximum_jobs: usize) -> BlockingJobService<&'static str, usize> {
     BlockingJobService::new(ServiceCapacity::new(workers, maximum_jobs).unwrap())
+}
+
+fn complete(work: RunningJob<&'static str, usize>, output: usize) -> Option<usize> {
+    let (_input, completion) = work.begin();
+    completion.complete(output).unwrap()
 }
 
 #[test]
@@ -78,7 +83,7 @@ fn workers_claim_fifo_without_exceeding_worker_capacity() {
     assert_eq!(second_work.id(), second);
     assert!(service.claim().is_none());
     assert_eq!(service.snapshot().running(), 2);
-    first_work.complete(1).unwrap();
+    assert_eq!(complete(first_work, 1), None);
     let third_work = service.claim().unwrap();
     assert_eq!(third_work.id(), third);
     drop(second_work);
@@ -89,7 +94,7 @@ fn workers_claim_fifo_without_exceeding_worker_capacity() {
 fn completion_event_and_consumption_have_one_owner() {
     let service = service(1, 2);
     let job = service.submit("input").unwrap();
-    service.claim().unwrap().complete(7).unwrap();
+    assert_eq!(complete(service.claim().unwrap(), 7), None);
     assert_eq!(service.status(job), Some(JobStatus::Completed));
     assert_eq!(service.consume(job).unwrap(), JobOutcome::Completed(7));
     assert_eq!(service.consume(job), Err(ServiceError::UnknownJob(job)));
@@ -104,7 +109,7 @@ fn cancelling_running_work_detaches_waiter_but_not_worker_owner() {
     assert_eq!(service.cancel(job).unwrap(), Cancellation::Running);
     assert_eq!(service.status(job), None);
     assert!(!service.is_drained());
-    assert_eq!(work.complete(9).unwrap(), Some(9));
+    assert_eq!(complete(work, 9), Some(9));
     assert!(service.is_drained());
 }
 
@@ -119,13 +124,26 @@ fn dropping_a_worker_owner_cannot_strand_a_waiter() {
 }
 
 #[test]
+fn consumed_input_keeps_an_independent_worker_loss_guard() {
+    let service = BlockingJobService::<String, usize>::new(ServiceCapacity::new(1, 1).unwrap());
+    let job = service.submit(String::from("input")).unwrap();
+    let (input, completion) = service.claim().unwrap().begin();
+    assert_eq!(input, "input");
+    drop(input);
+    drop(completion);
+    assert_eq!(service.status(job), Some(JobStatus::Completed));
+    assert_eq!(service.consume(job).unwrap(), JobOutcome::WorkerLost);
+}
+
+#[test]
 fn running_guard_closes_lifecycle_when_moved_to_another_thread() {
     let service = Arc::new(service(1, 1));
     let job = service.submit("input").unwrap();
     let work = service.claim().unwrap();
-    thread::spawn(move || work.complete(42).unwrap())
-        .join()
-        .unwrap();
+    assert_eq!(
+        thread::spawn(move || complete(work, 42)).join().unwrap(),
+        None
+    );
     assert_eq!(service.status(job), Some(JobStatus::Completed));
     assert_eq!(service.consume(job).unwrap(), JobOutcome::Completed(42));
 }
@@ -139,7 +157,7 @@ fn lifecycle_transitions_own_wake_publication() {
             observed.fetch_add(1, Ordering::SeqCst);
         });
     let completed = service.submit("completed").unwrap();
-    service.claim().unwrap().complete(1).unwrap();
+    assert_eq!(complete(service.claim().unwrap(), 1), None);
     assert_eq!(notifications.load(Ordering::SeqCst), 1);
     service.consume(completed).unwrap();
     assert_eq!(notifications.load(Ordering::SeqCst), 2);
@@ -161,10 +179,10 @@ fn shutdown_extracts_idle_ownership_and_abandons_running_work() {
     let completed = service.submit("completed").unwrap();
     // The single worker is occupied, so make the first job complete and claim the next two in
     // sequence to construct all three lifecycle categories without bypassing capacity.
-    assert_eq!(work.complete(1).unwrap(), None);
+    assert_eq!(complete(work, 1), None);
     let queued_work = service.claim().unwrap();
     assert_eq!(queued_work.id(), queued);
-    queued_work.complete(2).unwrap();
+    assert_eq!(complete(queued_work, 2), None);
     let completed_work = service.claim().unwrap();
     assert_eq!(completed_work.id(), completed);
 
@@ -177,7 +195,7 @@ fn shutdown_extracts_idle_ownership_and_abandons_running_work() {
     );
     assert!(!service.snapshot().accepting());
     assert_eq!(service.submit("later"), Err(SubmitError::Closed("later")));
-    assert_eq!(completed_work.complete(3).unwrap(), Some(3));
+    assert_eq!(complete(completed_work, 3), Some(3));
     assert!(service.is_drained());
     assert_eq!(
         service.cancel(running),

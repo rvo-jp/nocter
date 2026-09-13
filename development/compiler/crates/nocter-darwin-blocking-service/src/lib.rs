@@ -89,7 +89,7 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
     /// was already created.
     pub fn new<F>(capacity: ServiceCapacity, operation: F) -> Result<Self, BuildError>
     where
-        F: Fn(&mut I) -> O + Send + Sync + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
         let (notification_reader, notification_writer) = notification_channel()?;
 
@@ -219,17 +219,18 @@ fn worker_loop<I, O, F>(
     worker_signal: &WorkerSignal,
     operation: &F,
 ) where
-    F: Fn(&mut I) -> O,
+    F: Fn(I) -> O,
 {
     loop {
         let observed = worker_signal.revision();
-        if let Some(mut job) = jobs.claim() {
-            let output = catch_unwind(AssertUnwindSafe(|| operation(job.input_mut())));
+        if let Some(job) = jobs.claim() {
+            let (input, completion) = job.begin();
+            let output = catch_unwind(AssertUnwindSafe(|| operation(input)));
             match output {
                 Ok(output) => {
-                    let _ = job.complete(output);
+                    let _ = completion.complete(output);
                 }
-                Err(_) => drop(job),
+                Err(_) => drop(completion),
             }
             continue;
         }

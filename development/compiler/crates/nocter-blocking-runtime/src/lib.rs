@@ -15,7 +15,8 @@ pub use retirement::{
 };
 pub use service::{
     Backpressure, BlockingJobService, Cancellation, JobOutcome, JobStatus, RunningJob,
-    ServiceCapacity, ServiceError, ServiceSnapshot, ShutdownCleanup, SubmitError,
+    RunningJobCompletion, ServiceCapacity, ServiceError, ServiceSnapshot, ShutdownCleanup,
+    SubmitError,
 };
 
 #[cfg(test)]

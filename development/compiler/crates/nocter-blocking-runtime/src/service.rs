@@ -370,10 +370,12 @@ impl<I, O> BlockingJobService<I, O> {
             let previous = inner.active.insert(job, ActiveJobState::Running);
             debug_assert!(previous.is_none());
             return Some(RunningJob {
-                job,
                 input,
-                inner: Arc::clone(&self.inner),
-                retired: false,
+                completion: RunningJobCompletion {
+                    job,
+                    inner: Arc::clone(&self.inner),
+                    retired: false,
+                },
             });
         }
         None
@@ -490,8 +492,13 @@ impl<I, O> BlockingJobService<I, O> {
 
 /// Sole owner of one claimed input and its required terminal lifecycle transition.
 pub struct RunningJob<I, O> {
-    job: JobId,
     input: I,
+    completion: RunningJobCompletion<I, O>,
+}
+
+/// Sole owner of the terminal lifecycle transition after a worker takes its input by value.
+pub struct RunningJobCompletion<I, O> {
+    job: JobId,
     inner: Arc<Mutex<Inner<I, O>>>,
     retired: bool,
 }
@@ -499,7 +506,7 @@ pub struct RunningJob<I, O> {
 impl<I, O> RunningJob<I, O> {
     #[must_use]
     pub const fn id(&self) -> JobId {
-        self.job
+        self.completion.job
     }
 
     #[must_use]
@@ -507,9 +514,21 @@ impl<I, O> RunningJob<I, O> {
         &self.input
     }
 
+    /// Separates the uniquely owned input from its mandatory terminal transition.
+    ///
+    /// Dropping the returned completion guard, including during unwinding, records worker loss.
+    /// Consequently an adapter can consume `I` directly without leaving a partially moved input
+    /// inside lifecycle storage.
     #[must_use]
-    pub fn input_mut(&mut self) -> &mut I {
-        &mut self.input
+    pub fn begin(self) -> (I, RunningJobCompletion<I, O>) {
+        (self.input, self.completion)
+    }
+}
+
+impl<I, O> RunningJobCompletion<I, O> {
+    #[must_use]
+    pub const fn id(&self) -> JobId {
+        self.job
     }
 
     /// Publishes one outcome or returns it when the waiter abandoned the running job.
@@ -551,7 +570,7 @@ impl<I, O> RunningJob<I, O> {
     }
 }
 
-impl<I, O> Drop for RunningJob<I, O> {
+impl<I, O> Drop for RunningJobCompletion<I, O> {
     fn drop(&mut self) {
         if self.retired {
             return;

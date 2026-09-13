@@ -105,7 +105,7 @@ enum FileJobPayload {
 
 /// One complete owned file-operation input.
 pub struct DarwinFileJob {
-    payload: Option<FileJobPayload>,
+    payload: FileJobPayload,
 }
 
 impl fmt::Debug for DarwinFileJob {
@@ -121,49 +121,49 @@ impl DarwinFileJob {
     #[must_use]
     pub fn open(permit: ResourcePermit<File>, path: PathBuf, access: FileAccess) -> Self {
         Self {
-            payload: Some(FileJobPayload::Open {
+            payload: FileJobPayload::Open {
                 permit,
                 path,
                 access,
-            }),
+            },
         }
     }
 
     #[must_use]
     pub fn read(owner: DarwinFileOwner, maximum: usize) -> Self {
         Self {
-            payload: Some(FileJobPayload::Read { owner, maximum }),
+            payload: FileJobPayload::Read { owner, maximum },
         }
     }
 
     #[must_use]
     pub fn write(owner: DarwinFileOwner, bytes: impl Into<Box<[u8]>>) -> Self {
         Self {
-            payload: Some(FileJobPayload::Write {
+            payload: FileJobPayload::Write {
                 owner,
                 bytes: bytes.into(),
-            }),
+            },
         }
     }
 
     #[must_use]
     pub fn flush(owner: DarwinFileOwner) -> Self {
         Self {
-            payload: Some(FileJobPayload::Flush(owner)),
+            payload: FileJobPayload::Flush(owner),
         }
     }
 
     #[must_use]
     pub fn seek(owner: DarwinFileOwner, position: FilePosition) -> Self {
         Self {
-            payload: Some(FileJobPayload::Seek { owner, position }),
+            payload: FileJobPayload::Seek { owner, position },
         }
     }
 
     #[must_use]
     pub fn truncate(owner: DarwinFileOwner, length: u64) -> Self {
         Self {
-            payload: Some(FileJobPayload::Truncate { owner, length }),
+            payload: FileJobPayload::Truncate { owner, length },
         }
     }
 
@@ -171,11 +171,11 @@ impl DarwinFileJob {
     #[must_use]
     pub fn read_at(owner: DarwinFileOwner, maximum: usize, offset: u64) -> Self {
         Self {
-            payload: Some(FileJobPayload::ReadAt {
+            payload: FileJobPayload::ReadAt {
                 owner,
                 maximum,
                 offset,
-            }),
+            },
         }
     }
 
@@ -183,11 +183,11 @@ impl DarwinFileJob {
     #[must_use]
     pub fn write_at(owner: DarwinFileOwner, bytes: impl Into<Box<[u8]>>, offset: u64) -> Self {
         Self {
-            payload: Some(FileJobPayload::WriteAt {
+            payload: FileJobPayload::WriteAt {
                 owner,
                 bytes: bytes.into(),
                 offset,
-            }),
+            },
         }
     }
 
@@ -199,11 +199,7 @@ impl DarwinFileJob {
     /// submitted jobs are never returned to public callers.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
-        match self
-            .payload
-            .as_ref()
-            .expect("an admitted file job is not returned to its submitter")
-        {
+        match &self.payload {
             FileJobPayload::Open { .. } => FileJobKind::Open,
             FileJobPayload::Read { .. } => FileJobKind::Read,
             FileJobPayload::Write { .. } => FileJobKind::Write,
@@ -471,12 +467,8 @@ impl DarwinFileService {
     }
 }
 
-fn execute_job(job: &mut DarwinFileJob) -> DarwinFileOutcome {
-    let payload = job
-        .payload
-        .take()
-        .expect("one file job is executed at most once");
-    match payload {
+fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
+    match job.payload {
         FileJobPayload::Open {
             permit,
             path,

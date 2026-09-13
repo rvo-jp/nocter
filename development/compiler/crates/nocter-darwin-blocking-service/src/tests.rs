@@ -22,7 +22,7 @@ fn wait_for_completion<I: Send + 'static, O: Send + 'static>(
 #[test]
 fn fixed_workers_execute_owned_jobs_and_publish_exact_completion() {
     let mut service =
-        DarwinBlockingService::new(ServiceCapacity::new(2, 4).unwrap(), |value: &mut String| {
+        DarwinBlockingService::new(ServiceCapacity::new(2, 4).unwrap(), |value: String| {
             value.len()
         })
         .unwrap();
@@ -46,7 +46,7 @@ fn fixed_workers_execute_owned_jobs_and_publish_exact_completion() {
 #[test]
 fn wake_descriptor_composes_with_the_existing_reactor_interest() {
     let mut service =
-        DarwinBlockingService::new(ServiceCapacity::new(1, 1).unwrap(), |value: &mut String| {
+        DarwinBlockingService::new(ServiceCapacity::new(1, 1).unwrap(), |value: String| {
             value.len()
         })
         .unwrap();
@@ -85,13 +85,12 @@ fn cancellation_during_execution_never_publishes_the_abandoned_output() {
     let release = Arc::new(Barrier::new(2));
     let worker_entered = Arc::clone(&entered);
     let worker_release = Arc::clone(&release);
-    let mut service =
-        DarwinBlockingService::new(ServiceCapacity::new(1, 1).unwrap(), move |&mut ()| {
-            worker_entered.wait();
-            worker_release.wait();
-            7
-        })
-        .unwrap();
+    let mut service = DarwinBlockingService::new(ServiceCapacity::new(1, 1).unwrap(), move |()| {
+        worker_entered.wait();
+        worker_release.wait();
+        7
+    })
+    .unwrap();
     let job = service.submit(()).unwrap();
     entered.wait();
     assert_eq!(service.cancel(job).unwrap(), Cancellation::Running);
@@ -112,7 +111,7 @@ fn saturation_is_backpressure_and_capacity_release_emits_a_wake() {
     let worker_entered = Arc::clone(&entered);
     let worker_release = Arc::clone(&release);
     let mut service =
-        DarwinBlockingService::new(ServiceCapacity::new(1, 1).unwrap(), move |_: &mut &str| {
+        DarwinBlockingService::new(ServiceCapacity::new(1, 1).unwrap(), move |_: &str| {
             worker_entered.wait();
             worker_release.wait();
             1
@@ -137,15 +136,14 @@ fn saturation_is_backpressure_and_capacity_release_emits_a_wake() {
 fn operation_panic_becomes_worker_loss_without_reducing_pool_capacity() {
     let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let worker_attempts = Arc::clone(&attempts);
-    let mut service =
-        DarwinBlockingService::new(ServiceCapacity::new(1, 2).unwrap(), move |&mut ()| {
-            assert!(
-                worker_attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst) != 0,
-                "scripted operation panic"
-            );
-            9
-        })
-        .unwrap();
+    let mut service = DarwinBlockingService::new(ServiceCapacity::new(1, 2).unwrap(), move |()| {
+        assert!(
+            worker_attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst) != 0,
+            "scripted operation panic"
+        );
+        9
+    })
+    .unwrap();
     let failed = service.submit(()).unwrap();
     wait_for_completion(&service);
     assert_eq!(service.consume(failed).unwrap(), JobOutcome::WorkerLost);
