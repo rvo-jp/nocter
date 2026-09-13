@@ -2,7 +2,8 @@ use std::fmt;
 
 use nocter_runtime_contract::{
     DarwinFileJobAction, DarwinFileJobEvent, DarwinFileJobState, DarwinFileRetirementAction,
-    DarwinFileRetirementEvent, DarwinFileRetirementState,
+    DarwinFileRetirementEvent, DarwinFileRetirementState, DarwinFileServiceAction,
+    DarwinFileServiceEvent, DarwinFileServiceState,
 };
 
 use crate::{Arm64AtomicUpdateRegisters, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
@@ -66,6 +67,34 @@ pub fn emit_darwin_file_retirement_transition(
     Ok(transition.action())
 }
 
+/// Emits one validated file-service root transition and returns its inseparable root action.
+///
+/// # Errors
+///
+/// Rejects a transition absent from the closed lifecycle or a tag not representable by the
+/// backend's atomic-state instruction sequence, and propagates code construction failure.
+pub fn emit_darwin_file_service_transition(
+    code: &mut Arm64CodeBuilder,
+    registers: Arm64AtomicUpdateRegisters,
+    state: DarwinFileServiceState,
+    event: DarwinFileServiceEvent,
+    success: Arm64LabelId,
+    mismatch: Arm64LabelId,
+) -> Result<DarwinFileServiceAction, Arm64DarwinFileLifecycleError> {
+    let transition = state
+        .apply(event)
+        .ok_or(Arm64DarwinFileLifecycleError::InvalidServiceTransition { state, event })?;
+    emit_transition(
+        code,
+        registers,
+        state.code(),
+        transition.next().code(),
+        success,
+        mismatch,
+    )?;
+    Ok(transition.action())
+}
+
 fn emit_transition(
     code: &mut Arm64CodeBuilder,
     registers: Arm64AtomicUpdateRegisters,
@@ -92,6 +121,10 @@ pub enum Arm64DarwinFileLifecycleError {
         state: DarwinFileRetirementState,
         event: DarwinFileRetirementEvent,
     },
+    InvalidServiceTransition {
+        state: DarwinFileServiceState,
+        event: DarwinFileServiceEvent,
+    },
     StateTagOutOfRange(u64),
     Code(Arm64CodeError),
 }
@@ -111,6 +144,7 @@ impl std::error::Error for Arm64DarwinFileLifecycleError {
             Self::Code(error) => Some(error),
             Self::InvalidJobTransition { .. }
             | Self::InvalidRetirementTransition { .. }
+            | Self::InvalidServiceTransition { .. }
             | Self::StateTagOutOfRange(_) => None,
         }
     }
@@ -126,12 +160,13 @@ impl From<Arm64CodeError> for Arm64DarwinFileLifecycleError {
 mod tests {
     use nocter_runtime_contract::{
         DarwinFileJobAction, DarwinFileJobEvent, DarwinFileJobState, DarwinFileRetirementAction,
-        DarwinFileRetirementEvent, DarwinFileRetirementState,
+        DarwinFileRetirementEvent, DarwinFileRetirementState, DarwinFileServiceAction,
+        DarwinFileServiceEvent, DarwinFileServiceState,
     };
 
     use super::{
         Arm64DarwinFileLifecycleError, emit_darwin_file_job_transition,
-        emit_darwin_file_retirement_transition,
+        emit_darwin_file_retirement_transition, emit_darwin_file_service_transition,
     };
     use crate::{Arm64AtomicUpdateRegisters, Arm64CodeBuilder, Arm64Instruction, Arm64Register};
 
@@ -180,6 +215,26 @@ mod tests {
         )
         .unwrap();
         assert_eq!(action, DarwinFileRetirementAction::EnqueueDetachedClose);
+    }
+
+    #[test]
+    fn service_transition_uses_the_same_atomic_boundary() {
+        let mut code = Arm64CodeBuilder::new();
+        let success = code.create_label();
+        let mismatch = code.create_label();
+        let action = emit_darwin_file_service_transition(
+            &mut code,
+            registers(),
+            DarwinFileServiceState::Accepting,
+            DarwinFileServiceEvent::BeginDrain,
+            success,
+            mismatch,
+        )
+        .unwrap();
+        assert_eq!(action, DarwinFileServiceAction::DrainWorkers);
+        code.bind(success).unwrap();
+        code.bind(mismatch).unwrap();
+        assert!(!code.finish().unwrap().bytes().is_empty());
     }
 
     #[test]

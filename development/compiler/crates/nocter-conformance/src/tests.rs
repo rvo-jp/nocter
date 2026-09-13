@@ -7,6 +7,7 @@ use nocter_runtime_contract::{PrimitiveRegistry, RuntimeStorageRegistry, TargetS
 use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
+mod file_service;
 mod tuples;
 
 #[test]

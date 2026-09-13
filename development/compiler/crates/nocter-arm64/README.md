@@ -86,6 +86,14 @@ source, loader commands, or package state.
 - The wait projection coalesces equal native registration keys for descriptor-direction and
   process-exit interests, then publishes a returned event to every matching semantic destination.
   Darwin's single registration key can therefore never discard a later computation's waiter.
+- The generated Darwin file-service root is reached only through the runtime-owned process-context
+  slot. Its ensure target constructs five serial queues, one worker group, a close-on-exec
+  nonblocking wake pipe, and every fixed retirement record from the runtime schema; its shutdown
+  target closes admission, drains the group, proves all records available, clears the slot, and
+  releases the root. A target primitive cannot construct or free a parallel service root.
+- Darwin's register-returning `pipe` syscall and close-once descriptor cleanup remain backend ABI
+  facts. The file-service generator does not reinterpret the syscall as a C output-parameter call,
+  and shutdown never retries or treats a failed `close` as proof that the descriptor stayed open.
 - Native process registration treats `ESRCH` as immediate readiness only after validating that the
   failed change originated from a process interest. This closes exit-before-registration without
   reaping status or introducing periodic probes. Interrupted and capped waits always recalculate

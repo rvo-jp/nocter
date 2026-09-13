@@ -116,7 +116,20 @@ The process context contains one compiler-owned pointer slot for the lazily crea
 service. The runtime ABI schema is the only authority for that slot and for the entry argument and
 environment fields surrounding it. ARM64 frame layout and generated service code consume the
 schema; neither owns a private copy of its offsets. The root initializes the slot to zero before
-any authored call can observe the context.
+any authored call can observe the context. The generated service ensure target publishes exactly
+one root through that slot and reuses it on later calls from the single executor thread. Its paired
+shutdown target changes admission from accepting to draining, waits for the shared worker group,
+proves the active-operation count and all retirement records are empty, changes the root to
+released, clears the process slot, and only then frees storage. A second shutdown is an explicit
+no-op rather than a caller precondition.
+
+The root owns four operation queues, one retirement queue, one worker group, and one shared wake
+pipe. Both pipe descriptors are nonblocking and close-on-exec before the root is published. Every
+fixed retirement record receives the same service pointer and notification-reader interest, plus
+its own readiness cell. Construction failure is fail-stop before publication; process termination
+then owns partial native cleanup. Normal shutdown releases every dispatch object, issues each
+descriptor close exactly once without retrying an indeterminate Darwin close result, clears the
+context slot, and frees the service allocation.
 
 One allocation-backed computation frame is also its worker-owned job record. Before admission it
 owns complete input; after admission it is in exactly one of attached-running, detached-running,

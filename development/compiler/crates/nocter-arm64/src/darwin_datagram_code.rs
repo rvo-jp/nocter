@@ -130,8 +130,8 @@ fn emit_socket_configure(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materia
     emit_fcntl(
         code,
         descriptor,
-        crate::darwin_kernel_abi::DarwinDatagramAbi::SET_DESCRIPTOR_FLAGS,
-        crate::darwin_kernel_abi::DarwinDatagramAbi::CLOSE_ON_EXEC,
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::SET_DESCRIPTOR_FLAGS,
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::CLOSE_ON_EXEC,
     );
     code.branch_conditional(finish, Arm64BranchCondition::CarrySet);
     emit_fcntl(
@@ -144,8 +144,8 @@ fn emit_socket_configure(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materia
     emit_fcntl(
         code,
         descriptor,
-        crate::darwin_kernel_abi::DarwinDatagramAbi::SET_STATUS_FLAGS,
-        crate::darwin_kernel_abi::DarwinDatagramAbi::NONBLOCKING,
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::SET_STATUS_FLAGS,
+        crate::darwin_kernel_abi::DarwinDescriptorAbi::NONBLOCKING,
     );
     code.bind(finish)?;
     crate::system_primitive_code::emit_system_call_result(code)

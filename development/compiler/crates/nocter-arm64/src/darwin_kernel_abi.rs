@@ -84,22 +84,21 @@ impl DarwinDatagramAbi {
     pub(crate) const IPV6_LEVEL: u64 = 41;
     pub(crate) const IPV6_ONLY: u64 = 27;
     pub(crate) const INTEGER_OPTION_SIZE: u64 = 4;
-    pub(crate) const SET_DESCRIPTOR_FLAGS: u64 = 2;
-    pub(crate) const SET_STATUS_FLAGS: u64 = 4;
     pub(crate) const SET_NO_SIGPIPE: u64 = 73;
-    pub(crate) const CLOSE_ON_EXEC: u64 = 1;
-    pub(crate) const NONBLOCKING: u64 = 4;
 }
 
 /// Darwin descriptor commands fixed by closed compiler-selected operations.
 pub(crate) struct DarwinDescriptorAbi;
 
 impl DarwinDescriptorAbi {
+    pub(crate) const SET_DESCRIPTOR_FLAGS: u64 = 2;
     pub(crate) const GET_STATUS_FLAGS: u64 = 3;
     pub(crate) const SET_STATUS_FLAGS: u64 = 4;
     pub(crate) const DUPLICATE_CLOSE_ON_EXEC: u64 = 67;
     pub(crate) const SET_NO_SIGPIPE: u64 = 73;
     pub(crate) const FIRST_PRIVATE_DESCRIPTOR: u64 = 3;
+    pub(crate) const CLOSE_ON_EXEC: u64 = 1;
+    pub(crate) const NONBLOCKING: u64 = 4;
 }
 
 /// Emits a compiler-selected Darwin system call after its arguments have been prepared.
