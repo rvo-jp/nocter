@@ -39,6 +39,7 @@ mod darwin_file_job;
 mod darwin_file_job_code;
 mod darwin_file_job_constructor;
 mod darwin_file_job_execution;
+mod darwin_file_job_worker;
 mod darwin_file_lifecycle;
 mod darwin_file_retirement;
 mod darwin_file_service;
