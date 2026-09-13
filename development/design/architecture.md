@@ -83,6 +83,7 @@ Their owners are:
 | CLI command planning | [`nocter-command`](../compiler/crates/nocter-command/README.md) |
 | native backend orchestration | [`nocter-native-session`](../compiler/crates/nocter-native-session/README.md) |
 | task lifecycle and readiness identity | [`nocter-task-runtime`](../compiler/crates/nocter-task-runtime/README.md) |
+| owned blocking-job lifecycle and bounded admission | [`nocter-blocking-runtime`](../compiler/crates/nocter-blocking-runtime/README.md) |
 | Darwin host reactor conformance | [`nocter-darwin-reactor`](../compiler/crates/nocter-darwin-reactor/README.md) |
 
 A side authority cannot become a second semantic pipeline. In particular, source projection may

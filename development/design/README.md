@@ -38,6 +38,7 @@ under `development/history/`, not in current design documents.
 - [Structured Process I/O Boundary](structured-process-io-design.md)
 - [Internet Client Foundation](internet-client-design.md)
 - [Asynchronous Computation Boundary](asynchronous-computation-design.md)
+- [Owned Blocking-Job Boundary](blocking-job-design.md)
 - [Blocking Effect Boundary](blocking-effect-design.md)
 - [Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md)
 - [Secure Transport Boundary](secure-transport-design.md)

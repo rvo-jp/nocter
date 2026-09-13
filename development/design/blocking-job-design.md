@@ -1,0 +1,67 @@
+# Owned Blocking-Job Boundary
+
+This document defines the cross-responsibility boundary for target operations that cannot expose
+nonblocking readiness. Public filesystem and iteration behavior belongs to the standard-library
+contracts and language specification; the active milestone owns delivery order.
+
+## Authority Flow
+
+```text
+standard operation policy
+  -> typed owned job input
+  -> bounded blocking-job service
+  -> target worker adapter
+  -> typed owned job outcome
+  -> generation-qualified completion interest
+  -> task reactor and suspended computation
+```
+
+`nocter-blocking-runtime` is the sole lifecycle and capacity authority. It does not execute or
+classify a filesystem operation. A target adapter owns native worker creation, synchronization, and
+wakeup transport. The runtime contract owns the closed completion identity and ABI projection. The
+task runtime consumes only an opaque interest and cannot access job inputs or outcomes.
+
+## Ownership
+
+Submission transfers a complete input into the service. Claim transfers it into a `RunningJob`
+owner that remains valid when moved to another thread. Completion transfers one output back to the
+service only while a waiter remains. Cancellation of running work detaches the waiter but does not
+pretend a synchronous syscall stopped; the running owner later destroys its unpublished output.
+
+Dropping a running owner is a lifecycle transition, not an omitted callback. A waiting job receives
+an explicit worker-loss outcome. An abandoned job releases capacity. Consequently neither a native
+adapter nor a future destructor must remember a second bookkeeping call to keep the service valid.
+
+Target work never retains a borrow into an abandonable future frame. Read operations use worker-
+owned result storage and copy into caller storage only after the future resumes. Write, path, and
+configuration inputs are owned before submission. Optimizations may remove a copy only after they
+prove the same cancellation and address-stability contract.
+
+## Capacity and Backpressure
+
+Worker count and total admitted jobs are finite independent limits. Admitted jobs include queued,
+running, abandoned-running, and completed-but-unconsumed states. Saturation returns the exact input
+and the observed capacity epoch. The asynchronous adapter waits for a later epoch and retries;
+saturation is not reported as an operating-system or public filesystem failure.
+
+An epoch signals only that admission capacity changed. It cannot identify, complete, or consume a
+job. Job IDs are monotonic and never reused, so a stale completion cannot become valid for a later
+job. The completion adapter still validates current lifecycle state before publishing readiness.
+
+## Shutdown
+
+Shutdown first closes admission. It extracts queued inputs and completed outcomes for ordinary
+destruction, marks running work abandoned, and keeps shared service state alive through each
+running owner. The target adapter then joins or drains its fixed workers before releasing native
+service storage. Executor shutdown and service shutdown use this single transition; neither scans
+or interprets the other's private storage.
+
+## Prohibited Coupling
+
+- The service cannot know paths, descriptors, errno, public error codes, or operation variants.
+- A target worker cannot mutate task state or computation frames.
+- The task reactor cannot inspect job state to classify operation success or failure.
+- Standard-library source cannot reproduce queue records, worker synchronization, completion
+  encoding, or capacity constants.
+- An async filesystem implementation cannot call a public blocking wrapper or retain caller
+  storage across target work.

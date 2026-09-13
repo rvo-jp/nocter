@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/nocter-analysis",
+    "crates/nocter-blocking-runtime",
     "crates/nocter-cli",
     "crates/nocter-arm64",
     "crates/nocter-checking",
