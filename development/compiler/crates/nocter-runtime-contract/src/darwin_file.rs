@@ -171,6 +171,7 @@ pub enum DarwinFileFailureKind {
     ZeroProgress,
     InvalidProgress,
     Unclassified,
+    ServiceClosed,
 }
 
 impl DarwinFileFailureKind {
@@ -182,6 +183,7 @@ impl DarwinFileFailureKind {
         Self::ZeroProgress,
         Self::InvalidProgress,
         Self::Unclassified,
+        Self::ServiceClosed,
     ];
 
     /// Returns the non-zero raw fact tag for this failure class.
@@ -194,6 +196,7 @@ impl DarwinFileFailureKind {
             Self::ZeroProgress => 4,
             Self::InvalidProgress => 5,
             Self::Unclassified => 6,
+            Self::ServiceClosed => 7,
         }
     }
 
@@ -207,6 +210,7 @@ impl DarwinFileFailureKind {
             4 => Some(Self::ZeroProgress),
             5 => Some(Self::InvalidProgress),
             6 => Some(Self::Unclassified),
+            7 => Some(Self::ServiceClosed),
             _ => None,
         }
     }

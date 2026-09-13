@@ -53,6 +53,7 @@ impl DarwinFileJobState {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DarwinFileJobEvent {
     Admit,
+    Reject,
     Cancel,
     Publish,
     Consume,
@@ -63,6 +64,8 @@ pub enum DarwinFileJobEvent {
 pub enum DarwinFileJobAction {
     /// Consume one service-capacity unit and dispatch the owned frame exactly once.
     Dispatch,
+    /// Retain a terminal admission failure for the still-attached waiter.
+    RetainRejection,
     /// Destroy unsubmitted input and release the frame without touching service capacity.
     ReleasePrepared,
     /// Detach the waiter while preserving worker and frame ownership.
@@ -106,6 +109,7 @@ impl DarwinFileJobState {
 
         let (next, action) = match (self, event) {
             (State::Prepared, Event::Admit) => (State::RunningAttached, Action::Dispatch),
+            (State::Prepared, Event::Reject) => (State::Completed, Action::RetainRejection),
             (State::Prepared, Event::Cancel) => (State::Released, Action::ReleasePrepared),
             (State::RunningAttached, Event::Cancel) => (State::RunningDetached, Action::Detach),
             (State::RunningAttached, Event::Publish) => {
@@ -298,6 +302,14 @@ mod tests {
         let released = detached.next().apply(JobEvent::Publish).unwrap();
         assert_eq!(released.next(), JobState::Released);
         assert_eq!(released.action(), JobAction::ReleaseDetachedCompletion);
+    }
+
+    #[test]
+    fn closed_admission_has_one_prepared_to_completed_transition() {
+        let rejected = JobState::Prepared.apply(JobEvent::Reject).unwrap();
+        assert_eq!(rejected.next(), JobState::Completed);
+        assert_eq!(rejected.action(), JobAction::RetainRejection);
+        assert_eq!(JobState::RunningAttached.apply(JobEvent::Reject), None);
     }
 
     #[test]

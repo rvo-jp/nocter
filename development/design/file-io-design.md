@@ -48,6 +48,9 @@ The generated ARM64 Darwin runtime admits at most four active operation callback
 operations. Retirement has its own one-worker, 64-reservation capacity and cannot be consumed by
 ordinary jobs. These are runtime-contract values rather than standard-library constants or backend
 defaults.
+Transient saturation keeps the complete prepared job and returns its shared service interest.
+Closed admission instead has one prepared-to-completed rejection transition and reports the
+closed-service failure without dispatching target work.
 
 ## Infallible Retirement Admission
 
