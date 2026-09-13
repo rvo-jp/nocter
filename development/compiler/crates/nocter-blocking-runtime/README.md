@@ -3,8 +3,9 @@
 ## Responsibility
 
 Own the target-independent lifecycle, capacity, admission, worker transfer, completion identity,
-abandonment, and shutdown model for operations that must execute outside Nocter's executor because
-the target cannot expose readiness for their synchronous progress.
+abandonment, resource-retirement reservation, and shutdown model for operations that must execute
+outside Nocter's executor because the target cannot expose readiness for their synchronous
+progress.
 
 ## Contract
 
@@ -21,6 +22,13 @@ sequence, so observations from separate service instances cannot alias. The serv
 one wake-only notifier after every waiter-relevant transition; an adapter cannot strand a waiter by
 forgetting a second publication call. A wake carries no job meaning, so a waiter always queries its
 exact identity after resuming.
+
+`RetirementService` is the separate authority for native resources whose destruction may itself
+block. A permit is reserved before the resource exists. Attaching a successfully created resource
+produces a `ResourceOwner`; dropping that owner transfers the resource into its already reserved
+queue without allocation, waiting, or fallible admission. A cleanup worker owns destruction and
+releases the permit afterward. Ordinary operation capacity therefore cannot prevent required
+cleanup, while the permit bound prevents an unbounded retirement queue.
 
 ## Invariants
 
@@ -42,3 +50,8 @@ exact identity after resuming.
 - Wake notification runs after releasing the state lock, so it may safely re-enter read-only service
   queries without becoming a lifecycle mutation path.
 - Public methods validate identities and states; callers cannot mutate lifecycle fields directly.
+- Live retirement owners, unattached permits, queued resources, and running retirements share one
+  bounded reservation count. Closing ordinary admission does not invalidate already reserved
+  cleanup.
+- Resource-owner destruction is the retirement transition. A caller does not need to invoke a
+  second cleanup callback, and worker-guard destruction releases capacity after cleanup failure.

@@ -8,11 +8,11 @@ in [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Begin v0.50.0 Phase 1 by defining the one canonical `File` ownership and operation contract shared
-by executor-safe and explicitly blocking surfaces. Implement the generated Darwin blocking service
-through the Phase 0 lifecycle authority before replacing the public blocking-only `File` surface.
-Do not let standard source know worker records, queue state, wake transport, or native error
-encoding.
+Continue v0.50.0 Phase 1 by implementing the generated Darwin operation and resource-retirement
+adapters over the reviewed `File` ownership contract. A retirement permit must be reserved before
+an asynchronous native file exists, so drop never depends on ordinary job capacity. Complete this
+target boundary before replacing the public blocking-only `File` surface; standard source must not
+know worker records, queue state, wake transport, or native error encoding.
 
 Preserve every published tag and asset, including v0.49.0.
 

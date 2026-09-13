@@ -48,6 +48,45 @@ pub struct CapacityEpoch {
     sequence: u64,
 }
 
+/// Service-qualified monotonic observation of retirement-capacity changes.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct RetirementEpoch {
+    service: ServiceIdentity,
+    sequence: u64,
+}
+
+impl RetirementEpoch {
+    pub(crate) const fn initial(service: ServiceIdentity) -> Self {
+        Self {
+            service,
+            sequence: 0,
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.sequence
+    }
+
+    pub(crate) const fn belongs_to(self, service: ServiceIdentity) -> bool {
+        self.service.0 == service.0
+    }
+
+    pub(crate) fn can_cover_releases(self, releases: usize) -> bool {
+        u64::try_from(releases)
+            .ok()
+            .and_then(|releases| self.sequence.checked_add(releases))
+            .is_some()
+    }
+
+    pub(crate) fn advance(&mut self) {
+        self.sequence = self
+            .sequence
+            .checked_add(1)
+            .expect("retirement admission reserves epoch space before resource creation");
+    }
+}
+
 impl CapacityEpoch {
     pub(crate) const fn initial(service: ServiceIdentity) -> Self {
         Self {
