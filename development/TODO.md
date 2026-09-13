@@ -2,19 +2,15 @@
 
 ## Current State
 
-Nocter v0.49.0 is published and externally audited. Release-content commit
-`63ce5e0c09175f0488ef03fbbf43131b848e8f12` passed the complete compiler, documentation,
-reproducible-package, and installed-home gates. Publication commit
-`cd2d6e7385fab4eb42153bb6a6c3df40d5033ec4` is the peeled target of annotated tag `v0.49.0`.
-The public release is latest, contains exactly one asset, and the downloaded asset matches the
-retained qualified archive byte for byte. GitHub Pages now deploys source-identified Actions
-artifacts; each deployment manifest identifies the exact `main` commit that produced it.
+Nocter v0.49.0 is published and externally audited. v0.50.0 is active as one Local Data and
+Asynchronous Streaming milestone. Its completion definition and phased authority replacement live
+in [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Define the next milestone before changing implementation. Preserve the v0.49.0 child ownership,
-endpoint transfer, exact observation, cancellation, abandonment, generic byte-I/O, and Pages
-artifact boundaries unless a future public design explicitly replaces them.
+Complete v0.50.0 Phase 0: freeze and implement the bounded owned blocking-job lifecycle and its
+generation-qualified executor completion boundary. Do not add filesystem-specific policy to the
+runtime service or expose a public arbitrary-thread/closure API.
 
 Preserve every published tag and asset, including v0.49.0.
 
