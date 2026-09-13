@@ -127,7 +127,7 @@ fn saturation_is_backpressure_and_capacity_release_emits_a_wake() {
     release.wait();
     wait_for_completion(&service);
     assert_eq!(service.consume(first).unwrap(), JobOutcome::Completed(1));
-    assert!(service.capacity_changed_since(observed));
+    assert!(service.capacity_changed_since(observed).unwrap());
     assert_eq!(second, "second");
     assert!(service.drain_notifications().unwrap() > 0);
     service.shutdown().unwrap();

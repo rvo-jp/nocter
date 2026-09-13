@@ -136,8 +136,12 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
         self.jobs.status(job)
     }
 
-    #[must_use]
-    pub fn capacity_changed_since(&self, observed: CapacityEpoch) -> bool {
+    /// Reports whether this service released capacity after the supplied observation.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an observation issued by another lifecycle service.
+    pub fn capacity_changed_since(&self, observed: CapacityEpoch) -> Result<bool, ServiceError> {
         self.jobs.capacity_changed_since(observed)
     }
 

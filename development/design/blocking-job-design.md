@@ -47,10 +47,12 @@ and the observed capacity epoch. The asynchronous adapter waits for a later epoc
 saturation is not reported as an operating-system or public filesystem failure.
 
 An epoch signals only that admission capacity changed. It cannot identify, complete, or consume a
-job. Job IDs are monotonic and never reused, so a stale completion cannot become valid for a later
-job. A shared nonblocking descriptor wakes suspended computations after completion or capacity
-change. Its bytes contain no result identity and may be coalesced: every resumed computation polls
-its exact JobId or epoch before deciding whether to complete or suspend again.
+job. Job IDs and epochs contain an opaque service qualification plus a monotonic sequence. They are
+never reused by their issuer and are rejected by every other service, so a stale or misrouted
+observation cannot become valid for a different job or capacity domain. A shared nonblocking
+descriptor wakes suspended computations after completion or capacity change. Its bytes contain no
+result identity and may be coalesced: every resumed computation polls its exact JobId or epoch
+before deciding whether to complete or suspend again.
 
 ## Shutdown
 

@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use crate::identity::ServiceIdentity;
 use crate::{CapacityEpoch, JobId};
 
 /// Fixed worker and total-admission limits for one service.
@@ -176,6 +177,7 @@ impl<I, O> ShutdownCleanup<I, O> {
 pub enum ServiceError {
     ZeroWorkers,
     JobCapacityBelowWorkers { workers: usize, maximum_jobs: usize },
+    ForeignCapacityEpoch(CapacityEpoch),
     UnknownJob(JobId),
     InvalidJobState(JobId),
 }
@@ -195,6 +197,7 @@ enum ActiveJobState<O> {
 }
 
 struct Inner<I, O> {
+    identity: ServiceIdentity,
     capacity: ServiceCapacity,
     accepting: bool,
     next_job: u64,
@@ -279,12 +282,14 @@ impl<I, O> BlockingJobService<I, O> {
     where
         N: Fn() + Send + Sync + 'static,
     {
+        let identity = ServiceIdentity::allocate();
         Self {
             inner: Arc::new(Mutex::new(Inner {
+                identity,
                 capacity,
                 accepting: true,
                 next_job: 0,
-                capacity_epoch: CapacityEpoch::INITIAL,
+                capacity_epoch: CapacityEpoch::initial(identity),
                 queue: VecDeque::new(),
                 active: BTreeMap::new(),
                 notify: Arc::new(notify),
@@ -317,9 +322,16 @@ impl<I, O> BlockingJobService<I, O> {
     }
 
     /// Whether capacity has changed since a rejected admission observed its epoch.
-    #[must_use]
-    pub fn capacity_changed_since(&self, observed: CapacityEpoch) -> bool {
-        lock(&self.inner).capacity_epoch != observed
+    ///
+    /// # Errors
+    ///
+    /// Rejects an observation issued by another lifecycle service.
+    pub fn capacity_changed_since(&self, observed: CapacityEpoch) -> Result<bool, ServiceError> {
+        let inner = lock(&self.inner);
+        if !observed.belongs_to(inner.identity) {
+            return Err(ServiceError::ForeignCapacityEpoch(observed));
+        }
+        Ok(inner.capacity_epoch != observed)
     }
 
     /// Transfers one input into bounded queue ownership.
@@ -341,7 +353,7 @@ impl<I, O> BlockingJobService<I, O> {
         let Some(next_job) = inner.next_job.checked_add(1) else {
             return Err(SubmitError::IdentityExhausted(input));
         };
-        let job = JobId::new(inner.next_job);
+        let job = JobId::new(inner.identity, inner.next_job);
         inner.next_job = next_job;
         inner.queue.push_back((job, input));
         Ok(job)

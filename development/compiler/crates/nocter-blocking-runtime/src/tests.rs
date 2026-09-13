@@ -30,6 +30,7 @@ fn saturation_returns_exact_input_and_observed_epoch() {
     let SubmitError::Saturated(backpressure) = service.submit("second").unwrap_err() else {
         panic!("expected bounded saturation")
     };
+    let observed = backpressure.observed_epoch();
     assert_eq!(
         backpressure.into_parts(),
         ("second", service.snapshot().capacity_epoch())
@@ -38,7 +39,30 @@ fn saturation_returns_exact_input_and_observed_epoch() {
         service.cancel(first).unwrap(),
         Cancellation::Queued("first")
     );
-    assert!(service.capacity_changed_since(crate::CapacityEpoch::INITIAL));
+    assert!(service.capacity_changed_since(observed).unwrap());
+}
+
+#[test]
+fn identities_and_capacity_epochs_cannot_cross_services() {
+    let first = service(1, 1);
+    let second = service(1, 1);
+    let first_job = first.submit("first").unwrap();
+    let second_job = second.submit("second").unwrap();
+    assert_eq!(first_job.get(), second_job.get());
+    assert_ne!(first_job, second_job);
+    assert_eq!(second.status(first_job), None);
+    assert_eq!(
+        second.cancel(first_job),
+        Err(ServiceError::UnknownJob(first_job))
+    );
+
+    let SubmitError::Saturated(backpressure) = first.submit("observer").unwrap_err() else {
+        panic!("expected bounded saturation")
+    };
+    assert!(matches!(
+        second.capacity_changed_since(backpressure.observed_epoch()),
+        Err(ServiceError::ForeignCapacityEpoch(_))
+    ));
 }
 
 #[test]
