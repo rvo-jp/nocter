@@ -248,6 +248,11 @@ function assertOutputIsolation(root) {
 }
 
 function assertPublicationBoundary(root) {
+    const repositoryHome = fs.readFileSync(path.join(root, "README.md"), "utf8");
+    if (!repositoryHome.includes('src="./development/site/static/assets/logo.svg"')) {
+        throw new Error("repository README does not consume the shared static logo authority");
+    }
+
     const required = [
         "assets/logo.svg",
         "examples/hello/index.html",
@@ -262,7 +267,10 @@ function assertPublicationBoundary(root) {
     }
     const home = fs.readFileSync(path.join(generatedRoot(root), "index.html"), "utf8");
     if (!home.includes('src="./assets/logo.svg"')) {
-        throw new Error("repository and website logo paths no longer share one public asset");
+        throw new Error("website hero does not consume the shared static logo authority");
+    }
+    if (home.includes('align="center"')) {
+        throw new Error("repository-only README presentation leaked into the generated homepage");
     }
 
     const privateSources = [

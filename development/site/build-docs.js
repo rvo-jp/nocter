@@ -11,7 +11,6 @@ const SITE_ORIGIN = "https://nocter.dev";
 const SOURCE_REPOSITORY = "https://github.com/rvo-jp/nocter";
 const PROJECT_ROOT = fs.realpathSync(path.resolve(__dirname, "../.."));
 const STATIC_ROOT = path.join(__dirname, "static");
-const PUBLIC_ASSET_ROOT = path.join(PROJECT_ROOT, "assets");
 const BUILD_OPTIONS = parseArguments(process.argv.slice(2));
 const FINAL_OUTPUT_ROOT = BUILD_OPTIONS.outputRoot;
 const SOURCE_ORIGIN = `${SOURCE_REPOSITORY}/blob/${BUILD_OPTIONS.sourceRevision || "main"}`;
@@ -92,7 +91,6 @@ validateDocumentTreeNavigation();
 try {
     outputTransaction.prepare();
     fs.cpSync(STATIC_ROOT, OUTPUT_ROOT, { recursive: true });
-    fs.cpSync(PUBLIC_ASSET_ROOT, path.join(OUTPUT_ROOT, "assets"), { recursive: true });
 
     for (const file of sourceFiles) {
         const html = renderPage(file);
@@ -933,9 +931,9 @@ function resolveAssetUrl(markdownPath, src) {
     }
 
     let target = path.resolve(path.dirname(markdownPath), src);
-    const relativeAsset = path.relative(PUBLIC_ASSET_ROOT, target);
+    const relativeAsset = path.relative(STATIC_ROOT, target);
     if (!relativeAsset.startsWith("..") && !path.isAbsolute(relativeAsset)) {
-        target = path.join(OUTPUT_ROOT, "assets", relativeAsset);
+        target = path.join(OUTPUT_ROOT, relativeAsset);
     }
     const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
     return relativeUrl(currentOutputDir, target);

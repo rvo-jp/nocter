@@ -14,8 +14,7 @@ GitHub Pages deployment artifact.
 - `output-transaction.js` owns sibling staging, complete output replacement, and failure
   restoration without writing into the source repository.
 - `static/` owns files copied verbatim to the website, including styles, runtime JavaScript,
-  website-only images, and `CNAME`.
-- root `assets/` owns assets shared by repository documentation and the website.
+  images shared with repository documentation, website-only images, and `CNAME`.
 - `test-generation.js` exercises determinism, complete output replacement, publication boundaries,
   output isolation, deployment identity, and structural navigation in isolated repository copies.
 - `.github/workflows/documentation.yml` validates every pull request and deploys an artifact built
@@ -47,6 +46,10 @@ and package-only modules remain available in the repository but do not become we
 Markdown links to an existing non-published repository file resolve to its GitHub source page.
 Compiler diagnostic fixtures and `development/history/` are not published; milestone, review, and
 release-audit links are still validated as historical records.
+
+The repository `README.md` may begin with repository-only raw HTML presentation. Raw HTML is not
+published as documentation body content, so the generated homepage contains only the site-owned
+hero and the Markdown content beginning at `# Nocter`.
 
 ## Navigation Authority
 
@@ -138,6 +141,6 @@ Nocter home.
 
 Edit public Markdown in the repository root, `examples/`, `releases/`, and `spec/`. Standard-library
 API documentation is the deliberate exception colocated under `development/std/`. Edit other
-compiler and contributor documentation under `development/`. Edit shared assets under root
-`assets/` and website-only assets in `static/`. Commit only authored sources and build machinery;
-never copy generated HTML into the repository.
+compiler and contributor documentation under `development/`. Edit website and shared repository
+assets in `static/`. Commit only authored sources and build machinery; never copy generated HTML
+into the repository.
