@@ -7,8 +7,8 @@ Nocter v0.49.0 is published and externally audited. Release-content commit
 reproducible-package, and installed-home gates. Publication commit
 `cd2d6e7385fab4eb42153bb6a6c3df40d5033ec4` is the peeled target of annotated tag `v0.49.0`.
 The public release is latest, contains exactly one asset, and the downloaded asset matches the
-retained qualified archive byte for byte. GitHub Pages now deploys an Actions artifact whose
-manifest identifies that same publication commit.
+retained qualified archive byte for byte. GitHub Pages now deploys source-identified Actions
+artifacts; each deployment manifest identifies the exact `main` commit that produced it.
 
 ## Next Work
 
