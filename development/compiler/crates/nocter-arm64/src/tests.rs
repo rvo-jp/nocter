@@ -548,6 +548,44 @@ fn encodes_scaled_memory_and_control_instructions() {
 }
 
 #[test]
+fn encodes_typed_acquire_release_atomic_instructions() {
+    assert_eq!(word(Arm64Instruction::ClearExclusive), 0xd503_3f5f);
+    assert_eq!(
+        word(Arm64Instruction::LoadAcquire {
+            size: Arm64DataSize::Bits64,
+            destination: data(0),
+            base: base(1),
+        }),
+        0xc8df_fc20
+    );
+    assert_eq!(
+        word(Arm64Instruction::StoreRelease {
+            size: Arm64DataSize::Bits32,
+            source: data(2),
+            base: Arm64BaseRegister::StackPointer,
+        }),
+        0x889f_ffe2
+    );
+    assert_eq!(
+        word(Arm64Instruction::LoadAcquireExclusive {
+            size: Arm64DataSize::Bits32,
+            destination: Arm64DataRegister::Zero,
+            base: base(4),
+        }),
+        0x885f_fc9f
+    );
+    assert_eq!(
+        word(Arm64Instruction::StoreReleaseExclusive {
+            size: Arm64DataSize::Bits64,
+            status: x(3),
+            source: data(5),
+            base: base(6),
+        }),
+        0xc803_fcc5
+    );
+}
+
+#[test]
 fn rejects_values_that_would_be_truncated_or_change_register_meaning() {
     assert_eq!(
         Arm64Instruction::AddSubtractImmediate {

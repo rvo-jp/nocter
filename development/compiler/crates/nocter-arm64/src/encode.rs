@@ -31,9 +31,14 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         instruction @ (Arm64Instruction::LoadUnsigned { .. }
         | Arm64Instruction::LoadSigned { .. }
         | Arm64Instruction::StoreUnsigned { .. }
+        | Arm64Instruction::LoadAcquire { .. }
+        | Arm64Instruction::StoreRelease { .. }
+        | Arm64Instruction::LoadAcquireExclusive { .. }
+        | Arm64Instruction::StoreReleaseExclusive { .. }
         | Arm64Instruction::FloatLoad { .. }
         | Arm64Instruction::FloatStore { .. }) => encode_memory(instruction),
         instruction @ (Arm64Instruction::NoOperation
+        | Arm64Instruction::ClearExclusive
         | Arm64Instruction::InstructionSynchronizationBarrier
         | Arm64Instruction::AddressPage { .. }
         | Arm64Instruction::ConditionalSet { .. }
@@ -283,6 +288,47 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
             base,
             offset,
         } => encode_load_store(size, false, source.encoding(), base.encoding(), offset),
+        Arm64Instruction::LoadAcquire {
+            size,
+            destination,
+            base,
+        } => Ok(encode_atomic_load_store(
+            size,
+            AtomicMemoryOperation::LoadAcquire,
+            0,
+            destination.encoding(),
+            base.encoding(),
+        )),
+        Arm64Instruction::StoreRelease { size, source, base } => Ok(encode_atomic_load_store(
+            size,
+            AtomicMemoryOperation::StoreRelease,
+            0,
+            source.encoding(),
+            base.encoding(),
+        )),
+        Arm64Instruction::LoadAcquireExclusive {
+            size,
+            destination,
+            base,
+        } => Ok(encode_atomic_load_store(
+            size,
+            AtomicMemoryOperation::LoadAcquireExclusive,
+            0,
+            destination.encoding(),
+            base.encoding(),
+        )),
+        Arm64Instruction::StoreReleaseExclusive {
+            size,
+            status,
+            source,
+            base,
+        } => Ok(encode_atomic_load_store(
+            size,
+            AtomicMemoryOperation::StoreReleaseExclusive,
+            u32::from(status.number()),
+            source.encoding(),
+            base.encoding(),
+        )),
         instruction
         @ (Arm64Instruction::FloatLoad { .. } | Arm64Instruction::FloatStore { .. }) => {
             crate::floating_encoding::memory(instruction)
@@ -296,6 +342,7 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
 fn encode_control(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
     match instruction {
         Arm64Instruction::NoOperation => Ok(0xd503_201f),
+        Arm64Instruction::ClearExclusive => Ok(0xd503_3f5f),
         Arm64Instruction::InstructionSynchronizationBarrier => Ok(0xd503_3fdf),
         Arm64Instruction::AddressPage {
             destination,
@@ -581,6 +628,34 @@ fn encode_load_store(
         return Err(Arm64EncodingError::OffsetOutOfRange);
     }
     Ok(instruction | (offset / bytes) << 10 | base << 5 | data)
+}
+
+#[derive(Clone, Copy)]
+enum AtomicMemoryOperation {
+    LoadAcquire,
+    StoreRelease,
+    LoadAcquireExclusive,
+    StoreReleaseExclusive,
+}
+
+const fn encode_atomic_load_store(
+    size: Arm64DataSize,
+    operation: AtomicMemoryOperation,
+    status: u32,
+    data: u32,
+    base: u32,
+) -> u32 {
+    let width = match size {
+        Arm64DataSize::Bits32 => 0,
+        Arm64DataSize::Bits64 => 1 << 30,
+    };
+    let instruction = match operation {
+        AtomicMemoryOperation::LoadAcquire => 0x88df_fc00,
+        AtomicMemoryOperation::StoreRelease => 0x889f_fc00,
+        AtomicMemoryOperation::LoadAcquireExclusive => 0x885f_fc00,
+        AtomicMemoryOperation::StoreReleaseExclusive => 0x8800_fc00 | status << 16,
+    };
+    width | instruction | base << 5 | data
 }
 
 fn encode_signed_load(

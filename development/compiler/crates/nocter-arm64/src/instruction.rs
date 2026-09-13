@@ -131,6 +131,8 @@ impl Arm64BranchCondition {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64Instruction {
     NoOperation,
+    /// Clears the current processing element's local exclusive reservation.
+    ClearExclusive,
     /// Flushes the instruction pipeline before subsequent instructions are fetched.
     InstructionSynchronizationBarrier,
     /// Forms the page containing `pc + displacement`. The displacement must be page-aligned.
@@ -237,6 +239,33 @@ pub enum Arm64Instruction {
         source: Arm64DataRegister,
         base: Arm64BaseRegister,
         offset: u32,
+    },
+    /// Loads one naturally aligned atomic word with acquire ordering.
+    LoadAcquire {
+        size: Arm64DataSize,
+        destination: Arm64DataRegister,
+        base: Arm64BaseRegister,
+    },
+    /// Stores one naturally aligned atomic word with release ordering.
+    StoreRelease {
+        size: Arm64DataSize,
+        source: Arm64DataRegister,
+        base: Arm64BaseRegister,
+    },
+    /// Begins an acquire/release compare-and-update loop by loading an exclusive reservation.
+    LoadAcquireExclusive {
+        size: Arm64DataSize,
+        destination: Arm64DataRegister,
+        base: Arm64BaseRegister,
+    },
+    /// Attempts to publish an exclusive reservation with release ordering.
+    ///
+    /// `status` receives zero on success and a non-zero value when the reservation was lost.
+    StoreReleaseExclusive {
+        size: Arm64DataSize,
+        status: Arm64Register,
+        source: Arm64DataRegister,
+        base: Arm64BaseRegister,
     },
     FloatLoad {
         size: Arm64DataSize,
