@@ -285,6 +285,23 @@ fn computation_kernel_has_no_compiler_domain_dependency() {
 }
 
 #[test]
+fn blocking_job_lifecycle_has_no_host_or_compiler_dependency() {
+    assert!(
+        production_dependencies("nocter-blocking-runtime").is_empty(),
+        "job identity, capacity, cancellation, and completion must remain target-independent"
+    );
+}
+
+#[test]
+fn darwin_blocking_service_depends_only_on_the_job_lifecycle_contract() {
+    assert_eq!(
+        production_dependencies("nocter-darwin-blocking-service"),
+        BTreeSet::from(["nocter-blocking-runtime".to_owned()]),
+        "host worker control must not inherit compiler, task, reactor, or source representations"
+    );
+}
+
+#[test]
 fn compiler_computation_owns_the_shared_query_entry_without_consumer_policy() {
     assert_eq!(
         production_dependencies("nocter-compiler-computation"),

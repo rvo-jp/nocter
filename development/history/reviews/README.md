@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.50.0 Phase 0 Blocking-job Model Review](v0.50.0-phase-0.md)
 - [v0.49.0 Documentation Artifact Migration](v0.49.0-documentation-artifact.md)
 - [v0.49.0 Phase 7 Structured Process I/O Final Review](v0.49.0-phase-7.md)
 - [v0.49.0 Phase 6 Structured Process Application Review](v0.49.0-phase-6.md)

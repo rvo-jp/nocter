@@ -8,9 +8,11 @@ in [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Complete v0.50.0 Phase 0: freeze and implement the bounded owned blocking-job lifecycle and its
-generation-qualified executor completion boundary. Do not add filesystem-specific policy to the
-runtime service or expose a public arbitrary-thread/closure API.
+Begin v0.50.0 Phase 1 by defining the one canonical `File` ownership and operation contract shared
+by executor-safe and explicitly blocking surfaces. Implement the generated Darwin blocking service
+through the Phase 0 lifecycle authority before replacing the public blocking-only `File` surface.
+Do not let standard source know worker records, queue state, wake transport, or native error
+encoding.
 
 Preserve every published tag and asset, including v0.49.0.
 
