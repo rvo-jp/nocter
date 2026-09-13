@@ -13,6 +13,10 @@ use nocter_blocking_runtime::{
     ServiceError, ServiceSnapshot, ShutdownCleanup, SubmitError,
 };
 
+mod retirement_service;
+
+pub use retirement_service::{DarwinRetirementService, RetirementShutdownError};
+
 #[derive(Default)]
 struct WorkerControl {
     revision: u128,
@@ -40,6 +44,12 @@ impl WorkerSignal {
         let mut state = lock(&self.state);
         state.revision = state.revision.saturating_add(1);
         self.changed.notify_one();
+    }
+
+    fn notify_all(&self) {
+        let mut state = lock(&self.state);
+        state.revision = state.revision.saturating_add(1);
+        self.changed.notify_all();
     }
 
     fn close(&self) {
@@ -81,14 +91,7 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
     where
         F: Fn(&mut I) -> O + Send + Sync + 'static,
     {
-        let (notification_reader, notification_writer) =
-            UnixStream::pair().map_err(BuildError::Channel)?;
-        notification_reader
-            .set_nonblocking(true)
-            .map_err(BuildError::Channel)?;
-        notification_writer
-            .set_nonblocking(true)
-            .map_err(BuildError::Channel)?;
+        let (notification_reader, notification_writer) = notification_channel()?;
 
         let notifier = notification_writer
             .try_clone()
@@ -182,17 +185,7 @@ impl<I: Send + 'static, O: Send + 'static> DarwinBlockingService<I, O> {
     ///
     /// Returns a channel read failure other than ordinary nonblocking exhaustion.
     pub fn drain_notifications(&mut self) -> Result<usize, io::Error> {
-        let mut total = 0;
-        let mut buffer = [0_u8; 256];
-        loop {
-            match self.notification_reader.read(&mut buffer) {
-                Ok(0) => return Ok(total),
-                Ok(count) => total += count,
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(total),
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => return Err(error),
-            }
-        }
+        drain_channel(&mut self.notification_reader)
     }
 
     /// Closes admission, joins every worker, and returns detached input and output ownership.
@@ -254,6 +247,27 @@ fn signal(stream: &UnixStream) {
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => return,
             Err(error) => panic!("Darwin blocking-service wake channel failed: {error}"),
+        }
+    }
+}
+
+fn notification_channel() -> Result<(UnixStream, UnixStream), BuildError> {
+    let (reader, writer) = UnixStream::pair().map_err(BuildError::Channel)?;
+    reader.set_nonblocking(true).map_err(BuildError::Channel)?;
+    writer.set_nonblocking(true).map_err(BuildError::Channel)?;
+    Ok((reader, writer))
+}
+
+fn drain_channel(reader: &mut UnixStream) -> Result<usize, io::Error> {
+    let mut total = 0;
+    let mut buffer = [0_u8; 256];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => return Ok(total),
+            Ok(count) => total += count,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(total),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
         }
     }
 }
@@ -327,3 +341,6 @@ impl std::error::Error for ShutdownError {}
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod retirement_tests;

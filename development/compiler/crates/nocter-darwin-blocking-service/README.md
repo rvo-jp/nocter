@@ -2,8 +2,9 @@
 
 ## Responsibility
 
-Own executable host conformance for a fixed Darwin blocking-worker pool and its wake-only descriptor
-channel over the target-independent `nocter-blocking-runtime` lifecycle.
+Own executable host conformance for fixed Darwin operation and resource-retirement worker pools and
+their wake-only descriptor channels over the target-independent `nocter-blocking-runtime`
+lifecycle.
 
 ## Contract
 
@@ -21,6 +22,13 @@ into one byte; a full channel is already readable and therefore does not lose th
 This Rust crate is conformance evidence for the generated Darwin service. Generated Nocter
 executables do not link it.
 
+`DarwinRetirementService` executes cleanup for resources that carry a pre-reserved retirement slot.
+Owner destruction can therefore wake a fixed cleanup worker without waiting for or competing with
+ordinary job admission. Explicit shutdown rejects externally held owners instead of assuming that
+callers already destroyed them. Dropping the adapter with a live owner detaches only host join
+handles: the lifecycle notifier and fixed workers remain reachable until the final issued owner
+enters cleanup and the closed service drains.
+
 ## Invariants
 
 - Construction either owns every configured worker and both channel endpoints or joins every
@@ -30,6 +38,12 @@ executables do not link it.
   cannot silently reduce pool capacity.
 - Completion, abandoned completion, queued cancellation, completed cancellation, and consumption
   all publish a wake after their state transition.
+- Retirement owner destruction has infallible bounded queue admission because its permit was
+  acquired before resource creation. Cleanup panic still destroys the resource and releases its
+  reservation on the worker.
+- Retirement shutdown cannot release worker storage while an external permit or owner exists. A
+  detached adapter keeps no second queue or result index and its workers exit after the lifecycle
+  authority becomes closed and drained.
 - The channel is nonblocking and wake-only. `WouldBlock` on write is success because an unread wake
   already exists; interruption retries, and any other write failure is fatal.
 - Shutdown closes admission before waking workers, joins them, and leaves no thread holding pool
