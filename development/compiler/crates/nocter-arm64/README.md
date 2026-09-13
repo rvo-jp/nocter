@@ -94,6 +94,10 @@ source, loader commands, or package state.
 - Darwin's register-returning `pipe` syscall and close-once descriptor cleanup remain backend ABI
   facts. The file-service generator does not reinterpret the syscall as a C output-parameter call,
   and shutdown never retries or treats a failed `close` as proof that the descriptor stayed open.
+- Generated file retirement is one target family covering bounded reservation, owner publication,
+  drop, explicit-close future drive/cancel/consume, worker dispatch, wake notification, and group
+  accounting. Reusable records publish `Available` only after transient descriptor, failure,
+  readiness, and allocation-context state is cleared.
 - Native process registration treats `ESRCH` as immediate readiness only after validating that the
   failed change originated from a process interest. This closes exit-before-registration without
   reaping status or introducing periodic probes. Interrupted and capped waits always recalculate

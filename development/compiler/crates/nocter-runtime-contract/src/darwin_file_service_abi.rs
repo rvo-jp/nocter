@@ -91,6 +91,40 @@ pub enum DarwinFileServiceState {
     Released,
 }
 
+/// Result of one generated operation or retirement-capacity admission attempt.
+///
+/// `Saturated` is transient and leaves the complete input owned by its future. `Closed` is
+/// terminal and is observable while the service root remains alive during orderly drain.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DarwinFileServiceAdmission {
+    Ready,
+    Saturated,
+    Closed,
+}
+
+impl DarwinFileServiceAdmission {
+    pub const ALL: &'static [Self] = &[Self::Ready, Self::Saturated, Self::Closed];
+
+    #[must_use]
+    pub const fn code(self) -> u64 {
+        match self {
+            Self::Ready => 0,
+            Self::Saturated => 1,
+            Self::Closed => 2,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            0 => Some(Self::Ready),
+            1 => Some(Self::Saturated),
+            2 => Some(Self::Closed),
+            _ => None,
+        }
+    }
+}
+
 impl DarwinFileServiceState {
     pub const ALL: &'static [Self] = &[Self::Accepting, Self::Draining, Self::Released];
 
@@ -271,8 +305,8 @@ mod tests {
 
     use super::{
         DarwinFileRetirementAbiSchema, DarwinFileRetirementField, DarwinFileServiceAbiSchema,
-        DarwinFileServiceAction, DarwinFileServiceEvent, DarwinFileServiceField,
-        DarwinFileServiceState,
+        DarwinFileServiceAction, DarwinFileServiceAdmission, DarwinFileServiceEvent,
+        DarwinFileServiceField, DarwinFileServiceState,
     };
     use crate::DarwinFileServiceConfiguration;
 
@@ -360,5 +394,22 @@ mod tests {
             DarwinFileServiceState::Released.apply(DarwinFileServiceEvent::BeginDrain),
             None
         );
+    }
+
+    #[test]
+    fn service_admission_results_are_closed_unique_and_round_trip() {
+        let codes = DarwinFileServiceAdmission::ALL
+            .iter()
+            .copied()
+            .map(DarwinFileServiceAdmission::code)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(codes.len(), DarwinFileServiceAdmission::ALL.len());
+        for result in DarwinFileServiceAdmission::ALL.iter().copied() {
+            assert_eq!(
+                DarwinFileServiceAdmission::from_code(result.code()),
+                Some(result)
+            );
+        }
+        assert_eq!(DarwinFileServiceAdmission::from_code(u64::MAX), None);
     }
 }

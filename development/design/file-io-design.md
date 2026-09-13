@@ -69,6 +69,14 @@ uses the same queue without a waiter. Runtime shutdown closes new permits first,
 abandons operation waiters, detaches close waiters, and continues draining every existing
 retirement reservation before releasing worker storage.
 
+The generated retirement target family makes reservation, owner publication, drop, explicit-close
+drive/cancel/consume, worker dispatch, notification, and dispatch-group accounting inseparable.
+Close is issued exactly once, including an indeterminate target failure. A detached worker clears
+all transient record ownership before atomically publishing reusable capacity; explicit close
+retains its validated two-word failure fact until the waiter consumes or cancels it. Native
+qualification transfers a real Darwin pipe descriptor through this complete path before root
+shutdown.
+
 ## Result Facts and Policy
 
 The Darwin operation adapter publishes typed raw facts: operation kind, retained file owner when

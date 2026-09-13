@@ -38,10 +38,11 @@ impl Arm64DarwinFileServiceRootTargets {
     pub fn declare(
         program: &mut Arm64ProgramBuilder,
         imports: &Arm64DarwinFileServiceImports,
+        retirement: crate::Arm64DarwinFileRetirementTargets,
     ) -> Result<Self, Arm64DarwinFileServiceRootError> {
         let ensure = program.declare_function();
         let shutdown = program.declare_function();
-        program.define_function(ensure, build_ensure(imports)?.finish()?)?;
+        program.define_function(ensure, build_ensure(imports, retirement)?.finish()?)?;
         program.define_function(shutdown, build_shutdown(imports)?.finish()?)?;
         Ok(Self { ensure, shutdown })
     }
@@ -59,6 +60,7 @@ impl Arm64DarwinFileServiceRootTargets {
 
 fn build_ensure(
     imports: &Arm64DarwinFileServiceImports,
+    retirement: crate::Arm64DarwinFileRetirementTargets,
 ) -> Result<Arm64CodeBuilder, Arm64DarwinFileServiceRootError> {
     let schema = DarwinFileServiceAbiSchema::ARM64_DARWIN;
     let process = Arm64NocterAbi::process_context();
@@ -89,7 +91,7 @@ fn build_ensure(
     move_register(&mut code, x(21), x(0));
     zero_service(&mut code, x(21), &schema)?;
     create_native_roots(&mut code, x(21), &schema, imports)?;
-    initialize_retirement_records(&mut code, x(21), &schema)?;
+    initialize_retirement_records(&mut code, x(21), &schema, retirement)?;
     code.append(Arm64Instruction::StoreRelease {
         size: Arm64DataSize::Bits64,
         source: Arm64DataRegister::General(x(21)),
@@ -230,6 +232,7 @@ fn initialize_retirement_records(
     code: &mut Arm64CodeBuilder,
     service: Arm64Register,
     schema: &DarwinFileServiceAbiSchema,
+    targets: crate::Arm64DarwinFileRetirementTargets,
 ) -> Result<(), Arm64DarwinFileServiceRootError> {
     let record = schema.retirement_record();
     let asynchronous = record.asynchronous();
@@ -252,6 +255,29 @@ fn initialize_retirement_records(
     )?;
     let loop_ = code.create_label();
     code.bind(loop_)?;
+    for (field, target) in [
+        (
+            DarwinFileRetirementField::ResumeFunction,
+            targets.resume_close(),
+        ),
+        (
+            DarwinFileRetirementField::CancelFunction,
+            targets.cancel_close(),
+        ),
+        (
+            DarwinFileRetirementField::ConsumeFunction,
+            targets.consume_close(),
+        ),
+    ] {
+        code.load_function_address(target, x(8));
+        store(
+            code,
+            Arm64LoadStoreSize::Double,
+            x(22),
+            record.offset(field),
+            x(8),
+        )?;
+    }
     store(
         code,
         Arm64LoadStoreSize::Double,
@@ -792,13 +818,17 @@ mod tests {
     use nocter_runtime_contract::DarwinFileServiceFunction;
 
     use super::Arm64DarwinFileServiceRootTargets;
-    use crate::{Arm64DarwinFileServiceImports, Arm64ProgramBuilder};
+    use crate::{
+        Arm64DarwinFileRetirementTargets, Arm64DarwinFileServiceImports, Arm64ProgramBuilder,
+    };
 
     #[test]
     fn root_targets_are_defined_together_from_the_typed_import_catalog() {
         let mut program = Arm64ProgramBuilder::new();
         let imports = Arm64DarwinFileServiceImports::declare(&mut program).unwrap();
-        let targets = Arm64DarwinFileServiceRootTargets::declare(&mut program, &imports).unwrap();
+        let retirement = Arm64DarwinFileRetirementTargets::declare(&mut program, &imports).unwrap();
+        let targets =
+            Arm64DarwinFileServiceRootTargets::declare(&mut program, &imports, retirement).unwrap();
         assert_ne!(targets.ensure(), targets.shutdown());
         program.set_entry(targets.ensure()).unwrap();
         let program = program.finish().unwrap();

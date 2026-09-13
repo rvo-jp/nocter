@@ -48,8 +48,8 @@ pub use darwin_file_lifecycle::{
 };
 pub use darwin_file_service_abi::{
     DarwinFileRetirementAbiSchema, DarwinFileRetirementField, DarwinFileServiceAbiSchema,
-    DarwinFileServiceAction, DarwinFileServiceEvent, DarwinFileServiceField,
-    DarwinFileServiceState, DarwinFileServiceTransition,
+    DarwinFileServiceAction, DarwinFileServiceAdmission, DarwinFileServiceEvent,
+    DarwinFileServiceField, DarwinFileServiceState, DarwinFileServiceTransition,
 };
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,

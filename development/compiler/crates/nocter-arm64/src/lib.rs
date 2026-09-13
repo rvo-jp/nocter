@@ -36,6 +36,7 @@ mod code;
 mod darwin_block;
 mod darwin_datagram_code;
 mod darwin_file_lifecycle;
+mod darwin_file_retirement;
 mod darwin_file_service;
 mod darwin_file_service_root;
 mod darwin_kernel_abi;
@@ -149,6 +150,9 @@ pub use darwin_datagram_code::DarwinDatagramOperation;
 pub use darwin_file_lifecycle::{
     Arm64DarwinFileLifecycleError, emit_darwin_file_job_transition,
     emit_darwin_file_retirement_transition, emit_darwin_file_service_transition,
+};
+pub use darwin_file_retirement::{
+    Arm64DarwinFileRetirementError, Arm64DarwinFileRetirementTargets,
 };
 pub use darwin_file_service::Arm64DarwinFileServiceImports;
 pub use darwin_file_service_root::{
