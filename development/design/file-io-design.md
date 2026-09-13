@@ -91,10 +91,12 @@ Those facts use the closed `DarwinFileFailure` and `DarwinFileWriteFact` runtime
 conformance adapter reduces `std::io::Error` to a positive Darwin errno or an explicit adapter
 failure before publication; generated code never receives a Rust error object. Zero-progress and
 position-overflow failures have their own variants and are not disguised as target errno.
-The optional failure occupies exactly two target words: a closed non-zero failure kind and a
-positive errno admitted only by the Darwin-target kind. The all-zero record is success. Every
-other encoding is an invalid target fact, so standard source never guesses whether a numeric word
-is an errno or an adapter classification.
+Every operation and explicit close publishes the same five-word completion record: retained owner,
+transferred byte count, resulting position, closed failure kind, and target errno. Fields unused by
+an operation are zero. A zero owner is the empty moved-from representation and is required for
+failed open and terminal close. Within the failure pair, zero kind and zero errno mean success;
+only the Darwin-target kind admits a positive errno. Every other encoding is invalid, so standard
+source never guesses whether a numeric word is an errno or an adapter classification.
 
 A failed read, positioned read, seek, truncate, or flush restores the file owner before returning
 its error. A write or positioned-write failure restores the owner but retains an observable
@@ -158,6 +160,12 @@ operand, and scalar-result interpretation.
 Read frames separately retain a consumer-only destination pointer. The target worker cannot access
 that field, and cancellation clears it before atomically detaching the worker, so worker ownership
 never extends the caller's buffer borrow.
+The frame also carries an explicit capacity-ownership word. A service-closed rejection reaches
+completion without capacity, while a dispatched completion retains capacity until consume or
+cancel. Cleanup therefore never infers admission from an error kind or lifecycle tag. Before a
+worker publishes attached completion, it retains the notification descriptor and worker group in
+callee-saved state. After publication it signals and leaves the group without reading the frame,
+allowing the consumer to release the frame immediately without a worker race.
 The service wake descriptor is shared and carries no identity. The generated wait projection
 coalesces its equal native registration keys and fans one returned event back out to every matching
 semantic readiness destination before any future performs its exact state query.

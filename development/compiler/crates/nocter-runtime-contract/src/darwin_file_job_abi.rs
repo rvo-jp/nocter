@@ -18,6 +18,7 @@ pub enum DarwinFileJobField {
     Operation,
     RetirementRecord,
     AllocationSize,
+    CapacityHeld,
     OwnedByteLength,
     ConsumerBytePointer,
     PositionedOffset,
@@ -104,6 +105,7 @@ impl DarwinFileJobField {
         Self::Operation,
         Self::RetirementRecord,
         Self::AllocationSize,
+        Self::CapacityHeld,
         Self::OwnedByteLength,
         Self::ConsumerBytePointer,
         Self::PositionedOffset,
@@ -271,9 +273,9 @@ impl DarwinFileJobAbiSchema {
         asynchronous: RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous(),
         field_offsets: [
             0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152,
-            160, 168, 176, 184, 192,
+            160, 168, 176, 184, 192, 200,
         ],
-        fixed_size: 200,
+        fixed_size: 208,
         alignment: 8,
     };
 
@@ -360,11 +362,11 @@ mod tests {
         for (index, field) in DarwinFileJobField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.fixed_size(), 200);
+        assert_eq!(schema.fixed_size(), 208);
         assert_eq!(schema.alignment(), asynchronous.fixed_header_alignment());
         assert_eq!(schema.owned_bytes_offset(), schema.fixed_size());
-        assert_eq!(schema.allocation_size(0), Some(200));
-        assert_eq!(schema.allocation_size(31), Some(231));
+        assert_eq!(schema.allocation_size(0), Some(208));
+        assert_eq!(schema.allocation_size(31), Some(239));
         assert_eq!(schema.allocation_size(u64::MAX), None);
     }
 

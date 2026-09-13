@@ -98,6 +98,12 @@ source, loader commands, or package state.
   drop, explicit-close future drive/cancel/consume, worker dispatch, wake notification, and group
   accounting. Reusable records publish `Available` only after transient descriptor, failure,
   readiness, and allocation-context state is cleared.
+- Generated file operations share one target family for eight constructors, bounded admission,
+  worker execution, drive, cancellation, and consumption. The future frame is the dispatched job;
+  it owns path and write bytes, owns read output until consumption, and publishes one five-word
+  completion record. Workers retain their notification descriptor and group before publishing
+  completion, so successful publication is also the point after which they never inspect frame
+  storage again.
 - Generated service counts use shared acquire/release bounded-increment and non-zero-decrement
   emitters. Saturation and underflow cannot wrap, and callers cannot omit lost-reservation retry or
   exclusive-reservation cleanup.

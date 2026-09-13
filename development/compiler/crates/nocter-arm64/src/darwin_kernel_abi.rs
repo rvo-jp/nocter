@@ -11,6 +11,11 @@ pub(crate) enum DarwinSystemCall {
     Write,
     Open,
     Close,
+    SynchronizeFile,
+    PositionedRead,
+    PositionedWrite,
+    Seek,
+    TruncateFile,
     Wait4,
     Kill,
     Socket,
@@ -45,6 +50,11 @@ impl DarwinSystemCall {
             Self::Write => 0x0200_0004,
             Self::Open => 0x0200_0005,
             Self::Close => 0x0200_0006,
+            Self::SynchronizeFile => 0x0200_005f,
+            Self::PositionedRead => 0x0200_0099,
+            Self::PositionedWrite => 0x0200_009a,
+            Self::Seek => 0x0200_00c7,
+            Self::TruncateFile => 0x0200_00c9,
             Self::Wait4 => 0x0200_0007,
             Self::Kill => 0x0200_0025,
             Self::Socket => 0x0200_0061,
@@ -99,6 +109,21 @@ impl DarwinDescriptorAbi {
     pub(crate) const FIRST_PRIVATE_DESCRIPTOR: u64 = 3;
     pub(crate) const CLOSE_ON_EXEC: u64 = 1;
     pub(crate) const NONBLOCKING: u64 = 4;
+}
+
+/// Darwin constants admitted by the closed generated file-operation family.
+pub(crate) struct DarwinFileAbi;
+
+impl DarwinFileAbi {
+    pub(crate) const READ_ONLY: u64 = 0;
+    pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0601;
+    pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0209;
+    pub(crate) const CREATE_MODE: u64 = 0o666;
+    pub(crate) const SEEK_FROM_START: u64 = 0;
+    pub(crate) const SEEK_FROM_CURRENT: u64 = 1;
+    pub(crate) const SEEK_FROM_END: u64 = 2;
+    pub(crate) const MAXIMUM_TRANSFER: u64 = i64::MAX as u64;
+    pub(crate) const MAXIMUM_OFFSET: u64 = i64::MAX as u64;
 }
 
 /// Emits a compiler-selected Darwin system call after its arguments have been prepared.
@@ -208,6 +233,11 @@ mod tests {
             DarwinSystemCall::Write,
             DarwinSystemCall::Open,
             DarwinSystemCall::Close,
+            DarwinSystemCall::SynchronizeFile,
+            DarwinSystemCall::PositionedRead,
+            DarwinSystemCall::PositionedWrite,
+            DarwinSystemCall::Seek,
+            DarwinSystemCall::TruncateFile,
             DarwinSystemCall::Wait4,
             DarwinSystemCall::Kill,
             DarwinSystemCall::Socket,

@@ -35,6 +35,10 @@ mod call_selection;
 mod code;
 mod darwin_block;
 mod darwin_datagram_code;
+mod darwin_file_job;
+mod darwin_file_job_code;
+mod darwin_file_job_constructor;
+mod darwin_file_job_execution;
 mod darwin_file_lifecycle;
 mod darwin_file_retirement;
 mod darwin_file_service;
@@ -147,6 +151,7 @@ pub use darwin_block::{
     materialize_darwin_pointer_capture_stack_block,
 };
 pub use darwin_datagram_code::DarwinDatagramOperation;
+pub use darwin_file_job::{Arm64DarwinFileJobError, Arm64DarwinFileJobTargets};
 pub use darwin_file_lifecycle::{
     Arm64DarwinFileLifecycleError, emit_darwin_file_job_transition,
     emit_darwin_file_retirement_transition, emit_darwin_file_service_transition,
