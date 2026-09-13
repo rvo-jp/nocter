@@ -240,6 +240,7 @@ fn validate_deferred_drop_calls(
     executable: &ExecutableProgram,
 ) -> Result<(), MirProgramBuildError> {
     let (drop, children): (Option<ExecutableItemId>, Vec<&MirDestructionPlan>) = match plan.kind() {
+        MirDestructionKind::RuntimeStorage { drop, .. } => (*drop, Vec::new()),
         MirDestructionKind::Struct { drop, fields } => (
             *drop,
             fields

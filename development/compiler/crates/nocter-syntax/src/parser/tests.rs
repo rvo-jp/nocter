@@ -456,12 +456,13 @@ fn parses_noalloc_as_a_structural_callable_modifier() {
 }
 
 #[test]
-fn parses_async_only_as_a_function_or_method_modifier() {
+fn parses_async_on_functions_methods_and_construction_functions() {
     let tree = assert_syntax_ok(
         "async func fetch(): String! { return failure() }\n\
          interface Source { pub async method &self.read(): String!\n\
          pub async default method &self.cached(): String! }\n\
          instance Reader { pub async method &+self.read(): String! }\n\
+         construct String { pub async func load(): Self! }\n\
          type Pending = future String!\n",
         ParseGoal::SourceFile,
     );
@@ -470,14 +471,14 @@ fn parses_async_only_as_a_function_or_method_modifier() {
         tree.nodes()
             .filter(|(_, node)| node.kind() == NodeKind::AsyncModifier)
             .count(),
-        4
+        5
     );
     assert_eq!(count_node_kind(&tree, NodeKind::FutureType), 1);
 
     for source in [
         "type Legacy = async String\n",
         "async primitive func pending(): future String\n",
-        "construct Value { async func new(): Self }\n",
+        "construct Value { async literal \"\"(text: &str): Self }\n",
         "instance Value { async coerce &self as &str }\n",
     ] {
         assert!(parse_text(source, ParseGoal::SourceFile).has_errors());

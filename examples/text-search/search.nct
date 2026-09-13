@@ -2,7 +2,7 @@ see ./index.nct
 
 use std/fs.FileType
 use std/fs
-use std/io.{File, BlockingWriter}
+use std/io.{BlockingFile, BlockingWriter}
 use std/io
 use std/io/buffer.{BlockingBufReader, BlockingBufWriter}
 use std/process
@@ -117,11 +117,11 @@ func display_child(parent: &str, name: &str): String {
 }
 
 blocking func search_file(
-    output: &+BlockingBufWriter<File>,
+    output: &+BlockingBufWriter<BlockingFile>,
     needle: &str,
     path: &SearchPath,
 ): bool! {
-    let source = File.open(&path.full) catch failure {
+    let source = BlockingFile.open(&path.full) catch failure {
         let context = String.concat("cannot open ", &path.display)
         return failure.context(&context)
     }
@@ -147,7 +147,7 @@ blocking func search_file(
 }
 
 blocking func write_match(
-    output: &+BlockingBufWriter<File>,
+    output: &+BlockingBufWriter<BlockingFile>,
     path: &str,
     line_number: usize,
     line: &str,

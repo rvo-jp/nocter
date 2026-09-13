@@ -36,13 +36,32 @@ fn deferred_process_entry_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
+fn async_construction_function_crosses_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "struct Value { number: i32 }\n\
+         construct Value {\n\
+             async func load(number: i32): Self {\n\
+                 return Value { number: number }\n\
+             }\n\
+         }\n\
+         instance Value { method &self.get_number(): i32 { return self.number } }\n\
+         async func main(): i32 {\n\
+             let value = await Value.load(42)\n\
+             return value.get_number()\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn generated_file_primitive_crosses_source_async_and_process_shutdown() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/io\n\
-         async func main(): i32 {\n\
-             let failure = await io.file_open_for_test(\"/dev/null\")\n\
-             if failure == 0 { return 42 }\n\
-             return 1\n\
+         async func main(): i32! {\n\
+             return await io.file_lifecycle_for_test(\"/dev/null\")?\n\
          }\n",
         &[&["internal", "io"]],
     );

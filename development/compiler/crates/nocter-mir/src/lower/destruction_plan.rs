@@ -1,5 +1,6 @@
 use nocter_checking::{ConcreteDestructionKind, ConcreteDestructionPlan};
 use nocter_model::BodyNodeId;
+use nocter_runtime_contract::RuntimeType;
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
@@ -17,22 +18,9 @@ impl FunctionLowerer<'_> {
         plan: &ConcreteDestructionPlan,
     ) -> Result<MirDestructionPlan, MirLoweringError> {
         let kind = match plan.kind() {
-            ConcreteDestructionKind::Struct { drop, fields } => MirDestructionKind::Struct {
-                drop: drop
-                    .as_ref()
-                    .map(|drop| self.require_drop_item(owner, drop))
-                    .transpose()?,
-                fields: fields
-                    .iter()
-                    .map(|field| {
-                        Ok(MirFieldDestruction::new(
-                            field.field(),
-                            self.lower_deferred_destruction(owner, field.plan())?,
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, MirLoweringError>>()?
-                    .into_boxed_slice(),
-            },
+            ConcreteDestructionKind::Struct { drop, fields } => {
+                self.lower_deferred_struct_destruction(owner, plan, drop.as_ref(), fields)?
+            }
             ConcreteDestructionKind::Enum { drop, variants } => MirDestructionKind::Enum {
                 drop: drop
                     .as_ref()
@@ -110,6 +98,37 @@ impl FunctionLowerer<'_> {
             },
         };
         Ok(MirDestructionPlan::new(plan.ty(), kind))
+    }
+
+    fn lower_deferred_struct_destruction(
+        &self,
+        owner: BodyNodeId,
+        plan: &ConcreteDestructionPlan,
+        drop: Option<&nocter_checking::DropSelection>,
+        fields: &[nocter_checking::ConcreteFieldDestruction],
+    ) -> Result<MirDestructionKind, MirLoweringError> {
+        let drop = drop
+            .map(|drop| self.require_drop_item(owner, drop))
+            .transpose()?;
+        if let Some(RuntimeType::Storage(role)) = self.executable.runtime_type(plan.ty()) {
+            if !fields.is_empty() {
+                return Err(MirLoweringError::InvalidCleanup(owner));
+            }
+            return Ok(MirDestructionKind::RuntimeStorage { role: *role, drop });
+        }
+        Ok(MirDestructionKind::Struct {
+            drop,
+            fields: fields
+                .iter()
+                .map(|field| {
+                    Ok(MirFieldDestruction::new(
+                        field.field(),
+                        self.lower_deferred_destruction(owner, field.plan())?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, MirLoweringError>>()?
+                .into_boxed_slice(),
+        })
     }
 
     fn require_drop_item(

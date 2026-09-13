@@ -325,7 +325,7 @@ Rules:
 Examples:
 
 ```nct
-let file = File.open(path) catch failure {
+let file = BlockingFile.open(path) catch failure {
     return failure.context("while opening the file")
 }
 

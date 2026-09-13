@@ -22,6 +22,10 @@ construct Vec<T> {
     pub func with_capacity(capacity: usize): Self {
         ...
     }
+
+    pub async func load(path: &str): Self! {
+        ...
+    }
 }
 ```
 
@@ -50,7 +54,10 @@ Rules:
 - A `construct` declaration contains at least one member. A type with no construction function or
   typed literal omits the declaration instead of spelling an empty surface.
 - A construction function must produce `Self` as its direct result or as the success/present payload
-  of a supported outcome type.
+  of a supported outcome type. For an `async` construction function, this rule applies to the
+  deferred output; the call itself has the ordinary `future T` type.
+- Construction functions admit `async` under the same callable rules as module functions and
+  methods. Typed literals remain immediate and cannot carry `async`.
 - A literal member follows the literal-shape, ownership, allocation-context, and no-overload rules
   from [Argument Packs, Literal Definitions, and Sequence Spread](literals-and-packs.md).
 - `Self` denotes the specialized construct target throughout member signatures and bodies.

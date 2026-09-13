@@ -176,6 +176,7 @@ pub(crate) fn select(
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3
+        | PrimitiveRole::Syscall3Signed
         | PrimitiveRole::Syscall4
         | PrimitiveRole::Syscall6
         | PrimitiveRole::Trap
@@ -194,11 +195,15 @@ pub(crate) fn select(
             selected.push(Arm64SelectedInstruction::CallDarwinProcessAbandon);
             Ok(())
         }
-        PrimitiveRole::FileOpen
+        PrimitiveRole::FileOpenRead
+        | PrimitiveRole::FileOpenCreate
+        | PrimitiveRole::FileOpenAppend
         | PrimitiveRole::FileRead
         | PrimitiveRole::FileWrite
         | PrimitiveRole::FileFlush
-        | PrimitiveRole::FileSeek
+        | PrimitiveRole::FileSeekStart
+        | PrimitiveRole::FileSeekEnd
+        | PrimitiveRole::FileSeekCurrent
         | PrimitiveRole::FileTruncate
         | PrimitiveRole::FileReadAt
         | PrimitiveRole::FileWriteAt
@@ -249,26 +254,11 @@ fn select_file_primitive(
     target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    use nocter_runtime_contract::PrimitiveRole as Role;
-
     validate_type_arguments(operation, target, 0)?;
-    let (arguments, result) = match target.role() {
-        Role::FileOpen => (&[2, 1][..], 1),
-        Role::FileRead | Role::FileWrite => (&[1, 2][..], 1),
-        Role::FileFlush | Role::FileTruncate => (&[1, 1][..], 1),
-        Role::FileSeek | Role::FileReadAt | Role::FileWriteAt => (&[1, 1, 1][..], 1),
-        Role::FileOwnerDispose | Role::FileCompletionDispose => (&[1][..], 0),
-        Role::FileClose
-        | Role::FileCompletionTakeOwner
-        | Role::FileCompletionTransferredByteCount
-        | Role::FileCompletionResultPosition
-        | Role::FileCompletionFailureKind
-        | Role::FileCompletionFailureErrno => (&[1][..], 1),
-        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
-    };
-    validate_register_abi(operation, target, arguments, result)?;
     let primitive = crate::Arm64DarwinFilePrimitive::from_role(target.role())
         .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
+    let abi = primitive.call_abi();
+    validate_register_abi(operation, target, abi.argument_words(), abi.result_words())?;
     selected.push(Arm64SelectedInstruction::CallDarwinFilePrimitive(primitive));
     Ok(())
 }

@@ -234,16 +234,24 @@ closed_role_enum! {
         TaskJoin,
         /// Takes ownership of two same-output computations and selects one deterministic winner.
         TaskRace,
-        /// Constructs one generated local-file open computation.
-        FileOpen,
+        /// Constructs one generated local-file read-only open computation.
+        FileOpenRead,
+        /// Constructs one generated local-file create-or-truncate computation.
+        FileOpenCreate,
+        /// Constructs one generated local-file append computation.
+        FileOpenAppend,
         /// Constructs one generated local-file sequential read computation.
         FileRead,
         /// Constructs one generated local-file sequential write computation.
         FileWrite,
         /// Constructs one generated local-file flush computation.
         FileFlush,
-        /// Constructs one generated local-file seek computation.
-        FileSeek,
+        /// Constructs one generated local-file absolute seek computation.
+        FileSeekStart,
+        /// Constructs one generated local-file end-relative seek computation.
+        FileSeekEnd,
+        /// Constructs one generated local-file cursor-relative seek computation.
+        FileSeekCurrent,
         /// Constructs one generated local-file length-change computation.
         FileTruncate,
         /// Constructs one generated local-file positional read computation.
@@ -294,6 +302,8 @@ closed_role_enum! {
         Syscall1,
         Syscall2,
         Syscall3,
+        /// Calls a three-argument target syscall whose second payload preserves signed bits.
+        Syscall3Signed,
         Syscall4,
         Syscall6,
         Trap,
@@ -420,11 +430,15 @@ impl PrimitiveRole {
             Self::ProcessAbandon => "process_abandon",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",
-            Self::FileOpen => "file_open",
+            Self::FileOpenRead => "file_open_read",
+            Self::FileOpenCreate => "file_open_create",
+            Self::FileOpenAppend => "file_open_append",
             Self::FileRead => "file_read",
             Self::FileWrite => "file_write",
             Self::FileFlush => "file_flush",
-            Self::FileSeek => "file_seek",
+            Self::FileSeekStart => "file_seek_start",
+            Self::FileSeekEnd => "file_seek_end",
+            Self::FileSeekCurrent => "file_seek_current",
             Self::FileTruncate => "file_truncate",
             Self::FileReadAt => "file_read_at",
             Self::FileWriteAt => "file_write_at",
@@ -467,6 +481,7 @@ impl PrimitiveRole {
             Self::Syscall1 => "syscall_1",
             Self::Syscall2 => "syscall_2",
             Self::Syscall3 => "syscall_3",
+            Self::Syscall3Signed => "syscall_3_signed",
             Self::Syscall4 => "syscall_4",
             Self::Syscall6 => "syscall_6",
             Self::Trap => "trap",
@@ -532,11 +547,15 @@ impl PrimitiveRole {
                     | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
-                    | Self::FileOpen
+                    | Self::FileOpenRead
+                    | Self::FileOpenCreate
+                    | Self::FileOpenAppend
                     | Self::FileRead
                     | Self::FileWrite
                     | Self::FileFlush
-                    | Self::FileSeek
+                    | Self::FileSeekStart
+                    | Self::FileSeekEnd
+                    | Self::FileSeekCurrent
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
@@ -552,6 +571,7 @@ impl PrimitiveRole {
                     | Self::Syscall1
                     | Self::Syscall2
                     | Self::Syscall3
+                    | Self::Syscall3Signed
                     | Self::Syscall4
                     | Self::Syscall6
             ),
@@ -563,11 +583,15 @@ impl PrimitiveRole {
                     | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
-                    | Self::FileOpen
+                    | Self::FileOpenRead
+                    | Self::FileOpenCreate
+                    | Self::FileOpenAppend
                     | Self::FileRead
                     | Self::FileWrite
                     | Self::FileFlush
-                    | Self::FileSeek
+                    | Self::FileSeekStart
+                    | Self::FileSeekEnd
+                    | Self::FileSeekCurrent
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
@@ -590,11 +614,15 @@ impl PrimitiveRole {
                     | Self::ProcessCompletion
                     | Self::TaskJoin
                     | Self::TaskRace
-                    | Self::FileOpen
+                    | Self::FileOpenRead
+                    | Self::FileOpenCreate
+                    | Self::FileOpenAppend
                     | Self::FileRead
                     | Self::FileWrite
                     | Self::FileFlush
-                    | Self::FileSeek
+                    | Self::FileSeekStart
+                    | Self::FileSeekEnd
+                    | Self::FileSeekCurrent
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
@@ -606,11 +634,15 @@ impl PrimitiveRole {
                     | Self::ProcessEnvironmentCount
                     | Self::ProcessEnvironmentName
                     | Self::ProcessEnvironmentValue
-                    | Self::FileOpen
+                    | Self::FileOpenRead
+                    | Self::FileOpenCreate
+                    | Self::FileOpenAppend
                     | Self::FileRead
                     | Self::FileWrite
                     | Self::FileFlush
-                    | Self::FileSeek
+                    | Self::FileSeekStart
+                    | Self::FileSeekEnd
+                    | Self::FileSeekCurrent
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
@@ -796,11 +828,15 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
-                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileOpenRead,
+                PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
-                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileSeekStart,
+                PrimitiveRole::FileSeekEnd,
+                PrimitiveRole::FileSeekCurrent,
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
@@ -827,6 +863,7 @@ mod tests {
                 PrimitiveRole::Syscall1,
                 PrimitiveRole::Syscall2,
                 PrimitiveRole::Syscall3,
+                PrimitiveRole::Syscall3Signed,
                 PrimitiveRole::Syscall4,
                 PrimitiveRole::Syscall6,
             ]
@@ -849,11 +886,15 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
-                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileOpenRead,
+                PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
-                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileSeekStart,
+                PrimitiveRole::FileSeekEnd,
+                PrimitiveRole::FileSeekCurrent,
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
@@ -880,11 +921,15 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
-                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileOpenRead,
+                PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
-                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileSeekStart,
+                PrimitiveRole::FileSeekEnd,
+                PrimitiveRole::FileSeekCurrent,
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
@@ -904,11 +949,15 @@ mod tests {
                 PrimitiveRole::ProcessEnvironmentCount,
                 PrimitiveRole::ProcessEnvironmentName,
                 PrimitiveRole::ProcessEnvironmentValue,
-                PrimitiveRole::FileOpen,
+                PrimitiveRole::FileOpenRead,
+                PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
-                PrimitiveRole::FileSeek,
+                PrimitiveRole::FileSeekStart,
+                PrimitiveRole::FileSeekEnd,
+                PrimitiveRole::FileSeekCurrent,
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,

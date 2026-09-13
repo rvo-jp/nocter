@@ -1,4 +1,4 @@
-use std/io.{File, BlockingReader, BlockingWriter}
+use std/io.{BlockingFile, BlockingReader, BlockingWriter}
 use std/io/buffer.{BlockingBufReader, BlockingBufWriter}
 use std/string.String
 use std/vec.Vec
@@ -14,7 +14,7 @@ instance InvalidBlockingReader {
 }
 
 blocking func check_lines(): i32! {
-    var reader = BlockingBufReader.with_capacity(File.open("lines.txt")?, 3)
+    var reader = BlockingBufReader.with_capacity(BlockingFile.open("lines.txt")?, 3)
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
 
@@ -32,7 +32,7 @@ blocking func check_lines(): i32! {
 }
 
 blocking func check_invalid_utf8(): i32! {
-    var reader = BlockingBufReader.with_capacity(File.open("invalid.txt")?, 2)
+    var reader = BlockingBufReader.with_capacity(BlockingFile.open("invalid.txt")?, 2)
     var line = String.copy("sentinel")
     if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "good" { return 1 }
     let _present = reader.read_line_into_blocking(&+line) catch failure {
@@ -45,7 +45,7 @@ blocking func check_invalid_utf8(): i32! {
 }
 
 blocking func check_zero_capacity_and_finish(): i32! {
-    var reader = BlockingBufReader.with_capacity(File.open("single.txt")?, 0)
+    var reader = BlockingBufReader.with_capacity(BlockingFile.open("single.txt")?, 0)
     let line = reader.read_line_blocking()? otherwise { return 1 }
     if (&line as &str) != "z" { return 2 }
     let _after_eof = reader.read_line_blocking()? otherwise {
@@ -57,7 +57,7 @@ blocking func check_zero_capacity_and_finish(): i32! {
 }
 
 blocking func check_closed_output(): i32! {
-    var destination = File.create("writer.txt")?
+    var destination = BlockingFile.create("writer.txt")?
     var nested = BlockingBufWriter.with_capacity(move destination, 8)
     var completed = BlockingBufWriter.with_capacity(move nested, 2)
     completed.write_text_blocking("abc")?
@@ -65,11 +65,11 @@ blocking func check_closed_output(): i32! {
     var returned_destination = nested.finish()?
     returned_destination.close()
 
-    var file = File.create("closed-file.txt")?
+    var file = BlockingFile.create("closed-file.txt")?
     file.close()
     file.write_text_blocking("not written") catch failure {
         if !failure.has_code("std.io.closed") { return 1 }
-        var closed_destination = File.create("closed-buffer.txt")?
+        var closed_destination = BlockingFile.create("closed-buffer.txt")?
         closed_destination.close()
         var writer = BlockingBufWriter.with_capacity(move closed_destination, 1)
         writer.write_text_blocking("abc") catch first_failure {

@@ -169,7 +169,11 @@ fn validate_constructions(
                 DeclarationDomain::Construction,
                 DeclarationDomain::Callable,
             )?;
-            if outcome_payload(program, member.result()) != Some(construction.target()) {
+            let produced = match member.execution() {
+                crate::CallableExecution::Immediate => member.result(),
+                crate::CallableExecution::Deferred { output } => output,
+            };
+            if outcome_payload(program, produced) != Some(construction.target()) {
                 collector.reject_construction(
                     id,
                     related_violation(

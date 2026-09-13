@@ -3,22 +3,24 @@
 ## Current State
 
 Nocter v0.49.0 is published and externally audited. v0.50.0 is active as one Local Data and
-Asynchronous Streaming milestone. Its completion definition and phased authority replacement live
-in [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
+Asynchronous Streaming milestone. Phases 0 and 1 are complete. Its completion definition and
+phased authority replacement live in
+[`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Continue v0.50.0 Phase 1 by replacing the public blocking-only `File` surface in one migration.
-The exact source primitive roles are now bound through opaque `FileOwner` and `FileCompletion`
-runtime-storage declarations. The generated target family owns all eight
-operation constructors, bounded admission, four-queue dispatch, direct worker syscalls, partial
-write progress, cancellation, retirement, read-output transfer, one completion ABI, and exact
-capacity release. Native qualification opens and reads a real descriptor through construction,
-worker publication, consumption, and explicit close. The worker retains every post-publication
-resource before its completion transition and never reads a frame that a consumer may release.
-The target emits service shutdown once at the process-root return boundary, after source cleanup
-and before the ordinary ABI epilogue. Standard source cannot observe worker records, queue state,
-wake transport, or native error encoding.
+Begin v0.50.0 Phase 2 as one filesystem-completion design and implementation range. Add canonical
+asynchronous and explicit blocking twins for metadata, links, canonicalization, copy, rename,
+creation, removal, and directory traversal. Preserve one path-validation authority, one portable
+error policy, bounded recursive work, and typed target facts. Do not implement an asynchronous
+surface by calling a public blocking wrapper or by retaining caller storage in a worker.
+
+Phase 1 closed the canonical file cutover. `File` is executor-safe; `BlockingFile` is its explicit
+synchronous twin. Separate semantic primitive roles prevent standard source from constructing
+access-mode or seek-origin tags. Opaque runtime storage retains its physical category through MIR
+and Machine destruction. Native qualification covers construction, every operation family,
+explicit close, implicit drop, and process shutdown; generated lifecycle tests cover cancellation
+and abandonment without scheduler races.
 
 Preserve every published tag and asset, including v0.49.0.
 

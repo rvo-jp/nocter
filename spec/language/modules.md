@@ -86,10 +86,10 @@ and interfaces. Functions, constants, statics, and other values remain owned by 
 namespace:
 
 ```nct
-use std/io.File
+use std/io.BlockingFile
 use std/io
 
-blocking func write_message(file: &+File): void! {
+blocking func write_message(file: &+BlockingFile): void! {
     file.write_text_blocking("ready\n")?
     return
 }

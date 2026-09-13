@@ -97,6 +97,13 @@ fn lower_kind(
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {
     match (plan.kind(), layout) {
+        (
+            MirDestructionKind::RuntimeStorage { role, drop },
+            MachineLayoutKind::RuntimeStorage { role: actual },
+        ) if role == actual => Ok(MachineDestructionKind::RuntimeStorage {
+            role: *role,
+            drop: lower_drop(*drop, context)?,
+        }),
         (MirDestructionKind::Struct { drop, fields }, MachineLayoutKind::Struct { .. }) => {
             lower_struct(plan.ty(), *drop, fields, context)
         }
@@ -119,23 +126,7 @@ fn lower_kind(
             })
         }
         (MirDestructionKind::Tuple(elements), MachineLayoutKind::Tuple { elements: layouts }) => {
-            let elements = elements
-                .iter()
-                .map(|element| {
-                    let offset = layouts
-                        .get(element.index())
-                        .filter(|layout| layout.ty() == element.plan().ty())
-                        .map(|element| element.offset())
-                        .ok_or_else(|| {
-                            context.error(MachineDestructionError::MissingMember(plan.ty()))
-                        })?;
-                    Ok(crate::MachineDestructionElement::new(
-                        offset,
-                        lower_plan(element.plan(), context)?,
-                    ))
-                })
-                .collect::<Result<Vec<_>, MachineProgramError>>()?;
-            Ok(MachineDestructionKind::Tuple(elements.into_boxed_slice()))
+            lower_tuple(plan.ty(), elements, layouts, context)
         }
         (
             MirDestructionKind::Optional(payload),
@@ -193,6 +184,29 @@ fn lower_kind(
         }
         _ => Err(context.error(MachineDestructionError::InvalidLayout(plan.ty()))),
     }
+}
+
+fn lower_tuple(
+    ty: nocter_model::TypeId,
+    elements: &[nocter_mir::MirTupleElementDestruction],
+    layouts: &[crate::MachineTupleElementLayout],
+    context: DestructionContext<'_>,
+) -> Result<MachineDestructionKind, MachineProgramError> {
+    let elements = elements
+        .iter()
+        .map(|element| {
+            let offset = layouts
+                .get(element.index())
+                .filter(|layout| layout.ty() == element.plan().ty())
+                .map(|layout| layout.offset())
+                .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
+            Ok(crate::MachineDestructionElement::new(
+                offset,
+                lower_plan(element.plan(), context)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, MachineProgramError>>()?;
+    Ok(MachineDestructionKind::Tuple(elements.into_boxed_slice()))
 }
 
 fn lower_struct(

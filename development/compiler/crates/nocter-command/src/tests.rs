@@ -1009,6 +1009,35 @@ fn bundled_standard_filesystem_runtime_crosses_public_stream_and_os_contracts() 
     fs::remove_dir_all(output_directory).unwrap();
 }
 
+#[test]
+fn bundled_async_file_runtime_crosses_public_completion_and_cleanup_contracts() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = compiler_root.join("tests/fixtures/standard/async-file-runtime.nct");
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
+    let output_directory = unique_test_directory("standard-async-file-runtime");
+    let executable = output_directory.join("program");
+    let target_program = compiler.compile(&unit).unwrap();
+    super::build_executable(ExecutableCompileRequest::only(target_program), &executable).unwrap();
+
+    let executed = Command::new(&executable)
+        .arg(&output_directory)
+        .output()
+        .unwrap();
+    assert_eq!(executed.status.code(), Some(0));
+    assert!(executed.stdout.is_empty());
+    assert!(executed.stderr.is_empty());
+    assert_eq!(
+        fs::read(output_directory.join("async-file.dat")).unwrap(),
+        b"Hello!"
+    );
+    assert_eq!(
+        fs::read(output_directory.join("async-file-dropped.dat")).unwrap(),
+        b"drop"
+    );
+
+    fs::remove_dir_all(output_directory).unwrap();
+}
+
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
         "custom-format.nct" => b"point = (3, 4)\n",

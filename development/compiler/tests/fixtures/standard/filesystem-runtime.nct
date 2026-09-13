@@ -30,7 +30,7 @@ blocking func verify_directory(path: &str): void! {
 }
 
 blocking func verify_text(path: &str, renamed: &str): void! {
-    fs.write_text(path, "hello")?
+    fs.write_text_blocking(path, "hello")?
     require(fs.exists(path)?, "written text file does not exist")?
 
     let details = fs.metadata(path)?
@@ -38,14 +38,14 @@ blocking func verify_text(path: &str, renamed: &str): void! {
     require(!details.is_directory(), "text file was classified as a directory")?
     require(details.len() == 5, "text metadata length is incorrect")?
 
-    let text = fs.read_to_string(path)?
+    let text = fs.read_to_string_blocking(path)?
     require((&text as &str) == "hello", "text round trip changed bytes")?
 
-    fs.write_text(renamed, "old")?
+    fs.write_text_blocking(renamed, "old")?
     fs.rename(path, renamed)?
     require(!fs.exists(path)?, "rename left the source path present")?
     require(fs.exists(renamed)?, "rename did not create the destination path")?
-    let renamed_text = fs.read_to_string(renamed)?
+    let renamed_text = fs.read_to_string_blocking(renamed)?
     require(
         (&renamed_text as &str) == "hello",
         "rename did not replace the destination",
@@ -60,8 +60,8 @@ blocking func verify_bytes(path: &str): void! {
     bytes.push(0)
     bytes.push(127)
     bytes.push(255)
-    fs.write(path, &bytes as &[u8])?
-    let loaded = fs.read(path)?
+    fs.write_blocking(path, &bytes as &[u8])?
+    let loaded = fs.read_blocking(path)?
     require(loaded.len() == 3, "byte read length is incorrect")?
     require(loaded[0] == 0, "first byte changed")?
     require(loaded[1] == 127, "second byte changed")?
@@ -72,7 +72,7 @@ blocking func verify_bytes(path: &str): void! {
 }
 
 blocking func verify_invalid_utf8(path: &str): void! {
-    let unexpected = fs.read_to_string(path) catch failure {
+    let unexpected = fs.read_to_string_blocking(path) catch failure {
         if failure.has_code("std.string.invalid_utf8") {
             return
         }
@@ -84,7 +84,7 @@ blocking func verify_invalid_utf8(path: &str): void! {
 
 blocking func verify_missing(path: &str): void! {
     require(!fs.exists(path)?, "missing path was reported as present")?
-    let unexpected = fs.read(path) catch failure {
+    let unexpected = fs.read_blocking(path) catch failure {
         if failure.has_code("std.io.not_found") {
             return
         }
@@ -101,7 +101,7 @@ blocking func verify_link(path: &str, target: &str): void! {
     fs.remove_file(path)?
     require(!fs.exists(path)?, "symbolic link still exists after removal")?
     require(fs.exists(target)?, "removing a symbolic link removed its target")?
-    let text = fs.read_to_string(target)?
+    let text = fs.read_to_string_blocking(target)?
     require((&text as &str) == "hello", "symbolic-link target content changed")?
     fs.remove_file(target)?
     return

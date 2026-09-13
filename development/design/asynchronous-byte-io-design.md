@@ -38,8 +38,10 @@ pub interface Writer {
 
 The current synchronous contracts are renamed to `BlockingReader` and `BlockingWriter`; their
 methods retain the explicit `_blocking` suffix. No aliases preserve the old interface meanings.
-`File` and file-backed buffers initially implement only the blocking contracts. `TcpStream` and
-`TlsStream` implement both execution surfaces. HTTP `Response` implements both reader contracts.
+`File` implements the executor-safe contracts through the bounded blocking-job service, while
+`BlockingFile` implements only the explicit blocking contracts. Generic file-backed buffers select
+the matching contract through their wrapped source. `TcpStream` and `TlsStream` implement both
+execution surfaces. HTTP `Response` implements both reader contracts.
 
 Execution kind remains part of each method declaration. `Reader` does not mean that any method
 returning `future T` happens to qualify, and `BlockingReader` does not permit an async body to call

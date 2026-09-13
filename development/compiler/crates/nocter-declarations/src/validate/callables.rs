@@ -186,7 +186,7 @@ fn validate_shape(
     let primitive_body = callable.kind() != CallableKind::Primitive || callable.body().is_none();
     let deferred_kind = matches!(
         callable.kind(),
-        CallableKind::Function | CallableKind::Method
+        CallableKind::Function | CallableKind::Method | CallableKind::ConstructionFunction
     );
     let execution_matches_result = match callable.execution() {
         CallableExecution::Immediate => true,

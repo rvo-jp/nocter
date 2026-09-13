@@ -50,6 +50,42 @@ noalloc blocking func write_fd(fd: usize, bytes: &[u8]): void! {
 }
 
 #target: "arm64-darwin"
+noalloc blocking func write_at_fd(fd: usize, bytes: &[u8], offset: u64): void! {
+    let target_offset = checked_file_offset(offset)?
+    var transferred: usize = 0
+    while transferred < bytes.len() {
+        if target_offset > 9223372036854775807 - transferred {
+            return error.new("std.io.offset_out_of_range", "file offset is out of range")
+        }
+        let remaining: usize = bytes.len() - transferred
+        let result = darwin.syscall4(
+            darwin.SYS_PWRITE,
+            fd,
+            ptr.addr(bytes.ptr()) + transferred,
+            remaining,
+            target_offset + transferred,
+        )
+        match classify_write_result(result, remaining)? {
+            WriteProgress.retry {}
+            WriteProgress.advance(count) { transferred += count }
+        }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc blocking func flush_fd(fd: usize): void! {
+    var result = darwin.syscall1(darwin.SYS_FSYNC, fd)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall1(darwin.SYS_FSYNC, fd)
+    }
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    return
+}
+
+#target: "arm64-darwin"
 noalloc blocking func write_text_fd(fd: usize, text: &str): void! {
     write_fd(fd, text.bytes())?
     return
@@ -62,28 +98,37 @@ noalloc blocking func write_line_fd(fd: usize, text: &str): void! {
     return
 }
 
-noalloc func stdout(): File {
-    return File { fd: darwin.STDOUT_FD, state: FileState.borrowed_open }
+noalloc func stdout(): BlockingFile {
+    return BlockingFile { fd: darwin.STDOUT_FD, state: BlockingFileState.borrowed_open }
 }
 
-noalloc func stderr(): File {
-    return File { fd: darwin.STDERR_FD, state: FileState.borrowed_open }
+noalloc func stderr(): BlockingFile {
+    return BlockingFile { fd: darwin.STDERR_FD, state: BlockingFileState.borrowed_open }
 }
 
-noalloc blocking func write(file: &+File, bytes: &[u8]): void! {
+noalloc blocking func write(file: &+BlockingFile, bytes: &[u8]): void! {
     require_open(file)?
     write_fd(file.fd, bytes)?
     return
 }
 
-instance File {
+instance BlockingFile {
     noalloc blocking method &+self.write_blocking(bytes: &[u8]): void! {
         write(self, bytes)?
         return
     }
 
-    noalloc method &+self.flush_blocking(): void! {
+    noalloc blocking method &+self.flush_blocking(): void! {
         require_open(self)?
+        if self.state is BlockingFileState.owned_open {
+            flush_fd(self.fd)?
+        }
+        return
+    }
+
+    noalloc blocking method &+self.write_at_blocking(value: &[u8], offset: u64): void! {
+        require_open(self)?
+        write_at_fd(self.fd, value, offset)?
         return
     }
 }

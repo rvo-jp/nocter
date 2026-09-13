@@ -354,12 +354,13 @@ The call above creates a temporary readwrite borrow of `file` for the duration o
 Fallible temporary receivers must make each fallible step explicit:
 
 ```nct
-(File.open(path)?).write_text_blocking("hello")?
+(BlockingFile.open(path)?).write_text_blocking("hello")?
 ```
 
-If `File.open(path)` fails, no `File` temporary exists. If `write_text_blocking` fails, the
-temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If
-`write_text_blocking` succeeds, the temporary `File` is dropped at the end of the statement.
+If `BlockingFile.open(path)` fails, no `BlockingFile` temporary exists. If
+`write_text_blocking` fails, the temporary produced by `BlockingFile.open(path)` is dropped before
+the failure propagates. If `write_text_blocking` succeeds, that temporary is dropped at the end of
+the statement.
 
 ## Loops
 
@@ -575,7 +576,7 @@ The `otherwise` expression above has type `&str`. The fallback body does not pro
 `never` also satisfies `catch` block termination:
 
 ```nct
-let file = File.open(path) catch error {
+let file = BlockingFile.open(path) catch error {
     process.abort()
 }
 ```

@@ -27,6 +27,8 @@ or assign a machine ABI.
 
 - Each block has one exact terminator and typed merge contract.
 - Cleanup timing comes from checked plans, not operation-shape inference.
+- Deferred cleanup distinguishes runtime-owned opaque storage from source aggregates. It retains
+  the selected storage role and drop item without inventing fields for target-owned bytes.
 - Calls target concrete executable item identities, closed primitive roles, or already validated
   target-service descriptors.
 - Validation checks representation integrity, not source-language acceptance.

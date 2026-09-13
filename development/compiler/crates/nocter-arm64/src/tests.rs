@@ -1197,7 +1197,9 @@ fn file_primitive_targets_follow_one_closed_source_role_family() {
     .file()
     .expect("file source role declares the complete generated target family");
     assert_ne!(
-        present.target(crate::Arm64DarwinFilePrimitive::Open),
+        present.target(crate::Arm64DarwinFilePrimitive::Open(
+            nocter_runtime_contract::DarwinFileAccess::Read,
+        )),
         present.target(crate::Arm64DarwinFilePrimitive::CompletionDispose)
     );
     assert_ne!(present.root().ensure(), present.root().shutdown());

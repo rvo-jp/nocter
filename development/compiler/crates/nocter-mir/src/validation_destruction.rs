@@ -1,5 +1,5 @@
 use nocter_model::{BuiltinType, TypeKind, TypeStore};
-use nocter_runtime_contract::RuntimeTypeRepresentation;
+use nocter_runtime_contract::{RuntimeType, RuntimeTypeRepresentation};
 
 use crate::validation_types::matches_opaque_projection;
 use crate::{MirDestructionKind, MirDestructionPlan, MirValidationEnvironment, MirValidationError};
@@ -13,6 +13,13 @@ pub(crate) fn validate_destruction_plan(
         return Err(MirValidationError::UnknownType(plan.ty()));
     }
     match plan.kind() {
+        MirDestructionKind::RuntimeStorage { role, drop } => {
+            require_drop_items(environment, drop.iter().copied())?;
+            if !matches!(environment.runtime_type(plan.ty()), Some(RuntimeType::Storage(actual)) if actual == role)
+            {
+                return Err(MirValidationError::InvalidDestruction(plan.ty()));
+            }
+        }
         MirDestructionKind::Struct { drop, fields } => {
             require_drop_items(environment, drop.iter().copied())?;
             validate_struct(environment, types, plan, fields)?;

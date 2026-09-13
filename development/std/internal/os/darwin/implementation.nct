@@ -135,6 +135,21 @@ const SYS_STAT64: usize = 0x02000152
 const SYS_GETDIRENTRIES64: usize = 0x02000158
 
 #target: "arm64-darwin"
+const SYS_FSYNC: usize = 0x0200005f
+
+#target: "arm64-darwin"
+const SYS_PREAD: usize = 0x02000099
+
+#target: "arm64-darwin"
+const SYS_PWRITE: usize = 0x0200009a
+
+#target: "arm64-darwin"
+const SYS_LSEEK: usize = 0x020000c7
+
+#target: "arm64-darwin"
+const SYS_FTRUNCATE: usize = 0x020000c9
+
+#target: "arm64-darwin"
 const STDIN_FD: usize = 0
 
 #target: "arm64-darwin"
@@ -160,6 +175,15 @@ const OPEN_CREATE_TRUNCATE: usize = 0x0601
 #target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_APPEND
 const OPEN_CREATE_APPEND: usize = 0x0209
+
+#target: "arm64-darwin"
+const SEEK_FROM_START: usize = 0
+
+#target: "arm64-darwin"
+const SEEK_FROM_END: usize = 2
+
+#target: "arm64-darwin"
+const SEEK_FROM_CURRENT: usize = 1
 
 #target: "arm64-darwin"
 // 0666, filtered by the process umask.

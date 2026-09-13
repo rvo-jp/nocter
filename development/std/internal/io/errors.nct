@@ -3,6 +3,16 @@
 see ./index.nct
 
 use /internal/os.{OSError, OSErrorKind}
+use /internal/os/darwin
+
+// Closed runtime-contract codes decoded only at this standard-policy boundary.
+const FILE_FAILURE_ALLOCATION: usize = 1
+const FILE_FAILURE_TARGET: usize = 2
+const FILE_FAILURE_OFFSET_OVERFLOW: usize = 3
+const FILE_FAILURE_ZERO_PROGRESS: usize = 4
+const FILE_FAILURE_INVALID_PROGRESS: usize = 5
+const FILE_FAILURE_UNCLASSIFIED: usize = 6
+const FILE_FAILURE_SERVICE_CLOSED: usize = 7
 
 noalloc func io_error_from_os(os_error: OSError): error {
     return io_error_from_kind(os_error.kind)
@@ -47,4 +57,44 @@ noalloc func io_error_from_kind(kind: OSErrorKind): error {
 
 noalloc func closed_stream_error(): error {
     return error.new("std.io.closed", "I/O stream is closed")
+}
+
+noalloc func validate_file_completion(completion: &FileCompletion): void! {
+    let kind = file_completion_failure_kind_raw(completion)
+    let target_errno = file_completion_failure_errno_raw(completion)
+    if kind == 0 {
+        if target_errno == 0 { return }
+        return invalid_file_completion()
+    }
+    if kind == FILE_FAILURE_TARGET {
+        if target_errno <= 0 { return invalid_file_completion() }
+        return io_error_from_os(darwin.error_from_errno(darwin.errno(target_errno)))
+    }
+    if target_errno != 0 { return invalid_file_completion() }
+    if kind == FILE_FAILURE_ALLOCATION {
+        return error.new("std.mem.out_of_memory", "memory allocation failed")
+    }
+    if kind == FILE_FAILURE_OFFSET_OVERFLOW {
+        return error.new("std.io.offset_out_of_range", "file offset is out of range")
+    }
+    if kind == FILE_FAILURE_ZERO_PROGRESS {
+        return error.new("std.io.write_zero", "writer made no progress")
+    }
+    if kind == FILE_FAILURE_INVALID_PROGRESS {
+        return error.new("std.io.invalid_progress", "file operation reported invalid progress")
+    }
+    if kind == FILE_FAILURE_UNCLASSIFIED {
+        return error.new("std.io.os_error", "file operation failed without an OS error")
+    }
+    if kind == FILE_FAILURE_SERVICE_CLOSED {
+        return closed_stream_error()
+    }
+    return invalid_file_completion()
+}
+
+noalloc func invalid_file_completion(): error {
+    return error.new(
+        "std.io.invalid_target_result",
+        "file service returned an invalid completion",
+    )
 }

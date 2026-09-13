@@ -2,7 +2,8 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use nocter_runtime_contract::{
-    DarwinFileCompletionAbiSchema, DarwinFileCompletionField, DarwinFileOperation, PrimitiveRole,
+    DarwinFileAccess, DarwinFileCompletionAbiSchema, DarwinFileCompletionField,
+    DarwinFileOperation, DarwinFileSeekOrigin, PrimitiveRole,
 };
 
 use crate::{
@@ -16,11 +17,11 @@ use crate::{
 /// One source primitive implemented by the generated Darwin local-file service.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64DarwinFilePrimitive {
-    Open,
+    Open(DarwinFileAccess),
     Read,
     Write,
     Flush,
-    Seek,
+    Seek(DarwinFileSeekOrigin),
     Truncate,
     ReadAt,
     WriteAt,
@@ -34,14 +35,40 @@ pub enum Arm64DarwinFilePrimitive {
     CompletionDispose,
 }
 
+/// Register-only Nocter ABI consumed by one generated local-file adapter.
+///
+/// This is the generated target's side of the ABI contract. Instruction selection compares the
+/// machine program against it instead of maintaining a second role-to-shape table.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Arm64DarwinFileCallAbi {
+    argument_words: &'static [u8],
+    result_words: u8,
+}
+
+impl Arm64DarwinFileCallAbi {
+    #[must_use]
+    pub(crate) const fn argument_words(self) -> &'static [u8] {
+        self.argument_words
+    }
+
+    #[must_use]
+    pub(crate) const fn result_words(self) -> u8 {
+        self.result_words
+    }
+}
+
 impl Arm64DarwinFilePrimitive {
     pub(crate) const fn from_role(role: PrimitiveRole) -> Option<Self> {
         match role {
-            PrimitiveRole::FileOpen => Some(Self::Open),
+            PrimitiveRole::FileOpenRead => Some(Self::Open(DarwinFileAccess::Read)),
+            PrimitiveRole::FileOpenCreate => Some(Self::Open(DarwinFileAccess::Create)),
+            PrimitiveRole::FileOpenAppend => Some(Self::Open(DarwinFileAccess::Append)),
             PrimitiveRole::FileRead => Some(Self::Read),
             PrimitiveRole::FileWrite => Some(Self::Write),
             PrimitiveRole::FileFlush => Some(Self::Flush),
-            PrimitiveRole::FileSeek => Some(Self::Seek),
+            PrimitiveRole::FileSeekStart => Some(Self::Seek(DarwinFileSeekOrigin::Start)),
+            PrimitiveRole::FileSeekEnd => Some(Self::Seek(DarwinFileSeekOrigin::End)),
+            PrimitiveRole::FileSeekCurrent => Some(Self::Seek(DarwinFileSeekOrigin::Current)),
             PrimitiveRole::FileTruncate => Some(Self::Truncate),
             PrimitiveRole::FileReadAt => Some(Self::ReadAt),
             PrimitiveRole::FileWriteAt => Some(Self::WriteAt),
@@ -61,15 +88,15 @@ impl Arm64DarwinFilePrimitive {
 
     const fn operation(self) -> Option<DarwinFileOperation> {
         match self {
-            Self::Open => Some(DarwinFileOperation::Open),
             Self::Read => Some(DarwinFileOperation::Read),
             Self::Write => Some(DarwinFileOperation::Write),
             Self::Flush => Some(DarwinFileOperation::Flush),
-            Self::Seek => Some(DarwinFileOperation::Seek),
             Self::Truncate => Some(DarwinFileOperation::Truncate),
             Self::ReadAt => Some(DarwinFileOperation::ReadAt),
             Self::WriteAt => Some(DarwinFileOperation::WriteAt),
-            Self::Close
+            Self::Open(_)
+            | Self::Seek(_)
+            | Self::Close
             | Self::OwnerDispose
             | Self::CompletionTakeOwner
             | Self::CompletionTransferredByteCount
@@ -77,6 +104,29 @@ impl Arm64DarwinFilePrimitive {
             | Self::CompletionFailureKind
             | Self::CompletionFailureErrno
             | Self::CompletionDispose => None,
+        }
+    }
+
+    /// Returns the exact direct-register shape expected by this generated adapter.
+    #[must_use]
+    pub(crate) fn call_abi(self) -> Arm64DarwinFileCallAbi {
+        let (argument_words, result_words) = match self {
+            Self::Open(_) => (&[2][..], 1),
+            Self::Read | Self::Write => (&[1, 2][..], 1),
+            Self::Flush
+            | Self::Close
+            | Self::CompletionTakeOwner
+            | Self::CompletionTransferredByteCount
+            | Self::CompletionResultPosition
+            | Self::CompletionFailureKind
+            | Self::CompletionFailureErrno => (&[1][..], 1),
+            Self::Seek(_) | Self::Truncate => (&[1, 1][..], 1),
+            Self::ReadAt | Self::WriteAt => (&[1, 2, 1][..], 1),
+            Self::OwnerDispose | Self::CompletionDispose => (&[1][..], 0),
+        };
+        Arm64DarwinFileCallAbi {
+            argument_words,
+            result_words,
         }
     }
 }
@@ -87,6 +137,8 @@ pub struct Arm64DarwinFilePrimitiveTargets {
     root: Arm64DarwinFileServiceRootTargets,
     retirement: Arm64DarwinFileRetirementTargets,
     jobs: Arm64DarwinFileJobTargets,
+    open: [Arm64FunctionId; DarwinFileAccess::ALL.len()],
+    seek: [Arm64FunctionId; DarwinFileSeekOrigin::ALL.len()],
     owner_dispose: Arm64FunctionId,
     completion_take_owner: Arm64FunctionId,
     completion_transferred_byte_count: Arm64FunctionId,
@@ -112,6 +164,40 @@ impl Arm64DarwinFilePrimitiveTargets {
         let retirement = Arm64DarwinFileRetirementTargets::declare(program, &imports)?;
         let root = Arm64DarwinFileServiceRootTargets::declare(program, &imports, retirement)?;
         let jobs = Arm64DarwinFileJobTargets::declare(program, &imports, root, retirement)?;
+        let open = [
+            declare_open_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Open),
+                DarwinFileAccess::Read,
+            )?,
+            declare_open_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Open),
+                DarwinFileAccess::Create,
+            )?,
+            declare_open_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Open),
+                DarwinFileAccess::Append,
+            )?,
+        ];
+        let seek = [
+            declare_seek_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Seek),
+                DarwinFileSeekOrigin::Start,
+            )?,
+            declare_seek_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Seek),
+                DarwinFileSeekOrigin::End,
+            )?,
+            declare_seek_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Seek),
+                DarwinFileSeekOrigin::Current,
+            )?,
+        ];
         let owner_dispose = declare_owner_dispose(program, retirement.drop_owner())?;
         let completion_take_owner = declare_completion_take_owner(program)?;
         let completion_transferred_byte_count =
@@ -127,6 +213,8 @@ impl Arm64DarwinFilePrimitiveTargets {
             root,
             retirement,
             jobs,
+            open,
+            seek,
             owner_dispose,
             completion_take_owner,
             completion_transferred_byte_count,
@@ -144,6 +232,11 @@ impl Arm64DarwinFilePrimitiveTargets {
 
     #[must_use]
     pub fn target(self, primitive: Arm64DarwinFilePrimitive) -> Arm64FunctionId {
+        match primitive {
+            Arm64DarwinFilePrimitive::Open(access) => return self.open[access.code() as usize],
+            Arm64DarwinFilePrimitive::Seek(origin) => return self.seek[origin.code() as usize],
+            _ => {}
+        }
         if let Some(operation) = primitive.operation() {
             return self.jobs.constructor(operation);
         }
@@ -158,16 +251,42 @@ impl Arm64DarwinFilePrimitiveTargets {
             Arm64DarwinFilePrimitive::CompletionFailureKind => self.completion_failure_kind,
             Arm64DarwinFilePrimitive::CompletionFailureErrno => self.completion_failure_errno,
             Arm64DarwinFilePrimitive::CompletionDispose => self.completion_dispose,
-            Arm64DarwinFilePrimitive::Open
-            | Arm64DarwinFilePrimitive::Read
+            Arm64DarwinFilePrimitive::Read
             | Arm64DarwinFilePrimitive::Write
             | Arm64DarwinFilePrimitive::Flush
-            | Arm64DarwinFilePrimitive::Seek
             | Arm64DarwinFilePrimitive::Truncate
             | Arm64DarwinFilePrimitive::ReadAt
             | Arm64DarwinFilePrimitive::WriteAt => unreachable!("operation handled above"),
+            Arm64DarwinFilePrimitive::Open(_) | Arm64DarwinFilePrimitive::Seek(_) => {
+                unreachable!("semantic adapter handled above")
+            }
         }
     }
+}
+
+fn declare_open_adapter(
+    program: &mut Arm64ProgramBuilder,
+    constructor: Arm64FunctionId,
+    access: DarwinFileAccess,
+) -> Result<Arm64FunctionId, Arm64DarwinFilePrimitiveError> {
+    let mut code = adapter_prologue();
+    crate::darwin_file_job_code::immediate(&mut code, x(2), u64::from(access.code()));
+    code.call(constructor);
+    adapter_epilogue(&mut code);
+    declare(program, code)
+}
+
+fn declare_seek_adapter(
+    program: &mut Arm64ProgramBuilder,
+    constructor: Arm64FunctionId,
+    origin: DarwinFileSeekOrigin,
+) -> Result<Arm64FunctionId, Arm64DarwinFilePrimitiveError> {
+    let mut code = adapter_prologue();
+    move_register(&mut code, x(2), x(1));
+    crate::darwin_file_job_code::immediate(&mut code, x(1), u64::from(origin.code()));
+    code.call(constructor);
+    adapter_epilogue(&mut code);
+    declare(program, code)
 }
 
 fn declare_owner_dispose(
@@ -176,7 +295,7 @@ fn declare_owner_dispose(
 ) -> Result<Arm64FunctionId, Arm64DarwinFilePrimitiveError> {
     let mut code = adapter_prologue();
     load(&mut code, x(19), x(0), 0);
-    store_zero(&mut code, x(0), 0);
+    store_zero(&mut code, x(0), 0, x(8));
     call_if_nonzero(&mut code, x(19), drop_owner)?;
     adapter_epilogue(&mut code);
     declare(program, code)
@@ -185,6 +304,10 @@ fn declare_owner_dispose(
 fn declare_completion_take_owner(
     program: &mut Arm64ProgramBuilder,
 ) -> Result<Arm64FunctionId, Arm64DarwinFilePrimitiveError> {
+    declare(program, build_completion_take_owner())
+}
+
+fn build_completion_take_owner() -> Arm64CodeBuilder {
     let schema = DarwinFileCompletionAbiSchema::ARM64_DARWIN;
     let mut code = Arm64CodeBuilder::new();
     load(
@@ -197,10 +320,11 @@ fn declare_completion_take_owner(
         &mut code,
         x(0),
         schema.offset(DarwinFileCompletionField::RetirementRecord),
+        x(9),
     );
     move_register(&mut code, x(0), x(8));
     ret(&mut code);
-    declare(program, code)
+    code
 }
 
 fn declare_completion_reader(
@@ -226,7 +350,7 @@ fn declare_completion_dispose(
         .offset(DarwinFileCompletionField::RetirementRecord);
     let mut code = adapter_prologue();
     load(&mut code, x(19), x(0), offset);
-    store_zero(&mut code, x(0), offset);
+    store_zero(&mut code, x(0), offset, x(8));
     call_if_nonzero(&mut code, x(19), drop_owner)?;
     adapter_epilogue(&mut code);
     declare(program, code)
@@ -281,9 +405,15 @@ fn load(code: &mut Arm64CodeBuilder, destination: Arm64Register, base: Arm64Regi
     );
 }
 
-fn store_zero(code: &mut Arm64CodeBuilder, base: Arm64Register, offset: u64) {
-    crate::frame_access::load_immediate(code, x(8), 0, crate::Arm64DataSize::Bits64);
-    crate::address_code::store_native(code, Arm64LoadStoreSize::Double, x(8), base, offset);
+fn store_zero(
+    code: &mut Arm64CodeBuilder,
+    base: Arm64Register,
+    offset: u64,
+    scratch: Arm64Register,
+) {
+    debug_assert_ne!(base, scratch);
+    crate::frame_access::load_immediate(code, scratch, 0, crate::Arm64DataSize::Bits64);
+    crate::address_code::store_native(code, Arm64LoadStoreSize::Double, scratch, base, offset);
 }
 
 fn move_register(code: &mut Arm64CodeBuilder, destination: Arm64Register, source: Arm64Register) {
@@ -357,5 +487,58 @@ impl From<Arm64DarwinFileServiceRootError> for Arm64DarwinFilePrimitiveError {
 impl From<Arm64ProgramError> for Arm64DarwinFilePrimitiveError {
     fn from(error: Arm64ProgramError) -> Self {
         Self::Program(error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Arm64DarwinFilePrimitive as Primitive;
+
+    #[test]
+    fn generated_file_adapter_abis_cover_every_operation_shape() {
+        for (primitive, arguments, result) in [
+            (
+                Primitive::Open(nocter_runtime_contract::DarwinFileAccess::Read),
+                &[2][..],
+                1,
+            ),
+            (Primitive::Read, &[1, 2][..], 1),
+            (Primitive::Write, &[1, 2][..], 1),
+            (Primitive::Flush, &[1][..], 1),
+            (
+                Primitive::Seek(nocter_runtime_contract::DarwinFileSeekOrigin::Start),
+                &[1, 1][..],
+                1,
+            ),
+            (Primitive::Truncate, &[1, 1][..], 1),
+            (Primitive::ReadAt, &[1, 2, 1][..], 1),
+            (Primitive::WriteAt, &[1, 2, 1][..], 1),
+            (Primitive::Close, &[1][..], 1),
+        ] {
+            let abi = primitive.call_abi();
+            assert_eq!(abi.argument_words(), arguments);
+            assert_eq!(abi.result_words(), result);
+        }
+    }
+
+    #[test]
+    fn completion_owner_transfer_clears_storage_without_clobbering_the_result() {
+        let code = super::build_completion_take_owner().finish().unwrap();
+        let words = code
+            .bytes()
+            .chunks_exact(4)
+            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            words,
+            [
+                0xf940_0008, // ldr x8, [x0]
+                0xd280_0009, // mov x9, #0
+                0xf900_0009, // str x9, [x0]
+                0x9100_0100, // mov x0, x8
+                0xd61f_03c0, // br x30
+            ]
+        );
     }
 }

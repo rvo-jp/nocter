@@ -1,6 +1,7 @@
 use nocter_model::TypeId;
 
 use crate::MachineFunctionId;
+use nocter_runtime_contract::RuntimeStorageRole;
 
 /// One field cleanup at its frozen byte offset.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -123,6 +124,10 @@ impl MachineDestructionCapture {
 /// A destruction recipe expressed only in machine functions, tags, strides, and byte offsets.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MachineDestructionKind {
+    RuntimeStorage {
+        role: RuntimeStorageRole,
+        drop: Option<MachineFunctionId>,
+    },
     Struct {
         drop: Option<MachineFunctionId>,
         fields: Box<[MachineDestructionField]>,

@@ -957,9 +957,11 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             None,
             vec![0, 1],
         ),
-        PrimitiveRole::FileOpen => make(
+        PrimitiveRole::FileOpenRead
+        | PrimitiveRole::FileOpenCreate
+        | PrimitiveRole::FileOpenAppend => make(
             0,
-            vec![str_ref(), usize()],
+            vec![str_ref()],
             TypeContract::asynchronous(file_completion()),
             private,
             arm64_darwin,
@@ -989,9 +991,11 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::FileSeek => make(
+        PrimitiveRole::FileSeekStart
+        | PrimitiveRole::FileSeekEnd
+        | PrimitiveRole::FileSeekCurrent => make(
             0,
-            vec![file_owner(), usize(), i64()],
+            vec![file_owner(), i64()],
             TypeContract::asynchronous(file_completion()),
             private,
             arm64_darwin,
@@ -1039,11 +1043,18 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::FileCompletionTransferredByteCount
         | PrimitiveRole::FileCompletionResultPosition
-        | PrimitiveRole::FileCompletionFailureKind
-        | PrimitiveRole::FileCompletionFailureErrno => make(
+        | PrimitiveRole::FileCompletionFailureKind => make(
             0,
             vec![TypeContract::readonly(file_completion())],
             usize(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileCompletionFailureErrno => make(
+            0,
+            vec![TypeContract::readonly(file_completion())],
+            i32(),
             private,
             arm64_darwin,
             vec![],
@@ -1233,6 +1244,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::Syscall3Signed => make(
+            0,
+            vec![usize(), usize(), i64(), usize()],
+            syscall_result(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
@@ -1253,7 +1272,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 (0..argument_count).map(|_| usize()).collect(),
                 syscall_result(),
                 match role {
-                    PrimitiveRole::Syscall0 | PrimitiveRole::Syscall4 => private,
+                    PrimitiveRole::Syscall0 => private,
                     _ => package,
                 },
                 arm64_darwin,

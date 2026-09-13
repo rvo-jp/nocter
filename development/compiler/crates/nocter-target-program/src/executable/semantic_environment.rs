@@ -1,6 +1,6 @@
 use nocter_checking::CheckedBody;
 use nocter_model::{BodyId, ExecutableItemId, NominalTypeId, TypeId};
-use nocter_runtime_contract::RuntimeTypeRepresentation;
+use nocter_runtime_contract::{RuntimeType, RuntimeTypeRepresentation};
 
 use super::{ExecutableItem, ExecutableProgram};
 
@@ -54,6 +54,15 @@ impl ExecutableProgram {
     #[must_use]
     pub fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
         self.runtime.type_representations().get(ty)
+    }
+
+    /// Returns the closed runtime classification selected for one semantic type.
+    ///
+    /// MIR uses this narrow query when the physical category itself changes lowering semantics,
+    /// such as compiler-owned storage whose source declaration intentionally has no fields.
+    #[must_use]
+    pub fn runtime_type(&self, ty: TypeId) -> Option<&RuntimeType> {
+        self.runtime.types().get(ty)
     }
 
     #[must_use]

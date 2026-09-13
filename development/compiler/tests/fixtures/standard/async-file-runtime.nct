@@ -1,0 +1,86 @@
+use std/io.{File, Reader, SeekFrom, Writer}
+use std/process
+use std/string.String
+use std/vec.Vec
+
+async func main(): i32! {
+    let root: &str = process.arg(1)? otherwise {
+        return error.new("phase1.missing_root", "filesystem test root is missing")
+    }
+    let path = String.concat(root, "/async-file.dat")
+    let dropped_path = String.concat(root, "/async-file-dropped.dat")
+    let missing_path = String.concat(root, "/async-file-missing.dat")
+
+    await verify_file(&path)?
+    await verify_missing(&missing_path)?
+    await verify_closed(&path)?
+    await create_and_drop(&dropped_path)?
+    return 0
+}
+
+async func verify_file(path: &str): void! {
+    var file = await File.create(path)?
+    await file.write_text("hello")?
+    await file.flush()?
+    require(await file.position()? == 5, "write position was not five")?
+    await file.write_at("H".bytes(), 0)?
+    await file.truncate(5)?
+    await file.close()?
+
+    var reopened = await File.open(path)?
+    var buffer: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let count = await reopened.read_at(&+buffer, 0)?
+    require(count == 5, "positioned read returned the wrong length")?
+    require(buffer[0] == 72, "positioned write did not replace the first byte")?
+    require(buffer[4] == 111, "positioned read changed the final byte")?
+    require(await reopened.seek(SeekFrom.end(-1))? == 4, "end-relative seek was not four")?
+    var final_byte: Vec<u8> = Vec [u8.truncate(0)]
+    require(await reopened.read(&+final_byte)? == 1, "sequential read returned the wrong length")?
+    require(final_byte[0] == 111, "end-relative seek selected the wrong byte")?
+    require(await reopened.seek(SeekFrom.start(0))? == 0, "seek did not return zero")?
+    let text = await reopened.read_to_string()?
+    require((&text as &str) == "Hello", "file contents did not round trip")?
+    await reopened.close()?
+
+    var appended = await File.append(path)?
+    await appended.write_text("!")?
+    await appended.close()?
+    return
+}
+
+async func verify_missing(path: &str): void! {
+    let _unexpected = await File.open(path) catch failure {
+        if failure.has_code("std.io.not_found") { return }
+        return error.new("phase1.wrong_error", "missing file reported the wrong error")
+    }
+    return error.new("phase1.missing_failure", "missing file unexpectedly opened")
+}
+
+async func verify_closed(path: &str): void! {
+    var file = await File.open(path)?
+    await file.close()?
+    let _unexpected = await file.position() catch failure {
+        if failure.has_code("std.io.closed") { return }
+        return error.new("phase1.wrong_error", "closed file reported the wrong error")
+    }
+    return error.new("phase1.missing_failure", "closed file accepted an operation")
+}
+
+async func create_and_drop(path: &str): void! {
+    var file = await File.create(path)?
+    await file.write_text("drop")?
+    return
+}
+
+func require(condition: bool, message: &str): void! {
+    if !condition {
+        return error.new("phase1.verification_failed", message)
+    }
+    return
+}

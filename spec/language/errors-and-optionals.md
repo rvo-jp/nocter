@@ -65,7 +65,7 @@ func write(file: &+File, text: &str): void! {
 Postfix `?` unwraps fallible and optional values for propagation.
 
 ```nct
-let file = File.open(path)?
+let file = BlockingFile.open(path)?
 ```
 
 For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current
@@ -76,10 +76,10 @@ For the corresponding behavior on `T?`, see [Optional Propagation](#optional-pro
 Example:
 
 ```nct
-let file = File.open(path)?
+let file = BlockingFile.open(path)?
 ```
 
-This binds `file` to the successful `File` value. If `File.open(path)` fails, the current callable
+This binds `file` to the successful `BlockingFile` value. If `BlockingFile.open(path)` fails, the current callable
 returns that `error` as if `return error_value` had been executed.
 
 In a callable returning `(U!)?`, that explicit return meaning is presence containing inner
@@ -122,7 +122,7 @@ func require_name(): String? {
 Postfix `!` forcefully unwraps fallible and optional values.
 
 ```nct
-let file = File.open(path)!
+let file = BlockingFile.open(path)!
 let user = move maybe_user!
 ```
 
@@ -181,7 +181,7 @@ Rules:
 `catch` handles the failure side of a fallible expression.
 
 ```nct
-let file = File.open(path) catch failure {
+let file = BlockingFile.open(path) catch failure {
     return failure.context("while opening the file")
 }
 ```
@@ -245,7 +245,7 @@ Postfix `?` propagates the original failure.
 func read_all(
     path: &str,
 ): String! {
-    var file = File.open(path) catch _ {
+    var file = BlockingFile.open(path) catch _ {
         return error.new("app.open_failed", "failed to open input")
     }
 

@@ -134,6 +134,10 @@ pub enum MachineLayoutKind {
         length_offset: u64,
     },
     ErrorHandle,
+    /// Target-owned bytes for one compiler runtime resource. Source fields are unrepresentable.
+    RuntimeStorage {
+        role: nocter_runtime_contract::RuntimeStorageRole,
+    },
     Struct {
         fields: Box<[MachineFieldLayout]>,
     },
@@ -407,9 +411,7 @@ impl LayoutBuilder<'_> {
                 Ok(MachineLayout {
                     size: storage.size(),
                     alignment: storage.alignment(),
-                    kind: MachineLayoutKind::Struct {
-                        fields: Box::new([]),
-                    },
+                    kind: MachineLayoutKind::RuntimeStorage { role: *role },
                 })
             }
             RuntimeType::Pointer(_) | RuntimeType::Future(_) => Ok(self.pointer()),

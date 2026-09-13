@@ -107,6 +107,10 @@ source, loader commands, or package state.
 - Source-visible file roles select that family through two opaque runtime-storage declarations.
   `FileCompletion` owns the uniform five-word result layout; compiler-generated drop calls clear
   and retire an unclaimed owner rather than requiring source policy to reconstruct target fields.
+  The generated file-adapter family owns its direct-register call shapes, and instruction
+  selection only verifies the already planned Machine ABI against those shapes. Ownership-transfer
+  adapters name every scratch register explicitly, so clearing source storage cannot silently
+  clobber the returned owner.
   When any file role is reachable, the process root invokes the family's shutdown target after
   source cleanup and before its normal return epilogue. A program with no file role declares
   neither the family nor its loader imports.

@@ -127,6 +127,9 @@ impl<'a> DestructionBuilder<'a> {
     ) -> Result<(), crate::MachineProgramError> {
         let subject = self.plan_address(plan, pointer, steps.clone());
         match plan.kind() {
+            MachineDestructionKind::RuntimeStorage { drop, .. } => {
+                self.emit_drop(subject, *drop)?;
+            }
             MachineDestructionKind::Struct { drop, fields } => {
                 self.emit_struct(subject, *drop, fields, pointer, &steps)?;
             }
@@ -220,15 +223,24 @@ impl<'a> DestructionBuilder<'a> {
         pointer: MachineValueId,
         steps: &[MachineAddressStep],
     ) -> Result<(), crate::MachineProgramError> {
+        self.emit_drop(subject, drop)?;
+        for field in fields {
+            self.emit_plan(field.plan(), pointer, with_offset(steps, field.offset()))?;
+        }
+        Ok(())
+    }
+
+    fn emit_drop(
+        &mut self,
+        subject: crate::MachineAddressId,
+        drop: Option<crate::MachineFunctionId>,
+    ) -> Result<(), crate::MachineProgramError> {
         if let Some(drop) = drop {
             self.append_effect(MachineOperationKind::InvokeDrop {
                 target: drop,
                 place: subject,
                 allocation: crate::MachineCallAllocation::Inherit,
             })?;
-        }
-        for field in fields {
-            self.emit_plan(field.plan(), pointer, with_offset(steps, field.offset()))?;
         }
         Ok(())
     }

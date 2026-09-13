@@ -45,7 +45,7 @@ test recursive_creation_rejects_empty_and_non_directory_prefixes {
     let root = ".nocter-v027-directory-prefix"
     let file = ".nocter-v027-directory-prefix/file"
     create_dir(root)?
-    write_text(file, "not a directory")?
+    write_text_blocking(file, "not a directory")?
     var prefix_rejected = false
     create_dir_all(".nocter-v027-directory-prefix/file/child") catch failure {
         prefix_rejected = failure.has_code("std.io.not_directory")
@@ -58,7 +58,7 @@ test recursive_creation_rejects_empty_and_non_directory_prefixes {
 
 test metadata_exposes_a_normalized_modification_instant {
     let path = ".nocter-v036-metadata-time"
-    write_text(path, "timestamp")?
+    write_text_blocking(path, "timestamp")?
     let details = metadata(path)?
     let modified = details.modified()
     testing.assert(modified.subsecond_nanoseconds() < 1000000000)?

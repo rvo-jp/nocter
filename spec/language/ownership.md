@@ -40,7 +40,7 @@ Rules:
 Examples:
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 
 let a = &file
 let b = &file       // OK: multiple readonly borrows
@@ -51,7 +51,7 @@ inspect(b)
 ```
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 
 let w = &+file
 drop file           // error: w is used below
@@ -72,7 +72,7 @@ inspect(&file)
 Method receiver borrows are automatic:
 
 ```nct
-instance File {
+instance BlockingFile {
     pub blocking method &+self.write_text_blocking(text: &str): void! {
         ...
     }
@@ -84,13 +84,13 @@ file.write_text_blocking("hello")?
 The method call above creates a temporary readwrite borrow of `file` for the call. This does not enable UFCS-style calls:
 
 ```nct
-File.write_text_blocking(&+file, "hello") // error
+BlockingFile.write_text_blocking(&+file, "hello") // error
 ```
 
 A newly created owned temporary may be used as a readwrite receiver for one method call:
 
 ```nct
-(File.open(path)?).write_text_blocking("hello")?
+(BlockingFile.open(path)?).write_text_blocking("hello")?
 ```
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](control-flow.md#evaluation-order-and-temporaries).
@@ -368,14 +368,14 @@ drop Box<T>(&+self) { // error: copy struct families cannot own drop declaration
 Explicit early destruction uses a `drop` statement.
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 drop file
 ```
 
 After `drop file`, the binding enters an uninitialized state.
 
 ```nct
-file.read() // error
+file.position_blocking() // error
 ```
 
 Rules:
@@ -401,11 +401,11 @@ Rules:
 Examples:
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 drop file
 
-file = File.open(other)?
-file.read()?
+file = BlockingFile.open(other)?
+file.position_blocking()?
 ```
 
 Invalid:

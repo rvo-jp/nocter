@@ -1,0 +1,88 @@
+//! Package-visible typed operations over private compiler primitives.
+
+see ./index.nct
+
+func file_open_read(path: &str): future FileCompletion from static {
+    return file_open_read_raw(path)
+}
+
+func file_open_create(path: &str): future FileCompletion from static {
+    return file_open_create_raw(path)
+}
+
+func file_open_append(path: &str): future FileCompletion from static {
+    return file_open_append_raw(path)
+}
+
+func file_read(owner: FileOwner, destination: &+[u8]): future FileCompletion from static {
+    return file_read_raw(move owner, destination)
+}
+
+func file_write(owner: FileOwner, source: &[u8]): future FileCompletion from static {
+    return file_write_raw(move owner, source)
+}
+
+func file_flush(owner: FileOwner): future FileCompletion from static {
+    return file_flush_raw(move owner)
+}
+
+func file_seek_start(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static {
+    return file_seek_start_raw(move owner, displacement)
+}
+
+func file_seek_end(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static {
+    return file_seek_end_raw(move owner, displacement)
+}
+
+func file_seek_current(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static {
+    return file_seek_current_raw(move owner, displacement)
+}
+
+func file_truncate(owner: FileOwner, length: usize): future FileCompletion from static {
+    return file_truncate_raw(move owner, length)
+}
+
+func file_read_at(
+    owner: FileOwner,
+    destination: &+[u8],
+    offset: u64,
+): future FileCompletion from static {
+    return file_read_at_raw(move owner, destination, offset)
+}
+
+func file_write_at(
+    owner: FileOwner,
+    source: &[u8],
+    offset: u64,
+): future FileCompletion from static {
+    return file_write_at_raw(move owner, source, offset)
+}
+
+noalloc func file_close(owner: FileOwner): future FileCompletion from static {
+    return file_close_raw(move owner)
+}
+
+noalloc func file_completion_take_owner(
+    completion: &+FileCompletion,
+): FileOwner from static {
+    return file_completion_take_owner_raw(completion)
+}
+
+noalloc func file_completion_transferred_byte_count(
+    completion: &FileCompletion,
+): usize {
+    return file_completion_transferred_byte_count_raw(completion)
+}
+
+noalloc func file_completion_result_position(completion: &FileCompletion): usize {
+    return file_completion_result_position_raw(completion)
+}

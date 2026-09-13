@@ -2,6 +2,7 @@
 
 see ./errors.nct
 see ./lifecycle.nct
+see ./file_operations.nct
 
 use /internal/os.{OSError, OSErrorKind}
 
@@ -12,7 +13,13 @@ pub(/) primitive type FileOwner
 pub(/) primitive type FileCompletion
 
 #target: "arm64-darwin"
-primitive func file_open_raw(path: &str, access: usize): future FileCompletion from static
+primitive func file_open_read_raw(path: &str): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_open_create_raw(path: &str): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_open_append_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
 primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
@@ -24,9 +31,20 @@ primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompl
 primitive func file_flush_raw(owner: FileOwner): future FileCompletion from static
 
 #target: "arm64-darwin"
-primitive func file_seek_raw(
+primitive func file_seek_start_raw(
     owner: FileOwner,
-    origin: usize,
+    displacement: i64,
+): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_seek_end_raw(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_seek_current_raw(
+    owner: FileOwner,
     displacement: i64,
 ): future FileCompletion from static
 
@@ -76,10 +94,66 @@ noalloc primitive func file_completion_failure_kind_raw(
 #target: "arm64-darwin"
 noalloc primitive func file_completion_failure_errno_raw(
     completion: &FileCompletion,
-): usize
+): i32
 
 #target: "arm64-darwin"
 noalloc primitive func file_completion_dispose_raw(completion: &+FileCompletion): void
+
+/// Constructs one generated local-file read-only open computation.
+pub(/) func file_open_read(path: &str): future FileCompletion from static
+
+/// Constructs one generated local-file create-or-truncate computation.
+pub(/) func file_open_create(path: &str): future FileCompletion from static
+
+/// Constructs one generated local-file append computation.
+pub(/) func file_open_append(path: &str): future FileCompletion from static
+
+pub(/) func file_read(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
+
+pub(/) func file_write(owner: FileOwner, source: &[u8]): future FileCompletion from static
+
+pub(/) func file_flush(owner: FileOwner): future FileCompletion from static
+
+pub(/) func file_seek_start(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static
+
+pub(/) func file_seek_end(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static
+
+pub(/) func file_seek_current(
+    owner: FileOwner,
+    displacement: i64,
+): future FileCompletion from static
+
+pub(/) func file_truncate(owner: FileOwner, length: usize): future FileCompletion from static
+
+pub(/) func file_read_at(
+    owner: FileOwner,
+    destination: &+[u8],
+    offset: u64,
+): future FileCompletion from static
+
+pub(/) func file_write_at(
+    owner: FileOwner,
+    source: &[u8],
+    offset: u64,
+): future FileCompletion from static
+
+pub(/) noalloc func file_close(owner: FileOwner): future FileCompletion from static
+
+pub(/) noalloc func file_completion_take_owner(
+    completion: &+FileCompletion,
+): FileOwner from static
+
+pub(/) noalloc func file_completion_transferred_byte_count(
+    completion: &FileCompletion,
+): usize
+
+pub(/) noalloc func file_completion_result_position(completion: &FileCompletion): usize
 
 /// Maps one target-independent OS classification to the stable public I/O error family.
 pub(/) noalloc func io_error_from_os(os_error: OSError): error
@@ -89,3 +163,6 @@ pub(/) noalloc func io_error_from_kind(kind: OSErrorKind): error
 
 /// Reports an operation attempted through a terminal stream wrapper.
 pub(/) noalloc func closed_stream_error(): error
+
+/// Validates and maps one generated file completion through the stable public I/O error policy.
+pub(/) noalloc func validate_file_completion(completion: &FileCompletion): void!

@@ -1,0 +1,139 @@
+//! Executor-safe local-file ownership and completion policy.
+
+see ./index.nct
+see ./file_position.nct
+
+use /internal/io
+use /internal/ptr
+
+enum FileOwnership {
+    open(owner: io.FileOwner)
+    terminal
+}
+
+struct File {
+    ownership: FileOwnership
+}
+
+async func open_file(pending: future io.FileCompletion): File! {
+    var completion = await pending
+    io.validate_file_completion(&completion)?
+    let owner = io.file_completion_take_owner(&+completion)
+    return File { ownership: FileOwnership.open(move owner) }
+}
+
+noalloc func take_file_owner(file: &+File): io.FileOwner! {
+    let previous = ptr.replace_value(&+file.ownership, FileOwnership.terminal)
+    match move previous {
+        FileOwnership.open(owner) { return move owner }
+        FileOwnership.terminal { return io.closed_stream_error() }
+    }
+}
+
+noalloc func restore_file_owner(file: &+File, completion: &+io.FileCompletion): void {
+    let owner = io.file_completion_take_owner(completion)
+    file.ownership = FileOwnership.open(move owner)
+    return
+}
+
+construct File {
+    async func open(path: &str): Self! {
+        return await open_file(io.file_open_read(path))?
+    }
+
+    async func create(path: &str): Self! {
+        return await open_file(io.file_open_create(path))?
+    }
+
+    async func append(path: &str): Self! {
+        return await open_file(io.file_open_append(path))?
+    }
+}
+
+instance File {
+    async method &+self.read(buffer: &+[u8]): usize! {
+        let owner = take_file_owner(self)?
+        var completion = await io.file_read(move owner, buffer)
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return io.file_completion_transferred_byte_count(&completion)
+    }
+
+    async method &+self.write(value: &[u8]): void! {
+        let owner = take_file_owner(self)?
+        var completion = await io.file_write(move owner, value)
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return
+    }
+
+    async method &+self.flush(): void! {
+        let owner = take_file_owner(self)?
+        var completion = await io.file_flush(move owner)
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return
+    }
+
+    async method &+self.close(): void! {
+        let owner = take_file_owner(self)?
+        let completion = await io.file_close(move owner)
+        io.validate_file_completion(&completion)?
+        return
+    }
+
+    async method &+self.position(): usize! {
+        return await self.seek(SeekFrom.current(0))?
+    }
+
+    async method &+self.seek(from: SeekFrom): usize! {
+        let owner = take_file_owner(self)?
+        var completion = match move from {
+            SeekFrom.start(position) {
+                await io.file_seek_start(move owner, absolute_file_position(position)?)
+            }
+            SeekFrom.end(displacement) {
+                await io.file_seek_end(move owner, displacement)
+            }
+            SeekFrom.current(displacement) {
+                await io.file_seek_current(move owner, displacement)
+            }
+        }
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return io.file_completion_result_position(&completion)
+    }
+
+    async method &+self.truncate(length: usize): void! {
+        let owner = take_file_owner(self)?
+        var completion = await io.file_truncate(move owner, length)
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return
+    }
+
+    async method &+self.read_at(buffer: &+[u8], offset: u64): usize! {
+        let owner = take_file_owner(self)?
+        var completion = await io.file_read_at(move owner, buffer, offset)
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return io.file_completion_transferred_byte_count(&completion)
+    }
+
+    async method &+self.write_at(value: &[u8], offset: u64): void! {
+        let owner = take_file_owner(self)?
+        var completion = await io.file_write_at(move owner, value, offset)
+        restore_file_owner(self, &+completion)
+        io.validate_file_completion(&completion)?
+        return
+    }
+}
+
+noalloc drop File(&+self) {
+    let previous = ptr.replace_value(&+self.ownership, FileOwnership.terminal)
+    match move previous {
+        FileOwnership.open(owner) { let _ = move owner }
+        FileOwnership.terminal {}
+    }
+    return
+}

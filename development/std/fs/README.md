@@ -26,18 +26,17 @@ component and a spelling made only of root separators have no parent. Repeated s
 components, and `..` components are not otherwise normalized.
 
 `std/io.File.open`, `File.create`, and `File.append` respectively open an existing file for
-reading, create or truncate a file for writing, and open a file for append. `Utf8Path` coerces to
-`&str`, so the same constructors accept a borrowed path without parallel `_path` functions. File
-handles close once when explicitly closed or dropped. Explicit close makes that `File` value
-terminal: later read, write, and flush operations fail with `std.io.closed` instead of retaining a
-descriptor word that the operating system may reuse. The `stdin`, `stdout`, and `stderr`
-constructors return non-owning wrappers. Closing one makes that wrapper terminal without closing
-the process-global descriptor used by other wrappers.
+reading, create or truncate a file for writing, and open a file for append without blocking the
+executor. Their returned computation must be awaited. `Utf8Path` coerces to `&str`, so the same
+constructors accept a borrowed path without parallel `_path` functions. `BlockingFile` provides
+the same operations synchronously. Both owner types close once when explicitly closed or dropped;
+later operations on an explicitly closed value fail with `std.io.closed`.
 
-File construction and every filesystem operation that crosses the operating-system boundary carry
-`blocking`. This includes metadata, existence checks, directory construction and removal, rename,
-whole-file I/O, opening a directory, and `ReadDir.next`. Pure `Metadata` and `DirEntry` inspection
-and terminal close transitions remain unqualified.
+The canonical `read`, `read_to_string`, `write`, and `write_text` functions are asynchronous and
+compose `File` with the executor-safe byte interfaces. Their `_blocking` twins compose
+`BlockingFile` with the blocking interfaces. Metadata, existence checks, directory construction
+and removal, rename, opening a directory, and `ReadDir.next` remain explicitly `blocking` in this
+phase. Pure `Metadata` and `DirEntry` inspection and terminal `ReadDir.close` remain unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -55,12 +54,14 @@ generation. Darwin metadata nanoseconds are validated before publication. An inv
 fails metadata construction with `std.fs.invalid_metadata_time` rather than escaping as a malformed
 `SystemTime`.
 
-`read` and `read_to_string` open an existing entry and return independently owned storage.
-`read_to_string` validates the complete file as UTF-8 and preserves the ordinary
+`read` and `read_to_string` asynchronously open an existing entry and return independently owned
+storage. `read_to_string` validates the complete file as UTF-8 and preserves the ordinary
 `std.string.invalid_utf8` failure when validation fails. `write` and `write_text` create or
 truncate the destination and return success only after the complete input has passed through the
-`BlockingWriter` contract. These four functions compose `File`, `BlockingReader`, and
-`BlockingWriter`; they do not define a second descriptor-I/O algorithm.
+`Writer` contract. These four functions compose `File`, `Reader`, and `Writer`; they do not define
+a second descriptor-I/O algorithm. `read_blocking`, `read_to_string_blocking`, `write_blocking`,
+and `write_text_blocking` provide the same whole-file policy through `BlockingFile`,
+`BlockingReader`, and `BlockingWriter`.
 
 `metadata` follows symbolic links. Its `len` is the target-reported byte length represented as
 `u64`; it is not a collection index and therefore is not narrowed to `usize`. `regular` and

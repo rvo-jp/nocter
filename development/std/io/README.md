@@ -14,7 +14,7 @@ The process stream conveniences are symmetric; their exact declarations are owne
 `print` and `println` write to standard output; `eprint` and `eprintln` write to standard error. The
 line forms append exactly one LF, including for empty input. These functions do not buffer, flush,
 format arbitrary values, or allocate through a Nocter allocation context. They use the same
-descriptor-write authority as `File.write_blocking`, including interruption retry,
+descriptor-write authority as `BlockingFile.write_blocking`, including interruption retry,
 complete-write looping, zero-progress rejection, and stable I/O errors. All four functions are
 `blocking`; `noalloc` remains an independent allocation guarantee. Formatting remains explicit
 through interpolation, for example `io.println("count: ${count}")?`.
@@ -24,7 +24,7 @@ through interpolation, for example `io.println("count: ${count}")?`.
 `std/io` exposes the inherited process input through the same byte-reader contract used by files.
 Its exact declaration is owned by [`index.nct`](index.nct).
 
-`stdin` returns a non-owning `File` wrapper around the process standard-input descriptor. Closing
+`stdin` returns a non-owning `BlockingFile` wrapper around the process standard-input descriptor. Closing
 or dropping that value makes only that wrapper terminal; it does not close the process-global
 descriptor and does not affect a separately acquired wrapper. `stdin` itself does not allocate,
 read, wait, or validate UTF-8. Reads may block and report the same stable I/O failures as an opened
@@ -49,6 +49,31 @@ the same process descriptor therefore creates two independent consumers; the lib
 coordinate their buffered state. EOF, CR/LF removal, UTF-8 validation, allocation failure, and
 terminal-state behavior remain exactly the common `BlockingBufReader` contract.
 
+
+## Local Files
+
+`File` is the canonical executor-safe local-file owner. Its `open`, `create`, and `append`
+construction functions and its read, write, flush, position, seek, truncate, positioned-I/O, and
+close methods are asynchronous. Each call owns the operating-system input while a bounded worker
+performs the blocking operation; no worker retains an authored path or caller byte view.
+
+An operation temporarily moves the descriptor owner out of `File`. An ordinary completion restores
+it before public error mapping. Cancellation after submission leaves the `File` terminal because a
+worker may still own its cursor and descriptor. Dropping a live file schedules close through a
+pre-reserved cleanup slot without blocking or allocating. Explicit `close` is terminal whether the
+target close succeeds or fails, and waits for descriptor retirement so the close result remains
+observable.
+
+`SeekFrom.start` accepts a non-negative absolute `i64` position. `SeekFrom.end` and
+`SeekFrom.current` accept signed `i64` displacement. A negative start position fails with
+`std.io.offset_out_of_range`. Positioned reads and writes leave the shared cursor unchanged.
+
+`BlockingFile` is the explicit synchronous twin. It shares path validation, cursor semantics,
+descriptor close-once ownership, and public error classification with `File`, while executing the
+target operation in the calling thread. Standard streams return borrowed `BlockingFile` wrappers;
+closing or dropping one does not close the process-global descriptor. Flushing an owning file
+requests target synchronization; flushing a borrowed unbuffered standard stream is a no-op because
+the wrapper retains no output and a pipe or terminal does not admit file synchronization.
 
 ## Byte I/O and Buffering
 
@@ -103,9 +128,9 @@ reader that reports an impossible byte count fails with `std.io.invalid_read_cou
 as UTF-8 before returning an independently owned `String`.
 
 Every `BlockingReader` and `BlockingWriter` operation admits `blocking`. A generic algorithm using
-either interface retains that contract even when one concrete implementation happens to operate only on
-memory. Construction of `stdin`, `stdout`, and `stderr`, and explicit `File.close`, do not wait and
-remain unqualified.
+either interface retains that contract even when one concrete implementation happens to operate
+only on memory. Construction of `stdin`, `stdout`, and `stderr`, and explicit
+`BlockingFile.close`, remain unqualified because they do not wait.
 
 `BlockingWriter.write_text_blocking` is a default adapter from UTF-8 text to the complete-byte
 `write_blocking` contract.
@@ -148,5 +173,5 @@ The buffered reader retains its fixed read buffer and one reusable raw line buff
 earlier completed line and never collects the complete file. Memory is bounded by the configured
 read-buffer capacity plus the largest line observed and the caller's retained destination
 capacity. A requested read-buffer capacity of zero is normalized to one byte so refill always
-makes progress. Underlying interrupted reads retain the ordinary `File` retry behavior before a
+makes progress. Underlying interrupted reads retain the ordinary `BlockingFile` retry behavior before a
 line operation observes failure.

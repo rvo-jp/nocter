@@ -636,7 +636,7 @@ Fallible propagation outside a fallible function:
 error[E0392]: postfix `?` would fail with `error`, but function `load` is not fallible
   --> app.nct:8:16
    |
-8 |     let file = File.open(path)?
+8 |     let file = BlockingFile.open(path)?
    |                              ^
    |
 note: current function returns `String`
@@ -649,7 +649,7 @@ Maybe initialized binding:
 error[E0378]: `file` may be uninitialized on this path
   --> app.nct:11:9
    |
-11 |     file.read()?
+11 |     file.position_blocking()?
    |     ^^^^
    |
 note: `file` is moved on one branch above

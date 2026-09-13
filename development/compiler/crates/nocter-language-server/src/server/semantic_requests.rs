@@ -3022,8 +3022,8 @@ mod tests {
         let response = signature.response().unwrap();
         assert!(
             response.contains(concat!(
-                "blocking func try_write<File>(allocator: &+TryAllocator, destination: &+File, ",
-                "value: &Value): void!"
+                "blocking func try_write<BlockingFile>(allocator: &+TryAllocator, ",
+                "destination: &+BlockingFile, value: &Value): void!"
             )),
             "{response}"
         );

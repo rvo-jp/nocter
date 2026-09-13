@@ -38,8 +38,8 @@ let _ = try_operation()
 Assignment updates a writable place.
 
 ```nct
-var file = File.open(path)?
-file = File.open(other_path)?
+var file = BlockingFile.open(path)?
+file = BlockingFile.open(other_path)?
 ```
 
 Borrowing rules are specified in [Ownership, Borrowing, and Drop](ownership.md).
@@ -150,10 +150,10 @@ total = 1 // OK
 ```
 
 ```nct
-var a = File.open(path_a)?
-var b = File.open(path_b)?
+var a = BlockingFile.open(path_a)?
+var b = BlockingFile.open(path_b)?
 
-a = b      // error: File is not copy
+a = b      // error: BlockingFile is not copy
 a = move b // OK; b is no longer valid
 ```
 
@@ -216,13 +216,13 @@ Rules:
 Examples:
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 close(move file)
 
-file.read() // error: file is uninitialized
+file.position_blocking() // error: file is uninitialized
 
-file = File.open(other_path)?
-file.read()?
+file = BlockingFile.open(other_path)?
+file.position_blocking()?
 ```
 
 ```nct
@@ -302,7 +302,7 @@ consume(move text) // error: maybe initialized
 ```
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 
 if should_close {
     close(move file)
@@ -313,13 +313,12 @@ if should_close {
 ```
 
 ```nct
-var file = File.open(path)?
+var file = BlockingFile.open(path)?
 
 if should_close {
     close(move file)
 }
 
-file = File.open(other_path)?
-file.read()? // OK: whole-binding assignment restored initialized state
+file = BlockingFile.open(other_path)?
+file.position_blocking()? // OK: whole-binding assignment restored initialized state
 ```
-

@@ -122,20 +122,28 @@ const INTERNAL_HASH_SOURCE: &str = "\
 primitive func fill_seed_raw(destination: *u64): i32
 ";
 const PTR_SOURCE: &str = "\
-pub primitive func addr<T>(pointer: *T): usize
-pub primitive func from_ref<T>(value: &T): *T
-pub primitive func from_ref_mut<T>(value: &+T): *T
+pub noalloc primitive func addr<T>(pointer: *T): usize
+pub noalloc primitive func from_ref<T>(value: &T): *T
+pub noalloc primitive func from_ref_mut<T>(value: &+T): *T
 ";
 const INTERNAL_PTR_SOURCE: &str = "\
-pub(/) primitive func from_addr<T>(address: usize): *T
-pub(/) primitive func pointee_size<T>(pointer: *T): usize
-pub(/) primitive func pointee_align<T>(pointer: *T): usize
-pub(/) primitive func copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
-pub(/) primitive func copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
-pub(/) primitive func store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
-pub(/) primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+use std/ptr
+
+pub(/) noalloc primitive func from_addr<T>(address: usize): *T
+pub(/) noalloc primitive func pointee_size<T>(pointer: *T): usize
+pub(/) noalloc primitive func pointee_align<T>(pointer: *T): usize
+pub(/) noalloc primitive func copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
+pub(/) noalloc primitive func copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
+pub(/) noalloc primitive func store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
+pub(/) noalloc primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
-pub(/) primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+pub(/) noalloc primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+pub(/) noalloc func replace_value<T>(place: &+T, replacement: T): T {
+    let pointer = ptr.from_ref_mut(place)
+    let previous = take_value_at_ptr(pointer, 0)
+    store_value_to_ptr(pointer, 0, move replacement)
+    return move previous
+}
 pub(/) primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
 pub(/) primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 pub(/) primitive func slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
@@ -417,10 +425,16 @@ pub async func process_completion_for_test(process: usize): void {
 }
 ";
 const INTERNAL_IO_SOURCE: &str = "\
+use std/internal/ptr
+
 pub(/) primitive type FileOwner
 pub(/) primitive type FileCompletion
 #target: \"arm64-darwin\"
-primitive func file_open_raw(path: &str, access: usize): future FileCompletion from static
+primitive func file_open_read_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_open_create_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_open_append_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
 #target: \"arm64-darwin\"
@@ -428,7 +442,11 @@ primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompl
 #target: \"arm64-darwin\"
 primitive func file_flush_raw(owner: FileOwner): future FileCompletion from static
 #target: \"arm64-darwin\"
-primitive func file_seek_raw(owner: FileOwner, origin: usize, displacement: i64): future FileCompletion from static
+primitive func file_seek_start_raw(owner: FileOwner, displacement: i64): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_seek_end_raw(owner: FileOwner, displacement: i64): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_seek_current_raw(owner: FileOwner, displacement: i64): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_truncate_raw(owner: FileOwner, length: usize): future FileCompletion from static
 #target: \"arm64-darwin\"
@@ -448,7 +466,7 @@ noalloc primitive func file_completion_result_position_raw(completion: &FileComp
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_failure_kind_raw(completion: &FileCompletion): usize
 #target: \"arm64-darwin\"
-noalloc primitive func file_completion_failure_errno_raw(completion: &FileCompletion): usize
+noalloc primitive func file_completion_failure_errno_raw(completion: &FileCompletion): i32
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_dispose_raw(completion: &+FileCompletion): void
 noalloc drop FileOwner(&+self) {
@@ -460,8 +478,53 @@ noalloc drop FileCompletion(&+self) {
     return
 }
 pub async func file_open_for_test(path: &str): usize {
-    let completion = await file_open_raw(path, 0)
+    let completion = await file_open_read_raw(path)
     return file_completion_failure_kind_raw(&completion)
+}
+
+enum FileOwnershipForTest {
+    open(owner: FileOwner)
+    terminal
+}
+
+struct FileForTest {
+    ownership: FileOwnershipForTest
+}
+
+async func open_file_lifecycle_for_test(path: &str): FileForTest! {
+    var completion = await file_open_read_raw(path)
+    if file_completion_failure_kind_raw(&completion) != 0 {
+        return error.new(\"test.file_open\", \"file open failed\")
+    }
+    let owner = file_completion_take_owner_raw(&+completion)
+    return FileForTest { ownership: FileOwnershipForTest.open(move owner) }
+}
+
+func take_file_owner_for_test(file: &+FileForTest): FileOwner! {
+    let previous = ptr.replace_value(&+file.ownership, FileOwnershipForTest.terminal)
+    match move previous {
+        FileOwnershipForTest.open(owner) { return move owner }
+        FileOwnershipForTest.terminal {
+            return error.new(\"test.file_closed\", \"file is closed\")
+        }
+    }
+}
+
+pub async func file_lifecycle_for_test(path: &str): i32! {
+    var file = await open_file_lifecycle_for_test(path)?
+    let owner = take_file_owner_for_test(&+file)?
+    let completion = await file_close_raw(move owner)
+    if file_completion_failure_kind_raw(&completion) != 0 { return 1 }
+    return 42
+}
+
+drop FileForTest(&+self) {
+    let previous = ptr.replace_value(&+self.ownership, FileOwnershipForTest.terminal)
+    match move previous {
+        FileOwnershipForTest.open(owner) { let _ = move owner }
+        FileOwnershipForTest.terminal {}
+    }
+    return
 }
 ";
 const INTERNAL_NET_MODEL_SOURCE: &str = "\
@@ -568,7 +631,9 @@ pub(/) blocking primitive func syscall2(number: usize, a0: usize, a1: usize): Sy
 #target: \"arm64-darwin\"
 pub(/) blocking primitive func syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
 #target: \"arm64-darwin\"
-blocking primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
+pub(/) blocking primitive func syscall3_signed(number: usize, a0: usize, a1: i64, a2: usize): SyscallResult
+#target: \"arm64-darwin\"
+pub(/) blocking primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) blocking primitive func syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 #target: \"arm64-darwin\"
@@ -656,6 +721,8 @@ fn fixture_module(sources: &mut SourceMap, path: &[&str], text: &str) -> Fixture
     let syntax = add_parsed(sources, &source_path, text, ParseGoal::SourceFile);
     let use_targets: &[&[&str]] = match path {
         ["mem" | "process"] => &[&["internal", "os", "darwin"]],
+        ["internal", "ptr"] => &[&["ptr"]],
+        ["internal", "io"] => &[&["internal", "ptr"]],
         ["internal", "net", "darwin"] => {
             &[&["internal", "net", "model"], &["internal", "os", "darwin"]]
         }

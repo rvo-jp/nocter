@@ -4,7 +4,9 @@ use nocter_model::{
     Arena, ArenaBuilder, BorrowCapability, BuiltinType, ExecutableItemId, MirBlockId,
     NominalTypeId, TypeAuthority, TypeId, TypeKind, TypeStore, TypeTransaction,
 };
-use nocter_runtime_contract::{RuntimeTypeRepresentation, RuntimeTypeRepresentationTable};
+use nocter_runtime_contract::{
+    RuntimeStorageRole, RuntimeType, RuntimeTypeRepresentation, RuntimeTypeRepresentationTable,
+};
 use nocter_toolchain_contract::StandardDeclarationRole;
 
 use crate::{
@@ -22,6 +24,7 @@ struct TestEnvironment {
     standard_nominals: BTreeMap<StandardDeclarationRole, NominalTypeId>,
     pack_inputs: BTreeMap<ExecutableItemId, (TypeId, TypeId)>,
     representations: RuntimeTypeRepresentationTable,
+    runtime_types: BTreeMap<TypeId, RuntimeType>,
 }
 
 impl TestEnvironment {
@@ -40,6 +43,7 @@ impl TestEnvironment {
                 standard_nominals: BTreeMap::new(),
                 pack_inputs: BTreeMap::new(),
                 representations: RuntimeTypeRepresentationTable::default(),
+                runtime_types: BTreeMap::new(),
             },
             item,
         )
@@ -174,6 +178,10 @@ impl MirValidationEnvironment for TestEnvironment {
         self.representations.get(ty)
     }
 
+    fn runtime_type(&self, ty: TypeId) -> Option<&RuntimeType> {
+        self.runtime_types.get(&ty)
+    }
+
     fn allocation_context_nominal(&self) -> Option<NominalTypeId> {
         self.standard_nominals
             .get(&StandardDeclarationRole::AllocationContext)
@@ -207,6 +215,55 @@ fn finish_validated(
 }
 
 #[test]
+fn runtime_storage_destruction_cannot_be_reinterpreted_as_a_source_aggregate() {
+    let mut nominals = ArenaBuilder::<NominalTypeId, _>::new();
+    let owner = nominals.insert(());
+    let mut types = TypeAuthority::new().transaction();
+    let owner_ty = types
+        .intern(TypeKind::Nominal {
+            definition: owner,
+            arguments: Box::new([]),
+        })
+        .unwrap();
+    let (mut environment, _) = TestEnvironment::with_types(types);
+    environment.runtime_types.insert(
+        owner_ty,
+        RuntimeType::Storage(RuntimeStorageRole::FileOwner),
+    );
+
+    let exact = MirDestructionPlan::new(
+        owner_ty,
+        MirDestructionKind::RuntimeStorage {
+            role: RuntimeStorageRole::FileOwner,
+            drop: None,
+        },
+    );
+    assert!(crate::validation_destruction::validate_destruction_plan(&environment, &exact).is_ok());
+
+    for invalid in [
+        MirDestructionPlan::new(
+            owner_ty,
+            MirDestructionKind::RuntimeStorage {
+                role: RuntimeStorageRole::NetworkOwner,
+                drop: None,
+            },
+        ),
+        MirDestructionPlan::new(
+            owner_ty,
+            MirDestructionKind::Struct {
+                drop: None,
+                fields: Box::new([]),
+            },
+        ),
+    ] {
+        assert!(matches!(
+            crate::validation_destruction::validate_destruction_plan(&environment, &invalid),
+            Err(MirValidationError::InvalidDestruction(ty)) if ty == owner_ty
+        ));
+    }
+}
+
+#[test]
 fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() {
     let mut nominal_ids = ArenaBuilder::<NominalTypeId, _>::new();
     let allocator = nominal_ids.insert(());
@@ -233,6 +290,7 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
             standard_nominals: environment.standard_nominals.clone(),
             pack_inputs: environment.pack_inputs.clone(),
             representations: environment.representations.clone(),
+            runtime_types: environment.runtime_types.clone(),
         };
         let mut builder = MirFunctionBuilder::new(item, void);
         let parameter = builder.add_parameter(place_ty, false);
@@ -314,6 +372,7 @@ fn pack_calls_require_the_exact_hidden_lane_and_validate_deferred_cleanup() {
         standard_nominals: BTreeMap::new(),
         pack_inputs: BTreeMap::from([(literal, (i32_, next))]),
         representations: RuntimeTypeRepresentationTable::default(),
+        runtime_types: BTreeMap::new(),
     };
 
     assert!(build_pack_call(&environment, caller, literal, i32_, next, true, None).is_ok());

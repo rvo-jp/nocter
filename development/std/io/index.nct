@@ -11,6 +11,7 @@ see ./transfer.nct
 use /string.String
 use /vec.Vec
 see ./file.nct
+see ./async_file.nct
 see ./input.nct
 see ./input_tests.nct
 see ./output.nct
@@ -85,32 +86,80 @@ pub blocking func copy_blocking<R, W>(
 /// Validates one implementation-reported read count against its supplied capacity.
 pub(/) noalloc func validate_read_count(received: usize, capacity: usize): usize!
 
-/// A stateful byte stream wrapper over one owned or borrowed file descriptor.
+/// Base and signed displacement for one cursor-changing file operation.
+pub enum SeekFrom {
+    start(position: i64)
+    end(displacement: i64)
+    current(displacement: i64)
+}
+
+/// An executor-safe owner for one local file.
 pub struct File
 
+/// An explicit synchronous owner or borrowed wrapper for one local file descriptor.
+pub struct BlockingFile
+
 /// Returns the process standard-input stream without taking ownership of the descriptor.
-pub noalloc func stdin(): File
+pub noalloc func stdin(): BlockingFile
 
 /// Returns the process standard-output stream without taking ownership of the descriptor.
-pub noalloc func stdout(): File
+pub noalloc func stdout(): BlockingFile
 
 /// Returns the process standard-error stream without taking ownership of the descriptor.
-pub noalloc func stderr(): File
+pub noalloc func stderr(): BlockingFile
 
 construct File {
     /// Opens an existing file for reading.
-    pub blocking func open(path: &str): Self!
+    pub async func open(path: &str): Self!
 
     /// Creates or truncates a file for writing.
-    pub blocking func create(path: &str): Self!
+    pub async func create(path: &str): Self!
 
     /// Opens or creates a file and positions writes at its end.
+    pub async func append(path: &str): Self!
+}
+
+construct BlockingFile {
+    /// Opens an existing file for synchronous reading.
+    pub blocking func open(path: &str): Self!
+
+    /// Creates or truncates a file for synchronous writing.
+    pub blocking func create(path: &str): Self!
+
+    /// Opens or creates a file for synchronous append.
     pub blocking func append(path: &str): Self!
 }
 
 instance File {
-    /// Makes this wrapper terminal and closes its descriptor only when the wrapper owns it.
-    pub method &+self.close(): void
+    /// Makes this owner terminal and waits for its descriptor retirement.
+    pub async method &+self.close(): void!
+    /// Returns the current shared cursor position.
+    pub async method &+self.position(): usize!
+    /// Changes and returns the shared cursor position.
+    pub async method &+self.seek(from: SeekFrom): usize!
+    /// Changes the file length without changing the shared cursor.
+    pub async method &+self.truncate(length: usize): void!
+    /// Reads without changing the shared cursor.
+    pub async method &+self.read_at(buffer: &+[u8], offset: u64): usize!
+    /// Writes the complete view without changing the shared cursor.
+    pub async method &+self.write_at(value: &[u8], offset: u64): void!
+    impl Reader
+    impl Writer
+}
+
+instance BlockingFile {
+    /// Makes this wrapper terminal and closes its descriptor only when it owns it.
+    pub noalloc method &+self.close(): void
+    /// Returns the current shared cursor position.
+    pub noalloc blocking method &+self.position_blocking(): usize!
+    /// Changes and returns the shared cursor position.
+    pub noalloc blocking method &+self.seek_blocking(from: SeekFrom): usize!
+    /// Changes the file length without changing the shared cursor.
+    pub noalloc blocking method &+self.truncate_blocking(length: usize): void!
+    /// Reads without changing the shared cursor.
+    pub noalloc blocking method &+self.read_at_blocking(buffer: &+[u8], offset: u64): usize!
+    /// Writes the complete view without changing the shared cursor.
+    pub noalloc blocking method &+self.write_at_blocking(value: &[u8], offset: u64): void!
     impl BlockingReader
     impl BlockingWriter
 }

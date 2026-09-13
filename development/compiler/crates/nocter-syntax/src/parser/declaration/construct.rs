@@ -1,4 +1,6 @@
-use super::{Parser, block, callable_tail, optional_blocking, optional_noalloc, root, types};
+use super::{
+    Parser, block, callable_tail, optional_async, optional_blocking, optional_noalloc, root, types,
+};
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, StringDelimiter, TokenKind};
 
 pub(super) fn declaration(parser: &mut Parser<'_>) {
@@ -19,6 +21,10 @@ fn member(parser: &mut Parser<'_>) {
         && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func)
     {
         optional_blocking(parser);
+    }
+    if parser.at_keyword(Keyword::Async) && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func)
+    {
+        optional_async(parser);
     }
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Func) => {

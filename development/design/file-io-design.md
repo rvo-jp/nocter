@@ -3,8 +3,8 @@
 This document owns the cross-responsibility design for v0.50.0 executor-safe local-file operations.
 Exact public declarations and observable errors belong to the checked `std/io` and `std/fs`
 contracts. Generic job lifecycle belongs to `nocter-blocking-runtime`; Darwin execution and ABI
-encoding belong to their target adapters. The public surface described here becomes current only
-when Phase 1 performs its complete declaration and implementation cutover.
+encoding belong to their target adapters. Phase 1 completed this declaration and implementation
+cutover without retaining the former blocking-only surface.
 
 ## Execution Surfaces
 
@@ -187,12 +187,12 @@ return after source cleanup. A target with no file role has no file-service code
 
 ## Completion Gate
 
-Phase 1 is complete only after `File` and
-`BlockingFile` replace the former blocking-only surface in one migration, standard whole-file
-helpers select the correct execution surface, compiler and editor projections show the checked
-contracts, cancellation and drop are exercised through native execution, and no old alias or
-executor-blocking implementation remains.
+Phase 1 completed after `File` and `BlockingFile` replaced the former blocking-only surface in one
+migration, standard whole-file helpers selected the correct execution surface, compiler and editor
+projections showed the checked contracts, generated cancellation and public native drop paths were
+qualified, and no old alias or executor-blocking implementation remained.
 
 The closed worker-operation, access-mode, and seek-origin vocabularies are owned by
-`nocter-runtime-contract`. Host conformance and generated target code consume those tags; neither
-may maintain a private operation list.
+`nocter-runtime-contract`. Host conformance and generated target code consume those tags. Standard
+source calls separate semantic open and seek primitives and therefore cannot construct or duplicate
+a target tag.

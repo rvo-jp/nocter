@@ -1,5 +1,5 @@
 use nocter_model::{ExecutableItemId, ExecutableStaticId, NominalTypeId, TypeId, TypeStore};
-use nocter_runtime_contract::RuntimeTypeRepresentation;
+use nocter_runtime_contract::{RuntimeType, RuntimeTypeRepresentation};
 use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 
 /// The immutable semantic authority required to validate one MIR function.
@@ -19,6 +19,7 @@ pub trait MirValidationEnvironment {
         false
     }
     fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation>;
+    fn runtime_type(&self, ty: TypeId) -> Option<&RuntimeType>;
     fn allocation_context_nominal(&self) -> Option<NominalTypeId>;
     fn aborting_allocator_nominal(&self) -> Option<NominalTypeId>;
     fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout>;
@@ -52,6 +53,10 @@ impl MirValidationEnvironment for ExecutableProgram {
 
     fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
         ExecutableProgram::type_representation(self, ty)
+    }
+
+    fn runtime_type(&self, ty: TypeId) -> Option<&RuntimeType> {
+        ExecutableProgram::runtime_type(self, ty)
     }
 
     fn allocation_context_nominal(&self) -> Option<NominalTypeId> {

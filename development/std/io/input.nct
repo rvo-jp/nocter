@@ -5,6 +5,6 @@ see ./file.nct
 
 use /internal/os/darwin
 
-noalloc func stdin(): File {
-    return File { fd: darwin.STDIN_FD, state: FileState.borrowed_open }
+noalloc func stdin(): BlockingFile {
+    return BlockingFile { fd: darwin.STDIN_FD, state: BlockingFileState.borrowed_open }
 }

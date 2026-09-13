@@ -63,6 +63,7 @@ pub(super) fn select(
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3
+        | PrimitiveRole::Syscall3Signed
         | PrimitiveRole::Syscall4
         | PrimitiveRole::Syscall6 => select_syscall(operation, target, selected),
         PrimitiveRole::Trap | PrimitiveRole::Unreachable => {
@@ -437,7 +438,7 @@ fn syscall_argument_count(role: PrimitiveRole) -> Option<u8> {
         PrimitiveRole::Syscall0 => Some(0),
         PrimitiveRole::Syscall1 => Some(1),
         PrimitiveRole::Syscall2 => Some(2),
-        PrimitiveRole::Syscall3 => Some(3),
+        PrimitiveRole::Syscall3 | PrimitiveRole::Syscall3Signed => Some(3),
         PrimitiveRole::Syscall4 => Some(4),
         PrimitiveRole::Syscall6 => Some(6),
         _ => None,

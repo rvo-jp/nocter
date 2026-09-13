@@ -98,6 +98,21 @@ pub(/) const SYS_STAT64: usize
 pub(/) const SYS_GETDIRENTRIES64: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_FSYNC: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_PREAD: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_PWRITE: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_LSEEK: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_FTRUNCATE: usize
+
+#target: "arm64-darwin"
 pub(/) const STDIN_FD: usize
 
 #target: "arm64-darwin"
@@ -120,6 +135,15 @@ pub(/) const OPEN_CREATE_TRUNCATE: usize
 
 #target: "arm64-darwin"
 pub(/) const OPEN_CREATE_APPEND: usize
+
+#target: "arm64-darwin"
+pub(/) const SEEK_FROM_START: usize
+
+#target: "arm64-darwin"
+pub(/) const SEEK_FROM_END: usize
+
+#target: "arm64-darwin"
+pub(/) const SEEK_FROM_CURRENT: usize
 
 #target: "arm64-darwin"
 pub(/) const CREATE_MODE: usize
@@ -242,6 +266,23 @@ pub(/) noalloc blocking primitive func syscall3(
     a0: usize,
     a1: usize,
     a2: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) noalloc blocking primitive func syscall3_signed(
+    number: usize,
+    a0: usize,
+    a1: i64,
+    a2: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+pub(/) noalloc blocking primitive func syscall4(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"

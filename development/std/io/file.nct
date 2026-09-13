@@ -2,6 +2,7 @@
 
 see ./index.nct
 see ./byte_helpers.nct
+see ./file_position.nct
 
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
@@ -87,6 +88,95 @@ blocking func read_fd(fd: usize, buffer: &+[u8]): usize! {
 }
 
 #target: "arm64-darwin"
+blocking func read_at_fd(fd: usize, buffer: &+[u8], offset: u64): usize! {
+    let target_offset = checked_file_offset(offset)?
+    var result = darwin.syscall4(
+        darwin.SYS_PREAD,
+        fd,
+        ptr.addr(buffer.ptr()),
+        buffer.len(),
+        target_offset,
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall4(
+            darwin.SYS_PREAD,
+            fd,
+            ptr.addr(buffer.ptr()),
+            buffer.len(),
+            target_offset,
+        )
+    }
+    return classify_completed_read(result, buffer.len())?
+}
+
+#target: "arm64-darwin"
+noalloc func classify_completed_read(result: SyscallResult, capacity: usize): usize! {
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    return validate_read_count(result.value, capacity)?
+}
+
+noalloc func checked_file_offset(offset: u64): usize! {
+    if offset > 9223372036854775807 {
+        return error.new("std.io.offset_out_of_range", "file offset is out of range")
+    }
+    return offset as usize
+}
+
+#target: "arm64-darwin"
+blocking func seek_fd(fd: usize, from: SeekFrom): usize! {
+    match move from {
+        SeekFrom.start(position) {
+            return seek_fd_from(fd, absolute_file_position(position)?, darwin.SEEK_FROM_START)?
+        }
+        SeekFrom.end(displacement) {
+            return seek_fd_from(fd, displacement, darwin.SEEK_FROM_END)?
+        }
+        SeekFrom.current(displacement) {
+            return seek_fd_from(fd, displacement, darwin.SEEK_FROM_CURRENT)?
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc blocking func seek_fd_from(fd: usize, displacement: i64, origin: usize): usize! {
+    var result = darwin.syscall3_signed(
+        darwin.SYS_LSEEK,
+        fd,
+        displacement,
+        origin,
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3_signed(
+            darwin.SYS_LSEEK,
+            fd,
+            displacement,
+            origin,
+        )
+    }
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    return result.value
+}
+
+#target: "arm64-darwin"
+blocking func truncate_fd(fd: usize, length: usize): void! {
+    if length > 9223372036854775807 {
+        return error.new("std.io.offset_out_of_range", "file length is out of range")
+    }
+    var result = darwin.syscall2(darwin.SYS_FTRUNCATE, fd, length)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall2(darwin.SYS_FTRUNCATE, fd, length)
+    }
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    return
+}
+
+#target: "arm64-darwin"
 func close_fd(fd: usize): void {
     // A failed close is deliberately not retried: Darwin may have consumed the
     // descriptor even when reporting an interruption, and retrying could close
@@ -95,56 +185,56 @@ func close_fd(fd: usize): void {
     return
 }
 
-enum FileState {
+enum BlockingFileState {
     owned_open
     borrowed_open
     closed
 }
 
-struct File {
+struct BlockingFile {
     fd: usize
-    state: FileState
+    state: BlockingFileState
 }
 
-construct File {
+construct BlockingFile {
     blocking func open(path: &str): Self! {
         let fd = open_read_fd(path)?
-        return File { fd: fd, state: FileState.owned_open }
+        return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
     }
 
     blocking func create(path: &str): Self! {
         let fd = create_fd(path)?
-        return File { fd: fd, state: FileState.owned_open }
+        return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
     }
 
     blocking func append(path: &str): Self! {
         let fd = append_fd(path)?
-        return File { fd: fd, state: FileState.owned_open }
+        return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
     }
 }
 
-noalloc func require_open(file: &File): void! {
-    if file.state is FileState.closed {
+noalloc func require_open(file: &BlockingFile): void! {
+    if file.state is BlockingFileState.closed {
         return io.closed_stream_error()
     }
     return
 }
 
-blocking func read(file: &+File, buffer: &+[u8]): usize! {
+blocking func read(file: &+BlockingFile, buffer: &+[u8]): usize! {
     require_open(file)?
     return read_fd(file.fd, buffer)?
 }
 
-func close(file: &+File): void {
-    if file.state is FileState.owned_open {
+func close(file: &+BlockingFile): void {
+    if file.state is BlockingFileState.owned_open {
         close_fd(file.fd)
     }
-    file.state = FileState.closed
+    file.state = BlockingFileState.closed
     return
 }
 
-instance File {
-    method &+self.close(): void {
+instance BlockingFile {
+    noalloc method &+self.close(): void {
         close(self)
         return
     }
@@ -152,9 +242,29 @@ instance File {
     blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
         return read(self, buffer)?
     }
+
+    noalloc blocking method &+self.position_blocking(): usize! {
+        return self.seek_blocking(SeekFrom.current(0))?
+    }
+
+    noalloc blocking method &+self.seek_blocking(from: SeekFrom): usize! {
+        require_open(self)?
+        return seek_fd(self.fd, move from)?
+    }
+
+    noalloc blocking method &+self.truncate_blocking(length: usize): void! {
+        require_open(self)?
+        truncate_fd(self.fd, length)?
+        return
+    }
+
+    noalloc blocking method &+self.read_at_blocking(buffer: &+[u8], offset: u64): usize! {
+        require_open(self)?
+        return read_at_fd(self.fd, buffer, offset)?
+    }
 }
 
-drop File(&+self) {
+noalloc drop BlockingFile(&+self) {
     close(self)
     return
 }

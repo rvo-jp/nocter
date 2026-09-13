@@ -2065,7 +2065,7 @@ blocking func main(): i32! {
     let target = Utf8Path.new("workspace/cache/items.json")?
     let parent = target.parent() otherwise { return 1 }
     fs.create_dir_all(parent)?
-    fs.write_text(&target, "value")?
+    fs.write_text_blocking(&target, "value")?
 
     let file_name = target.file_name() otherwise { return 2 }
     let stem = target.file_stem() otherwise { return 3 }
@@ -3271,7 +3271,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
                  \"localhost\", {port}, Duration.from_seconds(1),\n\
              ) catch failure {{\n\
                  if !failure.has_code(\"std.net.tls_failed\") {{ return 1 }}\n\
-                 let certificate = fs.read(\"root-cert.der\") catch _ {{ return 2 }}\n\
+                 let certificate = fs.read_blocking(\"root-cert.der\") catch _ {{ return 2 }}\n\
                  let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 3 }}\n\
                  var stream = TlsStream.connect_with_trust_anchor_and_timeout_blocking(\n\
                      \"localhost\", {port}, &anchor, Duration.from_seconds(1),\n\
@@ -3352,7 +3352,7 @@ fn custom_trust_does_not_override_certificate_validity() {
              use std/tls.{{TlsStream, TrustAnchor}}\n\
              \n\
              blocking func main(): i32 {{\n\
-                 let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
+                 let certificate = fs.read_blocking(\"root-cert.der\") catch _ {{ return 1 }}\n\
                  let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
                  let _stream = TlsStream.connect_with_trust_anchor_and_timeout_blocking(\n\
                      \"localhost\", {port}, &anchor, Duration.from_seconds(1),\n\
@@ -3397,7 +3397,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
 
     let standard_root = compiler_root.join("../std");
     let sync_main = "blocking func main(): i32 {\n\
-             let certificate = fs.read(\"root-cert.der\") catch _ { return 1 }\n\
+             let certificate = fs.read_blocking(\"root-cert.der\") catch _ { return 1 }\n\
              let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
              let client = Client.new().with_trust_anchor(move anchor)\n\
              return accepts_sync(&client)\n\
@@ -3484,7 +3484,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
 
     let standard_root = compiler_root.join("../std");
     let sync_main = "blocking func main(): i32 {\n\
-             let certificate = fs.read(\"root-cert.der\") catch _ { return 1 }\n\
+             let certificate = fs.read_blocking(\"root-cert.der\") catch _ { return 1 }\n\
              let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
              let client = Client.new().with_trust_anchor(move anchor)\n\
              if !rejects_sync(&client) { return 3 }\n\

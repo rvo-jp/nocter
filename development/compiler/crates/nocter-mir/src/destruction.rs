@@ -1,6 +1,7 @@
 use nocter_model::{
     CaptureId, ExecutableItemId, FieldId, OpaqueTypeId, ParameterId, TypeId, VariantId,
 };
+use nocter_runtime_contract::RuntimeStorageRole;
 
 /// A concrete destruction recipe retained for storage whose cleanup is deferred to a MIR
 /// operation rather than expanded into the caller's control-flow graph.
@@ -31,6 +32,11 @@ impl MirDestructionPlan {
 /// item identities.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirDestructionKind {
+    /// Cleanup for one source-opaque storage value whose physical shape belongs to the runtime.
+    RuntimeStorage {
+        role: RuntimeStorageRole,
+        drop: Option<ExecutableItemId>,
+    },
     Struct {
         drop: Option<ExecutableItemId>,
         fields: Box<[MirFieldDestruction]>,

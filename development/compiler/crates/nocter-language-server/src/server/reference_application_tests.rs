@@ -393,7 +393,10 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
     ));
     let response = signature.response().unwrap();
     assert!(
-        response.contains("func write<File>(destination: &+File, value: &Value): void!"),
+        response.contains(concat!(
+            "func write<BlockingFile>(destination: &+BlockingFile, ",
+            "value: &Value): void!"
+        )),
         "{response}"
     );
     assert!(response.contains("\"activeParameter\":1"), "{response}");
@@ -661,7 +664,7 @@ fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub noalloc func stdin(): File"),
+        response.contains("pub noalloc func stdin(): BlockingFile"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -724,6 +727,55 @@ fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+#[test]
+fn async_file_uses_one_public_contract_across_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/standard");
+    let source = root.join("async-file-runtime.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (create_line, create_source) = source_line(&text, "File.create(path)");
+    let create_character = create_source.find("create").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        create_line,
+        create_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub async func File.create(path: &str): File!"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        create_line,
+        create_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/io/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        create_line,
+        create_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/io/async_file.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
 }
 
 #[test]

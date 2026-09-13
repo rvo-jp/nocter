@@ -30,8 +30,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Generic member placement is keyed by the complete concrete type plus semantic member identity;
   distinct specializations cannot overwrite one another's field, variant, payload, or capture
   correspondence.
-- Compiler-owned storage consumes the runtime role's ABI layout directly; Machine never projects
-  native fields or repeats their offsets.
+- Compiler-owned storage consumes the runtime role's ABI layout directly and remains an explicit
+  `RuntimeStorage` layout and destruction kind; Machine never projects native fields, disguises it
+  as an empty source struct, or repeats native offsets.
 - Machine code cannot reach checking or target-program storage.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
