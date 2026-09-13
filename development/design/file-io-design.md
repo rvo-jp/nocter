@@ -118,11 +118,15 @@ environment fields surrounding it. ARM64 frame layout and generated service code
 schema; neither owns a private copy of its offsets. The root initializes the slot to zero before
 any authored call can observe the context.
 
-The generated service serializes only lifecycle transitions on one private dispatch queue and
-executes accepted blocking work outside that queue. A dispatch group accounts for every active
-worker callback so root shutdown can drain exact ownership before freeing service state. The closed
-file-service import catalog is the only layer allowed to select these Darwin system symbols;
-generated instruction code receives typed import identities.
+One allocation-backed computation frame is also its worker-owned job record. Before admission it
+owns complete input; after admission it is in exactly one of attached-running, detached-running,
+or completed ownership states. This removes a second queue record and result index. State
+publication uses target atomic operations, so resume and cancellation never wait on a lifecycle
+queue and retain the drive-safe future guarantee. Accepted blocking work executes on four private
+serial dispatch queues, providing the fixed worker bound. A dispatch group accounts for every
+active worker callback so root shutdown can drain exact ownership before freeing service state.
+The closed file-service import catalog is the only layer allowed to select these Darwin system
+symbols; generated instruction code receives typed import identities.
 
 ## Completion Gate
 
