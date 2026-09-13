@@ -15,6 +15,45 @@ pub enum DarwinFileOperation {
     WriteAt,
 }
 
+/// Bounded generated-service capacity selected by the runtime contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinFileServiceConfiguration {
+    operation_workers: usize,
+    maximum_operations: usize,
+    retirement_workers: usize,
+    maximum_retirements: usize,
+}
+
+impl DarwinFileServiceConfiguration {
+    /// Capacity for the supported generated ARM64 Darwin runtime.
+    pub const ARM64_DARWIN: Self = Self {
+        operation_workers: 4,
+        maximum_operations: 64,
+        retirement_workers: 1,
+        maximum_retirements: 64,
+    };
+
+    #[must_use]
+    pub const fn operation_workers(self) -> usize {
+        self.operation_workers
+    }
+
+    #[must_use]
+    pub const fn maximum_operations(self) -> usize {
+        self.maximum_operations
+    }
+
+    #[must_use]
+    pub const fn retirement_workers(self) -> usize {
+        self.retirement_workers
+    }
+
+    #[must_use]
+    pub const fn maximum_retirements(self) -> usize {
+        self.maximum_retirements
+    }
+}
+
 impl DarwinFileOperation {
     /// Every file operation in stable target-contract order.
     pub const ALL: &'static [Self] = &[
@@ -241,7 +280,7 @@ impl DarwinFileSeekOrigin {
 mod tests {
     use super::{
         DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
-        DarwinFileSeekOrigin, DarwinFileWriteFact,
+        DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
     };
 
     #[test]
@@ -294,5 +333,14 @@ mod tests {
             malformed.failure(),
             Some(DarwinFileFailure::INVALID_PROGRESS)
         );
+    }
+
+    #[test]
+    fn generated_capacity_is_finite_and_keeps_retirement_independent() {
+        let capacity = DarwinFileServiceConfiguration::ARM64_DARWIN;
+        assert!(capacity.operation_workers() > 0);
+        assert!(capacity.maximum_operations() >= capacity.operation_workers());
+        assert!(capacity.retirement_workers() > 0);
+        assert!(capacity.maximum_retirements() >= capacity.retirement_workers());
     }
 }

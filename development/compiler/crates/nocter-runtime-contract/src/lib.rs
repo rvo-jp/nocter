@@ -8,6 +8,7 @@ mod asynchronous;
 mod darwin_block;
 mod darwin_event;
 mod darwin_file;
+mod darwin_file_import;
 mod darwin_network;
 mod darwin_network_address;
 mod darwin_network_import;
@@ -29,8 +30,9 @@ pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_event::DarwinEventAbiSchema;
 pub use darwin_file::{
     DarwinFileAccess, DarwinFileFailure, DarwinFileFailureKind, DarwinFileOperation,
-    DarwinFileSeekOrigin, DarwinFileWriteFact,
+    DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
 };
+pub use darwin_file_import::DarwinFileServiceFunction;
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
     DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionEventObservationAbiSchema,

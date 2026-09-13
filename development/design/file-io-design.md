@@ -44,6 +44,11 @@ their complete input bytes. No target worker publishes directly into caller stor
 already carries a retirement permit, so cancellation after native creation closes the unpublished
 file on a cleanup worker.
 
+The generated ARM64 Darwin runtime admits at most four active operation callbacks and 64 total
+operations. Retirement has its own one-worker, 64-reservation capacity and cannot be consumed by
+ordinary jobs. These are runtime-contract values rather than standard-library constants or backend
+defaults.
+
 ## Infallible Retirement Admission
 
 Ordinary bounded job admission cannot be the destruction path. A full operation queue would force
@@ -108,6 +113,12 @@ service. The runtime ABI schema is the only authority for that slot and for the 
 environment fields surrounding it. ARM64 frame layout and generated service code consume the
 schema; neither owns a private copy of its offsets. The root initializes the slot to zero before
 any authored call can observe the context.
+
+The generated service serializes only lifecycle transitions on one private dispatch queue and
+executes accepted blocking work outside that queue. A dispatch group accounts for every active
+worker callback so root shutdown can drain exact ownership before freeing service state. The closed
+file-service import catalog is the only layer allowed to select these Darwin system symbols;
+generated instruction code receives typed import identities.
 
 ## Completion Gate
 

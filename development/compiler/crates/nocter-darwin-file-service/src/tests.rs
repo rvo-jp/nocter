@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use nocter_blocking_runtime::{
     JobOutcome, JobStatus, RetirementCapacity, RetirementStatus, ServiceCapacity,
 };
+use nocter_runtime_contract::DarwinFileServiceConfiguration;
 use tempfile::NamedTempFile;
 
 use crate::{
@@ -17,6 +18,21 @@ fn service() -> DarwinFileService {
         RetirementCapacity::new(1, 4).unwrap(),
     )
     .unwrap()
+}
+
+#[test]
+fn generated_capacity_is_accepted_by_both_lifecycle_authorities() {
+    let capacity = DarwinFileServiceConfiguration::ARM64_DARWIN;
+    assert!(
+        ServiceCapacity::new(capacity.operation_workers(), capacity.maximum_operations(),).is_ok()
+    );
+    assert!(
+        RetirementCapacity::new(
+            capacity.retirement_workers(),
+            capacity.maximum_retirements(),
+        )
+        .is_ok()
+    );
 }
 
 fn wait_for_job(service: &DarwinFileService, job: nocter_blocking_runtime::JobId) {
