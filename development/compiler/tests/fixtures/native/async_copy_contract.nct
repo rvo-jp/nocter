@@ -1,0 +1,230 @@
+use std/io.{Reader, TimedReader, TimedWriter, TimeoutReader, TimeoutWriter, Writer}
+use std/io
+use std/task
+use std/task.Timeout
+use std/time
+use std/time.Duration
+use std/vec.Vec
+
+struct MemoryWriter {
+    bytes: Vec<u8>
+}
+
+construct MemoryWriter {
+    func empty(): Self {
+        return MemoryWriter { bytes: Vec.empty() }
+    }
+}
+
+instance MemoryWriter {
+    impl Writer
+
+    async method &+self.write(value: &[u8]): void! {
+        var index: usize = 0
+        while index < value.len() {
+            self.bytes.push(value[index])
+            index += 1
+        }
+        return
+    }
+}
+
+struct FailingReader {}
+
+instance FailingReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        let _capacity = output.len()
+        return error.new("fixture.read", "reader failed before producing bytes")
+    }
+}
+
+struct InvalidReader {}
+
+instance InvalidReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        return output.len() + 1
+    }
+}
+
+struct OneChunkReader {
+    is_finished: bool
+}
+
+instance OneChunkReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        if self.is_finished { return 0 }
+        output[0] = 7
+        output[1] = 8
+        self.is_finished = true
+        return 2
+    }
+}
+
+struct PrefixFailWriter {
+    bytes: Vec<u8>
+}
+
+instance PrefixFailWriter {
+    impl Writer
+
+    async method &+self.write(value: &[u8]): void! {
+        if value.len() != 0 { self.bytes.push(value[0]) }
+        return error.new("fixture.write", "writer failed after an observable prefix")
+    }
+}
+
+async func failure_precedence_is_observation_order(): bool {
+    var read_failure = FailingReader {}
+    var untouched = MemoryWriter.empty()
+    let _read = await io.copy(&+read_failure, &+untouched) catch failure {
+        if !failure.has_code("fixture.read") || untouched.bytes.len() != 0 { return false }
+        0
+    }
+
+    var invalid = InvalidReader {}
+    let _invalid = await io.copy(&+invalid, &+untouched) catch failure {
+        if !failure.has_code("std.io.invalid_read_count") || untouched.bytes.len() != 0 {
+            return false
+        }
+        0
+    }
+
+    var source = OneChunkReader { is_finished: false }
+    var destination = PrefixFailWriter { bytes: Vec.empty() }
+    let _write = await io.copy(&+source, &+destination) catch failure {
+        return failure.has_code("fixture.write")
+            && destination.bytes.len() == 1
+            && destination.bytes[0] == 7
+    }
+    return false
+}
+
+struct DelayedReader {
+    is_finished: bool
+}
+
+instance DelayedReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        if self.is_finished { return 0 }
+        await time.sleep(Duration.from_milliseconds(20))
+        output[0] = 9
+        self.is_finished = true
+        return 1
+    }
+}
+
+async func cancellation_does_not_publish_unfinished_transfer(): bool! {
+    var source = DelayedReader { is_finished: false }
+    var destination = MemoryWriter.empty()
+    let first = await task.with_timeout(
+        io.copy(&+source, &+destination),
+        Duration.from_milliseconds(2),
+    )
+    match move first {
+        Timeout.completed(_) { return false }
+        Timeout.elapsed {}
+    }
+    if source.is_finished || destination.bytes.len() != 0 { return false }
+    let copied = await io.copy(&+source, &+destination)?
+    return copied == 1 && destination.bytes.len() == 1 && destination.bytes[0] == 9
+}
+
+struct TimedSource {
+    bytes: Vec<u8>
+    next_index: usize
+    ordinary_calls: usize
+    timed_calls: usize
+}
+
+instance TimedSource {
+    impl Reader
+    impl TimedReader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        self.ordinary_calls += 1
+        let _capacity = output.len()
+        return error.new("fixture.untimed_read", "ordinary read was selected")
+    }
+
+    async method &+self.read_with_timeout(output: &+[u8], timeout: Duration): usize! {
+        let _timeout = timeout
+        self.timed_calls += 1
+        var written: usize = 0
+        while written < output.len() && self.next_index < self.bytes.len() {
+            output[written] = self.bytes[self.next_index]
+            written += 1
+            self.next_index += 1
+        }
+        return written
+    }
+}
+
+struct TimedDestination {
+    bytes: Vec<u8>
+    ordinary_calls: usize
+    timed_calls: usize
+}
+
+instance TimedDestination {
+    impl Writer
+    impl TimedWriter
+
+    async method &+self.write(value: &[u8]): void! {
+        self.ordinary_calls += 1
+        let _length = value.len()
+        return error.new("fixture.untimed_write", "ordinary write was selected")
+    }
+
+    async method &+self.write_with_timeout(value: &[u8], timeout: Duration): void! {
+        let _timeout = timeout
+        self.timed_calls += 1
+        var index: usize = 0
+        while index < value.len() {
+            self.bytes.push(value[index])
+            index += 1
+        }
+        return
+    }
+}
+
+async func timeout_capabilities_project_into_copy(): bool! {
+    var source = TimedSource {
+        bytes: Vec [u8.truncate(4), u8.truncate(5), u8.truncate(6)],
+        next_index: 0,
+        ordinary_calls: 0,
+        timed_calls: 0,
+    }
+    var destination = TimedDestination {
+        bytes: Vec.empty(),
+        ordinary_calls: 0,
+        timed_calls: 0,
+    }
+    var reader = TimeoutReader.new(&+source, Duration.from_seconds(1))
+    var writer = TimeoutWriter.new(&+destination, Duration.from_seconds(1))
+    let copied = await io.copy(&+reader, &+writer)?
+    drop reader
+    drop writer
+    return copied == 3
+        && source.ordinary_calls == 0
+        && source.timed_calls == 2
+        && destination.ordinary_calls == 0
+        && destination.timed_calls == 1
+        && destination.bytes.len() == 3
+        && destination.bytes[0] == 4
+        && destination.bytes[2] == 6
+}
+
+async func main(): i32! {
+    if !await failure_precedence_is_observation_order() { return 1 }
+    if !await cancellation_does_not_publish_unfinished_transfer()? { return 2 }
+    if !await timeout_capabilities_project_into_copy()? { return 3 }
+    return 0
+}

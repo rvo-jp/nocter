@@ -52,9 +52,10 @@ transport loops share one body progress operation, so EOF and decoding decisions
 reimplemented by either adapter.
 
 The generic `Reader` defaults implement `read_to_end` and `read_to_string` once for every
-asynchronous byte source. Their `Response` timeout-bearing counterparts remain concrete methods
-and delegate every needed read to `read_with_timeout`; the duration therefore remains a per-input
-idle timeout rather than becoming a whole-body deadline. Collection remains bounded by
+asynchronous byte source. `Response` also implements `TimedReader`. Its timeout-bearing collection
+methods create a borrowing `TimeoutReader` and reuse the same generic collector; no HTTP-specific
+collection loop remains. The duration therefore remains a per-input idle timeout rather than
+becoming a whole-body deadline. Collection remains bounded by
 the `Limits` selected by the client and introduces no second body decoder.
 
 Whole-body collection consumes the response cursor as it progresses. Destroying a collector after

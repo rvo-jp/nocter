@@ -92,15 +92,27 @@ UTF-8 bytes and `write_line` follows them with exactly one LF operation; neither
 combined buffer. Transport-specific deadlines and configured timeouts are deliberately absent from
 these interfaces because their meaning is not portable across a generic byte stream.
 
+`TimedReader` and `TimedWriter` refine those contracts for endpoints that can bound one operation
+by a relative `Duration`. `TimeoutReader<R>` and `TimeoutWriter<W>` borrow such endpoints and project
+their timed operations back through ordinary `Reader` and `Writer`. The wrappers allocate no
+storage, own no endpoint, and apply the duration independently to every operation. They therefore
+compose with `copy`, buffering, byte chunks, lines, and collection without adding timed variants of
+each generic algorithm. They do not promise one wall-clock deadline for a complete multi-operation
+pipeline.
+
 `copy` transfers from any `Reader` to any `Writer` until the reader returns end of stream;
 `copy_blocking` provides the same policy for `BlockingReader` and `BlockingWriter`. Both allocate
 one 8-KiB scratch buffer in the current allocation context, validate every implementation-reported
 read count, write exactly the initialized prefix, and return the checked total number of bytes.
 They do not flush the destination. Allocation follows the ordinary terminating allocation policy;
 `T!` reports source, destination, invalid-count, or `std.io.byte_count_overflow` failure. A writer
-failure may leave its already-observed prefix visible. Cancellation of the asynchronous operation
-destroys the scratch buffer and leaves reader and writer usability to their own cancellation
-contracts; the transfer loop owns neither stream.
+failure may leave its already-observed prefix visible. Each iteration observes and validates a read
+before invoking the writer, so a read or invalid-count failure wins without calling the writer for
+that iteration; after a valid nonempty read, the writer failure wins. The byte count is returned
+only on clean EOF and counts chunks accepted completely by the writer. Cancellation of the
+asynchronous operation destroys the unpublished scratch buffer and leaves reader and writer
+usability to their own cancellation contracts; the transfer loop owns, closes, and flushes neither
+stream.
 
 `BufReader<R>` and `BufWriter<W>` in `std/io/buffer` are the owning generic adapters for these
 executor-safe contracts. `BufReader.read` returns buffered progress without waiting for a second

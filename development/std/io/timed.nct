@@ -1,0 +1,49 @@
+//! Timeout capability projections into the common byte-stream contracts.
+
+see ./index.nct
+
+use /time.Duration
+
+struct TimeoutReader<R> {
+    source: &+R
+    timeout: Duration
+}
+
+construct TimeoutReader<R> {
+    noalloc func new(source: &+R, timeout: Duration): Self where R impl TimedReader {
+        return TimeoutReader<R> {
+            source: source,
+            timeout: timeout,
+        }
+    }
+}
+
+instance TimeoutReader<R> where R impl TimedReader {
+    async method &+self.read(buffer: &+[u8]): usize! {
+        return await self.source.read_with_timeout(buffer, self.timeout)?
+    }
+}
+
+struct TimeoutWriter<W> {
+    destination: &+W
+    timeout: Duration
+}
+
+construct TimeoutWriter<W> {
+    noalloc func new(
+        destination: &+W,
+        timeout: Duration,
+    ): Self where W impl TimedWriter {
+        return TimeoutWriter<W> {
+            destination: destination,
+            timeout: timeout,
+        }
+    }
+}
+
+instance TimeoutWriter<W> where W impl TimedWriter {
+    async method &+self.write(value: &[u8]): void! {
+        await self.destination.write_with_timeout(value, self.timeout)?
+        return
+    }
+}

@@ -7,8 +7,10 @@
 see ./core.nct
 see ./async_core.nct
 see ./byte_helpers.nct
+see ./timed.nct
 see ./transfer.nct
 use /string.String
+use /time.Duration
 use /vec.Vec
 see ./file.nct
 see ./async_file.nct
@@ -70,6 +72,51 @@ pub interface Writer {
 
     /// Writes UTF-8 text followed by exactly one LF byte.
     pub async default method &+self.write_line(text: &str): void!
+}
+
+/// A reader that can bound each read operation by a relative timeout.
+pub interface TimedReader where Self impl Reader {
+    /// Reads once, failing when the supplied relative timeout expires first.
+    pub async method &+self.read_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): usize!
+}
+
+/// A writer that can bound each complete write operation by a relative timeout.
+pub interface TimedWriter where Self impl Writer {
+    /// Writes the complete view, failing when the supplied relative timeout expires first.
+    pub async method &+self.write_with_timeout(
+        value: &[u8],
+        timeout: Duration,
+    ): void!
+}
+
+/// A mutable borrowed timed reader projected through the ordinary `Reader` contract.
+pub struct TimeoutReader<R>
+
+construct TimeoutReader<R> {
+    /// Borrows `source` and applies `timeout` independently to every read operation.
+    pub noalloc func new(source: &+R, timeout: Duration): Self where R impl TimedReader
+}
+
+instance TimeoutReader<R> where R impl TimedReader {
+    impl Reader
+}
+
+/// A mutable borrowed timed writer projected through the ordinary `Writer` contract.
+pub struct TimeoutWriter<W>
+
+construct TimeoutWriter<W> {
+    /// Borrows `destination` and applies `timeout` independently to every write operation.
+    pub noalloc func new(
+        destination: &+W,
+        timeout: Duration,
+    ): Self where W impl TimedWriter
+}
+
+instance TimeoutWriter<W> where W impl TimedWriter {
+    impl Writer
 }
 
 /// Transfers bytes from one executor-safe source to one destination until end of stream.

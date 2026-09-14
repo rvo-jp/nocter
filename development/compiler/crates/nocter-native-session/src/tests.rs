@@ -1392,6 +1392,84 @@ async func main(): i32 {{
     execute_spawned_child_contract(image.image(), &package_root.0);
 }
 
+#[test]
+fn standard_files_and_process_pipes_compose_through_one_async_copy_contract() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let helper = package_root.0.join("streaming-child-helper");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/fs
+use std/io.File
+use std/io
+use std/process.{{ChildStdin, ChildStdout, Command, ProcessIo, Stdio}}
+use std/task
+
+async func send_file(source_path: &str, destination: ChildStdin): usize! {{
+    var source = await File.open(source_path)?
+    var output = move destination
+    let copied = await io.copy(&+source, &+output) catch failure {{
+        await source.close() catch _ {{}}
+        output.close()
+        return move failure
+    }}
+    await source.close()?
+    output.close()
+    return copied
+}}
+
+async func receive_file(source: ChildStdout, destination_path: &str): usize! {{
+    var input = move source
+    var destination = await File.create(destination_path)?
+    let copied = await io.copy(&+input, &+destination) catch failure {{
+        input.close()
+        await destination.close() catch _ {{}}
+        return move failure
+    }}
+    input.close()
+    await destination.close()?
+    return copied
+}}
+
+async func main(): i32! {{
+    await fs.write_text("pipeline-input", "request\n")?
+    let command = Command.new("{}")?
+    var process_io = ProcessIo.piped()
+    process_io.stderr(Stdio.null)
+    var child = await command.spawn(move process_io)?
+    let input = child.take_stdin() otherwise {{ return 1 }}
+    let output = child.take_stdout() otherwise {{ return 2 }}
+    let transfers = await task.join(
+        send_file("pipeline-input", move input),
+        receive_file(move output, "pipeline-output"),
+    )
+    let sent = move transfers.0?
+    let received = move transfers.1?
+    let status = await child.wait()?
+    if !status.success() || sent != 8 || received != 9 {{ return 3 }}
+    let text = await fs.read_to_string("pipeline-output")?
+    if (&text as &str) != "response\n" {{ return 4 }}
+    return 0
+}}
+"#,
+            helper.display(),
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_spawned_child_contract(image.image(), &package_root.0);
+}
+
 const CONFIGURED_SUBPROCESS_HELPERS_SOURCE: &str = r"use std/process.Command
 use std/vec.Vec
 
@@ -3713,7 +3791,11 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
     package_root.source(
         "main.nct",
         &format!(
-            "use std/http.{{Client, Request}}\n\
+            "use std/fs\n\
+             use std/http.{{Client, Request}}\n\
+             use std/io.{{File, TimeoutReader}}\n\
+             use std/io\n\
+             use std/time.Duration\n\
              use std/url.Url\n\
              \n\
              async func main(): i32 {{\n\
@@ -3726,8 +3808,15 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
                  var response = await pending catch _ {{ return 5 }}\n\
                  if response.status().code() != 200 {{ return 6 }}\n\
                  let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 7 }}\n\
-                 let text = await response.read_to_string() catch _ {{ return 8 }}\n\
-                 if text != \"fragmented\" {{ return 9 }}\n\
+                 var timed = TimeoutReader.new(&+response, Duration.from_seconds(1))\n\
+                 var destination = await File.create(\"downloaded\") catch _ {{ return 8 }}\n\
+                 let copied = await io.copy(&+timed, &+destination) catch _ {{ return 9 }}\n\
+                 drop timed\n\
+                 await destination.close() catch _ {{ return 10 }}\n\
+                 response.close()\n\
+                 if copied != 10 {{ return 11 }}\n\
+                 let text = await fs.read_to_string(\"downloaded\") catch _ {{ return 12 }}\n\
+                 if text != \"fragmented\" {{ return 13 }}\n\
                  return 0\n\
              }}\n"
         ),
@@ -4629,6 +4718,28 @@ fn standard_async_streaming_producers_are_bounded_lazy_and_terminal() {
         "async-streaming-producers",
         0,
     );
+}
+
+#[test]
+fn standard_async_copy_preserves_failure_cancellation_and_timeout_contracts() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        include_str!("../../../tests/fixtures/native/async_copy_contract.nct"),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-copy-contract", 0);
 }
 
 #[test]

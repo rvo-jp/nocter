@@ -1,7 +1,7 @@
 //! Validated HTTP/1.1 message values and transport-independent framing.
 
 use /hash.{Hash, HashState}
-use /io.{BlockingReader, Reader}
+use /io.{BlockingReader, Reader, TimedReader}
 use /string.String
 use /time.Duration
 use /tls.TrustAnchor
@@ -282,6 +282,7 @@ pub struct Response
 instance Response {
     impl BlockingReader
     impl Reader
+    impl TimedReader
 
     /// Returns the final response status.
     pub noalloc method &self.status(): Status

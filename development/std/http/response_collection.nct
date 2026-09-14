@@ -2,43 +2,15 @@
 
 see ./index.nct
 
-use /io
+use /io.{Reader, TimeoutReader}
 use /string.String
 use /time.Duration
 use /vec.Vec
 
-const RESPONSE_COLLECTION_BUFFER_BYTES: usize = 8192
-
-func response_collection_buffer(): Vec<u8> {
-    var buffer: Vec<u8> = Vec.with_capacity(RESPONSE_COLLECTION_BUFFER_BYTES)
-    while buffer.len() < RESPONSE_COLLECTION_BUFFER_BYTES { buffer.push(0) }
-    return move buffer
-}
-
-async func collect_response_bytes_with_timeout(
-    response: &+Response,
-    timeout: Duration,
-): Vec<u8>! {
-    var result: Vec<u8> = Vec.empty()
-    var scratch = response_collection_buffer()
-    loop {
-        let received = io.validate_read_count(
-            await response.read_with_timeout(&+scratch, timeout)?,
-            scratch.len(),
-        )?
-        if received == 0 { return move result }
-        result.reserve(received)
-        var offset: usize = 0
-        while offset < received {
-            result.push(scratch[offset])
-            offset += 1
-        }
-    }
-}
-
 instance Response {
     async method &+self.read_to_end_with_timeout(timeout: Duration): Vec<u8>! {
-        return await collect_response_bytes_with_timeout(self, timeout)?
+        var reader = TimeoutReader.new(self, timeout)
+        return await reader.read_to_end()?
     }
 
     async method &+self.read_to_string_with_timeout(timeout: Duration): String! {
