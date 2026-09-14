@@ -264,7 +264,7 @@ pub enum BodyCheckInternalError {
     ExpectedConversion,
     CleanupPlanning,
     ProvenanceAnalysis,
-    EffectAnalysis,
+    ExecutionAnalysis,
     LoanAnalysis,
     OpaqueWitnessPlanning,
     TypeProjection(nocter_model::TypeProjectionError),

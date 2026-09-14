@@ -307,7 +307,7 @@ representation-independent allocation contract exists; it must not be hidden beh
 | `future T` syntax and precedence | syntax tree | declaration lowering, formatter, source projection |
 | Structural future type identity | type store | checking, presentation, executable closure |
 | Immediate or deferred callable execution | checked declaration | body checking, call checking, lowering, tooling |
-| Callable blocking effect and future drive proof | checked effect authority | validation, semantic queries |
+| Callable synchronous-wait fact and future drive proof | checked execution authority | validation, semantic queries |
 | Compiler-owned computation construction | selected primitive role and target lowering | native lifecycle helper |
 | Immediate or deferred process entry | executable entry selection | process-root MIR, native process adapter |
 | Captured argument origins | checked invocation contract | region checking, frame lowering |

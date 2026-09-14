@@ -12,6 +12,23 @@ pub enum CheckedCallExecution {
 }
 
 impl CheckedCallExecution {
+    /// Returns the result produced in the execution scope selected for the call target.
+    ///
+    /// Immediate calls execute their target while producing `invocation_result`. Deferred calls
+    /// construct that outer result during invocation and produce `output` only when driven.
+    #[must_use]
+    pub const fn executed_result(self, invocation_result: TypeId) -> TypeId {
+        match self {
+            Self::Immediate => invocation_result,
+            Self::Deferred { output } => output,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_deferred(self) -> bool {
+        matches!(self, Self::Deferred { .. })
+    }
+
     pub(super) fn rebind(
         &mut self,
         semantics: &super::CheckedSemanticRebinder<'_>,

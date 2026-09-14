@@ -9,12 +9,11 @@ one checking-owned relation authority. Its completion definition and phases live
 
 ## Next Work
 
-Complete v0.51.0 Phase 3 by reviewing every semantic consumer of callable guarantees, checked
-execution, and primitive execution facts. Presentation must consume authored contracts only;
-target, MIR, machine, and native layers must consume frozen plans and selected identities without
-body traversal or reclassification. Remove superseded wrappers and stale effect vocabulary. Do not
-add `realtime` syntax until the completed execution model can express it without a parallel
-analysis.
+Complete v0.51.0 Phase 5 with a repository-wide residue and architecture review, complete compiler
+verification, generated documentation verification, and fresh installed-toolchain qualification.
+Close the milestone only if no duplicate execution authority, temporal-scope inference, stale
+effect product, or caller-correctness precondition remains. Do not add `realtime` syntax in this
+milestone.
 
 Preserve the v0.50.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

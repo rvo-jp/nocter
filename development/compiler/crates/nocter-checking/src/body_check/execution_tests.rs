@@ -154,6 +154,34 @@ fn allocation_free_mutual_recursion_reaches_the_least_fixed_point() {
 }
 
 #[test]
+fn allocating_recursive_group_is_independent_of_declaration_order() {
+    let first = format!(
+        "{TEXT_DECLARATIONS}\n\
+         func even(value: i32): Text {{\n\
+             if value == 0 {{ return Text \"done\" }}\n\
+             return odd(value - 1)\n\
+         }}\n\
+         func odd(value: i32): Text {{ return even(value - 1) }}\n\
+         noalloc func invalid(value: i32): Text {{ return odd(value) }}\n"
+    );
+    let second = format!(
+        "{TEXT_DECLARATIONS}\n\
+         noalloc func invalid(value: i32): Text {{ return odd(value) }}\n\
+         func odd(value: i32): Text {{ return even(value - 1) }}\n\
+         func even(value: i32): Text {{\n\
+             if value == 0 {{ return Text \"done\" }}\n\
+             return odd(value - 1)\n\
+         }}\n"
+    );
+
+    for source in [&first, &second] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.rule(), Some(BodyRule::NoAllocationContractViolation));
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0411");
+    }
+}
+
+#[test]
 fn invoked_closure_effects_are_distinct_from_closure_creation() {
     check(
         "noalloc func valid(value: i32): i32 {\n    let callback: noalloc func(i32): i32 = (item) { item + 1 }\n    return callback(value)\n}\n",

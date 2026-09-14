@@ -691,7 +691,8 @@ fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
     let tree = TempTree::new();
     let source_text = concat!(
         "noalloc func identity(value: i32): i32 { return value }\n",
-        "func main(): i32 { return identity(1) }\n",
+        "func inferred(value: i32): i32 { return value }\n",
+        "func main(): i32 { return identity(inferred(1)) }\n",
     );
     let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(60));
     assert_eq!(
@@ -714,6 +715,19 @@ fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
     assert_eq!(
         subject.presentation().code(),
         "noalloc func identity(value: i32): i32"
+    );
+
+    let inferred_call = source_text.rfind("inferred").unwrap();
+    let inferred = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(inferred_call).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        inferred.presentation().code(),
+        "func inferred(value: i32): i32"
     );
 }
 

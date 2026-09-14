@@ -10,6 +10,8 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.51.0 Phase 4 Cross-Area Execution Conformance Review](v0.51.0-phase-4.md)
+- [v0.51.0 Phase 3 Semantic Consumer Review](v0.51.0-phase-3.md)
 - [v0.51.0 Phase 2 Primitive Execution Review](v0.51.0-phase-2.md)
 - [v0.51.0 Phases 0–1 Execution Authority Review](v0.51.0-phases-0-1.md)
 - [v0.50.0 Phase 7 Integration and Release Qualification Review](v0.50.0-phase-7.md)

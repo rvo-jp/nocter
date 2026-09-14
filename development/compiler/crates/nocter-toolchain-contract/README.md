@@ -9,7 +9,7 @@ toolchain must provide.
 
 Discovery and declaration lowering bind exact source declarations to this contract. Checking and
 target validation consume resolved role identities rather than standard-library spellings.
-The allocation-effect authority uses the selected standard package's exact `AllocationRequest`
+The execution-fact authority uses the selected standard package's exact `AllocationRequest`
 callable as its backing-storage request boundary; OS primitive names are not semantic evidence.
 
 ## Invariants

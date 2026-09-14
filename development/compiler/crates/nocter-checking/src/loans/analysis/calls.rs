@@ -1,10 +1,9 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::{CallableExecution, ProvenanceOrigin};
+use nocter_declarations::ProvenanceOrigin;
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
-use crate::checked::CheckedCallExecution;
 use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
@@ -176,10 +175,7 @@ impl Analyzer<'_> {
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?
             .ty();
-        let mapped_type = match call.execution() {
-            CheckedCallExecution::Immediate => result_type,
-            CheckedCallExecution::Deferred { output } => output,
-        };
+        let mapped_type = call.execution().executed_result(result_type);
         let mut result = self.map_call_target(
             call,
             callable_value.as_ref(),
@@ -210,7 +206,7 @@ impl Analyzer<'_> {
         arguments: &[InvocationLoan],
         result: LoanValue,
     ) -> LoanValue {
-        if !matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
+        if !call.execution().is_deferred() {
             return result;
         }
         let mut captures = LoanValue::independent();
@@ -492,10 +488,7 @@ impl Analyzer<'_> {
             .callables()
             .get(callable)
             .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-        let result_type = match declaration.execution() {
-            CallableExecution::Immediate => declaration.result(),
-            CallableExecution::Deferred { output } => output,
-        };
+        let result_type = declaration.body_result();
         let mut result = LoanValue::independent();
         for origin in summary.origins() {
             match origin {

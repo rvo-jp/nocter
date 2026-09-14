@@ -8,7 +8,7 @@ use super::error::{BodyCheckFailure, BodyCheckInternalError};
 use super::semantic_transaction::CheckedSemanticAuthority;
 use crate::body_relations::{BodyRelationCatalog, BodyRelationProjection};
 use crate::checked::{CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput};
-use crate::effects::analyze_program_execution;
+use crate::execution::analyze_program_execution;
 use crate::loans::analyze_program_loans;
 use crate::provenance::analyze_program_provenance;
 use crate::{CheckedBody, ResolvedBodyNames};

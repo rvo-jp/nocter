@@ -44,7 +44,7 @@ mod copy_tests;
 #[cfg(test)]
 mod drop_tests;
 #[cfg(test)]
-mod effect_tests;
+mod execution_tests;
 #[cfg(test)]
 mod flow_tests;
 #[cfg(test)]

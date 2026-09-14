@@ -12,10 +12,10 @@ use crate::body_relations::BodyRelationCatalog;
 use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckInternalError,
     BodyRelationError, BodyRule, BorrowConversionImplementation, CallTarget, CheckedArgumentPack,
-    CheckedBody, CheckedCallExecution, CheckedControl, CheckedOperation, CheckedOutcome,
-    CheckedReadonlyOperand, CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable,
-    InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot,
-    PrimitiveOperation, StaticDispatch, StaticSelection,
+    CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedReadonlyOperand,
+    CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable, InterpolationPart,
+    IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot, PrimitiveOperation, StaticDispatch,
+    StaticSelection,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -58,8 +58,8 @@ pub(super) fn analyze_program(
         let mut changed = false;
         for (root, root_facts) in &facts {
             let reachable = inferred_facts(root_facts, &summaries)?;
-            let slot =
-                summary_mut(&mut summaries, *root).ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            let slot = summary_mut(&mut summaries, *root)
+                .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
             changed |= slot.include(reachable);
         }
         if !changed {
@@ -209,17 +209,17 @@ fn target_facts(
             .callables
             .get(callable)
             .copied()
-            .ok_or_else(|| BodyCheckInternalError::EffectAnalysis.into()),
+            .ok_or_else(|| BodyCheckInternalError::ExecutionAnalysis.into()),
         ExecutionTarget::Closure(closure) => summaries
             .closures
             .get(closure)
             .copied()
-            .ok_or_else(|| BodyCheckInternalError::EffectAnalysis.into()),
+            .ok_or_else(|| BodyCheckInternalError::ExecutionAnalysis.into()),
         ExecutionTarget::Drop(drop) => summaries
             .drops
             .get(drop)
             .copied()
-            .ok_or_else(|| BodyCheckInternalError::EffectAnalysis.into()),
+            .ok_or_else(|| BodyCheckInternalError::ExecutionAnalysis.into()),
         ExecutionTarget::ExternalContract(guarantees) => {
             Ok(ExecutionFacts::admitted_by(*guarantees))
         }
@@ -246,19 +246,19 @@ fn validate_contracts(
             .callables
             .get(&callable)
             .copied()
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         let Some(body) = declaration.body() else {
             continue;
         };
         let root_facts = facts
             .get(&Root::Callable(callable))
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         if guaranteed_noalloc(declaration.guarantees()) && execution.allocation().may_allocate() {
             return contract_error(
                 inputs,
                 body,
                 allocation_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
                 BodyRule::NoAllocationContractViolation,
             );
         }
@@ -269,7 +269,7 @@ fn validate_contracts(
                 inputs,
                 body,
                 blocking_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
                 BodyRule::BlockingContractViolation,
             );
         }
@@ -279,16 +279,16 @@ fn validate_contracts(
             .drops
             .get(&drop)
             .copied()
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         let root_facts = facts
             .get(&Root::Drop(drop))
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         if guaranteed_noalloc(declaration.guarantees()) && execution.allocation().may_allocate() {
             return contract_error(
                 inputs,
                 declaration.body(),
                 allocation_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
                 BodyRule::NoAllocationContractViolation,
             );
         }
@@ -297,7 +297,7 @@ fn validate_contracts(
                 inputs,
                 declaration.body(),
                 blocking_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
                 BodyRule::BlockingContractViolation,
             );
         }
@@ -307,10 +307,10 @@ fn validate_contracts(
             .closures
             .get(&closure)
             .copied()
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         let root_facts = facts
             .get(&Root::Closure(closure))
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         if definition
             .callable_requirements()
             .iter()
@@ -321,7 +321,7 @@ fn validate_contracts(
                 inputs,
                 definition.owner(),
                 allocation_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
                 BodyRule::NoAllocationContractViolation,
             );
         }
@@ -335,7 +335,7 @@ fn validate_contracts(
                 inputs,
                 definition.owner(),
                 blocking_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
                 BodyRule::BlockingContractViolation,
             );
         }
@@ -357,19 +357,19 @@ fn freeze(summaries: Summaries) -> Result<ExecutionFactTable, BodyRelationError>
     let mut callables = ArenaBuilder::new();
     for (expected, effect) in summaries.callables {
         if callables.insert(effect) != expected {
-            return Err(BodyCheckInternalError::EffectAnalysis.into());
+            return Err(BodyCheckInternalError::ExecutionAnalysis.into());
         }
     }
     let mut closures = ArenaBuilder::new();
     for (expected, effect) in summaries.closures {
         if closures.insert(effect) != expected {
-            return Err(BodyCheckInternalError::EffectAnalysis.into());
+            return Err(BodyCheckInternalError::ExecutionAnalysis.into());
         }
     }
     let mut drops = ArenaBuilder::new();
     for (expected, effect) in summaries.drops {
         if drops.insert(effect) != expected {
-            return Err(BodyCheckInternalError::EffectAnalysis.into());
+            return Err(BodyCheckInternalError::ExecutionAnalysis.into());
         }
     }
     Ok(ExecutionFactTable::new(
@@ -427,7 +427,7 @@ impl<'program> Collector<'program> {
             .nodes()
             .get(node)
             .cloned()
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         if matches!(
             checked.operation(),
             CheckedOperation::Control(CheckedControl::Unreachable(_))
@@ -460,7 +460,7 @@ impl<'program> Collector<'program> {
             | CheckedOperation::Move(place)
             | CheckedOperation::Borrow { place, .. } => self.visit_place(*place)?,
             CheckedOperation::Call(call) => {
-                let deferred = matches!(call.execution(), CheckedCallExecution::Deferred { .. });
+                let deferred = call.execution().is_deferred();
                 match call.target() {
                     CallTarget::Static(selection) => {
                         if !deferred {
@@ -755,7 +755,7 @@ impl<'program> Collector<'program> {
             .body
             .loops()
             .get(loop_)
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         match loop_.kind() {
             LoopKind::Infinite
             | LoopKind::ArgumentPack { .. }
@@ -779,7 +779,7 @@ impl<'program> Collector<'program> {
             .body
             .places()
             .get(place)
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
         if let PlaceRoot::Value(value) = place.root() {
             self.visit_node(value)?;
         }
@@ -871,26 +871,37 @@ impl<'program> Collector<'program> {
                     .callables()
                     .get(method)
                     .map(nocter_declarations::CallableDeclaration::guarantees)
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
                 ExecutionTarget::ExternalContract(guarantees)
             }
             StaticDispatch::StructuralRequirement { evidence } => {
-                ExecutionTarget::ExternalContract(
-                    match self
-                        .capability_evidence
-                        .get(evidence)
-                        .map(crate::body_check::CapabilityEvidence::predicate)
-                    {
-                        Some(crate::CheckedPredicate::Callable { contract, .. }) => {
-                            contract.guarantees()
-                        }
-                        Some(_) => CallableGuarantees::default(),
-                        None => return Err(BodyCheckInternalError::EffectAnalysis.into()),
-                    },
-                )
+                let predicate = self
+                    .capability_evidence
+                    .get(evidence)
+                    .map(crate::body_check::CapabilityEvidence::predicate)
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+                ExecutionTarget::ExternalContract(structural_execution_guarantees(predicate)?)
             }
         };
         self.facts.executions.push((node, target));
         Ok(())
+    }
+}
+
+fn structural_execution_guarantees(
+    predicate: &crate::CheckedPredicate,
+) -> Result<CallableGuarantees, BodyRelationError> {
+    match predicate {
+        crate::CheckedPredicate::Callable { contract, .. } => Ok(contract.guarantees()),
+        crate::CheckedPredicate::Equality(_)
+        | crate::CheckedPredicate::Ordering(_)
+        | crate::CheckedPredicate::Index { .. }
+        | crate::CheckedPredicate::Coercion { .. }
+        | crate::CheckedPredicate::Expansion { .. } => Ok(CallableGuarantees::default()),
+        crate::CheckedPredicate::Interface { .. }
+        | crate::CheckedPredicate::Copy(_)
+        | crate::CheckedPredicate::BinderRefinement { .. } => {
+            Err(BodyCheckInternalError::ExecutionAnalysis.into())
+        }
     }
 }

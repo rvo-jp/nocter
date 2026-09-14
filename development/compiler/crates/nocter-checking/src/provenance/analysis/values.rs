@@ -1,8 +1,7 @@
-use nocter_declarations::{CallableExecution, ProvenanceOrigin};
+use nocter_declarations::ProvenanceOrigin;
 use nocter_model::{BodyNodeId, CallableId, TypeId};
 
 use super::Analyzer;
-use crate::checked::CheckedCallExecution;
 use crate::provenance::invocation_place_can_reach_result;
 use crate::provenance::state::ProvenanceState;
 use crate::{
@@ -336,12 +335,9 @@ impl Analyzer<'_> {
         let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
-        let mapped_type = match call.execution() {
-            CheckedCallExecution::Immediate => result_type,
-            CheckedCallExecution::Deferred { output } => output,
-        };
+        let mapped_type = call.execution().executed_result(result_type);
         let mut result = self.map_call_result(call, &evaluated, state, mapped_type)?;
-        if matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
+        if call.execution().is_deferred() {
             let captures = Self::map_deferred_captures(&evaluated, state);
             let mut computation = ValueProvenance::independent();
             computation.insert_projection(ProvenanceProjection::AsyncCapture, captures);
@@ -662,10 +658,7 @@ impl Analyzer<'_> {
             .summaries
             .get(&callable)
             .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-        let result_type = match declaration.execution() {
-            CallableExecution::Immediate => declaration.result(),
-            CallableExecution::Deferred { output } => output,
-        };
+        let result_type = declaration.body_result();
         let mut result = ValueProvenance::independent();
         for origin in &summary.origins {
             match origin {
