@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.49.0 is published and externally audited. v0.50.0 is active as one Local Data and
-Asynchronous Streaming milestone. Phases 0 through 7 are complete. Its completion definition and
-phased authority replacement live in
+Nocter v0.49.0 is published and externally audited. The v0.50.0 Local Data and Asynchronous
+Streaming candidate is complete and qualified. Its completion definition and phased authority
+replacement live in
 [`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
 
 ## Next Work
 
-Prepare the v0.50.0 release candidate without changing the published v0.49.0 entry points. Advance
-the single packaging version authority and standard-package declaration together, write the public
-release record, run the complete compiler gate in a disposable target, and qualify two identical
-installed archives. Do not tag, push, upload, or rewrite latest-version documentation until
-publication is explicitly requested.
+Await explicit publication authorization. The retained qualified archive belongs to release-
+content commit `b3bfaff4e36882c3616d2aa84ccddedf694ea62d`; publication must reuse it without rebuilding.
+Only the publication transaction may create the annotated tag, push commits and the tag, upload
+the single asset, update public latest-version entry points, and deploy the source-identified
+documentation artifact.
 
 Phase 7 added installed execution of `async-file-report` and semantic editor checks against its
 real source. Preserve exact standard-module dependency review, canonical formatting for every
