@@ -260,6 +260,14 @@ closed_role_enum! {
         FileWriteAt,
         /// Constructs one generated local-file explicit-close computation.
         FileClose,
+        /// Constructs one generated local-file removal computation.
+        FilesystemRemoveFile,
+        /// Constructs one generated local-filesystem rename computation.
+        FilesystemRename,
+        /// Constructs one generated local-directory creation computation.
+        FilesystemCreateDirectory,
+        /// Constructs one generated local-directory removal computation.
+        FilesystemRemoveDirectory,
         /// Retires and clears one still-live generated local-file owner.
         FileOwnerDispose,
         /// Moves the returned owner out of one file completion and clears its source slot.
@@ -443,6 +451,10 @@ impl PrimitiveRole {
             Self::FileReadAt => "file_read_at",
             Self::FileWriteAt => "file_write_at",
             Self::FileClose => "file_close",
+            Self::FilesystemRemoveFile => "filesystem_remove_file",
+            Self::FilesystemRename => "filesystem_rename",
+            Self::FilesystemCreateDirectory => "filesystem_create_directory",
+            Self::FilesystemRemoveDirectory => "filesystem_remove_directory",
             Self::FileOwnerDispose => "file_owner_dispose",
             Self::FileCompletionTakeOwner => "file_completion_take_owner",
             Self::FileCompletionTransferredByteCount => "file_completion_transferred_byte_count",
@@ -559,6 +571,10 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FilesystemRemoveFile
+                    | Self::FilesystemRename
+                    | Self::FilesystemCreateDirectory
+                    | Self::FilesystemRemoveDirectory
             ),
             may_block: matches!(
                 self,
@@ -596,6 +612,10 @@ impl PrimitiveRole {
                     | Self::FileReadAt
                     | Self::FileWriteAt
                     | Self::FileClose
+                    | Self::FilesystemRemoveFile
+                    | Self::FilesystemRename
+                    | Self::FilesystemCreateDirectory
+                    | Self::FilesystemRemoveDirectory
             ),
         }
     }
@@ -626,6 +646,10 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FilesystemRemoveFile
+                    | Self::FilesystemRename
+                    | Self::FilesystemCreateDirectory
+                    | Self::FilesystemRemoveDirectory
             ),
             process: matches!(
                 self,
@@ -646,6 +670,10 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FilesystemRemoveFile
+                    | Self::FilesystemRename
+                    | Self::FilesystemCreateDirectory
+                    | Self::FilesystemRemoveDirectory
             ),
         }
     }
@@ -840,6 +868,10 @@ mod tests {
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FilesystemRemoveFile,
+                PrimitiveRole::FilesystemRename,
+                PrimitiveRole::FilesystemCreateDirectory,
+                PrimitiveRole::FilesystemRemoveDirectory,
             ]
         );
     }
@@ -899,6 +931,10 @@ mod tests {
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
                 PrimitiveRole::FileClose,
+                PrimitiveRole::FilesystemRemoveFile,
+                PrimitiveRole::FilesystemRename,
+                PrimitiveRole::FilesystemCreateDirectory,
+                PrimitiveRole::FilesystemRemoveDirectory,
             ]
         );
     }
@@ -933,6 +969,10 @@ mod tests {
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FilesystemRemoveFile,
+                PrimitiveRole::FilesystemRename,
+                PrimitiveRole::FilesystemCreateDirectory,
+                PrimitiveRole::FilesystemRemoveDirectory,
             ]
         );
 
@@ -961,6 +1001,10 @@ mod tests {
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FilesystemRemoveFile,
+                PrimitiveRole::FilesystemRename,
+                PrimitiveRole::FilesystemCreateDirectory,
+                PrimitiveRole::FilesystemRemoveDirectory,
             ]
         );
     }

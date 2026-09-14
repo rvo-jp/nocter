@@ -26,6 +26,10 @@ pub enum Arm64DarwinFilePrimitive {
     ReadAt,
     WriteAt,
     Close,
+    RemoveFile,
+    Rename,
+    CreateDirectory,
+    RemoveDirectory,
     OwnerDispose,
     CompletionTakeOwner,
     CompletionTransferredByteCount,
@@ -73,6 +77,10 @@ impl Arm64DarwinFilePrimitive {
             PrimitiveRole::FileReadAt => Some(Self::ReadAt),
             PrimitiveRole::FileWriteAt => Some(Self::WriteAt),
             PrimitiveRole::FileClose => Some(Self::Close),
+            PrimitiveRole::FilesystemRemoveFile => Some(Self::RemoveFile),
+            PrimitiveRole::FilesystemRename => Some(Self::Rename),
+            PrimitiveRole::FilesystemCreateDirectory => Some(Self::CreateDirectory),
+            PrimitiveRole::FilesystemRemoveDirectory => Some(Self::RemoveDirectory),
             PrimitiveRole::FileOwnerDispose => Some(Self::OwnerDispose),
             PrimitiveRole::FileCompletionTakeOwner => Some(Self::CompletionTakeOwner),
             PrimitiveRole::FileCompletionTransferredByteCount => {
@@ -94,6 +102,10 @@ impl Arm64DarwinFilePrimitive {
             Self::Truncate => Some(DarwinFileOperation::Truncate),
             Self::ReadAt => Some(DarwinFileOperation::ReadAt),
             Self::WriteAt => Some(DarwinFileOperation::WriteAt),
+            Self::RemoveFile => Some(DarwinFileOperation::RemoveFile),
+            Self::Rename => Some(DarwinFileOperation::Rename),
+            Self::CreateDirectory => Some(DarwinFileOperation::CreateDirectory),
+            Self::RemoveDirectory => Some(DarwinFileOperation::RemoveDirectory),
             Self::Open(_)
             | Self::Seek(_)
             | Self::Close
@@ -111,7 +123,9 @@ impl Arm64DarwinFilePrimitive {
     #[must_use]
     pub(crate) fn call_abi(self) -> Arm64DarwinFileCallAbi {
         let (argument_words, result_words) = match self {
-            Self::Open(_) => (&[2][..], 1),
+            Self::Open(_) | Self::RemoveFile | Self::CreateDirectory | Self::RemoveDirectory => {
+                (&[2][..], 1)
+            }
             Self::Read | Self::Write => (&[1, 2][..], 1),
             Self::Flush
             | Self::Close
@@ -122,6 +136,7 @@ impl Arm64DarwinFilePrimitive {
             | Self::CompletionFailureErrno => (&[1][..], 1),
             Self::Seek(_) | Self::Truncate => (&[1, 1][..], 1),
             Self::ReadAt | Self::WriteAt => (&[1, 2, 1][..], 1),
+            Self::Rename => (&[2, 2][..], 1),
             Self::OwnerDispose | Self::CompletionDispose => (&[1][..], 0),
         };
         Arm64DarwinFileCallAbi {
@@ -256,7 +271,11 @@ impl Arm64DarwinFilePrimitiveTargets {
             | Arm64DarwinFilePrimitive::Flush
             | Arm64DarwinFilePrimitive::Truncate
             | Arm64DarwinFilePrimitive::ReadAt
-            | Arm64DarwinFilePrimitive::WriteAt => unreachable!("operation handled above"),
+            | Arm64DarwinFilePrimitive::WriteAt
+            | Arm64DarwinFilePrimitive::RemoveFile
+            | Arm64DarwinFilePrimitive::Rename
+            | Arm64DarwinFilePrimitive::CreateDirectory
+            | Arm64DarwinFilePrimitive::RemoveDirectory => unreachable!("operation handled above"),
             Arm64DarwinFilePrimitive::Open(_) | Arm64DarwinFilePrimitive::Seek(_) => {
                 unreachable!("semantic adapter handled above")
             }
@@ -514,6 +533,10 @@ mod tests {
             (Primitive::ReadAt, &[1, 2, 1][..], 1),
             (Primitive::WriteAt, &[1, 2, 1][..], 1),
             (Primitive::Close, &[1][..], 1),
+            (Primitive::RemoveFile, &[2][..], 1),
+            (Primitive::Rename, &[2, 2][..], 1),
+            (Primitive::CreateDirectory, &[2][..], 1),
+            (Primitive::RemoveDirectory, &[2][..], 1),
         ] {
             let abi = primitive.call_abi();
             assert_eq!(abi.argument_words(), arguments);

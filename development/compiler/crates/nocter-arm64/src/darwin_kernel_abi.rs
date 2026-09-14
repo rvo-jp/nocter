@@ -16,6 +16,10 @@ pub(crate) enum DarwinSystemCall {
     PositionedWrite,
     Seek,
     TruncateFile,
+    Unlink,
+    Rename,
+    MakeDirectory,
+    RemoveDirectory,
     Wait4,
     Kill,
     Socket,
@@ -55,6 +59,10 @@ impl DarwinSystemCall {
             Self::PositionedWrite => 0x0200_009a,
             Self::Seek => 0x0200_00c7,
             Self::TruncateFile => 0x0200_00c9,
+            Self::Unlink => 0x0200_000a,
+            Self::Rename => 0x0200_0080,
+            Self::MakeDirectory => 0x0200_0088,
+            Self::RemoveDirectory => 0x0200_0089,
             Self::Wait4 => 0x0200_0007,
             Self::Kill => 0x0200_0025,
             Self::Socket => 0x0200_0061,
@@ -119,6 +127,7 @@ impl DarwinFileAbi {
     pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0601;
     pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0209;
     pub(crate) const CREATE_MODE: u64 = 0o666;
+    pub(crate) const CREATE_DIRECTORY_MODE: u64 = 0o777;
     pub(crate) const SEEK_FROM_START: u64 = 0;
     pub(crate) const SEEK_FROM_CURRENT: u64 = 1;
     pub(crate) const SEEK_FROM_END: u64 = 2;

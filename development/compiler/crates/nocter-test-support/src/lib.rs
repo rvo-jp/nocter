@@ -456,6 +456,14 @@ primitive func file_write_at_raw(owner: FileOwner, source: &[u8], offset: u64): 
 #target: \"arm64-darwin\"
 noalloc primitive func file_close_raw(owner: FileOwner): future FileCompletion from static
 #target: \"arm64-darwin\"
+primitive func filesystem_remove_file_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func filesystem_rename_raw(source: &str, destination: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func filesystem_create_directory_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func filesystem_remove_directory_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
 noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_take_owner_raw(completion: &+FileCompletion): FileOwner from static

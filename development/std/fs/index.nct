@@ -6,6 +6,7 @@
 see ./filesystem.nct
 see ./directory.nct
 see ./directory_mutation.nct
+see ./async_mutation.nct
 see ./directory_mutation_tests.nct
 
 use /path.Utf8Path
@@ -100,16 +101,28 @@ pub blocking func read_dir(path: &str): ReadDir!
 pub blocking func exists(path: &str): bool!
 
 /// Removes one non-directory entry, including a symbolic link itself.
-pub blocking func remove_file(path: &str): void!
+pub async func remove_file(path: &str): void!
 
 /// Renames one entry without a copy-and-delete fallback.
-pub blocking func rename(from: &str, to: &str): void!
+pub async func rename(from: &str, to: &str): void!
 
 /// Creates exactly one directory.
-pub blocking func create_dir(path: &str): void!
+pub async func create_dir(path: &str): void!
+
+/// Synchronously removes one non-directory entry, including a symbolic link itself.
+pub blocking func remove_file_blocking(path: &str): void!
+
+/// Synchronously renames one entry without a copy-and-delete fallback.
+pub blocking func rename_blocking(from: &str, to: &str): void!
+
+/// Synchronously creates exactly one directory.
+pub blocking func create_dir_blocking(path: &str): void!
 
 /// Creates every missing directory prefix in the authored spelling.
 pub blocking func create_dir_all(path: &str): void!
 
 /// Removes exactly one empty directory without following a final symbolic link.
-pub blocking func remove_dir(path: &str): void!
+pub async func remove_dir(path: &str): void!
+
+/// Synchronously removes exactly one empty directory without following a final symbolic link.
+pub blocking func remove_dir_blocking(path: &str): void!

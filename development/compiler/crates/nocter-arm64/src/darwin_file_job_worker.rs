@@ -30,6 +30,10 @@ pub(crate) fn execute_operation(
         DarwinFileOperation::Truncate => execute_truncate(code, job, imports),
         DarwinFileOperation::ReadAt => execute_read(code, job, true, imports),
         DarwinFileOperation::WriteAt => execute_write(code, job, true, imports),
+        DarwinFileOperation::RemoveFile
+        | DarwinFileOperation::Rename
+        | DarwinFileOperation::CreateDirectory
+        | DarwinFileOperation::RemoveDirectory => execute_path_mutation(code, job, operation),
     }
 }
 
@@ -357,6 +361,42 @@ fn execute_truncate(
     Ok(())
 }
 
+fn execute_path_mutation(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+    operation: DarwinFileOperation,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    address(code, x(0), job, schema.owned_bytes_offset());
+    match operation {
+        DarwinFileOperation::RemoveFile => emit_system_call(code, DarwinSystemCall::Unlink),
+        DarwinFileOperation::Rename => {
+            load(
+                code,
+                x(8),
+                job,
+                schema.offset(DarwinFileJobField::SecondaryPathOffset),
+            );
+            address(code, x(1), job, schema.owned_bytes_offset());
+            add_register(code, x(1), x(1), x(8), false);
+            emit_system_call(code, DarwinSystemCall::Rename);
+        }
+        DarwinFileOperation::CreateDirectory => {
+            immediate(code, x(1), DarwinFileAbi::CREATE_DIRECTORY_MODE);
+            emit_system_call(code, DarwinSystemCall::MakeDirectory);
+        }
+        DarwinFileOperation::RemoveDirectory => {
+            emit_system_call(code, DarwinSystemCall::RemoveDirectory);
+        }
+        _ => unreachable!("path worker accepts only path mutations"),
+    }
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    store_target_failure(code, job);
+    code.bind(success)?;
+    Ok(())
+}
+
 fn retry_interrupted_or_store_target(
     code: &mut Arm64CodeBuilder,
     job: crate::Arm64Register,
@@ -364,6 +404,10 @@ fn retry_interrupted_or_store_target(
 ) {
     compare_immediate(code, x(0), DarwinErrorAbi::INTERRUPTED);
     code.branch_conditional(retry, Arm64BranchCondition::Equal);
+    store_target_failure(code, job);
+}
+
+fn store_target_failure(code: &mut Arm64CodeBuilder, job: crate::Arm64Register) {
     let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
     immediate(code, x(8), DarwinFileFailureKind::Target.code());
     store(

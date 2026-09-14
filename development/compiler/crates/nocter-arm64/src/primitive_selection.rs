@@ -208,6 +208,10 @@ pub(crate) fn select(
         | PrimitiveRole::FileReadAt
         | PrimitiveRole::FileWriteAt
         | PrimitiveRole::FileClose
+        | PrimitiveRole::FilesystemRemoveFile
+        | PrimitiveRole::FilesystemRename
+        | PrimitiveRole::FilesystemCreateDirectory
+        | PrimitiveRole::FilesystemRemoveDirectory
         | PrimitiveRole::FileOwnerDispose
         | PrimitiveRole::FileCompletionTakeOwner
         | PrimitiveRole::FileCompletionTransferredByteCount

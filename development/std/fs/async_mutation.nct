@@ -1,0 +1,35 @@
+//! Executor-safe filesystem mutation policy over generated owned-path jobs.
+
+see ./index.nct
+
+use /internal/io
+use /path as path_module
+
+async func remove_file(path: &str): void! {
+    path_module.validate(path)?
+    let completion = await io.filesystem_remove_file(path)
+    io.validate_file_completion(&completion)?
+    return
+}
+
+async func rename(from: &str, to: &str): void! {
+    path_module.validate(from)?
+    path_module.validate(to)?
+    let completion = await io.filesystem_rename(from, to)
+    io.validate_file_completion(&completion)?
+    return
+}
+
+async func create_dir(path: &str): void! {
+    path_module.validate(path)?
+    let completion = await io.filesystem_create_directory(path)
+    io.validate_file_completion(&completion)?
+    return
+}
+
+async func remove_dir(path: &str): void! {
+    path_module.validate(path)?
+    let completion = await io.filesystem_remove_directory(path)
+    io.validate_file_completion(&completion)?
+    return
+}

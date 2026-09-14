@@ -32,11 +32,14 @@ constructors accept a borrowed path without parallel `_path` functions. `Blockin
 the same operations synchronously. Both owner types close once when explicitly closed or dropped;
 later operations on an explicitly closed value fail with `std.io.closed`.
 
-The canonical `read`, `read_to_string`, `write`, and `write_text` functions are asynchronous and
-compose `File` with the executor-safe byte interfaces. Their `_blocking` twins compose
-`BlockingFile` with the blocking interfaces. Metadata, existence checks, directory construction
-and removal, rename, opening a directory, and `ReadDir.next` remain explicitly `blocking` in this
-phase. Pure `Metadata` and `DirEntry` inspection and terminal `ReadDir.close` remain unqualified.
+The canonical `read`, `read_to_string`, `write`, `write_text`, `remove_file`, `rename`,
+`create_dir`, and `remove_dir` functions are asynchronous. Whole-file transfer composes `File`
+with the executor-safe byte interfaces; path mutation transfers complete owned path bytes to the
+bounded file service. Their `_blocking` twins use the explicit synchronous surface. Metadata,
+existence checks, recursive directory construction, opening a directory, and `ReadDir.next`
+remain explicitly `blocking` until their executor-safe result and traversal contracts are
+complete. Pure `Metadata` and `DirEntry` inspection and terminal `ReadDir.close` remain
+unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -96,11 +99,14 @@ convenience query rather than a mechanism for hiding access failures.
 `remove_file` removes one non-directory entry. When the path names a symbolic link, the link itself
 is removed rather than its target. `rename` performs one target rename operation; on the current
 target it replaces an existing destination when the OS permits. It does not fall back to copying
-and deleting across filesystems. All filesystem functions accept `Utf8Path` through its existing
-readonly coercion and reject an embedded NUL before any OS operation.
+and deleting across filesystems. The canonical forms execute through owned blocking jobs;
+`remove_file_blocking` and `rename_blocking` invoke the same target behavior synchronously. All
+filesystem functions accept `Utf8Path` through its existing readonly coercion and reject an
+embedded NUL before any OS operation.
 
 `create_dir` creates exactly one directory with target-default permissions filtered by the process
 umask. It fails with `std.io.already_exists` when the final spelling already names any entry.
+`create_dir_blocking` is its synchronous twin.
 `create_dir_all` walks the authored spelling from left to right and creates every missing directory
 prefix. It succeeds when a prefix already resolves to a directory, including through a symbolic
 link, but fails when an existing prefix is not a directory. An empty spelling is invalid input; a
@@ -110,9 +116,11 @@ not transactional: directories created before a later prefix failure remain pres
 
 `remove_dir` removes exactly one empty directory. It is never recursive and never follows a final
 symbolic link as a directory. A nonempty directory fails with `std.io.directory_not_empty`.
+`remove_dir_blocking` is its synchronous twin.
 `remove_file` and `remove_dir` remain distinct so source states whether it intends to remove a
-non-directory entry or an empty directory. Mutating target calls are attempted once: they are not
-blindly retried after an interruption whose completion state could be ambiguous.
+non-directory entry or an empty directory. Both asynchronous workers and blocking implementations
+attempt a mutating target call once: they do not blindly retry after an interruption whose
+completion state could be ambiguous.
 
 Errno classification, syscall numbers, and metadata layout are dependency-free,
 target-specific `std/internal/os` responsibilities. The allocator-backed temporary path argument

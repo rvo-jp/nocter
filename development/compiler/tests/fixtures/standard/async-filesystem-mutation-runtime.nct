@@ -1,0 +1,46 @@
+use std/fs
+use std/process
+use std/string.String
+
+async func main(): i32! {
+    let root: &str = process.arg(1)? otherwise {
+        return error.new("phase2.missing_root", "filesystem test root is missing")
+    }
+    let directory = String.concat(root, "/async-mutation")
+    let source = String.concat(&directory, "/source.txt")
+    let destination = String.concat(&directory, "/destination.txt")
+
+    await fs.create_dir(&directory)?
+    await verify_existing_directory(&directory)?
+    await fs.write_text(&source, "executor-safe")?
+    await fs.rename(&source, &destination)?
+    let text = await fs.read_to_string(&destination)?
+    require((&text as &str) == "executor-safe", "renamed contents changed")?
+    await fs.remove_file(&destination)?
+    await verify_missing_file(&destination)?
+    await fs.remove_dir(&directory)?
+    return 0
+}
+
+async func verify_existing_directory(path: &str): void! {
+    await fs.create_dir(path) catch failure {
+        if failure.has_code("std.io.already_exists") { return }
+        return error.new("phase2.wrong_error", "existing directory reported the wrong error")
+    }
+    return error.new("phase2.missing_failure", "existing directory was created twice")
+}
+
+async func verify_missing_file(path: &str): void! {
+    await fs.remove_file(path) catch failure {
+        if failure.has_code("std.io.not_found") { return }
+        return error.new("phase2.wrong_error", "missing file reported the wrong error")
+    }
+    return error.new("phase2.missing_failure", "missing file was removed")
+}
+
+func require(condition: bool, message: &str): void! {
+    if !condition {
+        return error.new("phase2.verification_failed", message)
+    }
+    return
+}

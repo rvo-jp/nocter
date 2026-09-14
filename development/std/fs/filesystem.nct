@@ -94,12 +94,12 @@ blocking func exists(path: &str): bool! {
     return exists_target(path)?
 }
 
-blocking func remove_file(path: &str): void! {
+blocking func remove_file_blocking(path: &str): void! {
     remove_file_target(path)?
     return
 }
 
-blocking func rename(from: &str, to: &str): void! {
+blocking func rename_blocking(from: &str, to: &str): void! {
     rename_target(from, to)?
     return
 }

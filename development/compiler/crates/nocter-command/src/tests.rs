@@ -1038,6 +1038,34 @@ fn bundled_async_file_runtime_crosses_public_completion_and_cleanup_contracts() 
     fs::remove_dir_all(output_directory).unwrap();
 }
 
+#[test]
+fn bundled_async_filesystem_mutations_cross_owned_path_jobs() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source =
+        compiler_root.join("tests/fixtures/standard/async-filesystem-mutation-runtime.nct");
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
+    let output_directory = unique_test_directory("standard-async-filesystem-mutation-runtime");
+    let executable = output_directory.join("program");
+    let target_program = compiler.compile(&unit).unwrap_or_else(|error| {
+        panic!("async filesystem mutation runtime failed to analyze: {error:?}")
+    });
+    super::build_executable(ExecutableCompileRequest::only(target_program), &executable)
+        .unwrap_or_else(|error| {
+            panic!("async filesystem mutation runtime failed to compile: {error:?}")
+        });
+
+    let executed = Command::new(&executable)
+        .arg(&output_directory)
+        .output()
+        .unwrap();
+    assert_eq!(executed.status.code(), Some(0));
+    assert!(executed.stdout.is_empty());
+    assert!(executed.stderr.is_empty());
+    assert!(!output_directory.join("async-mutation").exists());
+
+    fs::remove_dir_all(output_directory).unwrap();
+}
+
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
         "custom-format.nct" => b"point = (3, 4)\n",

@@ -26,6 +26,8 @@ pub enum DarwinFileJobField {
     SeekDisplacement,
     Access,
     SeekOrigin,
+    /// Byte offset from the trailing region to a second NUL-terminated path.
+    SecondaryPathOffset,
     TransferredByteCount,
     ResultPosition,
     FailureKind,
@@ -113,6 +115,7 @@ impl DarwinFileJobField {
         Self::SeekDisplacement,
         Self::Access,
         Self::SeekOrigin,
+        Self::SecondaryPathOffset,
         Self::TransferredByteCount,
         Self::ResultPosition,
         Self::FailureKind,
@@ -135,11 +138,16 @@ pub enum DarwinFileJobOwnedBytes {
     ReadOutput,
     /// A complete copy of the caller's write input.
     WriteInput,
+    /// One complete target path including its terminal NUL byte.
+    PathInput,
+    /// Two consecutive complete target paths, each including its terminal NUL byte.
+    TwoPathInputs,
 }
 
 /// State required of the job's pre-reserved retirement record at admission.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DarwinFileJobRetirementInput {
+    None,
     Reserved,
     Live,
 }
@@ -249,6 +257,18 @@ impl DarwinFileOperation {
                 Operand::PositionedOffset,
                 Result::TransferredByteCount,
             ),
+            Self::RemoveFile | Self::CreateDirectory | Self::RemoveDirectory => (
+                Bytes::PathInput,
+                Retirement::None,
+                Operand::None,
+                Result::None,
+            ),
+            Self::Rename => (
+                Bytes::TwoPathInputs,
+                Retirement::None,
+                Operand::None,
+                Result::None,
+            ),
         };
         DarwinFileJobContract {
             owned_bytes,
@@ -273,9 +293,9 @@ impl DarwinFileJobAbiSchema {
         asynchronous: RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous(),
         field_offsets: [
             0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152,
-            160, 168, 176, 184, 192, 200,
+            160, 168, 176, 184, 192, 200, 208,
         ],
-        fixed_size: 208,
+        fixed_size: 216,
         alignment: 8,
     };
 
@@ -362,11 +382,11 @@ mod tests {
         for (index, field) in DarwinFileJobField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.fixed_size(), 208);
+        assert_eq!(schema.fixed_size(), 216);
         assert_eq!(schema.alignment(), asynchronous.fixed_header_alignment());
         assert_eq!(schema.owned_bytes_offset(), schema.fixed_size());
-        assert_eq!(schema.allocation_size(0), Some(208));
-        assert_eq!(schema.allocation_size(31), Some(239));
+        assert_eq!(schema.allocation_size(0), Some(216));
+        assert_eq!(schema.allocation_size(31), Some(247));
         assert_eq!(schema.allocation_size(u64::MAX), None);
     }
 
@@ -433,6 +453,34 @@ mod tests {
                 Retirement::Live,
                 Operand::PositionedOffset,
                 Result::TransferredByteCount,
+            ),
+            (
+                DarwinFileOperation::RemoveFile,
+                Bytes::PathInput,
+                Retirement::None,
+                Operand::None,
+                Result::None,
+            ),
+            (
+                DarwinFileOperation::Rename,
+                Bytes::TwoPathInputs,
+                Retirement::None,
+                Operand::None,
+                Result::None,
+            ),
+            (
+                DarwinFileOperation::CreateDirectory,
+                Bytes::PathInput,
+                Retirement::None,
+                Operand::None,
+                Result::None,
+            ),
+            (
+                DarwinFileOperation::RemoveDirectory,
+                Bytes::PathInput,
+                Retirement::None,
+                Operand::None,
+                Result::None,
             ),
         ];
 

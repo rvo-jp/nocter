@@ -101,8 +101,8 @@ pub(crate) fn build(
 
 /// Stages every constructor into one operation-independent register convention.
 ///
-/// x19 retirement owner (zero for open), x20 owned byte length, x21 byte pointer or consumer
-/// pointer, x22 positioned offset / truncate length / packed seek input.
+/// x19 retirement owner, x20 total trailing-byte length, x21 primary byte pointer or consumer
+/// pointer, x22 secondary byte pointer or scalar operand, and x27/x28 terminated path lengths.
 fn stage_inputs(
     code: &mut Arm64CodeBuilder,
     operation: DarwinFileOperation,
@@ -151,7 +151,46 @@ fn stage_inputs(
             move_register(code, x(20), x(2));
             move_register(code, x(22), x(3));
         }
+        DarwinFileOperation::RemoveFile
+        | DarwinFileOperation::CreateDirectory
+        | DarwinFileOperation::RemoveDirectory => {
+            immediate(code, x(19), 0);
+            move_register(code, x(21), x(0));
+            move_register(code, x(27), x(1));
+            add_path_terminator(code, x(27), imports)?;
+            move_register(code, x(20), x(27));
+            immediate(code, x(22), 0);
+            immediate(code, x(28), 0);
+        }
+        DarwinFileOperation::Rename => {
+            immediate(code, x(19), 0);
+            move_register(code, x(21), x(0));
+            move_register(code, x(27), x(1));
+            move_register(code, x(22), x(2));
+            move_register(code, x(28), x(3));
+            add_path_terminator(code, x(27), imports)?;
+            add_path_terminator(code, x(28), imports)?;
+            add_register(code, x(20), x(27), x(28), true);
+            let valid = code.create_label();
+            code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
+            abort(code, imports);
+            code.bind(valid)?;
+        }
     }
+    Ok(())
+}
+
+fn add_path_terminator(
+    code: &mut Arm64CodeBuilder,
+    length: crate::Arm64Register,
+    imports: &crate::Arm64DarwinFileServiceImports,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    compare_immediate(code, length, u64::MAX);
+    let valid = code.create_label();
+    code.branch_conditional(valid, Arm64BranchCondition::NotEqual);
+    abort(code, imports);
+    code.bind(valid)?;
+    add_immediate(code, length, length, 1);
     Ok(())
 }
 
@@ -179,19 +218,19 @@ fn zero_fixed_record(
     if schema.fixed_size() == 0 || !schema.fixed_size().is_multiple_of(8) {
         return Err(crate::Arm64DarwinFileJobError::ContractLayout);
     }
-    move_register(code, x(27), job);
-    immediate(code, x(28), schema.fixed_size() / 8);
+    move_register(code, x(10), job);
+    immediate(code, x(11), schema.fixed_size() / 8);
     immediate(code, x(8), 0);
     let repeat = code.create_label();
     code.bind(repeat)?;
-    store(code, x(27), 0, x(8));
-    add_immediate(code, x(27), x(27), 8);
+    store(code, x(10), 0, x(8));
+    add_immediate(code, x(10), x(10), 8);
     code.append(Arm64Instruction::AddSubtractImmediate {
         size: Arm64DataSize::Bits64,
         operation: Arm64AddSubtract::Subtract,
         set_flags: true,
-        destination: Arm64AddSubtractDestination::General(x(28)),
-        source: Arm64BaseRegister::General(x(28)),
+        destination: Arm64AddSubtractDestination::General(x(11)),
+        source: Arm64BaseRegister::General(x(11)),
         immediate: 1,
         shift_12: false,
     });
@@ -217,7 +256,11 @@ fn initialize_operands(
                 x(21),
             );
         }
-        DarwinFileOperation::Write | DarwinFileOperation::Flush => {}
+        DarwinFileOperation::Write
+        | DarwinFileOperation::Flush
+        | DarwinFileOperation::RemoveFile
+        | DarwinFileOperation::CreateDirectory
+        | DarwinFileOperation::RemoveDirectory => {}
         DarwinFileOperation::Seek => {
             store(
                 code,
@@ -260,6 +303,14 @@ fn initialize_operands(
                 job,
                 schema.offset(DarwinFileJobField::PositionedOffset),
                 x(22),
+            );
+        }
+        DarwinFileOperation::Rename => {
+            store(
+                code,
+                job,
+                schema.offset(DarwinFileJobField::SecondaryPathOffset),
+                x(27),
             );
         }
     }
@@ -320,31 +371,72 @@ fn initialize_owned_bytes(
     imports: &crate::Arm64DarwinFileServiceImports,
     schema: &DarwinFileJobAbiSchema,
 ) {
-    if !matches!(
-        operation,
-        DarwinFileOperation::Open | DarwinFileOperation::Write | DarwinFileOperation::WriteAt
-    ) {
-        return;
+    match operation {
+        DarwinFileOperation::Open => {
+            copy_path(code, job, x(21), x(20), None, imports, schema);
+        }
+        DarwinFileOperation::Write | DarwinFileOperation::WriteAt => {
+            let skip = code.create_label();
+            compare_immediate(code, x(20), 0);
+            code.branch_conditional(skip, Arm64BranchCondition::Equal);
+            address(code, x(0), job, schema.owned_bytes_offset());
+            move_register(code, x(1), x(21));
+            move_register(code, x(2), x(20));
+            call_import(code, imports, DarwinFileServiceFunction::MemoryCopy);
+            code.bind(skip).expect("local constructor label is valid");
+        }
+        DarwinFileOperation::RemoveFile
+        | DarwinFileOperation::CreateDirectory
+        | DarwinFileOperation::RemoveDirectory => {
+            copy_path(code, job, x(21), x(27), None, imports, schema);
+        }
+        DarwinFileOperation::Rename => {
+            copy_path(code, job, x(21), x(27), None, imports, schema);
+            copy_path(code, job, x(22), x(28), Some(x(27)), imports, schema);
+        }
+        DarwinFileOperation::Read
+        | DarwinFileOperation::Flush
+        | DarwinFileOperation::Seek
+        | DarwinFileOperation::Truncate
+        | DarwinFileOperation::ReadAt => {}
     }
-    let copy_length = if operation == DarwinFileOperation::Open {
-        subtract_one(code, x(27), x(20));
-        x(27)
-    } else {
-        x(20)
-    };
+}
+
+fn copy_path(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+    source: crate::Arm64Register,
+    terminated_length: crate::Arm64Register,
+    offset: Option<crate::Arm64Register>,
+    imports: &crate::Arm64DarwinFileServiceImports,
+    schema: &DarwinFileJobAbiSchema,
+) {
+    subtract_one(code, x(10), terminated_length);
     let skip = code.create_label();
-    compare_immediate(code, copy_length, 0);
+    compare_immediate(code, x(10), 0);
     code.branch_conditional(skip, Arm64BranchCondition::Equal);
-    address(code, x(0), job, schema.owned_bytes_offset());
-    move_register(code, x(1), x(21));
-    move_register(code, x(2), copy_length);
+    path_address(code, x(0), job, offset, schema);
+    move_register(code, x(1), source);
+    move_register(code, x(2), x(10));
     call_import(code, imports, DarwinFileServiceFunction::MemoryCopy);
-    code.bind(skip).expect("local constructor label is valid");
-    if operation == DarwinFileOperation::Open {
-        address(code, x(8), job, schema.owned_bytes_offset());
-        add_register(code, x(8), x(8), copy_length, false);
-        immediate(code, x(9), 0);
-        crate::address_code::store_native(code, Arm64LoadStoreSize::Byte, x(9), x(8), 0);
+    code.bind(skip).expect("local path-copy label is valid");
+    path_address(code, x(9), job, offset, schema);
+    subtract_one(code, x(10), terminated_length);
+    add_register(code, x(9), x(9), x(10), false);
+    immediate(code, x(8), 0);
+    crate::address_code::store_native(code, Arm64LoadStoreSize::Byte, x(8), x(9), 0);
+}
+
+fn path_address(
+    code: &mut Arm64CodeBuilder,
+    destination: crate::Arm64Register,
+    job: crate::Arm64Register,
+    offset: Option<crate::Arm64Register>,
+    schema: &DarwinFileJobAbiSchema,
+) {
+    address(code, destination, job, schema.owned_bytes_offset());
+    if let Some(offset) = offset {
+        add_register(code, destination, destination, offset, false);
     }
 }
 

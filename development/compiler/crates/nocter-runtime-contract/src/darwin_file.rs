@@ -13,6 +13,10 @@ pub enum DarwinFileOperation {
     Truncate,
     ReadAt,
     WriteAt,
+    RemoveFile,
+    Rename,
+    CreateDirectory,
+    RemoveDirectory,
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
@@ -93,6 +97,10 @@ impl DarwinFileOperation {
         Self::Truncate,
         Self::ReadAt,
         Self::WriteAt,
+        Self::RemoveFile,
+        Self::Rename,
+        Self::CreateDirectory,
+        Self::RemoveDirectory,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -107,6 +115,10 @@ impl DarwinFileOperation {
             Self::Truncate => 5,
             Self::ReadAt => 6,
             Self::WriteAt => 7,
+            Self::RemoveFile => 8,
+            Self::Rename => 9,
+            Self::CreateDirectory => 10,
+            Self::RemoveDirectory => 11,
         }
     }
 
@@ -122,6 +134,10 @@ impl DarwinFileOperation {
             5 => Some(Self::Truncate),
             6 => Some(Self::ReadAt),
             7 => Some(Self::WriteAt),
+            8 => Some(Self::RemoveFile),
+            9 => Some(Self::Rename),
+            10 => Some(Self::CreateDirectory),
+            11 => Some(Self::RemoveDirectory),
             _ => None,
         }
     }

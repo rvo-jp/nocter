@@ -102,6 +102,13 @@ enum FileJobPayload {
         bytes: Box<[u8]>,
         offset: u64,
     },
+    RemoveFile(PathBuf),
+    Rename {
+        source: PathBuf,
+        destination: PathBuf,
+    },
+    CreateDirectory(PathBuf),
+    RemoveDirectory(PathBuf),
 }
 
 /// One complete owned file-operation input.
@@ -192,6 +199,37 @@ impl DarwinFileJob {
         }
     }
 
+    #[must_use]
+    pub fn remove_file(path: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::RemoveFile(path),
+        }
+    }
+
+    #[must_use]
+    pub fn rename(source: PathBuf, destination: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::Rename {
+                source,
+                destination,
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn create_directory(path: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::CreateDirectory(path),
+        }
+    }
+
+    #[must_use]
+    pub fn remove_directory(path: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::RemoveDirectory(path),
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
@@ -204,6 +242,10 @@ impl DarwinFileJob {
             FileJobPayload::Truncate { .. } => FileJobKind::Truncate,
             FileJobPayload::ReadAt { .. } => FileJobKind::ReadAt,
             FileJobPayload::WriteAt { .. } => FileJobKind::WriteAt,
+            FileJobPayload::RemoveFile(_) => FileJobKind::RemoveFile,
+            FileJobPayload::Rename { .. } => FileJobKind::Rename,
+            FileJobPayload::CreateDirectory(_) => FileJobKind::CreateDirectory,
+            FileJobPayload::RemoveDirectory(_) => FileJobKind::RemoveDirectory,
         }
     }
 }
@@ -239,6 +281,10 @@ pub enum DarwinFileOutcome {
         owner: DarwinFileOwner,
         fact: FileWriteFact,
     },
+    RemoveFile(Result<(), FileOperationError>),
+    Rename(Result<(), FileOperationError>),
+    CreateDirectory(Result<(), FileOperationError>),
+    RemoveDirectory(Result<(), FileOperationError>),
 }
 
 /// Cancellation result without exposing generic queue payloads to file policy.
@@ -478,6 +524,21 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
             let fact = write_file_at(owner.0.resource_mut(), &bytes, offset);
             DarwinFileOutcome::WriteAt { owner, fact }
         }
+        FileJobPayload::RemoveFile(path) => DarwinFileOutcome::RemoveFile(
+            std::fs::remove_file(path).map_err(|error| file_failure(&error)),
+        ),
+        FileJobPayload::Rename {
+            source,
+            destination,
+        } => DarwinFileOutcome::Rename(
+            std::fs::rename(source, destination).map_err(|error| file_failure(&error)),
+        ),
+        FileJobPayload::CreateDirectory(path) => DarwinFileOutcome::CreateDirectory(
+            std::fs::create_dir(path).map_err(|error| file_failure(&error)),
+        ),
+        FileJobPayload::RemoveDirectory(path) => DarwinFileOutcome::RemoveDirectory(
+            std::fs::remove_dir(path).map_err(|error| file_failure(&error)),
+        ),
     }
 }
 

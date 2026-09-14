@@ -2074,9 +2074,9 @@ blocking func main(): i32! {
     if stem != "items" { return 6 }
     if extension != "json" { return 7 }
 
-    fs.remove_file(&target)?
-    fs.remove_dir("workspace/cache")?
-    fs.remove_dir("workspace")?
+    fs.remove_file_blocking(&target)?
+    fs.remove_dir_blocking("workspace/cache")?
+    fs.remove_dir_blocking("workspace")?
 
     var dangling_rejected = false
     fs.create_dir_all("dangling-root/link/child") catch failure {
@@ -2085,17 +2085,17 @@ blocking func main(): i32! {
     if !dangling_rejected { return 8 }
 
     var symlink_remove_rejected = false
-    fs.remove_dir("dangling-root/link") catch failure {
+    fs.remove_dir_blocking("dangling-root/link") catch failure {
         symlink_remove_rejected = failure.has_code("std.io.not_directory")
     }
     if !symlink_remove_rejected { return 9 }
-    fs.remove_file("dangling-root/link")?
-    fs.remove_dir("dangling-root")?
+    fs.remove_file_blocking("dangling-root/link")?
+    fs.remove_dir_blocking("dangling-root")?
 
     fs.create_dir_all("linked-root/child")?
-    fs.remove_dir("linked-root/child")?
-    fs.remove_file("linked-root")?
-    fs.remove_dir("real-root")?
+    fs.remove_dir_blocking("linked-root/child")?
+    fs.remove_file_blocking("linked-root")?
+    fs.remove_dir_blocking("real-root")?
     return 0
 }
 "#,

@@ -42,7 +42,7 @@ blocking func verify_text(path: &str, renamed: &str): void! {
     require((&text as &str) == "hello", "text round trip changed bytes")?
 
     fs.write_text_blocking(renamed, "old")?
-    fs.rename(path, renamed)?
+    fs.rename_blocking(path, renamed)?
     require(!fs.exists(path)?, "rename left the source path present")?
     require(fs.exists(renamed)?, "rename did not create the destination path")?
     let renamed_text = fs.read_to_string_blocking(renamed)?
@@ -50,7 +50,7 @@ blocking func verify_text(path: &str, renamed: &str): void! {
         (&renamed_text as &str) == "hello",
         "rename did not replace the destination",
     )?
-    fs.remove_file(renamed)?
+    fs.remove_file_blocking(renamed)?
     require(!fs.exists(renamed)?, "removed text file still exists")?
     return
 }
@@ -67,7 +67,7 @@ blocking func verify_bytes(path: &str): void! {
     require(loaded[1] == 127, "second byte changed")?
     require(loaded[2] == 255, "third byte changed")?
     verify_invalid_utf8(path)?
-    fs.remove_file(path)?
+    fs.remove_file_blocking(path)?
     return
 }
 
@@ -98,12 +98,12 @@ blocking func verify_link(path: &str, target: &str): void! {
     let details = fs.metadata(path)?
     require(details.is_file(), "metadata did not follow the symbolic link")?
     require(details.len() == 5, "symbolic-link target length is incorrect")?
-    fs.remove_file(path)?
+    fs.remove_file_blocking(path)?
     require(!fs.exists(path)?, "symbolic link still exists after removal")?
     require(fs.exists(target)?, "removing a symbolic link removed its target")?
     let text = fs.read_to_string_blocking(target)?
     require((&text as &str) == "hello", "symbolic-link target content changed")?
-    fs.remove_file(target)?
+    fs.remove_file_blocking(target)?
     return
 }
 

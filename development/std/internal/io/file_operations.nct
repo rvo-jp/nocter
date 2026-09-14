@@ -71,6 +71,25 @@ noalloc func file_close(owner: FileOwner): future FileCompletion from static {
     return file_close_raw(move owner)
 }
 
+func filesystem_remove_file(path: &str): future FileCompletion from static {
+    return filesystem_remove_file_raw(path)
+}
+
+func filesystem_rename(
+    source: &str,
+    destination: &str,
+): future FileCompletion from static {
+    return filesystem_rename_raw(source, destination)
+}
+
+func filesystem_create_directory(path: &str): future FileCompletion from static {
+    return filesystem_create_directory_raw(path)
+}
+
+func filesystem_remove_directory(path: &str): future FileCompletion from static {
+    return filesystem_remove_directory_raw(path)
+}
+
 noalloc func file_completion_take_owner(
     completion: &+FileCompletion,
 ): FileOwner from static {

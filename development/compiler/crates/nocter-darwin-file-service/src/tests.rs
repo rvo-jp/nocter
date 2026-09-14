@@ -279,3 +279,60 @@ fn positioned_transfers_preserve_cursor_and_exact_progress() {
     service.shutdown().unwrap();
     assert_eq!(std::fs::read(path).unwrap(), b"aXYdefZ");
 }
+
+#[test]
+fn path_mutations_share_bounded_job_admission_without_resource_owners() {
+    let temporary = tempfile::tempdir().unwrap();
+    let directory = temporary.path().join("created");
+    let source = directory.join("source.txt");
+    let destination = directory.join("destination.txt");
+    let mut service = service();
+
+    let create = DarwinFileJob::create_directory(directory.clone());
+    assert_eq!(create.kind(), FileJobKind::CreateDirectory);
+    let create = service.submit(create).unwrap();
+    wait_for_job(&service, create);
+    let JobOutcome::Completed(DarwinFileOutcome::CreateDirectory(result)) =
+        service.consume(create).unwrap()
+    else {
+        panic!("create-directory job returned the wrong outcome")
+    };
+    result.unwrap();
+
+    std::fs::write(&source, b"owned input").unwrap();
+    let rename = DarwinFileJob::rename(source.clone(), destination.clone());
+    assert_eq!(rename.kind(), FileJobKind::Rename);
+    let rename = service.submit(rename).unwrap();
+    wait_for_job(&service, rename);
+    let JobOutcome::Completed(DarwinFileOutcome::Rename(result)) = service.consume(rename).unwrap()
+    else {
+        panic!("rename job returned the wrong outcome")
+    };
+    result.unwrap();
+    assert_eq!(std::fs::read(&destination).unwrap(), b"owned input");
+
+    let remove_file = DarwinFileJob::remove_file(destination);
+    assert_eq!(remove_file.kind(), FileJobKind::RemoveFile);
+    let remove_file = service.submit(remove_file).unwrap();
+    wait_for_job(&service, remove_file);
+    let JobOutcome::Completed(DarwinFileOutcome::RemoveFile(result)) =
+        service.consume(remove_file).unwrap()
+    else {
+        panic!("remove-file job returned the wrong outcome")
+    };
+    result.unwrap();
+
+    let remove_directory = DarwinFileJob::remove_directory(directory.clone());
+    assert_eq!(remove_directory.kind(), FileJobKind::RemoveDirectory);
+    let remove_directory = service.submit(remove_directory).unwrap();
+    wait_for_job(&service, remove_directory);
+    let JobOutcome::Completed(DarwinFileOutcome::RemoveDirectory(result)) =
+        service.consume(remove_directory).unwrap()
+    else {
+        panic!("remove-directory job returned the wrong outcome")
+    };
+    result.unwrap();
+    assert!(!directory.exists());
+
+    service.shutdown().unwrap();
+}

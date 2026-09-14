@@ -309,6 +309,10 @@ pub const fn bundled_primitive_source_location(
         Role::FileReadAt => (&["internal", "io"], "file_read_at_raw"),
         Role::FileWriteAt => (&["internal", "io"], "file_write_at_raw"),
         Role::FileClose => (&["internal", "io"], "file_close_raw"),
+        Role::FilesystemRemoveFile => (&["internal", "io"], "filesystem_remove_file_raw"),
+        Role::FilesystemRename => (&["internal", "io"], "filesystem_rename_raw"),
+        Role::FilesystemCreateDirectory => (&["internal", "io"], "filesystem_create_directory_raw"),
+        Role::FilesystemRemoveDirectory => (&["internal", "io"], "filesystem_remove_directory_raw"),
         Role::FileOwnerDispose => (&["internal", "io"], "file_owner_dispose_raw"),
         Role::FileCompletionTakeOwner => (&["internal", "io"], "file_completion_take_owner_raw"),
         Role::FileCompletionTransferredByteCount => (
