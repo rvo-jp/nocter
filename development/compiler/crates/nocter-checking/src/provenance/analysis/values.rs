@@ -335,7 +335,7 @@ impl Analyzer<'_> {
         let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
-        let mapped_type = call.execution().executed_result(result_type);
+        let mapped_type = call.execution().executed_result();
         let mut result = self.map_call_result(call, &evaluated, state, mapped_type)?;
         if call.execution().is_deferred() {
             let captures = Self::map_deferred_captures(&evaluated, state);

@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_declarations::ExportedEntity;
-use nocter_model::{
-    BorrowCapability, CallableCapability, CallableGuarantees, ParameterOrigin, Symbol,
-};
+use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin, Symbol};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree,
@@ -325,16 +323,8 @@ fn bind_callable(
         Some(Punctuation::ReadWrite) => CallableCapability::ReadWrite,
         _ => CallableCapability::Owned,
     };
-    let guarantees = if direct_node(tree, node, NodeKind::NoAllocationModifier).is_some() {
-        CallableGuarantees::no_allocation()
-    } else {
-        CallableGuarantees::default()
-    };
-    let guarantees = if direct_node(tree, node, NodeKind::BlockingModifier).is_some() {
-        guarantees.admit_blocking()
-    } else {
-        guarantees
-    };
+    let guarantees = crate::project_callable_guarantees(tree, node)
+        .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let parameters_node = direct_node(tree, node, NodeKind::CallableParameters)
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let mut parameters = Vec::new();

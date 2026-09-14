@@ -15,6 +15,7 @@ use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::PackageIdentity;
 
 mod authority_projection;
+mod callable_contract;
 mod contract;
 mod contract_diagnostic;
 mod current_projection;
@@ -55,6 +56,7 @@ mod visibility;
 mod test_support;
 
 pub use authority_projection::DeclarationAuthorityProjection;
+pub use callable_contract::project_callable_guarantees;
 pub use contract::{DeclarationContractError, DeclarationContracts, analyze_declaration_contracts};
 pub use contract_diagnostic::{DeclarationContractDiagnostic, DeclarationContractRule};
 pub use current_projection::{CurrentDeclarationProjection, CurrentProjectionError};

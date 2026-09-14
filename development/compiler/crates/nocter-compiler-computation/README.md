@@ -71,7 +71,7 @@ interpret editor requests.
 - Canonical body replay publishes one exact-current materialization. A relation-input projection
   narrows its fingerprint only by eliding scalar literal payloads; identifiers, operators, parsed
   body shape, interpolation expressions, and the complete declaration surface remain exact.
-- Provenance, effect, and loan analysis depend on that narrow structural projection. Finalization
+- Provenance, execution, and loan analysis depend on that narrow structural projection. Finalization
   depends independently on the exact-current materialization and joins reusable source-neutral
   relations with its current source projection. A literal edit can therefore reuse relation facts
   without reusing source positions, body text, or an earlier semantic authority.

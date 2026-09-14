@@ -355,20 +355,20 @@ fn contract_error(
 
 fn freeze(summaries: Summaries) -> Result<ExecutionFactTable, BodyRelationError> {
     let mut callables = ArenaBuilder::new();
-    for (expected, effect) in summaries.callables {
-        if callables.insert(effect) != expected {
+    for (expected, facts) in summaries.callables {
+        if callables.insert(facts) != expected {
             return Err(BodyCheckInternalError::ExecutionAnalysis.into());
         }
     }
     let mut closures = ArenaBuilder::new();
-    for (expected, effect) in summaries.closures {
-        if closures.insert(effect) != expected {
+    for (expected, facts) in summaries.closures {
+        if closures.insert(facts) != expected {
             return Err(BodyCheckInternalError::ExecutionAnalysis.into());
         }
     }
     let mut drops = ArenaBuilder::new();
-    for (expected, effect) in summaries.drops {
-        if drops.insert(effect) != expected {
+    for (expected, facts) in summaries.drops {
+        if drops.insert(facts) != expected {
             return Err(BodyCheckInternalError::ExecutionAnalysis.into());
         }
     }
@@ -832,12 +832,12 @@ impl<'program> Collector<'program> {
             }
             CleanupTarget::Region { parent, .. } => self.visit_node(*parent)?,
         }
-        for drop in action.effect().drops() {
+        for drop in action.dependencies().drops() {
             self.facts
                 .executions
                 .push((site, ExecutionTarget::Drop(*drop)));
         }
-        if action.effect().has_unknown_destruction() {
+        if action.dependencies().has_unknown_destruction() {
             self.facts.executions.push((
                 site,
                 ExecutionTarget::ExternalContract(CallableGuarantees::default()),

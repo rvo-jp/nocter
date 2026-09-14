@@ -18,7 +18,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<CheckedCallExecution, BodyCheckInternalError> {
         match declaration.execution() {
             nocter_declarations::CallableExecution::Immediate => {
-                Ok(CheckedCallExecution::Immediate)
+                Ok(CheckedCallExecution::Immediate { result })
             }
             nocter_declarations::CallableExecution::Deferred { .. } => {
                 let Some(TypeKind::Future(output)) = self.types.get(result) else {

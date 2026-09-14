@@ -7,19 +7,18 @@ use nocter_model::{BodyNodeId, TypeId};
 /// `future T` value after substitution.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CheckedCallExecution {
-    Immediate,
+    Immediate { result: TypeId },
     Deferred { output: TypeId },
 }
 
 impl CheckedCallExecution {
-    /// Returns the result produced in the execution scope selected for the call target.
-    ///
-    /// Immediate calls execute their target while producing `invocation_result`. Deferred calls
-    /// construct that outer result during invocation and produce `output` only when driven.
+    /// Returns the result produced in the execution scope selected for the call target. Deferred
+    /// calls construct their outer invocation result immediately and produce `output` only when
+    /// driven.
     #[must_use]
-    pub const fn executed_result(self, invocation_result: TypeId) -> TypeId {
+    pub const fn executed_result(self) -> TypeId {
         match self {
-            Self::Immediate => invocation_result,
+            Self::Immediate { result } => result,
             Self::Deferred { output } => output,
         }
     }
@@ -33,8 +32,9 @@ impl CheckedCallExecution {
         &mut self,
         semantics: &super::CheckedSemanticRebinder<'_>,
     ) -> Result<(), super::CheckedSemanticRebindError> {
-        if let Self::Deferred { output } = self {
-            *output = semantics.ty(*output)?;
+        match self {
+            Self::Immediate { result } => *result = semantics.ty(*result)?,
+            Self::Deferred { output } => *output = semantics.ty(*output)?,
         }
         Ok(())
     }

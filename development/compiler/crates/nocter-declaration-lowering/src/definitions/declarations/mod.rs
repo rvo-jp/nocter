@@ -6,7 +6,7 @@ use nocter_declarations::{
     InterfaceImplementationDeclaration, NominalShape, NominalTypeDeclaration,
     OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
-use nocter_model::{AssociatedTypeId, CallableGuarantees, CallableId, InterfaceId};
+use nocter_model::{AssociatedTypeId, CallableId, InterfaceId};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{ContextualSpelling, NodeKind, SyntaxOrigin, TokenKind};
 
@@ -161,21 +161,11 @@ fn define_drop(
 fn callable_guarantees(
     types: &PreparedTypes<'_>,
     declaration: SurfaceDeclarationId,
-) -> Result<CallableGuarantees, HeaderDefinitionError> {
+) -> Result<nocter_model::CallableGuarantees, HeaderDefinitionError> {
     let tree = projection::tree(types, declaration)?;
     let root = surface_node(types, declaration)?;
-    let guarantees = if syntax::direct_node(tree, root, NodeKind::NoAllocationModifier).is_some() {
-        CallableGuarantees::no_allocation()
-    } else {
-        CallableGuarantees::default()
-    };
-    Ok(
-        if syntax::direct_node(tree, root, NodeKind::BlockingModifier).is_some() {
-            guarantees.admit_blocking()
-        } else {
-            guarantees
-        },
-    )
+    crate::project_callable_guarantees(tree, root)
+        .ok_or(HeaderDefinitionError::InvalidSurface(declaration))
 }
 
 fn define_test(

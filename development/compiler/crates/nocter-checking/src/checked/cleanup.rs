@@ -110,17 +110,17 @@ pub enum CleanupTarget {
     },
 }
 
-/// Allocation-effect dependencies selected together with one checked cleanup action.
+/// Destruction dependencies selected together with one checked cleanup action.
 ///
-/// Ownership is the sole authority that decides whether and what a cleanup destroys. Effect
+/// Ownership is the sole authority that decides whether and what a cleanup destroys. Execution
 /// analysis consumes this frozen contract and never reconstructs a value's recursive shape.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CleanupEffect {
+pub(crate) struct CleanupDependencies {
     drops: Box<[DropId]>,
     unknown_destruction: bool,
 }
 
-impl CleanupEffect {
+impl CleanupDependencies {
     pub(crate) fn new(drops: impl Into<Box<[DropId]>>, unknown_destruction: bool) -> Self {
         Self {
             drops: drops.into(),
@@ -128,7 +128,7 @@ impl CleanupEffect {
         }
     }
 
-    pub(crate) fn allocation_free() -> Self {
+    pub(crate) fn none() -> Self {
         Self::new([], false)
     }
 
@@ -147,7 +147,7 @@ impl CleanupEffect {
 pub struct CleanupAction {
     target: CleanupTarget,
     condition: CleanupCondition,
-    effect: CleanupEffect,
+    dependencies: CleanupDependencies,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -197,12 +197,12 @@ impl CleanupAction {
     pub(crate) fn new(
         target: CleanupTarget,
         condition: CleanupCondition,
-        effect: CleanupEffect,
+        dependencies: CleanupDependencies,
     ) -> Self {
         Self {
             target,
             condition,
-            effect,
+            dependencies,
         }
     }
 
@@ -217,15 +217,15 @@ impl CleanupAction {
     }
 
     #[must_use]
-    pub(crate) const fn effect(&self) -> &CleanupEffect {
-        &self.effect
+    pub(crate) const fn dependencies(&self) -> &CleanupDependencies {
+        &self.dependencies
     }
 
     pub(crate) fn with_condition(&self, condition: CleanupCondition) -> Self {
         Self {
             target: self.target.clone(),
             condition,
-            effect: self.effect.clone(),
+            dependencies: self.dependencies.clone(),
         }
     }
 }

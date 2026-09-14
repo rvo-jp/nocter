@@ -24,7 +24,9 @@ that function an asynchronous body, and a later stage may not infer scheduling f
 
 `nocter-model` owns dependency-light structural callable guarantees. `nocter-declarations` owns a
 named declaration's resolved execution mode, result identities, and those guarantees. Declaration
-lowering is the only syntax-to-contract projection.
+lowering owns the only syntax-to-contract projection. Declaration headers, declaration-level
+structural callable types, and body-local callable types all use that fallible projection; an
+unrelated syntax node cannot acquire a default callable contract.
 
 An authored contract may be weakened through an explicit checked conversion. Inferred facts never
 strengthen it. Presentation reads the authored contract, so an implementation that happens not to
@@ -63,6 +65,11 @@ checked operations again:
 
 Each edge retains its checked source locator for diagnostics. The fixed-point solver consumes only
 roots, direct facts, and typed edges.
+
+A checked call freezes its execution-scope result with the temporal variant. An immediate call
+carries its result directly; a deferred call carries its body output while its containing checked
+node retains the distinct outer future produced during invocation. Relation consumers therefore
+cannot pair a temporal classification with an unrelated result identity.
 
 ## Product Boundary
 

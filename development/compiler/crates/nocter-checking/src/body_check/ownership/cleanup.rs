@@ -2,7 +2,7 @@ use nocter_declarations::{DeclarationGraph, NominalShape};
 use nocter_model::{BodyNodeId, BodyScopeId, PlaceId, TypeId, TypeKind};
 
 use super::super::error::BodyCheckInternalError;
-use crate::checked::CleanupEffect;
+use crate::checked::CleanupDependencies;
 use crate::copyability::{CopyProofs, Copyability};
 use crate::ownership::{
     InitializationState, MovePath, MoveProjection, OwnershipState, owned_body_roots,
@@ -14,7 +14,7 @@ use crate::{
     PlaceRoot,
 };
 
-use super::destruction_effect::DestructionEffectResolver;
+use super::destruction_dependencies::DestructionDependencyResolver;
 
 pub(super) struct CleanupPlanner<'program> {
     graph: &'program DeclarationGraph,
@@ -154,11 +154,11 @@ impl<'program> CleanupPlanner<'program> {
         if !self.needs_cleanup(ty)? {
             return Ok(None);
         }
-        let effect = self.destruction_effect(ty)?;
+        let dependencies = self.destruction_dependencies(ty)?;
         Ok(Some(CleanupAction::new(
             CleanupTarget::Value { node, ty },
             CleanupCondition::Always,
-            effect,
+            dependencies,
         )))
     }
 
@@ -172,7 +172,8 @@ impl<'program> CleanupPlanner<'program> {
             PatternRemainder::NoCleanup => Ok(None),
             PatternRemainder::Complete => self.value_action(subject, ty),
             PatternRemainder::Residual(payload) => {
-                let effect = self.enum_residual_effect(ty, pattern.variant(), payload)?;
+                let dependencies =
+                    self.enum_residual_dependencies(ty, pattern.variant(), payload)?;
                 Ok(Some(CleanupAction::new(
                     CleanupTarget::EnumResidual {
                         subject,
@@ -181,7 +182,7 @@ impl<'program> CleanupPlanner<'program> {
                         ty,
                     },
                     CleanupCondition::Always,
-                    effect,
+                    dependencies,
                 )))
             }
         }
@@ -198,7 +199,7 @@ impl<'program> CleanupPlanner<'program> {
         Ok(CleanupAction::new(
             CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
             CleanupCondition::Always,
-            self.destruction_effect(ty)?,
+            self.destruction_dependencies(ty)?,
         ))
     }
 
@@ -213,7 +214,7 @@ impl<'program> CleanupPlanner<'program> {
         Ok(Some(CleanupAction::new(
             CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
             CleanupCondition::Always,
-            self.destruction_effect(ty)?,
+            self.destruction_dependencies(ty)?,
         )))
     }
 
@@ -236,11 +237,11 @@ impl<'program> CleanupPlanner<'program> {
         if !self.needs_cleanup(ty)? {
             return Ok(None);
         }
-        let effect = self.destruction_effect(ty)?;
+        let dependencies = self.destruction_dependencies(ty)?;
         Ok(Some(CleanupAction::new(
             CleanupTarget::Place { place, ty },
             CleanupCondition::Always,
-            effect,
+            dependencies,
         )))
     }
 
@@ -274,8 +275,8 @@ impl<'program> CleanupPlanner<'program> {
             InitializationState::Uninitialized => return Ok(()),
         };
         let target = CleanupTarget::Path(self.checked_cleanup_path(path, ty)?);
-        let effect = self.destruction_effect(ty)?;
-        actions.push(CleanupAction::new(target, condition, effect));
+        let dependencies = self.destruction_dependencies(ty)?;
+        actions.push(CleanupAction::new(target, condition, dependencies));
         Ok(())
     }
 
@@ -317,8 +318,11 @@ impl<'program> CleanupPlanner<'program> {
             .map_err(BodyCheckInternalError::Copyability)
     }
 
-    fn destruction_effect(&mut self, ty: TypeId) -> Result<CleanupEffect, BodyCheckInternalError> {
-        DestructionEffectResolver::new(
+    fn destruction_dependencies(
+        &mut self,
+        ty: TypeId,
+    ) -> Result<CleanupDependencies, BodyCheckInternalError> {
+        DestructionDependencyResolver::new(
             self.graph,
             self.types,
             self.copyabilities,
@@ -330,13 +334,13 @@ impl<'program> CleanupPlanner<'program> {
         .resolve(ty)
     }
 
-    fn enum_residual_effect(
+    fn enum_residual_dependencies(
         &mut self,
         ty: TypeId,
         variant: nocter_model::VariantId,
         payload: &[nocter_model::ParameterId],
-    ) -> Result<CleanupEffect, BodyCheckInternalError> {
-        DestructionEffectResolver::new(
+    ) -> Result<CleanupDependencies, BodyCheckInternalError> {
+        DestructionDependencyResolver::new(
             self.graph,
             self.types,
             self.copyabilities,

@@ -9,11 +9,9 @@ one checking-owned relation authority. Its completion definition and phases live
 
 ## Next Work
 
-Complete v0.51.0 Phase 5 with a repository-wide residue and architecture review, complete compiler
-verification, generated documentation verification, and fresh installed-toolchain qualification.
-Close the milestone only if no duplicate execution authority, temporal-scope inference, stale
-effect product, or caller-correctness precondition remains. Do not add `realtime` syntax in this
-milestone.
+Prepare v0.51.0 for release. The Phase 5 implementation review is complete; create the v0.51.0
+release-identity commit, run fresh installed-toolchain qualification from that exact clean commit,
+and publish only if every release gate passes. Do not add `realtime` syntax in this milestone.
 
 Preserve the v0.50.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

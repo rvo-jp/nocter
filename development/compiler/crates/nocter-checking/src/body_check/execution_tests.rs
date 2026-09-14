@@ -45,7 +45,7 @@ fn direct_allocation_violates_noalloc() {
 }
 
 #[test]
-fn creating_a_deferred_computation_is_an_allocation_effect() {
+fn creating_a_deferred_computation_is_an_allocation_fact() {
     let error = check(
         "async func produce(): i32 { 1 }\n\
          noalloc func invalid(): (future i32)? { produce() }\n",
@@ -56,7 +56,7 @@ fn creating_a_deferred_computation_is_an_allocation_effect() {
 }
 
 #[test]
-fn allocation_effects_propagate_through_source_backed_calls() {
+fn allocation_facts_propagate_through_source_backed_calls() {
     let error = check(&format!(
         "{TEXT_DECLARATIONS}\nfunc allocate(): Text {{ return Text \"value\" }}\nnoalloc func invalid(): Text {{ return allocate() }}\n"
     ))
@@ -74,7 +74,7 @@ fn source_backed_unmarked_helpers_can_be_proven_allocation_free() {
 }
 
 #[test]
-fn blocking_effects_propagate_through_the_existing_call_graph() {
+fn synchronous_wait_facts_propagate_through_the_existing_call_graph() {
     let error = check_standard(
         "blocking primitive func wait_raw(): void\n\
          blocking func helper(): void { wait_raw() }\n\
@@ -182,7 +182,7 @@ fn allocating_recursive_group_is_independent_of_declaration_order() {
 }
 
 #[test]
-fn invoked_closure_effects_are_distinct_from_closure_creation() {
+fn invoked_closure_facts_are_distinct_from_closure_creation() {
     check(
         "noalloc func valid(value: i32): i32 {\n    let callback: noalloc func(i32): i32 = (item) { item + 1 }\n    return callback(value)\n}\n",
     )
@@ -196,7 +196,7 @@ fn invoked_closure_effects_are_distinct_from_closure_creation() {
 }
 
 #[test]
-fn implicit_destruction_participates_in_the_same_effect_graph() {
+fn implicit_destruction_participates_in_the_same_execution_graph() {
     let error = check(&format!(
         "{TEXT_DECLARATIONS}\nstruct Owned {{}}\ndrop Owned(&+self) {{ let _ = Text \"drop\"\n return }}\nnoalloc func invalid(): void {{\n    let value = Owned {{}}\n    return\n}}\n"
     ))
@@ -211,7 +211,7 @@ fn implicit_destruction_participates_in_the_same_effect_graph() {
 }
 
 #[test]
-fn concrete_generic_aggregate_uses_its_substituted_destruction_effect() {
+fn concrete_generic_aggregate_uses_its_substituted_destruction_dependencies() {
     check(
         "struct Owned {}\n\
          noalloc drop Owned(&+self) { return }\n\
@@ -222,7 +222,7 @@ fn concrete_generic_aggregate_uses_its_substituted_destruction_effect() {
 }
 
 #[test]
-fn opaque_cleanup_uses_its_selected_witness_destruction_effect() {
+fn opaque_cleanup_uses_its_selected_witness_destruction_dependencies() {
     check(
         "pub interface Show { pub method &self.show(): i32 }\n\
          struct Value {}\n\
@@ -307,7 +307,7 @@ fn opaque_cleanup_retains_an_allocating_witness_drop_edge() {
 }
 
 #[test]
-fn enum_residual_effect_excludes_the_transferred_payload() {
+fn enum_residual_dependencies_exclude_the_transferred_payload() {
     check(&format!(
         "{TEXT_DECLARATIONS}\n\
          struct Transferred {{}}\n\
@@ -326,7 +326,7 @@ fn enum_residual_effect_excludes_the_transferred_payload() {
 }
 
 #[test]
-fn compiler_selected_allocation_request_is_a_positive_effect_seed() {
+fn compiler_selected_allocation_request_is_a_positive_fact_seed() {
     let fixture = Fixture::with_standard(
         "",
         "pub func request(size: usize): usize { return size }\nnoalloc func invalid(): usize { return request(1) }\n",

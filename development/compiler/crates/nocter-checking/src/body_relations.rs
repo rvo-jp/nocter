@@ -56,8 +56,8 @@ impl<'program> BodyRelationInput<'program> {
 ///
 /// Construction proves the checked-body set covers the declaration graph exactly once and pairs
 /// every body with its declaration owner. Consumers receive O(1) `BodyId` lookup and cannot express
-/// independently ordered provenance, effect, or loan input sets. Source projection remains in the
-/// separate exact-current [`BodyRelationProjection`].
+/// independently ordered provenance, execution, or loan input sets. Source projection remains in
+/// the separate exact-current [`BodyRelationProjection`].
 pub(crate) struct BodyRelationCatalog<'program> {
     inputs: Arena<BodyId, BodyRelationInput<'program>>,
 }

@@ -3,17 +3,17 @@ use std::collections::{BTreeSet, HashSet};
 use nocter_declarations::{DeclarationGraph, NominalShape, ParameterOwner};
 use nocter_model::{ClosureId, DropId, OpaqueTypeId, ParameterId, TypeId, TypeKind, VariantId};
 
-use crate::checked::CleanupEffect;
+use crate::checked::CleanupDependencies;
 use crate::copyability::{CopyProofs, Copyability, CopyabilityTransaction};
 use crate::type_relations::TypeSubstitution;
 use crate::{BodyCheckInternalError, ClosureTable, DropTable, OpaqueWitnessTable};
 
-/// Resolves the allocation-effect contract of exactly the destruction selected by ownership.
+/// Resolves the exact destruction dependencies selected by ownership.
 ///
 /// This resolver runs while the body semantic transaction is still open, so substituted field,
 /// payload, and capture types become part of the same checked type generation. Consumers receive
-/// only [`CleanupEffect`]; they cannot reopen declaration shapes to derive a different answer.
-pub(super) struct DestructionEffectResolver<'program> {
+/// only [`CleanupDependencies`]; they cannot reopen declaration shapes to derive a different answer.
+pub(super) struct DestructionDependencyResolver<'program> {
     graph: &'program DeclarationGraph,
     types: &'program mut nocter_model::TypeTransaction,
     copyabilities: &'program mut CopyabilityTransaction,
@@ -23,7 +23,7 @@ pub(super) struct DestructionEffectResolver<'program> {
     copy_proofs: &'program CopyProofs,
 }
 
-impl<'program> DestructionEffectResolver<'program> {
+impl<'program> DestructionDependencyResolver<'program> {
     pub(super) fn new(
         graph: &'program DeclarationGraph,
         types: &'program mut nocter_model::TypeTransaction,
@@ -44,11 +44,14 @@ impl<'program> DestructionEffectResolver<'program> {
         }
     }
 
-    pub(super) fn resolve(&mut self, ty: TypeId) -> Result<CleanupEffect, BodyCheckInternalError> {
+    pub(super) fn resolve(
+        &mut self,
+        ty: TypeId,
+    ) -> Result<CleanupDependencies, BodyCheckInternalError> {
         let mut drops = BTreeSet::new();
         let mut unknown = false;
         self.visit_type(ty, &mut HashSet::new(), &mut drops, &mut unknown)?;
-        Ok(CleanupEffect::new(
+        Ok(CleanupDependencies::new(
             drops.into_iter().collect::<Vec<_>>(),
             unknown,
         ))
@@ -59,7 +62,7 @@ impl<'program> DestructionEffectResolver<'program> {
         ty: TypeId,
         variant: VariantId,
         payload: &[ParameterId],
-    ) -> Result<CleanupEffect, BodyCheckInternalError> {
+    ) -> Result<CleanupDependencies, BodyCheckInternalError> {
         let Some(TypeKind::Nominal {
             definition,
             arguments,
@@ -119,7 +122,7 @@ impl<'program> DestructionEffectResolver<'program> {
                 .map_err(|_| BodyCheckInternalError::CleanupPlanning)?;
             self.visit_type(field_ty, &mut active, &mut drops, &mut unknown)?;
         }
-        Ok(CleanupEffect::new(
+        Ok(CleanupDependencies::new(
             drops.into_iter().collect::<Vec<_>>(),
             unknown,
         ))

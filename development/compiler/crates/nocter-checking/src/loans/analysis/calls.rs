@@ -175,7 +175,7 @@ impl Analyzer<'_> {
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?
             .ty();
-        let mapped_type = call.execution().executed_result(result_type);
+        let mapped_type = call.execution().executed_result();
         let mut result = self.map_call_target(
             call,
             callable_value.as_ref(),

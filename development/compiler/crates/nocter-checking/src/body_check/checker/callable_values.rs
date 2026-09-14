@@ -87,7 +87,7 @@ impl BodyChecker<'_, '_> {
             result,
             CheckedOperation::Call(CheckedCall::new(
                 target,
-                CheckedCallExecution::Immediate,
+                CheckedCallExecution::Immediate { result },
                 None,
                 arguments,
                 None,

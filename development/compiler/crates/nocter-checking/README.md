@@ -26,7 +26,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
-- ownership, cleanup, execution facts, loans, provenance, regions, and destruction
+- ownership, cleanup dependencies, execution facts, loans, provenance, regions, and destruction
 - one exact-coverage body-relation catalog shared by provenance, execution, and loans
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
@@ -101,6 +101,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   and residual-payload selection. A positive `MayAllocate` fact reaches one least fixed point
   across callables, closures, and drop bodies; the execution pass has no type-store input and cannot
   reconstruct dispatch or destruction.
+- Every checked call execution variant carries the result produced in that execution scope.
+  Provenance and loans cannot pair a temporal classification with a separately recovered result
+  identity.
 - A source-backed `blocking` contract seeds `MayBlock` even when its current body happens not to
   wait. Callers consume the authored contract, so whole-program visibility cannot silently weaken
   a callable type or make asynchronous safety depend on the current implementation body.

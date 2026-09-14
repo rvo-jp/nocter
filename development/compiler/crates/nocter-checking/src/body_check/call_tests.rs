@@ -116,6 +116,12 @@ fn declaration_execution_depends_only_on_the_async_modifier() {
             _ => None,
         })
         .collect::<Vec<_>>();
+    let pending = output
+        .program()
+        .types()
+        .iter()
+        .find_map(|(ty, kind)| matches!(kind, TypeKind::Future(_)).then_some(ty))
+        .unwrap();
     assert_eq!(
         call_executions,
         [
@@ -125,8 +131,8 @@ fn declaration_execution_depends_only_on_the_async_modifier() {
                     .types()
                     .builtin(nocter_model::BuiltinType::I32),
             },
-            CheckedCallExecution::Immediate,
-            CheckedCallExecution::Immediate,
+            CheckedCallExecution::Immediate { result: pending },
+            CheckedCallExecution::Immediate { result: pending },
         ]
     );
 }

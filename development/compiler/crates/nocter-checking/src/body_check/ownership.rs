@@ -7,7 +7,7 @@ use nocter_model::{
 use nocter_source_index::SourceOrigin;
 
 mod cleanup;
-mod destruction_effect;
+mod destruction_dependencies;
 mod interpolation;
 mod outcomes;
 mod patterns;
@@ -1083,7 +1083,7 @@ impl OwnershipAnalyzer<'_> {
                 parent: region.parent,
             },
             CleanupCondition::Always,
-            crate::checked::CleanupEffect::allocation_free(),
+            crate::checked::CleanupDependencies::none(),
         ));
         Ok(actions)
     }

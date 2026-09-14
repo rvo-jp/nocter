@@ -443,17 +443,9 @@ impl BodyChecker<'_, '_> {
         } else {
             None
         };
-        let guarantees = if direct_node(self.tree(), node, NodeKind::NoAllocationModifier).is_some()
-        {
-            nocter_model::CallableGuarantees::no_allocation()
-        } else {
-            nocter_model::CallableGuarantees::default()
-        };
-        let guarantees = if direct_node(self.tree(), node, NodeKind::BlockingModifier).is_some() {
-            guarantees.admit_blocking()
-        } else {
-            guarantees
-        };
+        let guarantees =
+            nocter_declaration_lowering::project_callable_guarantees(self.tree(), node)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let contract = CallableContract::new(
             capability,
             guarantees,
