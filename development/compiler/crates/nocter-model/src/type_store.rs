@@ -158,11 +158,22 @@ pub enum NonblockingGuarantee {
     Unspecified,
 }
 
+/// Whether a callable contract promises an implementation available to compile-time evaluation.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum CompileTimeGuarantee {
+    /// The callable is available only through ordinary runtime invocation.
+    #[default]
+    RuntimeOnly,
+    /// The callable may also be invoked by the compile-time evaluator.
+    Evaluatable,
+}
+
 /// Source-level guarantees that participate in structural callable identity.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CallableGuarantees {
     allocation: AllocationGuarantee,
     nonblocking: NonblockingGuarantee,
+    compile_time: CompileTimeGuarantee,
 }
 
 impl CallableGuarantees {
@@ -171,7 +182,15 @@ impl CallableGuarantees {
         Self {
             allocation: AllocationGuarantee::NoAllocation,
             nonblocking: NonblockingGuarantee::Nonblocking,
+            compile_time: CompileTimeGuarantee::RuntimeOnly,
         }
+    }
+
+    /// Returns the same runtime guarantees with an authored compile-time-callable promise.
+    #[must_use]
+    pub const fn admit_compile_time_evaluation(mut self) -> Self {
+        self.compile_time = CompileTimeGuarantee::Evaluatable;
+        self
     }
 
     /// Returns the same guarantees while admitting synchronous external waiting.
@@ -189,6 +208,11 @@ impl CallableGuarantees {
     #[must_use]
     pub const fn nonblocking(self) -> NonblockingGuarantee {
         self.nonblocking
+    }
+
+    #[must_use]
+    pub const fn compile_time(self) -> CompileTimeGuarantee {
+        self.compile_time
     }
 
     /// Whether a value carrying these guarantees can be used through `expected`.
@@ -210,7 +234,13 @@ impl CallableGuarantees {
                 matches!(self.nonblocking, NonblockingGuarantee::Nonblocking)
             }
         };
-        allocation && nonblocking
+        let compile_time = match expected.compile_time {
+            CompileTimeGuarantee::RuntimeOnly => true,
+            CompileTimeGuarantee::Evaluatable => {
+                matches!(self.compile_time, CompileTimeGuarantee::Evaluatable)
+            }
+        };
+        allocation && nonblocking && compile_time
     }
 }
 
@@ -801,16 +831,31 @@ mod tests {
             ResultProvenance::empty(),
         )
         .unwrap();
+        let compile_time = CallableContract::new(
+            CallableCapability::Owned,
+            CallableGuarantees::default().admit_compile_time_evaluation(),
+            [],
+            None,
+            result,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
 
         let ordinary_id = types.intern(TypeKind::Callable(ordinary.clone())).unwrap();
         let noalloc_id = types.intern(TypeKind::Callable(noalloc.clone())).unwrap();
         let blocking_id = types.intern(TypeKind::Callable(blocking.clone())).unwrap();
+        let compile_time_id = types
+            .intern(TypeKind::Callable(compile_time.clone()))
+            .unwrap();
         assert_ne!(ordinary_id, noalloc_id);
         assert_ne!(ordinary_id, blocking_id);
+        assert_ne!(ordinary_id, compile_time_id);
         assert!(ordinary.can_weaken_to(&blocking));
         assert!(!blocking.can_weaken_to(&ordinary));
         assert!(noalloc.can_weaken_to(&ordinary));
         assert!(!ordinary.can_weaken_to(&noalloc));
+        assert!(compile_time.can_weaken_to(&ordinary));
+        assert!(!ordinary.can_weaken_to(&compile_time));
     }
 
     #[test]

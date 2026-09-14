@@ -422,6 +422,8 @@ fn repeated_checked_member_queries_are_semantically_identical() {
 #[test]
 fn callable_modifier_completion_follows_the_authored_modifier_order() {
     for (source_text, expected) in [
+        ("con", &["const"][..]),
+        ("const noa", &["noalloc"][..]),
         ("pub noa", &["noalloc"][..]),
         ("blo", &["blocking"][..]),
         ("noalloc blo", &["blocking"][..]),
@@ -728,6 +730,37 @@ fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
     assert_eq!(
         inferred.presentation().code(),
         "func inferred(value: i32): i32"
+    );
+}
+
+#[test]
+fn const_callable_hover_renders_the_authored_compile_time_capability() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "const func increment(value: i32): i32 { return value + 1 }\n",
+        "func main(): i32 { return increment(1) }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(62));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "const callable fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let call = source_text.rfind("increment").unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(call).unwrap()))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        subject.presentation().code(),
+        "const func increment(value: i32): i32"
     );
 }
 

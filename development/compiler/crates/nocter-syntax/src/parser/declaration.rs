@@ -106,6 +106,20 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Pub) {
         cursor = skip_visibility(parser, cursor);
     }
+    let compile_time_callable = parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Const)
+        && matches!(
+            parser.tokens[cursor + 1].kind(),
+            TokenKind::Keyword(
+                Keyword::NoAlloc
+                    | Keyword::Blocking
+                    | Keyword::Async
+                    | Keyword::Func
+                    | Keyword::Primitive
+            )
+        );
+    if compile_time_callable {
+        cursor += 1;
+    }
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
         cursor += 1;
     }
@@ -195,6 +209,7 @@ pub(super) fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {
 fn function(parser: &mut Parser<'_>, primitive: bool) {
     let marker = parser.start();
     optional_visibility(parser);
+    optional_const(parser);
     optional_noalloc(parser);
     optional_blocking(parser);
     optional_async(parser);
@@ -274,6 +289,14 @@ pub(super) fn optional_noalloc(parser: &mut Parser<'_>) {
         let modifier = parser.start();
         parser.bump();
         parser.complete(modifier, NodeKind::NoAllocationModifier);
+    }
+}
+
+pub(super) fn optional_const(parser: &mut Parser<'_>) {
+    if parser.at_keyword(Keyword::Const) {
+        let modifier = parser.start();
+        parser.bump();
+        parser.complete(modifier, NodeKind::CompileTimeModifier);
     }
 }
 

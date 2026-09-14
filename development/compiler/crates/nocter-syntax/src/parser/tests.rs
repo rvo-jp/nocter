@@ -456,6 +456,36 @@ fn parses_noalloc_as_a_structural_callable_modifier() {
 }
 
 #[test]
+fn parses_const_as_a_callable_capability_without_conflating_constant_declarations() {
+    let tree = assert_syntax_ok(
+        "const LIMIT: usize = 4\n\
+         pub const func increment(value: i32): i32 { return value + 1 }\n\
+         type Transform = const noalloc &func(i32): i32\n\
+         interface Value { pub const method &self.get(): i32\n\
+         pub const default method &self.cached(): i32 { return 1 } }\n\
+         construct Value { pub const func empty(): Self }\n\
+         instance Value { pub const method &self.value(): i32 }\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(count_node_kind(&tree, NodeKind::ConstantDeclaration), 1);
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::CompileTimeModifier)
+            .count(),
+        6
+    );
+
+    for source in [
+        "construct Value { const literal \"\"(text: &str): Self }\n",
+        "instance Value { const coerce &self as &str }\n",
+        "instance Value { const operator (&self == other: &Self): bool }\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
+    }
+}
+
+#[test]
 fn parses_async_on_functions_methods_and_construction_functions() {
     let tree = assert_syntax_ok(
         "async func fetch(): String! { return failure() }\n\

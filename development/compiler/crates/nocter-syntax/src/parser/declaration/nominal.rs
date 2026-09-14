@@ -1,6 +1,6 @@
 use super::{
-    Parser, block, optional_async, optional_blocking, optional_noalloc, optional_visibility,
-    requirements, skip_visibility, types,
+    Parser, block, optional_async, optional_blocking, optional_const, optional_noalloc,
+    optional_visibility, requirements, skip_visibility, types,
 };
 use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
@@ -78,6 +78,9 @@ fn interface_member(parser: &mut Parser<'_>) {
     if has_visibility {
         cursor = skip_visibility(parser, cursor);
     }
+    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Const) {
+        cursor += 1;
+    }
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
         cursor += 1;
     }
@@ -123,6 +126,7 @@ fn associated_type(parser: &mut Parser<'_>) {
 fn interface_method(parser: &mut Parser<'_>, is_default: bool) {
     let marker = parser.start();
     optional_visibility(parser);
+    optional_const(parser);
     optional_noalloc(parser);
     optional_blocking(parser);
     optional_async(parser);

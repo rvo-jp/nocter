@@ -1,5 +1,6 @@
 use super::{
-    Parser, block, callable_tail, optional_async, optional_blocking, optional_noalloc, root, types,
+    Parser, block, callable_tail, optional_async, optional_blocking, optional_const,
+    optional_noalloc, root, types,
 };
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, StringDelimiter, TokenKind};
 
@@ -15,6 +16,9 @@ fn member(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if parser.at_keyword(Keyword::Pub) {
         root::visibility(parser);
+    }
+    if at_const_function(parser) {
+        optional_const(parser);
     }
     optional_noalloc(parser);
     if parser.at_keyword(Keyword::Blocking)
@@ -41,6 +45,23 @@ fn member(parser: &mut Parser<'_>) {
         }
     };
     parser.complete(marker, kind);
+}
+
+fn at_const_function(parser: &Parser<'_>) -> bool {
+    if !parser.at_keyword(Keyword::Const) {
+        return false;
+    }
+    let mut offset = 1;
+    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::NoAlloc) {
+        offset += 1;
+    }
+    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Blocking) {
+        offset += 1;
+    }
+    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Async) {
+        offset += 1;
+    }
+    parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Func)
 }
 
 fn construction_function(parser: &mut Parser<'_>) {

@@ -67,6 +67,11 @@ pub(super) fn completions(
         completions.extend(
             [
                 (
+                    Keyword::Const.as_str(),
+                    "compile-time callable capability",
+                    modifiers.compile_time,
+                ),
+                (
                     Keyword::NoAlloc.as_str(),
                     "allocation-free callable guarantee",
                     modifiers.noalloc,
@@ -99,6 +104,7 @@ pub(super) fn completions(
 
 struct CallableModifierPrefix<'a> {
     prefix: &'a str,
+    compile_time: bool,
     noalloc: bool,
     blocking: bool,
     asynchronous: bool,
@@ -164,16 +170,25 @@ fn callable_modifier_prefix<'a>(
         .iter()
         .map(|word| Keyword::from_spelling(word))
         .collect::<Option<Vec<_>>>()?;
-    let (noalloc, blocking, asynchronous) = match modifiers.as_slice() {
-        [] => (true, true, true),
-        [Keyword::NoAlloc] => (false, true, false),
+    let (compile_time, noalloc, blocking, asynchronous) = match modifiers.as_slice() {
+        [] => (true, true, true, true),
+        [Keyword::Const] => (false, true, true, false),
+        [Keyword::NoAlloc] => (false, false, true, false),
+        [Keyword::Const, Keyword::NoAlloc] => (false, false, true, false),
         [Keyword::Blocking | Keyword::Async]
-        | [Keyword::NoAlloc, Keyword::Blocking | Keyword::Async] => (false, false, false),
+        | [Keyword::Const, Keyword::Blocking | Keyword::Async]
+        | [Keyword::NoAlloc, Keyword::Blocking | Keyword::Async]
+        | [
+            Keyword::Const,
+            Keyword::NoAlloc,
+            Keyword::Blocking | Keyword::Async,
+        ] => (false, false, false, false),
         _ => return None,
     };
     let asynchronous = asynchronous && container != Some(NodeKind::ConstructDeclaration);
     Some(CallableModifierPrefix {
         prefix,
+        compile_time,
         noalloc,
         blocking,
         asynchronous,

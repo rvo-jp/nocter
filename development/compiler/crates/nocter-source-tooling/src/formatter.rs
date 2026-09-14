@@ -600,6 +600,18 @@ mod tests {
     }
 
     #[test]
+    fn preserves_canonical_const_callable_modifier_placement() {
+        let formatted = format(
+            "pub const noalloc func apply(callback:const &func(i32):i32):i32 { return callback(1) }\ninstance Value { pub const method &self.value():i32 { return 1 } }\n",
+        );
+        assert_eq!(
+            formatted,
+            "pub const noalloc func apply(callback: const &func(i32): i32): i32 { return callback(1) }\n\ninstance Value { pub const method &self.value(): i32 { return 1 } }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn preserves_canonical_async_modifier_placement() {
         let formatted = format(
             "pub async func fetch():String! { return request() }\ninstance Client { pub async method &+self.send():Response! }\n",

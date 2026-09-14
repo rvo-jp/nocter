@@ -1342,6 +1342,9 @@ impl<'a> Renderer<'a> {
     }
 
     fn callable_guarantees(&mut self, guarantees: nocter_model::CallableGuarantees) {
+        if guarantees.compile_time() == nocter_model::CompileTimeGuarantee::Evaluatable {
+            self.keyword(Keyword::Const);
+        }
         if guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation {
             self.keyword(Keyword::NoAlloc);
         }

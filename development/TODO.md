@@ -10,10 +10,10 @@ query. The adopted design and remaining phases live in
 
 ## Next Work
 
-Implement v0.52.0 Phase 1 as one authored callable capability shared by declarations and structural
-callable contracts. Do not expose compile-time calls in public constant syntax until ordinary
-checking can project eligible checked bodies and the semantic dependency query owns their values.
-Do not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as part of this milestone.
+Implement v0.52.0 Phase 2 by defining a closed compile-time callable plan and projecting it
+exhaustively from ordinary checked bodies. Do not expose compile-time calls in public constant
+syntax until the semantic dependency query owns callable plans and values. Do not add `isolated`,
+`deterministic`, `pure`, or `realtime` syntax as part of this milestone.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
