@@ -10,11 +10,12 @@ adopted design and remaining phases live in
 
 ## Next Work
 
-Implement v0.52.0 Phase 3 by separating declared constant identities and types from evaluated
-values, then introduce the identity-keyed semantic dependency query described by the design. Do
-not expose compile-time calls in public constant syntax until that query owns callable plans and
-values. Do not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as part of this
-milestone.
+Continue v0.52.0 Phase 3 from the implemented dependency-query core. Move evaluated constants and
+statics out of declaration records into one value authority, replace checked constant payloads
+with stable identities, and expand the query key/value domain to array lengths, callable plans,
+and callable specializations. Do not expose compile-time calls in public constant syntax until
+that query owns callable plans and values. Do not add `isolated`, `deterministic`, `pure`, or
+`realtime` syntax as part of this milestone.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

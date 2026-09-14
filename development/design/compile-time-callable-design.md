@@ -101,6 +101,13 @@ Each query records its exact dependencies and has one owner. Re-entering an acti
 one dependency-cycle diagnostic containing the source-backed edge that closed the cycle. Completed
 values are immutable and reused; no caller may bypass the query and recompute a value directly.
 
+The query state machine has only absent, active, and completed states. A computation failure
+removes its active branch before returning and cannot publish a value. Plans freeze their semantic
+dependency edges when they are built; evaluation requests those edges through the query rather
+than rescanning plans to create a separate topological order. Short-circuit evaluation may skip an
+operation's value, but it does not erase the initializer's declared dependency edge or conceal a
+dependency cycle.
+
 The query boundary is semantic and compiler-internal. The workspace computation engine may cache a
 completed compilation product between editor revisions, but it does not become the authority for
 dependencies inside one semantic construction.

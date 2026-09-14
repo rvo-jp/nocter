@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::BuildHasher;
 
 use nocter_model::{CompilationTarget, ConstantId, ConstantValue, FrozenValue};
@@ -12,7 +12,8 @@ use crate::model::{
 };
 use crate::support::{integer_spec, shift};
 use crate::{
-    FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, TargetFloatEvaluator,
+    DependencyComputation, DependencyQuery, DependencyQueryError, FloatBinaryOperation, FloatBits,
+    FloatComparisonOperation, FloatFormat, TargetFloatEvaluator,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -75,7 +76,7 @@ pub fn evaluate_expression_plan(
 ) -> Result<ConstantValue, ConstantEvaluationError> {
     let mut evaluator = Evaluator {
         plan,
-        lookup: |id| Ok(lookup(id)),
+        lookup: |id, _| Ok(lookup(id)),
     };
     evaluator.evaluate(plan.root).map(|value| value.value)
 }
@@ -110,26 +111,87 @@ pub fn evaluate_frozen_expression_plan(
 pub fn evaluate_constant_plans<S: BuildHasher>(
     plans: &HashMap<ConstantId, ConstantExpressionPlan, S>,
 ) -> Result<HashMap<ConstantId, ConstantValue>, ConstantEvaluationError> {
-    let order = dependency_order(plans)?;
-    let mut values = HashMap::with_capacity(plans.len());
-    for id in order {
-        let plan = plans.get(&id).ok_or(ConstantEvaluationError {
-            rule: ConstantEvaluationRule::MissingConstant,
-            origin: fallback_origin(plans),
-        })?;
-        let mut evaluator = Evaluator {
-            plan,
-            lookup: |dependency| Ok(values.get(&dependency).cloned()),
-        };
-        let value = evaluator.evaluate(plan.root)?.value;
+    let mut computation = ConstantPlanComputation { plans };
+    let mut query = DependencyQuery::default();
+    let mut ids = plans.keys().copied().collect::<Vec<_>>();
+    ids.sort_unstable();
+    for id in &ids {
+        query
+            .resolve(&mut computation, *id)
+            .map_err(|error| match error {
+                DependencyQueryError::Cycle(_) => ConstantEvaluationError {
+                    rule: ConstantEvaluationRule::DependencyCycle,
+                    origin: fallback_origin(plans),
+                },
+                DependencyQueryError::Computation(error) => error,
+            })?;
+    }
+    let mut values = HashMap::with_capacity(ids.len());
+    for id in ids {
+        let value = query
+            .completed(&id)
+            .ok_or(ConstantEvaluationError {
+                rule: ConstantEvaluationRule::InvalidPlan,
+                origin: fallback_origin(plans),
+            })?
+            .clone();
         values.insert(id, value);
     }
     Ok(values)
 }
 
+struct ConstantPlanComputation<'plans, S> {
+    plans: &'plans HashMap<ConstantId, ConstantExpressionPlan, S>,
+}
+
+impl<S: BuildHasher> DependencyComputation<ConstantId, ConstantValue, ConstantEvaluationError>
+    for ConstantPlanComputation<'_, S>
+{
+    fn compute(
+        &mut self,
+        query: &mut DependencyQuery<ConstantId, ConstantValue>,
+        id: ConstantId,
+    ) -> Result<ConstantValue, DependencyQueryError<ConstantId, ConstantEvaluationError>> {
+        let plan = self.plans.get(&id).cloned().ok_or_else(|| {
+            DependencyQueryError::computation(ConstantEvaluationError {
+                rule: ConstantEvaluationRule::MissingConstant,
+                origin: fallback_origin(self.plans),
+            })
+        })?;
+        for &(dependency, origin) in plan.dependencies() {
+            if !self.plans.contains_key(&dependency) {
+                return Err(DependencyQueryError::computation(ConstantEvaluationError {
+                    rule: ConstantEvaluationRule::MissingConstant,
+                    origin,
+                }));
+            }
+            match query.resolve(self, dependency) {
+                Ok(_) => {}
+                Err(DependencyQueryError::Cycle(_)) => {
+                    return Err(DependencyQueryError::computation(ConstantEvaluationError {
+                        rule: ConstantEvaluationRule::DependencyCycle,
+                        origin,
+                    }));
+                }
+                Err(DependencyQueryError::Computation(error)) => {
+                    return Err(DependencyQueryError::Computation(error));
+                }
+            }
+        }
+        let mut evaluator = Evaluator {
+            plan: &plan,
+            lookup: |dependency, _| Ok(query.completed(&dependency).cloned()),
+        };
+        evaluator
+            .evaluate(plan.root)
+            .map(|value| value.value)
+            .map_err(DependencyQueryError::computation)
+    }
+}
+
 impl<L> Evaluator<'_, L>
 where
-    L: FnMut(ConstantId) -> Result<Option<ConstantValue>, ConstantEvaluationError>,
+    L: FnMut(ConstantId, SyntaxOrigin) -> Result<Option<ConstantValue>, ConstantEvaluationError>,
 {
     fn evaluate(&mut self, node: PlanNodeId) -> Result<TypedValue, ConstantEvaluationError> {
         let plan = self.plan;
@@ -141,7 +203,7 @@ where
             }
             ConstantOperation::IntegerLiteral(value) => integer_literal(&entry, value),
             ConstantOperation::Reference(id) => {
-                let value = (self.lookup)(id)?.ok_or(ConstantEvaluationError {
+                let value = (self.lookup)(id, entry.origin)?.ok_or(ConstantEvaluationError {
                     rule: ConstantEvaluationRule::MissingConstant,
                     origin: entry.origin,
                 })?;
@@ -509,58 +571,6 @@ fn bool_value(value: &TypedValue, origin: SyntaxOrigin) -> Result<bool, Constant
         return Err(invalid(origin));
     };
     Ok(*value)
-}
-
-fn dependency_order<S: BuildHasher>(
-    plans: &HashMap<ConstantId, ConstantExpressionPlan, S>,
-) -> Result<Vec<ConstantId>, ConstantEvaluationError> {
-    let mut active = HashSet::new();
-    let mut complete = HashSet::new();
-    let mut order = Vec::with_capacity(plans.len());
-    let mut ids = plans.keys().copied().collect::<Vec<_>>();
-    ids.sort_unstable();
-    for id in ids {
-        visit_dependencies(id, plans, &mut active, &mut complete, &mut order)?;
-    }
-    Ok(order)
-}
-
-fn visit_dependencies<S: BuildHasher>(
-    id: ConstantId,
-    plans: &HashMap<ConstantId, ConstantExpressionPlan, S>,
-    active: &mut HashSet<ConstantId>,
-    complete: &mut HashSet<ConstantId>,
-    order: &mut Vec<ConstantId>,
-) -> Result<(), ConstantEvaluationError> {
-    if complete.contains(&id) {
-        return Ok(());
-    }
-    let Some(plan) = plans.get(&id) else {
-        return Err(ConstantEvaluationError {
-            rule: ConstantEvaluationRule::MissingConstant,
-            origin: fallback_origin(plans),
-        });
-    };
-    active.insert(id);
-    for (dependency, origin) in plan.references() {
-        if !plans.contains_key(&dependency) {
-            return Err(ConstantEvaluationError {
-                rule: ConstantEvaluationRule::MissingConstant,
-                origin,
-            });
-        }
-        if active.contains(&dependency) {
-            return Err(ConstantEvaluationError {
-                rule: ConstantEvaluationRule::DependencyCycle,
-                origin,
-            });
-        }
-        visit_dependencies(dependency, plans, active, complete, order)?;
-    }
-    active.remove(&id);
-    complete.insert(id);
-    order.push(id);
-    Ok(())
 }
 
 fn fallback_origin<S: BuildHasher>(

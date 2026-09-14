@@ -11,6 +11,7 @@ mod floating;
 mod model;
 mod plan;
 mod program;
+mod query;
 mod support;
 #[cfg(test)]
 mod tests;
@@ -38,6 +39,7 @@ pub use model::{
 };
 pub use plan::{plan_expression, plan_frozen_expression};
 pub use program::{CompileTimePlanTable, InvalidCompileTimePlanTable};
+pub use query::{DependencyComputation, DependencyQuery, DependencyQueryError};
 
 /// Public constant-expression diagnostic family shared by header and body semantic adapters.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

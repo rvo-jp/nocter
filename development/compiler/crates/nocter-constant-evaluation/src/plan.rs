@@ -105,10 +105,20 @@ pub fn plan_expression<R: ConstantResolver>(
     };
     planner.analyze(expression, Some(expected))?;
     let root = planner.build(expression)?;
+    let dependencies = planner
+        .nodes
+        .iter()
+        .filter_map(|node| match node.operation {
+            ConstantOperation::Reference(id) => Some((id, node.origin)),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .into_boxed_slice();
     Ok(ConstantExpressionPlan {
         target,
         nodes: planner.nodes,
         root,
+        dependencies,
     })
 }
 

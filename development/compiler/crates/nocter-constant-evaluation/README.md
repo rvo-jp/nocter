@@ -24,3 +24,7 @@ runtime execution, name lookup, overload selection, or target code generation.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
 - Evaluation limits count semantic plan operations and source-call depth, never host instructions
   or elapsed time; all callers use the same nonzero limit contract.
+- One dependency query owns absent, active, and completed key states. It memoizes shared
+  dependencies, reports exact active cycles, and removes failed active branches before returning.
+- Constant plans freeze reference edges once during planning. Evaluation requests those edges
+  through the query and does not construct a separate dependency-order traversal.

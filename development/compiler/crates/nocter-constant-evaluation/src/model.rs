@@ -150,6 +150,7 @@ pub struct ConstantExpressionPlan {
     pub(crate) target: CompilationTarget,
     pub(crate) nodes: Vec<PlanNode>,
     pub(crate) root: PlanNodeId,
+    pub(crate) dependencies: Box<[(ConstantId, SyntaxOrigin)]>,
 }
 
 /// One syntax-independent plan for a recursively typed immutable static initializer.
@@ -173,11 +174,8 @@ impl FrozenExpressionPlan {
 }
 
 impl ConstantExpressionPlan {
-    pub(crate) fn references(&self) -> impl Iterator<Item = (ConstantId, SyntaxOrigin)> + '_ {
-        self.nodes.iter().filter_map(|node| match node.operation {
-            ConstantOperation::Reference(id) => Some((id, node.origin)),
-            _ => None,
-        })
+    pub(crate) const fn dependencies(&self) -> &[(ConstantId, SyntaxOrigin)] {
+        &self.dependencies
     }
 
     #[must_use]
