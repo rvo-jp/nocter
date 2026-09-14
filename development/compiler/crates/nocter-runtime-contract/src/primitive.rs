@@ -280,6 +280,8 @@ closed_role_enum! {
         FilesystemCreateSymlink,
         /// Constructs one generated symbolic-link target read computation.
         FilesystemReadLink,
+        /// Constructs one generated canonical-path computation.
+        FilesystemCanonicalize,
         /// Retires and clears one still-live generated local-file owner.
         FileOwnerDispose,
         /// Moves the returned owner out of one file completion and clears its source slot.
@@ -477,6 +479,7 @@ impl PrimitiveRole {
             Self::FilesystemSymlinkMetadata => "filesystem_symlink_metadata",
             Self::FilesystemCreateSymlink => "filesystem_create_symlink",
             Self::FilesystemReadLink => "filesystem_read_link",
+            Self::FilesystemCanonicalize => "filesystem_canonicalize",
             Self::FileOwnerDispose => "file_owner_dispose",
             Self::FileCompletionTakeOwner => "file_completion_take_owner",
             Self::FileCompletionTransferredByteCount => "file_completion_transferred_byte_count",
@@ -611,6 +614,7 @@ impl PrimitiveRole {
                     | Self::FilesystemSymlinkMetadata
                     | Self::FilesystemCreateSymlink
                     | Self::FilesystemReadLink
+                    | Self::FilesystemCanonicalize
             ),
             may_block: matches!(
                 self,
@@ -658,6 +662,7 @@ impl PrimitiveRole {
                     | Self::FilesystemSymlinkMetadata
                     | Self::FilesystemCreateSymlink
                     | Self::FilesystemReadLink
+                    | Self::FilesystemCanonicalize
             ),
         }
     }
@@ -698,6 +703,7 @@ impl PrimitiveRole {
                     | Self::FilesystemSymlinkMetadata
                     | Self::FilesystemCreateSymlink
                     | Self::FilesystemReadLink
+                    | Self::FilesystemCanonicalize
             ),
             process: matches!(
                 self,
@@ -728,6 +734,7 @@ impl PrimitiveRole {
                     | Self::FilesystemSymlinkMetadata
                     | Self::FilesystemCreateSymlink
                     | Self::FilesystemReadLink
+                    | Self::FilesystemCanonicalize
             ),
         }
     }
@@ -932,6 +939,7 @@ mod tests {
                 PrimitiveRole::FilesystemSymlinkMetadata,
                 PrimitiveRole::FilesystemCreateSymlink,
                 PrimitiveRole::FilesystemReadLink,
+                PrimitiveRole::FilesystemCanonicalize,
             ]
         );
     }
@@ -1001,6 +1009,7 @@ mod tests {
                 PrimitiveRole::FilesystemSymlinkMetadata,
                 PrimitiveRole::FilesystemCreateSymlink,
                 PrimitiveRole::FilesystemReadLink,
+                PrimitiveRole::FilesystemCanonicalize,
             ]
         );
     }
@@ -1045,6 +1054,7 @@ mod tests {
                 PrimitiveRole::FilesystemSymlinkMetadata,
                 PrimitiveRole::FilesystemCreateSymlink,
                 PrimitiveRole::FilesystemReadLink,
+                PrimitiveRole::FilesystemCanonicalize,
             ]
         );
 
@@ -1083,6 +1093,7 @@ mod tests {
                 PrimitiveRole::FilesystemSymlinkMetadata,
                 PrimitiveRole::FilesystemCreateSymlink,
                 PrimitiveRole::FilesystemReadLink,
+                PrimitiveRole::FilesystemCanonicalize,
             ]
         );
     }

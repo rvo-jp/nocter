@@ -11,6 +11,8 @@ see ./async_recursive_mutation.nct
 see ./async_mutation.nct
 see ./async_metadata.nct
 see ./links.nct
+see ./path_output.nct
+see ./canonicalization.nct
 see ./directory_mutation_tests.nct
 
 use /path.Utf8Path
@@ -129,6 +131,12 @@ pub async func read_link(path: &str): Utf8Path!
 
 /// Synchronously reads and validates the UTF-8 target stored in one symbolic link.
 pub blocking func read_link_blocking(path: &str): Utf8Path!
+
+/// Resolves an existing path to its absolute canonical UTF-8 spelling.
+pub async func canonicalize(path: &str): Utf8Path!
+
+/// Synchronously resolves an existing path to its absolute canonical UTF-8 spelling.
+pub blocking func canonicalize_blocking(path: &str): Utf8Path!
 
 /// Asynchronously opens one directory without sorting its entries.
 pub async func read_dir(path: &str): ReadDir!

@@ -101,7 +101,6 @@ pub(/) const SYS_SYMLINK: usize
 pub(/) const SYS_READLINK: usize
 
 /// Maximum number of bytes stored in one Darwin symbolic-link target.
-pub(/) const MAXIMUM_LINK_TARGET_SIZE: usize
 
 #target: "arm64-darwin"
 pub(/) const SYS_GETDIRENTRIES64: usize
@@ -177,6 +176,9 @@ pub(/) const SYS_FCNTL: usize
 
 #target: "arm64-darwin"
 pub(/) const F_GETPATH: usize
+
+#target: "arm64-darwin"
+pub(/) const O_EVENT_ONLY_CLOSE_ON_EXEC: usize
 
 #target: "arm64-darwin"
 pub(/) const F_GETFD: usize

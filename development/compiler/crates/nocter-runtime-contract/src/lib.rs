@@ -32,10 +32,10 @@ pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_event::DarwinEventAbiSchema;
 pub use darwin_file::{
-    DarwinFileAccess, DarwinFileFailure, DarwinFileFailureAbiSchema, DarwinFileFailureKind,
-    DarwinFileFailureObservation, DarwinFileMetadataKind, DarwinFileOperation,
-    DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin, DarwinFileServiceConfiguration,
-    DarwinFileWriteFact,
+    DarwinCanonicalPathAbi, DarwinFileAccess, DarwinFileFailure, DarwinFileFailureAbiSchema,
+    DarwinFileFailureKind, DarwinFileFailureObservation, DarwinFileMetadataKind,
+    DarwinFileOperation, DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin,
+    DarwinFileServiceConfiguration, DarwinFileWriteFact,
 };
 pub use darwin_file_import::DarwinFileServiceFunction;
 pub use darwin_file_job_abi::{

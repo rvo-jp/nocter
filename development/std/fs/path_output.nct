@@ -1,0 +1,27 @@
+//! Shared bounded storage for target-produced UTF-8 paths.
+
+see ./index.nct
+
+use /internal/os/darwin
+use /mem.RawBuffer
+use /mem
+use /path.Utf8Path
+
+struct PathOutputBuffer {
+    storage: RawBuffer
+}
+
+func new_path_output_buffer(): PathOutputBuffer! {
+    var allocator = mem.page_try_allocator()
+    let storage = allocator.try_alloc(darwin.MAX_PATH_LEN, 1)?
+    return PathOutputBuffer { storage: move storage }
+}
+
+func path_output_bytes_mut(buffer: &+PathOutputBuffer): &+[u8] {
+    return buffer.storage.bytes_mut()
+}
+
+func path_output_path(buffer: &PathOutputBuffer, len: usize): Utf8Path! {
+    let bytes = buffer.storage.prefix(len)?
+    return Utf8Path.from_utf8(bytes)?
+}

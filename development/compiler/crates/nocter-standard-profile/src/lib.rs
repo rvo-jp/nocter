@@ -319,6 +319,7 @@ pub const fn bundled_primitive_source_location(
         Role::FilesystemSymlinkMetadata => (&["internal", "io"], "filesystem_symlink_metadata_raw"),
         Role::FilesystemCreateSymlink => (&["internal", "io"], "filesystem_create_symlink_raw"),
         Role::FilesystemReadLink => (&["internal", "io"], "filesystem_read_link_raw"),
+        Role::FilesystemCanonicalize => (&["internal", "io"], "filesystem_canonicalize_raw"),
         Role::FileOwnerDispose => (&["internal", "io"], "file_owner_dispose_raw"),
         Role::FileCompletionTakeOwner => (&["internal", "io"], "file_completion_take_owner_raw"),
         Role::FileCompletionTransferredByteCount => (

@@ -579,7 +579,7 @@ fn copy_read_output(
         schema.offset(DarwinFileJobField::Operation),
     );
     let zero_offset = code.create_label();
-    let link_offset = code.create_label();
+    let path_output_offset = code.create_label();
     let copy = code.create_label();
     let done = code.create_label();
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::Read.code()));
@@ -593,13 +593,19 @@ fn copy_read_output(
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::ReadAt.code()));
     code.branch_conditional(zero_offset, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::ReadLink.code()));
-    code.branch_conditional(link_offset, Arm64BranchCondition::Equal);
+    code.branch_conditional(path_output_offset, Arm64BranchCondition::Equal);
+    compare_immediate(
+        code,
+        x(20),
+        u64::from(DarwinFileOperation::Canonicalize.code()),
+    );
+    code.branch_conditional(path_output_offset, Arm64BranchCondition::Equal);
     code.branch(done, false);
     code.bind(zero_offset)
         .expect("local consume label is valid");
     immediate(code, x(23), 0);
     code.branch(copy, false);
-    code.bind(link_offset)
+    code.bind(path_output_offset)
         .expect("local consume label is valid");
     load(
         code,

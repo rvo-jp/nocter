@@ -35,6 +35,7 @@ pub enum Arm64DarwinFilePrimitive {
     SymlinkMetadata,
     CreateSymlink,
     ReadLink,
+    Canonicalize,
     OwnerDispose,
     CompletionTakeOwner,
     CompletionTransferredByteCount,
@@ -96,6 +97,7 @@ impl Arm64DarwinFilePrimitive {
             PrimitiveRole::FilesystemSymlinkMetadata => Some(Self::SymlinkMetadata),
             PrimitiveRole::FilesystemCreateSymlink => Some(Self::CreateSymlink),
             PrimitiveRole::FilesystemReadLink => Some(Self::ReadLink),
+            PrimitiveRole::FilesystemCanonicalize => Some(Self::Canonicalize),
             PrimitiveRole::FileOwnerDispose => Some(Self::OwnerDispose),
             PrimitiveRole::FileCompletionTakeOwner => Some(Self::CompletionTakeOwner),
             PrimitiveRole::FileCompletionTransferredByteCount => {
@@ -134,6 +136,7 @@ impl Arm64DarwinFilePrimitive {
             Self::SymlinkMetadata => Some(DarwinFileOperation::SymlinkMetadata),
             Self::CreateSymlink => Some(DarwinFileOperation::CreateSymlink),
             Self::ReadLink => Some(DarwinFileOperation::ReadLink),
+            Self::Canonicalize => Some(DarwinFileOperation::Canonicalize),
             Self::Open(_)
             | Self::Seek(_)
             | Self::Close
@@ -175,7 +178,9 @@ impl Arm64DarwinFilePrimitive {
             | Self::CompletionFailureErrno => (&[1][..], 1),
             Self::Seek(_) | Self::Truncate => (&[1, 1][..], 1),
             Self::ReadAt | Self::WriteAt => (&[1, 2, 1][..], 1),
-            Self::Rename | Self::CreateSymlink | Self::ReadLink => (&[2, 2][..], 1),
+            Self::Rename | Self::CreateSymlink | Self::ReadLink | Self::Canonicalize => {
+                (&[2, 2][..], 1)
+            }
             Self::OwnerDispose | Self::CompletionDispose => (&[1][..], 0),
         };
         Arm64DarwinFileCallAbi {
@@ -350,7 +355,8 @@ impl Arm64DarwinFilePrimitiveTargets {
             | Arm64DarwinFilePrimitive::Metadata
             | Arm64DarwinFilePrimitive::SymlinkMetadata
             | Arm64DarwinFilePrimitive::CreateSymlink
-            | Arm64DarwinFilePrimitive::ReadLink => unreachable!("operation handled above"),
+            | Arm64DarwinFilePrimitive::ReadLink
+            | Arm64DarwinFilePrimitive::Canonicalize => unreachable!("operation handled above"),
             Arm64DarwinFilePrimitive::Open(_) | Arm64DarwinFilePrimitive::Seek(_) => {
                 unreachable!("semantic adapter handled above")
             }
@@ -622,6 +628,7 @@ mod tests {
             (Primitive::SymlinkMetadata, &[2][..], 1),
             (Primitive::CreateSymlink, &[2, 2][..], 1),
             (Primitive::ReadLink, &[2, 2][..], 1),
+            (Primitive::Canonicalize, &[2, 2][..], 1),
         ] {
             let abi = primitive.call_abi();
             assert_eq!(abi.argument_words(), arguments);

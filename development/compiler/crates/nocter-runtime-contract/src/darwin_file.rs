@@ -22,6 +22,17 @@ pub enum DarwinFileOperation {
     SymlinkMetadata,
     CreateSymlink,
     ReadLink,
+    Canonicalize,
+}
+
+/// Fixed output capacity required by Darwin canonical-path queries.
+///
+/// This is part of the admitted operation contract rather than a caller-selected transfer size:
+/// `F_GETPATH` requires one complete `MAXPATHLEN` buffer before target code may invoke it.
+pub struct DarwinCanonicalPathAbi;
+
+impl DarwinCanonicalPathAbi {
+    pub const OUTPUT_SIZE: usize = 1024;
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
@@ -111,6 +122,7 @@ impl DarwinFileOperation {
         Self::SymlinkMetadata,
         Self::CreateSymlink,
         Self::ReadLink,
+        Self::Canonicalize,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -134,6 +146,7 @@ impl DarwinFileOperation {
             Self::SymlinkMetadata => 14,
             Self::CreateSymlink => 15,
             Self::ReadLink => 16,
+            Self::Canonicalize => 17,
         }
     }
 
@@ -158,6 +171,7 @@ impl DarwinFileOperation {
             14 => Some(Self::SymlinkMetadata),
             15 => Some(Self::CreateSymlink),
             16 => Some(Self::ReadLink),
+            17 => Some(Self::Canonicalize),
             _ => None,
         }
     }

@@ -120,3 +120,4 @@ forcing consumers that use only its contract to change.
 - [v0.14.0 Grammar Closure Audit](v0.14.0-grammar-audit.md)
 - [v0.14.0 Boundary Inventory](v0.14.0-boundary-inventory.md)
 - [v0.14.0 Findings](v0.14.0-findings.md)
+- [v0.50.0 Phase 2 Canonicalization Review](v0.50.0-phase-2-canonicalization.md)

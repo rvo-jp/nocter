@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use nocter_blocking_runtime::{
@@ -9,7 +10,7 @@ use tempfile::NamedTempFile;
 
 use crate::{
     DarwinFileJob, DarwinFileOutcome, DarwinFileOwner, DarwinFileService, FileAccess,
-    FileCancellation, FileJobKind, FileMetadataKind, FilePosition,
+    FileCancellation, FileJobKind, FileMetadataKind, FileOperationError, FilePosition,
 };
 
 fn service() -> DarwinFileService {
@@ -18,6 +19,36 @@ fn service() -> DarwinFileService {
         RetirementCapacity::new(1, 4).unwrap(),
     )
     .unwrap()
+}
+
+fn assert_canonical_path(service: &DarwinFileService, source: &Path, link: &Path) {
+    let canonical = DarwinFileJob::canonicalize(link.to_path_buf(), 1024);
+    assert_eq!(canonical.kind(), FileJobKind::Canonicalize);
+    let canonical = service.submit(canonical).unwrap();
+    wait_for_job(service, canonical);
+    let JobOutcome::Completed(DarwinFileOutcome::Canonicalize(result)) =
+        service.consume(canonical).unwrap()
+    else {
+        panic!("canonicalize job returned the wrong outcome")
+    };
+    assert_eq!(
+        &*result.unwrap(),
+        std::fs::canonicalize(source)
+            .unwrap()
+            .as_os_str()
+            .as_encoded_bytes()
+    );
+
+    let undersized = service
+        .submit(DarwinFileJob::canonicalize(source.to_path_buf(), 1))
+        .unwrap();
+    wait_for_job(service, undersized);
+    let JobOutcome::Completed(DarwinFileOutcome::Canonicalize(result)) =
+        service.consume(undersized).unwrap()
+    else {
+        panic!("undersized canonicalize job returned the wrong outcome")
+    };
+    assert_eq!(result.unwrap_err(), FileOperationError::INVALID_PROGRESS);
 }
 
 #[test]
@@ -353,6 +384,7 @@ fn path_mutations_share_bounded_job_admission_without_resource_owners() {
         panic!("read-link job returned the wrong outcome")
     };
     assert_eq!(&*result.unwrap(), source.as_os_str().as_encoded_bytes());
+    assert_canonical_path(&service, &source, &link);
     let link_metadata = DarwinFileJob::symlink_metadata(link.clone());
     assert_eq!(link_metadata.kind(), FileJobKind::SymlinkMetadata);
     let link_metadata = service.submit(link_metadata).unwrap();

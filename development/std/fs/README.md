@@ -32,14 +32,15 @@ constructors accept a borrowed path without parallel `_path` functions. `Blockin
 the same operations synchronously. Both owner types close once when explicitly closed or dropped;
 later operations on an explicitly closed value fail with `std.io.closed`.
 
-The canonical `read`, `read_to_string`, `write`, `write_text`, `metadata`, `exists`, `remove_file`,
-`rename`, `create_dir`, `create_dir_all`, `remove_dir`, and `read_dir` functions are asynchronous. Whole-file transfer
-composes `File` with the executor-safe byte interfaces; path mutation transfers complete owned path
-bytes to the bounded file service. Metadata queries transfer the path and publish portable facts
-rather than a target `stat` record. Directory acquisition and record batches use the same bounded
-service and descriptor-retirement authority. Their `_blocking` twins use the explicit synchronous
-surface. Recursive traversal and removal remain open until their executor-safe contracts are
-complete. Pure `Metadata` and `DirEntry` inspection remains unqualified.
+The canonical `read`, `read_to_string`, `write`, `write_text`, `metadata`, `exists`, `canonicalize`,
+`remove_file`, `rename`, `create_dir`, `create_dir_all`, `remove_dir`, and `read_dir` functions are
+asynchronous. Whole-file transfer composes `File` with the executor-safe byte interfaces; path
+mutation transfers complete owned path bytes to the bounded file service. Metadata and canonical
+path queries transfer the path and publish portable values rather than target records. Directory
+acquisition and record batches use the same bounded service and descriptor-retirement authority.
+Their `_blocking` twins use the explicit synchronous surface. Recursive traversal and removal
+remain open until their executor-safe contracts are complete. Pure `Metadata` and `DirEntry`
+inspection remains unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -140,6 +141,12 @@ not resolve it against the link's parent or canonicalize `.` and `..`. Darwin ta
 not UTF-8 fail with `std.string.invalid_utf8` instead of undergoing a lossy conversion. The
 asynchronous worker reads into job-owned bounded storage and copies into caller storage only when
 the future is consumed.
+`canonicalize` and `canonicalize_blocking` instead require an existing target, follow symbolic
+links, resolve relative components, and return an absolute owning `Utf8Path`. The target opens the
+entry for event-only observation, obtains its canonical path into bounded job-owned storage, and
+closes the temporary descriptor before publishing success. A close failure is therefore not hidden
+behind a path value. A target path that is not valid UTF-8 fails with
+`std.string.invalid_utf8`; canonicalization does not perform a lossy conversion.
 `remove_file` and `remove_dir` remain distinct so source states whether it intends to remove a
 non-directory entry or an empty directory. Both asynchronous workers and blocking implementations
 attempt a mutating target call once: they do not blindly retry after an interruption whose

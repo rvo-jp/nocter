@@ -111,6 +111,12 @@ primitive func filesystem_read_link_raw(
 ): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func filesystem_canonicalize_raw(
+    path: &str,
+    destination: &+[u8],
+): future FileCompletion from static
+
+#target: "arm64-darwin"
 noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
 
 #target: "arm64-darwin"
@@ -244,6 +250,12 @@ pub(/) func filesystem_create_symlink(
 
 /// Constructs one generated symbolic-link target read computation.
 pub(/) func filesystem_read_link(
+    path: &str,
+    destination: &+[u8],
+): future FileCompletion from static
+
+/// Constructs one generated canonical-path computation.
+pub(/) func filesystem_canonicalize(
     path: &str,
     destination: &+[u8],
 ): future FileCompletion from static

@@ -1,12 +1,12 @@
 use nocter_runtime_contract::{
-    DarwinFileAccess, DarwinFileFailureKind, DarwinFileJobAbiSchema, DarwinFileJobField,
-    DarwinFileMetadataKind, DarwinFileOperation, DarwinFileRetirementAbiSchema,
+    DarwinCanonicalPathAbi, DarwinFileAccess, DarwinFileFailureKind, DarwinFileJobAbiSchema,
+    DarwinFileJobField, DarwinFileMetadataKind, DarwinFileOperation, DarwinFileRetirementAbiSchema,
     DarwinFileRetirementField, DarwinFileSeekOrigin,
 };
 
 use crate::darwin_file_job_code::{
-    abort, add_register, address, compare_immediate, compare_register, immediate, load,
-    move_register, store, x,
+    abort, add_immediate, add_register, address, compare_immediate, compare_register, immediate,
+    load, move_register, store, x,
 };
 use crate::darwin_kernel_abi::{DarwinErrorAbi, DarwinFileAbi, DarwinSystemCall, emit_system_call};
 use crate::{
@@ -40,7 +40,102 @@ pub(crate) fn execute_operation(
             execute_metadata(code, job, operation)
         }
         DarwinFileOperation::ReadLink => execute_read_link(code, job),
+        DarwinFileOperation::Canonicalize => execute_canonicalize(code, job),
     }
+}
+
+fn execute_canonicalize(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    load(
+        code,
+        x(21),
+        job,
+        schema.offset(DarwinFileJobField::OwnedByteLength),
+    );
+    load(
+        code,
+        x(22),
+        job,
+        schema.offset(DarwinFileJobField::SecondaryBytesOffset),
+    );
+    subtract_register(code, x(21), x(21), x(22));
+    let capacity_valid = code.create_label();
+    compare_immediate(code, x(21), DarwinCanonicalPathAbi::OUTPUT_SIZE as u64);
+    code.branch_conditional(capacity_valid, Arm64BranchCondition::CarrySet);
+    store_failure(code, job, DarwinFileFailureKind::InvalidProgress, 0);
+    let finished = code.create_label();
+    code.branch(finished, false);
+    code.bind(capacity_valid)?;
+
+    let retry_open = code.create_label();
+    code.bind(retry_open)?;
+    address(code, x(0), job, schema.owned_bytes_offset());
+    immediate(code, x(1), DarwinFileAbi::EVENT_ONLY_CLOSE_ON_EXEC);
+    immediate(code, x(2), 0);
+    emit_system_call(code, DarwinSystemCall::Open);
+    let opened = code.create_label();
+    code.branch_conditional(opened, Arm64BranchCondition::CarryClear);
+    retry_interrupted_or_store_target(code, job, retry_open);
+    code.branch(finished, false);
+    code.bind(opened)?;
+    move_register(code, x(23), x(0));
+
+    address(code, x(24), job, schema.owned_bytes_offset());
+    add_register(code, x(24), x(24), x(22), false);
+    let retry_get_path = code.create_label();
+    code.bind(retry_get_path)?;
+    move_register(code, x(0), x(23));
+    immediate(code, x(1), DarwinFileAbi::GET_PATH);
+    move_register(code, x(2), x(24));
+    emit_system_call(code, DarwinSystemCall::Fcntl);
+    let path_ready = code.create_label();
+    code.branch_conditional(path_ready, Arm64BranchCondition::CarryClear);
+    retry_interrupted_or_store_target(code, job, retry_get_path);
+    let close_preserving_failure = code.create_label();
+    code.branch(close_preserving_failure, false);
+
+    code.bind(path_ready)?;
+    immediate(code, x(25), 0);
+    let scan = code.create_label();
+    let path_complete = code.create_label();
+    let invalid_path = code.create_label();
+    code.bind(scan)?;
+    compare_immediate(code, x(25), DarwinCanonicalPathAbi::OUTPUT_SIZE as u64);
+    code.branch_conditional(invalid_path, Arm64BranchCondition::Equal);
+    add_register(code, x(9), x(24), x(25), false);
+    crate::address_code::load_native(code, crate::Arm64LoadStoreSize::Byte, None, x(8), x(9), 0);
+    compare_immediate(code, x(8), 0);
+    code.branch_conditional(path_complete, Arm64BranchCondition::Equal);
+    add_immediate(code, x(25), x(25), 1);
+    code.branch(scan, false);
+
+    code.bind(invalid_path)?;
+    store_failure(code, job, DarwinFileFailureKind::InvalidProgress, 0);
+    code.branch(close_preserving_failure, false);
+
+    code.bind(path_complete)?;
+    store(
+        code,
+        job,
+        schema.offset(DarwinFileJobField::TransferredByteCount),
+        x(25),
+    );
+    move_register(code, x(0), x(23));
+    emit_system_call(code, DarwinSystemCall::Close);
+    let close_succeeded = code.create_label();
+    code.branch_conditional(close_succeeded, Arm64BranchCondition::CarryClear);
+    store_target_failure(code, job);
+    code.bind(close_succeeded)?;
+    code.branch(finished, false);
+
+    code.bind(close_preserving_failure)?;
+    move_register(code, x(0), x(23));
+    emit_system_call(code, DarwinSystemCall::Close);
+    code.bind(finished)?;
+    Ok(())
 }
 
 fn execute_read_link(

@@ -2087,11 +2087,18 @@ fn standard_symbolic_link_targets_cross_the_complete_native_session() {
         r#"use std/fs
 
 async func main(): i32 {
-    await fs.symlink("target/../item", "link") catch _ { return 1 }
+    await fs.write_text("item", "value") catch _ { return 1 }
+    await fs.create_dir("target") catch _ { return 9 }
+    await fs.symlink("target/../item", "link") catch _ { return 2 }
     let target = await fs.read_link("link") catch _ { return 2 }
     let text: &str = &target
     if text != "target/../item" { return 3 }
+    let canonical = await fs.canonicalize("link") catch _ { return 5 }
+    let name = canonical.file_name() otherwise { return 6 }
+    if name != "item" { return 7 }
     await fs.remove_file("link") catch _ { return 4 }
+    await fs.remove_file("item") catch _ { return 8 }
+    await fs.remove_dir("target") catch _ { return 10 }
     return 0
 }
 "#,
@@ -2140,6 +2147,10 @@ blocking func main(): i32! {
     if file_name != "items.json" { return 5 }
     if stem != "items" { return 6 }
     if extension != "json" { return 7 }
+
+    let canonical = fs.canonicalize_blocking(&target)?
+    let canonical_name = canonical.file_name() otherwise { return 13 }
+    if canonical_name != "items.json" { return 14 }
 
     fs.remove_file_blocking(&target)?
     fs.remove_dir_blocking("workspace/cache")?

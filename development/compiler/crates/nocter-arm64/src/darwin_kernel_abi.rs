@@ -137,6 +137,8 @@ impl DarwinFileAbi {
     pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0601;
     pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0209;
     pub(crate) const DIRECTORY_ONLY: u64 = 0x0110_0000;
+    pub(crate) const EVENT_ONLY_CLOSE_ON_EXEC: u64 = 0x0100_8000;
+    pub(crate) const GET_PATH: u64 = 50;
     pub(crate) const CREATE_MODE: u64 = 0o666;
     pub(crate) const CREATE_DIRECTORY_MODE: u64 = 0o777;
     pub(crate) const STAT_BUFFER_SIZE: u64 = 144;

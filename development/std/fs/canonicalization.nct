@@ -1,4 +1,4 @@
-//! Symbolic-link target reading over one bounded UTF-8 buffer policy.
+//! Canonical path resolution through one shared bounded path-output policy.
 
 see ./index.nct
 see ./darwin.nct
@@ -8,17 +8,17 @@ use /internal/io
 use /path as path_module
 use /path.Utf8Path
 
-async func read_link(path: &str): Utf8Path! {
+async func canonicalize(path: &str): Utf8Path! {
     path_module.validate(path)?
     var buffer = new_path_output_buffer()?
-    let completion = await io.filesystem_read_link(path, path_output_bytes_mut(&+buffer))
+    let completion = await io.filesystem_canonicalize(path, path_output_bytes_mut(&+buffer))
     io.validate_file_completion(&completion)?
     let received = io.file_completion_transferred_byte_count(&completion)
     return path_output_path(&buffer, received)?
 }
 
-blocking func read_link_blocking(path: &str): Utf8Path! {
+blocking func canonicalize_blocking(path: &str): Utf8Path! {
     var buffer = new_path_output_buffer()?
-    let received = read_link_target(path, path_output_bytes_mut(&+buffer))?
+    let received = canonicalize_target(path, path_output_bytes_mut(&+buffer))?
     return path_output_path(&buffer, received)?
 }

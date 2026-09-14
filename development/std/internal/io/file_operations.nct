@@ -123,6 +123,13 @@ func filesystem_read_link(
     return filesystem_read_link_raw(path, destination)
 }
 
+func filesystem_canonicalize(
+    path: &str,
+    destination: &+[u8],
+): future FileCompletion from static {
+    return filesystem_canonicalize_raw(path, destination)
+}
+
 noalloc func file_completion_take_owner(
     completion: &+FileCompletion,
 ): FileOwner from static {

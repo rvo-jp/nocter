@@ -989,7 +989,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::FilesystemReadLink => make(
+        PrimitiveRole::FilesystemReadLink | PrimitiveRole::FilesystemCanonicalize => make(
             0,
             vec![str_ref(), readwrite_bytes()],
             TypeContract::asynchronous(file_completion()),

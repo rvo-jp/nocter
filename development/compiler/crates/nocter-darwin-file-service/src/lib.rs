@@ -18,9 +18,9 @@ use nocter_darwin_blocking_service::{
     ShutdownError,
 };
 pub use nocter_runtime_contract::{
-    DarwinFileAccess as FileAccess, DarwinFileFailure as FileOperationError,
-    DarwinFileMetadataKind as FileMetadataKind, DarwinFileOperation as FileJobKind,
-    DarwinFileSeekOrigin, DarwinFileWriteFact as FileWriteFact,
+    DarwinCanonicalPathAbi, DarwinFileAccess as FileAccess,
+    DarwinFileFailure as FileOperationError, DarwinFileMetadataKind as FileMetadataKind,
+    DarwinFileOperation as FileJobKind, DarwinFileSeekOrigin, DarwinFileWriteFact as FileWriteFact,
 };
 
 /// Target-neutral metadata facts returned by the host conformance service.
@@ -127,6 +127,10 @@ enum FileJobPayload {
         link: PathBuf,
     },
     ReadLink {
+        path: PathBuf,
+        maximum: usize,
+    },
+    Canonicalize {
         path: PathBuf,
         maximum: usize,
     },
@@ -279,6 +283,13 @@ impl DarwinFileJob {
         }
     }
 
+    #[must_use]
+    pub fn canonicalize(path: PathBuf, maximum: usize) -> Self {
+        Self {
+            payload: FileJobPayload::Canonicalize { path, maximum },
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
@@ -299,6 +310,7 @@ impl DarwinFileJob {
             FileJobPayload::SymlinkMetadata(_) => FileJobKind::SymlinkMetadata,
             FileJobPayload::CreateSymlink { .. } => FileJobKind::CreateSymlink,
             FileJobPayload::ReadLink { .. } => FileJobKind::ReadLink,
+            FileJobPayload::Canonicalize { .. } => FileJobKind::Canonicalize,
         }
     }
 }
@@ -342,6 +354,7 @@ pub enum DarwinFileOutcome {
     SymlinkMetadata(Result<FileMetadataFact, FileOperationError>),
     CreateSymlink(Result<(), FileOperationError>),
     ReadLink(Result<Box<[u8]>, FileOperationError>),
+    Canonicalize(Result<Box<[u8]>, FileOperationError>),
 }
 
 /// Cancellation result without exposing generic queue payloads to file policy.
@@ -607,16 +620,34 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
             std::os::unix::fs::symlink(target, link).map_err(|error| file_failure(&error)),
         ),
         FileJobPayload::ReadLink { path, maximum } => {
-            let result = std::fs::read_link(path)
-                .map_err(|error| file_failure(&error))
-                .map(|target| {
-                    let mut bytes =
-                        std::os::unix::ffi::OsStringExt::into_vec(target.into_os_string());
-                    bytes.truncate(maximum);
-                    bytes.into_boxed_slice()
-                });
-            DarwinFileOutcome::ReadLink(result)
+            DarwinFileOutcome::ReadLink(read_link_path(path, maximum))
         }
+        FileJobPayload::Canonicalize { path, maximum } => {
+            DarwinFileOutcome::Canonicalize(canonical_path(path, maximum))
+        }
+    }
+}
+
+fn read_link_path(path: PathBuf, maximum: usize) -> Result<Box<[u8]>, FileOperationError> {
+    std::fs::read_link(path)
+        .map_err(|error| file_failure(&error))
+        .map(|target| {
+            let mut bytes = std::os::unix::ffi::OsStringExt::into_vec(target.into_os_string());
+            bytes.truncate(maximum);
+            bytes.into_boxed_slice()
+        })
+}
+
+fn canonical_path(path: PathBuf, maximum: usize) -> Result<Box<[u8]>, FileOperationError> {
+    if maximum < DarwinCanonicalPathAbi::OUTPUT_SIZE {
+        return Err(FileOperationError::INVALID_PROGRESS);
+    }
+    let canonical = std::fs::canonicalize(path).map_err(|error| file_failure(&error))?;
+    let bytes = std::os::unix::ffi::OsStringExt::into_vec(canonical.into_os_string());
+    if bytes.len() > maximum {
+        Err(FileOperationError::INVALID_PROGRESS)
+    } else {
+        Ok(bytes.into_boxed_slice())
     }
 }
 

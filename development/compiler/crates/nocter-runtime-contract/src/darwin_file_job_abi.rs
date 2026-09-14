@@ -316,7 +316,7 @@ impl DarwinFileOperation {
                 Operand::None,
                 Result::Metadata,
             ),
-            Self::ReadLink => (
+            Self::ReadLink | Self::Canonicalize => (
                 Bytes::PathInputAndReadOutput,
                 Retirement::None,
                 Operand::None,
@@ -569,6 +569,13 @@ mod tests {
             ),
             (
                 DarwinFileOperation::ReadLink,
+                Bytes::PathInputAndReadOutput,
+                Retirement::None,
+                Operand::None,
+                Result::TransferredByteCount,
+            ),
+            (
+                DarwinFileOperation::Canonicalize,
                 Bytes::PathInputAndReadOutput,
                 Retirement::None,
                 Operand::None,

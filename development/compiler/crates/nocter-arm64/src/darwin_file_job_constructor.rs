@@ -190,7 +190,7 @@ fn stage_inputs(
             immediate(code, x(22), 0);
             immediate(code, x(28), 0);
         }
-        DarwinFileOperation::ReadLink => {
+        DarwinFileOperation::ReadLink | DarwinFileOperation::Canonicalize => {
             immediate(code, x(19), 0);
             move_register(code, x(21), x(0));
             move_register(code, x(27), x(1));
@@ -313,7 +313,7 @@ fn initialize_operands(
         | DarwinFileOperation::RemoveDirectory
         | DarwinFileOperation::Metadata
         | DarwinFileOperation::SymlinkMetadata => {}
-        DarwinFileOperation::ReadLink => {
+        DarwinFileOperation::ReadLink | DarwinFileOperation::Canonicalize => {
             store(
                 code,
                 job,
@@ -456,7 +456,8 @@ fn initialize_owned_bytes(
         | DarwinFileOperation::RemoveDirectory
         | DarwinFileOperation::Metadata
         | DarwinFileOperation::SymlinkMetadata
-        | DarwinFileOperation::ReadLink => {
+        | DarwinFileOperation::ReadLink
+        | DarwinFileOperation::Canonicalize => {
             copy_path(code, job, x(21), x(27), None, imports, schema);
         }
         DarwinFileOperation::Rename | DarwinFileOperation::CreateSymlink => {

@@ -476,6 +476,8 @@ primitive func filesystem_create_symlink_raw(target: &str, link: &str): future F
 #target: \"arm64-darwin\"
 primitive func filesystem_read_link_raw(path: &str, destination: &+[u8]): future FileCompletion from static
 #target: \"arm64-darwin\"
+primitive func filesystem_canonicalize_raw(path: &str, destination: &+[u8]): future FileCompletion from static
+#target: \"arm64-darwin\"
 noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_take_owner_raw(completion: &+FileCompletion): FileOwner from static
