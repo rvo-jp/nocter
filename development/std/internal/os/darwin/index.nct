@@ -96,6 +96,8 @@ pub(/) const SYS_STAT64: usize
 
 pub(/) const SYS_LSTAT64: usize
 
+pub(/) const SYS_SYMLINK: usize
+
 #target: "arm64-darwin"
 pub(/) const SYS_GETDIRENTRIES64: usize
 

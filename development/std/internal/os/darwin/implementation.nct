@@ -133,6 +133,8 @@ const SYS_STAT64: usize = 0x02000152
 
 const SYS_LSTAT64: usize = 0x02000154
 
+const SYS_SYMLINK: usize = 0x02000039
+
 #target: "arm64-darwin"
 const SYS_GETDIRENTRIES64: usize = 0x02000158
 

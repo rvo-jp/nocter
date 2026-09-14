@@ -33,6 +33,7 @@ pub enum Arm64DarwinFilePrimitive {
     RemoveDirectory,
     Metadata,
     SymlinkMetadata,
+    CreateSymlink,
     OwnerDispose,
     CompletionTakeOwner,
     CompletionTransferredByteCount,
@@ -92,6 +93,7 @@ impl Arm64DarwinFilePrimitive {
             PrimitiveRole::FilesystemRemoveDirectory => Some(Self::RemoveDirectory),
             PrimitiveRole::FilesystemMetadata => Some(Self::Metadata),
             PrimitiveRole::FilesystemSymlinkMetadata => Some(Self::SymlinkMetadata),
+            PrimitiveRole::FilesystemCreateSymlink => Some(Self::CreateSymlink),
             PrimitiveRole::FileOwnerDispose => Some(Self::OwnerDispose),
             PrimitiveRole::FileCompletionTakeOwner => Some(Self::CompletionTakeOwner),
             PrimitiveRole::FileCompletionTransferredByteCount => {
@@ -128,6 +130,7 @@ impl Arm64DarwinFilePrimitive {
             Self::RemoveDirectory => Some(DarwinFileOperation::RemoveDirectory),
             Self::Metadata => Some(DarwinFileOperation::Metadata),
             Self::SymlinkMetadata => Some(DarwinFileOperation::SymlinkMetadata),
+            Self::CreateSymlink => Some(DarwinFileOperation::CreateSymlink),
             Self::Open(_)
             | Self::Seek(_)
             | Self::Close
@@ -169,7 +172,7 @@ impl Arm64DarwinFilePrimitive {
             | Self::CompletionFailureErrno => (&[1][..], 1),
             Self::Seek(_) | Self::Truncate => (&[1, 1][..], 1),
             Self::ReadAt | Self::WriteAt => (&[1, 2, 1][..], 1),
-            Self::Rename => (&[2, 2][..], 1),
+            Self::Rename | Self::CreateSymlink => (&[2, 2][..], 1),
             Self::OwnerDispose | Self::CompletionDispose => (&[1][..], 0),
         };
         Arm64DarwinFileCallAbi {
@@ -342,7 +345,8 @@ impl Arm64DarwinFilePrimitiveTargets {
             | Arm64DarwinFilePrimitive::CreateDirectory
             | Arm64DarwinFilePrimitive::RemoveDirectory
             | Arm64DarwinFilePrimitive::Metadata
-            | Arm64DarwinFilePrimitive::SymlinkMetadata => unreachable!("operation handled above"),
+            | Arm64DarwinFilePrimitive::SymlinkMetadata
+            | Arm64DarwinFilePrimitive::CreateSymlink => unreachable!("operation handled above"),
             Arm64DarwinFilePrimitive::Open(_) | Arm64DarwinFilePrimitive::Seek(_) => {
                 unreachable!("semantic adapter handled above")
             }
@@ -612,6 +616,7 @@ mod tests {
             (Primitive::RemoveDirectory, &[2][..], 1),
             (Primitive::Metadata, &[2][..], 1),
             (Primitive::SymlinkMetadata, &[2][..], 1),
+            (Primitive::CreateSymlink, &[2, 2][..], 1),
         ] {
             let abi = primitive.call_abi();
             assert_eq!(abi.argument_words(), arguments);

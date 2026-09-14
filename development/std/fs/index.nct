@@ -117,6 +117,12 @@ pub async func symlink_metadata(path: &str): Metadata!
 /// Synchronously returns metadata without following the final symbolic link.
 pub blocking func symlink_metadata_blocking(path: &str): Metadata!
 
+/// Asynchronously creates one symbolic link containing the supplied target spelling.
+pub async func symlink(target: &str, link: &str): void!
+
+/// Synchronously creates one symbolic link containing the supplied target spelling.
+pub blocking func symlink_blocking(target: &str, link: &str): void!
+
 /// Asynchronously opens one directory without sorting its entries.
 pub async func read_dir(path: &str): ReadDir!
 

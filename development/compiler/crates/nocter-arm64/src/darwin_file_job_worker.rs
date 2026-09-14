@@ -33,6 +33,7 @@ pub(crate) fn execute_operation(
         DarwinFileOperation::WriteAt => execute_write(code, job, true, imports),
         DarwinFileOperation::RemoveFile
         | DarwinFileOperation::Rename
+        | DarwinFileOperation::CreateSymlink
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory => execute_path_mutation(code, job, operation),
         DarwinFileOperation::Metadata | DarwinFileOperation::SymlinkMetadata => {
@@ -559,6 +560,17 @@ fn execute_path_mutation(
             address(code, x(1), job, schema.owned_bytes_offset());
             add_register(code, x(1), x(1), x(8), false);
             emit_system_call(code, DarwinSystemCall::Rename);
+        }
+        DarwinFileOperation::CreateSymlink => {
+            load(
+                code,
+                x(8),
+                job,
+                schema.offset(DarwinFileJobField::SecondaryPathOffset),
+            );
+            address(code, x(1), job, schema.owned_bytes_offset());
+            add_register(code, x(1), x(1), x(8), false);
+            emit_system_call(code, DarwinSystemCall::Symlink);
         }
         DarwinFileOperation::CreateDirectory => {
             immediate(code, x(1), DarwinFileAbi::CREATE_DIRECTORY_MODE);

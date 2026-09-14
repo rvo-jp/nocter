@@ -2024,6 +2024,8 @@ async func inspect_directory(): i32! {
     var link_is_symlink = false
     if link_metadata.file_type() is FileType.symlink { link_is_symlink = true }
     if !link_is_symlink { return 47 }
+    await fs.symlink("regular.txt", "created-link")?
+    await fs.remove_file("created-link")?
     if !await open_fails_with("missing", "std.io.not_found") { return 8 }
     if !await open_fails_with("regular.txt", "std.io.not_directory") { return 9 }
 
@@ -2111,6 +2113,8 @@ blocking func main(): i32! {
     fs.remove_dir_blocking("workspace")?
 
     var dangling_rejected = false
+    fs.create_dir_blocking("dangling-root")?
+    fs.symlink_blocking("missing", "dangling-root/link")?
     fs.create_dir_all_blocking("dangling-root/link/child") catch failure {
         dangling_rejected = failure.has_code("std.io.not_directory")
     }
@@ -2129,6 +2133,8 @@ blocking func main(): i32! {
     fs.remove_file_blocking("dangling-root/link")?
     fs.remove_dir_blocking("dangling-root")?
 
+    fs.create_dir_blocking("real-root")?
+    fs.symlink_blocking("real-root", "linked-root")?
     fs.create_dir_all_blocking("linked-root/child")?
     fs.remove_dir_blocking("linked-root/child")?
     fs.remove_file_blocking("linked-root")?
@@ -2154,7 +2160,6 @@ blocking func main(): i32! {
 
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
-    prepare_path_directory_fixture(&package_root.0);
     execute_native_test(image.image(), &package_root.0, "public-path-directory");
 }
 
@@ -6149,16 +6154,6 @@ fn execute_subprocess_timeout_cancellation(image: &NativeImage, root: &Path) {
     assert!(absent, "cancelled subprocess {pid} remained observable");
 }
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn prepare_path_directory_fixture(root: &Path) {
-    use std::os::unix::fs::symlink;
-
-    fs::create_dir(root.join("dangling-root")).unwrap();
-    symlink("missing", root.join("dangling-root/link")).unwrap();
-    fs::create_dir(root.join("real-root")).unwrap();
-    symlink("real-root", root.join("linked-root")).unwrap();
-}
-
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_directory_stream(_image: &NativeImage, _root: &Path, _expected: i32) {}
 
@@ -6188,6 +6183,3 @@ fn execute_subprocess_lifecycle_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_timeout_cancellation(_image: &NativeImage, _root: &Path) {}
-
-#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-fn prepare_path_directory_fixture(_root: &Path) {}

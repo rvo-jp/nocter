@@ -131,6 +131,10 @@ one pure prefix-boundary scanner; target execution is the only divergent respons
 `remove_dir` removes exactly one empty directory. It is never recursive and never follows a final
 symbolic link as a directory. A nonempty directory fails with `std.io.directory_not_empty`.
 `remove_dir_blocking` is its synchronous twin.
+`symlink` creates one symbolic link asynchronously; `symlink_blocking` is its synchronous twin.
+The target spelling is stored exactly as supplied. It may be relative and need not resolve when the
+link is created. Both arguments must be valid target path strings, and an existing link spelling is
+reported as `std.io.already_exists` rather than replaced.
 `remove_file` and `remove_dir` remain distinct so source states whether it intends to remove a
 non-directory entry or an empty directory. Both asynchronous workers and blocking implementations
 attempt a mutating target call once: they do not blindly retry after an interruption whose

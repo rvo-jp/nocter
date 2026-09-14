@@ -99,6 +99,12 @@ primitive func filesystem_metadata_raw(path: &str): future FileCompletion from s
 primitive func filesystem_symlink_metadata_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func filesystem_create_symlink_raw(
+    target: &str,
+    link: &str,
+): future FileCompletion from static
+
+#target: "arm64-darwin"
 noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
 
 #target: "arm64-darwin"
@@ -223,6 +229,12 @@ pub(/) func filesystem_metadata(path: &str): future FileCompletion from static
 
 /// Constructs one generated metadata query that does not follow the final symbolic link.
 pub(/) func filesystem_symlink_metadata(path: &str): future FileCompletion from static
+
+/// Constructs one generated symbolic-link creation computation.
+pub(/) func filesystem_create_symlink(
+    target: &str,
+    link: &str,
+): future FileCompletion from static
 
 pub(/) noalloc func file_completion_take_owner(
     completion: &+FileCompletion,

@@ -122,6 +122,10 @@ enum FileJobPayload {
     RemoveDirectory(PathBuf),
     Metadata(PathBuf),
     SymlinkMetadata(PathBuf),
+    CreateSymlink {
+        target: PathBuf,
+        link: PathBuf,
+    },
 }
 
 /// One complete owned file-operation input.
@@ -257,6 +261,13 @@ impl DarwinFileJob {
         }
     }
 
+    #[must_use]
+    pub fn create_symlink(target: PathBuf, link: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::CreateSymlink { target, link },
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
@@ -275,6 +286,7 @@ impl DarwinFileJob {
             FileJobPayload::RemoveDirectory(_) => FileJobKind::RemoveDirectory,
             FileJobPayload::Metadata(_) => FileJobKind::Metadata,
             FileJobPayload::SymlinkMetadata(_) => FileJobKind::SymlinkMetadata,
+            FileJobPayload::CreateSymlink { .. } => FileJobKind::CreateSymlink,
         }
     }
 }
@@ -316,6 +328,7 @@ pub enum DarwinFileOutcome {
     RemoveDirectory(Result<(), FileOperationError>),
     Metadata(Result<FileMetadataFact, FileOperationError>),
     SymlinkMetadata(Result<FileMetadataFact, FileOperationError>),
+    CreateSymlink(Result<(), FileOperationError>),
 }
 
 /// Cancellation result without exposing generic queue payloads to file policy.
@@ -577,6 +590,9 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
             &path,
             MetadataQuery::InspectFinalLink,
         )),
+        FileJobPayload::CreateSymlink { target, link } => DarwinFileOutcome::CreateSymlink(
+            std::os::unix::fs::symlink(target, link).map_err(|error| file_failure(&error)),
+        ),
     }
 }
 

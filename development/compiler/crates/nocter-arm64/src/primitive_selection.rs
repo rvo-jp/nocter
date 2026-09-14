@@ -216,6 +216,7 @@ pub(crate) fn select(
         | PrimitiveRole::FilesystemRemoveDirectory
         | PrimitiveRole::FilesystemMetadata
         | PrimitiveRole::FilesystemSymlinkMetadata
+        | PrimitiveRole::FilesystemCreateSymlink
         | PrimitiveRole::FileOwnerDispose
         | PrimitiveRole::FileCompletionTakeOwner
         | PrimitiveRole::FileCompletionTransferredByteCount

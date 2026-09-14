@@ -9,7 +9,7 @@ phased authority replacement live in
 
 ## Next Work
 
-Continue v0.50.0 Phase 2 with link creation and target reading, canonicalization, identity-safe
+Continue v0.50.0 Phase 2 with link target reading, canonicalization, identity-safe
 bounded copy, recursive removal, and traversal. The completed ranges provide canonical
 asynchronous and explicit blocking twins for single-entry removal, rename,
 single-directory creation, empty-directory removal, metadata, and existence queries over
@@ -20,7 +20,8 @@ worker and only portable facts cross the completion ABI. Recursive directory con
 canonical asynchronous and explicit blocking forms over one pure prefix scanner. Final-entry link
 metadata now has canonical asynchronous and explicit blocking forms; both
 publish the same portable metadata facts while retaining follow-versus-inspect as a typed service
-operation. Preserve one path-validation authority, one portable error policy, bounded recursive
+operation. Symbolic-link creation likewise has canonical asynchronous and explicit blocking forms
+over one typed two-path job. Preserve one path-validation authority, one portable error policy, bounded recursive
 work, and typed target facts. Do not implement an asynchronous surface by calling a public
 blocking wrapper or by retaining caller storage in a worker.
 

@@ -301,7 +301,7 @@ impl DarwinFileOperation {
                 Operand::None,
                 Result::None,
             ),
-            Self::Rename => (
+            Self::Rename | Self::CreateSymlink => (
                 Bytes::TwoPathInputs,
                 Retirement::None,
                 Operand::None,
@@ -550,6 +550,13 @@ mod tests {
                 Retirement::None,
                 Operand::None,
                 Result::Metadata,
+            ),
+            (
+                DarwinFileOperation::CreateSymlink,
+                Bytes::TwoPathInputs,
+                Retirement::None,
+                Operand::None,
+                Result::None,
             ),
         ];
 

@@ -333,7 +333,16 @@ fn path_mutations_share_bounded_job_admission_without_resource_owners() {
     assert!(metadata.modified_nanoseconds < 1_000_000_000);
 
     let link = directory.join("source-link");
-    std::os::unix::fs::symlink(&source, &link).unwrap();
+    let create_link = DarwinFileJob::create_symlink(source.clone(), link.clone());
+    assert_eq!(create_link.kind(), FileJobKind::CreateSymlink);
+    let create_link = service.submit(create_link).unwrap();
+    wait_for_job(&service, create_link);
+    let JobOutcome::Completed(DarwinFileOutcome::CreateSymlink(result)) =
+        service.consume(create_link).unwrap()
+    else {
+        panic!("create-symlink job returned the wrong outcome")
+    };
+    result.unwrap();
     let link_metadata = DarwinFileJob::symlink_metadata(link.clone());
     assert_eq!(link_metadata.kind(), FileJobKind::SymlinkMetadata);
     let link_metadata = service.submit(link_metadata).unwrap();

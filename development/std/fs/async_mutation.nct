@@ -33,3 +33,11 @@ async func remove_dir(path: &str): void! {
     io.validate_file_completion(&completion)?
     return
 }
+
+async func symlink(target: &str, link: &str): void! {
+    path_module.validate(target)?
+    path_module.validate(link)?
+    let completion = await io.filesystem_create_symlink(target, link)
+    io.validate_file_completion(&completion)?
+    return
+}

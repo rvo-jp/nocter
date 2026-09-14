@@ -973,7 +973,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::FilesystemRename => make(
+        PrimitiveRole::FilesystemRename | PrimitiveRole::FilesystemCreateSymlink => make(
             0,
             vec![str_ref(), str_ref()],
             TypeContract::asynchronous(file_completion()),

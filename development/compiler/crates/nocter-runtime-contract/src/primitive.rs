@@ -276,6 +276,8 @@ closed_role_enum! {
         FilesystemMetadata,
         /// Constructs one generated local-filesystem metadata computation without following the final link.
         FilesystemSymlinkMetadata,
+        /// Constructs one generated symbolic-link creation computation.
+        FilesystemCreateSymlink,
         /// Retires and clears one still-live generated local-file owner.
         FileOwnerDispose,
         /// Moves the returned owner out of one file completion and clears its source slot.
@@ -471,6 +473,7 @@ impl PrimitiveRole {
             Self::FilesystemRemoveDirectory => "filesystem_remove_directory",
             Self::FilesystemMetadata => "filesystem_metadata",
             Self::FilesystemSymlinkMetadata => "filesystem_symlink_metadata",
+            Self::FilesystemCreateSymlink => "filesystem_create_symlink",
             Self::FileOwnerDispose => "file_owner_dispose",
             Self::FileCompletionTakeOwner => "file_completion_take_owner",
             Self::FileCompletionTransferredByteCount => "file_completion_transferred_byte_count",
@@ -603,6 +606,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRemoveDirectory
                     | Self::FilesystemMetadata
                     | Self::FilesystemSymlinkMetadata
+                    | Self::FilesystemCreateSymlink
             ),
             may_block: matches!(
                 self,
@@ -648,6 +652,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRemoveDirectory
                     | Self::FilesystemMetadata
                     | Self::FilesystemSymlinkMetadata
+                    | Self::FilesystemCreateSymlink
             ),
         }
     }
@@ -686,6 +691,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRemoveDirectory
                     | Self::FilesystemMetadata
                     | Self::FilesystemSymlinkMetadata
+                    | Self::FilesystemCreateSymlink
             ),
             process: matches!(
                 self,
@@ -714,6 +720,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRemoveDirectory
                     | Self::FilesystemMetadata
                     | Self::FilesystemSymlinkMetadata
+                    | Self::FilesystemCreateSymlink
             ),
         }
     }
@@ -916,6 +923,7 @@ mod tests {
                 PrimitiveRole::FilesystemRemoveDirectory,
                 PrimitiveRole::FilesystemMetadata,
                 PrimitiveRole::FilesystemSymlinkMetadata,
+                PrimitiveRole::FilesystemCreateSymlink,
             ]
         );
     }
@@ -983,6 +991,7 @@ mod tests {
                 PrimitiveRole::FilesystemRemoveDirectory,
                 PrimitiveRole::FilesystemMetadata,
                 PrimitiveRole::FilesystemSymlinkMetadata,
+                PrimitiveRole::FilesystemCreateSymlink,
             ]
         );
     }
@@ -1025,6 +1034,7 @@ mod tests {
                 PrimitiveRole::FilesystemRemoveDirectory,
                 PrimitiveRole::FilesystemMetadata,
                 PrimitiveRole::FilesystemSymlinkMetadata,
+                PrimitiveRole::FilesystemCreateSymlink,
             ]
         );
 
@@ -1061,6 +1071,7 @@ mod tests {
                 PrimitiveRole::FilesystemRemoveDirectory,
                 PrimitiveRole::FilesystemMetadata,
                 PrimitiveRole::FilesystemSymlinkMetadata,
+                PrimitiveRole::FilesystemCreateSymlink,
             ]
         );
     }
