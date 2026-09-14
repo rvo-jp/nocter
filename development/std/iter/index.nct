@@ -9,6 +9,8 @@ see ./mutable.nct
 see ./sources.nct
 see ./adapters.nct
 
+pub use /iter/asynchronous.AsyncIterator
+
 /// Lazily transforms items from an owning source iterator.
 pub struct MapIter<U, I, F>
 

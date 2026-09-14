@@ -30,3 +30,10 @@ their sum may exceed `usize`.
 Collection-owning terminals live in modules that depend on both the iterator and destination
 contracts. [`std/iter/collect`](collect/index.nct) consumes an Iterator into a Vec outside the core
 interface, avoiding a module cycle between iteration and Vec iteration.
+
+`AsyncIterator` is owned by the [`std/iter/asynchronous`](asynchronous/index.nct) child module and
+re-exported from `std/iter`. Its mutable `next` operation produces an executor-safe future whose
+output is `Item?!`: clean exhaustion, one yielded item, and a recoverable terminal step failure are
+distinct. The failure layer remains outside the optional layer so an unavailable item is not
+mistaken for a yielded failure value. `WalkDir` implements this exact contract. Until language-level
+`for await` consumption is introduced, callers drive it explicitly with `await source.next()?`.

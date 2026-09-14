@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{
-    CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
+    CallableExecution, CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
     StandardDeclaration, Visibility,
 };
 use nocter_model::{
@@ -14,6 +14,47 @@ use nocter_toolchain_contract::StandardDeclarationRole;
 mod interpolation;
 
 use interpolation::validate_interpolation_roles;
+
+#[derive(Clone, Copy)]
+enum IterationResultContract {
+    ImmediateOptional,
+    DeferredFallibleOptional,
+}
+
+#[derive(Clone, Copy)]
+struct IterationSemanticRoles {
+    interface: StandardDeclarationRole,
+    item: StandardDeclarationRole,
+    next: StandardDeclarationRole,
+    result: IterationResultContract,
+}
+
+impl IterationSemanticRoles {
+    const SYNCHRONOUS: Self = Self {
+        interface: StandardDeclarationRole::IteratorInterface,
+        item: StandardDeclarationRole::IteratorItem,
+        next: StandardDeclarationRole::IteratorNextMethod,
+        result: IterationResultContract::ImmediateOptional,
+    };
+
+    const ASYNCHRONOUS: Self = Self {
+        interface: StandardDeclarationRole::AsyncIteratorInterface,
+        item: StandardDeclarationRole::AsyncIteratorItem,
+        next: StandardDeclarationRole::AsyncIteratorNextMethod,
+        result: IterationResultContract::DeferredFallibleOptional,
+    };
+
+    const fn invalid(self) -> StandardSemanticError {
+        match self.result {
+            IterationResultContract::ImmediateOptional => {
+                StandardSemanticError::InvalidIteratorContract
+            }
+            IterationResultContract::DeferredFallibleOptional => {
+                StandardSemanticError::InvalidAsyncIteratorContract
+            }
+        }
+    }
+}
 
 /// Exact standard declarations selected by toolchain discovery and validated once for Phase 3.
 ///
@@ -106,7 +147,8 @@ impl StandardSemanticTable {
         if let Some(abort) = self.callable(StandardDeclarationRole::ProcessAbort) {
             validate_process_abort(graph, types, abort)?;
         }
-        self.validate_iteration_relationships(graph, types)?;
+        self.validate_iteration_relationships(graph, types, IterationSemanticRoles::SYNCHRONOUS)?;
+        self.validate_iteration_relationships(graph, types, IterationSemanticRoles::ASYNCHRONOUS)?;
         self.validate_exact_size_relationships(graph, types)
     }
 
@@ -114,29 +156,30 @@ impl StandardSemanticTable {
         &self,
         graph: &DeclarationGraph,
         types: &TypeStore,
+        roles: IterationSemanticRoles,
     ) -> Result<(), StandardSemanticError> {
-        let item = self.associated_type(StandardDeclarationRole::IteratorItem);
-        let next = self.callable(StandardDeclarationRole::IteratorNextMethod);
+        let item = self.associated_type(roles.item);
+        let next = self.callable(roles.next);
         if item.is_none() && next.is_none() {
             return Ok(());
         }
-        let interface = self
-            .interface(StandardDeclarationRole::IteratorInterface)
-            .ok_or(StandardSemanticError::MissingDependency {
-                role: if item.is_some() {
-                    StandardDeclarationRole::IteratorItem
-                } else {
-                    StandardDeclarationRole::IteratorNextMethod
-                },
-                dependency: StandardDeclarationRole::IteratorInterface,
-            })?;
+        let interface =
+            self.interface(roles.interface)
+                .ok_or(StandardSemanticError::MissingDependency {
+                    role: if item.is_some() {
+                        roles.item
+                    } else {
+                        roles.next
+                    },
+                    dependency: roles.interface,
+                })?;
         let item = item.ok_or(StandardSemanticError::MissingDependency {
-            role: StandardDeclarationRole::IteratorNextMethod,
-            dependency: StandardDeclarationRole::IteratorItem,
+            role: roles.next,
+            dependency: roles.item,
         })?;
-        validate_iterator_item(graph, interface, item)?;
+        validate_iterator_item(graph, interface, item, roles)?;
         if let Some(next) = next {
-            validate_iterator_next(graph, types, interface, item, next)?;
+            validate_iterator_next(graph, types, interface, item, next, roles)?;
         }
         Ok(())
     }
@@ -224,10 +267,11 @@ fn validate_role_domain(
         }
         StandardDeclarationRole::FormatInterface
         | StandardDeclarationRole::IteratorInterface
+        | StandardDeclarationRole::AsyncIteratorInterface
         | StandardDeclarationRole::ExactSizeIteratorInterface => {
             matches!(entity, StandardDeclaration::Interface(_))
         }
-        StandardDeclarationRole::IteratorItem => {
+        StandardDeclarationRole::IteratorItem | StandardDeclarationRole::AsyncIteratorItem => {
             matches!(entity, StandardDeclaration::AssociatedType(_))
         }
         StandardDeclarationRole::FormatMethod
@@ -235,6 +279,7 @@ fn validate_role_domain(
         | StandardDeclarationRole::InterpolationConstructor
         | StandardDeclarationRole::InterpolationTextAppender
         | StandardDeclarationRole::IteratorNextMethod
+        | StandardDeclarationRole::AsyncIteratorNextMethod
         | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod
         | StandardDeclarationRole::ProcessAbort => {
             matches!(entity, StandardDeclaration::Callable(_))
@@ -328,17 +373,19 @@ fn validate_iterator_item(
     graph: &DeclarationGraph,
     interface: InterfaceId,
     item: AssociatedTypeId,
+    roles: IterationSemanticRoles,
 ) -> Result<(), StandardSemanticError> {
+    let invalid = roles.invalid();
     let interface_declaration = graph
         .declarations()
         .interfaces()
         .get(interface)
-        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+        .ok_or(invalid)?;
     let item_declaration = graph
         .declarations()
         .associated_types()
         .get(item)
-        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+        .ok_or(invalid)?;
     if !interface_declaration.generic_parameters().is_empty()
         || !interface_declaration.associated_types().contains(&item)
         || item_declaration.interface() != interface
@@ -346,7 +393,7 @@ fn validate_iterator_item(
         || !is_public(graph, interface_declaration.site())
         || !is_public(graph, item_declaration.site())
     {
-        return Err(StandardSemanticError::InvalidIteratorContract);
+        return Err(invalid);
     }
     Ok(())
 }
@@ -357,28 +404,50 @@ fn validate_iterator_next(
     interface: InterfaceId,
     item: AssociatedTypeId,
     method: CallableId,
+    roles: IterationSemanticRoles,
 ) -> Result<(), StandardSemanticError> {
+    let invalid = roles.invalid();
     let interface_declaration = graph
         .declarations()
         .interfaces()
         .get(interface)
-        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+        .ok_or(invalid)?;
     let callable = graph
         .declarations()
         .callables()
         .get(method)
-        .ok_or(StandardSemanticError::InvalidIteratorContract)?;
+        .ok_or(invalid)?;
     let Some(receiver) = callable
         .receiver()
         .and_then(|id| graph.declarations().parameters().get(id))
     else {
-        return Err(StandardSemanticError::InvalidIteratorContract);
+        return Err(invalid);
     };
-    let Some(TypeKind::Optional(result)) = types.get(callable.result()) else {
-        return Err(StandardSemanticError::InvalidIteratorContract);
+    let result = match roles.result {
+        IterationResultContract::ImmediateOptional => {
+            let Some(TypeKind::Optional(result)) = types.get(callable.body_result()) else {
+                return Err(invalid);
+            };
+            if callable.execution() != CallableExecution::Immediate {
+                return Err(invalid);
+            }
+            *result
+        }
+        IterationResultContract::DeferredFallibleOptional => {
+            let Some(TypeKind::Fallible(optional)) = types.get(callable.body_result()) else {
+                return Err(invalid);
+            };
+            let Some(TypeKind::Optional(result)) = types.get(*optional) else {
+                return Err(invalid);
+            };
+            if !matches!(callable.execution(), CallableExecution::Deferred { .. }) {
+                return Err(invalid);
+            }
+            *result
+        }
     };
-    let Some(TypeKind::AssociatedProjection { base, associated }) = types.get(*result) else {
-        return Err(StandardSemanticError::InvalidIteratorContract);
+    let Some(TypeKind::AssociatedProjection { base, associated }) = types.get(result) else {
+        return Err(invalid);
     };
     if callable.kind() != CallableKind::Method
         || callable.owner() != CallableOwner::Interface(interface)
@@ -392,7 +461,7 @@ fn validate_iterator_next(
         || *associated != item
         || !is_public(graph, callable.site())
     {
-        return Err(StandardSemanticError::InvalidIteratorContract);
+        return Err(invalid);
     }
     Ok(())
 }
@@ -480,6 +549,7 @@ pub enum StandardSemanticError {
     InvalidFormatContract,
     InvalidInterpolationContract,
     InvalidIteratorContract,
+    InvalidAsyncIteratorContract,
     InvalidExactSizeIteratorContract,
     InvalidProcessAbortContract,
     InvalidNominalContract(StandardDeclarationRole),

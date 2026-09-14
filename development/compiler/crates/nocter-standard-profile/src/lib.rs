@@ -131,6 +131,19 @@ const fn bundled_standard_source_location(
         Role::IteratorInterface => (&["iter"], NodeKind::InterfaceDeclaration, "Iterator"),
         Role::IteratorItem => (&["iter"], NodeKind::AssociatedTypeDeclaration, "Item"),
         Role::IteratorNextMethod => (&["iter"], NodeKind::InterfaceMethod, "next"),
+        Role::AsyncIteratorInterface => (
+            &["iter", "asynchronous"],
+            NodeKind::InterfaceDeclaration,
+            "AsyncIterator",
+        ),
+        Role::AsyncIteratorItem => (
+            &["iter", "asynchronous"],
+            NodeKind::AssociatedTypeDeclaration,
+            "Item",
+        ),
+        Role::AsyncIteratorNextMethod => {
+            (&["iter", "asynchronous"], NodeKind::InterfaceMethod, "next")
+        }
         Role::ExactSizeIteratorInterface => (
             &["iter"],
             NodeKind::InterfaceDeclaration,

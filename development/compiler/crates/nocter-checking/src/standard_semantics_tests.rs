@@ -321,6 +321,66 @@ pub interface ExactSizeIterator {
 }
 
 #[test]
+fn exact_standard_async_iteration_contract_is_accepted() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+pub interface AsyncIterator {
+    pub type Item
+    pub async method &+self.next(): Self.Item?!
+}
+",
+    );
+    with_prepared_roles(&fixture, async_iteration_roles(&fixture), |prepared| {
+        let semantics = prepared.standard_semantics();
+        assert!(
+            semantics
+                .interface(StandardDeclarationRole::AsyncIteratorInterface)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .associated_type(StandardDeclarationRole::AsyncIteratorItem)
+                .is_some()
+        );
+        assert!(
+            semantics
+                .callable(StandardDeclarationRole::AsyncIteratorNextMethod)
+                .is_some()
+        );
+    })
+    .unwrap();
+}
+
+#[test]
+fn async_iteration_role_rejects_immediate_and_infallible_steps() {
+    for source in [
+        r"
+pub interface AsyncIterator {
+    pub type Item
+    pub method &+self.next(): Self.Item?!
+}
+",
+        r"
+pub interface AsyncIterator {
+    pub type Item
+    pub async method &+self.next(): Self.Item?
+}
+",
+    ] {
+        let fixture = Fixture::with_standard("", source);
+        let error =
+            with_prepared_roles(&fixture, async_iteration_roles(&fixture), |_| ()).unwrap_err();
+        assert!(matches!(
+            error,
+            PreparationError::StandardSemantics(
+                StandardSemanticError::InvalidAsyncIteratorContract
+            )
+        ));
+    }
+}
+
+#[test]
 fn near_miss_iteration_contracts_are_rejected_during_preparation() {
     let invalid_next = Fixture::with_standard(
         "",
@@ -404,6 +464,23 @@ fn iteration_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
         StandardRoleInput::new(
             StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "remaining_len"),
+        ),
+    ]
+}
+
+fn async_iteration_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
+    vec![
+        StandardRoleInput::new(
+            StandardDeclarationRole::AsyncIteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "AsyncIterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::AsyncIteratorItem,
+            fixture.standard_declaration_token(NodeKind::AssociatedTypeDeclaration, "Item"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::AsyncIteratorNextMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
         ),
     ]
 }

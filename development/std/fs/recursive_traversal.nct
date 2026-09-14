@@ -6,6 +6,7 @@ see ./recursive_policy.nct
 
 use /internal/io
 use /internal/ptr
+use /iter/asynchronous.AsyncIterator
 use /vec.Vec
 
 enum WalkDirState {

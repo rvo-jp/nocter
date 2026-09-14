@@ -1,0 +1,10 @@
+//! Executor-safe asynchronous item iteration.
+
+/// Advances an executor-safe asynchronous source with one recoverable step failure channel.
+pub interface AsyncIterator {
+    /// Value yielded by one successful asynchronous advance.
+    pub type Item
+
+    /// Asynchronously returns the next item, clean exhaustion, or a terminal step failure.
+    pub async method &+self.next(): Self.Item?!
+}

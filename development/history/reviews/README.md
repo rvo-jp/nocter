@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.50.0 Phase 3 Async-iterator Contract Review](v0.50.0-phase-3-async-iterator-contract.md)
 - [v0.50.0 Phase 2 Recursive-traversal Review](v0.50.0-phase-2-traversal.md)
 - [v0.50.0 Phase 2 Recursive-removal Review](v0.50.0-phase-2-recursive-removal.md)
 - [v0.50.0 Phase 2 Identity-safe Copy Review](v0.50.0-phase-2-copy.md)

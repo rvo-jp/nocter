@@ -19,6 +19,7 @@ see ./recursive_traversal.nct
 see ./directory_mutation_tests.nct
 see ./recursive_tests.nct
 
+use /iter/asynchronous.AsyncIterator
 use /path.Utf8Path
 use /string.String
 use /time.SystemTime
@@ -95,6 +96,8 @@ instance BlockingReadDir {
 }
 
 instance WalkDir {
+    impl AsyncIterator { .Item = DirEntry }
+
     /// Returns the next descendant, excluding the supplied root itself.
     pub async method &+self.next(): DirEntry?!
 
