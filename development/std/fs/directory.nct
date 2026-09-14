@@ -62,12 +62,22 @@ instance DirEntry {
     }
 
     method &self.file_type(): FileType {
-        return self.file_type
+        return directory_entry_file_type(self)
     }
 }
 
 noalloc func directory_entry_path(entry: &DirEntry): &str from entry {
     return &entry.path
+}
+
+noalloc func directory_entry_file_type(entry: &DirEntry): FileType {
+    return entry.file_type
+}
+
+noalloc func directory_entry_with_file_type(entry: DirEntry, file_type: FileType): DirEntry {
+    var result = move entry
+    result.file_type = file_type
+    return move result
 }
 
 instance ReadDir {

@@ -1,0 +1,69 @@
+//! Recursive filesystem policy and native contract tests.
+
+see ./index.nct
+see ./directory.nct
+see ./recursive_policy.nct
+
+use /testing
+
+blocking func directory_stream_rejects(path: &str): bool {
+    let _stream = read_dir_blocking(path) catch _ { return true }
+    return false
+}
+
+test recursive_depth_policy_has_one_closed_boundary {
+    require_recursive_directory_depth(255)?
+    let _ = require_recursive_directory_depth(256) catch failure {
+        if failure.has_code("std.fs.recursion_limit") { return }
+        return error.new("std.fs.test", "depth limit returned the wrong error")
+    }
+    return error.new("std.fs.test", "depth limit admitted an unsupported level")
+}
+
+test recursive_removal_and_traversal_never_follow_symbolic_links {
+    let root = ".nocter-v050-recursive-remove"
+    let outside = ".nocter-v050-recursive-outside"
+    create_dir_all_blocking(".nocter-v050-recursive-remove/first/second")?
+    write_text_blocking(".nocter-v050-recursive-remove/root.txt", "root")?
+    write_text_blocking(".nocter-v050-recursive-remove/first/second/leaf.txt", "leaf")?
+    create_dir_blocking(outside)?
+    write_text_blocking(".nocter-v050-recursive-outside/preserved.txt", "preserved")?
+    symlink_blocking("../.nocter-v050-recursive-outside", ".nocter-v050-recursive-remove/link")?
+
+    var walker = walk_dir_blocking(root)?
+    var walked: usize = 0
+    var found_leaf = false
+    var found_link = false
+    loop {
+        let entry: DirEntry = walker.next_blocking()? otherwise { break }
+        walked += 1
+        let entry_type = directory_entry_file_type(&entry)
+        if directory_entry_path(&entry) == ".nocter-v050-recursive-remove/first/second/leaf.txt" {
+            if entry_type is FileType.regular { found_leaf = true }
+        }
+        if directory_entry_path(&entry) == ".nocter-v050-recursive-remove/link" {
+            if entry_type is FileType.symlink { found_link = true }
+        }
+    }
+    testing.assert(walked == 5)?
+    testing.assert(found_leaf)?
+    testing.assert(found_link)?
+
+    remove_dir_all_blocking(root)?
+    testing.assert(!exists_blocking(root)?)?
+    testing.assert(exists_blocking(".nocter-v050-recursive-outside/preserved.txt")?)?
+
+    symlink_blocking(outside, ".nocter-v050-recursive-root-link")?
+    testing.assert(directory_stream_rejects(".nocter-v050-recursive-root-link"))?
+    var root_link_rejected = false
+    remove_dir_all_blocking(".nocter-v050-recursive-root-link") catch failure {
+        root_link_rejected = failure.has_code("std.io.not_directory")
+    }
+    testing.assert(root_link_rejected)?
+    testing.assert(exists_blocking(".nocter-v050-recursive-outside/preserved.txt")?)?
+
+    remove_file_blocking(".nocter-v050-recursive-root-link")?
+    remove_file_blocking(".nocter-v050-recursive-outside/preserved.txt")?
+    remove_dir_blocking(outside)?
+    return
+}

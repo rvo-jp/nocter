@@ -34,13 +34,12 @@ later operations on an explicitly closed value fail with `std.io.closed`.
 
 The canonical `read`, `read_to_string`, `write`, `write_text`, `copy`, `metadata`, `exists`,
 `canonicalize`, `remove_file`, `rename`, `create_dir`, `create_dir_all`, `remove_dir`,
-`remove_dir_all`, and `read_dir` functions are
+`remove_dir_all`, `read_dir`, and `walk_dir` functions are
 asynchronous. Whole-file transfer composes `File` with the executor-safe byte interfaces; path
 mutation transfers complete owned path bytes to the bounded file service. Metadata and canonical
 path queries transfer the path and publish portable values rather than target records. Directory
 acquisition and record batches use the same bounded service and descriptor-retirement authority.
-Their `_blocking` twins use the explicit synchronous surface. Recursive traversal and removal
-remain open until their executor-safe contracts are complete. Pure `Metadata` and `DirEntry`
+Their `_blocking` twins use the explicit synchronous surface. Pure `Metadata` and `DirEntry`
 inspection remains unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
@@ -105,6 +104,21 @@ skipped or lossily converted. `DirEntry.file_type` classifies the entry itself w
 symbolic link. Symbolic links therefore return `FileType.symlink`; an unknown or nonportable target
 kind returns `other`. The type is a directory-entry snapshot and callers must perform a later
 filesystem query when races matter.
+
+`walk_dir` opens a bounded depth-first traversal; `walk_dir_blocking` is its synchronous twin.
+The supplied root is not yielded. Every descendant is yielded before the next sibling after its
+directory, while siblings retain the target's unsorted order. Each yielded entry is reclassified
+with final-link metadata before it is returned. A symbolic link is yielded as `FileType.symlink`
+and is never followed, including when it points to a directory.
+
+`WalkDir` and `BlockingWalkDir` retain at most one owning directory stream per depth level and
+reject a depth greater than 256 with `std.fs.recursion_limit`; they do not retain every discovered
+entry. A step error terminates the traversal and releases every retained stream. During an
+asynchronous step, the complete traversal state belongs to that step's future. Cancelling it
+therefore releases the complete traversal and leaves the owner terminal instead of silently
+skipping an interrupted subtree. Explicit `close` is idempotent; asynchronous close retires every
+retained descriptor through the file service. Path lookup remains subject to ordinary filesystem
+races and is not a capability-secure sandbox.
 
 End of stream, explicit `close`, a step failure, and destruction each converge on the same
 close-once state. Asynchronous close passes through the file-service retirement authority;

@@ -5,11 +5,6 @@ see ./directory_prefix.nct
 
 use /testing
 
-blocking func directory_stream_rejects(path: &str): bool {
-    let _stream = read_dir_blocking(path) catch _ { return true }
-    return false
-}
-
 test directory_prefix_helpers_reject_invalid_boundaries {
     let _unexpected_end = next_directory_prefix_end("a", 2) otherwise {
         let _unexpected_prefix = directory_prefix("é", 1) otherwise { return }
@@ -81,34 +76,5 @@ test metadata_exposes_a_normalized_modification_instant {
     let text = modified.to_rfc3339()?
     testing.assert(text.len() >= 20)?
     remove_file_blocking(path)?
-    return
-}
-
-test recursive_removal_is_depth_first_and_never_follows_symbolic_links {
-    let root = ".nocter-v050-recursive-remove"
-    let outside = ".nocter-v050-recursive-outside"
-    create_dir_all_blocking(".nocter-v050-recursive-remove/first/second")?
-    write_text_blocking(".nocter-v050-recursive-remove/root.txt", "root")?
-    write_text_blocking(".nocter-v050-recursive-remove/first/second/leaf.txt", "leaf")?
-    create_dir_blocking(outside)?
-    write_text_blocking(".nocter-v050-recursive-outside/preserved.txt", "preserved")?
-    symlink_blocking("../.nocter-v050-recursive-outside", ".nocter-v050-recursive-remove/link")?
-
-    remove_dir_all_blocking(root)?
-    testing.assert(!exists_blocking(root)?)?
-    testing.assert(exists_blocking(".nocter-v050-recursive-outside/preserved.txt")?)?
-
-    symlink_blocking(outside, ".nocter-v050-recursive-root-link")?
-    testing.assert(directory_stream_rejects(".nocter-v050-recursive-root-link"))?
-    var root_link_rejected = false
-    remove_dir_all_blocking(".nocter-v050-recursive-root-link") catch failure {
-        root_link_rejected = failure.has_code("std.io.not_directory")
-    }
-    testing.assert(root_link_rejected)?
-    testing.assert(exists_blocking(".nocter-v050-recursive-outside/preserved.txt")?)?
-
-    remove_file_blocking(".nocter-v050-recursive-root-link")?
-    remove_file_blocking(".nocter-v050-recursive-outside/preserved.txt")?
-    remove_dir_blocking(outside)?
     return
 }

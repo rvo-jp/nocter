@@ -2,13 +2,12 @@
 
 see ./index.nct
 see ./directory.nct
+see ./recursive_policy.nct
 
 use /internal/io
 use /internal/os.OSErrorKind
 use /path.Utf8Path
 use /vec.Vec
-
-const RECURSIVE_DIRECTORY_DEPTH_LIMIT: usize = 256
 
 struct AsyncRemovalFrame {
     path: Utf8Path
@@ -18,16 +17,6 @@ struct AsyncRemovalFrame {
 struct BlockingRemovalFrame {
     path: Utf8Path
     stream: BlockingReadDir
-}
-
-noalloc func require_directory_depth(depth: usize): void! {
-    if depth >= RECURSIVE_DIRECTORY_DEPTH_LIMIT {
-        return error.new(
-            "std.fs.recursion_limit",
-            "recursive directory depth exceeds the supported limit",
-        )
-    }
-    return
 }
 
 async func remove_dir_all(path: &str): void! {
@@ -53,7 +42,7 @@ async func remove_dir_all(path: &str): void! {
         let entry_path = Utf8Path.new(directory_entry_path(&entry))?
         let entry_metadata = await symlink_metadata(&entry_path)?
         if entry_metadata.is_directory() {
-            require_directory_depth(frames.len())?
+            require_recursive_directory_depth(frames.len())?
             let child_stream = await read_dir(&entry_path)?
             frames.push(
                 AsyncRemovalFrame {
@@ -90,7 +79,7 @@ blocking func remove_dir_all_blocking(path: &str): void! {
         let entry_path = Utf8Path.new(directory_entry_path(&entry))?
         let entry_metadata = symlink_metadata_blocking(&entry_path)?
         if entry_metadata.is_directory() {
-            require_directory_depth(frames.len())?
+            require_recursive_directory_depth(frames.len())?
             let child_stream = read_dir_blocking(&entry_path)?
             frames.push(
                 BlockingRemovalFrame {

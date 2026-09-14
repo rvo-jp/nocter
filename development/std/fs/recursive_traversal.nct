@@ -1,0 +1,190 @@
+//! Bounded depth-first directory traversal over owning directory streams.
+
+see ./index.nct
+see ./directory.nct
+see ./recursive_policy.nct
+
+use /internal/io
+use /internal/ptr
+use /vec.Vec
+
+enum WalkDirState {
+    active(streams: Vec<ReadDir>)
+    finished
+    terminal
+}
+
+enum BlockingWalkDirState {
+    active(streams: Vec<BlockingReadDir>)
+    finished
+}
+
+struct WalkDir {
+    state: WalkDirState
+}
+
+struct BlockingWalkDir {
+    state: BlockingWalkDirState
+}
+
+instance WalkDir {
+    async method &+self.next(): DirEntry?! {
+        return await next_walk_entry(self)
+    }
+
+    async method &+self.close(): void! {
+        return await close_walk(self)
+    }
+}
+
+instance BlockingWalkDir {
+    blocking method &+self.next_blocking(): DirEntry?! {
+        return next_blocking_walk_entry(self)
+    }
+
+    method &+self.close(): void {
+        close_blocking_walk(self)
+        return
+    }
+}
+
+async func walk_dir(path: &str): WalkDir! {
+    let root = await read_dir(path)?
+    var streams: Vec<ReadDir> = Vec.empty()
+    streams.push(move root)
+    return WalkDir { state: WalkDirState.active(move streams) }
+}
+
+blocking func walk_dir_blocking(path: &str): BlockingWalkDir! {
+    let root = read_dir_blocking(path)?
+    var streams: Vec<BlockingReadDir> = Vec.empty()
+    streams.push(move root)
+    return BlockingWalkDir { state: BlockingWalkDirState.active(move streams) }
+}
+
+func finish_walk(walker: &+WalkDir): void {
+    walker.state = WalkDirState.finished
+    return
+}
+
+async func next_walk_entry(walker: &+WalkDir): DirEntry?! {
+    let previous = ptr.replace_value(&+walker.state, WalkDirState.terminal)
+    var streams = match move previous {
+        WalkDirState.active(streams) { move streams }
+        WalkDirState.finished {
+            finish_walk(walker)
+            return none
+        }
+        WalkDirState.terminal { return io.closed_stream_error() }
+    }
+
+    loop {
+        let stream = streams.pop() otherwise {
+            finish_walk(walker)
+            return none
+        }
+        var active = move stream
+        let entry: DirEntry = await active.next() catch failure {
+            finish_walk(walker)
+            return move failure
+        } otherwise {
+            continue
+        }
+        streams.push(move active)
+
+        let details = await symlink_metadata(directory_entry_path(&entry)) catch failure {
+            finish_walk(walker)
+            return move failure
+        }
+        let result = directory_entry_with_file_type(move entry, details.file_type())
+        if details.is_directory() {
+            require_recursive_directory_depth(streams.len()) catch failure {
+                finish_walk(walker)
+                return move failure
+            }
+            let child = await read_dir(directory_entry_path(&result)) catch failure {
+                finish_walk(walker)
+                return move failure
+            }
+            streams.push(move child)
+        }
+
+        walker.state = WalkDirState.active(move streams)
+        return move result
+    }
+}
+
+async func close_walk(walker: &+WalkDir): void! {
+    let previous = ptr.replace_value(&+walker.state, WalkDirState.terminal)
+    var streams = match move previous {
+        WalkDirState.active(streams) { move streams }
+        WalkDirState.finished {
+            finish_walk(walker)
+            return
+        }
+        WalkDirState.terminal {
+            finish_walk(walker)
+            return
+        }
+    }
+    loop {
+        let stream = streams.pop() otherwise {
+            finish_walk(walker)
+            return
+        }
+        var active = move stream
+        await active.close() catch failure {
+            finish_walk(walker)
+            return move failure
+        }
+    }
+}
+
+blocking func next_blocking_walk_entry(walker: &+BlockingWalkDir): DirEntry?! {
+    let previous = ptr.replace_value(&+walker.state, BlockingWalkDirState.finished)
+    var streams = match move previous {
+        BlockingWalkDirState.active(streams) { move streams }
+        BlockingWalkDirState.finished { return none }
+    }
+
+    loop {
+        let stream = streams.pop() otherwise { return none }
+        var active = move stream
+        let entry: DirEntry = active.next_blocking() catch failure {
+            return move failure
+        } otherwise {
+            continue
+        }
+        streams.push(move active)
+
+        let details = symlink_metadata_blocking(directory_entry_path(&entry)) catch failure {
+            return move failure
+        }
+        let result = directory_entry_with_file_type(move entry, details.file_type())
+        if details.is_directory() {
+            require_recursive_directory_depth(streams.len())?
+            let child = read_dir_blocking(directory_entry_path(&result))?
+            streams.push(move child)
+        }
+
+        walker.state = BlockingWalkDirState.active(move streams)
+        return move result
+    }
+}
+
+func close_blocking_walk(walker: &+BlockingWalkDir): void {
+    let previous = ptr.replace_value(&+walker.state, BlockingWalkDirState.finished)
+    let _ = move previous
+    return
+}
+
+drop WalkDir(&+self) {
+    let previous = ptr.replace_value(&+self.state, WalkDirState.terminal)
+    let _ = move previous
+    return
+}
+
+drop BlockingWalkDir(&+self) {
+    close_blocking_walk(self)
+    return
+}

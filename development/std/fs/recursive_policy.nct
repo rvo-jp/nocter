@@ -1,0 +1,13 @@
+//! Shared bounds for recursive filesystem state machines.
+
+const RECURSIVE_DIRECTORY_DEPTH_LIMIT: usize = 256
+
+noalloc func require_recursive_directory_depth(depth: usize): void! {
+    if depth >= RECURSIVE_DIRECTORY_DEPTH_LIMIT {
+        return error.new(
+            "std.fs.recursion_limit",
+            "recursive directory depth exceeds the supported limit",
+        )
+    }
+    return
+}

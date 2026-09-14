@@ -2124,6 +2124,15 @@ async func main(): i32 {
     if &preserved != "value" { return 17 }
     await fs.create_dir_all("recursive/first/second") catch _ { return 23 }
     await fs.write_text("recursive/first/second/leaf", "leaf") catch _ { return 24 }
+    var walker = await fs.walk_dir("recursive") catch _ { return 28 }
+    var walked: usize = 0
+    loop {
+        let entry = await walker.next() catch _ { return 29 } otherwise { break }
+        let _kind = entry.file_type()
+        let _ = move entry
+        walked += 1
+    }
+    if walked != 3 { return 30 }
     await fs.remove_dir_all("recursive") catch _ { return 25 }
     let recursive_exists = await fs.exists("recursive") catch _ { return 26 }
     if recursive_exists { return 27 }
@@ -2468,7 +2477,7 @@ fn standard_filesystem_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard filesystem tests failed native compilation")
     };
-    assert_eq!(cases.len(), 7);
+    assert_eq!(cases.len(), 8);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

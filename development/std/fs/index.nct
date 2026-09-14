@@ -13,8 +13,11 @@ see ./async_metadata.nct
 see ./links.nct
 see ./path_output.nct
 see ./canonicalization.nct
+see ./recursive_policy.nct
 see ./recursive_removal.nct
+see ./recursive_traversal.nct
 see ./directory_mutation_tests.nct
+see ./recursive_tests.nct
 
 use /path.Utf8Path
 use /string.String
@@ -40,6 +43,12 @@ pub struct ReadDir
 
 /// One explicitly synchronous fallible owning directory stream.
 pub struct BlockingReadDir
+
+/// One bounded executor-safe depth-first directory traversal.
+pub struct WalkDir
+
+/// One explicitly synchronous bounded depth-first directory traversal.
+pub struct BlockingWalkDir
 
 instance Metadata {
     /// Returns the portable entry classification.
@@ -82,6 +91,22 @@ instance BlockingReadDir {
     pub blocking method &+self.next_blocking(): DirEntry?!
 
     /// Closes the stream. Later `next_blocking` calls return `none`.
+    pub method &+self.close(): void
+}
+
+instance WalkDir {
+    /// Returns the next descendant, excluding the supplied root itself.
+    pub async method &+self.next(): DirEntry?!
+
+    /// Closes every retained directory stream through executor-safe retirement.
+    pub async method &+self.close(): void!
+}
+
+instance BlockingWalkDir {
+    /// Synchronously returns the next descendant, excluding the supplied root itself.
+    pub blocking method &+self.next_blocking(): DirEntry?!
+
+    /// Closes every retained directory stream.
     pub method &+self.close(): void
 }
 
@@ -150,6 +175,12 @@ pub async func read_dir(path: &str): ReadDir!
 
 /// Synchronously opens one directory without sorting its entries.
 pub blocking func read_dir_blocking(path: &str): BlockingReadDir!
+
+/// Opens one bounded depth-first traversal without following symbolic links.
+pub async func walk_dir(path: &str): WalkDir!
+
+/// Synchronously opens one bounded depth-first traversal without following symbolic links.
+pub blocking func walk_dir_blocking(path: &str): BlockingWalkDir!
 
 /// Asynchronously returns false only when the path is absent.
 pub async func exists(path: &str): bool!
