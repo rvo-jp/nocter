@@ -3,8 +3,8 @@
 mod public_examples;
 
 pub use public_examples::{
-    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture, PublicExampleRun,
-    PublicPackageExample,
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture,
+    PublicExamplePostcondition, PublicExampleRun, PublicPackageExample,
 };
 
 /// Returns the release identity from the repository's sole authored packaging input.

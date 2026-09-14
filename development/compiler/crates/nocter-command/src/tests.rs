@@ -19,8 +19,8 @@ use nocter_package_state::{
 use nocter_session::{ExecutableCompileRequest, ExecutableSelector};
 use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_test_support::{
-    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture, PublicPackageExample,
-    repository_release_version,
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture,
+    PublicExamplePostcondition, PublicPackageExample, repository_release_version,
 };
 
 use super::artifact::persist_bytes;
@@ -1200,7 +1200,41 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
             run.name()
         );
     }
+    assert_public_example_postconditions(&output_directory, contract.postconditions());
     fs::remove_dir_all(output_directory).unwrap();
+}
+
+fn assert_public_example_postconditions(
+    root: &Path,
+    postconditions: &[PublicExamplePostcondition],
+) {
+    for postcondition in postconditions {
+        match postcondition {
+            PublicExamplePostcondition::File { path, contents } => {
+                let source = fixture_destination(root, path);
+                let actual = fs::read(&source).unwrap_or_else(|error| {
+                    panic!(
+                        "failed to read expected example output {}: {error}",
+                        source.display()
+                    )
+                });
+                assert_eq!(
+                    &actual,
+                    contents,
+                    "unexpected example output at {}",
+                    source.display()
+                );
+            }
+            PublicExamplePostcondition::Absent { path } => {
+                let source = fixture_destination(root, path);
+                assert!(
+                    !source.exists(),
+                    "unexpected example output at {}",
+                    source.display()
+                );
+            }
+        }
+    }
 }
 
 fn materialize_public_example_fixtures(root: &Path, fixtures: &[PublicExampleFixture]) {

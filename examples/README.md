@@ -122,6 +122,18 @@ nocter run examples/url-inspect.nct
 
 ## Package Examples
 
+[async-file-report/index.nct](async-file-report/index.nct) recursively discovers regular files,
+counts their bytes through bounded asynchronous chunks, and writes a deterministic summary through
+a buffered file endpoint. The complete operation has a finite timeout and writes to a temporary
+path first; only an explicitly closed successful report is renamed into place. Discovery or stream
+failure removes the temporary path and never publishes a partial final report.
+
+```sh
+cd examples/async-file-report
+nocter check
+nocter run -- sample report.txt
+```
+
 [async-udp/index.nct](async-udp/index.nct) exchanges explicit-address and connected UDP datagrams
 over IPv4 loopback with finite asynchronous deadlines. It checks the sender address, exact message
 boundary, byte content, and truncation state without exposing nonblocking descriptor configuration

@@ -27,6 +27,18 @@ pub enum PublicExampleFixture {
     },
 }
 
+/// One filesystem fact that must hold after every scenario for an example has run.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PublicExamplePostcondition {
+    File {
+        path: &'static str,
+        contents: &'static [u8],
+    },
+    Absent {
+        path: &'static str,
+    },
+}
+
 /// One exact process invocation required of a public package example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PublicExampleRun {
@@ -78,6 +90,7 @@ pub struct PublicPackageExample {
     executable: &'static str,
     fixtures: &'static [PublicExampleFixture],
     runs: &'static [PublicExampleRun],
+    postconditions: &'static [PublicExamplePostcondition],
 }
 
 impl PublicPackageExample {
@@ -105,6 +118,11 @@ impl PublicPackageExample {
     pub const fn runs(self) -> &'static [PublicExampleRun] {
         self.runs
     }
+
+    #[must_use]
+    pub const fn postconditions(self) -> &'static [PublicExamplePostcondition] {
+        self.postconditions
+    }
 }
 
 /// Every public package example that must cross native compilation and execution.
@@ -122,6 +140,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "async-http",
@@ -136,6 +155,59 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"",
         }],
+        postconditions: &[],
+    },
+    PublicPackageExample {
+        directory: "async-file-report",
+        package_identity: "workspace:async-file-report",
+        executable: "async-file-report",
+        fixtures: &[
+            PublicExampleFixture::File {
+                path: "input/alpha.txt",
+                contents: b"alpha\nbeta\n",
+            },
+            PublicExampleFixture::File {
+                path: "input/nested/gamma.txt",
+                contents: b"gamma\n",
+            },
+        ],
+        runs: &[
+            PublicExampleRun {
+                name: "bounded-recursive-report",
+                arguments: &[
+                    PublicExampleArgument::FixturePath("input"),
+                    PublicExampleArgument::FixturePath("report.txt"),
+                ],
+                stdin: b"",
+                status: 0,
+                stdout: b"",
+                stderr: b"",
+            },
+            PublicExampleRun {
+                name: "recoverable-discovery-failure",
+                arguments: &[
+                    PublicExampleArgument::FixturePath("missing"),
+                    PublicExampleArgument::FixturePath("failed.txt"),
+                ],
+                stdin: b"",
+                status: 1,
+                stdout: b"",
+                stderr: b"",
+            },
+        ],
+        postconditions: &[
+            PublicExamplePostcondition::File {
+                path: "report.txt",
+                contents: b"files\t2\nbytes\t17\n",
+            },
+            PublicExamplePostcondition::Absent {
+                path: "report.txt.tmp",
+            },
+            PublicExamplePostcondition::Absent { path: "failed.txt" },
+            PublicExamplePostcondition::Absent {
+                path: "failed.txt.tmp",
+            },
+        ],
     },
     PublicPackageExample {
         directory: "async-loopback",
@@ -150,6 +222,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "network-loopback",
@@ -164,6 +237,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"tcp: ping\nudp: pong\ntimeout: std.net.timed_out\n",
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "http-get",
@@ -178,6 +252,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"usage: http-get URL\n",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "subprocess-configured",
@@ -207,6 +282,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             ),
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "subprocess-output",
@@ -224,6 +300,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: include_bytes!("../../../../../examples/subprocess-output/sample-output.txt"),
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "subprocess-pipeline",
@@ -247,6 +324,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "subprocess-status",
@@ -264,6 +342,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"helper exited with code 17\n",
             stderr: b"",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "json-normalize",
@@ -305,6 +384,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"json-normalize: std.json.invalid_syntax: invalid JSON syntax at byte 3\n",
             },
         ],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "line-frequency",
@@ -335,6 +415,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"",
             },
         ],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "file-summary",
@@ -362,6 +443,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"",
             },
         ],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "wall-clock",
@@ -376,6 +458,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"usage: wall-clock PATH\n",
         }],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "text-report",
@@ -414,6 +497,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"",
             },
         ],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "text-banner",
@@ -438,6 +522,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"",
             },
         ],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "stdin-prefix",
@@ -478,6 +563,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"stdin-prefix: std.string.invalid_utf8: invalid UTF-8\n",
             },
         ],
+        postconditions: &[],
     },
     PublicPackageExample {
         directory: "text-search",
@@ -566,5 +652,6 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"text-search: std.string.invalid_utf8: cannot read bad.txt\n",
             },
         ],
+        postconditions: &[],
     },
 ];

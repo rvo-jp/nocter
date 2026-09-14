@@ -1,0 +1,14 @@
+#package: {
+    name: "async-file-report",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "async-file-report",
+}
+
+see ./report.nct
+
+async func main(): i32 {
+    return await run()
+}
