@@ -40,6 +40,13 @@ impl FunctionLowerer<'_> {
             LoopKind::For { binding, iteration } => {
                 self.lower_collection_loop(node, loop_, *binding, iteration, definition.body())
             }
+            LoopKind::ForAwait { binding, iteration } => self.lower_async_collection_loop(
+                node,
+                loop_,
+                *binding,
+                iteration,
+                definition.body(),
+            ),
             LoopKind::ArgumentPack {
                 binding,
                 parameter,

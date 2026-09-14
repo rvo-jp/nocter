@@ -12,8 +12,8 @@ use crate::instance_operations::MethodCandidate;
 use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
     CheckedIteratorAcquisition, CheckedOperation, CheckedReceiver, IterationAcquisition,
-    ReadonlyOperandPreparation, ReceiverPreparation, SpreadMode, StaticDispatch, StaticSelection,
-    TypedIteration,
+    OutcomeLayer, ReadonlyOperandPreparation, ReceiverPreparation, SpreadMode, StaticDispatch,
+    StaticSelection, TypedAsyncIteration, TypedIteration,
 };
 
 pub(super) struct CheckedSpreadDraft {
@@ -57,6 +57,11 @@ const SPREAD_RULES: IterationRules = IterationRules {
 const COLLECTION_RULES: IterationRules = IterationRules {
     acquisition: BodyRule::InvalidCollectionAcquisition,
     iterator: BodyRule::InvalidCollectionIterator,
+};
+
+const ASYNC_COLLECTION_RULES: IterationRules = IterationRules {
+    acquisition: BodyRule::InvalidAsyncCollectionIterator,
+    iterator: BodyRule::InvalidAsyncCollectionIterator,
 };
 
 impl BodyChecker<'_, '_> {
@@ -128,6 +133,60 @@ impl BodyChecker<'_, '_> {
             }
         };
         self.select_typed_iteration(owner, acquired, COLLECTION_RULES)
+    }
+
+    /// Checks one owned asynchronous iterator and freezes its exact `AsyncIterator.next` plan.
+    ///
+    /// Async iteration intentionally has no expansion fallback. The source must itself implement
+    /// the asynchronous protocol, and ordinary expression checking remains the sole authority for
+    /// whether an explicit `move` is required.
+    pub(super) fn check_async_collection_iteration(
+        &mut self,
+        owner: NodeId,
+        source: NodeId,
+        failure_outer: impl Into<Box<[OutcomeLayer]>>,
+    ) -> Result<TypedAsyncIteration, BodyCheckError> {
+        let value = self.check_expression(source, None)?;
+        let ty = self.node_type(value)?;
+        let mut methods = self.select_async_iterator_methods(ty)?;
+        if methods.len() != 1 {
+            return Err(self.rule(ASYNC_COLLECTION_RULES.acquisition, owner)?);
+        }
+        let next = methods.remove(0);
+        if next.receiver_capability() != CallableCapability::ReadWrite {
+            return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
+        }
+        let callable = self
+            .graph
+            .declarations()
+            .callables()
+            .get(next.callable())
+            .ok_or(BodyCheckInternalError::MissingCallable(next.callable()))?;
+        let result = self.apply_type_substitution(next.substitution(), callable.result())?;
+        let Some(TypeKind::Future(deferred)) = self.types.get(result) else {
+            return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
+        };
+        let Some(TypeKind::Fallible(optional)) = self.types.get(*deferred) else {
+            return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
+        };
+        let Some(TypeKind::Optional(item)) = self.types.get(*optional) else {
+            return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
+        };
+        let item = *item;
+        let iterator = self.add_node(
+            owner,
+            ty,
+            CheckedOperation::IteratorAcquisition(CheckedIteratorAcquisition::new(
+                CheckedReceiver::new(value, ReceiverPreparation::Owned, None),
+                IterationAcquisition::Direct,
+            )),
+        )?;
+        Ok(TypedAsyncIteration::new(
+            iterator,
+            method_selection(&next),
+            item,
+            failure_outer,
+        ))
     }
 
     fn acquire_readonly_spread(
@@ -424,6 +483,20 @@ impl BodyChecker<'_, '_> {
         Ok(selected)
     }
 
+    fn select_async_iterator_methods(
+        &mut self,
+        target: TypeId,
+    ) -> Result<Vec<MethodCandidate>, BodyCheckError> {
+        let (interface, method) = self.async_iterator_roles()?;
+        let selected = {
+            let mut selector = self.instance_selector();
+            selector
+                .select_exact_interface_method(target, interface, method)
+                .map_err(BodyCheckInternalError::from)?
+        };
+        Ok(selected)
+    }
+
     fn iterator_roles(&self) -> Result<(nocter_model::InterfaceId, CallableId), BodyCheckError> {
         match (
             self.standard_semantics
@@ -442,6 +515,20 @@ impl BodyChecker<'_, '_> {
                 .interface(StandardDeclarationRole::ExactSizeIteratorInterface),
             self.standard_semantics
                 .callable(StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod),
+        ) {
+            (Some(interface), Some(method)) => Ok((interface, method)),
+            _ => Err(BodyCheckInternalError::MissingIterationSemanticRoles.into()),
+        }
+    }
+
+    fn async_iterator_roles(
+        &self,
+    ) -> Result<(nocter_model::InterfaceId, CallableId), BodyCheckError> {
+        match (
+            self.standard_semantics
+                .interface(StandardDeclarationRole::AsyncIteratorInterface),
+            self.standard_semantics
+                .callable(StandardDeclarationRole::AsyncIteratorNextMethod),
         ) {
             (Some(interface), Some(method)) => Ok((interface, method)),
             _ => Err(BodyCheckInternalError::MissingIterationSemanticRoles.into()),

@@ -695,6 +695,7 @@ Statement = BindingStatement
           | WhileStatement
           | LoopStatement
           | ForStatement
+          | ForAwaitStatement
           | RegionStatement
 
 BindingStatement = ("let" | "var") BindingPattern TypeAnnotation? "=" Expression
@@ -715,6 +716,7 @@ LoopStatement = "loop" Block
 
 ForStatement = "for" Name "in" ForSource Block
 ForSource = HeaderExpression "..<" HeaderExpression | HeaderExpression
+ForAwaitStatement = "for" "await" Name "in" HeaderExpression Block
 
 RegionStatement = "region" Name "using" AllocatorPlace Block
 

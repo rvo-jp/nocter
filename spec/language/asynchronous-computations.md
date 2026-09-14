@@ -120,6 +120,36 @@ async func flatten(): i32! {
 Control flow does not weaken this rule. Branches and loops use the same ownership joins as other
 move-only values, so a future consumed on only one path is maybe initialized afterward.
 
+## Asynchronous Iteration
+
+`for await` consumes one owned value implementing the compiler-selected `AsyncIterator` contract:
+
+```nct
+pub interface AsyncIterator {
+    pub type Item
+    pub async method &+self.next(): Self.Item?!
+}
+
+async func scan(source: Source): void! {
+    for await item in move source {
+        inspect(&item)
+    }
+    return
+}
+```
+
+The source is acquired once. Every loop header mutably borrows the owned iterator, calls the exact
+`next` implementation selected during checking, awaits its future, propagates a step failure, and
+then distinguishes a present item from clean exhaustion. This propagation is part of the construct;
+the enclosing asynchronous body must therefore have a fallible-compatible result. The compiler
+does not repeat interface lookup while lowering and does not select by the spelling `next`.
+
+An existing move-only source place requires an explicit `move`; a newly produced iterator may be
+used directly. Async iteration has no expansion fallback and does not accept range or argument-pack
+sources. A current item is dropped before the next advance when it was not consumed. On
+cancellation, the pending step future is released before the iterator and the remaining parent
+state, preserving the mutable receiver's lifetime and one-owner destruction order.
+
 ## Process Entry
 
 The selected top-level `main` may carry `async` when its declared result is one of the ordinary

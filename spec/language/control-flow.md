@@ -471,11 +471,37 @@ for item in &+values {
 - A readwrite yielded borrow holds one exclusive element loan. It must end before the iterator is
   advanced again.
 
+Asynchronous collection iteration consumes an owned asynchronous iterator:
+
+```nct
+async func visit(walker: WalkDir): void! {
+    for await entry in move walker {
+        inspect(&entry)
+    }
+    return
+}
+```
+
+- The source expression is evaluated once and must itself implement the compiler-selected
+  `AsyncIterator` contract. Asynchronous iteration does not invoke an expansion operator.
+- The source obeys ordinary ownership rules. A new temporary may be consumed directly; an existing
+  move-only place requires `move`.
+- Each advance awaits `AsyncIterator.next()`. A successful present item initializes the immutable
+  loop binding, successful absence ends the loop, and a step failure propagates through the
+  enclosing asynchronous callable's fallible result.
+- `for await` is therefore valid only in an `async` function or method whose declared body result
+  can carry failure. It does not hide failure recovery in an infallible callable.
+- Cancellation releases the pending step future before destroying the iterator and other live
+  parent state. `continue`, `break`, `return`, failure, and normal exhaustion retain the ordinary
+  loop cleanup rules.
+- Range syntax, argument-pack iteration, and synchronous iterator fallback are not part of
+  `for await`.
+
 Deferred:
 
 - implicit choice between readonly and consuming iteration for a bare collection value
 - reverse iteration and custom step syntax
-- asynchronous iteration and iterator adapters that require closures
+- iterator adapters that require closures
 
 The compiler must not lower collection iteration into calls selected by the spellings `iter`,
 `into_iter`, or `next`. Expansion operators and the trusted `Iterator` declaration are selected by

@@ -3,11 +3,15 @@ use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::{BlockExpectation, BodyChecker};
+use crate::body_check::context::BodyExecution;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::body_check::literal::is_integer_type;
 use crate::syntax::direct_nodes;
-use crate::{CheckedControl, CheckedLoop, CheckedOperation, LoopKind};
+use crate::{
+    CheckedControl, CheckedLoop, CheckedOperation, ExpectedBase, ExpectedEvidence, LoopKind,
+    plan_expected_type,
+};
 
 pub(super) struct LoopConstruction {
     pub(super) id: LoopId,
@@ -30,6 +34,7 @@ impl BodyChecker<'_, '_> {
             }
             NodeKind::LoopStatement => LoopKind::Infinite,
             NodeKind::ForStatement => self.check_for_loop(statement)?,
+            NodeKind::ForAwaitStatement => self.check_for_await_loop(statement)?,
             kind => return Err(BodyCheckInternalError::UnsupportedSyntax(statement, kind).into()),
         };
         let block = self.required_child(statement, NodeKind::Block)?;
@@ -51,6 +56,7 @@ impl BodyChecker<'_, '_> {
             | LoopKind::While { .. }
             | LoopKind::Range { .. }
             | LoopKind::For { .. }
+            | LoopKind::ForAwait { .. }
             | LoopKind::ArgumentPack { .. }
             | LoopKind::KeyedArgumentPack { .. } => self.types.builtin(BuiltinType::Void),
         };
@@ -61,6 +67,37 @@ impl BodyChecker<'_, '_> {
             ty,
             CheckedOperation::Control(CheckedControl::Loop(loop_)),
         )
+    }
+
+    fn check_for_await_loop(&mut self, statement: NodeId) -> Result<LoopKind, BodyCheckError> {
+        if self.execution != BodyExecution::Deferred {
+            return Err(self.rule(BodyRule::AsyncIterationOutsideDeferredBody, statement)?);
+        }
+        let source = self.required_child(statement, NodeKind::ForSource)?;
+        let expressions = direct_nodes(self.tree(), source, NodeKind::Expression);
+        let [source] = expressions.as_slice() else {
+            return Err(
+                BodyCheckInternalError::UnsupportedSyntax(source, NodeKind::ForSource).into(),
+            );
+        };
+        let Ok(plan) = plan_expected_type(self.types, self.result_type, ExpectedEvidence::Failure)
+        else {
+            return Err(self.rule(BodyRule::InvalidOutcomeOperation, statement)?);
+        };
+        if !matches!(plan.base(), ExpectedBase::Failure(_)) {
+            return Err(BodyCheckInternalError::InvalidSyntax(statement).into());
+        }
+        let (_, failure_outer) = plan.into_parts();
+        let iteration = self.check_async_collection_iteration(statement, *source, failure_outer)?;
+        let bindings = self.loop_bindings(statement)?;
+        let [binding] = bindings.as_slice() else {
+            return Err(self.rule(BodyRule::TypeMismatch, statement)?);
+        };
+        self.builder.define_local(*binding, iteration.item())?;
+        Ok(LoopKind::ForAwait {
+            binding: *binding,
+            iteration,
+        })
     }
 
     fn check_for_loop(&mut self, statement: NodeId) -> Result<LoopKind, BodyCheckError> {

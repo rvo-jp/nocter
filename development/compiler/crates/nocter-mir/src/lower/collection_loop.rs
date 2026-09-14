@@ -1,4 +1,4 @@
-use nocter_checking::TypedIteration;
+use nocter_checking::{TypedIteration, TypedIterationStep};
 use nocter_model::{
     BodyNodeId, BorrowCapability, LocalBindingId, LoopId, MirPlaceId, TypeId, TypeKind,
 };
@@ -8,19 +8,19 @@ use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use super::loop_control::LoopTargets;
 use crate::{
-    MirBranchTarget, MirLocalKind, MirOperationKind, MirPlaceRoot, MirProjection,
-    MirProjectionKind, MirReadMode, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator,
+    MirBranchTarget, MirLocalKind, MirOperationKind, MirPlaceRoot, MirSwitchCase, MirSwitchSubject,
+    MirSwitchValue, MirTerminator,
 };
 
-struct IterationContract {
-    iterator_place: MirPlaceId,
-    item: TypeId,
-    next: TypeId,
-    receiver: TypeId,
-    target_receiver: TypeId,
-    capability: BorrowCapability,
-    opaque_receiver: Option<ExecutableOpaqueReceiver>,
-    step: ExecutableDispatchStep,
+pub(super) struct IterationInvocation {
+    pub(super) iterator_place: MirPlaceId,
+    pub(super) item: TypeId,
+    pub(super) result: TypeId,
+    pub(super) receiver: TypeId,
+    pub(super) target_receiver: TypeId,
+    pub(super) capability: BorrowCapability,
+    pub(super) opaque_receiver: Option<ExecutableOpaqueReceiver>,
+    pub(super) step: ExecutableDispatchStep,
 }
 
 impl FunctionLowerer<'_> {
@@ -32,17 +32,23 @@ impl FunctionLowerer<'_> {
         iteration: &TypedIteration,
         body: BodyNodeId,
     ) -> Result<(), MirLoweringError> {
-        let contract = self.prepare_iteration_contract(node, loop_, iteration)?;
-        let IterationContract {
+        let contract = self.prepare_iteration_invocation(node, loop_, iteration.step())?;
+        let IterationInvocation {
             iterator_place,
             item: item_ty,
-            next: next_ty,
+            result: next_ty,
             receiver: receiver_ty,
             target_receiver,
             capability,
             opaque_receiver,
             step,
         } = contract;
+        if !matches!(
+            self.executable.types().get(next_ty),
+            Some(TypeKind::Optional(payload)) if *payload == item_ty
+        ) {
+            return Err(MirLoweringError::InvalidLoop(loop_));
+        }
         let next_local = self
             .builder
             .add_local(next_ty, MirLocalKind::Temporary, true);
@@ -104,30 +110,7 @@ impl FunctionLowerer<'_> {
         )?;
 
         self.current = Some(body_block);
-        let item_place = self.builder.add_place(
-            MirPlaceRoot::Local(next_local),
-            [MirProjection::new(
-                MirProjectionKind::OptionalPayload,
-                item_ty,
-            )],
-            item_ty,
-        );
-        let item = self.append_value(
-            item_ty,
-            MirOperationKind::Read {
-                place: item_place,
-                mode: MirReadMode::Move,
-            },
-        )?;
-        let binding_local = self.ensure_local(binding)?;
-        let binding_place = self
-            .builder
-            .add_place(MirPlaceRoot::Local(binding_local), [], item_ty);
-        self.append_effect(MirOperationKind::Initialize {
-            destination: binding_place,
-            value: item,
-        })?;
-        self.mark_binding_initialized(binding)?;
+        self.bind_optional_iteration_item(next_local, item_ty, binding)?;
         self.lower_node(body)?;
         self.finish_loop_iteration(header)?;
         self.leave_loop(loop_)?;
@@ -135,12 +118,12 @@ impl FunctionLowerer<'_> {
         Ok(())
     }
 
-    fn prepare_iteration_contract(
+    pub(super) fn prepare_iteration_invocation(
         &mut self,
         node: BodyNodeId,
         loop_: LoopId,
-        iteration: &TypedIteration,
-    ) -> Result<IterationContract, MirLoweringError> {
+        iteration: &TypedIterationStep,
+    ) -> Result<IterationInvocation, MirLoweringError> {
         let iterator = self.require_value(iteration.iterator())?;
         let iterator_place = self.materialize_value_storage(iteration.iterator(), iterator)?;
         let iterator_ty = self
@@ -171,18 +154,13 @@ impl FunctionLowerer<'_> {
         else {
             return Err(MirLoweringError::InvalidLoop(loop_));
         };
-        if *referent != iterator_ty
-            || !matches!(
-                self.executable.types().get(signature.result()),
-                Some(TypeKind::Optional(payload)) if *payload == item_ty
-            )
-        {
+        if *referent != iterator_ty {
             return Err(MirLoweringError::InvalidLoop(loop_));
         }
-        Ok(IterationContract {
+        Ok(IterationInvocation {
             iterator_place,
             item: item_ty,
-            next: signature.result(),
+            result: signature.result(),
             receiver: receiver_ty,
             target_receiver: *target_receiver,
             capability: *capability,

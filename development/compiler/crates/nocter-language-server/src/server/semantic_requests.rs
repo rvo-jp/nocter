@@ -433,6 +433,75 @@ mod tests {
         )
     }
 
+    #[test]
+    fn async_iteration_keeps_binding_hover_and_semantic_tokens_available() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let text = concat!(
+            "use std/fs\n",
+            "async func consume(walker: fs.WalkDir): void! {\n",
+            "    for await entry in move walker {\n",
+            "        let name = entry.file_name()\n",
+            "        let _ = name\n",
+            "    }\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (line, character) = source_position(text, "entry.file_name");
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}"
+        ));
+        assert!(
+            hover.response().is_some_and(|response| response.contains("entry") && response.contains("DirEntry")),
+            "response={:?}, issue={:?}",
+            hover.response(),
+            hover.issue()
+        );
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}"
+        ));
+        assert!(
+            definition
+                .response()
+                .is_some_and(|response| response.contains("\"line\":2,\"character\":14")),
+            "response={:?}, issue={:?}",
+            definition.response(),
+            definition.issue()
+        );
+
+        let completion = request_completion(&mut server, &uri, 5, line, character + 3);
+        assert!(
+            completion
+                .response()
+                .is_some_and(|response| response.contains("\"label\":\"entry\"")),
+            "response={:?}, issue={:?}",
+            completion.response(),
+            completion.issue()
+        );
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens.response().is_some_and(
+                |response| response.contains("\"data\":[") && !response.contains("\"data\":[]")
+            ),
+            "response={:?}, issue={:?}",
+            tokens.response(),
+            tokens.issue()
+        );
+    }
+
     fn structured_task_server() -> (TemporaryDirectory, String, LanguageServer, &'static str) {
         let temporary = TemporaryDirectory::new();
         let (uri, mut server) = construction_completion_server(&temporary);

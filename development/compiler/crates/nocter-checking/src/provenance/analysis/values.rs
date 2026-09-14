@@ -112,7 +112,43 @@ impl Analyzer<'_> {
 
     pub(super) fn iteration_item_provenance(
         &self,
-        iteration: &crate::TypedIteration,
+        iteration: &crate::TypedIterationStep,
+        iterator: &ValueProvenance,
+        current_allocation: &ValueProvenance,
+        owned_iterator_storage: ProvenanceSource,
+    ) -> Result<ValueProvenance, BodyCheckInternalError> {
+        Ok(self
+            .iteration_result_provenance(
+                iteration,
+                iterator,
+                current_allocation,
+                owned_iterator_storage,
+            )?
+            .projected(ProvenanceProjection::OutcomeValue))
+    }
+
+    pub(super) fn async_iteration_item_provenance(
+        &self,
+        iteration: &crate::TypedIterationStep,
+        iterator: &ValueProvenance,
+        current_allocation: &ValueProvenance,
+        owned_iterator_storage: ProvenanceSource,
+    ) -> Result<ValueProvenance, BodyCheckInternalError> {
+        let value = self.iteration_result_provenance(
+            iteration,
+            iterator,
+            current_allocation,
+            owned_iterator_storage,
+        )?;
+        Ok(value
+            .projected(ProvenanceProjection::AsyncOutput)
+            .projected(ProvenanceProjection::OutcomeValue)
+            .projected(ProvenanceProjection::OutcomeValue))
+    }
+
+    fn iteration_result_provenance(
+        &self,
+        iteration: &crate::TypedIterationStep,
         iterator: &ValueProvenance,
         current_allocation: &ValueProvenance,
         owned_iterator_storage: ProvenanceSource,
@@ -152,14 +188,12 @@ impl Analyzer<'_> {
                 return Err(BodyCheckInternalError::ProvenanceAnalysis);
             }
         };
-        Ok(self
-            .map_callable_summary(
-                callable,
-                Some(&ReceiverProvenance::carried(iterator.clone())),
-                &[],
-                current_allocation,
-            )?
-            .projected(ProvenanceProjection::OutcomeValue))
+        self.map_callable_summary(
+            callable,
+            Some(&ReceiverProvenance::carried(iterator.clone())),
+            &[],
+            current_allocation,
+        )
     }
 
     pub(super) fn evaluate_aggregate(
@@ -465,7 +499,7 @@ impl Analyzer<'_> {
                     .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
                 if self.types.may_carry_storage(contribution) {
                     elements.union_with(&self.iteration_item_provenance(
-                        iteration,
+                        iteration.step(),
                         &iterator,
                         state.current_allocation(),
                         ProvenanceSource::StatementTemporary(iteration.iterator()),
@@ -705,7 +739,7 @@ impl Analyzer<'_> {
                     continue;
                 }
                 let value = self.iteration_item_provenance(
-                    iteration,
+                    iteration.step(),
                     &iterator,
                     state.current_allocation(),
                     ProvenanceSource::StatementTemporary(iteration.iterator()),

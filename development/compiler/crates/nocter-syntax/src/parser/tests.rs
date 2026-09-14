@@ -720,6 +720,17 @@ fn parses_keyed_argument_packs_and_mapping_literals() {
 }
 
 #[test]
+fn parses_async_collection_iteration_as_a_distinct_statement() {
+    let tree = assert_syntax_ok(
+        "async func visit(source: Source): void! {\n    for await item in move source {\n        consume(move item)\n    }\n}\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(has_node_kind(&tree, NodeKind::ForAwaitStatement));
+    assert!(!has_node_kind(&tree, NodeKind::ForStatement));
+}
+
+#[test]
 fn callable_types_distinguish_value_and_keyed_packs() {
     let tree = assert_syntax_ok(
         "type Values = func(...i32): void\ntype Entries = func(...&str: i32): void\n",

@@ -149,6 +149,7 @@ struct Analyzer<'program> {
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
     suspension_loans: BTreeMap<BodyNodeId, BTreeSet<LoanId>>,
+    explicit_suspension_storage: BTreeMap<BodyNodeId, BTreeSet<SuspensionStorage>>,
     loops: Vec<LoopFlow>,
     scopes: Vec<nocter_model::BodyScopeId>,
     closure: Option<(ClosureId, &'program ClosureDefinition)>,
@@ -172,6 +173,7 @@ impl<'program> Analyzer<'program> {
             loans: BTreeMap::new(),
             live_before: HashMap::new(),
             suspension_loans: BTreeMap::new(),
+            explicit_suspension_storage: BTreeMap::new(),
             loops: Vec::new(),
             scopes: Vec::new(),
             closure,
@@ -197,13 +199,13 @@ impl<'program> Analyzer<'program> {
     fn collect_suspension_storage(
         &self,
     ) -> Result<BTreeMap<BodyNodeId, BTreeSet<SuspensionStorage>>, BodyRelationError> {
-        let mut result = BTreeMap::new();
+        let mut result = self.explicit_suspension_storage.clone();
         for (node, live) in &self.suspension_loans {
             let mut storage = BTreeSet::new();
             for loan in live.iter().copied() {
                 self.collect_loan_suspension_storage(loan, &mut BTreeSet::new(), &mut storage)?;
             }
-            result.insert(*node, storage);
+            result.entry(*node).or_default().extend(storage);
         }
         Ok(result)
     }

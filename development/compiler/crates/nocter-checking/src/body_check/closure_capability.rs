@@ -337,6 +337,7 @@ fn append_control_operands(
                 | LoopKind::KeyedArgumentPack { .. } => {}
                 LoopKind::While { condition } => pending.push(*condition),
                 LoopKind::For { iteration, .. } => pending.push(iteration.iterator()),
+                LoopKind::ForAwait { iteration, .. } => pending.push(iteration.iterator()),
                 LoopKind::Range { start, end, .. } => pending.extend([*end, *start]),
             }
         }

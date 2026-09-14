@@ -108,8 +108,8 @@ pub use checked::{
     PatternRemainder, PatternSubjectPreparation, PlaceAccess, PlaceProjection, PlaceRoot,
     PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ProvenanceProjection, ProvenanceSource,
     ProvenanceTable, ReadonlyOperandPreparation, ReceiverPreparation, ReplayedBodyClosures,
-    SpreadMode, StaticDispatch, StaticSelection, SuspensionStorage, TypedIteration,
-    ValueProvenance,
+    SpreadMode, StaticDispatch, StaticSelection, SuspensionStorage, TypedAsyncIteration,
+    TypedIteration, TypedIterationStep, ValueProvenance,
 };
 pub use concrete_destruction::{
     ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,

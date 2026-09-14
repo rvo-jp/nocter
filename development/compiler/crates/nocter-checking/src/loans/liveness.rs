@@ -507,12 +507,17 @@ impl Analyzer<'_> {
                 continue_live: header.clone(),
             });
             let mut body_after = header.clone();
-            if let LoopKind::For { iteration, .. } = definition.kind() {
-                body_after.insert(LiveSlot::Node(iteration.iterator()));
+            if let Some(iterator) = match definition.kind() {
+                LoopKind::For { iteration, .. } => Some(iteration.iterator()),
+                LoopKind::ForAwait { iteration, .. } => Some(iteration.iterator()),
+                _ => None,
+            } {
+                body_after.insert(LiveSlot::Node(iterator));
             }
             let mut body_live = self.transfer(definition.body(), body_after)?;
             if let LoopKind::Range { binding, .. }
             | LoopKind::For { binding, .. }
+            | LoopKind::ForAwait { binding, .. }
             | LoopKind::ArgumentPack { binding, .. } = definition.kind()
             {
                 Self::kill_root(&mut body_live, PlaceRoot::Local(*binding));
@@ -534,6 +539,7 @@ impl Analyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
+                | LoopKind::ForAwait { .. }
                 | LoopKind::ArgumentPack { .. }
                 | LoopKind::KeyedArgumentPack { .. } => body_live,
             };
@@ -547,8 +553,12 @@ impl Analyzer<'_> {
             if next == header {
                 if let LoopKind::Range { start, end, .. } = definition.kind() {
                     next = self.operands([*start, *end], next)?;
-                } else if let LoopKind::For { iteration, .. } = definition.kind() {
-                    next = self.operand(iteration.iterator(), next)?;
+                } else if let Some(iterator) = match definition.kind() {
+                    LoopKind::For { iteration, .. } => Some(iteration.iterator()),
+                    LoopKind::ForAwait { iteration, .. } => Some(iteration.iterator()),
+                    _ => None,
+                } {
+                    next = self.operand(iterator, next)?;
                 }
                 return Ok(next);
             }

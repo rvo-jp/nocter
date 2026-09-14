@@ -413,10 +413,20 @@ impl FunctionLowerer<'_> {
         await_: nocter_checking::CheckedAwait,
     ) -> Result<MirValueId, MirLoweringError> {
         let computation = self.require_value(await_.computation())?;
+        let cancellation = self.lower_cancellation_actions_for_value(node, computation)?;
+        self.lower_await_value(node, output, computation, cancellation)
+    }
+
+    pub(super) fn lower_await_value(
+        &mut self,
+        node: BodyNodeId,
+        output: TypeId,
+        computation: MirValueId,
+        cancellation: Box<[crate::MirCancellationAction]>,
+    ) -> Result<MirValueId, MirLoweringError> {
         let block = self.current.ok_or(MirLoweringError::MissingCurrentBlock)?;
         let (resume, parameters) = self.builder.create_block([output]);
         let result = parameters[0];
-        let cancellation = self.lower_cancellation_actions(node, await_.computation())?;
         if self.cancellation.insert(block, cancellation).is_some() {
             return Err(MirLoweringError::InvalidCleanup(node));
         }

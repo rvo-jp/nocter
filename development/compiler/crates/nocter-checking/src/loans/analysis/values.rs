@@ -12,7 +12,37 @@ use crate::{
 impl Analyzer<'_> {
     pub(super) fn iteration_item_loans(
         &self,
-        iteration: &crate::TypedIteration,
+        iteration: &crate::TypedIterationStep,
+        iterator: &LoanValue,
+    ) -> Result<LoanValue, BodyCheckInternalError> {
+        Ok(self
+            .iteration_result_loans(iteration, iterator)?
+            .projected(ProvenanceProjection::OutcomeValue))
+    }
+
+    pub(super) fn async_iteration_item_loans(
+        &self,
+        iteration: &crate::TypedIterationStep,
+        iterator: &LoanValue,
+    ) -> Result<LoanValue, BodyCheckInternalError> {
+        Ok(self
+            .iteration_result_loans(iteration, iterator)?
+            .projected(ProvenanceProjection::AsyncOutput)
+            .projected(ProvenanceProjection::OutcomeValue)
+            .projected(ProvenanceProjection::OutcomeValue))
+    }
+
+    pub(super) fn async_iteration_future_loans(
+        &self,
+        iteration: &crate::TypedIterationStep,
+        iterator: &LoanValue,
+    ) -> Result<LoanValue, BodyCheckInternalError> {
+        self.iteration_result_loans(iteration, iterator)
+    }
+
+    fn iteration_result_loans(
+        &self,
+        iteration: &crate::TypedIterationStep,
         iterator: &LoanValue,
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let acquisition = self
@@ -51,13 +81,11 @@ impl Analyzer<'_> {
                 return Err(BodyCheckInternalError::LoanAnalysis);
             }
         };
-        Ok(self
-            .map_callable_result(
-                callable,
-                Some(&InvocationLoan::carried(iterator.clone())),
-                &[],
-            )?
-            .projected(ProvenanceProjection::OutcomeValue))
+        self.map_callable_result(
+            callable,
+            Some(&InvocationLoan::carried(iterator.clone())),
+            &[],
+        )
     }
 
     pub(super) fn evaluate_primitive(
@@ -251,7 +279,7 @@ impl Analyzer<'_> {
                 if !self.types.may_carry_storage(contribution) {
                     continue;
                 }
-                let value = self.iteration_item_loans(iteration, &iterator)?;
+                let value = self.iteration_item_loans(iteration.step(), &iterator)?;
                 elements.union_with(&value);
             }
         }

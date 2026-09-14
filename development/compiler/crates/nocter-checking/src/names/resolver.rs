@@ -208,7 +208,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 introductions: Vec::new(),
             }),
             NodeKind::BindingStatement => self.visit_binding(node, actions)?,
-            NodeKind::ForStatement => self.visit_for(node, actions)?,
+            NodeKind::ForStatement | NodeKind::ForAwaitStatement => {
+                self.visit_for(node, actions)?;
+            }
             NodeKind::RegionStatement => self.visit_region(node, actions)?,
             NodeKind::IfExpression => self.visit_if(node, actions)?,
             NodeKind::MatchExpression => self.visit_match(node, actions),

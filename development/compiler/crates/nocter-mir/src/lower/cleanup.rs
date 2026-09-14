@@ -13,14 +13,12 @@ use crate::{
 };
 
 impl FunctionLowerer<'_> {
-    pub(super) fn lower_cancellation_actions(
+    pub(super) fn lower_cancellation_actions_for_value(
         &mut self,
         await_node: BodyNodeId,
-        awaited: BodyNodeId,
+        awaited: nocter_model::MirValueId,
     ) -> Result<Box<[crate::MirCancellationAction]>, MirLoweringError> {
-        let mut lowered = vec![crate::MirCancellationAction::ReleaseAwaited(
-            self.require_value(awaited)?,
-        )];
+        let mut lowered = vec![crate::MirCancellationAction::ReleaseAwaited(awaited)];
         let actions = self
             .body
             .cleanups()

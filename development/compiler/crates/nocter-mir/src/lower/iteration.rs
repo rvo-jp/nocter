@@ -1,10 +1,37 @@
 use nocter_checking::{CheckedIteratorAcquisition, IterationAcquisition};
-use nocter_model::{BodyNodeId, MirValueId, TypeId};
+use nocter_model::{BodyNodeId, LocalBindingId, MirLocalId, MirValueId, TypeId};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
+use crate::{MirOperationKind, MirPlaceRoot, MirProjection, MirProjectionKind, MirReadMode};
 
 impl FunctionLowerer<'_> {
+    pub(super) fn bind_optional_iteration_item(
+        &mut self,
+        optional: MirLocalId,
+        item: TypeId,
+        binding: LocalBindingId,
+    ) -> Result<(), MirLoweringError> {
+        let item_place = self.builder.add_place(
+            MirPlaceRoot::Local(optional),
+            [MirProjection::new(MirProjectionKind::OptionalPayload, item)],
+            item,
+        );
+        let value = self.append_value(
+            item,
+            MirOperationKind::Read {
+                place: item_place,
+                mode: MirReadMode::Move,
+            },
+        )?;
+        let binding_local = self.ensure_local(binding)?;
+        let destination = self
+            .builder
+            .add_place(MirPlaceRoot::Local(binding_local), [], item);
+        self.append_effect(MirOperationKind::Initialize { destination, value })?;
+        self.mark_binding_initialized(binding)
+    }
+
     pub(super) fn lower_iterator_acquisition(
         &mut self,
         node: BodyNodeId,

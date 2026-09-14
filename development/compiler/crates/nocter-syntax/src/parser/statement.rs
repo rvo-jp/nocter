@@ -233,6 +233,7 @@ fn loop_statement(parser: &mut Parser<'_>) -> CompletedMarker {
 fn for_statement(parser: &mut Parser<'_>) -> CompletedMarker {
     let marker = parser.start();
     parser.bump();
+    let asynchronous = parser.eat_keyword(Keyword::Await);
     let bindings = parser.start();
     parser.expect_name();
     if parser.eat_punctuation(Punctuation::Colon) {
@@ -242,18 +243,27 @@ fn for_statement(parser: &mut Parser<'_>) -> CompletedMarker {
     parser.expect_keyword(Keyword::In);
     let source = parser.start();
     expression::expression(parser, expression::ExpressionMode::Header);
-    newline::before_token(
-        parser,
-        newline::Boundary::Statement,
-        TokenKind::Punctuation(Punctuation::Range),
-    );
-    if parser.eat_punctuation(Punctuation::Range) {
-        newline::after_incomplete(parser, newline::Boundary::Statement);
-        expression::expression(parser, expression::ExpressionMode::Header);
+    if !asynchronous {
+        newline::before_token(
+            parser,
+            newline::Boundary::Statement,
+            TokenKind::Punctuation(Punctuation::Range),
+        );
+        if parser.eat_punctuation(Punctuation::Range) {
+            newline::after_incomplete(parser, newline::Boundary::Statement);
+            expression::expression(parser, expression::ExpressionMode::Header);
+        }
     }
     parser.complete(source, NodeKind::ForSource);
     block::required(parser);
-    parser.complete(marker, NodeKind::ForStatement)
+    parser.complete(
+        marker,
+        if asynchronous {
+            NodeKind::ForAwaitStatement
+        } else {
+            NodeKind::ForStatement
+        },
+    )
 }
 
 fn region_statement(parser: &mut Parser<'_>) -> CompletedMarker {

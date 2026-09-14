@@ -2124,14 +2124,8 @@ async func main(): i32 {
     if &preserved != "value" { return 17 }
     await fs.create_dir_all("recursive/first/second") catch _ { return 23 }
     await fs.write_text("recursive/first/second/leaf", "leaf") catch _ { return 24 }
-    var walker = await fs.walk_dir("recursive") catch _ { return 28 }
-    var walked: usize = 0
-    loop {
-        let entry = await walker.next() catch _ { return 29 } otherwise { break }
-        let _kind = entry.file_type()
-        let _ = move entry
-        walked += 1
-    }
+    let walker = await fs.walk_dir("recursive") catch _ { return 28 }
+    let walked = await count_walk(move walker) catch _ { return 29 }
     if walked != 3 { return 30 }
     await fs.remove_dir_all("recursive") catch _ { return 25 }
     let recursive_exists = await fs.exists("recursive") catch _ { return 26 }
@@ -2142,6 +2136,16 @@ async func main(): i32 {
     await fs.remove_file("hard-link") catch _ { return 22 }
     await fs.remove_dir("target") catch _ { return 10 }
     return 0
+}
+
+async func count_walk(walker: fs.WalkDir): usize! {
+    var walked: usize = 0
+    for await entry in move walker {
+        let _kind = entry.file_type()
+        let _ = move entry
+        walked += 1
+    }
+    return walked
 }
 "#,
     );

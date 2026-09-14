@@ -363,6 +363,9 @@ Source-backed checked-body diagnostics:
   body is subject to this rule because all `future T` values share the nonblocking drive invariant.
 - `E0418`: an asynchronous callable is declared `blocking`; every `future T` must remain safe to
   drive without synchronously waiting for external progress.
+- `E0419`: `for await` appears outside an `async` function or method body.
+- `E0420`: an asynchronous loop source does not provide exactly one owned implementation of the
+  compiler-selected `AsyncIterator` contract.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

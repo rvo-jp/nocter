@@ -778,13 +778,13 @@ impl CheckedIteratorAcquisition {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TypedIteration {
+pub struct TypedIterationStep {
     iterator: BodyNodeId,
     next: StaticSelection,
     item: TypeId,
 }
 
-impl TypedIteration {
+impl TypedIterationStep {
     pub(super) fn rebind(
         &mut self,
         semantics: &super::CheckedSemanticRebinder<'_>,
@@ -814,6 +814,99 @@ impl TypedIteration {
     #[must_use]
     pub const fn item(&self) -> TypeId {
         self.item
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TypedIteration {
+    step: TypedIterationStep,
+}
+
+/// One asynchronous iteration whose acquisition, dispatch, item type, and failure propagation
+/// were selected exactly once by body checking.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TypedAsyncIteration {
+    step: TypedIterationStep,
+    failure_outer: Box<[OutcomeLayer]>,
+}
+
+impl TypedAsyncIteration {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.step.rebind(semantics)
+    }
+
+    pub(crate) fn new(
+        iterator: BodyNodeId,
+        next: StaticSelection,
+        item: TypeId,
+        failure_outer: impl Into<Box<[OutcomeLayer]>>,
+    ) -> Self {
+        Self {
+            step: TypedIterationStep::new(iterator, next, item),
+            failure_outer: failure_outer.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn step(&self) -> &TypedIterationStep {
+        &self.step
+    }
+
+    #[must_use]
+    pub const fn iterator(&self) -> BodyNodeId {
+        self.step.iterator()
+    }
+
+    #[must_use]
+    pub const fn next(&self) -> &StaticSelection {
+        self.step.next()
+    }
+
+    #[must_use]
+    pub const fn item(&self) -> TypeId {
+        self.step.item()
+    }
+
+    #[must_use]
+    pub fn failure_outer(&self) -> &[OutcomeLayer] {
+        &self.failure_outer
+    }
+}
+
+impl TypedIteration {
+    pub(super) fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.step.rebind(semantics)
+    }
+    pub(crate) const fn new(iterator: BodyNodeId, next: StaticSelection, item: TypeId) -> Self {
+        Self {
+            step: TypedIterationStep::new(iterator, next, item),
+        }
+    }
+
+    #[must_use]
+    pub const fn step(&self) -> &TypedIterationStep {
+        &self.step
+    }
+
+    #[must_use]
+    pub const fn iterator(&self) -> BodyNodeId {
+        self.step.iterator()
+    }
+
+    #[must_use]
+    pub const fn next(&self) -> &StaticSelection {
+        self.step.next()
+    }
+
+    #[must_use]
+    pub const fn item(&self) -> TypeId {
+        self.step.item()
     }
 }
 
@@ -1167,6 +1260,10 @@ pub enum LoopKind {
         binding: LocalBindingId,
         iteration: TypedIteration,
     },
+    ForAwait {
+        binding: LocalBindingId,
+        iteration: TypedAsyncIteration,
+    },
     ArgumentPack {
         binding: LocalBindingId,
         parameter: ParameterId,
@@ -1200,6 +1297,7 @@ impl CheckedLoop {
     ) -> Result<(), super::CheckedSemanticRebindError> {
         match &mut self.kind {
             LoopKind::For { iteration, .. } => iteration.rebind(semantics)?,
+            LoopKind::ForAwait { iteration, .. } => iteration.rebind(semantics)?,
             LoopKind::ArgumentPack { item, .. } => *item = semantics.ty(*item)?,
             LoopKind::KeyedArgumentPack { key, value, .. } => {
                 *key = semantics.ty(*key)?;

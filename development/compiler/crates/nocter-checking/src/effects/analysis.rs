@@ -15,7 +15,7 @@ use crate::{
     CheckedBody, CheckedCallExecution, CheckedControl, CheckedOperation, CheckedOutcome,
     CheckedReadonlyOperand, CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable,
     InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot,
-    PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
+    PrimitiveOperation, StaticDispatch, StaticSelection,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -612,7 +612,7 @@ impl<'program> Collector<'program> {
     fn visit_iteration(
         &mut self,
         node: BodyNodeId,
-        iteration: &TypedIteration,
+        iteration: &crate::TypedIterationStep,
     ) -> Result<(), BodyRelationError> {
         self.visit_node(iteration.iterator())?;
         self.record_selection(node, iteration.next())
@@ -635,7 +635,7 @@ impl<'program> Collector<'program> {
                     exact_size,
                     ..
                 } => {
-                    self.visit_iteration(node, iteration)?;
+                    self.visit_iteration(node, iteration.step())?;
                     self.record_selection(node, exact_size)?;
                 }
             }
@@ -765,7 +765,8 @@ impl<'program> Collector<'program> {
             | LoopKind::ArgumentPack { .. }
             | LoopKind::KeyedArgumentPack { .. } => {}
             LoopKind::While { condition } => self.visit_node(*condition)?,
-            LoopKind::For { iteration, .. } => self.visit_iteration(node, iteration)?,
+            LoopKind::For { iteration, .. } => self.visit_iteration(node, iteration.step())?,
+            LoopKind::ForAwait { iteration, .. } => self.visit_iteration(node, iteration.step())?,
             LoopKind::Range { start, end, .. } => {
                 self.visit_node(*start)?;
                 self.visit_node(*end)?;

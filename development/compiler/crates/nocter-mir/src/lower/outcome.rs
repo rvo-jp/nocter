@@ -18,6 +18,48 @@ struct OutcomeStorage {
 }
 
 impl FunctionLowerer<'_> {
+    /// Propagates one already-lowered fallible value through the callable's checked result shape.
+    ///
+    /// Implicit language forms such as `for await` use this entry instead of manufacturing a
+    /// synthetic checked expression. The outcome ABI and cleanup ordering remain owned here.
+    pub(super) fn lower_fallible_value(
+        &mut self,
+        node: BodyNodeId,
+        value: MirValueId,
+        outer: &[OutcomeLayer],
+    ) -> Result<MirValueId, MirLoweringError> {
+        let ty = self
+            .builder
+            .value_type(value)
+            .ok_or(MirLoweringError::UnknownValue(value))?;
+        let local = self
+            .builder
+            .add_local(ty, crate::MirLocalKind::Temporary, true);
+        let place = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
+        self.append_effect(MirOperationKind::Initialize {
+            destination: place,
+            value,
+        })?;
+        let storage = OutcomeStorage { local, place, ty };
+        let payload = self.outcome_payload_type(storage, OutcomeLayer::Fallible, node)?;
+        let (success, failure) = self.switch_outcome(storage, OutcomeLayer::Fallible)?;
+
+        self.current = Some(failure);
+        self.lower_cleanup(node, nocter_checking::CleanupTiming::OnOutcomePropagation)?;
+        let returned = self.propagated_failure(node, storage, OutcomeLayer::Fallible, outer)?;
+        self.destroy_pack()?;
+        let failure = self
+            .current
+            .take()
+            .ok_or(MirLoweringError::MissingCurrentBlock)?;
+        self.builder
+            .terminate(failure, MirTerminator::Return(Some(returned)))?;
+
+        self.current = Some(success);
+        self.read_outcome_payload(storage, OutcomeLayer::Fallible, payload)?
+            .ok_or(MirLoweringError::InvalidOutcome(node))
+    }
+
     pub(super) fn lower_outcome(
         &mut self,
         node: BodyNodeId,

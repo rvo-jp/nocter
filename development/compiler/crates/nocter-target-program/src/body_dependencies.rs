@@ -7,7 +7,7 @@ use nocter_checking::{
     CheckedOperation, CheckedOutcome, CheckedPlace, CheckedReadonlyOperand, CheckedReceiver,
     CleanupTarget, DropSelection, InterpolationPart, IterationAcquisition, LoopKind,
     PlaceProjection, PrimitiveOperation, ReadonlyOperandPreparation, ReceiverPreparation,
-    StaticSelection, TypedIteration,
+    StaticSelection, TypedIterationStep,
 };
 use nocter_model::{
     BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, DropId, LocalBindingId, LoopId,
@@ -461,7 +461,10 @@ impl<'program> DependencyCollector<'program> {
         Ok(())
     }
 
-    fn visit_iteration(&mut self, iteration: &TypedIteration) -> Result<(), BodyDependencyError> {
+    fn visit_iteration(
+        &mut self,
+        iteration: &TypedIterationStep,
+    ) -> Result<(), BodyDependencyError> {
         self.visit_node(iteration.iterator())?;
         self.record_selection(iteration.next());
         self.record_type(iteration.item())
@@ -483,7 +486,7 @@ impl<'program> DependencyCollector<'program> {
                     exact_size,
                     ..
                 } => {
-                    self.visit_iteration(iteration)?;
+                    self.visit_iteration(iteration.step())?;
                     self.record_selection(exact_size);
                 }
             }
@@ -647,7 +650,8 @@ impl<'program> DependencyCollector<'program> {
         match loop_.kind() {
             LoopKind::Infinite => {}
             LoopKind::While { condition } => self.visit_node(*condition)?,
-            LoopKind::For { iteration, .. } => self.visit_iteration(iteration)?,
+            LoopKind::For { iteration, .. } => self.visit_iteration(iteration.step())?,
+            LoopKind::ForAwait { iteration, .. } => self.visit_iteration(iteration.step())?,
             LoopKind::ArgumentPack { item, .. } => self.record_type(*item)?,
             LoopKind::KeyedArgumentPack { key, value, .. } => {
                 self.record_type(*key)?;

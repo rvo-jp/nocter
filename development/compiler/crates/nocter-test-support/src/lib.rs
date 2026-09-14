@@ -73,6 +73,12 @@ pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
 ";
+const ASYNC_ITERATION_SOURCE: &str = "\
+pub interface AsyncIterator {
+    pub type Item
+    pub async method &+self.next(): Self.Item?!
+}
+";
 const INTERPOLATION_SOURCE: &str = "\
 pub struct String {}
 construct String {
@@ -818,6 +824,24 @@ const ITERATION_ROLES: &[StandardRoleSpec] = &[
     },
 ];
 
+const ASYNC_ITERATION_ROLES: &[StandardRoleSpec] = &[
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AsyncIteratorInterface,
+        kind: NodeKind::InterfaceDeclaration,
+        name: "AsyncIterator",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AsyncIteratorItem,
+        kind: NodeKind::AssociatedTypeDeclaration,
+        name: "Item",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AsyncIteratorNextMethod,
+        kind: NodeKind::InterfaceMethod,
+        name: "next",
+    },
+];
+
 const INTERPOLATION_ROLES: &[StandardRoleSpec] = &[
     StandardRoleSpec {
         role: StandardDeclarationRole::OwnedString,
@@ -889,6 +913,18 @@ impl CompilerFixture {
         Self::build(app_source, None, ITERATION_SOURCE, ITERATION_ROLES)
     }
 
+    /// Builds the complete target fixture with the compiler-selected asynchronous iterator
+    /// semantic surface.
+    #[must_use]
+    pub fn with_app_async_iteration(app_source: &str) -> Self {
+        Self::build(
+            app_source,
+            None,
+            ASYNC_ITERATION_SOURCE,
+            ASYNC_ITERATION_ROLES,
+        )
+    }
+
     /// Builds the complete target fixture with compiler-selected interpolation semantics.
     #[must_use]
     pub fn with_app_interpolation(app_source: &str) -> Self {
@@ -907,6 +943,13 @@ impl CompilerFixture {
     #[must_use]
     pub fn with_app_iteration_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
         Self::with_standard_uses(Self::with_app_iteration(app_source), modules)
+    }
+
+    /// Builds the asynchronous iterator fixture and resolves application `use` declarations to
+    /// standard modules in source order.
+    #[must_use]
+    pub fn with_app_async_iteration_standard_uses(app_source: &str, modules: &[&[&str]]) -> Self {
+        Self::with_standard_uses(Self::with_app_async_iteration(app_source), modules)
     }
 
     /// Builds the complete target fixture with compiler-selected lexical-region semantics.

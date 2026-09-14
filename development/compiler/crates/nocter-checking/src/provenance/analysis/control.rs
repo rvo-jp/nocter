@@ -345,8 +345,13 @@ impl Analyzer<'_> {
         {
             return Ok((ValueProvenance::independent(), false));
         }
-        let iterator = if let LoopKind::For { iteration, .. } = definition.kind() {
-            let (value, reaches) = self.evaluate(iteration.iterator(), state)?;
+        let iterator_node = match definition.kind() {
+            LoopKind::For { iteration, .. } => Some(iteration.iterator()),
+            LoopKind::ForAwait { iteration, .. } => Some(iteration.iterator()),
+            _ => None,
+        };
+        let iterator = if let Some(iterator_node) = iterator_node {
+            let (value, reaches) = self.evaluate(iterator_node, state)?;
             if !reaches {
                 return Ok((ValueProvenance::independent(), false));
             }
@@ -368,6 +373,7 @@ impl Analyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
+                | LoopKind::ForAwait { .. }
                 | LoopKind::ArgumentPack { .. }
                 | LoopKind::KeyedArgumentPack { .. } => true,
             };
@@ -377,6 +383,7 @@ impl Analyzer<'_> {
                     LoopKind::While { .. }
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
+                        | LoopKind::ForAwait { .. }
                         | LoopKind::ArgumentPack { .. }
                         | LoopKind::KeyedArgumentPack { .. }
                 ))
@@ -431,7 +438,19 @@ impl Analyzer<'_> {
             }
             LoopKind::For { binding, iteration } => {
                 let value = self.iteration_item_provenance(
-                    iteration,
+                    iteration.step(),
+                    iterator.ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    state.current_allocation(),
+                    ProvenanceSource::ScopedTemporary {
+                        value: iteration.iterator(),
+                        scope: body_scope,
+                    },
+                )?;
+                state.set_value(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::ForAwait { binding, iteration } => {
+                let value = self.async_iteration_item_provenance(
+                    iteration.step(),
                     iterator.ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
                     state.current_allocation(),
                     ProvenanceSource::ScopedTemporary {

@@ -341,8 +341,25 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit(computation, state)? {
             return Ok(false);
         }
+        self.record_cancellation_actions(node, state)?;
+        Ok(true)
+    }
+
+    fn record_cancellation_actions(
+        &mut self,
+        node: BodyNodeId,
+        state: &OwnershipState,
+    ) -> Result<(), BodyCheckError> {
         let mut cancellation_state = state.clone();
         let actions = self.transfer_cleanup(&mut cancellation_state)?;
+        self.store_cancellation_actions(node, actions)
+    }
+
+    fn store_cancellation_actions(
+        &mut self,
+        node: BodyNodeId,
+        actions: Vec<CleanupAction>,
+    ) -> Result<(), BodyCheckError> {
         match self.cancellation_actions.entry(node) {
             std::collections::hash_map::Entry::Vacant(entry) => {
                 entry.insert(actions);
@@ -352,7 +369,7 @@ impl OwnershipAnalyzer<'_> {
                 return Err(BodyCheckInternalError::CleanupPlanning.into());
             }
         }
-        Ok(true)
+        Ok(())
     }
 
     fn visit_allocation(
@@ -433,7 +450,7 @@ impl OwnershipAnalyzer<'_> {
             CheckedControl::CompoundAssign { target, value, .. } => {
                 self.visit_compound_assignment(node, *target, *value, state)
             }
-            CheckedControl::Loop(loop_) => self.visit_loop(*loop_, state),
+            CheckedControl::Loop(loop_) => self.visit_loop(node, *loop_, state),
             CheckedControl::Pattern {
                 subject,
                 arms,
@@ -833,6 +850,7 @@ impl OwnershipAnalyzer<'_> {
 
     fn visit_loop(
         &mut self,
+        node: BodyNodeId,
         loop_: LoopId,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
@@ -847,12 +865,17 @@ impl OwnershipAnalyzer<'_> {
         {
             return Ok(false);
         }
-        let iterator = if let LoopKind::For { iteration, .. } = definition.kind() {
-            if !self.visit(iteration.iterator(), state)? {
+        let iterator_node = match definition.kind() {
+            LoopKind::For { iteration, .. } => Some(iteration.iterator()),
+            LoopKind::ForAwait { iteration, .. } => Some(iteration.iterator()),
+            _ => None,
+        };
+        let iterator = if let Some(iterator_node) = iterator_node {
+            if !self.visit(iterator_node, state)? {
                 return Ok(false);
             }
-            self.activate_expression_temporary(iteration.iterator(), state)?
-                .then_some(TemporaryIdentity::Value(iteration.iterator()))
+            self.activate_expression_temporary(iterator_node, state)?
+                .then_some(TemporaryIdentity::Value(iterator_node))
         } else {
             None
         };
@@ -876,6 +899,7 @@ impl OwnershipAnalyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
+                | LoopKind::ForAwait { .. }
                 | LoopKind::ArgumentPack { .. }
                 | LoopKind::KeyedArgumentPack { .. } => true,
             };
@@ -891,10 +915,14 @@ impl OwnershipAnalyzer<'_> {
                     LoopKind::While { .. }
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
+                        | LoopKind::ForAwait { .. }
                         | LoopKind::ArgumentPack { .. }
                         | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
+            if condition_reaches && matches!(definition.kind(), LoopKind::ForAwait { .. }) {
+                self.record_async_loop_suspension(node, &iteration)?;
+            }
             if condition_reaches {
                 Self::declare_loop_bindings(definition.kind(), &mut iteration)?;
             }
@@ -929,6 +957,38 @@ impl OwnershipAnalyzer<'_> {
         }
     }
 
+    fn record_async_loop_suspension(
+        &mut self,
+        node: BodyNodeId,
+        state: &OwnershipState,
+    ) -> Result<(), BodyCheckError> {
+        let mut cancellation_state = state.clone();
+        let cancellation = self.async_loop_transfer_cleanup(&mut cancellation_state)?;
+        self.store_cancellation_actions(node, cancellation)?;
+
+        let mut failure_state = state.clone();
+        let failure = self.async_loop_transfer_cleanup(&mut failure_state)?;
+        self.record_cleanup(node, CleanupTiming::OnOutcomePropagation, failure);
+        Ok(())
+    }
+
+    fn async_loop_transfer_cleanup(
+        &mut self,
+        state: &mut OwnershipState,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let iterator = self
+            .loops
+            .last()
+            .and_then(|frame| frame.iterator)
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        let mut actions = self
+            .consume_temporary_cleanup(iterator, state)?
+            .into_iter()
+            .collect::<Vec<_>>();
+        actions.extend(self.transfer_cleanup(state)?);
+        Ok(actions)
+    }
+
     fn declare_loop_bindings(
         kind: &LoopKind,
         state: &mut OwnershipState,
@@ -936,6 +996,7 @@ impl OwnershipAnalyzer<'_> {
         let bindings: &[LocalBindingId] = match kind {
             LoopKind::Range { binding, .. }
             | LoopKind::For { binding, .. }
+            | LoopKind::ForAwait { binding, .. }
             | LoopKind::ArgumentPack { binding, .. } => std::slice::from_ref(binding),
             LoopKind::KeyedArgumentPack {
                 key_binding,

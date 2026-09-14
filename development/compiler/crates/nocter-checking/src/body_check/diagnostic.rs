@@ -49,6 +49,8 @@ pub enum BodyRule {
     UnknownTupleElement,
     AwaitOutsideDeferredBody,
     InvalidAwaitOperand,
+    AsyncIterationOutsideDeferredBody,
+    InvalidAsyncCollectionIterator,
 }
 
 impl BodyRule {
@@ -99,6 +101,8 @@ impl BodyRule {
         Self::UnknownTupleElement,
         Self::AwaitOutsideDeferredBody,
         Self::InvalidAwaitOperand,
+        Self::AsyncIterationOutsideDeferredBody,
+        Self::InvalidAsyncCollectionIterator,
     ];
 
     #[must_use]
@@ -150,6 +154,8 @@ impl BodyRule {
             Self::UnknownTupleElement => DiagnosticCode::E0413,
             Self::AwaitOutsideDeferredBody => DiagnosticCode::E0415,
             Self::InvalidAwaitOperand => DiagnosticCode::E0416,
+            Self::AsyncIterationOutsideDeferredBody => DiagnosticCode::E0419,
+            Self::InvalidAsyncCollectionIterator => DiagnosticCode::E0420,
         }
     }
 
@@ -206,6 +212,14 @@ impl BodyRule {
             Self::InvalidAwaitOperand => (
                 "`await` operand is not an owned asynchronous computation",
                 "await a `future T` value that this expression owns",
+            ),
+            Self::AsyncIterationOutsideDeferredBody => (
+                "`for await` is outside a deferred callable body",
+                "use `for await` only inside an `async` function or method",
+            ),
+            Self::InvalidAsyncCollectionIterator => (
+                "expression does not provide one owned asynchronous iterator",
+                "provide a value with exactly one `AsyncIterator` implementation; write `move` when ownership transfer is intended",
             ),
             _ => self.operation_message(),
         }

@@ -791,6 +791,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_async_collection_iteration_canonically() {
+        let formatted = format(
+            "async func consume(source:Source):void! { for await item in move source { let _=move item }\nreturn\n}\n",
+        );
+        assert_eq!(
+            formatted,
+            "async func consume(source: Source): void! { for await item in move source { let _ = move item }\n    return\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn formats_nested_generic_lists_through_parser_owned_split_tokens() {
         assert_eq!(
             format("func nested(value:Outer<Inner<\nT\n>>):void {}\n"),

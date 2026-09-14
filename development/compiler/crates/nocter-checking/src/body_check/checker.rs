@@ -483,7 +483,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 result: false,
                 reaches_next: false,
             }),
-            NodeKind::WhileStatement | NodeKind::LoopStatement | NodeKind::ForStatement => {
+            NodeKind::WhileStatement
+            | NodeKind::LoopStatement
+            | NodeKind::ForStatement
+            | NodeKind::ForAwaitStatement => {
                 let node = self.check_loop(executable)?;
                 Ok(CheckedExecutable {
                     node,

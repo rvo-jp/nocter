@@ -1626,6 +1626,79 @@ fn lowers_collection_iteration_from_frozen_acquisition_and_next_dispatch() {
 }
 
 #[test]
+fn lowers_async_collection_iteration_from_its_frozen_step_and_outcome_plan() {
+    let fixture = CompilerFixture::with_app_async_iteration_standard_uses(
+        "use std.AsyncIterator\n\
+         struct Iter { remaining: i32 }\n\
+         drop Iter(&+self) { return }\n\
+         instance Iter {\n\
+             impl AsyncIterator { .Item = i32 }\n\
+             async method &+self.next(): i32?! {\n\
+                 if self.remaining == 0 { return none }\n\
+                 self.remaining -= 1\n\
+                 return self.remaining\n\
+             }\n\
+         }\n\
+         async func consume(iterator: Iter): i32! {\n\
+             var total = 0\n\
+             for await item in move iterator { total += item }\n\
+             return total\n\
+         }\n\
+         func main(): void {\n\
+             let pending = consume(Iter { remaining: 2 })\n\
+             drop pending\n\
+             return\n\
+         }\n",
+        &[&[]],
+    );
+    let program = lower_compiler_fixture(&fixture).unwrap();
+    let function = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function
+                .blocks()
+                .iter()
+                .any(|(_, block)| matches!(block.terminator(), MirTerminator::Suspend { .. }))
+                .then_some(function)
+        })
+        .expect("async iterator consumer must suspend");
+
+    assert!(function.blocks().iter().any(|(_, block)| {
+        matches!(
+            block.terminator(),
+            MirTerminator::Switch { cases, .. }
+                if cases.iter().any(|case| case.value() == crate::MirSwitchValue::FallibleSuccess)
+        )
+    }));
+    assert!(function.blocks().iter().any(|(_, block)| {
+        matches!(
+            block.terminator(),
+            MirTerminator::Switch { cases, .. }
+                if cases.iter().any(|case| case.value() == crate::MirSwitchValue::OptionalPresent)
+        )
+    }));
+    let state = &function.async_frame().unwrap().states()[0];
+    assert!(state.stable_storage().iter().any(|local| {
+        function
+            .locals()
+            .get(*local)
+            .is_some_and(|local| local.kind() == crate::MirLocalKind::Temporary)
+    }));
+    assert!(matches!(
+        state.cancellation().first(),
+        Some(crate::MirCancellationAction::ReleaseAwaited(value)) if *value == state.awaited()
+    ));
+    assert!(
+        state
+            .cancellation()
+            .iter()
+            .skip(1)
+            .any(|action| matches!(action, crate::MirCancellationAction::Destroy { .. }))
+    );
+}
+
+#[test]
 fn collection_iteration_opens_an_opaque_iterator_receiver() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\

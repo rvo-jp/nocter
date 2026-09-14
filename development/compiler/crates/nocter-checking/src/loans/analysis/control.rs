@@ -88,7 +88,7 @@ impl Analyzer<'_> {
                 fallback,
                 unmatched,
             } => self.evaluate_pattern(*subject, arms, *fallback, *unmatched, state, extra),
-            CheckedControl::Loop(loop_) => self.evaluate_loop(*loop_, state, extra),
+            CheckedControl::Loop(loop_) => self.evaluate_loop(node, *loop_, state, extra),
             CheckedControl::Region {
                 binding,
                 allocator,
@@ -314,6 +314,7 @@ impl Analyzer<'_> {
 
     pub(super) fn evaluate_loop(
         &mut self,
+        node: BodyNodeId,
         loop_: LoopId,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
@@ -330,8 +331,13 @@ impl Analyzer<'_> {
         {
             return Ok((LoanValue::independent(), false));
         }
-        let iterator = if let LoopKind::For { iteration, .. } = definition.kind() {
-            let (value, reaches) = self.evaluate(iteration.iterator(), state, extra)?;
+        let iterator_node = match definition.kind() {
+            LoopKind::For { iteration, .. } => Some(iteration.iterator()),
+            LoopKind::ForAwait { iteration, .. } => Some(iteration.iterator()),
+            _ => None,
+        };
+        let iterator = if let Some(iterator_node) = iterator_node {
+            let (value, reaches) = self.evaluate(iterator_node, state, extra)?;
             if !reaches {
                 return Ok((LoanValue::independent(), false));
             }
@@ -356,6 +362,7 @@ impl Analyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
+                | LoopKind::ForAwait { .. }
                 | LoopKind::ArgumentPack { .. }
                 | LoopKind::KeyedArgumentPack { .. } => true,
             };
@@ -365,10 +372,19 @@ impl Analyzer<'_> {
                     LoopKind::While { .. }
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
+                        | LoopKind::ForAwait { .. }
                         | LoopKind::ArgumentPack { .. }
                         | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
+            if condition_reaches
+                && let LoopKind::ForAwait {
+                    iteration: async_iteration,
+                    ..
+                } = definition.kind()
+            {
+                self.record_async_iteration_suspension(node, async_iteration, iterator.as_ref())?;
+            }
             if condition_reaches {
                 self.initialize_loop_bindings(
                     definition.kind(),
@@ -400,6 +416,27 @@ impl Analyzer<'_> {
         }
     }
 
+    fn record_async_iteration_suspension(
+        &mut self,
+        node: BodyNodeId,
+        iteration: &crate::TypedAsyncIteration,
+        iterator: Option<&LoanValue>,
+    ) -> Result<(), BodyRelationError> {
+        let iterator = iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?;
+        let pending = self.async_iteration_future_loans(iteration.step(), iterator)?;
+        let mut suspended = self.live_before.get(&node).cloned().unwrap_or_default();
+        suspended.extend(pending.all_loans());
+        self.suspension_loans
+            .entry(node)
+            .or_default()
+            .extend(suspended);
+        self.explicit_suspension_storage
+            .entry(node)
+            .or_default()
+            .insert(crate::SuspensionStorage::Value(iteration.iterator()));
+        Ok(())
+    }
+
     fn initialize_loop_bindings(
         &self,
         kind: &LoopKind,
@@ -413,7 +450,14 @@ impl Analyzer<'_> {
             }
             LoopKind::For { binding, iteration } => {
                 let value = self.iteration_item_loans(
-                    iteration,
+                    iteration.step(),
+                    iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                )?;
+                state.set_root(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::ForAwait { binding, iteration } => {
+                let value = self.async_iteration_item_loans(
+                    iteration.step(),
                     iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?,
                 )?;
                 state.set_root(PlaceRoot::Local(*binding), value);

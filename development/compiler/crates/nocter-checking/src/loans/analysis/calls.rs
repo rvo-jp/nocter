@@ -368,7 +368,7 @@ impl Analyzer<'_> {
                             .contribution_type(self.types, iteration.item())
                             .ok_or(BodyCheckInternalError::LoanAnalysis)?;
                         if type_can_carry_loan(self.graph, self.types, contribution) {
-                            let item = self.iteration_item_loans(iteration, &iterator)?;
+                            let item = self.iteration_item_loans(iteration.step(), &iterator)?;
                             invocation_active.extend(item.all_loans());
                             elements.union_with(&item);
                         }
