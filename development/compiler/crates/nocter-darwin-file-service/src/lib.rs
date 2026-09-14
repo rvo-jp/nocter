@@ -3,7 +3,7 @@
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::{FileExt, MetadataExt};
+use std::os::unix::fs::{FileExt, MetadataExt, OpenOptionsExt};
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
@@ -22,6 +22,8 @@ pub use nocter_runtime_contract::{
     DarwinFileFailure as FileOperationError, DarwinFileMetadataKind as FileMetadataKind,
     DarwinFileOperation as FileJobKind, DarwinFileSeekOrigin, DarwinFileWriteFact as FileWriteFact,
 };
+
+const DARWIN_OPEN_NOFOLLOW: i32 = 0x100;
 
 /// Target-neutral metadata facts returned by the host conformance service.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -751,7 +753,10 @@ fn open_file(path: &PathBuf, access: FileAccess) -> io::Result<File> {
             .truncate(false)
             .open(path),
         FileAccess::Directory => {
-            let directory = File::open(path)?;
+            let directory = OpenOptions::new()
+                .read(true)
+                .custom_flags(DARWIN_OPEN_NOFOLLOW)
+                .open(path)?;
             if directory.metadata()?.is_dir() {
                 Ok(directory)
             } else {

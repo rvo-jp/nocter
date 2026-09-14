@@ -13,6 +13,7 @@ see ./async_metadata.nct
 see ./links.nct
 see ./path_output.nct
 see ./canonicalization.nct
+see ./recursive_removal.nct
 see ./directory_mutation_tests.nct
 
 use /path.Utf8Path
@@ -185,3 +186,9 @@ pub async func remove_dir(path: &str): void!
 
 /// Synchronously removes exactly one empty directory without following a final symbolic link.
 pub blocking func remove_dir_blocking(path: &str): void!
+
+/// Recursively removes one directory tree without following symbolic links.
+pub async func remove_dir_all(path: &str): void!
+
+/// Synchronously removes one directory tree without following symbolic links.
+pub blocking func remove_dir_all_blocking(path: &str): void!

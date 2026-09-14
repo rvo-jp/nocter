@@ -2122,6 +2122,11 @@ async func main(): i32 {
     if !hard_link_rejected { return 21 }
     let preserved = await fs.read_to_string("item") catch _ { return 16 }
     if &preserved != "value" { return 17 }
+    await fs.create_dir_all("recursive/first/second") catch _ { return 23 }
+    await fs.write_text("recursive/first/second/leaf", "leaf") catch _ { return 24 }
+    await fs.remove_dir_all("recursive") catch _ { return 25 }
+    let recursive_exists = await fs.exists("recursive") catch _ { return 26 }
+    if recursive_exists { return 27 }
     await fs.remove_file("link") catch _ { return 4 }
     await fs.remove_file("item") catch _ { return 8 }
     await fs.remove_file("copy") catch _ { return 18 }
@@ -2463,7 +2468,7 @@ fn standard_filesystem_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard filesystem tests failed native compilation")
     };
-    assert_eq!(cases.len(), 6);
+    assert_eq!(cases.len(), 7);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

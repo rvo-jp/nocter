@@ -203,6 +203,31 @@ fn copy_destination_open_preserves_existing_bytes_before_identity_check() {
 }
 
 #[test]
+fn directory_open_rejects_a_symbolic_link_in_the_final_position() {
+    let temporary = tempfile::tempdir().unwrap();
+    let target = temporary.path().join("target");
+    let link = temporary.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let mut service = service();
+
+    let open = service
+        .submit(DarwinFileJob::open(
+            service.reserve_file().unwrap(),
+            link,
+            FileAccess::Directory,
+        ))
+        .unwrap();
+    wait_for_job(&service, open);
+    let JobOutcome::Completed(DarwinFileOutcome::Open(result)) = service.consume(open).unwrap()
+    else {
+        panic!("directory open returned the wrong outcome")
+    };
+    assert!(result.is_err());
+    service.shutdown().unwrap();
+}
+
+#[test]
 fn write_flush_and_truncate_publish_complete_operation_facts() {
     let temporary = NamedTempFile::new().unwrap();
     let path = temporary.path().to_path_buf();

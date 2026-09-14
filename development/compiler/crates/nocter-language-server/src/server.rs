@@ -1914,10 +1914,38 @@ mod tests {
         assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }
 
+    fn assert_recursive_removal_hover(
+        server: &mut LanguageServer,
+        source_uri: &str,
+        source_text: &str,
+    ) {
+        let line = source_text
+            .lines()
+            .position(|line| line.contains("remove_dir_all_blocking"))
+            .unwrap();
+        let character = source_text
+            .lines()
+            .nth(line)
+            .unwrap()
+            .find("remove_dir_all_blocking")
+            .unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":38,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains(
+                "```nocter\\npub blocking func remove_dir_all_blocking(path: &str): void!\\n```"
+            ),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+    }
+
     #[test]
     fn path_and_directory_mutation_contracts_share_complete_editor_semantics() {
         let temporary = TemporaryDirectory::new();
-        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nblocking func inspect(path: &Utf8Path): void! {\n    fs.create_dir_all_blocking(path)?\n    let _link = fs.symlink_metadata_blocking(path)?\n    let _canonical = fs.canonicalize_blocking(path)?\n    let _copied = fs.copy_blocking(path, path)?\n    let _parent = path.parent()\n    return\n}\n";
+        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nblocking func inspect(path: &Utf8Path): void! {\n    fs.create_dir_all_blocking(path)?\n    let _link = fs.symlink_metadata_blocking(path)?\n    let _canonical = fs.canonicalize_blocking(path)?\n    let _copied = fs.copy_blocking(path, path)?\n    fs.remove_dir_all_blocking(path)?\n    let _parent = path.parent()\n    return\n}\n";
         let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
 
         let create_line = source_text
@@ -1966,6 +1994,7 @@ mod tests {
         assert_symlink_metadata_hover(&mut server, &source_uri, source_text);
         assert_canonicalize_hover(&mut server, &source_uri, source_text);
         assert_copy_hover(&mut server, &source_uri, source_text);
+        assert_recursive_removal_hover(&mut server, &source_uri, source_text);
 
         let parent_line = source_text
             .lines()

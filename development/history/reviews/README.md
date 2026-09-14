@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.50.0 Phase 2 Recursive-removal Review](v0.50.0-phase-2-recursive-removal.md)
 - [v0.50.0 Phase 2 Identity-safe Copy Review](v0.50.0-phase-2-copy.md)
 - [v0.50.0 Phase 2 Canonicalization Review](v0.50.0-phase-2-canonicalization.md)
 - [v0.50.0 Phase 1 File and Local-storage Review](v0.50.0-phase-1.md)

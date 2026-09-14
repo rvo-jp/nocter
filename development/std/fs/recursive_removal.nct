@@ -1,0 +1,105 @@
+//! Depth-bounded non-recursive directory-tree removal.
+
+see ./index.nct
+see ./directory.nct
+
+use /internal/io
+use /internal/os.OSErrorKind
+use /path.Utf8Path
+use /vec.Vec
+
+const RECURSIVE_DIRECTORY_DEPTH_LIMIT: usize = 256
+
+struct AsyncRemovalFrame {
+    path: Utf8Path
+    stream: ReadDir
+}
+
+struct BlockingRemovalFrame {
+    path: Utf8Path
+    stream: BlockingReadDir
+}
+
+noalloc func require_directory_depth(depth: usize): void! {
+    if depth >= RECURSIVE_DIRECTORY_DEPTH_LIMIT {
+        return error.new(
+            "std.fs.recursion_limit",
+            "recursive directory depth exceeds the supported limit",
+        )
+    }
+    return
+}
+
+async func remove_dir_all(path: &str): void! {
+    let root_metadata = await symlink_metadata(path)?
+    if !root_metadata.is_directory() {
+        return io.io_error_from_kind(OSErrorKind.not_directory)
+    }
+
+    var frames: Vec<AsyncRemovalFrame> = Vec.empty()
+    let root = Utf8Path.new(path)?
+    let stream = await read_dir(path)?
+    frames.push(AsyncRemovalFrame { path: move root, stream: move stream })
+
+    loop {
+        let frame = frames.pop() otherwise { return }
+        var active = move frame
+        let entry: DirEntry = await active.stream.next()? otherwise {
+            await remove_dir(&active.path)?
+            continue
+        }
+
+        frames.push(move active)
+        let entry_path = Utf8Path.new(directory_entry_path(&entry))?
+        let entry_metadata = await symlink_metadata(&entry_path)?
+        if entry_metadata.is_directory() {
+            require_directory_depth(frames.len())?
+            let child_stream = await read_dir(&entry_path)?
+            frames.push(
+                AsyncRemovalFrame {
+                    path: move entry_path,
+                    stream: move child_stream,
+                },
+            )
+        } else {
+            await remove_file(&entry_path)?
+        }
+    }
+}
+
+blocking func remove_dir_all_blocking(path: &str): void! {
+    let root_metadata = symlink_metadata_blocking(path)?
+    if !root_metadata.is_directory() {
+        return io.io_error_from_kind(OSErrorKind.not_directory)
+    }
+
+    var frames: Vec<BlockingRemovalFrame> = Vec.empty()
+    let root = Utf8Path.new(path)?
+    let stream = read_dir_blocking(path)?
+    frames.push(BlockingRemovalFrame { path: move root, stream: move stream })
+
+    loop {
+        let frame = frames.pop() otherwise { return }
+        var active = move frame
+        let entry: DirEntry = active.stream.next_blocking()? otherwise {
+            remove_dir_blocking(&active.path)?
+            continue
+        }
+
+        frames.push(move active)
+        let entry_path = Utf8Path.new(directory_entry_path(&entry))?
+        let entry_metadata = symlink_metadata_blocking(&entry_path)?
+        if entry_metadata.is_directory() {
+            require_directory_depth(frames.len())?
+            let child_stream = read_dir_blocking(&entry_path)?
+            frames.push(
+                BlockingRemovalFrame {
+                    path: move entry_path,
+                    stream: move child_stream,
+                },
+            )
+        } else {
+            remove_file_blocking(&entry_path)?
+        }
+    }
+}

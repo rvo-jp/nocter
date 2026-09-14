@@ -33,7 +33,8 @@ the same operations synchronously. Both owner types close once when explicitly c
 later operations on an explicitly closed value fail with `std.io.closed`.
 
 The canonical `read`, `read_to_string`, `write`, `write_text`, `copy`, `metadata`, `exists`,
-`canonicalize`, `remove_file`, `rename`, `create_dir`, `create_dir_all`, `remove_dir`, and `read_dir` functions are
+`canonicalize`, `remove_file`, `rename`, `create_dir`, `create_dir_all`, `remove_dir`,
+`remove_dir_all`, and `read_dir` functions are
 asynchronous. Whole-file transfer composes `File` with the executor-safe byte interfaces; path
 mutation transfers complete owned path bytes to the bounded file service. Metadata and canonical
 path queries transfer the path and publish portable values rather than target records. Directory
@@ -84,7 +85,8 @@ are still followed. A metadata value's `len` is the target-reported byte length 
 `directory` have their ordinary target meanings. Sockets, devices, and every other entry kind are
 reported as `other`. `is_file` and `is_directory` are exact tests of that portable classification.
 
-`read_dir` asynchronously opens exactly one directory and returns an owning `ReadDir`.
+`read_dir` asynchronously opens exactly one directory and returns an owning `ReadDir`. It does not
+follow a symbolic link in the final path position; the supplied entry itself must be a directory.
 `ReadDir.next` asynchronously returns `DirEntry?!`: the optional layer distinguishes clean end of
 stream and the failure layer reports an error encountered after construction. `read_dir_blocking`
 and `BlockingReadDir.next_blocking` expose the same policy synchronously. Neither stream implements
@@ -141,6 +143,15 @@ one pure prefix-boundary scanner; target execution is the only divergent respons
 `remove_dir` removes exactly one empty directory. It is never recursive and never follows a final
 symbolic link as a directory. A nonempty directory fails with `std.io.directory_not_empty`.
 `remove_dir_blocking` is its synchronous twin.
+`remove_dir_all` removes one complete directory tree depth first;
+`remove_dir_all_blocking` is its synchronous twin. Neither follows symbolic links: a link inside
+the tree is removed as a link, and a link supplied as the root fails with `std.io.not_directory`.
+The implementation retains at most one open directory stream per depth level and rejects a depth
+greater than 256 with `std.fs.recursion_limit`; it never accumulates every discovered entry. The
+operation is non-transactional. A race, access failure, malformed directory record, allocation
+failure, cancellation, or depth rejection leaves entries already removed absent and closes every
+retained stream. Entry type is confirmed through final-link metadata before descent, so a target
+that reports an unknown directory-entry kind does not cause a directory subtree to be skipped.
 `symlink` creates one symbolic link asynchronously; `symlink_blocking` is its synchronous twin.
 The target spelling is stored exactly as supplied. It may be relative and need not resolve when the
 link is created. Both arguments must be valid target path strings, and an existing link spelling is

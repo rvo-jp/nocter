@@ -66,6 +66,10 @@ instance DirEntry {
     }
 }
 
+noalloc func directory_entry_path(entry: &DirEntry): &str from entry {
+    return &entry.path
+}
+
 instance ReadDir {
     async method &+self.next(): DirEntry?! {
         return await next_directory_entry(self)
