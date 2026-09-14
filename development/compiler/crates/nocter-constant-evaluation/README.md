@@ -22,3 +22,5 @@ runtime execution, name lookup, overload selection, or target code generation.
 - Failure cannot publish a partially evaluated semantic constant.
 - Callable-plan construction validates every node, parameter, and local edge before publication.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
+- Evaluation limits count semantic plan operations and source-call depth, never host instructions
+  or elapsed time; all callers use the same nonzero limit contract.

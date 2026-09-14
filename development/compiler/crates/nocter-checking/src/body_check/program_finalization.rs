@@ -120,7 +120,58 @@ pub(super) fn finalize_materialized_program(
             return Err(BodyCheckFailure::from_recovery_result(error, recovery));
         }
     };
-    Ok(finish_checked_program(materialized, relations))
+    let compile_time_plans = match crate::compile_time_projection::build_compile_time_plan_table(
+        materialized.environment.graph(),
+        materialized.semantics.semantics().types(),
+        &materialized.bodies,
+    ) {
+        Ok(plans) => Arc::new(plans),
+        Err(error) => {
+            let authored_error = project_compile_time_failure(&materialized, error)
+                .map_err(|internal| BodyCheckFailure::new(internal.into(), None))?;
+            let recovery = if retain_recovery {
+                build_materialized_body_recovery(materialized).map(Some)
+            } else {
+                Ok(None)
+            };
+            return Err(BodyCheckFailure::from_recovery_result(
+                authored_error,
+                recovery,
+            ));
+        }
+    };
+    Ok(finish_checked_program(
+        materialized,
+        relations,
+        compile_time_plans,
+    ))
+}
+
+fn project_compile_time_failure(
+    materialized: &QueriedProgramMaterialization,
+    error: crate::CompileTimeProjectionError,
+) -> Result<crate::BodyCheckError, BodyCheckInternalError> {
+    let origin = match (error.body(), error.node()) {
+        (Some(body), Some(node)) => materialized
+            .node_origins
+            .get(body)
+            .and_then(|origins| origins.get(&node))
+            .copied()
+            .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))?,
+        _ => materialized
+            .source_index
+            .diagnostic_origins()
+            .declaration(nocter_source_index::SemanticEntity::Callable(
+                error.callable(),
+            ))
+            .ok_or(BodyCheckInternalError::MissingSource(
+                nocter_source_index::SemanticEntity::Callable(error.callable()),
+            ))?,
+    };
+    Ok(crate::BodyCheckError::from_rule(
+        crate::BodyRule::InvalidCompileTimeCallable,
+        crate::BodyRule::InvalidCompileTimeCallable.diagnostic(origin),
+    ))
 }
 
 fn build_materialized_body_recovery(
@@ -159,6 +210,7 @@ fn build_materialized_body_recovery(
 fn finish_checked_program(
     materialized: QueriedProgramMaterialization,
     relations: ReusableProgramRelations,
+    compile_time_plans: Arc<crate::CompileTimePlanTable>,
 ) -> CheckedProgramOutput {
     let QueriedProgramMaterialization {
         environment,
@@ -185,6 +237,7 @@ fn finish_checked_program(
                 execution_facts,
                 loans,
                 opaque_witnesses,
+                compile_time_plans,
                 associated_type_completion_contexts,
             },
             bodies,

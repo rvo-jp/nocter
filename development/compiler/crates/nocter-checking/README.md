@@ -130,9 +130,11 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A queried lexical rejection can reproduce its exact `PreparationFailure` branch. Session never
   reconstructs a name-resolution error variant from a diagnostic and separate recovery value.
 - `SourceIndex` cannot affect a semantic decision.
-- Compile-time projection accepts a `CheckedProgram` and callable identity as one authority. A
-  caller cannot pair a declaration with an unrelated checked body, and projection never repeats
-  lookup, typing, conversion, operator, or dispatch selection.
+- Program finalization projects the canonical callable and body arenas exactly once and stores one
+  `CompileTimePlanTable` in `CheckedProgram`. Consumers can read a plan by `CallableId`, but cannot
+  request projection, pair a declaration with an unrelated body, or repeat lookup, typing,
+  conversion, operator, or dispatch selection. Unsupported authored `const` operations remain
+  source-neutral until the finalization boundary projects them through canonical node origins.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.

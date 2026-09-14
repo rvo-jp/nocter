@@ -366,6 +366,8 @@ Source-backed checked-body diagnostics:
 - `E0419`: `for await` appears outside an `async` function or method body.
 - `E0420`: an asynchronous loop source does not provide exactly one owned implementation of the
   compiler-selected `AsyncIterator` contract.
+- `E0421`: a callable marked `const` contains an operation or value shape outside the supported
+  compile-time evaluation domain.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

@@ -1,12 +1,13 @@
 use nocter_constant_evaluation::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
     CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
-    CompileTimeNode, CompileTimeOperation, CompileTimeUnaryOperation, CompileTimeValueType,
-    ConstantScalarType, FloatFormat, InvalidCompileTimeCallablePlan,
+    CompileTimeNode, CompileTimeOperation, CompileTimePlanTable, CompileTimeUnaryOperation,
+    CompileTimeValueType, ConstantScalarType, FloatFormat, InvalidCompileTimeCallablePlan,
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableId, CompileTimeGuarantee, TypeId, TypeKind, TypeStore,
+    Arena, BorrowCapability, BuiltinType, CallableId, CompileTimeGuarantee, TypeId, TypeKind,
+    TypeStore,
 };
 
 use crate::{
@@ -24,6 +25,7 @@ pub enum CompileTimeProjectionRule {
     MutableReceiver,
     DynamicDispatch,
     RuntimeOnlyCall,
+    UnavailableCallTarget,
     DeferredCall,
     ArgumentPack,
     ProjectedPlace,
@@ -68,20 +70,61 @@ struct Projector<'a> {
     body: &'a CheckedBody,
 }
 
-/// Projects one compile-time-capable callable from the ordinary checked-body authority.
+/// Builds the only compile-time plan authority for one checked program generation.
 ///
 /// This operation performs no lookup, inference, overload selection, or type checking. It accepts
-/// only closed decisions already present in the program-owned body and returns an exhaustive operation-domain
-/// failure for anything the compile-time evaluator cannot represent.
+/// only closed decisions already present in canonical checked bodies. Runtime-only declarations
+/// retain empty identity slots, while authored compile-time declarations with bodies must project
+/// completely or reject program finalization.
 ///
 /// # Errors
 ///
-/// Returns the exact unsupported operation or invalid plan edge without publishing a partial plan.
-pub fn project_compile_time_callable(
-    program: &crate::CheckedProgram,
+/// Returns the exact unsupported operation or invalid plan edge without publishing a partial
+/// table.
+pub(crate) fn build_compile_time_plan_table(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    bodies: &Arena<nocter_model::BodyId, CheckedBody>,
+) -> Result<CompileTimePlanTable, CompileTimeProjectionError> {
+    let plans = graph
+        .declarations()
+        .callables()
+        .try_map(|callable, declaration| {
+            if declaration.guarantees().compile_time() != CompileTimeGuarantee::Evaluatable {
+                return Ok(None);
+            }
+            let Some(body_id) = declaration.body() else {
+                // Interface requirements have no executable body of their own. A concrete static
+                // implementation is selected before any call can enter a compile-time plan.
+                return Ok(None);
+            };
+            let body = bodies.get(body_id).ok_or(CompileTimeProjectionError {
+                callable,
+                body: Some(body_id),
+                node: None,
+                rule: CompileTimeProjectionRule::InvalidPlan,
+            })?;
+            project_compile_time_callable(graph, types, callable, body_id, body).map(Some)
+        })?;
+    CompileTimePlanTable::new(plans).map_err(|error| CompileTimeProjectionError {
+        callable: error.caller(),
+        body: graph
+            .declarations()
+            .callables()
+            .get(error.caller())
+            .and_then(nocter_declarations::CallableDeclaration::body),
+        node: Some(error.node()),
+        rule: CompileTimeProjectionRule::UnavailableCallTarget,
+    })
+}
+
+fn project_compile_time_callable(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
     callable: CallableId,
+    body_id: nocter_model::BodyId,
+    body: &CheckedBody,
 ) -> Result<CompileTimeCallablePlan, CompileTimeProjectionError> {
-    let graph = program.graph();
     let declaration =
         graph
             .declarations()
@@ -93,32 +136,9 @@ pub fn project_compile_time_callable(
                 node: None,
                 rule: CompileTimeProjectionRule::InvalidPlan,
             })?;
-    let body_id = declaration.body().ok_or(CompileTimeProjectionError {
-        callable,
-        body: None,
-        node: None,
-        rule: CompileTimeProjectionRule::InvalidPlan,
-    })?;
-    let body = program
-        .bodies()
-        .get(body_id)
-        .ok_or(CompileTimeProjectionError {
-            callable,
-            body: Some(body_id),
-            node: None,
-            rule: CompileTimeProjectionRule::InvalidPlan,
-        })?;
-    if declaration.guarantees().compile_time() != CompileTimeGuarantee::Evaluatable {
-        return Err(CompileTimeProjectionError {
-            callable,
-            body: Some(body_id),
-            node: None,
-            rule: CompileTimeProjectionRule::RuntimeOnlyCall,
-        });
-    }
     let projector = Projector {
         graph,
-        types: program.types(),
+        types,
         callable,
         body_id,
         body,
@@ -539,7 +559,6 @@ mod tests {
 
     use nocter_constant_evaluation::CompileTimeOperation;
 
-    use super::{CompileTimeProjectionRule, project_compile_time_callable};
     use crate::test_support::Fixture;
     use crate::{check_prepared_program, prepare_program_checking};
 
@@ -581,7 +600,7 @@ mod tests {
         let program = output.program();
         let (callable, body) = callable(program, "increment");
         assert!(program.bodies().get(body).is_some());
-        let plan = project_compile_time_callable(program, callable).unwrap();
+        let plan = program.compile_time_plans().get(callable).unwrap();
 
         assert!(
             plan.nodes()
@@ -599,17 +618,41 @@ mod tests {
     }
 
     #[test]
-    fn projection_rejects_a_call_without_authored_compile_time_capability() {
-        let output = check(
+    fn program_finalization_rejects_a_call_without_authored_compile_time_capability() {
+        let fixture = Fixture::new(
             "func runtime(value: i32): i32 { return value }\n\
              const func invalid(value: i32): i32 { return runtime(value) }\n",
         );
-        let program = output.program();
-        let (callable, body) = callable(program, "invalid");
-        assert!(program.bodies().get(body).is_some());
-        let error = project_compile_time_callable(program, callable).unwrap_err();
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
 
-        assert_eq!(error.rule(), CompileTimeProjectionRule::RuntimeOnlyCall);
-        assert!(error.node().is_some());
+        assert_eq!(
+            error.rule(),
+            Some(crate::BodyRule::InvalidCompileTimeCallable)
+        );
+        assert_eq!(
+            error
+                .source_diagnostic()
+                .expect("authored compile-time failure")
+                .code(),
+            "E0421"
+        );
+    }
+
+    #[test]
+    fn runtime_only_callable_has_no_compile_time_plan_slot_value() {
+        let output = check("func runtime(value: i32): i32 { return value }\n");
+        let program = output.program();
+        let (callable, _) = callable(program, "runtime");
+
+        assert!(program.compile_time_plans().get(callable).is_none());
+        assert_eq!(
+            program.compile_time_plans().len(),
+            program.graph().declarations().callables().len()
+        );
     }
 }

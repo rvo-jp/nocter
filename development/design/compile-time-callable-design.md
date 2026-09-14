@@ -53,10 +53,13 @@ Ordinary body checking remains the sole authority for names, types, conversions,
 generic substitution, overloads, operators, ownership, and dispatch. It produces the same checked
 body graph for runtime and compile-time-capable callables.
 
-Checking then projects an eligible checked body into a source-independent
-`CompileTimeCallablePlan`. Projection is validation, not type checking: it accepts only checked
-operations that have a defined compile-time meaning and retains their already-selected semantic
-identities. Rejection points to the checked operation's source locator.
+Program finalization projects every eligible checked body into a source-independent
+`CompileTimeCallablePlan` and publishes one identity-indexed `CompileTimePlanTable` inside the
+checked program. Projection is validation, not type checking: it accepts only checked operations
+that have a defined compile-time meaning and retains their already-selected semantic identities.
+Consumers can read the resulting table but cannot request a second projection. Rejection points to
+the checked operation's source locator and is mapped to authored diagnostic `E0421` only at the
+exact-current source boundary.
 
 ### Evaluation
 
@@ -74,9 +77,11 @@ One `CompileTimeProgram` owns:
 - memoized results for closed calls.
 
 Recursive source call graphs are valid. Only an active evaluation cycle with no terminating value,
-or a dependency cycle required to construct a declaration type, is rejected. Evaluation has an
-explicit step and recursion budget so compiler resource exhaustion becomes a deterministic source
-diagnostic rather than a host stack overflow.
+or a dependency cycle required to construct a declaration type, is rejected. Evaluation uses
+`CompileTimeEvaluationLimits`: one positive semantic-operation step count and one positive
+source-call-depth count. The default limits are 1,000,000 plan operations and 256 nested source
+calls. The counts are independent of host instructions and elapsed time, so compiler resource
+exhaustion becomes a deterministic source diagnostic rather than a host stack overflow.
 
 ## Dependency Queries
 
@@ -151,4 +156,3 @@ Compile-time table generation and copy aggregate construction follow only after 
 complete. Heap-backed collections are deliberately deferred until Nocter has a separate frozen
 allocation representation rather than pretending runtime allocator state exists during
 compilation.
-

@@ -51,6 +51,7 @@ pub enum BodyRule {
     InvalidAwaitOperand,
     AsyncIterationOutsideDeferredBody,
     InvalidAsyncCollectionIterator,
+    InvalidCompileTimeCallable,
 }
 
 impl BodyRule {
@@ -103,6 +104,7 @@ impl BodyRule {
         Self::InvalidAwaitOperand,
         Self::AsyncIterationOutsideDeferredBody,
         Self::InvalidAsyncCollectionIterator,
+        Self::InvalidCompileTimeCallable,
     ];
 
     #[must_use]
@@ -156,6 +158,7 @@ impl BodyRule {
             Self::InvalidAwaitOperand => DiagnosticCode::E0416,
             Self::AsyncIterationOutsideDeferredBody => DiagnosticCode::E0419,
             Self::InvalidAsyncCollectionIterator => DiagnosticCode::E0420,
+            Self::InvalidCompileTimeCallable => DiagnosticCode::E0421,
         }
     }
 
@@ -220,6 +223,10 @@ impl BodyRule {
             Self::InvalidAsyncCollectionIterator => (
                 "expression does not provide one owned asynchronous iterator",
                 "provide a value with exactly one `AsyncIterator` implementation; write `move` when ownership transfer is intended",
+            ),
+            Self::InvalidCompileTimeCallable => (
+                "`const` callable body is outside the compile-time evaluation domain",
+                "use immutable scalar, tuple, fixed-array, control-flow, and `const` call operations supported by compile-time evaluation, or remove `const`",
             ),
             _ => self.operation_message(),
         }

@@ -24,6 +24,7 @@ pub struct CheckedProgram {
     execution_facts: Arc<crate::ExecutionFactTable>,
     loans: Arc<LoanTable>,
     opaque_witnesses: Arc<OpaqueWitnessTable>,
+    compile_time_plans: Arc<crate::CompileTimePlanTable>,
     bodies: Arc<Arena<BodyId, CheckedBody>>,
     associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
 }
@@ -33,6 +34,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) execution_facts: Arc<crate::ExecutionFactTable>,
     pub(crate) loans: Arc<LoanTable>,
     pub(crate) opaque_witnesses: Arc<OpaqueWitnessTable>,
+    pub(crate) compile_time_plans: Arc<crate::CompileTimePlanTable>,
     pub(crate) associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
 }
 
@@ -56,6 +58,7 @@ impl CheckedProgram {
             execution_facts: authorities.execution_facts,
             loans: authorities.loans,
             opaque_witnesses: authorities.opaque_witnesses,
+            compile_time_plans: authorities.compile_time_plans,
             bodies,
             associated_type_completion_contexts: authorities.associated_type_completion_contexts,
         }
@@ -159,6 +162,12 @@ impl CheckedProgram {
     #[must_use]
     pub fn opaque_witnesses(&self) -> &OpaqueWitnessTable {
         &self.opaque_witnesses
+    }
+
+    /// Returns the canonical compile-time plans accepted during this program's finalization.
+    #[must_use]
+    pub fn compile_time_plans(&self) -> &crate::CompileTimePlanTable {
+        &self.compile_time_plans
     }
 
     #[must_use]

@@ -4,17 +4,20 @@
 //! decisions through [`ConstantResolver`], freezes one typed plan, and is the sole implementation
 //! of constant arithmetic, short-circuiting, conversions, and dependency-cycle detection.
 
+mod budget;
 mod callable;
 mod evaluate;
 mod floating;
 mod model;
 mod plan;
+mod program;
 mod support;
 #[cfg(test)]
 mod tests;
 
 use nocter_language::DiagnosticCode;
 
+pub use budget::CompileTimeEvaluationLimits;
 pub use callable::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
     CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
@@ -34,6 +37,7 @@ pub use model::{
     ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
 };
 pub use plan::{plan_expression, plan_frozen_expression};
+pub use program::{CompileTimePlanTable, InvalidCompileTimePlanTable};
 
 /// Public constant-expression diagnostic family shared by header and body semantic adapters.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

@@ -112,9 +112,7 @@ pub use checked::{
     SpreadMode, StaticDispatch, StaticSelection, SuspensionStorage, TypedAsyncIteration,
     TypedIteration, TypedIterationStep, ValueProvenance,
 };
-pub use compile_time_projection::{
-    CompileTimeProjectionError, CompileTimeProjectionRule, project_compile_time_callable,
-};
+pub use compile_time_projection::{CompileTimeProjectionError, CompileTimeProjectionRule};
 pub use concrete_destruction::{
     ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,
     ConcreteDestructionPlan, ConcreteFieldDestruction, ConcretePayloadDestruction,
@@ -170,6 +168,7 @@ pub use names::{
     ReusableBodyNameCatalogError, ReusableBodyNames, ReusableBodyNamesError,
     ReusableBodyResolutionError, ScopeBinding,
 };
+pub use nocter_constant_evaluation::CompileTimePlanTable;
 pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
 pub use ownership::{DropTable, DropTableError};
