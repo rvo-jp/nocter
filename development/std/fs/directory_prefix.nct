@@ -1,0 +1,25 @@
+//! Pure prefix boundaries shared by asynchronous and blocking directory creation.
+
+noalloc func next_directory_prefix_end(path: &str, start: usize): usize? {
+    if start > path.len() { return none }
+    var end = start
+    while end < path.len() && path[end] == 47 {
+        end += 1
+    }
+    if end == path.len() { return none }
+    while end < path.len() && path[end] != 47 {
+        end += 1
+    }
+    return end
+}
+
+noalloc func directory_prefix(path: &str, end: usize): &str? from path {
+    return path.get_range(0, end)
+}
+
+noalloc func invalid_directory_prefix(): error {
+    return error.new(
+        "std.fs.internal_path_boundary",
+        "directory prefix did not end at a UTF-8 boundary",
+    )
+}

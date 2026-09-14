@@ -33,14 +33,13 @@ the same operations synchronously. Both owner types close once when explicitly c
 later operations on an explicitly closed value fail with `std.io.closed`.
 
 The canonical `read`, `read_to_string`, `write`, `write_text`, `metadata`, `exists`, `remove_file`,
-`rename`, `create_dir`, `remove_dir`, and `read_dir` functions are asynchronous. Whole-file transfer
+`rename`, `create_dir`, `create_dir_all`, `remove_dir`, and `read_dir` functions are asynchronous. Whole-file transfer
 composes `File` with the executor-safe byte interfaces; path mutation transfers complete owned path
 bytes to the bounded file service. Metadata queries transfer the path and publish portable facts
 rather than a target `stat` record. Directory acquisition and record batches use the same bounded
 service and descriptor-retirement authority. Their `_blocking` twins use the explicit synchronous
-surface. Recursive directory construction and traversal remain explicitly blocking until their
-executor-safe contracts are complete. Pure `Metadata` and `DirEntry` inspection remains
-unqualified.
+surface. Recursive traversal and removal remain open until their executor-safe contracts are
+complete. Pure `Metadata` and `DirEntry` inspection remains unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -118,12 +117,14 @@ embedded NUL before any OS operation.
 `create_dir` creates exactly one directory with target-default permissions filtered by the process
 umask. It fails with `std.io.already_exists` when the final spelling already names any entry.
 `create_dir_blocking` is its synchronous twin.
-`create_dir_all` walks the authored spelling from left to right and creates every missing directory
-prefix. It succeeds when a prefix already resolves to a directory, including through a symbolic
-link, but fails when an existing prefix is not a directory. An empty spelling is invalid input; a
-spelling containing only root separators succeeds without a mutation. The operation does not
-lexically resolve `.`, `..`, or repeated separators before passing prefixes to the target. It is
-not transactional: directories created before a later prefix failure remain present.
+`create_dir_all` asynchronously walks the authored spelling from left to right and creates every
+missing directory prefix. `create_dir_all_blocking` applies the same prefix policy synchronously.
+They succeed when a prefix already resolves to a directory, including through a symbolic link, but
+fail when an existing prefix is not a directory. An empty spelling is invalid input; a spelling
+containing only root separators succeeds without a mutation. The operations do not lexically
+resolve `.`, `..`, or repeated separators before passing prefixes to the target. They are not
+transactional: directories created before a later prefix failure remain present. Both surfaces use
+one pure prefix-boundary scanner; target execution is the only divergent responsibility.
 
 `remove_dir` removes exactly one empty directory. It is never recursive and never follows a final
 symbolic link as a directory. A nonempty directory fails with `std.io.directory_not_empty`.

@@ -1841,7 +1841,7 @@ mod tests {
     #[test]
     fn path_and_directory_mutation_contracts_share_complete_editor_semantics() {
         let temporary = TemporaryDirectory::new();
-        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nblocking func inspect(path: &Utf8Path): void! {\n    fs.create_dir_all(path)?\n    let _parent = path.parent()\n    return\n}\n";
+        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nblocking func inspect(path: &Utf8Path): void! {\n    fs.create_dir_all_blocking(path)?\n    let _parent = path.parent()\n    return\n}\n";
         let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
 
         let create_line = source_text
@@ -1869,8 +1869,9 @@ mod tests {
         ));
         let response = create_hover.response().unwrap();
         assert!(
-            response
-                .contains("```nocter\\npub blocking func create_dir_all(path: &str): void!\\n```"),
+            response.contains(
+                "```nocter\\npub blocking func create_dir_all_blocking(path: &str): void!\\n```"
+            ),
             "{response}"
         );
         assert!(create_hover.issue().is_none(), "{:?}", create_hover.issue());

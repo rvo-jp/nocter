@@ -1,0 +1,33 @@
+//! Executor-safe recursive directory construction over shared prefix policy.
+
+see ./index.nct
+see ./directory_prefix.nct
+
+use /internal/io
+use /internal/os.OSErrorKind
+
+async func create_dir_all(path: &str): void! {
+    if path.len() == 0 {
+        return io.io_error_from_kind(OSErrorKind.invalid_input)
+    }
+
+    var end: usize = 0
+    while true {
+        end = next_directory_prefix_end(path, end) otherwise { return }
+        let prefix = directory_prefix(path, end) otherwise {
+            return invalid_directory_prefix()
+        }
+        await ensure_directory_async(prefix)?
+    }
+    return
+}
+
+async func ensure_directory_async(path: &str): void! {
+    await create_dir(path) catch failure {
+        if !failure.has_code("std.io.already_exists") { return move failure }
+        let existing = await metadata(path)?
+        if existing.is_directory() { return }
+        return io.io_error_from_kind(OSErrorKind.not_directory)
+    }
+    return
+}

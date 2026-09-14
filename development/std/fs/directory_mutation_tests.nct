@@ -1,19 +1,28 @@
 //! Directory lifecycle contract tests.
 
 see ./index.nct
+see ./directory_prefix.nct
 
 use /testing
+
+test directory_prefix_helpers_reject_invalid_boundaries {
+    let _unexpected_end = next_directory_prefix_end("a", 2) otherwise {
+        let _unexpected_prefix = directory_prefix("é", 1) otherwise { return }
+        return error.new("std.fs.test", "non-boundary prefix was accepted")
+    }
+    return error.new("std.fs.test", "out-of-range prefix cursor was accepted")
+}
 
 test directory_creation_and_removal_preserve_explicit_scope {
     let root = ".nocter-v027-directory-lifecycle"
     let nested = ".nocter-v027-directory-lifecycle/first/second"
-    create_dir_all(nested)?
+    create_dir_all_blocking(nested)?
     let root_metadata = metadata_blocking(root)?
     let nested_metadata = metadata_blocking(nested)?
     testing.assert(root_metadata.is_directory())?
     testing.assert(nested_metadata.is_directory())?
 
-    create_dir_all(nested)?
+    create_dir_all_blocking(nested)?
     var existing_rejected = false
     create_dir_blocking(root) catch failure {
         existing_rejected = failure.has_code("std.io.already_exists")
@@ -34,10 +43,10 @@ test directory_creation_and_removal_preserve_explicit_scope {
 }
 
 test recursive_creation_rejects_empty_and_non_directory_prefixes {
-    create_dir_all("///")?
+    create_dir_all_blocking("///")?
 
     var empty_rejected = false
-    create_dir_all("") catch failure {
+    create_dir_all_blocking("") catch failure {
         empty_rejected = failure.has_code("std.io.invalid_input")
     }
     testing.assert(empty_rejected)?
@@ -47,7 +56,7 @@ test recursive_creation_rejects_empty_and_non_directory_prefixes {
     create_dir_blocking(root)?
     write_text_blocking(file, "not a directory")?
     var prefix_rejected = false
-    create_dir_all(".nocter-v027-directory-prefix/file/child") catch failure {
+    create_dir_all_blocking(".nocter-v027-directory-prefix/file/child") catch failure {
         prefix_rejected = failure.has_code("std.io.not_directory")
     }
     testing.assert(prefix_rejected)?

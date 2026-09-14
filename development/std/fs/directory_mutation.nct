@@ -2,10 +2,10 @@
 
 see ./index.nct
 see ./darwin.nct
+see ./directory_prefix.nct
 
 use /internal/io
 use /internal/os.OSErrorKind
-use /path as path_module
 
 blocking func create_dir_blocking(path: &str): void! {
     let attempt = create_directory_target(path)?
@@ -15,27 +15,17 @@ blocking func create_dir_blocking(path: &str): void! {
     return
 }
 
-blocking func create_dir_all(path: &str): void! {
-    path_module.validate(path)?
+blocking func create_dir_all_blocking(path: &str): void! {
     if path.len() == 0 {
         return io.io_error_from_kind(OSErrorKind.invalid_input)
     }
 
     var end: usize = 0
-    while end < path.len() {
-        while end < path.len() && path[end] == 47 {
-            end += 1
-        }
-        if end == path.len() { return }
-        while end < path.len() && path[end] != 47 {
-            end += 1
-        }
+    while true {
+        end = next_directory_prefix_end(path, end) otherwise { return }
 
-        let prefix = path.get_range(0, end) otherwise {
-            return error.new(
-                "std.fs.internal_path_boundary",
-                "directory prefix did not end at a UTF-8 boundary",
-            )
+        let prefix = directory_prefix(path, end) otherwise {
+            return invalid_directory_prefix()
         }
         ensure_directory(prefix)?
     }

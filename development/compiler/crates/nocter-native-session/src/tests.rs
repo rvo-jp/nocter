@@ -1986,6 +1986,11 @@ async func open_fails_with(path: &str, code: &str): bool {
     return false
 }
 
+async func closed_stream_has_no_entry(stream: &+fs.ReadDir): bool! {
+    let _entry = await stream.next()? otherwise { return true }
+    return false
+}
+
 async func inspect_directory(): i32! {
     var stream = await fs.read_dir(".")?
     var saw_file = false
@@ -2024,8 +2029,19 @@ async func inspect_directory(): i32! {
 
     var closed = await fs.read_dir(".")?
     await closed.close()?
-    let _after_close = await closed.next()? otherwise { return 42 }
-    return 11
+    if !await closed_stream_has_no_entry(&+closed)? { return 42 }
+
+    await fs.create_dir_all("async-created/one/two")?
+    let created = await fs.metadata("async-created/one/two")?
+    if !created.is_directory() { return 43 }
+    await fs.remove_dir("async-created/one/two")?
+    await fs.remove_dir("async-created/one")?
+    await fs.remove_dir("async-created")?
+    await fs.create_dir_all("") catch failure {
+        if !failure.has_code("std.io.invalid_input") { return 44 }
+        return 42
+    }
+    return 45
 }
 
 async func main(): i32 {
@@ -2066,7 +2082,7 @@ use std/path.Utf8Path
 blocking func main(): i32! {
     let target = Utf8Path.new("workspace/cache/items.json")?
     let parent = target.parent() otherwise { return 1 }
-    fs.create_dir_all(parent)?
+    fs.create_dir_all_blocking(parent)?
     fs.write_text_blocking(&target, "value")?
 
     let file_name = target.file_name() otherwise { return 2 }
@@ -2081,7 +2097,7 @@ blocking func main(): i32! {
     fs.remove_dir_blocking("workspace")?
 
     var dangling_rejected = false
-    fs.create_dir_all("dangling-root/link/child") catch failure {
+    fs.create_dir_all_blocking("dangling-root/link/child") catch failure {
         dangling_rejected = failure.has_code("std.io.not_directory")
     }
     if !dangling_rejected { return 8 }
@@ -2094,7 +2110,7 @@ blocking func main(): i32! {
     fs.remove_file_blocking("dangling-root/link")?
     fs.remove_dir_blocking("dangling-root")?
 
-    fs.create_dir_all("linked-root/child")?
+    fs.create_dir_all_blocking("linked-root/child")?
     fs.remove_dir_blocking("linked-root/child")?
     fs.remove_file_blocking("linked-root")?
     fs.remove_dir_blocking("real-root")?
@@ -2334,7 +2350,7 @@ fn standard_filesystem_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard filesystem tests failed native compilation")
     };
-    assert_eq!(cases.len(), 5);
+    assert_eq!(cases.len(), 6);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
