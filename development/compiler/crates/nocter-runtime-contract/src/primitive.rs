@@ -268,12 +268,18 @@ closed_role_enum! {
         FilesystemCreateDirectory,
         /// Constructs one generated local-directory removal computation.
         FilesystemRemoveDirectory,
+        /// Constructs one generated local-filesystem metadata computation.
+        FilesystemMetadata,
         /// Retires and clears one still-live generated local-file owner.
         FileOwnerDispose,
         /// Moves the returned owner out of one file completion and clears its source slot.
         FileCompletionTakeOwner,
         FileCompletionTransferredByteCount,
         FileCompletionResultPosition,
+        FileCompletionMetadataKind,
+        FileCompletionMetadataLength,
+        FileCompletionMetadataModifiedSeconds,
+        FileCompletionMetadataModifiedNanoseconds,
         FileCompletionFailureKind,
         FileCompletionFailureErrno,
         /// Retires and clears a completion's owner when policy did not take it.
@@ -455,10 +461,19 @@ impl PrimitiveRole {
             Self::FilesystemRename => "filesystem_rename",
             Self::FilesystemCreateDirectory => "filesystem_create_directory",
             Self::FilesystemRemoveDirectory => "filesystem_remove_directory",
+            Self::FilesystemMetadata => "filesystem_metadata",
             Self::FileOwnerDispose => "file_owner_dispose",
             Self::FileCompletionTakeOwner => "file_completion_take_owner",
             Self::FileCompletionTransferredByteCount => "file_completion_transferred_byte_count",
             Self::FileCompletionResultPosition => "file_completion_result_position",
+            Self::FileCompletionMetadataKind => "file_completion_metadata_kind",
+            Self::FileCompletionMetadataLength => "file_completion_metadata_length",
+            Self::FileCompletionMetadataModifiedSeconds => {
+                "file_completion_metadata_modified_seconds"
+            }
+            Self::FileCompletionMetadataModifiedNanoseconds => {
+                "file_completion_metadata_modified_nanoseconds"
+            }
             Self::FileCompletionFailureKind => "file_completion_failure_kind",
             Self::FileCompletionFailureErrno => "file_completion_failure_errno",
             Self::FileCompletionDispose => "file_completion_dispose",
@@ -575,6 +590,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
                     | Self::FilesystemRemoveDirectory
+                    | Self::FilesystemMetadata
             ),
             may_block: matches!(
                 self,
@@ -616,6 +632,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
                     | Self::FilesystemRemoveDirectory
+                    | Self::FilesystemMetadata
             ),
         }
     }
@@ -650,6 +667,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
                     | Self::FilesystemRemoveDirectory
+                    | Self::FilesystemMetadata
             ),
             process: matches!(
                 self,
@@ -674,6 +692,7 @@ impl PrimitiveRole {
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
                     | Self::FilesystemRemoveDirectory
+                    | Self::FilesystemMetadata
             ),
         }
     }
@@ -872,6 +891,7 @@ mod tests {
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
                 PrimitiveRole::FilesystemRemoveDirectory,
+                PrimitiveRole::FilesystemMetadata,
             ]
         );
     }
@@ -935,6 +955,7 @@ mod tests {
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
                 PrimitiveRole::FilesystemRemoveDirectory,
+                PrimitiveRole::FilesystemMetadata,
             ]
         );
     }
@@ -973,6 +994,7 @@ mod tests {
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
                 PrimitiveRole::FilesystemRemoveDirectory,
+                PrimitiveRole::FilesystemMetadata,
             ]
         );
 
@@ -1005,6 +1027,7 @@ mod tests {
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
                 PrimitiveRole::FilesystemRemoveDirectory,
+                PrimitiveRole::FilesystemMetadata,
             ]
         );
     }

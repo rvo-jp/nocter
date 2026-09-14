@@ -30,6 +30,10 @@ pub enum DarwinFileJobField {
     SecondaryPathOffset,
     TransferredByteCount,
     ResultPosition,
+    MetadataKind,
+    MetadataLength,
+    MetadataModifiedSeconds,
+    MetadataModifiedNanoseconds,
     FailureKind,
     FailureErrno,
     Readiness,
@@ -51,6 +55,10 @@ pub enum DarwinFileCompletionField {
     RetirementRecord,
     TransferredByteCount,
     ResultPosition,
+    MetadataKind,
+    MetadataLength,
+    MetadataModifiedSeconds,
+    MetadataModifiedNanoseconds,
     FailureKind,
     FailureErrno,
 }
@@ -60,9 +68,29 @@ impl DarwinFileCompletionField {
         Self::RetirementRecord,
         Self::TransferredByteCount,
         Self::ResultPosition,
+        Self::MetadataKind,
+        Self::MetadataLength,
+        Self::MetadataModifiedSeconds,
+        Self::MetadataModifiedNanoseconds,
         Self::FailureKind,
         Self::FailureErrno,
     ];
+
+    /// Returns the sole job field published into this completion field.
+    #[must_use]
+    pub const fn job_field(self) -> DarwinFileJobField {
+        match self {
+            Self::RetirementRecord => DarwinFileJobField::RetirementRecord,
+            Self::TransferredByteCount => DarwinFileJobField::TransferredByteCount,
+            Self::ResultPosition => DarwinFileJobField::ResultPosition,
+            Self::MetadataKind => DarwinFileJobField::MetadataKind,
+            Self::MetadataLength => DarwinFileJobField::MetadataLength,
+            Self::MetadataModifiedSeconds => DarwinFileJobField::MetadataModifiedSeconds,
+            Self::MetadataModifiedNanoseconds => DarwinFileJobField::MetadataModifiedNanoseconds,
+            Self::FailureKind => DarwinFileJobField::FailureKind,
+            Self::FailureErrno => DarwinFileJobField::FailureErrno,
+        }
+    }
 }
 
 /// Source-independent output layout written by every generated file consume entry.
@@ -75,8 +103,8 @@ pub struct DarwinFileCompletionAbiSchema {
 
 impl DarwinFileCompletionAbiSchema {
     pub const ARM64_DARWIN: Self = Self {
-        field_offsets: [0, 8, 16, 24, 32],
-        size: 40,
+        field_offsets: [0, 8, 16, 24, 32, 40, 48, 56, 64],
+        size: 72,
         alignment: 8,
     };
 
@@ -118,6 +146,10 @@ impl DarwinFileJobField {
         Self::SecondaryPathOffset,
         Self::TransferredByteCount,
         Self::ResultPosition,
+        Self::MetadataKind,
+        Self::MetadataLength,
+        Self::MetadataModifiedSeconds,
+        Self::MetadataModifiedNanoseconds,
         Self::FailureKind,
         Self::FailureErrno,
         Self::Readiness,
@@ -142,6 +174,8 @@ pub enum DarwinFileJobOwnedBytes {
     PathInput,
     /// Two consecutive complete target paths, each including its terminal NUL byte.
     TwoPathInputs,
+    /// One NUL-terminated path followed by target-owned metadata scratch storage.
+    PathInputAndMetadataOutput,
 }
 
 /// State required of the job's pre-reserved retirement record at admission.
@@ -171,6 +205,7 @@ pub enum DarwinFileJobResult {
     None,
     TransferredByteCount,
     Position,
+    Metadata,
 }
 
 /// Complete operation-specific interpretation of the shared generated job layout.
@@ -269,6 +304,12 @@ impl DarwinFileOperation {
                 Operand::None,
                 Result::None,
             ),
+            Self::Metadata => (
+                Bytes::PathInputAndMetadataOutput,
+                Retirement::None,
+                Operand::None,
+                Result::Metadata,
+            ),
         };
         DarwinFileJobContract {
             owned_bytes,
@@ -293,9 +334,9 @@ impl DarwinFileJobAbiSchema {
         asynchronous: RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous(),
         field_offsets: [
             0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152,
-            160, 168, 176, 184, 192, 200, 208,
+            160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240,
         ],
-        fixed_size: 216,
+        fixed_size: 248,
         alignment: 8,
     };
 
@@ -347,7 +388,7 @@ mod tests {
         for (index, field) in DarwinFileCompletionField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.size(), 40);
+        assert_eq!(schema.size(), 72);
         assert_eq!(schema.alignment(), 8);
     }
 
@@ -382,15 +423,19 @@ mod tests {
         for (index, field) in DarwinFileJobField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.fixed_size(), 216);
+        assert_eq!(schema.fixed_size(), 248);
         assert_eq!(schema.alignment(), asynchronous.fixed_header_alignment());
         assert_eq!(schema.owned_bytes_offset(), schema.fixed_size());
-        assert_eq!(schema.allocation_size(0), Some(216));
-        assert_eq!(schema.allocation_size(31), Some(247));
+        assert_eq!(schema.allocation_size(0), Some(248));
+        assert_eq!(schema.allocation_size(31), Some(279));
         assert_eq!(schema.allocation_size(u64::MAX), None);
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one exhaustive table keeps every closed operation contract auditable"
+    )]
     fn every_operation_has_one_closed_input_and_result_contract() {
         use DarwinFileJobOperand as Operand;
         use DarwinFileJobOwnedBytes as Bytes;
@@ -481,6 +526,13 @@ mod tests {
                 Retirement::None,
                 Operand::None,
                 Result::None,
+            ),
+            (
+                DarwinFileOperation::Metadata,
+                Bytes::PathInputAndMetadataOutput,
+                Retirement::None,
+                Operand::None,
+                Result::Metadata,
             ),
         ];
 

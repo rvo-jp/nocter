@@ -9,10 +9,12 @@ phased authority replacement live in
 
 ## Next Work
 
-Continue v0.50.0 Phase 2 with typed owned results for metadata and directory acquisition, followed
-by links, canonicalization, bounded copy, recursive mutation, and traversal. The first range has
+Continue v0.50.0 Phase 2 with typed ownership for directory acquisition, followed by links,
+canonicalization, bounded copy, recursive mutation, and traversal. The completed ranges have
 completed canonical asynchronous and explicit blocking twins for single-entry removal, rename,
-single-directory creation, and empty-directory removal over owned-path jobs. Preserve one
+single-directory creation, empty-directory removal, metadata, and existence queries over
+owned-path jobs. Metadata target storage is decoded once by the worker and only portable facts
+cross the completion ABI. Preserve one
 path-validation authority, one portable error policy, bounded recursive work, and typed target
 facts. Do not implement an asynchronous surface by calling a public blocking wrapper or by
 retaining caller storage in a worker.

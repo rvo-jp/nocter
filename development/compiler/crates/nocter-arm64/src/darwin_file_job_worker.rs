@@ -1,7 +1,7 @@
 use nocter_runtime_contract::{
     DarwinFileAccess, DarwinFileFailureKind, DarwinFileJobAbiSchema, DarwinFileJobField,
-    DarwinFileOperation, DarwinFileRetirementAbiSchema, DarwinFileRetirementField,
-    DarwinFileSeekOrigin,
+    DarwinFileMetadataKind, DarwinFileOperation, DarwinFileRetirementAbiSchema,
+    DarwinFileRetirementField, DarwinFileSeekOrigin,
 };
 
 use crate::darwin_file_job_code::{
@@ -11,7 +11,7 @@ use crate::darwin_file_job_code::{
 use crate::darwin_kernel_abi::{DarwinErrorAbi, DarwinFileAbi, DarwinSystemCall, emit_system_call};
 use crate::{
     Arm64AddSubtract, Arm64BranchCondition, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
-    Arm64Instruction,
+    Arm64Instruction, Arm64Logical,
 };
 
 pub(crate) fn execute_operation(
@@ -34,7 +34,119 @@ pub(crate) fn execute_operation(
         | DarwinFileOperation::Rename
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory => execute_path_mutation(code, job, operation),
+        DarwinFileOperation::Metadata => execute_metadata(code, job),
     }
+}
+
+fn execute_metadata(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    let retry = code.create_label();
+    code.bind(retry)?;
+    address(code, x(0), job, schema.owned_bytes_offset());
+    load(
+        code,
+        x(8),
+        job,
+        schema.offset(DarwinFileJobField::OwnedByteLength),
+    );
+    immediate(code, x(9), DarwinFileAbi::STAT_BUFFER_SIZE);
+    subtract_register(code, x(8), x(8), x(9));
+    address(code, x(1), job, schema.owned_bytes_offset());
+    add_register(code, x(1), x(1), x(8), false);
+    move_register(code, x(20), x(1));
+    emit_system_call(code, DarwinSystemCall::Stat64);
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    retry_interrupted_or_store_target(code, job, retry);
+    let finished = code.create_label();
+    code.branch(finished, false);
+    code.bind(success)?;
+
+    publish_metadata(code, job, x(20))?;
+    code.bind(finished)?;
+    Ok(())
+}
+
+fn publish_metadata(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+    target_record: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    crate::address_code::load_native(
+        code,
+        crate::Arm64LoadStoreSize::Half,
+        None,
+        x(21),
+        target_record,
+        DarwinFileAbi::STAT_MODE_OFFSET,
+    );
+    let regular = code.create_label();
+    let directory = code.create_label();
+    let symbolic_link = code.create_label();
+    let publish = code.create_label();
+    immediate(code, x(8), DarwinFileAbi::STAT_MODE_KIND_MASK);
+    code.append(Arm64Instruction::LogicalRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64Logical::And,
+        destination: Arm64DataRegister::General(x(21)),
+        left: Arm64DataRegister::General(x(21)),
+        right: Arm64DataRegister::General(x(8)),
+    });
+    immediate(code, x(8), DarwinFileAbi::STAT_MODE_REGULAR);
+    compare_register(code, x(21), x(8));
+    code.branch_conditional(regular, Arm64BranchCondition::Equal);
+    immediate(code, x(8), DarwinFileAbi::STAT_MODE_DIRECTORY);
+    compare_register(code, x(21), x(8));
+    code.branch_conditional(directory, Arm64BranchCondition::Equal);
+    immediate(code, x(8), DarwinFileAbi::STAT_MODE_SYMBOLIC_LINK);
+    compare_register(code, x(21), x(8));
+    code.branch_conditional(symbolic_link, Arm64BranchCondition::Equal);
+    immediate(code, x(22), DarwinFileMetadataKind::Other.code());
+    code.branch(publish, false);
+    code.bind(regular)?;
+    immediate(code, x(22), DarwinFileMetadataKind::Regular.code());
+    code.branch(publish, false);
+    code.bind(directory)?;
+    immediate(code, x(22), DarwinFileMetadataKind::Directory.code());
+    code.branch(publish, false);
+    code.bind(symbolic_link)?;
+    immediate(code, x(22), DarwinFileMetadataKind::SymbolicLink.code());
+    code.bind(publish)?;
+    store(
+        code,
+        job,
+        schema.offset(DarwinFileJobField::MetadataKind),
+        x(22),
+    );
+    for (offset, field) in [
+        (
+            DarwinFileAbi::STAT_SIZE_OFFSET,
+            DarwinFileJobField::MetadataLength,
+        ),
+        (
+            DarwinFileAbi::STAT_MODIFIED_SECONDS_OFFSET,
+            DarwinFileJobField::MetadataModifiedSeconds,
+        ),
+        (
+            DarwinFileAbi::STAT_MODIFIED_NANOSECONDS_OFFSET,
+            DarwinFileJobField::MetadataModifiedNanoseconds,
+        ),
+    ] {
+        crate::address_code::load_native(
+            code,
+            crate::Arm64LoadStoreSize::Double,
+            None,
+            x(8),
+            target_record,
+            offset,
+        );
+        store(code, job, schema.offset(field), x(8));
+    }
+    Ok(())
 }
 
 fn execute_open(

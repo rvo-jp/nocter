@@ -181,28 +181,8 @@ pub(crate) fn build_consume(
         imports,
     )?;
     copy_read_output(&mut code, x(19), imports, &schema);
-    for (source, destination) in [
-        (
-            DarwinFileJobField::RetirementRecord,
-            DarwinFileCompletionField::RetirementRecord,
-        ),
-        (
-            DarwinFileJobField::TransferredByteCount,
-            DarwinFileCompletionField::TransferredByteCount,
-        ),
-        (
-            DarwinFileJobField::ResultPosition,
-            DarwinFileCompletionField::ResultPosition,
-        ),
-        (
-            DarwinFileJobField::FailureKind,
-            DarwinFileCompletionField::FailureKind,
-        ),
-        (
-            DarwinFileJobField::FailureErrno,
-            DarwinFileCompletionField::FailureErrno,
-        ),
-    ] {
+    for destination in DarwinFileCompletionField::ALL.iter().copied() {
+        let source = destination.job_field();
         load(&mut code, x(8), x(19), schema.offset(source));
         store(&mut code, x(26), completion.offset(destination), x(8));
     }

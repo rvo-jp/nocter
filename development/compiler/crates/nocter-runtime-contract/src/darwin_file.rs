@@ -17,6 +17,7 @@ pub enum DarwinFileOperation {
     Rename,
     CreateDirectory,
     RemoveDirectory,
+    Metadata,
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
@@ -101,6 +102,7 @@ impl DarwinFileOperation {
         Self::Rename,
         Self::CreateDirectory,
         Self::RemoveDirectory,
+        Self::Metadata,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -119,6 +121,7 @@ impl DarwinFileOperation {
             Self::Rename => 9,
             Self::CreateDirectory => 10,
             Self::RemoveDirectory => 11,
+            Self::Metadata => 12,
         }
     }
 
@@ -138,6 +141,46 @@ impl DarwinFileOperation {
             9 => Some(Self::Rename),
             10 => Some(Self::CreateDirectory),
             11 => Some(Self::RemoveDirectory),
+            12 => Some(Self::Metadata),
+            _ => None,
+        }
+    }
+}
+
+/// Portable entry classification published by the Darwin file worker.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum DarwinFileMetadataKind {
+    Regular,
+    Directory,
+    SymbolicLink,
+    Other,
+}
+
+impl DarwinFileMetadataKind {
+    pub const ALL: &'static [Self] = &[
+        Self::Regular,
+        Self::Directory,
+        Self::SymbolicLink,
+        Self::Other,
+    ];
+
+    #[must_use]
+    pub const fn code(self) -> u64 {
+        match self {
+            Self::Regular => 1,
+            Self::Directory => 2,
+            Self::SymbolicLink => 3,
+            Self::Other => 4,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            1 => Some(Self::Regular),
+            2 => Some(Self::Directory),
+            3 => Some(Self::SymbolicLink),
+            4 => Some(Self::Other),
             _ => None,
         }
     }
@@ -463,8 +506,9 @@ impl DarwinFileSeekOrigin {
 mod tests {
     use super::{
         DarwinFileAccess, DarwinFileFailure, DarwinFileFailureAbiSchema, DarwinFileFailureKind,
-        DarwinFileFailureObservation, DarwinFileOperation, DarwinFileOwnerAbiSchema,
-        DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
+        DarwinFileFailureObservation, DarwinFileMetadataKind, DarwinFileOperation,
+        DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin, DarwinFileServiceConfiguration,
+        DarwinFileWriteFact,
     };
 
     #[test]
@@ -482,6 +526,11 @@ mod tests {
             );
         }
         assert_eq!(DarwinFileOperation::from_code(u8::MAX), None);
+
+        for kind in DarwinFileMetadataKind::ALL.iter().copied() {
+            assert_eq!(DarwinFileMetadataKind::from_code(kind.code()), Some(kind));
+        }
+        assert_eq!(DarwinFileMetadataKind::from_code(u64::MAX), None);
 
         for access in DarwinFileAccess::ALL.iter().copied() {
             assert_eq!(DarwinFileAccess::from_code(access.code()), Some(access));

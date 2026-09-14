@@ -441,11 +441,7 @@ fn build_consume_close(
     signal_record(&mut code, x(19));
     let completion = DarwinFileCompletionAbiSchema::ARM64_DARWIN;
     immediate(&mut code, x(8), 0);
-    for field in [
-        DarwinFileCompletionField::RetirementRecord,
-        DarwinFileCompletionField::TransferredByteCount,
-        DarwinFileCompletionField::ResultPosition,
-    ] {
+    for field in DarwinFileCompletionField::ALL.iter().copied() {
         store(&mut code, x(26), completion.offset(field), x(8));
     }
     store(

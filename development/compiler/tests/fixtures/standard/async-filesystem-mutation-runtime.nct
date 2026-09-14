@@ -12,11 +12,18 @@ async func main(): i32! {
 
     await fs.create_dir(&directory)?
     await verify_existing_directory(&directory)?
+    let directory_metadata = await fs.metadata(&directory)?
+    require(directory_metadata.is_directory(), "directory metadata changed")?
     await fs.write_text(&source, "executor-safe")?
+    let source_metadata = await fs.metadata(&source)?
+    require(source_metadata.is_file(), "file metadata changed")?
+    require(source_metadata.len() == 13, "file length changed")?
+    require(await fs.exists(&source)?, "existing path was absent")?
     await fs.rename(&source, &destination)?
     let text = await fs.read_to_string(&destination)?
     require((&text as &str) == "executor-safe", "renamed contents changed")?
     await fs.remove_file(&destination)?
+    require(!await fs.exists(&destination)?, "removed path still exists")?
     await verify_missing_file(&destination)?
     await fs.remove_dir(&directory)?
     return 0

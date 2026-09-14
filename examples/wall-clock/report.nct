@@ -11,7 +11,7 @@ blocking func run(): i32! {
 
     let observed = SystemTime.now()?
     let observed_text = observed.to_rfc3339()?
-    let details = fs.metadata(requested)?
+    let details = fs.metadata_blocking(requested)?
     let modified_text = details.modified().to_rfc3339()?
 
     io.print("now: ")?

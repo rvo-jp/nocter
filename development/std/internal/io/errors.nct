@@ -92,6 +92,16 @@ noalloc func validate_file_completion(completion: &FileCompletion): void! {
     return invalid_file_completion()
 }
 
+noalloc func file_completion_is_absent(completion: &FileCompletion): bool {
+    if file_completion_failure_kind_raw(completion) != FILE_FAILURE_TARGET { return false }
+    let target_errno = file_completion_failure_errno_raw(completion)
+    if target_errno <= 0 { return false }
+    let os_error = darwin.error_from_errno(darwin.errno(target_errno))
+    if os_error.kind is OSErrorKind.not_found { return true }
+    if os_error.kind is OSErrorKind.not_directory { return true }
+    return false
+}
+
 noalloc func invalid_file_completion(): error {
     return error.new(
         "std.io.invalid_target_result",

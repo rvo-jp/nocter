@@ -33,8 +33,9 @@ pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_event::DarwinEventAbiSchema;
 pub use darwin_file::{
     DarwinFileAccess, DarwinFileFailure, DarwinFileFailureAbiSchema, DarwinFileFailureKind,
-    DarwinFileFailureObservation, DarwinFileOperation, DarwinFileOwnerAbiSchema,
-    DarwinFileSeekOrigin, DarwinFileServiceConfiguration, DarwinFileWriteFact,
+    DarwinFileFailureObservation, DarwinFileMetadataKind, DarwinFileOperation,
+    DarwinFileOwnerAbiSchema, DarwinFileSeekOrigin, DarwinFileServiceConfiguration,
+    DarwinFileWriteFact,
 };
 pub use darwin_file_import::DarwinFileServiceFunction;
 pub use darwin_file_job_abi::{

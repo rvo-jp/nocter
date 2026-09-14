@@ -9,7 +9,7 @@ use tempfile::NamedTempFile;
 
 use crate::{
     DarwinFileJob, DarwinFileOutcome, DarwinFileOwner, DarwinFileService, FileAccess,
-    FileCancellation, FileJobKind, FilePosition,
+    FileCancellation, FileJobKind, FileMetadataKind, FilePosition,
 };
 
 fn service() -> DarwinFileService {
@@ -18,6 +18,24 @@ fn service() -> DarwinFileService {
         RetirementCapacity::new(1, 4).unwrap(),
     )
     .unwrap()
+}
+
+#[test]
+fn metadata_time_facts_use_normalized_signed_unix_parts() {
+    let epoch = std::time::UNIX_EPOCH;
+    assert_eq!(crate::unix_time_parts(epoch).unwrap(), (0, 0));
+    assert_eq!(
+        crate::unix_time_parts(epoch + Duration::new(2, 3)).unwrap(),
+        (2, 3)
+    );
+    assert_eq!(
+        crate::unix_time_parts(epoch - Duration::new(0, 1)).unwrap(),
+        (-1, 999_999_999)
+    );
+    assert_eq!(
+        crate::unix_time_parts(epoch - Duration::new(2, 0)).unwrap(),
+        (-2, 0)
+    );
 }
 
 #[test]
@@ -300,6 +318,20 @@ fn path_mutations_share_bounded_job_admission_without_resource_owners() {
     result.unwrap();
 
     std::fs::write(&source, b"owned input").unwrap();
+    let metadata = service
+        .submit(DarwinFileJob::metadata(source.clone()))
+        .unwrap();
+    wait_for_job(&service, metadata);
+    let JobOutcome::Completed(DarwinFileOutcome::Metadata(result)) =
+        service.consume(metadata).unwrap()
+    else {
+        panic!("metadata job returned the wrong outcome")
+    };
+    let metadata = result.unwrap();
+    assert_eq!(metadata.kind, FileMetadataKind::Regular);
+    assert_eq!(metadata.length, 11);
+    assert!(metadata.modified_nanoseconds < 1_000_000_000);
+
     let rename = DarwinFileJob::rename(source.clone(), destination.clone());
     assert_eq!(rename.kind(), FileJobKind::Rename);
     let rename = service.submit(rename).unwrap();

@@ -90,6 +90,10 @@ func filesystem_remove_directory(path: &str): future FileCompletion from static 
     return filesystem_remove_directory_raw(path)
 }
 
+func filesystem_metadata(path: &str): future FileCompletion from static {
+    return filesystem_metadata_raw(path)
+}
+
 noalloc func file_completion_take_owner(
     completion: &+FileCompletion,
 ): FileOwner from static {
@@ -104,4 +108,24 @@ noalloc func file_completion_transferred_byte_count(
 
 noalloc func file_completion_result_position(completion: &FileCompletion): usize {
     return file_completion_result_position_raw(completion)
+}
+
+noalloc func file_completion_metadata_kind(completion: &FileCompletion): usize {
+    return file_completion_metadata_kind_raw(completion)
+}
+
+noalloc func file_completion_metadata_length(completion: &FileCompletion): u64 {
+    return file_completion_metadata_length_raw(completion)
+}
+
+noalloc func file_completion_metadata_modified_seconds(
+    completion: &FileCompletion,
+): i64 {
+    return file_completion_metadata_modified_seconds_raw(completion)
+}
+
+noalloc func file_completion_metadata_modified_nanoseconds(
+    completion: &FileCompletion,
+): u64 {
+    return file_completion_metadata_modified_nanoseconds_raw(completion)
 }

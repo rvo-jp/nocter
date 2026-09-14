@@ -20,6 +20,7 @@ pub(crate) enum DarwinSystemCall {
     Rename,
     MakeDirectory,
     RemoveDirectory,
+    Stat64,
     Wait4,
     Kill,
     Socket,
@@ -63,6 +64,7 @@ impl DarwinSystemCall {
             Self::Rename => 0x0200_0080,
             Self::MakeDirectory => 0x0200_0088,
             Self::RemoveDirectory => 0x0200_0089,
+            Self::Stat64 => 0x0200_0152,
             Self::Wait4 => 0x0200_0007,
             Self::Kill => 0x0200_0025,
             Self::Socket => 0x0200_0061,
@@ -128,6 +130,15 @@ impl DarwinFileAbi {
     pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0209;
     pub(crate) const CREATE_MODE: u64 = 0o666;
     pub(crate) const CREATE_DIRECTORY_MODE: u64 = 0o777;
+    pub(crate) const STAT_BUFFER_SIZE: u64 = 144;
+    pub(crate) const STAT_MODE_OFFSET: u64 = 4;
+    pub(crate) const STAT_MODIFIED_SECONDS_OFFSET: u64 = 48;
+    pub(crate) const STAT_MODIFIED_NANOSECONDS_OFFSET: u64 = 56;
+    pub(crate) const STAT_SIZE_OFFSET: u64 = 96;
+    pub(crate) const STAT_MODE_REGULAR: u64 = 0o100_000;
+    pub(crate) const STAT_MODE_DIRECTORY: u64 = 0o040_000;
+    pub(crate) const STAT_MODE_SYMBOLIC_LINK: u64 = 0o120_000;
+    pub(crate) const STAT_MODE_KIND_MASK: u64 = 0o170_000;
     pub(crate) const SEEK_FROM_START: u64 = 0;
     pub(crate) const SEEK_FROM_CURRENT: u64 = 1;
     pub(crate) const SEEK_FROM_END: u64 = 2;

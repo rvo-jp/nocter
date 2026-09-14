@@ -7,9 +7,11 @@ use crate::darwin_file_job_code::{
     abort, add_immediate, add_register, address, call_import, compare_immediate, epilogue,
     immediate, load, move_register, prologue, store, x,
 };
+use crate::darwin_kernel_abi::DarwinFileAbi;
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
+    Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
+    Arm64Logical, Arm64NocterAbi,
 };
 
 pub(crate) fn build(
@@ -176,6 +178,16 @@ fn stage_inputs(
             abort(code, imports);
             code.bind(valid)?;
         }
+        DarwinFileOperation::Metadata => {
+            immediate(code, x(19), 0);
+            move_register(code, x(21), x(0));
+            move_register(code, x(27), x(1));
+            add_path_terminator(code, x(27), imports)?;
+            align_up_metadata_path(code, x(20), x(27), imports)?;
+            compare_register_sum(code, x(20), x(20), DarwinFileAbi::STAT_BUFFER_SIZE, imports);
+            immediate(code, x(22), 0);
+            immediate(code, x(28), 0);
+        }
     }
     Ok(())
 }
@@ -191,6 +203,29 @@ fn add_path_terminator(
     abort(code, imports);
     code.bind(valid)?;
     add_immediate(code, length, length, 1);
+    Ok(())
+}
+
+fn align_up_metadata_path(
+    code: &mut Arm64CodeBuilder,
+    aligned: crate::Arm64Register,
+    length: crate::Arm64Register,
+    imports: &crate::Arm64DarwinFileServiceImports,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    immediate(code, x(8), 7);
+    add_register(code, x(9), length, x(8), true);
+    let valid = code.create_label();
+    code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
+    abort(code, imports);
+    code.bind(valid)?;
+    immediate(code, x(8), u64::MAX - 7);
+    code.append(Arm64Instruction::LogicalRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64Logical::And,
+        destination: Arm64DataRegister::General(aligned),
+        left: Arm64DataRegister::General(x(9)),
+        right: Arm64DataRegister::General(x(8)),
+    });
     Ok(())
 }
 
@@ -260,7 +295,8 @@ fn initialize_operands(
         | DarwinFileOperation::Flush
         | DarwinFileOperation::RemoveFile
         | DarwinFileOperation::CreateDirectory
-        | DarwinFileOperation::RemoveDirectory => {}
+        | DarwinFileOperation::RemoveDirectory
+        | DarwinFileOperation::Metadata => {}
         DarwinFileOperation::Seek => {
             store(
                 code,
@@ -387,7 +423,8 @@ fn initialize_owned_bytes(
         }
         DarwinFileOperation::RemoveFile
         | DarwinFileOperation::CreateDirectory
-        | DarwinFileOperation::RemoveDirectory => {
+        | DarwinFileOperation::RemoveDirectory
+        | DarwinFileOperation::Metadata => {
             copy_path(code, job, x(21), x(27), None, imports, schema);
         }
         DarwinFileOperation::Rename => {

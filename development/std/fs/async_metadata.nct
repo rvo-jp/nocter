@@ -1,0 +1,56 @@
+//! Executor-safe metadata policy over generated owned-path jobs.
+
+see ./index.nct
+see ./filesystem.nct
+
+use /internal/io
+use /path as path_module
+use /time.SystemTime
+
+const FILE_TYPE_REGULAR: usize = 1
+const FILE_TYPE_DIRECTORY: usize = 2
+const FILE_TYPE_SYMBOLIC_LINK: usize = 3
+const FILE_TYPE_OTHER: usize = 4
+
+async func metadata(path: &str): Metadata! {
+    path_module.validate(path)?
+    let completion = await io.filesystem_metadata(path)
+    io.validate_file_completion(&completion)?
+    return metadata_from_completion(&completion)?
+}
+
+async func exists(path: &str): bool! {
+    path_module.validate(path)?
+    let completion = await io.filesystem_metadata(path)
+    if io.file_completion_is_absent(&completion) { return false }
+    io.validate_file_completion(&completion)?
+    return true
+}
+
+noalloc func metadata_from_completion(completion: &io.FileCompletion): Metadata! {
+    let kind = io.file_completion_metadata_kind(completion)
+    var file_type = FileType.other
+    if kind == FILE_TYPE_REGULAR {
+        file_type = FileType.regular
+    } else if kind == FILE_TYPE_DIRECTORY {
+        file_type = FileType.directory
+    } else if kind == FILE_TYPE_SYMBOLIC_LINK {
+        file_type = FileType.symlink
+    } else if kind != FILE_TYPE_OTHER {
+        return error.new(
+            "std.io.invalid_target_result",
+            "file service returned an invalid metadata classification",
+        )
+    }
+    let modified = SystemTime.from_unix_parts(
+        io.file_completion_metadata_modified_seconds(completion),
+        io.file_completion_metadata_modified_nanoseconds(completion),
+    ) catch _ {
+        return error.new("std.fs.invalid_metadata_time", "target metadata contains an invalid time")
+    }
+    return Metadata {
+        file_type: file_type,
+        len: io.file_completion_metadata_length(completion),
+        modified: modified,
+    }
+}

@@ -23,7 +23,7 @@ blocking func main(): i32! {
 }
 
 blocking func verify_directory(path: &str): void! {
-    let details = fs.metadata(path)?
+    let details = fs.metadata_blocking(path)?
     require(details.is_directory(), "root was not classified as a directory")?
     require(!details.is_file(), "directory was classified as a regular file")?
     return
@@ -31,9 +31,9 @@ blocking func verify_directory(path: &str): void! {
 
 blocking func verify_text(path: &str, renamed: &str): void! {
     fs.write_text_blocking(path, "hello")?
-    require(fs.exists(path)?, "written text file does not exist")?
+    require(fs.exists_blocking(path)?, "written text file does not exist")?
 
-    let details = fs.metadata(path)?
+    let details = fs.metadata_blocking(path)?
     require(details.is_file(), "text file was not classified as regular")?
     require(!details.is_directory(), "text file was classified as a directory")?
     require(details.len() == 5, "text metadata length is incorrect")?
@@ -43,15 +43,15 @@ blocking func verify_text(path: &str, renamed: &str): void! {
 
     fs.write_text_blocking(renamed, "old")?
     fs.rename_blocking(path, renamed)?
-    require(!fs.exists(path)?, "rename left the source path present")?
-    require(fs.exists(renamed)?, "rename did not create the destination path")?
+    require(!fs.exists_blocking(path)?, "rename left the source path present")?
+    require(fs.exists_blocking(renamed)?, "rename did not create the destination path")?
     let renamed_text = fs.read_to_string_blocking(renamed)?
     require(
         (&renamed_text as &str) == "hello",
         "rename did not replace the destination",
     )?
     fs.remove_file_blocking(renamed)?
-    require(!fs.exists(renamed)?, "removed text file still exists")?
+    require(!fs.exists_blocking(renamed)?, "removed text file still exists")?
     return
 }
 
@@ -83,7 +83,7 @@ blocking func verify_invalid_utf8(path: &str): void! {
 }
 
 blocking func verify_missing(path: &str): void! {
-    require(!fs.exists(path)?, "missing path was reported as present")?
+    require(!fs.exists_blocking(path)?, "missing path was reported as present")?
     let unexpected = fs.read_blocking(path) catch failure {
         if failure.has_code("std.io.not_found") {
             return
@@ -95,12 +95,12 @@ blocking func verify_missing(path: &str): void! {
 }
 
 blocking func verify_link(path: &str, target: &str): void! {
-    let details = fs.metadata(path)?
+    let details = fs.metadata_blocking(path)?
     require(details.is_file(), "metadata did not follow the symbolic link")?
     require(details.len() == 5, "symbolic-link target length is incorrect")?
     fs.remove_file_blocking(path)?
-    require(!fs.exists(path)?, "symbolic link still exists after removal")?
-    require(fs.exists(target)?, "removing a symbolic link removed its target")?
+    require(!fs.exists_blocking(path)?, "symbolic link still exists after removal")?
+    require(fs.exists_blocking(target)?, "removing a symbolic link removed its target")?
     let text = fs.read_to_string_blocking(target)?
     require((&text as &str) == "hello", "symbolic-link target content changed")?
     fs.remove_file_blocking(target)?

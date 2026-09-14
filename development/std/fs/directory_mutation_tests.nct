@@ -8,8 +8,8 @@ test directory_creation_and_removal_preserve_explicit_scope {
     let root = ".nocter-v027-directory-lifecycle"
     let nested = ".nocter-v027-directory-lifecycle/first/second"
     create_dir_all(nested)?
-    let root_metadata = metadata(root)?
-    let nested_metadata = metadata(nested)?
+    let root_metadata = metadata_blocking(root)?
+    let nested_metadata = metadata_blocking(nested)?
     testing.assert(root_metadata.is_directory())?
     testing.assert(nested_metadata.is_directory())?
 
@@ -28,7 +28,7 @@ test directory_creation_and_removal_preserve_explicit_scope {
     remove_dir_blocking(nested)?
     remove_dir_blocking(".nocter-v027-directory-lifecycle/first")?
     remove_dir_blocking(root)?
-    let root_exists = exists(root)?
+    let root_exists = exists_blocking(root)?
     testing.assert(!root_exists)?
     return
 }
@@ -59,7 +59,7 @@ test recursive_creation_rejects_empty_and_non_directory_prefixes {
 test metadata_exposes_a_normalized_modification_instant {
     let path = ".nocter-v036-metadata-time"
     write_text_blocking(path, "timestamp")?
-    let details = metadata(path)?
+    let details = metadata_blocking(path)?
     let modified = details.modified()
     testing.assert(modified.subsecond_nanoseconds() < 1000000000)?
     let utc = modified.to_utc()?

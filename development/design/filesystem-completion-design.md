@@ -24,6 +24,11 @@ removal after an interrupted result could apply a second mutation after the firs
 already completed. Both the generated worker and explicit blocking surface preserve the returned
 target failure instead.
 
+Metadata uses the same owned-path admission and appends aligned worker-only `stat` scratch storage
+to the job. The worker retries an interrupted read-only query, decodes the target record once, and
+publishes only portable classification, length, and normalized timestamp facts in the uniform
+completion. Standard source cannot inspect the scratch bytes or reconstruct the Darwin layout.
+
 ## Authority Boundaries
 
 `nocter-runtime-contract` owns the closed operation vocabulary, per-operation owned-byte shape,
@@ -40,12 +45,10 @@ source.
 
 ## Remaining Result Families
 
-Metadata and directory acquisition cannot reuse a scalar-only mutation result. Each requires a
-closed owned result shape before its asynchronous surface is added: metadata must publish portable
-validated facts, while directory acquisition must publish an owner with infallible retirement.
-Canonicalization, link reading, and directory steps require owned byte outputs with explicit
-initialized lengths. These shapes extend the service contract rather than placing target layouts
-or caller pointers into `std/fs`.
+Directory acquisition requires an owner with infallible retirement. Canonicalization, link
+reading, and directory steps require owned byte outputs with explicit initialized lengths. These
+shapes extend the service contract rather than placing target layouts or caller pointers into
+`std/fs`.
 
 Recursive creation, removal, and walking compose the one-entry operations. They must use an
 explicit bounded stack or stream owner and document partial mutation on failure; recursion cannot

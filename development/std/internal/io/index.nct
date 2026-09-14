@@ -84,6 +84,9 @@ primitive func filesystem_create_directory_raw(path: &str): future FileCompletio
 primitive func filesystem_remove_directory_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func filesystem_metadata_raw(path: &str): future FileCompletion from static
+
+#target: "arm64-darwin"
 noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
 
 #target: "arm64-darwin"
@@ -100,6 +103,26 @@ noalloc primitive func file_completion_transferred_byte_count_raw(
 noalloc primitive func file_completion_result_position_raw(
     completion: &FileCompletion,
 ): usize
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_metadata_kind_raw(
+    completion: &FileCompletion,
+): usize
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_metadata_length_raw(
+    completion: &FileCompletion,
+): u64
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_metadata_modified_seconds_raw(
+    completion: &FileCompletion,
+): i64
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_metadata_modified_nanoseconds_raw(
+    completion: &FileCompletion,
+): u64
 
 #target: "arm64-darwin"
 noalloc primitive func file_completion_failure_kind_raw(
@@ -175,6 +198,9 @@ pub(/) func filesystem_create_directory(path: &str): future FileCompletion from 
 /// Constructs one generated empty-directory removal computation.
 pub(/) func filesystem_remove_directory(path: &str): future FileCompletion from static
 
+/// Constructs one generated metadata-query computation.
+pub(/) func filesystem_metadata(path: &str): future FileCompletion from static
+
 pub(/) noalloc func file_completion_take_owner(
     completion: &+FileCompletion,
 ): FileOwner from static
@@ -184,6 +210,21 @@ pub(/) noalloc func file_completion_transferred_byte_count(
 ): usize
 
 pub(/) noalloc func file_completion_result_position(completion: &FileCompletion): usize
+
+pub(/) noalloc func file_completion_metadata_kind(completion: &FileCompletion): usize
+
+pub(/) noalloc func file_completion_metadata_length(completion: &FileCompletion): u64
+
+pub(/) noalloc func file_completion_metadata_modified_seconds(
+    completion: &FileCompletion,
+): i64
+
+pub(/) noalloc func file_completion_metadata_modified_nanoseconds(
+    completion: &FileCompletion,
+): u64
+
+/// Reports whether a failed completion means that the queried path is absent.
+pub(/) noalloc func file_completion_is_absent(completion: &FileCompletion): bool
 
 /// Maps one target-independent OS classification to the stable public I/O error family.
 pub(/) noalloc func io_error_from_os(os_error: OSError): error

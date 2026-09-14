@@ -32,14 +32,14 @@ constructors accept a borrowed path without parallel `_path` functions. `Blockin
 the same operations synchronously. Both owner types close once when explicitly closed or dropped;
 later operations on an explicitly closed value fail with `std.io.closed`.
 
-The canonical `read`, `read_to_string`, `write`, `write_text`, `remove_file`, `rename`,
-`create_dir`, and `remove_dir` functions are asynchronous. Whole-file transfer composes `File`
+The canonical `read`, `read_to_string`, `write`, `write_text`, `metadata`, `exists`, `remove_file`,
+`rename`, `create_dir`, and `remove_dir` functions are asynchronous. Whole-file transfer composes `File`
 with the executor-safe byte interfaces; path mutation transfers complete owned path bytes to the
-bounded file service. Their `_blocking` twins use the explicit synchronous surface. Metadata,
-existence checks, recursive directory construction, opening a directory, and `ReadDir.next`
-remain explicitly `blocking` until their executor-safe result and traversal contracts are
-complete. Pure `Metadata` and `DirEntry` inspection and terminal `ReadDir.close` remain
-unqualified.
+bounded file service. Metadata queries transfer the path and publish portable facts rather than a
+target `stat` record. Their `_blocking` twins use the explicit synchronous surface. Recursive
+directory construction, opening a directory, and `ReadDir.next` remain explicitly `blocking`
+until their executor-safe traversal contracts are complete. Pure `Metadata` and `DirEntry`
+inspection and terminal `ReadDir.close` remain unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -66,7 +66,8 @@ a second descriptor-I/O algorithm. `read_blocking`, `read_to_string_blocking`, `
 and `write_text_blocking` provide the same whole-file policy through `BlockingFile`,
 `BlockingReader`, and `BlockingWriter`.
 
-`metadata` follows symbolic links. Its `len` is the target-reported byte length represented as
+`metadata` follows symbolic links. `metadata_blocking` is its synchronous twin. Its `len` is the
+target-reported byte length represented as
 `u64`; it is not a collection index and therefore is not narrowed to `usize`. `regular` and
 `directory` have their ordinary target meanings. Sockets, devices, and every other entry kind are
 reported as `other`. `is_file` and `is_directory` are exact tests of that portable classification.
@@ -94,7 +95,8 @@ buffer. `read_dir` on a non-directory fails with `std.io.not_directory`.
 `exists` returns `false` only when the target classifies the path as absent, including a missing
 component or a dangling symbolic link. Permission denial and every other failure remain errors.
 The absent path does not require construction of a built-in error value. This makes `exists` a
-convenience query rather than a mechanism for hiding access failures.
+convenience query rather than a mechanism for hiding access failures. `exists_blocking` provides
+the same policy synchronously.
 
 `remove_file` removes one non-directory entry. When the path names a symbolic link, the link itself
 is removed rather than its target. `rename` performs one target rename operation; on the current

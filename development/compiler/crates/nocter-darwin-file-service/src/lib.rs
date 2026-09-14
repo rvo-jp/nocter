@@ -5,6 +5,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
+use std::time::UNIX_EPOCH;
 
 use nocter_blocking_runtime::{
     Cancellation, CapacityEpoch, JobId, JobOutcome, JobStatus, ResourceOwner, ResourcePermit,
@@ -18,8 +19,18 @@ use nocter_darwin_blocking_service::{
 };
 pub use nocter_runtime_contract::{
     DarwinFileAccess as FileAccess, DarwinFileFailure as FileOperationError,
-    DarwinFileOperation as FileJobKind, DarwinFileSeekOrigin, DarwinFileWriteFact as FileWriteFact,
+    DarwinFileMetadataKind as FileMetadataKind, DarwinFileOperation as FileJobKind,
+    DarwinFileSeekOrigin, DarwinFileWriteFact as FileWriteFact,
 };
+
+/// Target-neutral metadata facts returned by the host conformance service.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FileMetadataFact {
+    pub kind: FileMetadataKind,
+    pub length: u64,
+    pub modified_seconds: i64,
+    pub modified_nanoseconds: u64,
+}
 
 /// Portable positioning input retained by one owned seek job.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -109,6 +120,7 @@ enum FileJobPayload {
     },
     CreateDirectory(PathBuf),
     RemoveDirectory(PathBuf),
+    Metadata(PathBuf),
 }
 
 /// One complete owned file-operation input.
@@ -230,6 +242,13 @@ impl DarwinFileJob {
         }
     }
 
+    #[must_use]
+    pub fn metadata(path: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::Metadata(path),
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
@@ -246,6 +265,7 @@ impl DarwinFileJob {
             FileJobPayload::Rename { .. } => FileJobKind::Rename,
             FileJobPayload::CreateDirectory(_) => FileJobKind::CreateDirectory,
             FileJobPayload::RemoveDirectory(_) => FileJobKind::RemoveDirectory,
+            FileJobPayload::Metadata(_) => FileJobKind::Metadata,
         }
     }
 }
@@ -285,6 +305,7 @@ pub enum DarwinFileOutcome {
     Rename(Result<(), FileOperationError>),
     CreateDirectory(Result<(), FileOperationError>),
     RemoveDirectory(Result<(), FileOperationError>),
+    Metadata(Result<FileMetadataFact, FileOperationError>),
 }
 
 /// Cancellation result without exposing generic queue payloads to file policy.
@@ -539,6 +560,55 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
         FileJobPayload::RemoveDirectory(path) => DarwinFileOutcome::RemoveDirectory(
             std::fs::remove_dir(path).map_err(|error| file_failure(&error)),
         ),
+        FileJobPayload::Metadata(path) => DarwinFileOutcome::Metadata(metadata_fact(&path)),
+    }
+}
+
+fn metadata_fact(path: &PathBuf) -> Result<FileMetadataFact, FileOperationError> {
+    let metadata = std::fs::metadata(path).map_err(|error| file_failure(&error))?;
+    let file_type = metadata.file_type();
+    let kind = if file_type.is_file() {
+        FileMetadataKind::Regular
+    } else if file_type.is_dir() {
+        FileMetadataKind::Directory
+    } else if file_type.is_symlink() {
+        FileMetadataKind::SymbolicLink
+    } else {
+        FileMetadataKind::Other
+    };
+    let (modified_seconds, modified_nanoseconds) =
+        unix_time_parts(metadata.modified().map_err(|error| file_failure(&error))?)?;
+    Ok(FileMetadataFact {
+        kind,
+        length: metadata.len(),
+        modified_seconds,
+        modified_nanoseconds,
+    })
+}
+
+fn unix_time_parts(time: std::time::SystemTime) -> Result<(i64, u64), FileOperationError> {
+    match time.duration_since(UNIX_EPOCH) {
+        Ok(duration) => Ok((
+            i64::try_from(duration.as_secs()).map_err(|_| FileOperationError::UNCLASSIFIED)?,
+            u64::from(duration.subsec_nanos()),
+        )),
+        Err(error) => {
+            let duration = error.duration();
+            let seconds =
+                i64::try_from(duration.as_secs()).map_err(|_| FileOperationError::UNCLASSIFIED)?;
+            let nanoseconds = u64::from(duration.subsec_nanos());
+            if nanoseconds == 0 {
+                Ok((-seconds, 0))
+            } else {
+                Ok((
+                    seconds
+                        .checked_add(1)
+                        .and_then(i64::checked_neg)
+                        .ok_or(FileOperationError::UNCLASSIFIED)?,
+                    1_000_000_000 - nanoseconds,
+                ))
+            }
+        }
     }
 }
 

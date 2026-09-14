@@ -86,11 +86,11 @@ blocking func write_text_blocking(path: &str, text: &str): void! {
     return
 }
 
-blocking func metadata(path: &str): Metadata! {
+blocking func metadata_blocking(path: &str): Metadata! {
     return metadata_target(path)?
 }
 
-blocking func exists(path: &str): bool! {
+blocking func exists_blocking(path: &str): bool! {
     return exists_target(path)?
 }
 

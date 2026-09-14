@@ -962,7 +962,8 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         | PrimitiveRole::FileOpenAppend
         | PrimitiveRole::FilesystemRemoveFile
         | PrimitiveRole::FilesystemCreateDirectory
-        | PrimitiveRole::FilesystemRemoveDirectory => make(
+        | PrimitiveRole::FilesystemRemoveDirectory
+        | PrimitiveRole::FilesystemMetadata => make(
             0,
             vec![str_ref()],
             TypeContract::asynchronous(file_completion()),
@@ -1054,6 +1055,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::FileCompletionTransferredByteCount
         | PrimitiveRole::FileCompletionResultPosition
+        | PrimitiveRole::FileCompletionMetadataKind
         | PrimitiveRole::FileCompletionFailureKind => make(
             0,
             vec![TypeContract::readonly(file_completion())],
@@ -1062,10 +1064,27 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::FileCompletionMetadataLength
+        | PrimitiveRole::FileCompletionMetadataModifiedNanoseconds => make(
+            0,
+            vec![TypeContract::readonly(file_completion())],
+            u64(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::FileCompletionFailureErrno => make(
             0,
             vec![TypeContract::readonly(file_completion())],
             i32(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::FileCompletionMetadataModifiedSeconds => make(
+            0,
+            vec![TypeContract::readonly(file_completion())],
+            i64(),
             private,
             arm64_darwin,
             vec![],

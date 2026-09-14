@@ -212,10 +212,15 @@ pub(crate) fn select(
         | PrimitiveRole::FilesystemRename
         | PrimitiveRole::FilesystemCreateDirectory
         | PrimitiveRole::FilesystemRemoveDirectory
+        | PrimitiveRole::FilesystemMetadata
         | PrimitiveRole::FileOwnerDispose
         | PrimitiveRole::FileCompletionTakeOwner
         | PrimitiveRole::FileCompletionTransferredByteCount
         | PrimitiveRole::FileCompletionResultPosition
+        | PrimitiveRole::FileCompletionMetadataKind
+        | PrimitiveRole::FileCompletionMetadataLength
+        | PrimitiveRole::FileCompletionMetadataModifiedSeconds
+        | PrimitiveRole::FileCompletionMetadataModifiedNanoseconds
         | PrimitiveRole::FileCompletionFailureKind
         | PrimitiveRole::FileCompletionFailureErrno
         | PrimitiveRole::FileCompletionDispose => {

@@ -313,6 +313,7 @@ pub const fn bundled_primitive_source_location(
         Role::FilesystemRename => (&["internal", "io"], "filesystem_rename_raw"),
         Role::FilesystemCreateDirectory => (&["internal", "io"], "filesystem_create_directory_raw"),
         Role::FilesystemRemoveDirectory => (&["internal", "io"], "filesystem_remove_directory_raw"),
+        Role::FilesystemMetadata => (&["internal", "io"], "filesystem_metadata_raw"),
         Role::FileOwnerDispose => (&["internal", "io"], "file_owner_dispose_raw"),
         Role::FileCompletionTakeOwner => (&["internal", "io"], "file_completion_take_owner_raw"),
         Role::FileCompletionTransferredByteCount => (
@@ -322,6 +323,20 @@ pub const fn bundled_primitive_source_location(
         Role::FileCompletionResultPosition => {
             (&["internal", "io"], "file_completion_result_position_raw")
         }
+        Role::FileCompletionMetadataKind => {
+            (&["internal", "io"], "file_completion_metadata_kind_raw")
+        }
+        Role::FileCompletionMetadataLength => {
+            (&["internal", "io"], "file_completion_metadata_length_raw")
+        }
+        Role::FileCompletionMetadataModifiedSeconds => (
+            &["internal", "io"],
+            "file_completion_metadata_modified_seconds_raw",
+        ),
+        Role::FileCompletionMetadataModifiedNanoseconds => (
+            &["internal", "io"],
+            "file_completion_metadata_modified_nanoseconds_raw",
+        ),
         Role::FileCompletionFailureKind => {
             (&["internal", "io"], "file_completion_failure_kind_raw")
         }

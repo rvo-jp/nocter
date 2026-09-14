@@ -7,6 +7,7 @@ see ./filesystem.nct
 see ./directory.nct
 see ./directory_mutation.nct
 see ./async_mutation.nct
+see ./async_metadata.nct
 see ./directory_mutation_tests.nct
 
 use /path.Utf8Path
@@ -91,14 +92,20 @@ pub blocking func write_blocking(path: &str, value: &[u8]): void!
 /// Synchronously creates or truncates a file and writes the UTF-8 text.
 pub blocking func write_text_blocking(path: &str, text: &str): void!
 
-/// Returns target metadata after following symbolic links.
-pub blocking func metadata(path: &str): Metadata!
+/// Asynchronously returns target metadata after following symbolic links.
+pub async func metadata(path: &str): Metadata!
+
+/// Synchronously returns target metadata after following symbolic links.
+pub blocking func metadata_blocking(path: &str): Metadata!
 
 /// Opens one directory without sorting its entries.
 pub blocking func read_dir(path: &str): ReadDir!
 
-/// Returns false only when the path is absent.
-pub blocking func exists(path: &str): bool!
+/// Asynchronously returns false only when the path is absent.
+pub async func exists(path: &str): bool!
+
+/// Synchronously returns false only when the path is absent.
+pub blocking func exists_blocking(path: &str): bool!
 
 /// Removes one non-directory entry, including a symbolic link itself.
 pub async func remove_file(path: &str): void!

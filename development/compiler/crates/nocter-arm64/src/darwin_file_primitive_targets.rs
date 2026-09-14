@@ -30,10 +30,15 @@ pub enum Arm64DarwinFilePrimitive {
     Rename,
     CreateDirectory,
     RemoveDirectory,
+    Metadata,
     OwnerDispose,
     CompletionTakeOwner,
     CompletionTransferredByteCount,
     CompletionResultPosition,
+    CompletionMetadataKind,
+    CompletionMetadataLength,
+    CompletionMetadataModifiedSeconds,
+    CompletionMetadataModifiedNanoseconds,
     CompletionFailureKind,
     CompletionFailureErrno,
     CompletionDispose,
@@ -81,12 +86,21 @@ impl Arm64DarwinFilePrimitive {
             PrimitiveRole::FilesystemRename => Some(Self::Rename),
             PrimitiveRole::FilesystemCreateDirectory => Some(Self::CreateDirectory),
             PrimitiveRole::FilesystemRemoveDirectory => Some(Self::RemoveDirectory),
+            PrimitiveRole::FilesystemMetadata => Some(Self::Metadata),
             PrimitiveRole::FileOwnerDispose => Some(Self::OwnerDispose),
             PrimitiveRole::FileCompletionTakeOwner => Some(Self::CompletionTakeOwner),
             PrimitiveRole::FileCompletionTransferredByteCount => {
                 Some(Self::CompletionTransferredByteCount)
             }
             PrimitiveRole::FileCompletionResultPosition => Some(Self::CompletionResultPosition),
+            PrimitiveRole::FileCompletionMetadataKind => Some(Self::CompletionMetadataKind),
+            PrimitiveRole::FileCompletionMetadataLength => Some(Self::CompletionMetadataLength),
+            PrimitiveRole::FileCompletionMetadataModifiedSeconds => {
+                Some(Self::CompletionMetadataModifiedSeconds)
+            }
+            PrimitiveRole::FileCompletionMetadataModifiedNanoseconds => {
+                Some(Self::CompletionMetadataModifiedNanoseconds)
+            }
             PrimitiveRole::FileCompletionFailureKind => Some(Self::CompletionFailureKind),
             PrimitiveRole::FileCompletionFailureErrno => Some(Self::CompletionFailureErrno),
             PrimitiveRole::FileCompletionDispose => Some(Self::CompletionDispose),
@@ -106,6 +120,7 @@ impl Arm64DarwinFilePrimitive {
             Self::Rename => Some(DarwinFileOperation::Rename),
             Self::CreateDirectory => Some(DarwinFileOperation::CreateDirectory),
             Self::RemoveDirectory => Some(DarwinFileOperation::RemoveDirectory),
+            Self::Metadata => Some(DarwinFileOperation::Metadata),
             Self::Open(_)
             | Self::Seek(_)
             | Self::Close
@@ -113,6 +128,10 @@ impl Arm64DarwinFilePrimitive {
             | Self::CompletionTakeOwner
             | Self::CompletionTransferredByteCount
             | Self::CompletionResultPosition
+            | Self::CompletionMetadataKind
+            | Self::CompletionMetadataLength
+            | Self::CompletionMetadataModifiedSeconds
+            | Self::CompletionMetadataModifiedNanoseconds
             | Self::CompletionFailureKind
             | Self::CompletionFailureErrno
             | Self::CompletionDispose => None,
@@ -123,15 +142,21 @@ impl Arm64DarwinFilePrimitive {
     #[must_use]
     pub(crate) fn call_abi(self) -> Arm64DarwinFileCallAbi {
         let (argument_words, result_words) = match self {
-            Self::Open(_) | Self::RemoveFile | Self::CreateDirectory | Self::RemoveDirectory => {
-                (&[2][..], 1)
-            }
+            Self::Open(_)
+            | Self::RemoveFile
+            | Self::CreateDirectory
+            | Self::RemoveDirectory
+            | Self::Metadata => (&[2][..], 1),
             Self::Read | Self::Write => (&[1, 2][..], 1),
             Self::Flush
             | Self::Close
             | Self::CompletionTakeOwner
             | Self::CompletionTransferredByteCount
             | Self::CompletionResultPosition
+            | Self::CompletionMetadataKind
+            | Self::CompletionMetadataLength
+            | Self::CompletionMetadataModifiedSeconds
+            | Self::CompletionMetadataModifiedNanoseconds
             | Self::CompletionFailureKind
             | Self::CompletionFailureErrno => (&[1][..], 1),
             Self::Seek(_) | Self::Truncate => (&[1, 1][..], 1),
@@ -158,6 +183,10 @@ pub struct Arm64DarwinFilePrimitiveTargets {
     completion_take_owner: Arm64FunctionId,
     completion_transferred_byte_count: Arm64FunctionId,
     completion_result_position: Arm64FunctionId,
+    completion_metadata_kind: Arm64FunctionId,
+    completion_metadata_length: Arm64FunctionId,
+    completion_metadata_modified_seconds: Arm64FunctionId,
+    completion_metadata_modified_nanoseconds: Arm64FunctionId,
     completion_failure_kind: Arm64FunctionId,
     completion_failure_errno: Arm64FunctionId,
     completion_dispose: Arm64FunctionId,
@@ -219,6 +248,16 @@ impl Arm64DarwinFilePrimitiveTargets {
             declare_completion_reader(program, DarwinFileCompletionField::TransferredByteCount)?;
         let completion_result_position =
             declare_completion_reader(program, DarwinFileCompletionField::ResultPosition)?;
+        let completion_metadata_kind =
+            declare_completion_reader(program, DarwinFileCompletionField::MetadataKind)?;
+        let completion_metadata_length =
+            declare_completion_reader(program, DarwinFileCompletionField::MetadataLength)?;
+        let completion_metadata_modified_seconds =
+            declare_completion_reader(program, DarwinFileCompletionField::MetadataModifiedSeconds)?;
+        let completion_metadata_modified_nanoseconds = declare_completion_reader(
+            program,
+            DarwinFileCompletionField::MetadataModifiedNanoseconds,
+        )?;
         let completion_failure_kind =
             declare_completion_reader(program, DarwinFileCompletionField::FailureKind)?;
         let completion_failure_errno =
@@ -234,6 +273,10 @@ impl Arm64DarwinFilePrimitiveTargets {
             completion_take_owner,
             completion_transferred_byte_count,
             completion_result_position,
+            completion_metadata_kind,
+            completion_metadata_length,
+            completion_metadata_modified_seconds,
+            completion_metadata_modified_nanoseconds,
             completion_failure_kind,
             completion_failure_errno,
             completion_dispose,
@@ -263,6 +306,14 @@ impl Arm64DarwinFilePrimitiveTargets {
                 self.completion_transferred_byte_count
             }
             Arm64DarwinFilePrimitive::CompletionResultPosition => self.completion_result_position,
+            Arm64DarwinFilePrimitive::CompletionMetadataKind => self.completion_metadata_kind,
+            Arm64DarwinFilePrimitive::CompletionMetadataLength => self.completion_metadata_length,
+            Arm64DarwinFilePrimitive::CompletionMetadataModifiedSeconds => {
+                self.completion_metadata_modified_seconds
+            }
+            Arm64DarwinFilePrimitive::CompletionMetadataModifiedNanoseconds => {
+                self.completion_metadata_modified_nanoseconds
+            }
             Arm64DarwinFilePrimitive::CompletionFailureKind => self.completion_failure_kind,
             Arm64DarwinFilePrimitive::CompletionFailureErrno => self.completion_failure_errno,
             Arm64DarwinFilePrimitive::CompletionDispose => self.completion_dispose,
@@ -275,7 +326,8 @@ impl Arm64DarwinFilePrimitiveTargets {
             | Arm64DarwinFilePrimitive::RemoveFile
             | Arm64DarwinFilePrimitive::Rename
             | Arm64DarwinFilePrimitive::CreateDirectory
-            | Arm64DarwinFilePrimitive::RemoveDirectory => unreachable!("operation handled above"),
+            | Arm64DarwinFilePrimitive::RemoveDirectory
+            | Arm64DarwinFilePrimitive::Metadata => unreachable!("operation handled above"),
             Arm64DarwinFilePrimitive::Open(_) | Arm64DarwinFilePrimitive::Seek(_) => {
                 unreachable!("semantic adapter handled above")
             }
