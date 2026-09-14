@@ -6,7 +6,7 @@ use super::build::{InterfaceImplementationBuildError, InterfaceImplementationInt
 use super::diagnostic;
 use super::model::{CheckedInterfaceImplementation, InterfaceImplementationTable};
 use super::predicate::normalize_requirements;
-use super::selection::proves;
+use super::selection::{CallableProofContext, proves};
 use crate::instance_operations::{
     InstanceOperationSelector, InstanceOperationTable, InstanceSelectionContext,
 };
@@ -143,6 +143,7 @@ impl AssociatedValidationContext<'_> {
         )?;
         for requirement in requirements {
             if !proves(
+                CallableProofContext::declarations(self.graph),
                 self.types,
                 self.table,
                 self.interface_implementation.requirements(),

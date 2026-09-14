@@ -44,6 +44,7 @@ impl ConcreteDispatchResolver<'_> {
             program.interface_implementations(),
             &[] as &[crate::CheckedRequirement],
             &[],
+            Some(program.closures()),
         );
         let reduced = resolver.reduce(self.types_mut(), substituted)?;
         if !is_concrete_type(self.types(), reduced)? {

@@ -189,6 +189,7 @@ pub(crate) struct InstanceSelectionContext<'program> {
     table: &'program InstanceOperationTable,
     assumptions: SelectionAssumptions<'program>,
     intrinsic_facts: &'program [CheckedPredicate],
+    closures: Option<&'program crate::ClosureTable>,
     visibility: CandidateVisibility<'program>,
 }
 
@@ -207,6 +208,7 @@ impl<'program> InstanceSelectionContext<'program> {
             table,
             assumptions: SelectionAssumptions::Body(assumptions),
             intrinsic_facts,
+            closures: None,
             visibility: CandidateVisibility::Lexical(from),
         }
     }
@@ -218,6 +220,7 @@ impl<'program> InstanceSelectionContext<'program> {
         graph: &'program DeclarationGraph,
         interface_implementations: &'program InterfaceImplementationTable,
         table: &'program InstanceOperationTable,
+        closures: &'program crate::ClosureTable,
     ) -> Self {
         Self {
             graph,
@@ -225,6 +228,7 @@ impl<'program> InstanceSelectionContext<'program> {
             table,
             assumptions: SelectionAssumptions::None,
             intrinsic_facts: &[],
+            closures: Some(closures),
             visibility: CandidateVisibility::CheckedEvidence,
         }
     }
@@ -241,6 +245,7 @@ impl<'program> InstanceSelectionContext<'program> {
             table,
             assumptions: SelectionAssumptions::Proof(assumptions),
             intrinsic_facts: &[],
+            closures: None,
             visibility: CandidateVisibility::CheckedEvidence,
         }
     }
@@ -254,6 +259,7 @@ pub(crate) struct InstanceOperationSelector<'program> {
     pub(super) table: &'program InstanceOperationTable,
     assumptions: SelectionAssumptions<'program>,
     pub(super) intrinsic_facts: &'program [CheckedPredicate],
+    pub(super) closures: Option<&'program crate::ClosureTable>,
     visibility: CandidateVisibility<'program>,
     pub(super) active: HashSet<CheckedPredicate>,
 }
@@ -272,6 +278,7 @@ impl<'program> InstanceOperationSelector<'program> {
             table: context.table,
             assumptions: context.assumptions,
             intrinsic_facts: context.intrinsic_facts,
+            closures: context.closures,
             visibility: context.visibility,
             active: HashSet::new(),
         }

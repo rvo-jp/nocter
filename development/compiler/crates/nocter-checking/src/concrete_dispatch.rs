@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use nocter_declarations::{ExpansionCapability, ParameterRole};
+use nocter_declarations::{
+    AssociatedTypeBinding, ExpansionCapability, InterfaceApplication, ParameterRole,
+};
 use nocter_model::{
     BorrowCapability, CallableCapability, CallableContract, CallableId, GenericParameterId,
     InterfaceId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
@@ -646,11 +648,110 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .ok_or(ConcreteDispatchError::InvalidCapabilityEvidence(evidence))?
             .predicate()
             .clone();
-        Ok(substitute_predicate(
-            self.semantics.types_mut(),
-            substitution,
-            &predicate,
-        )?)
+        let predicate = substitute_predicate(self.semantics.types_mut(), substitution, &predicate)?;
+        self.reduce_evidence_predicate(predicate)
+    }
+
+    /// Reduces every type carried by one already-checked structural edge.
+    ///
+    /// Generic substitution alone leaves concrete associated projections such as
+    /// `Counter.Item`. Executable dispatch must consume the same associated-type authority as
+    /// signatures and layouts instead of handing an unresolved alias to a later layer.
+    fn reduce_evidence_predicate(
+        &mut self,
+        predicate: CheckedPredicate,
+    ) -> Result<CheckedPredicate, ConcreteDispatchError> {
+        let empty = TypeSubstitution::default();
+        Ok(match predicate {
+            CheckedPredicate::Interface {
+                subject,
+                application,
+                associated_types,
+            } => CheckedPredicate::Interface {
+                subject: self.specialize_type(subject, &empty)?,
+                application: InterfaceApplication::new(
+                    application.interface(),
+                    application
+                        .arguments()
+                        .iter()
+                        .copied()
+                        .map(|argument| self.specialize_type(argument, &empty))
+                        .collect::<Result<Vec<_>, _>>()?,
+                ),
+                associated_types: associated_types
+                    .iter()
+                    .map(|binding| {
+                        self.specialize_type(binding.ty(), &empty)
+                            .map(|ty| AssociatedTypeBinding::new(binding.declaration(), ty))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_boxed_slice(),
+            },
+            CheckedPredicate::Callable { subject, contract } => {
+                let parameters = contract
+                    .parameters()
+                    .iter()
+                    .copied()
+                    .map(|parameter| self.specialize_type(parameter, &empty))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let pack = contract
+                    .pack()
+                    .map(|pack| pack.try_map(|component| self.specialize_type(component, &empty)))
+                    .transpose()?;
+                let result = self.specialize_type(contract.result(), &empty)?;
+                let contract = CallableContract::new(
+                    contract.capability(),
+                    contract.guarantees(),
+                    parameters,
+                    pack,
+                    result,
+                    contract.provenance().clone(),
+                )
+                .map_err(|_| SubstitutionError::InvalidStore)?;
+                CheckedPredicate::Callable {
+                    subject: self.specialize_type(subject, &empty)?,
+                    contract,
+                }
+            }
+            CheckedPredicate::Copy(ty) => CheckedPredicate::Copy(self.specialize_type(ty, &empty)?),
+            CheckedPredicate::BinderRefinement {
+                binder,
+                replacement,
+            } => CheckedPredicate::BinderRefinement {
+                binder: self.specialize_type(binder, &empty)?,
+                replacement: self.specialize_type(replacement, &empty)?,
+            },
+            CheckedPredicate::Equality(ty) => {
+                CheckedPredicate::Equality(self.specialize_type(ty, &empty)?)
+            }
+            CheckedPredicate::Ordering(ty) => {
+                CheckedPredicate::Ordering(self.specialize_type(ty, &empty)?)
+            }
+            CheckedPredicate::Index {
+                capability,
+                container,
+                index,
+                result,
+            } => CheckedPredicate::Index {
+                capability,
+                container: self.specialize_type(container, &empty)?,
+                index: self.specialize_type(index, &empty)?,
+                result: self.specialize_type(result, &empty)?,
+            },
+            CheckedPredicate::Coercion { source, target } => CheckedPredicate::Coercion {
+                source: self.specialize_type(source, &empty)?,
+                target: self.specialize_type(target, &empty)?,
+            },
+            CheckedPredicate::Expansion {
+                capability,
+                source,
+                result,
+            } => CheckedPredicate::Expansion {
+                capability,
+                source: self.specialize_type(source, &empty)?,
+                result: self.specialize_type(result, &empty)?,
+            },
+        })
     }
 
     fn resolve_comparison(
@@ -953,6 +1054,7 @@ pub enum ConcreteDispatchError {
         ty: TypeId,
     },
     DuplicateGeneric(GenericParameterId),
+    ConcreteType(crate::ConcreteDestructionError),
     Substitution(SubstitutionError),
     Selection(InstanceSelectionError),
 }
@@ -1018,6 +1120,7 @@ impl fmt::Display for ConcreteDispatchError {
             Self::DuplicateGeneric(_) => {
                 formatter.write_str("concrete dispatch bound one generic more than once")
             }
+            Self::ConcreteType(error) => error.fmt(formatter),
             Self::Substitution(error) => error.fmt(formatter),
             Self::Selection(error) => error.fmt(formatter),
         }
@@ -1027,10 +1130,17 @@ impl fmt::Display for ConcreteDispatchError {
 impl std::error::Error for ConcreteDispatchError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::ConcreteType(error) => Some(error),
             Self::Substitution(error) => Some(error),
             Self::Selection(error) => Some(error),
             _ => None,
         }
+    }
+}
+
+impl From<crate::ConcreteDestructionError> for ConcreteDispatchError {
+    fn from(error: crate::ConcreteDestructionError) -> Self {
+        Self::ConcreteType(error)
     }
 }
 

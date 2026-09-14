@@ -1,11 +1,12 @@
 use std::collections::HashSet;
 
-use nocter_declarations::InterfaceApplication;
-use nocter_model::{InterfaceImplementationId, TypeId, TypeKind};
+use nocter_declarations::{DeclarationGraph, InterfaceApplication};
+use nocter_model::{ArgumentPack, CallableContract, InterfaceImplementationId, TypeId, TypeKind};
 
 use super::model::InterfaceImplementationTable;
 use super::overlap::match_pattern;
 use super::predicate::{CheckedPredicate, RequirementPredicate, substitute_predicate};
+use crate::associated_type_resolution::{AssociatedTypeResolutionError, AssociatedTypeResolver};
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
 /// One explicit interface implementation selected for an exact interface application and subject type.
@@ -22,6 +23,36 @@ pub(crate) enum AssociatedImplementationSelection {
     Ambiguous,
 }
 
+/// Type-level facts available while proving conditional interface implementations.
+///
+/// Declaration checking has no closure values. Executable specialization adds the frozen closure
+/// table so a concrete anonymous closure can satisfy the same callable predicate already accepted
+/// during body checking.
+#[derive(Clone, Copy)]
+pub(crate) struct CallableProofContext<'program> {
+    graph: &'program DeclarationGraph,
+    closures: Option<&'program crate::ClosureTable>,
+}
+
+impl<'program> CallableProofContext<'program> {
+    pub(crate) const fn declarations(graph: &'program DeclarationGraph) -> Self {
+        Self {
+            graph,
+            closures: None,
+        }
+    }
+
+    pub(crate) const fn executable(
+        graph: &'program DeclarationGraph,
+        closures: &'program crate::ClosureTable,
+    ) -> Self {
+        Self {
+            graph,
+            closures: Some(closures),
+        }
+    }
+}
+
 impl InterfaceImplementationSelection {
     pub(crate) const fn declaration(&self) -> InterfaceImplementationId {
         self.declaration
@@ -33,13 +64,14 @@ impl InterfaceImplementationSelection {
 }
 
 pub(crate) fn proves<R: RequirementPredicate>(
+    context: CallableProofContext<'_>,
     types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     assumptions: &[R],
     intrinsic_facts: &[CheckedPredicate],
     predicate: &CheckedPredicate,
 ) -> Result<bool, SubstitutionError> {
-    Prover::new(types, table, assumptions, intrinsic_facts).prove(predicate)
+    Prover::new(context, types, table, assumptions, intrinsic_facts).prove(predicate)
 }
 
 /// Selects the explicit interface implementation that proves one exact interface application.
@@ -47,6 +79,7 @@ pub(crate) fn proves<R: RequirementPredicate>(
 /// Lexical assumptions may prove conditional requirements but are not returned as invented
 /// interface implementation declarations. Program-wide overlap validation guarantees at most one match.
 pub(crate) fn select_interface_implementation<R: RequirementPredicate>(
+    context: CallableProofContext<'_>,
     types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     assumptions: &[R],
@@ -54,7 +87,7 @@ pub(crate) fn select_interface_implementation<R: RequirementPredicate>(
     subject: TypeId,
     application: &InterfaceApplication,
 ) -> Result<Option<InterfaceImplementationSelection>, SubstitutionError> {
-    let mut prover = Prover::new(types, table, assumptions, intrinsic_facts);
+    let mut prover = Prover::new(context, types, table, assumptions, intrinsic_facts);
     let root = CheckedPredicate::Interface {
         subject,
         application: application.clone(),
@@ -75,6 +108,7 @@ pub(crate) fn select_interface_implementation<R: RequirementPredicate>(
 /// owner interface. More than one applicable application is therefore an ambiguity even when the
 /// program-wide overlap rule permits those applications independently.
 pub(crate) fn select_associated_implementation<R: RequirementPredicate>(
+    context: CallableProofContext<'_>,
     types: &mut nocter_model::TypeTransaction,
     table: &InterfaceImplementationTable,
     assumptions: &[R],
@@ -82,7 +116,8 @@ pub(crate) fn select_associated_implementation<R: RequirementPredicate>(
     subject: TypeId,
     interface: nocter_model::InterfaceId,
 ) -> Result<AssociatedImplementationSelection, SubstitutionError> {
-    Prover::new(types, table, assumptions, intrinsic_facts).select_associated(subject, interface)
+    Prover::new(context, types, table, assumptions, intrinsic_facts)
+        .select_associated(subject, interface)
 }
 
 /// Resolves one associated declaration through an already-selected concrete implementation.
@@ -106,6 +141,7 @@ pub(crate) fn resolve_selected_associated_type(
 }
 
 struct Prover<'program, R> {
+    context: CallableProofContext<'program>,
     types: &'program mut nocter_model::TypeTransaction,
     table: &'program InterfaceImplementationTable,
     assumptions: &'program [R],
@@ -116,12 +152,14 @@ struct Prover<'program, R> {
 
 impl<'program, R: RequirementPredicate> Prover<'program, R> {
     fn new(
+        context: CallableProofContext<'program>,
         types: &'program mut nocter_model::TypeTransaction,
         table: &'program InterfaceImplementationTable,
         assumptions: &'program [R],
         intrinsic_facts: &'program [CheckedPredicate],
     ) -> Self {
         Self {
+            context,
             types,
             table,
             assumptions,
@@ -156,10 +194,25 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
             CheckedPredicate::Callable {
                 subject,
                 contract: expected,
-            } => matches!(
-                self.types.get(*subject),
-                Some(TypeKind::Callable(actual)) if actual == expected
-            ),
+            } => {
+                let Some(expected) = self.reduce_callable_contract(expected)? else {
+                    self.active.remove(predicate);
+                    return Ok(false);
+                };
+                let normalized = CheckedPredicate::Callable {
+                    subject: *subject,
+                    contract: expected.clone(),
+                };
+                self.assumptions
+                    .iter()
+                    .any(|actual| actual.predicate() == &normalized)
+                    || self.intrinsic_facts.contains(&normalized)
+                    || matches!(
+                        self.types.get(*subject),
+                        Some(TypeKind::Callable(actual)) if actual == &expected
+                    )
+                    || self.concrete_closure_satisfies(*subject, &expected)?
+            }
             CheckedPredicate::Interface {
                 subject,
                 application,
@@ -206,6 +259,108 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
             self.proven.insert(predicate.clone());
         }
         Ok(result)
+    }
+
+    fn reduce_callable_contract(
+        &mut self,
+        contract: &CallableContract,
+    ) -> Result<Option<CallableContract>, SubstitutionError> {
+        let resolver = AssociatedTypeResolver::new(
+            self.context.graph,
+            self.table,
+            self.assumptions,
+            self.intrinsic_facts,
+            self.context.closures,
+        );
+        let mut reduce = |ty| match resolver.reduce(self.types, ty) {
+            Ok(reduced) => Ok(Some(reduced)),
+            Err(
+                AssociatedTypeResolutionError::UnavailableImplementation { .. }
+                | AssociatedTypeResolutionError::AmbiguousImplementation { .. },
+            ) => Ok(None),
+            Err(_) => Err(SubstitutionError::InvalidStore),
+        };
+        let mut parameters = Vec::with_capacity(contract.parameters().len());
+        for parameter in contract.parameters() {
+            let Some(parameter) = reduce(*parameter)? else {
+                return Ok(None);
+            };
+            parameters.push(parameter);
+        }
+        let pack = match contract.pack() {
+            Some(ArgumentPack::Values(element)) => match reduce(element)? {
+                Some(element) => Some(ArgumentPack::Values(element)),
+                None => return Ok(None),
+            },
+            Some(ArgumentPack::Keyed { key, value }) => {
+                let Some(key) = reduce(key)? else {
+                    return Ok(None);
+                };
+                let Some(value) = reduce(value)? else {
+                    return Ok(None);
+                };
+                Some(ArgumentPack::Keyed { key, value })
+            }
+            None => None,
+        };
+        let Some(result) = reduce(contract.result())? else {
+            return Ok(None);
+        };
+        CallableContract::new(
+            contract.capability(),
+            contract.guarantees(),
+            parameters,
+            pack,
+            result,
+            contract.provenance().clone(),
+        )
+        .map(Some)
+        .map_err(|_| SubstitutionError::InvalidStore)
+    }
+
+    fn concrete_closure_satisfies(
+        &mut self,
+        subject: TypeId,
+        expected: &CallableContract,
+    ) -> Result<bool, SubstitutionError> {
+        let Some(closures) = self.context.closures else {
+            return Ok(false);
+        };
+        let Some(TypeKind::Closure {
+            definition,
+            arguments,
+        }) = self.types.get(subject).cloned()
+        else {
+            return Ok(false);
+        };
+        let Some(definition) = closures.get(definition) else {
+            return Ok(false);
+        };
+        let domain = self
+            .context
+            .graph
+            .declarations()
+            .body_generic_domain(definition.owner())
+            .ok_or(SubstitutionError::InvalidStore)?;
+        if domain.len() != arguments.len() {
+            return Err(SubstitutionError::InvalidStore);
+        }
+        let mut substitution = TypeSubstitution::default();
+        for (parameter, argument) in domain.iter().copied().zip(arguments.iter().copied()) {
+            substitution.bind_generic(parameter, argument);
+        }
+        let parameters = definition
+            .signature()
+            .parameter_types()
+            .map(|parameter| substitution.apply_type(self.types, parameter))
+            .collect::<Result<Vec<_>, _>>()?;
+        let result = substitution.apply_type(self.types, definition.signature().result())?;
+        Ok(expected
+            .capability()
+            .permits(definition.signature().capability())
+            && expected.pack().is_none()
+            && expected.parameters() == parameters
+            && expected.result() == result)
     }
 
     fn select_interface(

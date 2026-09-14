@@ -4584,6 +4584,28 @@ fn standard_async_buffers_cross_generic_tcp_and_line_contracts() {
 }
 
 #[test]
+fn standard_async_iterator_adapters_preserve_values_order_exhaustion_and_failure() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        include_str!("../../../tests/fixtures/native/async_iterator_adapters.nct"),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-iterator-adapters", 0);
+}
+
+#[test]
 fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_writer() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

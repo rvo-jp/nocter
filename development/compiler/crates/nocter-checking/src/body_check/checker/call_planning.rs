@@ -396,7 +396,8 @@ impl BodyChecker<'_, '_> {
                 .map_err(BodyCheckInternalError::CallSubstitution)?;
         let mut ordinary = Vec::with_capacity(requirements.len());
         for requirement in requirements {
-            let CheckedPredicate::Callable { subject, contract } = requirement.predicate() else {
+            let predicate = requirement.predicate().clone();
+            let CheckedPredicate::Callable { subject, contract } = &predicate else {
                 ordinary.push(requirement);
                 continue;
             };
@@ -420,6 +421,9 @@ impl BodyChecker<'_, '_> {
             self.closures
                 .require_callable(self.source.body(), closure, contract.clone())
                 .map_err(BodyCheckInternalError::from)?;
+            if !self.local_facts.contains(&predicate) {
+                self.local_facts.push(predicate);
+            }
         }
         let mut selector = self.instance_selector();
         selector

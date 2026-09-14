@@ -1,0 +1,95 @@
+use std/iter/asynchronous.AsyncIterator
+use std/iter.Iterator
+use std/vec.Vec
+
+func synchronous_adapter_probe(): i32 {
+    let source = Vec [1].into_iter()
+    var mapped = source.map((value) { value + 1 })
+    return mapped.next() otherwise { return 0 }
+}
+
+struct Counter {
+    next_value: i32
+    end: i32
+    failure_at: i32
+}
+
+construct Counter {
+    func until(end: i32): Self {
+        return Counter {
+            next_value: 0,
+            end: end,
+            failure_at: -1,
+        }
+    }
+
+    func failing(end: i32, failure_at: i32): Self {
+        return Counter {
+            next_value: 0,
+            end: end,
+            failure_at: failure_at,
+        }
+    }
+}
+
+instance Counter {
+    impl AsyncIterator { .Item = i32 }
+
+    async method &+self.next(): i32?! {
+        if self.next_value == self.failure_at {
+            return error.new("fixture.async_iterator", "counter step failed")
+        }
+        if self.next_value >= self.end {
+            return none
+        }
+        let result = self.next_value
+        self.next_value += 1
+        return result
+    }
+}
+
+async func adapters_preserve_values_and_order(): bool! {
+    let source = Counter.until(8)
+    let mapped = source.map((value) { value * 2 })
+    let filtered = mapped.filter((value) { value == value })
+    let limited = filtered.take(3)
+    let enumerated = limited.enumerate()
+    var expected_index: usize = 0
+    var expected_item: i32 = 0
+    for await indexed in move enumerated {
+        if indexed.index != expected_index || indexed.item != expected_item {
+            return false
+        }
+        expected_index += 1
+        expected_item += 2
+    }
+    return expected_index == 3
+}
+
+async func adapters_preserve_failure(): bool {
+    let source = Counter.failing(4, 1)
+    var mapped = source.map((value) { value + 10 })
+    let first = await mapped.next() catch _ { return false } otherwise { return false }
+    if first != 10 {
+        return false
+    }
+    let _ = await mapped.next() catch failure {
+        return failure.has_code("fixture.async_iterator")
+    } otherwise {
+        return false
+    }
+    return false
+}
+
+async func main(): i32! {
+    if synchronous_adapter_probe() != 2 {
+        return 3
+    }
+    if !await adapters_preserve_values_and_order()? {
+        return 1
+    }
+    if !await adapters_preserve_failure() {
+        return 2
+    }
+    return 0
+}

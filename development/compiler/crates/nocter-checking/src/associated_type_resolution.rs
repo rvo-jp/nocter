@@ -5,8 +5,8 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{AssociatedTypeId, TypeId, TypeKind};
 
 use crate::interface_implementation::{
-    AssociatedImplementationSelection, InterfaceImplementationTable, RequirementPredicate,
-    resolve_selected_associated_type, select_associated_implementation,
+    AssociatedImplementationSelection, CallableProofContext, InterfaceImplementationTable,
+    RequirementPredicate, resolve_selected_associated_type, select_associated_implementation,
 };
 use crate::type_relations::{SubstitutionError, map_type_children};
 use crate::{CheckedPredicate, is_concrete_type};
@@ -21,6 +21,7 @@ pub(crate) struct AssociatedTypeResolver<'program, R> {
     implementations: &'program InterfaceImplementationTable,
     assumptions: &'program [R],
     intrinsic_facts: &'program [CheckedPredicate],
+    closures: Option<&'program crate::ClosureTable>,
 }
 
 impl<'program, R: RequirementPredicate> AssociatedTypeResolver<'program, R> {
@@ -29,12 +30,14 @@ impl<'program, R: RequirementPredicate> AssociatedTypeResolver<'program, R> {
         implementations: &'program InterfaceImplementationTable,
         assumptions: &'program [R],
         intrinsic_facts: &'program [CheckedPredicate],
+        closures: Option<&'program crate::ClosureTable>,
     ) -> Self {
         Self {
             graph,
             implementations,
             assumptions,
             intrinsic_facts,
+            closures,
         }
     }
 
@@ -75,6 +78,10 @@ impl<'program, R: RequirementPredicate> AssociatedTypeResolver<'program, R> {
                         associated,
                     ))?;
                 let selection = select_associated_implementation(
+                    match self.closures {
+                        Some(closures) => CallableProofContext::executable(self.graph, closures),
+                        None => CallableProofContext::declarations(self.graph),
+                    },
                     types,
                     self.implementations,
                     self.assumptions,

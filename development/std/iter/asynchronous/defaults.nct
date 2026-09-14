@@ -1,0 +1,34 @@
+//! Adapter construction derived only from the AsyncIterator contract.
+
+see ./index.nct
+see ./adapters.nct
+
+interface AsyncIterator {
+    noalloc default method self.map<U, F>(transform: F): AsyncMapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U {
+        return AsyncMapIter<U, Self, F> {
+            source: move self,
+            transform: move transform,
+        }
+    }
+
+    noalloc default method self.filter<F>(predicate: F): AsyncFilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool {
+        return AsyncFilterIter<Self, F> {
+            source: move self,
+            predicate: move predicate,
+        }
+    }
+
+    noalloc default method self.take(limit: usize): AsyncTakeIter<Self> {
+        return AsyncTakeIter<Self> {
+            source: move self,
+            remaining: limit,
+        }
+    }
+
+    noalloc default method self.enumerate(): AsyncEnumerateIter<Self> {
+        return AsyncEnumerateIter<Self> {
+            source: move self,
+            next_index: 0,
+        }
+    }
+}

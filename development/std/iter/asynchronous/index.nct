@@ -1,4 +1,28 @@
-//! Executor-safe asynchronous item iteration.
+//! Executor-safe asynchronous item iteration and lazy transformation.
+
+see ./adapters.nct
+see ./defaults.nct
+
+/// Lazily transforms items from an owning asynchronous source.
+pub struct AsyncMapIter<U, I, F>
+
+/// Lazily retains asynchronous items accepted by a synchronous predicate.
+pub struct AsyncFilterIter<I, F>
+
+/// Yields at most `remaining` asynchronous items from `source`.
+pub struct AsyncTakeIter<I>
+
+/// One indexed item yielded by `AsyncEnumerateIter`.
+pub struct AsyncIndexed<T> {
+    /// Zero-based position in the source iterator.
+    pub index: usize
+
+    /// Item yielded at `index`.
+    pub item: T
+}
+
+/// Pairs every asynchronously produced item with its zero-based index.
+pub struct AsyncEnumerateIter<I>
 
 /// Advances an executor-safe asynchronous source with one recoverable step failure channel.
 pub interface AsyncIterator {
@@ -7,4 +31,32 @@ pub interface AsyncIterator {
 
     /// Asynchronously returns the next item, clean exhaustion, or a terminal step failure.
     pub async method &+self.next(): Self.Item?!
+
+    /// Lazily transforms each item after its asynchronous acquisition completes.
+    pub noalloc default method self.map<U, F>(transform: F): AsyncMapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U
+
+    /// Lazily retains items accepted by a synchronous predicate.
+    pub noalloc default method self.filter<F>(predicate: F): AsyncFilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool
+
+    /// Lazily yields at most `limit` items.
+    pub noalloc default method self.take(limit: usize): AsyncTakeIter<Self>
+
+    /// Lazily pairs every yielded item with its zero-based index.
+    pub noalloc default method self.enumerate(): AsyncEnumerateIter<Self>
+}
+
+instance AsyncMapIter<U, I, F> where I impl AsyncIterator, F: &+func(item: I.Item): U {
+    impl AsyncIterator { .Item = U }
+}
+
+instance AsyncFilterIter<I, F> where I impl AsyncIterator, F: &+func(&I.Item): bool {
+    impl AsyncIterator { .Item = I.Item }
+}
+
+instance AsyncTakeIter<I> where I impl AsyncIterator {
+    impl AsyncIterator { .Item = I.Item }
+}
+
+instance AsyncEnumerateIter<I> where I impl AsyncIterator {
+    impl AsyncIterator { .Item = AsyncIndexed<I.Item> }
 }

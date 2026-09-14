@@ -31,7 +31,7 @@ pub use required_method::{
     RequiredInterfaceImplementationMethod, RequiredInterfaceImplementationParameter,
 };
 pub(crate) use selection::{
-    AssociatedImplementationSelection, proves as proves_predicate,
+    AssociatedImplementationSelection, CallableProofContext, proves as proves_predicate,
     resolve_selected_associated_type, select_associated_implementation,
     select_interface_implementation,
 };

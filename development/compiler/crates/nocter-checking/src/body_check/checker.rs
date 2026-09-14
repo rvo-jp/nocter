@@ -159,7 +159,8 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     loops: Vec<LoopConstruction>,
     flow_reachable: bool,
     assumptions: Vec<super::BodyRequirement>,
-    intrinsic_facts: Vec<crate::CheckedPredicate>,
+    /// Intrinsic body facts plus concrete closure capabilities proven at earlier expressions.
+    local_facts: Vec<crate::CheckedPredicate>,
     copy_proofs: CopyProofs,
     closure_result_inference: Option<closure_results::ClosureResultInference>,
     closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
@@ -175,7 +176,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             self.graph,
             self.interface_implementations,
             &self.assumptions,
-            &self.intrinsic_facts,
+            &self.local_facts,
+            None,
         )
         .reduce(self.types, ty)
         .map_err(Into::into)
@@ -203,7 +205,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.interface_implementations,
                 self.instance_operations,
                 &self.assumptions,
-                &self.intrinsic_facts,
+                &self.local_facts,
                 self.source_access,
             ),
             self.types,
@@ -308,7 +310,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             loops: Vec::new(),
             flow_reachable: true,
             assumptions: assumptions.declared().to_vec(),
-            intrinsic_facts: assumptions.intrinsic().to_vec(),
+            local_facts: assumptions.intrinsic().to_vec(),
             copy_proofs: assumptions.copy_proofs().clone(),
             closure_result_inference: None,
             closure_ids,

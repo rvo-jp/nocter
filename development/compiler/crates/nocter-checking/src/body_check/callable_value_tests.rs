@@ -128,6 +128,25 @@ fn callable_arguments_use_the_common_expected_conversion_boundary() {
 }
 
 #[test]
+fn proven_closure_requirement_remains_available_to_conditional_interface_selection() {
+    check(
+        "interface Runnable {}\n\
+         struct Adapter<F> { callback: F }\n\
+         instance Adapter<F> where F: &+func(value: i32): i32 { impl Runnable }\n\
+         func adapt<F>(callback: F): Adapter<F> where F: &+func(value: i32): i32 {\n\
+             return Adapter<F> { callback: move callback }\n\
+         }\n\
+         func accept<T>(value: T): void where T impl Runnable { let _ = move value\n return }\n\
+         func main(): void {\n\
+             let adapted = adapt((value) { value + 1 })\n\
+             accept(move adapted)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn callable_value_arity_and_missing_contract_use_the_call_diagnostic() {
     let arity = check(
         "func invalid<F>(callback: F): bool where F: &func(value: i32): bool {\n    callback()\n}\n",

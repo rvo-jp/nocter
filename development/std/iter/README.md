@@ -35,5 +35,12 @@ interface, avoiding a module cycle between iteration and Vec iteration.
 re-exported from `std/iter`. Its mutable `next` operation produces an executor-safe future whose
 output is `Item?!`: clean exhaustion, one yielded item, and a recoverable terminal step failure are
 distinct. The failure layer remains outside the optional layer so an unavailable item is not
-mistaken for a yielded failure value. `WalkDir` implements this exact contract. Until language-level
-`for await` consumption is introduced, callers drive it explicitly with `await source.next()?`.
+mistaken for a yielded failure value. `WalkDir` implements this exact contract, and `for await`
+consumes it without a second iteration protocol.
+
+Asynchronous `map`, `filter`, `take`, and `enumerate` adapters own their source and any callback.
+They remain lazy and request one upstream item only when downstream requests an item. A callback is
+synchronous: it runs only after acquisition completes and cannot introduce an untracked suspension.
+Every adapter preserves clean exhaustion and the exact upstream failure value. `take` stops
+requesting upstream items after its limit, while `filter` may request multiple items to produce one
+accepted downstream item. None of these adapters materializes the stream.

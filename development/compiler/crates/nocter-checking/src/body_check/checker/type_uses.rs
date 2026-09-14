@@ -688,7 +688,7 @@ impl BodyChecker<'_, '_> {
             .assumptions
             .iter()
             .map(crate::body_check::BodyRequirement::predicate)
-            .chain(self.intrinsic_facts.iter())
+            .chain(self.local_facts.iter())
             .filter_map(|predicate| {
                 let crate::CheckedPredicate::Interface {
                     subject,
@@ -720,10 +720,11 @@ impl BodyChecker<'_, '_> {
                 .collect::<Vec<_>>();
             for (associated, interface) in associated {
                 let selection = crate::interface_implementation::select_associated_implementation(
+                    crate::interface_implementation::CallableProofContext::declarations(self.graph),
                     self.types,
                     self.interface_implementations,
                     &self.assumptions,
-                    &self.intrinsic_facts,
+                    &self.local_facts,
                     base,
                     interface,
                 )

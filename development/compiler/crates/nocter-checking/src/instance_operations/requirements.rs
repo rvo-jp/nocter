@@ -5,7 +5,9 @@ use super::selection::{
     retain_direct_candidates,
 };
 use crate::copyability::CopyProofs;
-use crate::interface_implementation::{proves_predicate, substitute_predicate};
+use crate::interface_implementation::{
+    CallableProofContext, proves_predicate, substitute_predicate,
+};
 use crate::type_relations::TypeSubstitution;
 use crate::{CheckedPredicate, CheckedRequirement, ComparisonOperation, Copyability};
 
@@ -83,6 +85,12 @@ impl InstanceOperationSelector<'_> {
             _ => {
                 if self.uses_body_evidence() {
                     proves_predicate(
+                        match self.closures {
+                            Some(closures) => {
+                                CallableProofContext::executable(self.graph, closures)
+                            }
+                            None => CallableProofContext::declarations(self.graph),
+                        },
                         self.types,
                         self.interface_implementations,
                         self.body_assumptions(),
@@ -91,6 +99,12 @@ impl InstanceOperationSelector<'_> {
                     )?
                 } else {
                     proves_predicate(
+                        match self.closures {
+                            Some(closures) => {
+                                CallableProofContext::executable(self.graph, closures)
+                            }
+                            None => CallableProofContext::declarations(self.graph),
+                        },
                         self.types,
                         self.interface_implementations,
                         self.proof_assumptions(),

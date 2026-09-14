@@ -7,7 +7,9 @@ use super::CheckedInstanceMember;
 use super::selection::{
     InstanceOperationSelector, InstanceSelectionError, selected_generic_arguments,
 };
-use crate::interface_implementation::{MethodSelection, select_interface_implementation};
+use crate::interface_implementation::{
+    CallableProofContext, MethodSelection, select_interface_implementation,
+};
 use crate::type_relations::{TypeSubstitution, is_concrete_type, match_type_pattern};
 use crate::{
     CheckedPredicate, CoercedReceiverPreparation, GenericArgument, GenericArguments,
@@ -642,6 +644,10 @@ impl InstanceOperationSelector<'_> {
             ));
         }
         let Some(selected) = select_interface_implementation(
+            match self.closures {
+                Some(closures) => CallableProofContext::executable(self.graph, closures),
+                None => CallableProofContext::declarations(self.graph),
+            },
             self.types,
             self.interface_implementations,
             self.body_assumptions(),

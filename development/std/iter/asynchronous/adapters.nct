@@ -1,0 +1,83 @@
+//! Owned state and advancement for asynchronous iterator adapters.
+
+see ./index.nct
+
+struct AsyncMapIter<U, I, F> {
+    source: I
+    transform: F
+}
+
+struct AsyncFilterIter<I, F> {
+    source: I
+    predicate: F
+}
+
+struct AsyncTakeIter<I> {
+    source: I
+    remaining: usize
+}
+
+struct AsyncEnumerateIter<I> {
+    source: I
+    next_index: usize
+}
+
+instance AsyncMapIter<U, I, F> where I impl AsyncIterator, F: &+func(item: I.Item): U {
+    async method &+self.next(): U?! {
+        let item = await self.source.next() catch failure {
+            return move failure
+        } otherwise {
+            return none
+        }
+        return self.transform(move item)
+    }
+}
+
+instance AsyncFilterIter<I, F> where I impl AsyncIterator, F: &+func(&I.Item): bool {
+    async method &+self.next(): I.Item?! {
+        while true {
+            let item = await self.source.next() catch failure {
+                return move failure
+            } otherwise {
+                return none
+            }
+            if self.predicate(&item) {
+                return move item
+            }
+        }
+        return none
+    }
+}
+
+instance AsyncTakeIter<I> where I impl AsyncIterator {
+    async method &+self.next(): I.Item?! {
+        if self.remaining == 0 {
+            return none
+        }
+        let item = await self.source.next() catch failure {
+            self.remaining = 0
+            return move failure
+        } otherwise {
+            self.remaining = 0
+            return none
+        }
+        self.remaining -= 1
+        return move item
+    }
+}
+
+instance AsyncEnumerateIter<I> where I impl AsyncIterator {
+    async method &+self.next(): AsyncIndexed<I.Item>?! {
+        let item = await self.source.next() catch failure {
+            return move failure
+        } otherwise {
+            return none
+        }
+        let index: usize = self.next_index
+        self.next_index += 1
+        return AsyncIndexed<I.Item> {
+            index: index,
+            item: move item,
+        }
+    }
+}

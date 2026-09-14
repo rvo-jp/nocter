@@ -29,6 +29,7 @@ impl<'authority> ConcreteEvidenceAuthority<'authority> {
                     program.graph(),
                     program.interface_implementations(),
                     program.instance_operations(),
+                    program.closures(),
                 ),
                 types,
                 copyabilities,

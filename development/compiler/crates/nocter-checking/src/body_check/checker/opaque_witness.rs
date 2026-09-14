@@ -3,7 +3,7 @@ use nocter_model::{BodyNodeId, BuiltinType, OpaqueTypeId, TypeId, TypeKind};
 use nocter_syntax::NodeId;
 
 use super::{BodyCheckError, BodyCheckInternalError, BodyChecker, BodyRule};
-use crate::interface_implementation::proves_predicate;
+use crate::interface_implementation::{CallableProofContext, proves_predicate};
 use crate::type_relations::TypeSubstitution;
 use crate::{
     BodySource, CheckedOpaqueWitness, CheckedOperation, CheckedPredicate, ExpectedEvidence,
@@ -172,10 +172,11 @@ impl BodyChecker<'_, '_> {
             associated_types,
         };
         if !proves_predicate(
+            CallableProofContext::declarations(self.graph),
             self.types,
             self.interface_implementations,
             &self.assumptions,
-            &self.intrinsic_facts,
+            &self.local_facts,
             &predicate,
         )
         .map_err(BodyCheckInternalError::BodyAssumptions)?

@@ -5,7 +5,7 @@ use nocter_source_index::SourceOrigin;
 use nocter_syntax::SyntaxOrigin;
 
 use crate::interface_implementation::{
-    AssociatedImplementationSelection, InterfaceImplementationTable,
+    AssociatedImplementationSelection, CallableProofContext, InterfaceImplementationTable,
     select_associated_implementation,
 };
 use crate::type_relations::is_concrete_type;
@@ -38,6 +38,7 @@ pub(crate) fn validate_associated_projection_uses(
                 projection.associated(),
             ))?;
         let selection = select_associated_implementation(
+            CallableProofContext::declarations(graph),
             types,
             implementations,
             &[] as &[crate::CheckedRequirement],
