@@ -13,7 +13,9 @@ use std/task.Timeout
 use std/time.Duration
 
 const CHUNK_BYTES: usize = 8192
+
 const OUTPUT_BUFFER_BYTES: usize = 4096
+
 const REPORT_TIMEOUT_SECONDS: u64 = 5
 
 async func count_file(path: &str): usize! {
@@ -47,10 +49,12 @@ async func write_summary<W>(
 
 async func build_report(root: &str, temporary_path: &str, output_path: &str): void! {
     let walker = await fs.walk_dir(root)?
-    let files = walker.filter((entry) {
-        if entry.file_type() is FileType.regular { return true }
-        return false
-    })
+    let files = walker.filter(
+        (entry) {
+            if entry.file_type() is FileType.regular { return true }
+            return false
+        },
+    )
     let indexed = files.enumerate()
     var files_seen: usize = 0
     var bytes_seen: usize = 0

@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.50.0 Phase 7 Integration and Release Qualification Review](v0.50.0-phase-7.md)
 - [v0.50.0 Phase 6 Complete Application Review](v0.50.0-phase-6.md)
 - [v0.50.0 Phase 5 Cross-I/O Composition Review](v0.50.0-phase-5.md)
 - [v0.50.0 Phase 4 Streaming Adapters Review](v0.50.0-phase-4.md)

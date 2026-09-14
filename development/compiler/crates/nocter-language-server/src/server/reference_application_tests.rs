@@ -1044,6 +1044,95 @@ fn subprocess_pipeline_uses_generic_io_and_structured_process_editor_contracts()
     assert_pipeline_source_projection(&mut server, &source, &text);
 }
 
+#[test]
+fn async_file_report_uses_streaming_and_filesystem_editor_contracts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/async-file-report");
+    let source = root.join("report.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (chunks_line, chunks_source) = source_line(&text, "ByteChunks.with_chunk_size");
+    let chunks_character = chunks_source.find("with_chunk_size").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        chunks_line,
+        chunks_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub func ByteChunks<R>.with_chunk_size("),
+        "{response}"
+    );
+    assert!(response.contains("R impl Reader"), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        chunks_line,
+        chunks_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/io/stream/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        chunks_line,
+        chunks_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/io/stream/chunks.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let (next_line, next_source) = source_line(&text, "chunks.next()");
+    let completion_character = next_source.find("chunks.").unwrap() + "chunks.".len();
+    let completion = server.receive(&position_request(
+        5,
+        "textDocument/completion",
+        &source,
+        next_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    assert!(
+        response.contains("\"label\":\"next\",\"kind\":2"),
+        "{response}"
+    );
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+    let tokens = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+        source.display()
+    ));
+    let response = tokens.response().unwrap();
+    assert!(response.contains("\"data\":["), "{response}");
+    assert!(!response.contains("\"data\":[]"), "{response}");
+    assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+    let end_line = text.lines().count();
+    let hints = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{end_line},\"character\":0}}}}}}}}",
+        source.display()
+    ));
+    let response = hints.response().unwrap();
+    for inferred in [": File", ": WalkDir"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{inferred}\"")),
+            "{response}"
+        );
+    }
+    assert!(hints.issue().is_none(), "{:?}", hints.issue());
+}
+
 fn assert_pipeline_generic_copy_contracts(
     server: &mut super::LanguageServer,
     source: &Path,

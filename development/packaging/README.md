@@ -30,8 +30,10 @@ offline checking, native tests, deterministic JSON graphs, native run and build,
 every public example, exact child arguments with piped standard input, exact synchronous subprocess
 status, captured-output behavior, and configured environment, working-directory, finite-input, and
 captured-output behavior. It runs the structured subprocess pipeline against the installed
-standard library to qualify concurrent generic transfer and observation under one timeout. The
-remaining gates include LSP analysis of installed standard-library contract and
+standard library to qualify concurrent generic transfer and observation under one timeout. It also
+builds and runs the bounded asynchronous file report application, checks its exact recursively
+discovered file and byte counts, and proves that its recoverable missing-root path leaves neither
+final nor temporary output. The remaining gates include LSP analysis of installed standard-library contract and
 implementation sources, generated Unicode static tables, and Unicode casing bodies. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.

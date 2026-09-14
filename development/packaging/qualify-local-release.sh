@@ -195,6 +195,49 @@ expected_subprocess_pipeline_stderr="$temporary_root/subprocess-pipeline.expecte
 cmp "$expected_subprocess_pipeline_stdout" "$subprocess_pipeline_stdout"
 cmp "$expected_subprocess_pipeline_stderr" "$subprocess_pipeline_stderr"
 
+async_file_report_root="$temporary_root/async-file-report"
+async_file_report_executable="$temporary_root/async-file-report-program"
+async_file_report_stdout="$temporary_root/async-file-report.stdout"
+async_file_report_stderr="$temporary_root/async-file-report.stderr"
+async_file_report_expected="$temporary_root/async-file-report.expected"
+mkdir -p "$async_file_report_root"
+cp -R "$repository_root/examples/async-file-report/sample" "$async_file_report_root/input"
+printf 'files\t2\nbytes\t17\n' > "$async_file_report_expected"
+"${environment[@]}" "$home/nocter" build \
+  --root "$repository_root/examples/async-file-report" \
+  --locked \
+  --offline \
+  --output "$async_file_report_executable"
+(
+  cd "$async_file_report_root"
+  "$async_file_report_executable" input report.txt \
+    > "$async_file_report_stdout" \
+    2> "$async_file_report_stderr"
+)
+cmp "$async_file_report_expected" "$async_file_report_root/report.txt"
+test ! -s "$async_file_report_stdout"
+test ! -s "$async_file_report_stderr"
+test ! -e "$async_file_report_root/report.txt.tmp"
+if (
+  cd "$async_file_report_root"
+  "$async_file_report_executable" missing failed.txt \
+    > "$async_file_report_stdout" \
+    2> "$async_file_report_stderr"
+); then
+  echo "async file report unexpectedly accepted a missing input root" >&2
+  exit 1
+else
+  async_file_report_status="$?"
+fi
+if [[ "$async_file_report_status" -ne 1 ]]; then
+  echo "async file report returned $async_file_report_status for a missing input root" >&2
+  exit 1
+fi
+test ! -s "$async_file_report_stdout"
+test ! -s "$async_file_report_stderr"
+test ! -e "$async_file_report_root/failed.txt"
+test ! -e "$async_file_report_root/failed.txt.tmp"
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"
