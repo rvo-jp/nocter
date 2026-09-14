@@ -4,6 +4,7 @@
 //! decisions through [`ConstantResolver`], freezes one typed plan, and is the sole implementation
 //! of constant arithmetic, short-circuiting, conversions, and dependency-cycle detection.
 
+mod callable;
 mod evaluate;
 mod floating;
 mod model;
@@ -14,6 +15,12 @@ mod tests;
 
 use nocter_language::DiagnosticCode;
 
+pub use callable::{
+    CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
+    CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
+    CompileTimeNode, CompileTimeOperation, CompileTimeUnaryOperation, CompileTimeValueType,
+    InvalidCompileTimeCallablePlan,
+};
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,
     evaluate_expression_plan, evaluate_frozen_expression_plan,

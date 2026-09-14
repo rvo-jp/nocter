@@ -24,6 +24,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - body-local structural type-extension recipes independent of sibling allocation order
 - source-neutral checked-body and source-evidence recipes with canonical current replay
 - type checking, inference, operations, construction, and calls
+- exhaustive projection of eligible ordinary checked bodies into compile-time callable plans
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
 - ownership, cleanup dependencies, execution facts, loans, provenance, regions, and destruction
@@ -129,6 +130,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A queried lexical rejection can reproduce its exact `PreparationFailure` branch. Session never
   reconstructs a name-resolution error variant from a diagnostic and separate recovery value.
 - `SourceIndex` cannot affect a semantic decision.
+- Compile-time projection accepts a `CheckedProgram` and callable identity as one authority. A
+  caller cannot pair a declaration with an unrelated checked body, and projection never repeats
+  lookup, typing, conversion, operator, or dispatch selection.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.
