@@ -8,9 +8,9 @@ use nocter_runtime_contract::{
 };
 
 use crate::darwin_file_job_code::{
-    abort, add_immediate, address, atomic_registers, call_import, compare_immediate, completed,
-    epilogue, immediate, load, move_register, pending, prologue, signal, signal_descriptor, store,
-    x,
+    abort, add_immediate, add_register, address, atomic_registers, call_import, compare_immediate,
+    completed, epilogue, immediate, load, move_register, pending, prologue, signal,
+    signal_descriptor, store, x,
 };
 use crate::{
     Arm64BaseRegister, Arm64BranchCondition, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
@@ -578,18 +578,35 @@ fn copy_read_output(
         job,
         schema.offset(DarwinFileJobField::Operation),
     );
+    let zero_offset = code.create_label();
+    let link_offset = code.create_label();
     let copy = code.create_label();
     let done = code.create_label();
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::Read.code()));
-    code.branch_conditional(copy, Arm64BranchCondition::Equal);
+    code.branch_conditional(zero_offset, Arm64BranchCondition::Equal);
     compare_immediate(
         code,
         x(20),
         u64::from(DarwinFileOperation::ReadDirectory.code()),
     );
-    code.branch_conditional(copy, Arm64BranchCondition::Equal);
+    code.branch_conditional(zero_offset, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::ReadAt.code()));
-    code.branch_conditional(done, Arm64BranchCondition::NotEqual);
+    code.branch_conditional(zero_offset, Arm64BranchCondition::Equal);
+    compare_immediate(code, x(20), u64::from(DarwinFileOperation::ReadLink.code()));
+    code.branch_conditional(link_offset, Arm64BranchCondition::Equal);
+    code.branch(done, false);
+    code.bind(zero_offset)
+        .expect("local consume label is valid");
+    immediate(code, x(23), 0);
+    code.branch(copy, false);
+    code.bind(link_offset)
+        .expect("local consume label is valid");
+    load(
+        code,
+        x(23),
+        job,
+        schema.offset(DarwinFileJobField::SecondaryBytesOffset),
+    );
     code.bind(copy).expect("local consume label is valid");
     load(
         code,
@@ -606,6 +623,7 @@ fn copy_read_output(
         schema.offset(DarwinFileJobField::ConsumerBytePointer),
     );
     address(code, x(1), job, schema.owned_bytes_offset());
+    add_register(code, x(1), x(1), x(23), false);
     move_register(code, x(2), x(22));
     call_import(code, imports, DarwinFileServiceFunction::MemoryCopy);
     code.bind(done).expect("local consume label is valid");

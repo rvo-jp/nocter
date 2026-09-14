@@ -190,6 +190,19 @@ fn stage_inputs(
             immediate(code, x(22), 0);
             immediate(code, x(28), 0);
         }
+        DarwinFileOperation::ReadLink => {
+            immediate(code, x(19), 0);
+            move_register(code, x(21), x(0));
+            move_register(code, x(27), x(1));
+            add_path_terminator(code, x(27), imports)?;
+            move_register(code, x(22), x(2));
+            move_register(code, x(28), x(3));
+            add_register(code, x(20), x(27), x(28), true);
+            let valid = code.create_label();
+            code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
+            abort(code, imports);
+            code.bind(valid)?;
+        }
     }
     Ok(())
 }
@@ -300,6 +313,20 @@ fn initialize_operands(
         | DarwinFileOperation::RemoveDirectory
         | DarwinFileOperation::Metadata
         | DarwinFileOperation::SymlinkMetadata => {}
+        DarwinFileOperation::ReadLink => {
+            store(
+                code,
+                job,
+                schema.offset(DarwinFileJobField::ConsumerBytePointer),
+                x(22),
+            );
+            store(
+                code,
+                job,
+                schema.offset(DarwinFileJobField::SecondaryBytesOffset),
+                x(27),
+            );
+        }
         DarwinFileOperation::Seek => {
             store(
                 code,
@@ -348,7 +375,7 @@ fn initialize_operands(
             store(
                 code,
                 job,
-                schema.offset(DarwinFileJobField::SecondaryPathOffset),
+                schema.offset(DarwinFileJobField::SecondaryBytesOffset),
                 x(27),
             );
         }
@@ -428,7 +455,8 @@ fn initialize_owned_bytes(
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory
         | DarwinFileOperation::Metadata
-        | DarwinFileOperation::SymlinkMetadata => {
+        | DarwinFileOperation::SymlinkMetadata
+        | DarwinFileOperation::ReadLink => {
             copy_path(code, job, x(21), x(27), None, imports, schema);
         }
         DarwinFileOperation::Rename | DarwinFileOperation::CreateSymlink => {

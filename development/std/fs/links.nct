@@ -1,0 +1,41 @@
+//! Symbolic-link target reading over one bounded UTF-8 buffer policy.
+
+see ./index.nct
+see ./darwin.nct
+
+use /internal/io
+use /internal/os/darwin
+use /mem.RawBuffer
+use /mem
+use /path as path_module
+use /path.Utf8Path
+
+struct LinkTargetBuffer {
+    storage: RawBuffer
+}
+
+func new_link_target_buffer(): LinkTargetBuffer! {
+    var allocator = mem.page_try_allocator()
+    let storage = allocator.try_alloc(darwin.MAXIMUM_LINK_TARGET_SIZE, 1)?
+    return LinkTargetBuffer { storage: move storage }
+}
+
+func link_target_path(buffer: &LinkTargetBuffer, len: usize): Utf8Path! {
+    let bytes = buffer.storage.prefix(len)?
+    return Utf8Path.from_utf8(bytes)?
+}
+
+async func read_link(path: &str): Utf8Path! {
+    path_module.validate(path)?
+    var buffer = new_link_target_buffer()?
+    let completion = await io.filesystem_read_link(path, buffer.storage.bytes_mut())
+    io.validate_file_completion(&completion)?
+    let received = io.file_completion_transferred_byte_count(&completion)
+    return link_target_path(&buffer, received)?
+}
+
+blocking func read_link_blocking(path: &str): Utf8Path! {
+    var buffer = new_link_target_buffer()?
+    let received = read_link_target(path, buffer.storage.bytes_mut())?
+    return link_target_path(&buffer, received)?
+}

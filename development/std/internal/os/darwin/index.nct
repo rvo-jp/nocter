@@ -98,6 +98,11 @@ pub(/) const SYS_LSTAT64: usize
 
 pub(/) const SYS_SYMLINK: usize
 
+pub(/) const SYS_READLINK: usize
+
+/// Maximum number of bytes stored in one Darwin symbolic-link target.
+pub(/) const MAXIMUM_LINK_TARGET_SIZE: usize
+
 #target: "arm64-darwin"
 pub(/) const SYS_GETDIRENTRIES64: usize
 

@@ -21,6 +21,7 @@ pub enum DarwinFileOperation {
     ReadDirectory,
     SymlinkMetadata,
     CreateSymlink,
+    ReadLink,
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
@@ -109,6 +110,7 @@ impl DarwinFileOperation {
         Self::ReadDirectory,
         Self::SymlinkMetadata,
         Self::CreateSymlink,
+        Self::ReadLink,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -131,6 +133,7 @@ impl DarwinFileOperation {
             Self::ReadDirectory => 13,
             Self::SymlinkMetadata => 14,
             Self::CreateSymlink => 15,
+            Self::ReadLink => 16,
         }
     }
 
@@ -154,6 +157,7 @@ impl DarwinFileOperation {
             13 => Some(Self::ReadDirectory),
             14 => Some(Self::SymlinkMetadata),
             15 => Some(Self::CreateSymlink),
+            16 => Some(Self::ReadLink),
             _ => None,
         }
     }

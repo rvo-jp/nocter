@@ -343,6 +343,16 @@ fn path_mutations_share_bounded_job_admission_without_resource_owners() {
         panic!("create-symlink job returned the wrong outcome")
     };
     result.unwrap();
+    let read_link = DarwinFileJob::read_link(link.clone(), usize::MAX);
+    assert_eq!(read_link.kind(), FileJobKind::ReadLink);
+    let read_link = service.submit(read_link).unwrap();
+    wait_for_job(&service, read_link);
+    let JobOutcome::Completed(DarwinFileOutcome::ReadLink(result)) =
+        service.consume(read_link).unwrap()
+    else {
+        panic!("read-link job returned the wrong outcome")
+    };
+    assert_eq!(&*result.unwrap(), source.as_os_str().as_encoded_bytes());
     let link_metadata = DarwinFileJob::symlink_metadata(link.clone());
     assert_eq!(link_metadata.kind(), FileJobKind::SymlinkMetadata);
     let link_metadata = service.submit(link_metadata).unwrap();

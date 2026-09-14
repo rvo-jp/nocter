@@ -3,9 +3,10 @@ use crate::{DarwinFileOperation, RuntimeAbiIdentity, RuntimeAsyncAbiSchema};
 /// Fields of one generated Darwin file-operation computation.
 ///
 /// The first five fields are the canonical opaque-future header. The fixed record is followed by
-/// operation-owned bytes. Open and write never retain caller storage. File and directory reads
-/// keep their destination only in a consumer field that the worker cannot inspect and cancellation
-/// clears before detaching; the worker initializes only the job-owned trailing region.
+/// operation-owned bytes. Open and write never retain caller storage. File, directory, and link
+/// reads keep their destination only in a consumer field that the worker cannot inspect and
+/// cancellation clears before detaching; the worker initializes only the job-owned trailing
+/// region.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(usize)]
 pub enum DarwinFileJobField {
@@ -28,8 +29,8 @@ pub enum DarwinFileJobField {
     DirectoryBasePosition,
     Access,
     SeekOrigin,
-    /// Byte offset from the trailing region to a second NUL-terminated path.
-    SecondaryPathOffset,
+    /// Byte offset from the trailing region to operation-specific secondary bytes.
+    SecondaryBytesOffset,
     TransferredByteCount,
     ResultPosition,
     MetadataKind,
@@ -146,7 +147,7 @@ impl DarwinFileJobField {
         Self::DirectoryBasePosition,
         Self::Access,
         Self::SeekOrigin,
-        Self::SecondaryPathOffset,
+        Self::SecondaryBytesOffset,
         Self::TransferredByteCount,
         Self::ResultPosition,
         Self::MetadataKind,
@@ -179,6 +180,8 @@ pub enum DarwinFileJobOwnedBytes {
     TwoPathInputs,
     /// One NUL-terminated path followed by target-owned metadata scratch storage.
     PathInputAndMetadataOutput,
+    /// One NUL-terminated path followed by uninitialized worker-owned output capacity.
+    PathInputAndReadOutput,
 }
 
 /// State required of the job's pre-reserved retirement record at admission.
@@ -312,6 +315,12 @@ impl DarwinFileOperation {
                 Retirement::None,
                 Operand::None,
                 Result::Metadata,
+            ),
+            Self::ReadLink => (
+                Bytes::PathInputAndReadOutput,
+                Retirement::None,
+                Operand::None,
+                Result::TransferredByteCount,
             ),
         };
         DarwinFileJobContract {
@@ -557,6 +566,13 @@ mod tests {
                 Retirement::None,
                 Operand::None,
                 Result::None,
+            ),
+            (
+                DarwinFileOperation::ReadLink,
+                Bytes::PathInputAndReadOutput,
+                Retirement::None,
+                Operand::None,
+                Result::TransferredByteCount,
             ),
         ];
 

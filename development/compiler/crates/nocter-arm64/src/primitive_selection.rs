@@ -217,6 +217,7 @@ pub(crate) fn select(
         | PrimitiveRole::FilesystemMetadata
         | PrimitiveRole::FilesystemSymlinkMetadata
         | PrimitiveRole::FilesystemCreateSymlink
+        | PrimitiveRole::FilesystemReadLink
         | PrimitiveRole::FileOwnerDispose
         | PrimitiveRole::FileCompletionTakeOwner
         | PrimitiveRole::FileCompletionTransferredByteCount

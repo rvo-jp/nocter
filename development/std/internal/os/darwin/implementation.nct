@@ -135,6 +135,9 @@ const SYS_LSTAT64: usize = 0x02000154
 
 const SYS_SYMLINK: usize = 0x02000039
 
+const SYS_READLINK: usize = 0x0200003a
+const MAXIMUM_LINK_TARGET_SIZE: usize = 1024
+
 #target: "arm64-darwin"
 const SYS_GETDIRENTRIES64: usize = 0x02000158
 

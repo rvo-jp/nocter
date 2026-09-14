@@ -116,6 +116,13 @@ func filesystem_create_symlink(
     return filesystem_create_symlink_raw(target, link)
 }
 
+func filesystem_read_link(
+    path: &str,
+    destination: &+[u8],
+): future FileCompletion from static {
+    return filesystem_read_link_raw(path, destination)
+}
+
 noalloc func file_completion_take_owner(
     completion: &+FileCompletion,
 ): FileOwner from static {

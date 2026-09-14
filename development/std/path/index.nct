@@ -13,6 +13,9 @@ pub struct Utf8Path
 construct Utf8Path {
     /// Validates and copies one UTF-8 path spelling.
     pub func new(value: &str): Self!
+
+    /// Validates UTF-8 bytes and constructs one owning path spelling.
+    pub(/) func from_utf8(candidate: &[u8]): Self!
 }
 
 instance Utf8Path {

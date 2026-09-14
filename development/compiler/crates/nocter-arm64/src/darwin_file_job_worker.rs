@@ -39,7 +39,62 @@ pub(crate) fn execute_operation(
         DarwinFileOperation::Metadata | DarwinFileOperation::SymlinkMetadata => {
             execute_metadata(code, job, operation)
         }
+        DarwinFileOperation::ReadLink => execute_read_link(code, job),
     }
+}
+
+fn execute_read_link(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    load(
+        code,
+        x(21),
+        job,
+        schema.offset(DarwinFileJobField::OwnedByteLength),
+    );
+    load(
+        code,
+        x(22),
+        job,
+        schema.offset(DarwinFileJobField::SecondaryBytesOffset),
+    );
+    subtract_register(code, x(21), x(21), x(22));
+    let valid = code.create_label();
+    immediate(code, x(8), DarwinFileAbi::MAXIMUM_TRANSFER);
+    compare_register(code, x(21), x(8));
+    code.branch_conditional(valid, Arm64BranchCondition::UnsignedLowerOrSame);
+    store_failure(code, job, DarwinFileFailureKind::InvalidProgress, 0);
+    let finished = code.create_label();
+    code.branch(finished, false);
+    code.bind(valid)?;
+    let retry = code.create_label();
+    code.bind(retry)?;
+    address(code, x(0), job, schema.owned_bytes_offset());
+    address(code, x(1), job, schema.owned_bytes_offset());
+    add_register(code, x(1), x(1), x(22), false);
+    move_register(code, x(2), x(21));
+    emit_system_call(code, DarwinSystemCall::ReadLink);
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    retry_interrupted_or_store_target(code, job, retry);
+    code.branch(finished, false);
+    code.bind(success)?;
+    compare_register(code, x(0), x(21));
+    let progress_valid = code.create_label();
+    code.branch_conditional(progress_valid, Arm64BranchCondition::UnsignedLowerOrSame);
+    store_failure(code, job, DarwinFileFailureKind::InvalidProgress, 0);
+    code.branch(finished, false);
+    code.bind(progress_valid)?;
+    store(
+        code,
+        job,
+        schema.offset(DarwinFileJobField::TransferredByteCount),
+        x(0),
+    );
+    code.bind(finished)?;
+    Ok(())
 }
 
 fn execute_metadata(
@@ -555,7 +610,7 @@ fn execute_path_mutation(
                 code,
                 x(8),
                 job,
-                schema.offset(DarwinFileJobField::SecondaryPathOffset),
+                schema.offset(DarwinFileJobField::SecondaryBytesOffset),
             );
             address(code, x(1), job, schema.owned_bytes_offset());
             add_register(code, x(1), x(1), x(8), false);
@@ -566,7 +621,7 @@ fn execute_path_mutation(
                 code,
                 x(8),
                 job,
-                schema.offset(DarwinFileJobField::SecondaryPathOffset),
+                schema.offset(DarwinFileJobField::SecondaryBytesOffset),
             );
             address(code, x(1), job, schema.owned_bytes_offset());
             add_register(code, x(1), x(1), x(8), false);

@@ -126,6 +126,10 @@ enum FileJobPayload {
         target: PathBuf,
         link: PathBuf,
     },
+    ReadLink {
+        path: PathBuf,
+        maximum: usize,
+    },
 }
 
 /// One complete owned file-operation input.
@@ -268,6 +272,13 @@ impl DarwinFileJob {
         }
     }
 
+    #[must_use]
+    pub fn read_link(path: PathBuf, maximum: usize) -> Self {
+        Self {
+            payload: FileJobPayload::ReadLink { path, maximum },
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
@@ -287,6 +298,7 @@ impl DarwinFileJob {
             FileJobPayload::Metadata(_) => FileJobKind::Metadata,
             FileJobPayload::SymlinkMetadata(_) => FileJobKind::SymlinkMetadata,
             FileJobPayload::CreateSymlink { .. } => FileJobKind::CreateSymlink,
+            FileJobPayload::ReadLink { .. } => FileJobKind::ReadLink,
         }
     }
 }
@@ -329,6 +341,7 @@ pub enum DarwinFileOutcome {
     Metadata(Result<FileMetadataFact, FileOperationError>),
     SymlinkMetadata(Result<FileMetadataFact, FileOperationError>),
     CreateSymlink(Result<(), FileOperationError>),
+    ReadLink(Result<Box<[u8]>, FileOperationError>),
 }
 
 /// Cancellation result without exposing generic queue payloads to file policy.
@@ -593,6 +606,17 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
         FileJobPayload::CreateSymlink { target, link } => DarwinFileOutcome::CreateSymlink(
             std::os::unix::fs::symlink(target, link).map_err(|error| file_failure(&error)),
         ),
+        FileJobPayload::ReadLink { path, maximum } => {
+            let result = std::fs::read_link(path)
+                .map_err(|error| file_failure(&error))
+                .map(|target| {
+                    let mut bytes =
+                        std::os::unix::ffi::OsStringExt::into_vec(target.into_os_string());
+                    bytes.truncate(maximum);
+                    bytes.into_boxed_slice()
+                });
+            DarwinFileOutcome::ReadLink(result)
+        }
     }
 }
 

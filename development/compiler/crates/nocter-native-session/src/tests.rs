@@ -2078,6 +2078,39 @@ async func main(): i32 {
 }
 
 #[test]
+fn standard_symbolic_link_targets_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/fs
+
+async func main(): i32 {
+    await fs.symlink("target/../item", "link") catch _ { return 1 }
+    let target = await fs.read_link("link") catch _ { return 2 }
+    let text: &str = &target
+    if text != "target/../item" { return 3 }
+    await fs.remove_file("link") catch _ { return 4 }
+    return 0
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "symbolic-link-targets");
+}
+
+#[test]
 fn public_path_and_directory_lifecycle_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
@@ -2115,6 +2148,8 @@ blocking func main(): i32! {
     var dangling_rejected = false
     fs.create_dir_blocking("dangling-root")?
     fs.symlink_blocking("missing", "dangling-root/link")?
+    let dangling_target = fs.read_link_blocking("dangling-root/link")?
+    if (&dangling_target as &str) != "missing" { return 12 }
     fs.create_dir_all_blocking("dangling-root/link/child") catch failure {
         dangling_rejected = failure.has_code("std.io.not_directory")
     }

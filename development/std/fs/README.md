@@ -135,6 +135,11 @@ symbolic link as a directory. A nonempty directory fails with `std.io.directory_
 The target spelling is stored exactly as supplied. It may be relative and need not resolve when the
 link is created. Both arguments must be valid target path strings, and an existing link spelling is
 reported as `std.io.already_exists` rather than replaced.
+`read_link` and `read_link_blocking` return that stored spelling as an owning `Utf8Path`; they do
+not resolve it against the link's parent or canonicalize `.` and `..`. Darwin target bytes that are
+not UTF-8 fail with `std.string.invalid_utf8` instead of undergoing a lossy conversion. The
+asynchronous worker reads into job-owned bounded storage and copies into caller storage only when
+the future is consumed.
 `remove_file` and `remove_dir` remain distinct so source states whether it intends to remove a
 non-directory entry or an empty directory. Both asynchronous workers and blocking implementations
 attempt a mutating target call once: they do not blindly retry after an interruption whose
