@@ -960,6 +960,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
         | PrimitiveRole::FileOpenAppend
+        | PrimitiveRole::DirectoryOpen
         | PrimitiveRole::FilesystemRemoveFile
         | PrimitiveRole::FilesystemCreateDirectory
         | PrimitiveRole::FilesystemRemoveDirectory
@@ -979,7 +980,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::FileRead => make(
+        PrimitiveRole::FileRead | PrimitiveRole::DirectoryRead => make(
             0,
             vec![file_owner(), readwrite_bytes()],
             TypeContract::asynchronous(file_completion()),

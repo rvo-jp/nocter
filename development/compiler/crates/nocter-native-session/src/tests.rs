@@ -591,7 +591,7 @@ func test_reader(
     name_len: u8,
     name_byte: u8,
     terminator: u8,
-): ReadDir! {
+): BlockingReadDir! {
     var allocator = mem.page_try_allocator()
     var buffer = allocator.try_alloc(64, 8)?
     let address = ptr.addr(buffer.bytes_mut().ptr())
@@ -605,24 +605,26 @@ func test_reader(
     internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_NAME_OFFSET, name_byte)
     internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_NAME_OFFSET + name_len as usize, terminator)
     let base = Utf8Path.new(".")?
-    return ReadDir {
+    return BlockingReadDir {
         fd: 999999,
         is_open: true,
-        is_finished: false,
-        base: move base,
-        buffer: move buffer,
-        buffer_offset: 0,
-        buffer_len: 24,
+        buffer: DirectoryBuffer {
+            base: move base,
+            bytes: move buffer,
+            offset: 0,
+            len: 24,
+            finished: false,
+        },
     }
 }
 
 test malformed_record_is_terminal {
     var reader = test_reader(0, 0, 0, 0)?
-    let _entry = reader.next() catch failure {
+    let _entry = reader.next_blocking() catch failure {
         if !failure.has_code("std.fs.invalid_directory_record") {
             return error.new("test.wrong_error", "malformed record reported the wrong error")
         }
-        let _after_failure = reader.next()? otherwise { return }
+        let _after_failure = reader.next_blocking()? otherwise { return }
         return error.new("test.not_terminal", "malformed record did not end the stream")
     } otherwise {
         return error.new("test.unexpected_eof", "malformed record produced end of stream")
@@ -632,11 +634,11 @@ test malformed_record_is_terminal {
 
 test invalid_utf8_name_is_terminal {
     var reader = test_reader(24, 1, 255, 0)?
-    let _entry = reader.next() catch failure {
+    let _entry = reader.next_blocking() catch failure {
         if !failure.has_code("std.fs.invalid_utf8_name") {
             return error.new("test.wrong_error", "invalid UTF-8 reported the wrong error")
         }
-        let _after_failure = reader.next()? otherwise { return }
+        let _after_failure = reader.next_blocking()? otherwise { return }
         return error.new("test.not_terminal", "invalid UTF-8 did not end the stream")
     } otherwise {
         return error.new("test.unexpected_eof", "invalid UTF-8 produced end of stream")
@@ -1972,26 +1974,26 @@ fn standard_directory_stream_crosses_the_complete_native_session() {
         r#"use std/fs.FileType
 use std/fs
 
-blocking func open_and_drop(): void! {
-    let stream = fs.read_dir(".")?
+async func open_and_drop(): void! {
+    let stream = await fs.read_dir(".")?
     return
 }
 
-blocking func open_fails_with(path: &str, code: &str): bool {
-    let _stream = fs.read_dir(path) catch failure {
+async func open_fails_with(path: &str, code: &str): bool {
+    let _stream = await fs.read_dir(path) catch failure {
         return failure.has_code(code)
     }
     return false
 }
 
-blocking func inspect_directory(): i32! {
-    var stream = fs.read_dir(".")?
+async func inspect_directory(): i32! {
+    var stream = await fs.read_dir(".")?
     var saw_file = false
     var saw_directory = false
     var saw_symlink = false
     var batch_count: usize = 0
     while true {
-        let entry = stream.next()? otherwise { break }
+        let entry = await stream.next()? otherwise { break }
         let name = entry.file_name()
         let path: &str = entry.path()
         if name == "." || name == ".." { return 2 }
@@ -2011,23 +2013,23 @@ blocking func inspect_directory(): i32! {
         if name.starts_with("batch-") { batch_count += 1 }
     }
     if !saw_file || !saw_directory || !saw_symlink || batch_count != 700 { return 7 }
-    if !open_fails_with("missing", "std.io.not_found") { return 8 }
-    if !open_fails_with("regular.txt", "std.io.not_directory") { return 9 }
+    if !await open_fails_with("missing", "std.io.not_found") { return 8 }
+    if !await open_fails_with("regular.txt", "std.io.not_directory") { return 9 }
 
     var attempts: usize = 0
     while attempts < 512 {
-        open_and_drop()?
+        await open_and_drop()?
         attempts += 1
     }
 
-    var closed = fs.read_dir(".")?
-    closed.close()
-    let _after_close = closed.next()? otherwise { return 42 }
+    var closed = await fs.read_dir(".")?
+    await closed.close()?
+    let _after_close = await closed.next()? otherwise { return 42 }
     return 11
 }
 
-blocking func main(): i32 {
-    return inspect_directory() catch _ { return 12 }
+async func main(): i32 {
+    return await inspect_directory() catch _ { return 12 }
 }
 "#,
     );

@@ -240,8 +240,12 @@ closed_role_enum! {
         FileOpenCreate,
         /// Constructs one generated local-file append computation.
         FileOpenAppend,
+        /// Constructs one generated local-directory open computation.
+        DirectoryOpen,
         /// Constructs one generated local-file sequential read computation.
         FileRead,
+        /// Constructs one generated local-directory record-read computation.
+        DirectoryRead,
         /// Constructs one generated local-file sequential write computation.
         FileWrite,
         /// Constructs one generated local-file flush computation.
@@ -447,7 +451,9 @@ impl PrimitiveRole {
             Self::FileOpenRead => "file_open_read",
             Self::FileOpenCreate => "file_open_create",
             Self::FileOpenAppend => "file_open_append",
+            Self::DirectoryOpen => "directory_open",
             Self::FileRead => "file_read",
+            Self::DirectoryRead => "directory_read",
             Self::FileWrite => "file_write",
             Self::FileFlush => "file_flush",
             Self::FileSeekStart => "file_seek_start",
@@ -577,7 +583,9 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::DirectoryOpen
                     | Self::FileRead
+                    | Self::DirectoryRead
                     | Self::FileWrite
                     | Self::FileFlush
                     | Self::FileSeekStart
@@ -618,7 +626,9 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::DirectoryOpen
                     | Self::FileRead
+                    | Self::DirectoryRead
                     | Self::FileWrite
                     | Self::FileFlush
                     | Self::FileSeekStart
@@ -654,7 +664,9 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::DirectoryOpen
                     | Self::FileRead
+                    | Self::DirectoryRead
                     | Self::FileWrite
                     | Self::FileFlush
                     | Self::FileSeekStart
@@ -679,7 +691,9 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::DirectoryOpen
                     | Self::FileRead
+                    | Self::DirectoryRead
                     | Self::FileWrite
                     | Self::FileFlush
                     | Self::FileSeekStart
@@ -878,7 +892,9 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
+                PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
                 PrimitiveRole::FileSeekStart,
@@ -941,7 +957,9 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
+                PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
                 PrimitiveRole::FileSeekStart,
@@ -981,7 +999,9 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
+                PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
                 PrimitiveRole::FileSeekStart,
@@ -1014,7 +1034,9 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
+                PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
                 PrimitiveRole::FileSeekStart,

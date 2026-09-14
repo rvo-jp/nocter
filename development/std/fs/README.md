@@ -33,13 +33,14 @@ the same operations synchronously. Both owner types close once when explicitly c
 later operations on an explicitly closed value fail with `std.io.closed`.
 
 The canonical `read`, `read_to_string`, `write`, `write_text`, `metadata`, `exists`, `remove_file`,
-`rename`, `create_dir`, and `remove_dir` functions are asynchronous. Whole-file transfer composes `File`
-with the executor-safe byte interfaces; path mutation transfers complete owned path bytes to the
-bounded file service. Metadata queries transfer the path and publish portable facts rather than a
-target `stat` record. Their `_blocking` twins use the explicit synchronous surface. Recursive
-directory construction, opening a directory, and `ReadDir.next` remain explicitly `blocking`
-until their executor-safe traversal contracts are complete. Pure `Metadata` and `DirEntry`
-inspection and terminal `ReadDir.close` remain unqualified.
+`rename`, `create_dir`, `remove_dir`, and `read_dir` functions are asynchronous. Whole-file transfer
+composes `File` with the executor-safe byte interfaces; path mutation transfers complete owned path
+bytes to the bounded file service. Metadata queries transfer the path and publish portable facts
+rather than a target `stat` record. Directory acquisition and record batches use the same bounded
+service and descriptor-retirement authority. Their `_blocking` twins use the explicit synchronous
+surface. Recursive directory construction and traversal remain explicitly blocking until their
+executor-safe contracts are complete. Pure `Metadata` and `DirEntry` inspection remains
+unqualified.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
@@ -72,11 +73,17 @@ target-reported byte length represented as
 `directory` have their ordinary target meanings. Sockets, devices, and every other entry kind are
 reported as `other`. `is_file` and `is_directory` are exact tests of that portable classification.
 
-`read_dir` opens exactly one directory and returns an owning stream. `ReadDir.next` returns
-`DirEntry?!`: the optional layer distinguishes clean end of stream and the failure layer reports an
-error encountered after construction. This stream does not implement `Iterator`, because the
-current iterator contract has no recoverable per-step failure channel. Entry order is the target's
-directory order and is not sorted. `.` and `..` are never returned.
+`read_dir` asynchronously opens exactly one directory and returns an owning `ReadDir`.
+`ReadDir.next` asynchronously returns `DirEntry?!`: the optional layer distinguishes clean end of
+stream and the failure layer reports an error encountered after construction. `read_dir_blocking`
+and `BlockingReadDir.next_blocking` expose the same policy synchronously. Neither stream implements
+`Iterator`, because the current iterator contract has no recoverable per-step failure channel.
+Entry order is the target's directory order and is not sorted. `.` and `..` are never returned.
+
+The asynchronous worker reads each raw record batch into job-owned storage. Only completion copies
+the initialized prefix into the stream buffer, so a running or abandoned worker never retains a
+pointer into caller-owned mutable storage. Both surfaces then use the same record decoder, UTF-8
+policy, path joining, entry classification, and malformed-record validation.
 
 Each entry owns its UTF-8 file name and the path formed by joining the opened path spelling and
 entry name, independently of the stream buffer. The joined path is not made absolute or
@@ -87,10 +94,12 @@ kind returns `other`. The type is a directory-entry snapshot and callers must pe
 filesystem query when races matter.
 
 End of stream, explicit `close`, a step failure, and destruction each converge on the same
-close-once state. After any of those terminal events, `next` returns `none`. An interrupted target
-read is retried before it becomes a public failure. A malformed target record fails with
-`std.fs.invalid_directory_record`, closes the stream, and cannot be retried against the same
-buffer. `read_dir` on a non-directory fails with `std.io.not_directory`.
+close-once state. Asynchronous close passes through the file-service retirement authority;
+blocking close directly owns its descriptor transition. After any terminal event, the respective
+next operation returns `none`. An interrupted target read is retried before it becomes a public
+failure. A malformed target record fails with `std.fs.invalid_directory_record`, closes the stream,
+and cannot be retried against the same buffer. Opening a non-directory fails with
+`std.io.not_directory`.
 
 `exists` returns `false` only when the target classifies the path as absent, including a missing
 component or a dangling symbolic link. Permission denial and every other failure remain errors.

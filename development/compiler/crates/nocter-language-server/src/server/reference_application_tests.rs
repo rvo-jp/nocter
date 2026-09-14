@@ -269,8 +269,8 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let source = root.join("search.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (read_dir_line, read_dir_source) = source_line(&text, "var stream = fs.read_dir");
-    let read_dir_character = read_dir_source.find("read_dir").unwrap();
+    let (read_dir_line, read_dir_source) = source_line(&text, "var stream = fs.read_dir_blocking");
+    let read_dir_character = read_dir_source.find("read_dir_blocking").unwrap();
     let hover = server.receive(&position_request(
         2,
         "textDocument/hover",
@@ -280,7 +280,7 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub blocking func read_dir(path: &str): ReadDir!"),
+        response.contains("pub blocking func read_dir_blocking(path: &str): BlockingReadDir!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());

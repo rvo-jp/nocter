@@ -1202,6 +1202,12 @@ fn file_primitive_targets_follow_one_closed_source_role_family() {
         )),
         present.target(crate::Arm64DarwinFilePrimitive::CompletionDispose)
     );
+    assert_ne!(
+        present.target(crate::Arm64DarwinFilePrimitive::Open(
+            nocter_runtime_contract::DarwinFileAccess::Directory,
+        )),
+        present.target(crate::Arm64DarwinFilePrimitive::ReadDirectory)
+    );
     assert_ne!(present.root().ensure(), present.root().shutdown());
 
     let lowered = crate::Arm64Program::lower_machine(&present_machine).unwrap();

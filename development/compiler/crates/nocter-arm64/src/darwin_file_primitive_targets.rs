@@ -19,6 +19,7 @@ use crate::{
 pub enum Arm64DarwinFilePrimitive {
     Open(DarwinFileAccess),
     Read,
+    ReadDirectory,
     Write,
     Flush,
     Seek(DarwinFileSeekOrigin),
@@ -72,7 +73,9 @@ impl Arm64DarwinFilePrimitive {
             PrimitiveRole::FileOpenRead => Some(Self::Open(DarwinFileAccess::Read)),
             PrimitiveRole::FileOpenCreate => Some(Self::Open(DarwinFileAccess::Create)),
             PrimitiveRole::FileOpenAppend => Some(Self::Open(DarwinFileAccess::Append)),
+            PrimitiveRole::DirectoryOpen => Some(Self::Open(DarwinFileAccess::Directory)),
             PrimitiveRole::FileRead => Some(Self::Read),
+            PrimitiveRole::DirectoryRead => Some(Self::ReadDirectory),
             PrimitiveRole::FileWrite => Some(Self::Write),
             PrimitiveRole::FileFlush => Some(Self::Flush),
             PrimitiveRole::FileSeekStart => Some(Self::Seek(DarwinFileSeekOrigin::Start)),
@@ -111,6 +114,7 @@ impl Arm64DarwinFilePrimitive {
     const fn operation(self) -> Option<DarwinFileOperation> {
         match self {
             Self::Read => Some(DarwinFileOperation::Read),
+            Self::ReadDirectory => Some(DarwinFileOperation::ReadDirectory),
             Self::Write => Some(DarwinFileOperation::Write),
             Self::Flush => Some(DarwinFileOperation::Flush),
             Self::Truncate => Some(DarwinFileOperation::Truncate),
@@ -147,7 +151,7 @@ impl Arm64DarwinFilePrimitive {
             | Self::CreateDirectory
             | Self::RemoveDirectory
             | Self::Metadata => (&[2][..], 1),
-            Self::Read | Self::Write => (&[1, 2][..], 1),
+            Self::Read | Self::ReadDirectory | Self::Write => (&[1, 2][..], 1),
             Self::Flush
             | Self::Close
             | Self::CompletionTakeOwner
@@ -223,6 +227,11 @@ impl Arm64DarwinFilePrimitiveTargets {
                 program,
                 jobs.constructor(DarwinFileOperation::Open),
                 DarwinFileAccess::Append,
+            )?,
+            declare_open_adapter(
+                program,
+                jobs.constructor(DarwinFileOperation::Open),
+                DarwinFileAccess::Directory,
             )?,
         ];
         let seek = [
@@ -318,6 +327,7 @@ impl Arm64DarwinFilePrimitiveTargets {
             Arm64DarwinFilePrimitive::CompletionFailureErrno => self.completion_failure_errno,
             Arm64DarwinFilePrimitive::CompletionDispose => self.completion_dispose,
             Arm64DarwinFilePrimitive::Read
+            | Arm64DarwinFilePrimitive::ReadDirectory
             | Arm64DarwinFilePrimitive::Write
             | Arm64DarwinFilePrimitive::Flush
             | Arm64DarwinFilePrimitive::Truncate
@@ -573,7 +583,13 @@ mod tests {
                 &[2][..],
                 1,
             ),
+            (
+                Primitive::Open(nocter_runtime_contract::DarwinFileAccess::Directory),
+                &[2][..],
+                1,
+            ),
             (Primitive::Read, &[1, 2][..], 1),
+            (Primitive::ReadDirectory, &[1, 2][..], 1),
             (Primitive::Write, &[1, 2][..], 1),
             (Primitive::Flush, &[1][..], 1),
             (
@@ -589,6 +605,7 @@ mod tests {
             (Primitive::Rename, &[2, 2][..], 1),
             (Primitive::CreateDirectory, &[2][..], 1),
             (Primitive::RemoveDirectory, &[2][..], 1),
+            (Primitive::Metadata, &[2][..], 1),
         ] {
             let abi = primitive.call_abi();
             assert_eq!(abi.argument_words(), arguments);

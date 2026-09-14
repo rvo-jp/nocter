@@ -14,8 +14,19 @@ func file_open_append(path: &str): future FileCompletion from static {
     return file_open_append_raw(path)
 }
 
+func directory_open(path: &str): future FileCompletion from static {
+    return directory_open_raw(path)
+}
+
 func file_read(owner: FileOwner, destination: &+[u8]): future FileCompletion from static {
     return file_read_raw(move owner, destination)
+}
+
+func directory_read(
+    owner: FileOwner,
+    destination: &+[u8],
+): future FileCompletion from static {
+    return directory_read_raw(move owner, destination)
 }
 
 func file_write(owner: FileOwner, source: &[u8]): future FileCompletion from static {

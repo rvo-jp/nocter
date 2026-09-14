@@ -621,6 +621,14 @@ fn open_file(path: &PathBuf, access: FileAccess) -> io::Result<File> {
             .truncate(true)
             .open(path),
         FileAccess::Append => OpenOptions::new().append(true).create(true).open(path),
+        FileAccess::Directory => {
+            let directory = File::open(path)?;
+            if directory.metadata()?.is_dir() {
+                Ok(directory)
+            } else {
+                Err(io::Error::from(io::ErrorKind::NotADirectory))
+            }
+        }
     }
 }
 

@@ -21,6 +21,7 @@ pub(crate) enum DarwinSystemCall {
     MakeDirectory,
     RemoveDirectory,
     Stat64,
+    GetDirectoryEntries64,
     Wait4,
     Kill,
     Socket,
@@ -65,6 +66,7 @@ impl DarwinSystemCall {
             Self::MakeDirectory => 0x0200_0088,
             Self::RemoveDirectory => 0x0200_0089,
             Self::Stat64 => 0x0200_0152,
+            Self::GetDirectoryEntries64 => 0x0200_0158,
             Self::Wait4 => 0x0200_0007,
             Self::Kill => 0x0200_0025,
             Self::Socket => 0x0200_0061,
@@ -128,6 +130,7 @@ impl DarwinFileAbi {
     pub(crate) const READ_ONLY: u64 = 0;
     pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0601;
     pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0209;
+    pub(crate) const DIRECTORY_ONLY: u64 = 0x0110_0000;
     pub(crate) const CREATE_MODE: u64 = 0o666;
     pub(crate) const CREATE_DIRECTORY_MODE: u64 = 0o777;
     pub(crate) const STAT_BUFFER_SIZE: u64 = 144;

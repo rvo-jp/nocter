@@ -198,7 +198,9 @@ pub(crate) fn select(
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
         | PrimitiveRole::FileOpenAppend
+        | PrimitiveRole::DirectoryOpen
         | PrimitiveRole::FileRead
+        | PrimitiveRole::DirectoryRead
         | PrimitiveRole::FileWrite
         | PrimitiveRole::FileFlush
         | PrimitiveRole::FileSeekStart

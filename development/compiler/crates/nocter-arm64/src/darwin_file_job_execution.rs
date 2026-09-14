@@ -582,6 +582,12 @@ fn copy_read_output(
     let done = code.create_label();
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::Read.code()));
     code.branch_conditional(copy, Arm64BranchCondition::Equal);
+    compare_immediate(
+        code,
+        x(20),
+        u64::from(DarwinFileOperation::ReadDirectory.code()),
+    );
+    code.branch_conditional(copy, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileOperation::ReadAt.code()));
     code.branch_conditional(done, Arm64BranchCondition::NotEqual);
     code.bind(copy).expect("local consume label is valid");

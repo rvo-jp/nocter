@@ -436,7 +436,11 @@ primitive func file_open_create_raw(path: &str): future FileCompletion from stat
 #target: \"arm64-darwin\"
 primitive func file_open_append_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
+primitive func directory_open_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
 primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func directory_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompletion from static
 #target: \"arm64-darwin\"

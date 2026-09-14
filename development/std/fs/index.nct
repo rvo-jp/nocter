@@ -32,6 +32,9 @@ pub struct DirEntry
 /// One fallible owning directory stream.
 pub struct ReadDir
 
+/// One explicitly synchronous fallible owning directory stream.
+pub struct BlockingReadDir
+
 instance Metadata {
     /// Returns the portable entry classification.
     pub method &self.file_type(): FileType
@@ -62,9 +65,17 @@ instance DirEntry {
 
 instance ReadDir {
     /// Returns the next entry, `none` at end, or an error from this terminal stream.
-    pub blocking method &+self.next(): DirEntry?!
+    pub async method &+self.next(): DirEntry?!
 
-    /// Closes the stream. Later `next` calls return `none`.
+    /// Closes the stream through the executor-safe retirement service.
+    pub async method &+self.close(): void!
+}
+
+instance BlockingReadDir {
+    /// Synchronously returns the next entry, `none` at end, or a terminal error.
+    pub blocking method &+self.next_blocking(): DirEntry?!
+
+    /// Closes the stream. Later `next_blocking` calls return `none`.
     pub method &+self.close(): void
 }
 
@@ -98,8 +109,11 @@ pub async func metadata(path: &str): Metadata!
 /// Synchronously returns target metadata after following symbolic links.
 pub blocking func metadata_blocking(path: &str): Metadata!
 
-/// Opens one directory without sorting its entries.
-pub blocking func read_dir(path: &str): ReadDir!
+/// Asynchronously opens one directory without sorting its entries.
+pub async func read_dir(path: &str): ReadDir!
+
+/// Synchronously opens one directory without sorting its entries.
+pub blocking func read_dir_blocking(path: &str): BlockingReadDir!
 
 /// Asynchronously returns false only when the path is absent.
 pub async func exists(path: &str): bool!

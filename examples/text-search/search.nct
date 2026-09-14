@@ -69,13 +69,13 @@ blocking func collect_directory(
     display_directory: &str,
     files: &+Vec<SearchPath>,
 ): void! {
-    var stream = fs.read_dir(full_directory) catch failure {
+    var stream = fs.read_dir_blocking(full_directory) catch failure {
         let context = String.concat("cannot read directory ", full_directory)
         return failure.context(&context)
     }
     var directories: Vec<SearchPath> = Vec.empty()
     while true {
-        let entry = stream.next() catch failure {
+        let entry = stream.next_blocking() catch failure {
             let context = String.concat("cannot continue directory ", full_directory)
             return failure.context(&context)
         } otherwise {

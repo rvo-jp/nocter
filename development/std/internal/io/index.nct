@@ -6,7 +6,7 @@ see ./file_operations.nct
 
 use /internal/os.{OSError, OSErrorKind}
 
-/// Opaque, uniquely owned generated-service handle for one open local file.
+/// Opaque, uniquely owned generated-service handle for one open filesystem descriptor.
 pub(/) primitive type FileOwner
 
 /// Opaque, uniformly laid-out result of one generated local-file operation.
@@ -22,7 +22,16 @@ primitive func file_open_create_raw(path: &str): future FileCompletion from stat
 primitive func file_open_append_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func directory_open_raw(path: &str): future FileCompletion from static
+
+#target: "arm64-darwin"
 primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func directory_read_raw(
+    owner: FileOwner,
+    destination: &+[u8],
+): future FileCompletion from static
 
 #target: "arm64-darwin"
 primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompletion from static
@@ -146,7 +155,15 @@ pub(/) func file_open_create(path: &str): future FileCompletion from static
 /// Constructs one generated local-file append computation.
 pub(/) func file_open_append(path: &str): future FileCompletion from static
 
+/// Constructs one generated local-directory open computation.
+pub(/) func directory_open(path: &str): future FileCompletion from static
+
 pub(/) func file_read(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
+
+pub(/) func directory_read(
+    owner: FileOwner,
+    destination: &+[u8],
+): future FileCompletion from static
 
 pub(/) func file_write(owner: FileOwner, source: &[u8]): future FileCompletion from static
 

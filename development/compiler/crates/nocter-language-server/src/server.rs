@@ -1644,18 +1644,18 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs\\nblocking func main(): void! {{\\n    let stream = fs.read_dir(\\\".\\\")?\\n    return\\n}}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs\\nasync func main(): void! {{\\n    let stream = await fs.read_dir(\\\".\\\")?\\n    return\\n}}\\n\"}}}}}}"
         ));
 
         let completion = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":20}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":34}}}}}}"
         ));
         let response = completion.response().unwrap();
         assert!(response.contains("\"label\":\"fs.read_dir\""), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
 
         let definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":23}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":29}}}}}}"
         ));
         let response = definition.response().unwrap();
         assert!(response.contains("/std/fs/index.nct"), "{response}");
@@ -1666,7 +1666,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub blocking func read_dir(path: &str): ReadDir!"))
+            .find(|(_, line)| line.contains("pub async func read_dir(path: &str): ReadDir!"))
             .unwrap();
         let character = source_line.find("read_dir").unwrap();
         let hover = server.receive(&format!(
@@ -1675,7 +1675,7 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("```nocter\\npub blocking func read_dir(path: &str): ReadDir!\\n```"),
+            response.contains("```nocter\\npub async func read_dir(path: &str): ReadDir!\\n```"),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

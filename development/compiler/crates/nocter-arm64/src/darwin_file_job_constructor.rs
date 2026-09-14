@@ -123,7 +123,9 @@ fn stage_inputs(
             add_immediate(code, x(20), x(20), 1);
             move_register(code, x(22), x(2));
         }
-        DarwinFileOperation::Read | DarwinFileOperation::Write => {
+        DarwinFileOperation::Read
+        | DarwinFileOperation::ReadDirectory
+        | DarwinFileOperation::Write => {
             move_register(code, x(19), x(0));
             move_register(code, x(21), x(1));
             move_register(code, x(20), x(2));
@@ -283,7 +285,7 @@ fn initialize_operands(
         DarwinFileOperation::Open => {
             store(code, job, schema.offset(DarwinFileJobField::Access), x(22));
         }
-        DarwinFileOperation::Read => {
+        DarwinFileOperation::Read | DarwinFileOperation::ReadDirectory => {
             store(
                 code,
                 job,
@@ -432,6 +434,7 @@ fn initialize_owned_bytes(
             copy_path(code, job, x(22), x(28), Some(x(27)), imports, schema);
         }
         DarwinFileOperation::Read
+        | DarwinFileOperation::ReadDirectory
         | DarwinFileOperation::Flush
         | DarwinFileOperation::Seek
         | DarwinFileOperation::Truncate

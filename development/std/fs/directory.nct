@@ -1,4 +1,4 @@
-//! Darwin directory-stream ownership and native record decoding.
+//! Directory-stream ownership and shared Darwin record decoding.
 
 see ./index.nct
 
@@ -9,6 +9,7 @@ use /internal/path as internal_path
 use /internal/ptr as internal_ptr
 use /mem.RawBuffer
 use /mem
+use /path as path_module
 use /path.Utf8Path
 use /ptr
 use /string.String
@@ -22,14 +23,33 @@ struct DirEntry {
     file_type: FileType
 }
 
+enum ReadDirOwnership {
+    open(owner: io.FileOwner)
+    terminal
+}
+
+struct DirectoryBuffer {
+    base: Utf8Path
+    bytes: RawBuffer
+    offset: usize
+    len: usize
+    finished: bool
+}
+
+enum DirectoryBufferStep {
+    entry(value: DirEntry)
+    refill
+}
+
 struct ReadDir {
+    ownership: ReadDirOwnership
+    buffer: DirectoryBuffer
+}
+
+struct BlockingReadDir {
     fd: usize
     is_open: bool
-    is_finished: bool
-    base: Utf8Path
-    buffer: RawBuffer
-    buffer_offset: usize
-    buffer_len: usize
+    buffer: DirectoryBuffer
 }
 
 instance DirEntry {
@@ -47,34 +67,134 @@ instance DirEntry {
 }
 
 instance ReadDir {
-    blocking method &+self.next(): DirEntry?! {
-        return next_directory_entry(self)
+    async method &+self.next(): DirEntry?! {
+        return await next_directory_entry(self)
+    }
+
+    async method &+self.close(): void! {
+        return await close_async_directory(self)
+    }
+}
+
+instance BlockingReadDir {
+    blocking method &+self.next_blocking(): DirEntry?! {
+        return next_blocking_directory_entry(self)
     }
 
     method &+self.close(): void {
-        close_directory(self)
+        close_blocking_directory(self)
         return
     }
 }
 
-blocking func read_dir(path: &str): ReadDir! {
-    let base = Utf8Path.new(path)?
-    var allocator = mem.page_try_allocator()
-    let buffer = allocator.try_alloc(DIRECTORY_BUFFER_SIZE, 8)?
-    let fd = open_directory(path)?
+async func read_dir(path: &str): ReadDir! {
+    path_module.validate(path)?
+    let buffer = new_directory_buffer(path)?
+    var completion = await io.directory_open(path)
+    io.validate_file_completion(&completion)?
+    let owner = io.file_completion_take_owner(&+completion)
     return ReadDir {
-        fd: fd,
-        is_open: true,
-        is_finished: false,
-        base: move base,
+        ownership: ReadDirOwnership.open(move owner),
         buffer: move buffer,
-        buffer_offset: 0,
-        buffer_len: 0,
     }
 }
 
+blocking func read_dir_blocking(path: &str): BlockingReadDir! {
+    let buffer = new_directory_buffer(path)?
+    let fd = open_directory_blocking(path)?
+    return BlockingReadDir {
+        fd: fd,
+        is_open: true,
+        buffer: move buffer,
+    }
+}
+
+func new_directory_buffer(path: &str): DirectoryBuffer! {
+    let base = Utf8Path.new(path)?
+    var allocator = mem.page_try_allocator()
+    let bytes = allocator.try_alloc(DIRECTORY_BUFFER_SIZE, 8)?
+    return DirectoryBuffer {
+        base: move base,
+        bytes: move bytes,
+        offset: 0,
+        len: 0,
+        finished: false,
+    }
+}
+
+noalloc func take_directory_owner(reader: &+ReadDir): io.FileOwner! {
+    let previous = internal_ptr.replace_value(&+reader.ownership, ReadDirOwnership.terminal)
+    match move previous {
+        ReadDirOwnership.open(owner) { return move owner }
+        ReadDirOwnership.terminal { return io.closed_stream_error() }
+    }
+}
+
+noalloc func restore_directory_owner(
+    reader: &+ReadDir,
+    completion: &+io.FileCompletion,
+): void {
+    let owner = io.file_completion_take_owner(completion)
+    reader.ownership = ReadDirOwnership.open(move owner)
+    return
+}
+
+noalloc func terminate_async_directory(reader: &+ReadDir): void {
+    let previous = internal_ptr.replace_value(&+reader.ownership, ReadDirOwnership.terminal)
+    match move previous {
+        ReadDirOwnership.open(owner) { let _ = move owner }
+        ReadDirOwnership.terminal {}
+    }
+    finish_directory_buffer(&+reader.buffer)
+    return
+}
+
+async func close_async_directory(reader: &+ReadDir): void! {
+    let owner = take_directory_owner(reader) catch _ {
+        finish_directory_buffer(&+reader.buffer)
+        return
+    }
+    let completion = await io.file_close(move owner)
+    finish_directory_buffer(&+reader.buffer)
+    io.validate_file_completion(&completion)?
+    return
+}
+
+async func next_directory_entry(reader: &+ReadDir): DirEntry?! {
+    if reader.buffer.finished { return none }
+
+    while true {
+        let step = parse_directory_buffer(&+reader.buffer) catch failure {
+            terminate_async_directory(reader)
+            return move failure
+        }
+        match move step {
+            DirectoryBufferStep.entry(value) { return move value }
+            DirectoryBufferStep.refill {
+                let owner = take_directory_owner(reader)?
+                var completion = await io.directory_read(move owner, reader.buffer.bytes.bytes_mut())
+                restore_directory_owner(reader, &+completion)
+                io.validate_file_completion(&completion) catch failure {
+                    terminate_async_directory(reader)
+                    return move failure
+                }
+                let received = io.file_completion_transferred_byte_count(&completion)
+                install_directory_bytes(&+reader.buffer, received) catch failure {
+                    terminate_async_directory(reader)
+                    return move failure
+                }
+                if received == 0 {
+                    await close_async_directory(reader)?
+                    return none
+                }
+            }
+        }
+    }
+    return none
+}
+
 #target: "arm64-darwin"
-blocking func open_directory(path: &str): usize! {
+blocking func open_directory_blocking(path: &str): usize! {
     let argument = internal_path.target_path_argument(path)?
     var result: SyscallResult = darwin.syscall3(
         darwin.SYS_OPEN,
@@ -97,9 +217,9 @@ blocking func open_directory(path: &str): usize! {
 }
 
 #target: "arm64-darwin"
-blocking func refill_directory(reader: &+ReadDir): usize! {
+blocking func refill_blocking_directory(reader: &+BlockingReadDir): usize! {
     var position: u64 = 0
-    let buffer = reader.buffer.bytes_mut()
+    let buffer = reader.buffer.bytes.bytes_mut()
     var result: SyscallResult = darwin.read_directory_entries(reader.fd, buffer, &+position)
     while result.errno == darwin.ERRNO_INTERRUPTED {
         result = darwin.read_directory_entries(reader.fd, buffer, &+position)
@@ -107,38 +227,56 @@ blocking func refill_directory(reader: &+ReadDir): usize! {
     if result.errno != 0 {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
-    if result.value > buffer.len() {
-        return invalid_directory_record()
-    }
-    reader.buffer_offset = 0
-    reader.buffer_len = result.value
+    install_directory_bytes(&+reader.buffer, result.value)?
     return result.value
 }
 
-blocking func next_directory_entry(reader: &+ReadDir): DirEntry?! {
-    if reader.is_finished || !reader.is_open {
+blocking func next_blocking_directory_entry(reader: &+BlockingReadDir): DirEntry?! {
+    if reader.buffer.finished || !reader.is_open {
         return none
     }
 
     while true {
-        if reader.buffer_offset >= reader.buffer_len {
-            let received = refill_directory(reader) catch failure {
-                close_directory(reader)
-                return move failure
-            }
-            if received == 0 {
-                close_directory(reader)
-                return none
+        let step = parse_directory_buffer(&+reader.buffer) catch failure {
+            close_blocking_directory(reader)
+            return move failure
+        }
+        match move step {
+            DirectoryBufferStep.entry(value) { return move value }
+            DirectoryBufferStep.refill {
+                let received = refill_blocking_directory(reader) catch failure {
+                    close_blocking_directory(reader)
+                    return move failure
+                }
+                if received == 0 {
+                    close_blocking_directory(reader)
+                    return none
+                }
             }
         }
+    }
+    return none
+}
 
-        let record_start = reader.buffer_offset
-        let remaining = reader.buffer_len - record_start
+func install_directory_bytes(buffer: &+DirectoryBuffer, received: usize): void! {
+    if received > buffer.bytes.bytes().len() {
+        return invalid_directory_record()
+    }
+    buffer.offset = 0
+    buffer.len = received
+    if received == 0 { buffer.finished = true }
+    return
+}
+
+func parse_directory_buffer(buffer: &+DirectoryBuffer): DirectoryBufferStep! {
+    while buffer.offset < buffer.len {
+        let record_start = buffer.offset
+        let remaining = buffer.len - record_start
         if remaining <= darwin.DIRENT_NAME_OFFSET {
-            return fail_directory(reader, invalid_directory_record())
+            return invalid_directory_record()
         }
 
-        let record_address = ptr.addr(reader.buffer.bytes().ptr()) + record_start
+        let record_address = ptr.addr(buffer.bytes.bytes().ptr()) + record_start
         let inode_pointer: *u64 = internal_ptr.from_addr(record_address)
         let length_pointer: *u16 = internal_ptr.from_addr(record_address)
         let type_pointer: *u8 = internal_ptr.from_addr(record_address)
@@ -154,71 +292,60 @@ blocking func next_directory_entry(reader: &+ReadDir): DirEntry?! {
         let entry_type: u8 = internal_ptr.take_value_at_ptr(type_pointer, darwin.DIRENT_TYPE_OFFSET)
 
         if record_len <= darwin.DIRENT_NAME_OFFSET || record_len > remaining {
-            return fail_directory(reader, invalid_directory_record())
+            return invalid_directory_record()
         }
         if name_len == 0 || name_len >= record_len - darwin.DIRENT_NAME_OFFSET {
-            return fail_directory(reader, invalid_directory_record())
+            return invalid_directory_record()
         }
 
         let name_address = record_address + darwin.DIRENT_NAME_OFFSET
         let name_pointer: *u8 = internal_ptr.from_addr(name_address)
         let terminator: u8 = internal_ptr.take_value_at_ptr(name_pointer, name_len)
         if terminator != 0 {
-            return fail_directory(reader, invalid_directory_record())
+            return invalid_directory_record()
         }
 
-        reader.buffer_offset += record_len
-        if inode == 0 {
-            continue
-        }
+        buffer.offset += record_len
+        if inode == 0 { continue }
 
         let name_bytes = internal_ptr.slice_from_raw_parts(name_pointer, name_len)
         let name = String.from_utf8(name_bytes) catch _ {
-            return fail_directory(reader, invalid_utf8_name())
+            return invalid_utf8_name()
         }
-        if (&name as &str) == "." || (&name as &str) == ".." {
-            continue
-        }
+        if (&name as &str) == "." || (&name as &str) == ".." { continue }
 
-        let path = reader.base.join(&name) catch failure {
-            close_directory(reader)
-            return move failure
-        }
-        return DirEntry {
-            file_name: move name,
-            path: move path,
-            file_type: file_type_from_dirent(entry_type),
-        }
+        let path = buffer.base.join(&name)?
+        return DirectoryBufferStep.entry(
+            DirEntry {
+                file_name: move name,
+                path: move path,
+                file_type: file_type_from_dirent(entry_type),
+            },
+        )
     }
-    return none
+    return DirectoryBufferStep.refill
 }
 
 func file_type_from_dirent(value: u8): FileType {
-    if value == darwin.DIRENT_TYPE_REGULAR {
-        return FileType.regular
-    }
-    if value == darwin.DIRENT_TYPE_DIRECTORY {
-        return FileType.directory
-    }
-    if value == darwin.DIRENT_TYPE_SYMLINK {
-        return FileType.symlink
-    }
+    if value == darwin.DIRENT_TYPE_REGULAR { return FileType.regular }
+    if value == darwin.DIRENT_TYPE_DIRECTORY { return FileType.directory }
+    if value == darwin.DIRENT_TYPE_SYMLINK { return FileType.symlink }
     return FileType.other
 }
 
-func fail_directory(reader: &+ReadDir, failure: error): error {
-    close_directory(reader)
-    return move failure
+func finish_directory_buffer(buffer: &+DirectoryBuffer): void {
+    buffer.finished = true
+    buffer.offset = 0
+    buffer.len = 0
+    return
 }
 
-func close_directory(reader: &+ReadDir): void {
+func close_blocking_directory(reader: &+BlockingReadDir): void {
     if reader.is_open {
         let _ = darwin.close_descriptor(reader.fd)
         reader.is_open = false
     }
-    reader.is_finished = true
-    reader.buffer_offset = 0
-    reader.buffer_len = 0
+    finish_directory_buffer(&+reader.buffer)
     return
 }
 
@@ -230,7 +357,12 @@ func invalid_directory_record(): error {
     return error.new("std.fs.invalid_directory_record", "OS returned an invalid directory record")
 }
 
-drop ReadDir(&+self) {
-    close_directory(self)
+noalloc drop ReadDir(&+self) {
+    terminate_async_directory(self)
+    return
+}
+
+drop BlockingReadDir(&+self) {
+    close_blocking_directory(self)
     return
 }

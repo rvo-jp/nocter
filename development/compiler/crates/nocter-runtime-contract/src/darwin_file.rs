@@ -18,6 +18,7 @@ pub enum DarwinFileOperation {
     CreateDirectory,
     RemoveDirectory,
     Metadata,
+    ReadDirectory,
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
@@ -103,6 +104,7 @@ impl DarwinFileOperation {
         Self::CreateDirectory,
         Self::RemoveDirectory,
         Self::Metadata,
+        Self::ReadDirectory,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -122,6 +124,7 @@ impl DarwinFileOperation {
             Self::CreateDirectory => 10,
             Self::RemoveDirectory => 11,
             Self::Metadata => 12,
+            Self::ReadDirectory => 13,
         }
     }
 
@@ -142,6 +145,7 @@ impl DarwinFileOperation {
             10 => Some(Self::CreateDirectory),
             11 => Some(Self::RemoveDirectory),
             12 => Some(Self::Metadata),
+            13 => Some(Self::ReadDirectory),
             _ => None,
         }
     }
@@ -192,10 +196,11 @@ pub enum DarwinFileAccess {
     Read,
     Create,
     Append,
+    Directory,
 }
 
 impl DarwinFileAccess {
-    pub const ALL: &'static [Self] = &[Self::Read, Self::Create, Self::Append];
+    pub const ALL: &'static [Self] = &[Self::Read, Self::Create, Self::Append, Self::Directory];
 
     #[must_use]
     pub const fn code(self) -> u8 {
@@ -203,6 +208,7 @@ impl DarwinFileAccess {
             Self::Read => 0,
             Self::Create => 1,
             Self::Append => 2,
+            Self::Directory => 3,
         }
     }
 
@@ -212,6 +218,7 @@ impl DarwinFileAccess {
             0 => Some(Self::Read),
             1 => Some(Self::Create),
             2 => Some(Self::Append),
+            3 => Some(Self::Directory),
             _ => None,
         }
     }

@@ -24,6 +24,7 @@ pub(crate) fn execute_operation(
     match operation {
         DarwinFileOperation::Open => execute_open(code, job, imports, retirement),
         DarwinFileOperation::Read => execute_read(code, job, false, imports),
+        DarwinFileOperation::ReadDirectory => execute_directory_read(code, job),
         DarwinFileOperation::Write => execute_write(code, job, false, imports),
         DarwinFileOperation::Flush => execute_flush(code, job, imports),
         DarwinFileOperation::Seek => execute_seek(code, job, imports),
@@ -160,6 +161,7 @@ fn execute_open(
     let read = code.create_label();
     let create = code.create_label();
     let append = code.create_label();
+    let directory = code.create_label();
     let invoke = code.create_label();
     load(code, x(20), job, schema.offset(DarwinFileJobField::Access));
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Read.code()));
@@ -168,6 +170,8 @@ fn execute_open(
     code.branch_conditional(create, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Append.code()));
     code.branch_conditional(append, Arm64BranchCondition::Equal);
+    compare_immediate(code, x(20), u64::from(DarwinFileAccess::Directory.code()));
+    code.branch_conditional(directory, Arm64BranchCondition::Equal);
     abort(code, imports);
     code.bind(read)?;
     immediate(code, x(21), DarwinFileAbi::READ_ONLY);
@@ -177,6 +181,9 @@ fn execute_open(
     code.branch(invoke, false);
     code.bind(append)?;
     immediate(code, x(21), DarwinFileAbi::CREATE_APPEND_WRITE_ONLY);
+    code.branch(invoke, false);
+    code.bind(directory)?;
+    immediate(code, x(21), DarwinFileAbi::DIRECTORY_ONLY);
     code.bind(invoke)?;
     code.bind(retry)?;
     address(code, x(0), job, schema.owned_bytes_offset());
@@ -198,6 +205,58 @@ fn execute_open(
     );
     move_register(code, x(1), x(21));
     code.call(retirement.publish_owner());
+    code.bind(finished)?;
+    Ok(())
+}
+
+fn execute_directory_read(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    load(
+        code,
+        x(21),
+        job,
+        schema.offset(DarwinFileJobField::OwnedByteLength),
+    );
+    let valid = code.create_label();
+    immediate(code, x(8), DarwinFileAbi::MAXIMUM_TRANSFER);
+    compare_register(code, x(21), x(8));
+    code.branch_conditional(valid, Arm64BranchCondition::UnsignedLowerOrSame);
+    store_failure(code, job, DarwinFileFailureKind::InvalidProgress, 0);
+    let finished = code.create_label();
+    code.branch(finished, false);
+    code.bind(valid)?;
+    let retry = code.create_label();
+    code.bind(retry)?;
+    load_descriptor(code, x(0), job);
+    address(code, x(1), job, schema.owned_bytes_offset());
+    move_register(code, x(2), x(21));
+    address(
+        code,
+        x(3),
+        job,
+        schema.offset(DarwinFileJobField::DirectoryBasePosition),
+    );
+    emit_system_call(code, DarwinSystemCall::GetDirectoryEntries64);
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    retry_interrupted_or_store_target(code, job, retry);
+    code.branch(finished, false);
+    code.bind(success)?;
+    compare_register(code, x(0), x(21));
+    let progress_valid = code.create_label();
+    code.branch_conditional(progress_valid, Arm64BranchCondition::UnsignedLowerOrSame);
+    store_failure(code, job, DarwinFileFailureKind::InvalidProgress, 0);
+    code.branch(finished, false);
+    code.bind(progress_valid)?;
+    store(
+        code,
+        job,
+        schema.offset(DarwinFileJobField::TransferredByteCount),
+        x(0),
+    );
     code.bind(finished)?;
     Ok(())
 }
