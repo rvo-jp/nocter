@@ -36,7 +36,9 @@ re-exported from `std/iter`. Its mutable `next` operation produces an executor-s
 output is `Item?!`: clean exhaustion, one yielded item, and a recoverable terminal step failure are
 distinct. The failure layer remains outside the optional layer so an unavailable item is not
 mistaken for a yielded failure value. `WalkDir` implements this exact contract, and `for await`
-consumes it without a second iteration protocol.
+consumes it without a second iteration protocol. The standard `ReadDir`, buffered text-line, and
+bounded byte-chunk producers implement the same contract rather than defining subsystem-specific
+loop protocols.
 
 Asynchronous `map`, `filter`, `take`, and `enumerate` adapters own their source and any callback.
 They remain lazy and request one upstream item only when downstream requests an item. A callback is

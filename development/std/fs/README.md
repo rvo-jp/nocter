@@ -88,8 +88,10 @@ reported as `other`. `is_file` and `is_directory` are exact tests of that portab
 follow a symbolic link in the final path position; the supplied entry itself must be a directory.
 `ReadDir.next` asynchronously returns `DirEntry?!`: the optional layer distinguishes clean end of
 stream and the failure layer reports an error encountered after construction. `read_dir_blocking`
-and `BlockingReadDir.next_blocking` expose the same policy synchronously. Neither stream implements
-`Iterator`, because the current iterator contract has no recoverable per-step failure channel.
+and `BlockingReadDir.next_blocking` expose the same policy synchronously. `ReadDir` implements
+`AsyncIterator<Item = DirEntry>` through that exact `next` operation, so `for await` preserves the
+same clean-exhaustion and step-failure distinction. `BlockingReadDir` does not implement the
+synchronous `Iterator`, whose step contract has no recoverable failure channel.
 Entry order is the target's directory order and is not sorted. `.` and `..` are never returned.
 
 The asynchronous worker reads each raw record batch into job-owned storage. Only completion copies

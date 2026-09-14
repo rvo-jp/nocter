@@ -9,6 +9,25 @@ use /internal/io as internal_io
 use /string.String
 use /vec.Vec
 
+copy struct LineLimit {
+    is_bounded: bool
+    maximum_encoded_bytes: usize
+}
+
+noalloc func unbounded_line_limit(): LineLimit {
+    return LineLimit {
+        is_bounded: false,
+        maximum_encoded_bytes: 0,
+    }
+}
+
+noalloc func bounded_line_limit(maximum_encoded_bytes: usize): LineLimit {
+    return LineLimit {
+        is_bounded: true,
+        maximum_encoded_bytes: maximum_encoded_bytes,
+    }
+}
+
 struct BufReader<R> {
     source: R
     buffer: Vec<u8>
@@ -91,8 +110,15 @@ async func refill_async_buffer<R>(reader: &+BufReader<R>): usize! where R impl R
 }
 
 async func read_async_line<R>(reader: &+BufReader<R>): String?! where R impl Reader {
+    return await read_async_line_with_limit(reader, unbounded_line_limit())?
+}
+
+async func read_async_line_with_limit<R>(
+    reader: &+BufReader<R>,
+    limit: LineLimit,
+): String?! where R impl Reader {
     var result = String.empty()
-    let present = await read_async_line_into(reader, &+result)?
+    let present = await read_async_line_into_with_limit(reader, &+result, limit)?
     if !present {
         return none
     }
@@ -102,6 +128,18 @@ async func read_async_line<R>(reader: &+BufReader<R>): String?! where R impl Rea
 async func read_async_line_into<R>(
     reader: &+BufReader<R>,
     destination: &+String,
+): bool! where R impl Reader {
+    return await read_async_line_into_with_limit(
+        reader,
+        destination,
+        unbounded_line_limit(),
+    )?
+}
+
+async func read_async_line_into_with_limit<R>(
+    reader: &+BufReader<R>,
+    destination: &+String,
+    limit: LineLimit,
 ): bool! where R impl Reader {
     destination.clear()
     if reader.is_finished {
@@ -131,12 +169,23 @@ async func read_async_line_into<R>(
             }
             return commit_async_line(reader, destination)?
         }
+        if line_limit_reached(&limit, reader.line_buffer.len()) {
+            terminate_async_reader(reader)
+            return error.new(
+                "std.io.line_too_long",
+                "line exceeded the configured encoded-byte limit",
+            )
+        }
         reader.line_buffer.try_push(byte) catch failure {
             terminate_async_reader(reader)
             return move failure
         }
     }
     return false
+}
+
+noalloc func line_limit_reached(limit: &LineLimit, retained: usize): bool {
+    return limit.is_bounded && retained >= limit.maximum_encoded_bytes
 }
 
 func commit_async_line<R>(reader: &+BufReader<R>, destination: &+String): bool! {
@@ -171,6 +220,13 @@ instance BufReader<R> where R impl Reader {
 
     async method &+self.read_line_into(destination: &+String): bool! {
         return await read_async_line_into(self, destination)?
+    }
+
+    async method &+self.read_line_bounded(maximum_encoded_line_bytes: usize): String?! {
+        return await read_async_line_with_limit(
+            self,
+            bounded_line_limit(maximum_encoded_line_bytes),
+        )?
     }
 
     method self.finish(): R {

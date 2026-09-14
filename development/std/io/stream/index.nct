@@ -1,0 +1,49 @@
+//! Lazy asynchronous byte-stream adapters.
+
+use /io.Reader
+use /io/buffer.BufReader
+use /iter/asynchronous.AsyncIterator
+use /string.String
+use /vec.Vec
+see ./chunks.nct
+see ./lines.nct
+
+/// Lazily reads independently owned, bounded byte chunks from a source.
+pub struct ByteChunks<R>
+
+construct ByteChunks<R> {
+    /// Wraps `source` with the default positive chunk size.
+    pub func new(source: R): Self where R impl Reader
+
+    /// Wraps `source`, normalizing a zero requested chunk size to one byte.
+    pub func with_chunk_size(source: R, requested_chunk_size: usize): Self where R impl Reader
+}
+
+instance ByteChunks<R> where R impl Reader {
+    impl AsyncIterator { .Item = Vec<u8> }
+
+    /// Consumes the adapter and returns its underlying source.
+    pub method self.finish(): R
+}
+
+/// Lazily reads bounded, independently owned UTF-8 lines from a source.
+pub struct Lines<R>
+
+construct Lines<R> {
+    /// Wraps `source` with the default read buffer and an explicit line bound.
+    pub func new(source: R, maximum_encoded_line_bytes: usize): Self where R impl Reader
+
+    /// Wraps `source` with explicit read-buffer and encoded-line bounds.
+    pub func with_limits(
+        source: R,
+        requested_buffer_capacity: usize,
+        maximum_encoded_line_bytes: usize,
+    ): Self where R impl Reader
+}
+
+instance Lines<R> where R impl Reader {
+    impl AsyncIterator { .Item = String }
+
+    /// Consumes the adapter, discards buffered input, and returns its underlying source.
+    pub method self.finish(): R
+}

@@ -72,6 +72,9 @@ instance BufReader<R> where R impl Reader {
     /// Replaces `destination` with one line and reports false only at clean end of stream.
     pub async method &+self.read_line_into(destination: &+String): bool!
 
+    /// Reads one line for a package-owned adapter with an explicit encoded-byte limit.
+    pub(/) async method &+self.read_line_bounded(maximum_encoded_line_bytes: usize): String?!
+
     /// Consumes this buffer, discards unread bytes, and returns its underlying source.
     pub method self.finish(): R
 

@@ -1,0 +1,168 @@
+use std/http.Response
+use std/io.{File, Reader}
+use std/io/stream.{ByteChunks, Lines}
+use std/iter/asynchronous.AsyncIterator
+use std/net.TcpStream
+use std/process.{ChildStderr, ChildStdout}
+use std/tls.TlsStream
+use std/vec.Vec
+
+func chunks_from_file(source: File): ByteChunks<File> {
+    return ByteChunks.new(move source)
+}
+
+func chunks_from_process_output(source: ChildStdout): ByteChunks<ChildStdout> {
+    return ByteChunks.new(move source)
+}
+
+func chunks_from_process_error(source: ChildStderr): ByteChunks<ChildStderr> {
+    return ByteChunks.new(move source)
+}
+
+func chunks_from_tcp(source: TcpStream): ByteChunks<TcpStream> {
+    return ByteChunks.new(move source)
+}
+
+func chunks_from_tls(source: TlsStream): ByteChunks<TlsStream> {
+    return ByteChunks.new(move source)
+}
+
+func chunks_from_http(source: Response): ByteChunks<Response> {
+    return ByteChunks.new(move source)
+}
+
+struct MemoryReader {
+    bytes: Vec<u8>
+    next_index: usize
+}
+
+construct MemoryReader {
+    func new(bytes: Vec<u8>): Self {
+        return MemoryReader {
+            bytes: move bytes,
+            next_index: 0,
+        }
+    }
+}
+
+instance MemoryReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        var written: usize = 0
+        while written < output.len() && self.next_index < self.bytes.len() {
+            output[written] = self.bytes[self.next_index]
+            written += 1
+            self.next_index += 1
+        }
+        return written
+    }
+}
+
+struct InvalidReader {}
+
+instance InvalidReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        return output.len() + 1
+    }
+}
+
+async func chunks_are_bounded_and_terminal(): bool! {
+    var chunks = ByteChunks.with_chunk_size(
+        MemoryReader.new(Vec [
+            u8.truncate(1),
+            u8.truncate(2),
+            u8.truncate(3),
+            u8.truncate(4),
+            u8.truncate(5),
+        ]),
+        3,
+    )
+    let first = await chunks.next()? otherwise { return false }
+    if first.len() != 3 || first[0] != 1 || first[1] != 2 || first[2] != 3 {
+        return false
+    }
+    let second = await chunks.next()? otherwise { return false }
+    if second.len() != 2 || second[0] != 4 || second[1] != 5 {
+        return false
+    }
+    let _after_end = await chunks.next()? otherwise {
+        let _again = await chunks.next()? otherwise { return true }
+        return false
+    }
+    return false
+}
+
+async func zero_chunk_size_makes_progress(): bool! {
+    var chunks = ByteChunks.with_chunk_size(
+        MemoryReader.new(Vec [u8.truncate(7), u8.truncate(8)]),
+        0,
+    )
+    let first = await chunks.next()? otherwise { return false }
+    let second = await chunks.next()? otherwise { return false }
+    return first.len() == 1 && first[0] == 7 && second.len() == 1 && second[0] == 8
+}
+
+async func invalid_chunk_count_is_terminal(): bool {
+    var chunks = ByteChunks.with_chunk_size(InvalidReader {}, 4)
+    let _invalid = await chunks.next() catch failure {
+        if !failure.has_code("std.io.invalid_read_count") {
+            return false
+        }
+        let _again = await chunks.next() catch _ { return false } otherwise { return true }
+        return false
+    } otherwise {
+        return false
+    }
+    return false
+}
+
+async func buffered_lines_are_async_items(): bool! {
+    let source = MemoryReader.new(Vec [
+        u8.truncate(97),
+        u8.truncate(10),
+        u8.truncate(98),
+        u8.truncate(13),
+        u8.truncate(10),
+        u8.truncate(99),
+    ])
+    let lines = Lines.with_limits(move source, 2, 8)
+    var seen: usize = 0
+    for await line in move lines {
+        if seen == 0 && (&line as &str) != "a" { return false }
+        if seen == 1 && (&line as &str) != "b" { return false }
+        if seen == 2 && (&line as &str) != "c" { return false }
+        if seen >= 3 { return false }
+        seen += 1
+    }
+    return seen == 3
+}
+
+async func oversized_line_is_terminal(): bool {
+    let source = MemoryReader.new(Vec [
+        u8.truncate(97),
+        u8.truncate(98),
+        u8.truncate(99),
+        u8.truncate(10),
+    ])
+    var lines = Lines.with_limits(move source, 2, 2)
+    let _line = await lines.next() catch failure {
+        if !failure.has_code("std.io.line_too_long") { return false }
+        let _again = await lines.next() catch _ { return false } otherwise { return true }
+        return false
+    } otherwise {
+        return false
+    }
+    return false
+}
+
+async func main(): i32! {
+    if !await chunks_are_bounded_and_terminal()? { return 1 }
+    if !await zero_chunk_size_makes_progress()? { return 2 }
+    if !await invalid_chunk_count_is_terminal() { return 3 }
+    if !await buffered_lines_are_async_items()? { return 4 }
+    if !await oversized_line_is_terminal() { return 5 }
+    return 0
+}

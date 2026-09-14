@@ -1,0 +1,70 @@
+//! Bounded byte chunks derived only from the Reader contract.
+
+see ./index.nct
+
+use /io.Reader
+use /io
+use /vec.Vec
+
+struct ByteChunks<R> {
+    source: R
+    chunk_size: usize
+    is_finished: bool
+}
+
+func normalized_chunk_size(requested: usize): usize {
+    if requested == 0 {
+        return 1
+    }
+    return requested
+}
+
+func initialized_chunk(capacity: usize): Vec<u8> {
+    var storage: Vec<u8> = Vec.with_capacity(capacity)
+    while storage.len() < capacity {
+        storage.push(0)
+    }
+    return move storage
+}
+
+construct ByteChunks<R> {
+    func new(source: R): Self where R impl Reader {
+        return ByteChunks.with_chunk_size(move source, 8192)
+    }
+
+    func with_chunk_size(source: R, requested_chunk_size: usize): Self where R impl Reader {
+        return ByteChunks<R> {
+            source: move source,
+            chunk_size: normalized_chunk_size(requested_chunk_size),
+            is_finished: false,
+        }
+    }
+}
+
+instance ByteChunks<R> where R impl Reader {
+    async method &+self.next(): Vec<u8>?! {
+        if self.is_finished {
+            return none
+        }
+
+        var storage = initialized_chunk(self.chunk_size)
+        let reported = await self.source.read(&+storage) catch failure {
+            self.is_finished = true
+            return move failure
+        }
+        let received = io.validate_read_count(reported, storage.len()) catch failure {
+            self.is_finished = true
+            return move failure
+        }
+        if received == 0 {
+            self.is_finished = true
+            return none
+        }
+        storage.truncate(received)
+        return move storage
+    }
+
+    method self.finish(): R {
+        return move self.source
+    }
+}

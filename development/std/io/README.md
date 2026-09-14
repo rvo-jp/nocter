@@ -113,6 +113,23 @@ by separately committed logical length. A cancelled refill cannot update that le
 initialization cannot become received input. Whether the underlying reader itself remains usable
 after cancellation is determined by that reader's own contract.
 
+`Lines<R>` in `std/io/stream` implements `AsyncIterator<Item = String>`. Each successful step uses
+the same line state machine as `BufReader.read_line`; it does not introduce another newline, UTF-8,
+terminal-state, or cancellation policy. Construction requires a maximum encoded-line byte count.
+That count includes every byte before LF, including a CR that would be removed from a CR/LF result.
+Exceeding it reports `std.io.line_too_long` and makes the producer terminal. A zero limit therefore
+admits an LF-terminated empty line, but not a CR/LF line or a nonempty line. `Lines` retains at most
+its fixed read buffer, the configured line bound, and the most recently yielded value owned by the
+consumer.
+
+`ByteChunks<R>` in `std/io/stream` implements `AsyncIterator<Item = Vec<u8>>` for every `Reader`.
+Each step allocates one initialized buffer with the configured positive bound, performs at most one
+underlying read, validates the reported count, and yields only the initialized prefix. A requested
+chunk size of zero is normalized to one. EOF and failure make the adapter terminal; cancellation
+drops the unpublished chunk and leaves later source usability to the underlying `Reader` contract.
+The adapter never reads ahead and does not retain a previously yielded chunk, so downstream demand
+controls upstream progress. Consumers can still choose to retain or collect yielded chunks.
+
 `BufWriter.write` accepts bytes into private bounded storage and flushes full chunks through its
 underlying `Writer`. `flush` always propagates through the underlying writer, including when the
 outer buffer is empty. It makes the wrapper terminal before awaiting output because cancellation or

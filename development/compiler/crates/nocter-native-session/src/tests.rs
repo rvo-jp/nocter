@@ -1992,13 +1992,12 @@ async func closed_stream_has_no_entry(stream: &+fs.ReadDir): bool! {
 }
 
 async func inspect_directory(): i32! {
-    var stream = await fs.read_dir(".")?
+    let stream = await fs.read_dir(".")?
     var saw_file = false
     var saw_directory = false
     var saw_symlink = false
     var batch_count: usize = 0
-    while true {
-        let entry = await stream.next()? otherwise { break }
+    for await entry in move stream {
         let name = entry.file_name()
         let path: &str = entry.path()
         if name == "." || name == ".." { return 2 }
@@ -4603,6 +4602,33 @@ fn standard_async_iterator_adapters_preserve_values_order_exhaustion_and_failure
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_status(image.image(), &package_root.0, "async-iterator-adapters", 0);
+}
+
+#[test]
+fn standard_async_streaming_producers_are_bounded_lazy_and_terminal() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        include_str!("../../../tests/fixtures/native/async_streaming_producers.nct"),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(
+        image.image(),
+        &package_root.0,
+        "async-streaming-producers",
+        0,
+    );
 }
 
 #[test]

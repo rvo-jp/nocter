@@ -1,0 +1,42 @@
+//! Bounded text lines over the shared BufReader state machine.
+
+see ./index.nct
+
+use /io.Reader
+use /io/buffer.BufReader
+use /string.String
+
+struct Lines<R> {
+    reader: BufReader<R>
+    maximum_encoded_line_bytes: usize
+}
+
+construct Lines<R> {
+    func new(source: R, maximum_encoded_line_bytes: usize): Self where R impl Reader {
+        return Lines<R> {
+            reader: BufReader.new(move source),
+            maximum_encoded_line_bytes: maximum_encoded_line_bytes,
+        }
+    }
+
+    func with_limits(
+        source: R,
+        requested_buffer_capacity: usize,
+        maximum_encoded_line_bytes: usize,
+    ): Self where R impl Reader {
+        return Lines<R> {
+            reader: BufReader.with_capacity(move source, requested_buffer_capacity),
+            maximum_encoded_line_bytes: maximum_encoded_line_bytes,
+        }
+    }
+}
+
+instance Lines<R> where R impl Reader {
+    async method &+self.next(): String?! {
+        return await self.reader.read_line_bounded(self.maximum_encoded_line_bytes)?
+    }
+
+    method self.finish(): R {
+        return self.reader.finish()
+    }
+}

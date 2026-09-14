@@ -80,6 +80,8 @@ instance DirEntry {
 }
 
 instance ReadDir {
+    impl AsyncIterator { .Item = DirEntry }
+
     /// Returns the next entry, `none` at end, or an error from this terminal stream.
     pub async method &+self.next(): DirEntry?!
 
