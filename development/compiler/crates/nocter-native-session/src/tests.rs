@@ -2018,6 +2018,12 @@ async func inspect_directory(): i32! {
         if name.starts_with("batch-") { batch_count += 1 }
     }
     if !saw_file || !saw_directory || !saw_symlink || batch_count != 700 { return 7 }
+    let followed = await fs.metadata("link")?
+    if !followed.is_file() { return 46 }
+    let link_metadata = await fs.symlink_metadata("link")?
+    var link_is_symlink = false
+    if link_metadata.file_type() is FileType.symlink { link_is_symlink = true }
+    if !link_is_symlink { return 47 }
     if !await open_fails_with("missing", "std.io.not_found") { return 8 }
     if !await open_fails_with("regular.txt", "std.io.not_directory") { return 9 }
 
@@ -2077,7 +2083,15 @@ fn public_path_and_directory_lifecycle_crosses_the_complete_native_session() {
     package_root.source(
         "main.nct",
         r#"use std/fs
+use std/fs.FileType
 use std/path.Utf8Path
+
+blocking func metadata_fails_with(path: &str, code: &str): bool {
+    let _details = fs.metadata_blocking(path) catch failure {
+        return failure.has_code(code)
+    }
+    return false
+}
 
 blocking func main(): i32! {
     let target = Utf8Path.new("workspace/cache/items.json")?
@@ -2107,6 +2121,11 @@ blocking func main(): i32! {
         symlink_remove_rejected = failure.has_code("std.io.not_directory")
     }
     if !symlink_remove_rejected { return 9 }
+    let dangling = fs.symlink_metadata_blocking("dangling-root/link")?
+    var dangling_is_symlink = false
+    if dangling.file_type() is FileType.symlink { dangling_is_symlink = true }
+    if !dangling_is_symlink { return 10 }
+    if !metadata_fails_with("dangling-root/link", "std.io.not_found") { return 11 }
     fs.remove_file_blocking("dangling-root/link")?
     fs.remove_dir_blocking("dangling-root")?
 

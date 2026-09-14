@@ -470,6 +470,8 @@ primitive func filesystem_remove_directory_raw(path: &str): future FileCompletio
 #target: \"arm64-darwin\"
 primitive func filesystem_metadata_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
+primitive func filesystem_symlink_metadata_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
 noalloc primitive func file_owner_dispose_raw(owner: &+FileOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_take_owner_raw(completion: &+FileCompletion): FileOwner from static

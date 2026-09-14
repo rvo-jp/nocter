@@ -121,6 +121,7 @@ enum FileJobPayload {
     CreateDirectory(PathBuf),
     RemoveDirectory(PathBuf),
     Metadata(PathBuf),
+    SymlinkMetadata(PathBuf),
 }
 
 /// One complete owned file-operation input.
@@ -249,6 +250,13 @@ impl DarwinFileJob {
         }
     }
 
+    #[must_use]
+    pub fn symlink_metadata(path: PathBuf) -> Self {
+        Self {
+            payload: FileJobPayload::SymlinkMetadata(path),
+        }
+    }
+
     /// Returns the operation family projected from the owned payload variant.
     #[must_use]
     pub fn kind(&self) -> FileJobKind {
@@ -266,6 +274,7 @@ impl DarwinFileJob {
             FileJobPayload::CreateDirectory(_) => FileJobKind::CreateDirectory,
             FileJobPayload::RemoveDirectory(_) => FileJobKind::RemoveDirectory,
             FileJobPayload::Metadata(_) => FileJobKind::Metadata,
+            FileJobPayload::SymlinkMetadata(_) => FileJobKind::SymlinkMetadata,
         }
     }
 }
@@ -306,6 +315,7 @@ pub enum DarwinFileOutcome {
     CreateDirectory(Result<(), FileOperationError>),
     RemoveDirectory(Result<(), FileOperationError>),
     Metadata(Result<FileMetadataFact, FileOperationError>),
+    SymlinkMetadata(Result<FileMetadataFact, FileOperationError>),
 }
 
 /// Cancellation result without exposing generic queue payloads to file policy.
@@ -560,12 +570,31 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
         FileJobPayload::RemoveDirectory(path) => DarwinFileOutcome::RemoveDirectory(
             std::fs::remove_dir(path).map_err(|error| file_failure(&error)),
         ),
-        FileJobPayload::Metadata(path) => DarwinFileOutcome::Metadata(metadata_fact(&path)),
+        FileJobPayload::Metadata(path) => {
+            DarwinFileOutcome::Metadata(metadata_fact(&path, MetadataQuery::FollowFinalLink))
+        }
+        FileJobPayload::SymlinkMetadata(path) => DarwinFileOutcome::SymlinkMetadata(metadata_fact(
+            &path,
+            MetadataQuery::InspectFinalLink,
+        )),
     }
 }
 
-fn metadata_fact(path: &PathBuf) -> Result<FileMetadataFact, FileOperationError> {
-    let metadata = std::fs::metadata(path).map_err(|error| file_failure(&error))?;
+#[derive(Clone, Copy)]
+enum MetadataQuery {
+    FollowFinalLink,
+    InspectFinalLink,
+}
+
+fn metadata_fact(
+    path: &PathBuf,
+    query: MetadataQuery,
+) -> Result<FileMetadataFact, FileOperationError> {
+    let metadata = match query {
+        MetadataQuery::FollowFinalLink => std::fs::metadata(path),
+        MetadataQuery::InspectFinalLink => std::fs::symlink_metadata(path),
+    }
+    .map_err(|error| file_failure(&error))?;
     let file_type = metadata.file_type();
     let kind = if file_type.is_file() {
         FileMetadataKind::Regular

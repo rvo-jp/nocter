@@ -66,8 +66,10 @@ a second descriptor-I/O algorithm. `read_blocking`, `read_to_string_blocking`, `
 and `write_text_blocking` provide the same whole-file policy through `BlockingFile`,
 `BlockingReader`, and `BlockingWriter`.
 
-`metadata` follows symbolic links. `metadata_blocking` is its synchronous twin. Its `len` is the
-target-reported byte length represented as
+`metadata` follows symbolic links. `metadata_blocking` is its synchronous twin.
+`symlink_metadata` and `symlink_metadata_blocking` instead inspect the final path entry itself, so
+they report `FileType.symlink` for a symbolic link, including a dangling link. Intermediate links
+are still followed. A metadata value's `len` is the target-reported byte length represented as
 `u64`; it is not a collection index and therefore is not narrowed to `usize`. `regular` and
 `directory` have their ordinary target meanings. Sockets, devices, and every other entry kind are
 reported as `other`. `is_file` and `is_directory` are exact tests of that portable classification.

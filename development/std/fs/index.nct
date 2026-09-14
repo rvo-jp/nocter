@@ -111,6 +111,12 @@ pub async func metadata(path: &str): Metadata!
 /// Synchronously returns target metadata after following symbolic links.
 pub blocking func metadata_blocking(path: &str): Metadata!
 
+/// Asynchronously returns metadata without following the final symbolic link.
+pub async func symlink_metadata(path: &str): Metadata!
+
+/// Synchronously returns metadata without following the final symbolic link.
+pub blocking func symlink_metadata_blocking(path: &str): Metadata!
+
 /// Asynchronously opens one directory without sorting its entries.
 pub async func read_dir(path: &str): ReadDir!
 

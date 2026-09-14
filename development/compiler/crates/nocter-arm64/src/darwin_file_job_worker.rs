@@ -35,13 +35,16 @@ pub(crate) fn execute_operation(
         | DarwinFileOperation::Rename
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory => execute_path_mutation(code, job, operation),
-        DarwinFileOperation::Metadata => execute_metadata(code, job),
+        DarwinFileOperation::Metadata | DarwinFileOperation::SymlinkMetadata => {
+            execute_metadata(code, job, operation)
+        }
     }
 }
 
 fn execute_metadata(
     code: &mut Arm64CodeBuilder,
     job: crate::Arm64Register,
+    operation: DarwinFileOperation,
 ) -> Result<(), crate::Arm64DarwinFileJobError> {
     let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
     let retry = code.create_label();
@@ -58,7 +61,12 @@ fn execute_metadata(
     address(code, x(1), job, schema.owned_bytes_offset());
     add_register(code, x(1), x(1), x(8), false);
     move_register(code, x(20), x(1));
-    emit_system_call(code, DarwinSystemCall::Stat64);
+    let syscall = match operation {
+        DarwinFileOperation::Metadata => DarwinSystemCall::Stat64,
+        DarwinFileOperation::SymlinkMetadata => DarwinSystemCall::Lstat64,
+        _ => unreachable!("metadata worker only receives metadata operations"),
+    };
+    emit_system_call(code, syscall);
     let success = code.create_label();
     code.branch_conditional(success, Arm64BranchCondition::CarryClear);
     retry_interrupted_or_store_target(code, job, retry);

@@ -964,7 +964,8 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         | PrimitiveRole::FilesystemRemoveFile
         | PrimitiveRole::FilesystemCreateDirectory
         | PrimitiveRole::FilesystemRemoveDirectory
-        | PrimitiveRole::FilesystemMetadata => make(
+        | PrimitiveRole::FilesystemMetadata
+        | PrimitiveRole::FilesystemSymlinkMetadata => make(
             0,
             vec![str_ref()],
             TypeContract::asynchronous(file_completion()),

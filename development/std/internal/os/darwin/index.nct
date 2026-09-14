@@ -94,6 +94,8 @@ pub(/) const SYS_RMDIR: usize
 #target: "arm64-darwin"
 pub(/) const SYS_STAT64: usize
 
+pub(/) const SYS_LSTAT64: usize
+
 #target: "arm64-darwin"
 pub(/) const SYS_GETDIRENTRIES64: usize
 
@@ -222,6 +224,8 @@ pub(/) const STAT_MODE_REGULAR: u16
 
 #target: "arm64-darwin"
 pub(/) const STAT_MODE_DIRECTORY: u16
+
+pub(/) const STAT_MODE_SYMBOLIC_LINK: u16
 
 #target: "arm64-darwin"
 pub(/) const DIRENT_INODE_OFFSET: usize

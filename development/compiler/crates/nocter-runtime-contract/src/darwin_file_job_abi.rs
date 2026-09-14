@@ -307,7 +307,7 @@ impl DarwinFileOperation {
                 Operand::None,
                 Result::None,
             ),
-            Self::Metadata => (
+            Self::Metadata | Self::SymlinkMetadata => (
                 Bytes::PathInputAndMetadataOutput,
                 Retirement::None,
                 Operand::None,
@@ -543,6 +543,13 @@ mod tests {
                 Retirement::Live,
                 Operand::None,
                 Result::TransferredByteCount,
+            ),
+            (
+                DarwinFileOperation::SymlinkMetadata,
+                Bytes::PathInputAndMetadataOutput,
+                Retirement::None,
+                Operand::None,
+                Result::Metadata,
             ),
         ];
 

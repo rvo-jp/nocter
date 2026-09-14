@@ -25,19 +25,28 @@ struct DarwinStatQuery {
     storage: RawBuffer
 }
 
+enum MetadataQuery {
+    follow_final_link
+    inspect_final_link
+}
+
 #target: "arm64-darwin"
-blocking func stat_path(path: &str): DarwinStatQuery! {
+blocking func stat_path(path: &str, query: MetadataQuery): DarwinStatQuery! {
     let argument = internal_path.target_path_argument(path)?
     var allocator = mem.page_try_allocator()
     let storage = allocator.try_alloc(darwin.STAT_BUFFER_SIZE, 8)?
+    var operation = darwin.SYS_STAT64
+    if query is MetadataQuery.inspect_final_link {
+        operation = darwin.SYS_LSTAT64
+    }
     var result = darwin.syscall2(
-        darwin.SYS_STAT64,
+        operation,
         internal_path.target_path_address(&argument),
         ptr.addr(storage.bytes().ptr()),
     )
     while result.errno == darwin.ERRNO_INTERRUPTED {
         result = darwin.syscall2(
-            darwin.SYS_STAT64,
+            operation,
             internal_path.target_path_address(&argument),
             ptr.addr(storage.bytes().ptr()),
         )
@@ -47,7 +56,17 @@ blocking func stat_path(path: &str): DarwinStatQuery! {
 
 #target: "arm64-darwin"
 blocking func metadata_target(path: &str): Metadata! {
-    let query = stat_path(path)?
+    let query = stat_path(path, MetadataQuery.follow_final_link)?
+    if query.result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(query.result.errno)))
+    }
+
+    return metadata_from_query(&query)?
+}
+
+#target: "arm64-darwin"
+blocking func symlink_metadata_target(path: &str): Metadata! {
+    let query = stat_path(path, MetadataQuery.inspect_final_link)?
     if query.result.errno != 0 {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(query.result.errno)))
     }
@@ -68,6 +87,9 @@ func metadata_from_query(query: &DarwinStatQuery): Metadata! {
         file_type = FileType.regular
     } else if mode >= darwin.STAT_MODE_DIRECTORY && mode < darwin.STAT_MODE_DIRECTORY + 4096 {
         file_type = FileType.directory
+    } else if mode >= darwin.STAT_MODE_SYMBOLIC_LINK
+        && mode < darwin.STAT_MODE_SYMBOLIC_LINK + 4096 {
+        file_type = FileType.symlink
     }
     let len: u64 = internal_ptr.take_value_at_ptr(size_pointer, darwin.STAT_SIZE_OFFSET)
     let modified_seconds: i64 = internal_ptr.take_value_at_ptr(
@@ -86,7 +108,7 @@ func metadata_from_query(query: &DarwinStatQuery): Metadata! {
 
 #target: "arm64-darwin"
 blocking func existing_path_is_directory_target(path: &str): bool! {
-    let query = stat_path(path)?
+    let query = stat_path(path, MetadataQuery.follow_final_link)?
     if query.result.errno == 0 {
         let details = metadata_from_query(&query)?
         return details.is_directory()
@@ -100,7 +122,7 @@ blocking func existing_path_is_directory_target(path: &str): bool! {
 
 #target: "arm64-darwin"
 blocking func exists_target(path: &str): bool! {
-    let query = stat_path(path)?
+    let query = stat_path(path, MetadataQuery.follow_final_link)?
     if query.result.errno == 0 {
         return true
     }

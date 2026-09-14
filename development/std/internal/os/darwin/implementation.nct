@@ -131,6 +131,8 @@ const SYS_RMDIR: usize = 0x02000089
 #target: "arm64-darwin"
 const SYS_STAT64: usize = 0x02000152
 
+const SYS_LSTAT64: usize = 0x02000154
+
 #target: "arm64-darwin"
 const SYS_GETDIRENTRIES64: usize = 0x02000158
 
@@ -265,6 +267,8 @@ const STAT_MODE_REGULAR: u16 = 32768
 
 #target: "arm64-darwin"
 const STAT_MODE_DIRECTORY: u16 = 16384
+
+const STAT_MODE_SYMBOLIC_LINK: u16 = 40960
 
 #target: "arm64-darwin"
 const DIRENT_INODE_OFFSET: usize = 0

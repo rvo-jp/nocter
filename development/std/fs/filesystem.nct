@@ -90,6 +90,10 @@ blocking func metadata_blocking(path: &str): Metadata! {
     return metadata_target(path)?
 }
 
+blocking func symlink_metadata_blocking(path: &str): Metadata! {
+    return symlink_metadata_target(path)?
+}
+
 blocking func exists_blocking(path: &str): bool! {
     return exists_target(path)?
 }

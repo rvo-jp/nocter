@@ -19,6 +19,13 @@ async func metadata(path: &str): Metadata! {
     return metadata_from_completion(&completion)?
 }
 
+async func symlink_metadata(path: &str): Metadata! {
+    path_module.validate(path)?
+    let completion = await io.filesystem_symlink_metadata(path)
+    io.validate_file_completion(&completion)?
+    return metadata_from_completion(&completion)?
+}
+
 async func exists(path: &str): bool! {
     path_module.validate(path)?
     let completion = await io.filesystem_metadata(path)

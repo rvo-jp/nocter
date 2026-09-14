@@ -19,6 +19,7 @@ pub enum DarwinFileOperation {
     RemoveDirectory,
     Metadata,
     ReadDirectory,
+    SymlinkMetadata,
 }
 
 /// Opaque owning handle stored in standard source for one generated file-service resource.
@@ -105,6 +106,7 @@ impl DarwinFileOperation {
         Self::RemoveDirectory,
         Self::Metadata,
         Self::ReadDirectory,
+        Self::SymlinkMetadata,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -125,6 +127,7 @@ impl DarwinFileOperation {
             Self::RemoveDirectory => 11,
             Self::Metadata => 12,
             Self::ReadDirectory => 13,
+            Self::SymlinkMetadata => 14,
         }
     }
 
@@ -146,6 +149,7 @@ impl DarwinFileOperation {
             11 => Some(Self::RemoveDirectory),
             12 => Some(Self::Metadata),
             13 => Some(Self::ReadDirectory),
+            14 => Some(Self::SymlinkMetadata),
             _ => None,
         }
     }

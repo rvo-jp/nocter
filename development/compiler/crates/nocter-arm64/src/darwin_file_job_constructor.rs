@@ -180,7 +180,7 @@ fn stage_inputs(
             abort(code, imports);
             code.bind(valid)?;
         }
-        DarwinFileOperation::Metadata => {
+        DarwinFileOperation::Metadata | DarwinFileOperation::SymlinkMetadata => {
             immediate(code, x(19), 0);
             move_register(code, x(21), x(0));
             move_register(code, x(27), x(1));
@@ -298,7 +298,8 @@ fn initialize_operands(
         | DarwinFileOperation::RemoveFile
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory
-        | DarwinFileOperation::Metadata => {}
+        | DarwinFileOperation::Metadata
+        | DarwinFileOperation::SymlinkMetadata => {}
         DarwinFileOperation::Seek => {
             store(
                 code,
@@ -426,7 +427,8 @@ fn initialize_owned_bytes(
         DarwinFileOperation::RemoveFile
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory
-        | DarwinFileOperation::Metadata => {
+        | DarwinFileOperation::Metadata
+        | DarwinFileOperation::SymlinkMetadata => {
             copy_path(code, job, x(21), x(27), None, imports, schema);
         }
         DarwinFileOperation::Rename => {
