@@ -19,7 +19,7 @@ pub use callable::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
     CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
     CompileTimeNode, CompileTimeOperation, CompileTimeUnaryOperation, CompileTimeValueType,
-    InvalidCompileTimeCallablePlan,
+    InvalidCompileTimeCallTarget, InvalidCompileTimeCallablePlan,
 };
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,

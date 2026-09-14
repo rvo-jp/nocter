@@ -83,15 +83,29 @@ pub struct CompileTimeCallTarget {
 }
 
 impl CompileTimeCallTarget {
-    #[must_use]
+    /// Creates a call target with one canonical argument per generic parameter.
+    ///
+    /// # Errors
+    ///
+    /// Returns the repeated or out-of-order parameter instead of accepting a call identity whose
+    /// meaning depends on caller convention.
     pub fn new(
         callable: CallableId,
         generic_arguments: impl Into<Box<[CompileTimeGenericArgument]>>,
-    ) -> Self {
-        Self {
-            callable,
-            generic_arguments: generic_arguments.into(),
+    ) -> Result<Self, InvalidCompileTimeCallTarget> {
+        let generic_arguments = generic_arguments.into();
+        if let Some(pair) = generic_arguments
+            .windows(2)
+            .find(|pair| pair[0].parameter() >= pair[1].parameter())
+        {
+            return Err(InvalidCompileTimeCallTarget {
+                parameter: pair[1].parameter(),
+            });
         }
+        Ok(Self {
+            callable,
+            generic_arguments,
+        })
     }
 
     #[must_use]
@@ -102,6 +116,18 @@ impl CompileTimeCallTarget {
     #[must_use]
     pub const fn generic_arguments(&self) -> &[CompileTimeGenericArgument] {
         &self.generic_arguments
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InvalidCompileTimeCallTarget {
+    parameter: GenericParameterId,
+}
+
+impl InvalidCompileTimeCallTarget {
+    #[must_use]
+    pub const fn parameter(self) -> GenericParameterId {
+        self.parameter
     }
 }
 
@@ -211,6 +237,21 @@ impl CompileTimeCallablePlan {
             nodes,
             root,
         };
+        if let Some(parameter) =
+            plan.parameters
+                .iter()
+                .copied()
+                .enumerate()
+                .find_map(|(index, parameter)| {
+                    plan.parameters[..index]
+                        .contains(&parameter)
+                        .then_some(parameter)
+                })
+        {
+            return Err(InvalidCompileTimeCallablePlan::DuplicateParameter(
+                parameter,
+            ));
+        }
         plan.validate()?;
         Ok(plan)
     }
@@ -332,5 +373,6 @@ impl CompileTimeCallablePlan {
 pub enum InvalidCompileTimeCallablePlan {
     MissingNode(BodyNodeId),
     MissingParameter(ParameterId),
+    DuplicateParameter(ParameterId),
     MissingLocal(LocalBindingId),
 }

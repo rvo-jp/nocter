@@ -144,6 +144,7 @@ pub fn project_compile_time_callable(
         let node = match error {
             InvalidCompileTimeCallablePlan::MissingNode(node) => Some(node),
             InvalidCompileTimeCallablePlan::MissingParameter(_)
+            | InvalidCompileTimeCallablePlan::DuplicateParameter(_)
             | InvalidCompileTimeCallablePlan::MissingLocal(_) => None,
         };
         projector.error(node, CompileTimeProjectionRule::InvalidPlan)
@@ -374,8 +375,10 @@ impl Projector<'_> {
             .as_slice()
             .iter()
             .map(|argument| CompileTimeGenericArgument::new(argument.parameter(), argument.ty()));
+        let target = CompileTimeCallTarget::new(callee, generic_arguments.collect::<Vec<_>>())
+            .map_err(|_| self.error(Some(node), CompileTimeProjectionRule::InvalidPlan))?;
         Ok(CompileTimeOperation::Call {
-            target: CompileTimeCallTarget::new(callee, generic_arguments.collect::<Vec<_>>()),
+            target,
             receiver,
             arguments: call.arguments().into(),
         })
