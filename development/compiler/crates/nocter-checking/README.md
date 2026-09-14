@@ -26,8 +26,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
-- ownership, cleanup, allocation effects, loans, provenance, regions, and destruction
-- one exact-coverage body-relation catalog shared by provenance, effects, and loans
+- ownership, cleanup, execution facts, loans, provenance, regions, and destruction
+- one exact-coverage body-relation catalog shared by provenance, execution, and loans
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
 
@@ -82,24 +82,24 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   sibling. Only a successful body recipe is replayed into the canonical program authority, and one
   closed rebinder rewrites every checked type, closure, dispatch substitution, place, and witness.
 - Successful body queries are replayed in canonical `BodyId` order before ownership, provenance,
-  allocation effects, and loans run over the complete program. Canonical replay closes semantic
+  execution facts, and loans run over the complete program. Canonical replay closes semantic
   completion, body arenas, and exact-current source projection into immutable shared authorities.
   Session never invokes body checking again for a complete query-owned body set.
-- Program-relation results contain only source-neutral provenance, effect, loan, and body-locator
+- Program-relation results contain only source-neutral provenance, execution, loan, and body-locator
   facts. The exact-current materialization and final `CheckedProgram` share their closed semantic
   authorities rather than cloning a second program graph across the query boundary.
 - Program-wide relation analysis receives one canonical `BodyRelationCatalog`. Its constructor
   proves that checked bodies cover the declaration graph exactly once and pairs each body with its
-  declaration owner. Provenance, effects, and loans cannot accept independently ordered input
+  declaration owner. Provenance, execution, and loans cannot accept independently ordered input
   slices, inspect syntax, or rediscover body membership by scanning them.
-- Provenance, effects, and loans report authored failures as source-neutral body/node locators.
+- Provenance, execution, and loans report authored failures as source-neutral body/node locators.
   A separate exact-current `BodyRelationProjection` projects those locators through origin maps.
   Relation computation therefore cannot retain a `SourceDiagnostic`, syntax lifetime, or stale
   source coordinates across an editor revision.
-- Allocation effects consume the already-checked operation graph and ownership-owned cleanup
+- Execution facts consume the already-checked operation graph and ownership-owned cleanup
   schedules. Ownership freezes each cleanup's exact drop dependencies after generic substitution
   and residual-payload selection. A positive `MayAllocate` fact reaches one least fixed point
-  across callables, closures, and drop bodies; the effect pass has no type-store input and cannot
+  across callables, closures, and drop bodies; the execution pass has no type-store input and cannot
   reconstruct dispatch or destruction.
 - A source-backed `blocking` contract seeds `MayBlock` even when its current body happens not to
   wait. Callers consume the authored contract, so whole-program visibility cannot silently weaken

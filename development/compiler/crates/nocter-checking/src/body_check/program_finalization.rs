@@ -8,7 +8,7 @@ use super::error::{BodyCheckFailure, BodyCheckInternalError};
 use super::semantic_transaction::CheckedSemanticAuthority;
 use crate::body_relations::{BodyRelationCatalog, BodyRelationProjection};
 use crate::checked::{CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput};
-use crate::effects::analyze_program_effects;
+use crate::effects::analyze_program_execution;
 use crate::loans::analyze_program_loans;
 use crate::provenance::analyze_program_provenance;
 use crate::{CheckedBody, ResolvedBodyNames};
@@ -35,7 +35,7 @@ pub struct QueriedProgramMaterialization {
 #[derive(Clone, Debug)]
 pub struct ReusableProgramRelations {
     provenance: Arc<crate::ProvenanceTable>,
-    effects: Arc<crate::EffectTable>,
+    execution_facts: Arc<crate::ExecutionFactTable>,
     loans: Arc<crate::LoanTable>,
 }
 
@@ -173,7 +173,7 @@ fn finish_checked_program(
     } = materialized;
     let ReusableProgramRelations {
         provenance,
-        effects,
+        execution_facts,
         loans,
     } = relations;
     CheckedProgramOutput::new(
@@ -182,7 +182,7 @@ fn finish_checked_program(
             semantics,
             CheckedProgramAuthorities {
                 provenance,
-                effects,
+                execution_facts,
                 loans,
                 opaque_witnesses,
                 associated_type_completion_contexts,
@@ -209,7 +209,7 @@ fn analyze_checked_body_relations(
         closures,
         &relations,
     )?;
-    let effects = analyze_program_effects(environment, closures, &relations)?;
+    let execution_facts = analyze_program_execution(environment, closures, &relations)?;
     let loans = analyze_program_loans(
         environment.graph(),
         types,
@@ -221,7 +221,7 @@ fn analyze_checked_body_relations(
     )?;
     Ok(ReusableProgramRelations {
         provenance: Arc::new(provenance),
-        effects: Arc::new(effects),
+        execution_facts: Arc::new(execution_facts),
         loans: Arc::new(loans),
     })
 }

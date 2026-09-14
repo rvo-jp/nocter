@@ -22,15 +22,29 @@ macro_rules! closed_role_enum {
     };
 }
 
-/// Runtime effects certified by the compiler for one closed primitive role.
+/// Runtime execution facts certified by the compiler for one closed primitive role.
 ///
 /// This is positive implementation evidence, not source syntax. New primitive roles must state
 /// their behavior here before an authored guarantee can rely on them.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct PrimitiveEffects {
+pub struct PrimitiveExecutionFacts {
     may_allocate: bool,
     may_block: bool,
-    returns_drive_safe_future: bool,
+    produced_computation: PrimitiveProducedComputation,
+}
+
+/// Deferred result behavior owned by one primitive implementation.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PrimitiveProducedComputation {
+    None,
+    DriveSafeFuture,
+}
+
+impl PrimitiveProducedComputation {
+    #[must_use]
+    pub const fn is_drive_safe_future(self) -> bool {
+        matches!(self, Self::DriveSafeFuture)
+    }
 }
 
 /// Ambient compiler-owned capabilities required by one primitive invocation.
@@ -56,7 +70,7 @@ impl PrimitiveContexts {
     }
 }
 
-impl PrimitiveEffects {
+impl PrimitiveExecutionFacts {
     #[must_use]
     pub const fn may_allocate(self) -> bool {
         self.may_allocate
@@ -71,8 +85,8 @@ impl PrimitiveEffects {
     /// Whether a primitive returning `future T` certifies every drive and cancellation entry as
     /// nonblocking.
     #[must_use]
-    pub const fn returns_drive_safe_future(self) -> bool {
-        self.returns_drive_safe_future
+    pub const fn produced_computation(self) -> PrimitiveProducedComputation {
+        self.produced_computation
     }
 }
 
@@ -585,14 +599,14 @@ impl PrimitiveRole {
         }
     }
 
-    /// Returns compiler-owned effect evidence for this closed primitive role.
+    /// Returns compiler-owned execution evidence for this closed primitive role.
     #[must_use]
-    pub const fn effects(self) -> PrimitiveEffects {
+    pub const fn execution_facts(self) -> PrimitiveExecutionFacts {
         // Most current roles manipulate existing storage, expose runtime context, or terminate
         // execution. Generic destruction is conservative because its selected type-owned drop may
         // request storage. Keeping this decision on the closed role—not on source spelling—makes
         // future effectful primitives opt into the fact explicitly.
-        PrimitiveEffects {
+        PrimitiveExecutionFacts {
             may_allocate: matches!(
                 self,
                 Self::DropValueAtPointer
@@ -643,7 +657,7 @@ impl PrimitiveRole {
                     | Self::Syscall4
                     | Self::Syscall6
             ),
-            returns_drive_safe_future: matches!(
+            produced_computation: if matches!(
                 self,
                 Self::DescriptorReadiness
                     | Self::DescriptorReadinessOrDeadline
@@ -677,7 +691,11 @@ impl PrimitiveRole {
                     | Self::FilesystemCreateSymlink
                     | Self::FilesystemReadLink
                     | Self::FilesystemCanonicalize
-            ),
+            ) {
+                PrimitiveProducedComputation::DriveSafeFuture
+            } else {
+                PrimitiveProducedComputation::None
+            },
         }
     }
 
@@ -923,7 +941,7 @@ mod tests {
         let effectful = PrimitiveRole::ALL
             .iter()
             .copied()
-            .filter(|role| role.effects().may_allocate())
+            .filter(|role| role.execution_facts().may_allocate())
             .collect::<Vec<_>>();
         assert_eq!(
             effectful,
@@ -969,7 +987,7 @@ mod tests {
         let effectful = PrimitiveRole::ALL
             .iter()
             .copied()
-            .filter(|role| role.effects().may_block())
+            .filter(|role| role.execution_facts().may_block())
             .collect::<Vec<_>>();
         assert_eq!(
             effectful,
@@ -995,7 +1013,11 @@ mod tests {
         let certified = PrimitiveRole::ALL
             .iter()
             .copied()
-            .filter(|role| role.effects().returns_drive_safe_future())
+            .filter(|role| {
+                role.execution_facts()
+                    .produced_computation()
+                    .is_drive_safe_future()
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             certified,

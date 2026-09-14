@@ -10,7 +10,7 @@ order and qualification evidence.
 separate owning structural type for one deferred computation that will eventually produce `T`.
 Neither is an interface or hidden thread. Every structural future is safe to drive without a
 synchronous external wait; the separate
-[blocking-effect boundary](blocking-effect-design.md) owns how checking proves that invariant. An
+[execution-contract boundary](execution-contract-design.md) owns how checking proves that invariant. An
 asynchronous producer is written explicitly:
 
 ```nct
@@ -285,8 +285,8 @@ observable and deterministic.
 
 `async` says that invocation creates deferred work whose body may suspend. `future T` owns that
 work and guarantees that driving it does not synchronously wait for external progress. An immediate
-callable may instead expose the positive `blocking` effect. The effect proof and primitive
-classification belong to the [blocking-effect boundary](blocking-effect-design.md), not this frame
+callable may instead expose the positive `blocking` effect. The execution proof and primitive
+classification belong to the [execution-contract boundary](execution-contract-design.md), not this frame
 and executor contract.
 
 This drive invariant does not imply bounded work, allocation freedom, or real-time suitability. A

@@ -40,7 +40,7 @@ under `development/history/`, not in current design documents.
 - [Asynchronous Computation Boundary](asynchronous-computation-design.md)
 - [Owned Blocking-Job Boundary](blocking-job-design.md)
 - [Canonical File I/O Boundary](file-io-design.md)
-- [Blocking Effect Boundary](blocking-effect-design.md)
+- [Execution Contract Boundary](execution-contract-design.md)
 - [Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md)
 - [Secure Transport Boundary](secure-transport-design.md)
 

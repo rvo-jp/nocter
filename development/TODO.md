@@ -2,22 +2,22 @@
 
 ## Current State
 
-Nocter v0.50.0 is published and externally audited. Local data and asynchronous streaming now
-compose through executor-safe filesystem operations, one asynchronous-iteration contract, bounded
-stream adapters, and the complete `async-file-report` application. Its completion definition and
-phased authority replacement live in
-[`development/history/milestones/v0.50.0.md`](history/milestones/v0.50.0.md).
+Nocter v0.50.0 is published and externally audited. v0.51.0 Unified Execution Contracts is active.
+It separates authored promises, invocation facts, deferred-drive facts, and destruction facts under
+one checking-owned relation authority. Its completion definition and phases live in
+[`development/history/milestones/v0.51.0.md`](history/milestones/v0.51.0.md).
 
 ## Next Work
 
-Define the next milestone before implementation. Preserve the v0.50.0 tag, release asset, public
-notes, specification snapshot, and publication audit without replacement. Any correction requires
-a new version and a newly qualified artifact.
+Complete v0.51.0 Phase 3 by reviewing every semantic consumer of callable guarantees, checked
+execution, and primitive execution facts. Presentation must consume authored contracts only;
+target, MIR, machine, and native layers must consume frozen plans and selected identities without
+body traversal or reclassification. Remove superseded wrappers and stale effect vocabulary. Do not
+add `realtime` syntax until the completed execution model can express it without a parallel
+analysis.
 
-Phase 7 added installed execution of `async-file-report` and semantic editor checks against its
-real source. Preserve exact standard-module dependency review, canonical formatting for every
-runnable example, bounded application memory, and failure cleanup that leaves no temporary or
-failed final output.
+Preserve the v0.50.0 tag, release asset, public notes, specification snapshot, and publication audit
+without replacement. Any correction requires a new version and a newly qualified artifact.
 
 Preserve every published tag and asset, including v0.49.0.
 

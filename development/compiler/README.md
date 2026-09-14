@@ -17,6 +17,8 @@ contracts, or milestone status.
 - [Checked program design](../design/checked-program-design.md),
   [target and executable program design](../design/target-program-design.md), and
   [machine program design](../design/machine-program-design.md) own their detailed stage contracts.
+- [Execution contract design](../design/execution-contract-design.md) owns the boundary between
+  authored callable guarantees, checked execution facts, primitive facts, and their consumers.
 - [Semantic presentation design](../design/semantic-presentation-design.md) owns the compiler-to-editor
   presentation boundary.
 - [`Cargo.toml`](Cargo.toml) is the canonical workspace-member list. Crate manifests and public Rust

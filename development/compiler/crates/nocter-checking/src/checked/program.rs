@@ -21,7 +21,7 @@ pub struct CheckedProgram {
     source_access: Arc<SourceAccessTable>,
     semantics: Arc<crate::body_check::CheckedSemanticAuthority>,
     provenance: Arc<ProvenanceTable>,
-    effects: Arc<crate::EffectTable>,
+    execution_facts: Arc<crate::ExecutionFactTable>,
     loans: Arc<LoanTable>,
     opaque_witnesses: Arc<OpaqueWitnessTable>,
     bodies: Arc<Arena<BodyId, CheckedBody>>,
@@ -30,7 +30,7 @@ pub struct CheckedProgram {
 
 pub(crate) struct CheckedProgramAuthorities {
     pub(crate) provenance: Arc<ProvenanceTable>,
-    pub(crate) effects: Arc<crate::EffectTable>,
+    pub(crate) execution_facts: Arc<crate::ExecutionFactTable>,
     pub(crate) loans: Arc<LoanTable>,
     pub(crate) opaque_witnesses: Arc<OpaqueWitnessTable>,
     pub(crate) associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
@@ -53,7 +53,7 @@ impl CheckedProgram {
             source_access,
             semantics,
             provenance: authorities.provenance,
-            effects: authorities.effects,
+            execution_facts: authorities.execution_facts,
             loans: authorities.loans,
             opaque_witnesses: authorities.opaque_witnesses,
             bodies,
@@ -119,8 +119,8 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub fn effects(&self) -> &crate::EffectTable {
-        &self.effects
+    pub fn execution_facts(&self) -> &crate::ExecutionFactTable {
+        &self.execution_facts
     }
 
     #[must_use]

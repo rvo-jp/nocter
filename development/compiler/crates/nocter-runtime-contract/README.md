@@ -16,9 +16,10 @@ public source-level imports.
 ## Internal Responsibilities
 
 - primitive role identities
-- closed allocation and synchronous-blocking evidence for primitive roles
+- closed invocation allocation and synchronous-wait facts for primitive roles
 - hidden allocation/process context requirements for primitive roles
-- explicit drive-safety certificates for primitive roles that construct `future T`
+- a typed produced-computation classification for primitive roles that construct drive-safe
+  `future T` values
 - kind-preserving trusted function/data symbol identities and operating-system library identities,
   without concrete loader paths
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
@@ -66,7 +67,7 @@ public source-level imports.
   event receipt alone never authorizes native-owner release.
 - Effective Network.framework addresses cross the target boundary only as complete copied Darwin
   IPv4 or IPv6 socket records. Provider path and endpoint ownership never enters source storage.
-- Primitive effect facts are keyed by closed roles, never inferred from source names or target
+- Primitive execution facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
 - Primitive hidden-context requirements are keyed by the same closed roles. Machine planning
   consumes that contract and cannot maintain a second target-call classification.

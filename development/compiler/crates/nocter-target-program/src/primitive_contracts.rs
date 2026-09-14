@@ -140,7 +140,12 @@ fn validate_role_effects(
     contract: &PrimitiveContract,
 ) -> Result<(), PrimitiveContractRule> {
     let returns_future = matches!(contract.result, TypeContract::Future(_));
-    if returns_future != role.effects().returns_drive_safe_future() {
+    if returns_future
+        != role
+            .execution_facts()
+            .produced_computation()
+            .is_drive_safe_future()
+    {
         return Err(PrimitiveContractRule::FutureDriveGuarantee);
     }
     Ok(())
@@ -178,11 +183,11 @@ fn validate_identity(
     if matches!(
         declaration.guarantees().allocation(),
         nocter_model::AllocationGuarantee::NoAllocation
-    ) && role.effects().may_allocate()
+    ) && role.execution_facts().may_allocate()
     {
         return Err(PrimitiveContractRule::AllocationGuarantee);
     }
-    let expected_nonblocking = if role.effects().may_block() {
+    let expected_nonblocking = if role.execution_facts().may_block() {
         nocter_model::NonblockingGuarantee::Unspecified
     } else {
         nocter_model::NonblockingGuarantee::Nonblocking
@@ -1345,7 +1350,9 @@ mod tests {
             );
             assert_eq!(
                 matches!(contract.result, TypeContract::Future(_)),
-                role.effects().returns_drive_safe_future(),
+                role.execution_facts()
+                    .produced_computation()
+                    .is_drive_safe_future(),
             );
         }
 
