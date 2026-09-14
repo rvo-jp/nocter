@@ -2,18 +2,19 @@
 
 ## Current State
 
-Nocter v0.50.0 is published and externally audited. v0.51.0 Unified Execution Contracts is active.
-It separates authored promises, invocation facts, deferred-drive facts, and destruction facts under
-one checking-owned relation authority. Its completion definition and phases live in
+Nocter v0.50.0 is published and externally audited. The v0.51.0 Unified Execution Contracts
+candidate is complete and qualified. It separates authored promises, invocation facts,
+deferred-drive facts, and destruction facts under one checking-owned relation authority. Its
+completion definition and phases live in
 [`development/history/milestones/v0.51.0.md`](history/milestones/v0.51.0.md).
 
 ## Next Work
 
-Prepare v0.51.0 for release. The reopened Phase 5 implementation review is complete, including an
-exhaustive primitive runtime profile that prevents omitted roles from acquiring permissive facts;
-create the v0.51.0 release-identity commit, run fresh installed-toolchain qualification from that
-exact clean commit, and publish only if every release gate passes. Do not add `realtime` syntax in
-this milestone.
+Publish the retained v0.51.0 candidate. Release-content commit
+`c9f3b6bf367619c6ba009e99dbda255b16629fc1` passed every compiler and installed-toolchain gate.
+The publication transaction must reuse the retained archive without rebuilding it, update public
+latest-version entry points, create the annotated tag, push `main` and the tag, upload exactly one
+asset, and verify the public release and downloaded artifact.
 
 Preserve the v0.50.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
