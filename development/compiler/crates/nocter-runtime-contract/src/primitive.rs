@@ -3,6 +3,8 @@ use std::fmt;
 
 use nocter_model::CallableId;
 
+mod profile;
+
 macro_rules! closed_role_enum {
     (
         $(#[$enum_attribute:meta])*
@@ -599,182 +601,6 @@ impl PrimitiveRole {
         }
     }
 
-    /// Returns compiler-owned execution evidence for this closed primitive role.
-    #[must_use]
-    pub const fn execution_facts(self) -> PrimitiveExecutionFacts {
-        // Most current roles manipulate existing storage, expose runtime context, or terminate
-        // execution. Generic destruction is conservative because its selected type-owned drop may
-        // request storage. Keeping this decision on the closed role—not on source spelling—makes
-        // future effectful primitives opt into the fact explicitly.
-        PrimitiveExecutionFacts {
-            may_allocate: matches!(
-                self,
-                Self::DropValueAtPointer
-                    | Self::DescriptorReadiness
-                    | Self::DescriptorReadinessOrDeadline
-                    | Self::MonotonicDeadline
-                    | Self::ProcessCompletion
-                    | Self::TaskJoin
-                    | Self::TaskRace
-                    | Self::FileOpenRead
-                    | Self::FileOpenCreate
-                    | Self::FileOpenAppend
-                    | Self::FileOpenCopyDestination
-                    | Self::DirectoryOpen
-                    | Self::FileRead
-                    | Self::DirectoryRead
-                    | Self::FileWrite
-                    | Self::FileFlush
-                    | Self::FileSeekStart
-                    | Self::FileSeekEnd
-                    | Self::FileSeekCurrent
-                    | Self::FileTruncate
-                    | Self::FileReadAt
-                    | Self::FileWriteAt
-                    | Self::FileIdentity
-                    | Self::FilesystemRemoveFile
-                    | Self::FilesystemRename
-                    | Self::FilesystemCreateDirectory
-                    | Self::FilesystemRemoveDirectory
-                    | Self::FilesystemMetadata
-                    | Self::FilesystemSymlinkMetadata
-                    | Self::FilesystemCreateSymlink
-                    | Self::FilesystemReadLink
-                    | Self::FilesystemCanonicalize
-            ),
-            may_block: matches!(
-                self,
-                Self::TimeoutWait
-                    | Self::NetworkConnectionReceiveEvent
-                    | Self::NetworkConnectionReleaseBarrier
-                    | Self::NetworkListenerReceiveEvent
-                    | Self::NetworkListenerReleaseBarrier
-                    | Self::Syscall0
-                    | Self::Syscall1
-                    | Self::Syscall2
-                    | Self::Syscall3
-                    | Self::Syscall3Signed
-                    | Self::Syscall4
-                    | Self::Syscall6
-            ),
-            produced_computation: if matches!(
-                self,
-                Self::DescriptorReadiness
-                    | Self::DescriptorReadinessOrDeadline
-                    | Self::MonotonicDeadline
-                    | Self::ProcessCompletion
-                    | Self::TaskJoin
-                    | Self::TaskRace
-                    | Self::FileOpenRead
-                    | Self::FileOpenCreate
-                    | Self::FileOpenAppend
-                    | Self::FileOpenCopyDestination
-                    | Self::DirectoryOpen
-                    | Self::FileRead
-                    | Self::DirectoryRead
-                    | Self::FileWrite
-                    | Self::FileFlush
-                    | Self::FileSeekStart
-                    | Self::FileSeekEnd
-                    | Self::FileSeekCurrent
-                    | Self::FileTruncate
-                    | Self::FileReadAt
-                    | Self::FileWriteAt
-                    | Self::FileIdentity
-                    | Self::FileClose
-                    | Self::FilesystemRemoveFile
-                    | Self::FilesystemRename
-                    | Self::FilesystemCreateDirectory
-                    | Self::FilesystemRemoveDirectory
-                    | Self::FilesystemMetadata
-                    | Self::FilesystemSymlinkMetadata
-                    | Self::FilesystemCreateSymlink
-                    | Self::FilesystemReadLink
-                    | Self::FilesystemCanonicalize
-            ) {
-                PrimitiveProducedComputation::DriveSafeFuture
-            } else {
-                PrimitiveProducedComputation::None
-            },
-        }
-    }
-
-    /// Returns the hidden ambient capabilities consumed by this primitive's implementation.
-    #[must_use]
-    pub const fn contexts(self) -> PrimitiveContexts {
-        PrimitiveContexts {
-            allocation: matches!(
-                self,
-                Self::CurrentAllocatorState
-                    | Self::CurrentAllocatorKind
-                    | Self::DescriptorReadiness
-                    | Self::DescriptorReadinessOrDeadline
-                    | Self::MonotonicDeadline
-                    | Self::ProcessCompletion
-                    | Self::TaskJoin
-                    | Self::TaskRace
-                    | Self::FileOpenRead
-                    | Self::FileOpenCreate
-                    | Self::FileOpenAppend
-                    | Self::FileOpenCopyDestination
-                    | Self::DirectoryOpen
-                    | Self::FileRead
-                    | Self::DirectoryRead
-                    | Self::FileWrite
-                    | Self::FileFlush
-                    | Self::FileSeekStart
-                    | Self::FileSeekEnd
-                    | Self::FileSeekCurrent
-                    | Self::FileTruncate
-                    | Self::FileReadAt
-                    | Self::FileWriteAt
-                    | Self::FileIdentity
-                    | Self::FilesystemRemoveFile
-                    | Self::FilesystemRename
-                    | Self::FilesystemCreateDirectory
-                    | Self::FilesystemRemoveDirectory
-                    | Self::FilesystemMetadata
-                    | Self::FilesystemSymlinkMetadata
-                    | Self::FilesystemCreateSymlink
-                    | Self::FilesystemReadLink
-                    | Self::FilesystemCanonicalize
-            ),
-            process: matches!(
-                self,
-                Self::ProcessArgumentCount
-                    | Self::ProcessArgument
-                    | Self::ProcessEnvironmentCount
-                    | Self::ProcessEnvironmentName
-                    | Self::ProcessEnvironmentValue
-                    | Self::FileOpenRead
-                    | Self::FileOpenCreate
-                    | Self::FileOpenAppend
-                    | Self::FileOpenCopyDestination
-                    | Self::DirectoryOpen
-                    | Self::FileRead
-                    | Self::DirectoryRead
-                    | Self::FileWrite
-                    | Self::FileFlush
-                    | Self::FileSeekStart
-                    | Self::FileSeekEnd
-                    | Self::FileSeekCurrent
-                    | Self::FileTruncate
-                    | Self::FileReadAt
-                    | Self::FileWriteAt
-                    | Self::FileIdentity
-                    | Self::FilesystemRemoveFile
-                    | Self::FilesystemRename
-                    | Self::FilesystemCreateDirectory
-                    | Self::FilesystemRemoveDirectory
-                    | Self::FilesystemMetadata
-                    | Self::FilesystemSymlinkMetadata
-                    | Self::FilesystemCreateSymlink
-                    | Self::FilesystemReadLink
-                    | Self::FilesystemCanonicalize
-            ),
-        }
-    }
-
     const fn index(self) -> usize {
         self as usize
     }
@@ -937,14 +763,14 @@ mod tests {
     }
 
     #[test]
-    fn allocation_effects_are_owned_by_the_closed_primitive_roles() {
-        let effectful = PrimitiveRole::ALL
+    fn allocation_facts_are_owned_by_the_closed_primitive_roles() {
+        let allocating = PrimitiveRole::ALL
             .iter()
             .copied()
             .filter(|role| role.execution_facts().may_allocate())
             .collect::<Vec<_>>();
         assert_eq!(
-            effectful,
+            allocating,
             vec![
                 PrimitiveRole::DropValueAtPointer,
                 PrimitiveRole::DescriptorReadiness,
@@ -983,14 +809,14 @@ mod tests {
     }
 
     #[test]
-    fn blocking_effects_are_owned_by_the_closed_primitive_roles() {
-        let effectful = PrimitiveRole::ALL
+    fn synchronous_wait_facts_are_owned_by_the_closed_primitive_roles() {
+        let blocking = PrimitiveRole::ALL
             .iter()
             .copied()
             .filter(|role| role.execution_facts().may_block())
             .collect::<Vec<_>>();
         assert_eq!(
-            effectful,
+            blocking,
             vec![
                 PrimitiveRole::TimeoutWait,
                 PrimitiveRole::NetworkConnectionReceiveEvent,

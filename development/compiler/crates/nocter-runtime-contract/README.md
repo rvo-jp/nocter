@@ -16,6 +16,8 @@ public source-level imports.
 ## Internal Responsibilities
 
 - primitive role identities
+- one exhaustive per-role runtime profile joining primitive execution facts, produced-computation
+  classification, and hidden-context requirements
 - closed invocation allocation and synchronous-wait facts for primitive roles
 - hidden allocation/process context requirements for primitive roles
 - a typed produced-computation classification for primitive roles that construct drive-safe
@@ -69,6 +71,9 @@ public source-level imports.
   IPv4 or IPv6 socket records. Provider path and endpoint ownership never enters source storage.
 - Primitive execution facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
+- Every primitive role has one exhaustive runtime-profile arm. Adding a role without assigning its
+  execution facts, produced-computation classification, and hidden contexts fails compilation;
+  omission cannot silently certify allocation-free or nonblocking behavior.
 - Primitive hidden-context requirements are keyed by the same closed roles. Machine planning
   consumes that contract and cannot maintain a second target-call classification.
 - A primitive role may immediately construct an opaque asynchronous value. This does not classify

@@ -48,7 +48,9 @@ unavailable by design.
 `nocter-runtime-contract` owns closed primitive-role facts. Standard source declares a public
 contract; target validation binds that declaration to one primitive role and compares the two.
 Neither checking nor target validation derives primitive behavior from a function name, module
-path, return type, or generated instruction sequence.
+path, return type, or generated instruction sequence. One exhaustive runtime profile assigns every
+role its invocation facts, produced-computation classification, and hidden context requirements;
+adding a role without the complete assignment fails compilation.
 
 ## Execution Edges
 
