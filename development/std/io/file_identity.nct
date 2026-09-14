@@ -1,0 +1,16 @@
+//! Open-descriptor identity used to prevent destructive self-copy.
+
+see ./index.nct
+
+copy struct FileIdentity {
+    device: u64
+    inode: u64
+}
+
+noalloc func file_identity(device: u64, inode: u64): FileIdentity {
+    return FileIdentity { device: device, inode: inode }
+}
+
+noalloc func same_file_identity(left: FileIdentity, right: FileIdentity): bool {
+    return left.device == right.device && left.inode == right.inode
+}

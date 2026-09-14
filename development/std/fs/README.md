@@ -32,8 +32,8 @@ constructors accept a borrowed path without parallel `_path` functions. `Blockin
 the same operations synchronously. Both owner types close once when explicitly closed or dropped;
 later operations on an explicitly closed value fail with `std.io.closed`.
 
-The canonical `read`, `read_to_string`, `write`, `write_text`, `metadata`, `exists`, `canonicalize`,
-`remove_file`, `rename`, `create_dir`, `create_dir_all`, `remove_dir`, and `read_dir` functions are
+The canonical `read`, `read_to_string`, `write`, `write_text`, `copy`, `metadata`, `exists`,
+`canonicalize`, `remove_file`, `rename`, `create_dir`, `create_dir_all`, `remove_dir`, and `read_dir` functions are
 asynchronous. Whole-file transfer composes `File` with the executor-safe byte interfaces; path
 mutation transfers complete owned path bytes to the bounded file service. Metadata and canonical
 path queries transfer the path and publish portable values rather than target records. Directory
@@ -66,6 +66,15 @@ truncate the destination and return success only after the complete input has pa
 a second descriptor-I/O algorithm. `read_blocking`, `read_to_string_blocking`, `write_blocking`,
 and `write_text_blocking` provide the same whole-file policy through `BlockingFile`,
 `BlockingReader`, and `BlockingWriter`.
+
+`copy` and `copy_blocking` transfer one regular byte stream through the shared `std/io.copy`
+algorithm and return the checked byte count. They open the destination without truncating it,
+compare the device and inode identities of the actual opened descriptors, and only then truncate
+the destination and begin transfer. The check therefore rejects the same spelling, symbolic-link
+aliases, and hard-link aliases with `std.fs.same_file` without destroying the existing bytes. It
+does not compare lexical or canonical path spellings and is not invalidated by a rename between
+path lookup and descriptor inspection. A later read or write failure may leave a truncated,
+partially written destination; copy is not transactional and does not flush the destination.
 
 `metadata` follows symbolic links. `metadata_blocking` is its synchronous twin.
 `symlink_metadata` and `symlink_metadata_blocking` instead inspect the final path entry itself, so

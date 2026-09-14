@@ -436,6 +436,8 @@ primitive func file_open_create_raw(path: &str): future FileCompletion from stat
 #target: \"arm64-darwin\"
 primitive func file_open_append_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
+primitive func file_open_copy_destination_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
 primitive func directory_open_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_read_raw(owner: FileOwner, destination: &+[u8]): future FileCompletion from static
@@ -459,6 +461,8 @@ primitive func file_read_at_raw(owner: FileOwner, destination: &+[u8], offset: u
 primitive func file_write_at_raw(owner: FileOwner, source: &[u8], offset: u64): future FileCompletion from static
 #target: \"arm64-darwin\"
 noalloc primitive func file_close_raw(owner: FileOwner): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_identity_raw(owner: FileOwner): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func filesystem_remove_file_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
@@ -493,6 +497,10 @@ noalloc primitive func file_completion_metadata_length_raw(completion: &FileComp
 noalloc primitive func file_completion_metadata_modified_seconds_raw(completion: &FileCompletion): i64
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_metadata_modified_nanoseconds_raw(completion: &FileCompletion): u64
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_identity_device_raw(completion: &FileCompletion): u64
+#target: \"arm64-darwin\"
+noalloc primitive func file_completion_identity_inode_raw(completion: &FileCompletion): u64
 #target: \"arm64-darwin\"
 noalloc primitive func file_completion_failure_kind_raw(completion: &FileCompletion): usize
 #target: \"arm64-darwin\"

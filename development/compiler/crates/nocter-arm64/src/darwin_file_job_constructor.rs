@@ -131,11 +131,9 @@ fn stage_inputs(
             move_register(code, x(20), x(2));
             immediate(code, x(22), 0);
         }
-        DarwinFileOperation::Flush => {
-            move_register(code, x(19), x(0));
-            immediate(code, x(20), 0);
-            immediate(code, x(21), 0);
-            immediate(code, x(22), 0);
+        DarwinFileOperation::Flush => stage_owner_only(code, 0),
+        DarwinFileOperation::Identity => {
+            stage_owner_only(code, DarwinFileAbi::STAT_BUFFER_SIZE);
         }
         DarwinFileOperation::Seek => {
             move_register(code, x(19), x(0));
@@ -205,6 +203,13 @@ fn stage_inputs(
         }
     }
     Ok(())
+}
+
+fn stage_owner_only(code: &mut Arm64CodeBuilder, trailing_byte_length: u64) {
+    move_register(code, x(19), x(0));
+    immediate(code, x(20), trailing_byte_length);
+    immediate(code, x(21), 0);
+    immediate(code, x(22), 0);
 }
 
 fn add_path_terminator(
@@ -312,7 +317,8 @@ fn initialize_operands(
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory
         | DarwinFileOperation::Metadata
-        | DarwinFileOperation::SymlinkMetadata => {}
+        | DarwinFileOperation::SymlinkMetadata
+        | DarwinFileOperation::Identity => {}
         DarwinFileOperation::ReadLink | DarwinFileOperation::Canonicalize => {
             store(
                 code,
@@ -469,7 +475,8 @@ fn initialize_owned_bytes(
         | DarwinFileOperation::Flush
         | DarwinFileOperation::Seek
         | DarwinFileOperation::Truncate
-        | DarwinFileOperation::ReadAt => {}
+        | DarwinFileOperation::ReadAt
+        | DarwinFileOperation::Identity => {}
     }
 }
 

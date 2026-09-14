@@ -131,6 +131,9 @@ const SYS_RMDIR: usize = 0x02000089
 #target: "arm64-darwin"
 const SYS_STAT64: usize = 0x02000152
 
+#target: "arm64-darwin"
+const SYS_FSTAT64: usize = 0x02000153
+
 const SYS_LSTAT64: usize = 0x02000154
 
 const SYS_SYMLINK: usize = 0x02000039
@@ -165,7 +168,8 @@ const STDOUT_FD: usize = 1
 const STDERR_FD: usize = 2
 
 #target: "arm64-darwin"
-const OPEN_READ_ONLY: usize = 0
+// O_RDONLY | O_CLOEXEC
+const OPEN_READ_ONLY: usize = 0x01000000
 
 #target: "arm64-darwin"
 const OPEN_WRITE_ONLY: usize = 1
@@ -175,12 +179,16 @@ const OPEN_WRITE_ONLY: usize = 1
 const OPEN_DIRECTORY_ONLY: usize = 0x01100000
 
 #target: "arm64-darwin"
-// O_WRONLY | O_CREAT | O_TRUNC
-const OPEN_CREATE_TRUNCATE: usize = 0x0601
+// O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC
+const OPEN_CREATE_TRUNCATE: usize = 0x01000601
 
 #target: "arm64-darwin"
-// O_WRONLY | O_CREAT | O_APPEND
-const OPEN_CREATE_APPEND: usize = 0x0209
+// O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
+const OPEN_CREATE_APPEND: usize = 0x01000209
+
+#target: "arm64-darwin"
+// O_WRONLY | O_CREAT | O_CLOEXEC
+const OPEN_COPY_DESTINATION: usize = 0x01000201
 
 #target: "arm64-darwin"
 const SEEK_FROM_START: usize = 0
@@ -259,6 +267,12 @@ const STAT_BUFFER_SIZE: usize = 144
 
 #target: "arm64-darwin"
 const STAT_MODE_OFFSET: usize = 4
+
+#target: "arm64-darwin"
+const STAT_DEVICE_OFFSET: usize = 0
+
+#target: "arm64-darwin"
+const STAT_INODE_OFFSET: usize = 8
 
 #target: "arm64-darwin"
 const STAT_SIZE_OFFSET: usize = 96

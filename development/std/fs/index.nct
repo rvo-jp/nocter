@@ -138,6 +138,12 @@ pub async func canonicalize(path: &str): Utf8Path!
 /// Synchronously resolves an existing path to its absolute canonical UTF-8 spelling.
 pub blocking func canonicalize_blocking(path: &str): Utf8Path!
 
+/// Copies one regular byte stream after proving the opened files have distinct identities.
+pub async func copy(from: &str, to: &str): usize!
+
+/// Synchronously copies one regular byte stream after proving distinct opened-file identities.
+pub blocking func copy_blocking(from: &str, to: &str): usize!
+
 /// Asynchronously opens one directory without sorting its entries.
 pub async func read_dir(path: &str): ReadDir!
 

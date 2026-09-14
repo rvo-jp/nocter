@@ -2,102 +2,72 @@ use crate::{Arm64CodeBuilder, Arm64DataSize, Arm64Instruction, Arm64NocterAbi, A
 
 const SUPERVISOR_CALL_IMMEDIATE: u16 = 0x80;
 
-/// A compiler-owned Darwin kernel entry whose number is fixed by the target ABI.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DarwinSystemCall {
-    Exit,
-    Fork,
-    Read,
-    Write,
-    Open,
-    Close,
-    SynchronizeFile,
-    PositionedRead,
-    PositionedWrite,
-    Seek,
-    TruncateFile,
-    Unlink,
-    Rename,
-    MakeDirectory,
-    RemoveDirectory,
-    Stat64,
-    Lstat64,
-    Symlink,
-    ReadLink,
-    GetDirectoryEntries64,
-    Wait4,
-    Kill,
-    Socket,
-    Connect,
-    Bind,
-    SetSocketOption,
-    GetSocketOption,
-    SendTo,
-    ReceiveMessage,
-    GetSocketName,
-    GetPeerName,
-    Fcntl,
-    Pipe,
-    Execve,
-    Dup2,
-    Chdir,
-    GetEntropy,
-    MemoryUnmap,
-    MemoryMap,
-    Kqueue,
-    Kevent64,
-    Select,
-    GetTimeOfDay,
+macro_rules! darwin_system_calls {
+    ($($variant:ident => $number:expr),+ $(,)?) => {
+        /// A compiler-owned Darwin kernel entry whose number is fixed by the target ABI.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        pub(crate) enum DarwinSystemCall {
+            $($variant),+
+        }
+
+        impl DarwinSystemCall {
+            #[cfg(test)]
+            const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            const fn number(self) -> u64 {
+                match self {
+                    $(Self::$variant => $number),+
+                }
+            }
+        }
+    };
 }
 
-impl DarwinSystemCall {
-    const fn number(self) -> u64 {
-        match self {
-            Self::Exit => 1,
-            Self::Fork => 0x0200_0002,
-            Self::Read => 0x0200_0003,
-            Self::Write => 0x0200_0004,
-            Self::Open => 0x0200_0005,
-            Self::Close => 0x0200_0006,
-            Self::SynchronizeFile => 0x0200_005f,
-            Self::PositionedRead => 0x0200_0099,
-            Self::PositionedWrite => 0x0200_009a,
-            Self::Seek => 0x0200_00c7,
-            Self::TruncateFile => 0x0200_00c9,
-            Self::Unlink => 0x0200_000a,
-            Self::Rename => 0x0200_0080,
-            Self::MakeDirectory => 0x0200_0088,
-            Self::RemoveDirectory => 0x0200_0089,
-            Self::Stat64 => 0x0200_0152,
-            Self::Lstat64 => 0x0200_0154,
-            Self::Symlink => 0x0200_0039,
-            Self::ReadLink => 0x0200_003a,
-            Self::GetDirectoryEntries64 => 0x0200_0158,
-            Self::Wait4 => 0x0200_0007,
-            Self::Kill => 0x0200_0025,
-            Self::Socket => 0x0200_0061,
-            Self::Connect => 0x0200_0062,
-            Self::Bind => 0x0200_0068,
-            Self::SetSocketOption => 0x0200_0069,
-            Self::GetSocketOption => 0x0200_0076,
-            Self::SendTo => 0x0200_0085,
-            Self::ReceiveMessage => 0x0200_001b,
-            Self::GetSocketName => 0x0200_0020,
-            Self::GetPeerName => 0x0200_001f,
-            Self::Fcntl => 0x0200_005c,
-            Self::Pipe => 0x0200_002a,
-            Self::Execve => 0x0200_003b,
-            Self::Dup2 => 0x0200_005a,
-            Self::Chdir => 0x0200_000c,
-            Self::GetEntropy => 0x0200_01f4,
-            Self::MemoryUnmap => 0x0200_0049,
-            Self::MemoryMap => 0x0200_00c5,
-            Self::Kqueue => 0x0200_016a,
-            Self::Kevent64 => 0x0200_0171,
-            Self::Select => 0x0200_005d,
-            Self::GetTimeOfDay => 0x0200_0074,
-        }
-    }
+darwin_system_calls! {
+    Exit => 1,
+    Fork => 0x0200_0002,
+    Read => 0x0200_0003,
+    Write => 0x0200_0004,
+    Open => 0x0200_0005,
+    Close => 0x0200_0006,
+    SynchronizeFile => 0x0200_005f,
+    PositionedRead => 0x0200_0099,
+    PositionedWrite => 0x0200_009a,
+    Seek => 0x0200_00c7,
+    TruncateFile => 0x0200_00c9,
+    Unlink => 0x0200_000a,
+    Rename => 0x0200_0080,
+    MakeDirectory => 0x0200_0088,
+    RemoveDirectory => 0x0200_0089,
+    Stat64 => 0x0200_0152,
+    Lstat64 => 0x0200_0154,
+    Fstat64 => 0x0200_0153,
+    Symlink => 0x0200_0039,
+    ReadLink => 0x0200_003a,
+    GetDirectoryEntries64 => 0x0200_0158,
+    Wait4 => 0x0200_0007,
+    Kill => 0x0200_0025,
+    Socket => 0x0200_0061,
+    Connect => 0x0200_0062,
+    Bind => 0x0200_0068,
+    SetSocketOption => 0x0200_0069,
+    GetSocketOption => 0x0200_0076,
+    SendTo => 0x0200_0085,
+    ReceiveMessage => 0x0200_001b,
+    GetSocketName => 0x0200_0020,
+    GetPeerName => 0x0200_001f,
+    Fcntl => 0x0200_005c,
+    Pipe => 0x0200_002a,
+    Execve => 0x0200_003b,
+    Dup2 => 0x0200_005a,
+    Chdir => 0x0200_000c,
+    GetEntropy => 0x0200_01f4,
+    MemoryUnmap => 0x0200_0049,
+    MemoryMap => 0x0200_00c5,
+    Kqueue => 0x0200_016a,
+    Kevent64 => 0x0200_0171,
+    Select => 0x0200_005d,
+    GetTimeOfDay => 0x0200_0074,
 }
 
 /// Fixed Darwin socket and descriptor values used by the closed datagram boundary.
@@ -133,9 +103,10 @@ impl DarwinDescriptorAbi {
 pub(crate) struct DarwinFileAbi;
 
 impl DarwinFileAbi {
-    pub(crate) const READ_ONLY: u64 = 0;
-    pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0601;
-    pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0209;
+    pub(crate) const READ_ONLY: u64 = 0x0100_0000;
+    pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0100_0601;
+    pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0100_0209;
+    pub(crate) const COPY_DESTINATION: u64 = 0x0100_0201;
     pub(crate) const DIRECTORY_ONLY: u64 = 0x0110_0000;
     pub(crate) const EVENT_ONLY_CLOSE_ON_EXEC: u64 = 0x0100_8000;
     pub(crate) const GET_PATH: u64 = 50;
@@ -143,6 +114,8 @@ impl DarwinFileAbi {
     pub(crate) const CREATE_DIRECTORY_MODE: u64 = 0o777;
     pub(crate) const STAT_BUFFER_SIZE: u64 = 144;
     pub(crate) const STAT_MODE_OFFSET: u64 = 4;
+    pub(crate) const STAT_DEVICE_OFFSET: u64 = 0;
+    pub(crate) const STAT_INODE_OFFSET: u64 = 8;
     pub(crate) const STAT_MODIFIED_SECONDS_OFFSET: u64 = 48;
     pub(crate) const STAT_MODIFIED_NANOSECONDS_OFFSET: u64 = 56;
     pub(crate) const STAT_SIZE_OFFSET: u64 = 96;
@@ -257,45 +230,9 @@ mod tests {
 
     #[test]
     fn compiler_owned_system_calls_have_distinct_numbers() {
-        let calls = [
-            DarwinSystemCall::Exit,
-            DarwinSystemCall::Fork,
-            DarwinSystemCall::Read,
-            DarwinSystemCall::Write,
-            DarwinSystemCall::Open,
-            DarwinSystemCall::Close,
-            DarwinSystemCall::SynchronizeFile,
-            DarwinSystemCall::PositionedRead,
-            DarwinSystemCall::PositionedWrite,
-            DarwinSystemCall::Seek,
-            DarwinSystemCall::TruncateFile,
-            DarwinSystemCall::Wait4,
-            DarwinSystemCall::Kill,
-            DarwinSystemCall::Socket,
-            DarwinSystemCall::Connect,
-            DarwinSystemCall::Bind,
-            DarwinSystemCall::SetSocketOption,
-            DarwinSystemCall::GetSocketOption,
-            DarwinSystemCall::SendTo,
-            DarwinSystemCall::ReceiveMessage,
-            DarwinSystemCall::GetSocketName,
-            DarwinSystemCall::GetPeerName,
-            DarwinSystemCall::Fcntl,
-            DarwinSystemCall::Pipe,
-            DarwinSystemCall::Execve,
-            DarwinSystemCall::Dup2,
-            DarwinSystemCall::Chdir,
-            DarwinSystemCall::GetEntropy,
-            DarwinSystemCall::MemoryUnmap,
-            DarwinSystemCall::MemoryMap,
-            DarwinSystemCall::Kqueue,
-            DarwinSystemCall::Kevent64,
-            DarwinSystemCall::Select,
-            DarwinSystemCall::GetTimeOfDay,
-        ];
-        for (index, call) in calls.iter().enumerate() {
+        for (index, call) in DarwinSystemCall::ALL.iter().enumerate() {
             assert!(
-                calls[index + 1..]
+                DarwinSystemCall::ALL[index + 1..]
                     .iter()
                     .all(|other| call.number() != other.number())
             );

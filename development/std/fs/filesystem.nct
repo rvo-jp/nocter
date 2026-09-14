@@ -4,6 +4,7 @@ see ./index.nct
 see ./darwin.nct
 
 use /io.{File, BlockingFile, Reader, Writer, BlockingReader, BlockingWriter}
+use /io as io_module
 use /string.String
 use /time.SystemTime
 use /vec.Vec
@@ -84,6 +85,26 @@ blocking func write_text_blocking(path: &str, text: &str): void! {
     var file = BlockingFile.create(path)?
     file.write_text_blocking(text)?
     return
+}
+
+async func copy(from: &str, to: &str): usize! {
+    var source = await File.open(from)?
+    var destination = await File.open_copy_destination(to)?
+    if await io_module.files_share_identity(&+source, &+destination)? {
+        return error.new("std.fs.same_file", "source and destination identify the same file")
+    }
+    await destination.truncate(0)?
+    return await io_module.copy(&+source, &+destination)?
+}
+
+blocking func copy_blocking(from: &str, to: &str): usize! {
+    var source = BlockingFile.open(from)?
+    var destination = BlockingFile.open_copy_destination(to)?
+    if io_module.blocking_files_share_identity(&source, &destination)? {
+        return error.new("std.fs.same_file", "source and destination identify the same file")
+    }
+    destination.truncate_blocking(0)?
+    return io_module.copy_blocking(&+source, &+destination)?
 }
 
 blocking func metadata_blocking(path: &str): Metadata! {

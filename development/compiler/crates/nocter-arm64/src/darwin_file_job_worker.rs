@@ -41,7 +41,57 @@ pub(crate) fn execute_operation(
         }
         DarwinFileOperation::ReadLink => execute_read_link(code, job),
         DarwinFileOperation::Canonicalize => execute_canonicalize(code, job),
+        DarwinFileOperation::Identity => execute_identity(code, job),
     }
+}
+
+fn execute_identity(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let schema = DarwinFileJobAbiSchema::ARM64_DARWIN;
+    let retry = code.create_label();
+    code.bind(retry)?;
+    load_descriptor(code, x(0), job);
+    address(code, x(1), job, schema.owned_bytes_offset());
+    emit_system_call(code, DarwinSystemCall::Fstat64);
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    retry_interrupted_or_store_target(code, job, retry);
+    let finished = code.create_label();
+    code.branch(finished, false);
+    code.bind(success)?;
+    address(code, x(20), job, schema.owned_bytes_offset());
+    crate::address_code::load_native(
+        code,
+        crate::Arm64LoadStoreSize::Word,
+        None,
+        x(21),
+        x(20),
+        DarwinFileAbi::STAT_DEVICE_OFFSET,
+    );
+    crate::address_code::load_native(
+        code,
+        crate::Arm64LoadStoreSize::Double,
+        None,
+        x(22),
+        x(20),
+        DarwinFileAbi::STAT_INODE_OFFSET,
+    );
+    store(
+        code,
+        job,
+        schema.offset(DarwinFileJobField::IdentityDevice),
+        x(21),
+    );
+    store(
+        code,
+        job,
+        schema.offset(DarwinFileJobField::IdentityInode),
+        x(22),
+    );
+    code.bind(finished)?;
+    Ok(())
 }
 
 fn execute_canonicalize(
@@ -321,6 +371,7 @@ fn execute_open(
     let create = code.create_label();
     let append = code.create_label();
     let directory = code.create_label();
+    let copy_destination = code.create_label();
     let invoke = code.create_label();
     load(code, x(20), job, schema.offset(DarwinFileJobField::Access));
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Read.code()));
@@ -331,6 +382,12 @@ fn execute_open(
     code.branch_conditional(append, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Directory.code()));
     code.branch_conditional(directory, Arm64BranchCondition::Equal);
+    compare_immediate(
+        code,
+        x(20),
+        u64::from(DarwinFileAccess::CopyDestination.code()),
+    );
+    code.branch_conditional(copy_destination, Arm64BranchCondition::Equal);
     abort(code, imports);
     code.bind(read)?;
     immediate(code, x(21), DarwinFileAbi::READ_ONLY);
@@ -343,6 +400,9 @@ fn execute_open(
     code.branch(invoke, false);
     code.bind(directory)?;
     immediate(code, x(21), DarwinFileAbi::DIRECTORY_ONLY);
+    code.branch(invoke, false);
+    code.bind(copy_destination)?;
+    immediate(code, x(21), DarwinFileAbi::COPY_DESTINATION);
     code.bind(invoke)?;
     code.bind(retry)?;
     address(code, x(0), job, schema.owned_bytes_offset());

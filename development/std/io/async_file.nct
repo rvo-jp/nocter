@@ -2,6 +2,7 @@
 
 see ./index.nct
 see ./file_position.nct
+see ./file_identity.nct
 
 use /internal/io
 use /internal/ptr
@@ -48,6 +49,27 @@ construct File {
     async func append(path: &str): Self! {
         return await open_file(io.file_open_append(path))?
     }
+
+    async func open_copy_destination(path: &str): Self! {
+        return await open_file(io.file_open_copy_destination(path))?
+    }
+}
+
+async func observe_file_identity(file: &+File): FileIdentity! {
+    let owner = take_file_owner(file)?
+    var completion = await io.file_identity(move owner)
+    restore_file_owner(file, &+completion)
+    io.validate_file_completion(&completion)?
+    return file_identity(
+        io.file_completion_identity_device(&completion),
+        io.file_completion_identity_inode(&completion),
+    )
+}
+
+async func files_share_identity(left: &+File, right: &+File): bool! {
+    let left_identity = await observe_file_identity(left)?
+    let right_identity = await observe_file_identity(right)?
+    return same_file_identity(left_identity, right_identity)
 }
 
 instance File {

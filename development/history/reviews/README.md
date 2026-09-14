@@ -10,6 +10,8 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.50.0 Phase 2 Identity-safe Copy Review](v0.50.0-phase-2-copy.md)
+- [v0.50.0 Phase 2 Canonicalization Review](v0.50.0-phase-2-canonicalization.md)
 - [v0.50.0 Phase 1 File and Local-storage Review](v0.50.0-phase-1.md)
 - [v0.50.0 Phase 0 Blocking-job Model Review](v0.50.0-phase-0.md)
 - [v0.49.0 Documentation Artifact Migration](v0.49.0-documentation-artifact.md)
@@ -120,4 +122,3 @@ forcing consumers that use only its contract to change.
 - [v0.14.0 Grammar Closure Audit](v0.14.0-grammar-audit.md)
 - [v0.14.0 Boundary Inventory](v0.14.0-boundary-inventory.md)
 - [v0.14.0 Findings](v0.14.0-findings.md)
-- [v0.50.0 Phase 2 Canonicalization Review](v0.50.0-phase-2-canonicalization.md)

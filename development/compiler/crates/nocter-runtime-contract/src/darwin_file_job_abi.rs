@@ -37,6 +37,8 @@ pub enum DarwinFileJobField {
     MetadataLength,
     MetadataModifiedSeconds,
     MetadataModifiedNanoseconds,
+    IdentityDevice,
+    IdentityInode,
     FailureKind,
     FailureErrno,
     Readiness,
@@ -62,6 +64,8 @@ pub enum DarwinFileCompletionField {
     MetadataLength,
     MetadataModifiedSeconds,
     MetadataModifiedNanoseconds,
+    IdentityDevice,
+    IdentityInode,
     FailureKind,
     FailureErrno,
 }
@@ -75,6 +79,8 @@ impl DarwinFileCompletionField {
         Self::MetadataLength,
         Self::MetadataModifiedSeconds,
         Self::MetadataModifiedNanoseconds,
+        Self::IdentityDevice,
+        Self::IdentityInode,
         Self::FailureKind,
         Self::FailureErrno,
     ];
@@ -90,6 +96,8 @@ impl DarwinFileCompletionField {
             Self::MetadataLength => DarwinFileJobField::MetadataLength,
             Self::MetadataModifiedSeconds => DarwinFileJobField::MetadataModifiedSeconds,
             Self::MetadataModifiedNanoseconds => DarwinFileJobField::MetadataModifiedNanoseconds,
+            Self::IdentityDevice => DarwinFileJobField::IdentityDevice,
+            Self::IdentityInode => DarwinFileJobField::IdentityInode,
             Self::FailureKind => DarwinFileJobField::FailureKind,
             Self::FailureErrno => DarwinFileJobField::FailureErrno,
         }
@@ -106,8 +114,8 @@ pub struct DarwinFileCompletionAbiSchema {
 
 impl DarwinFileCompletionAbiSchema {
     pub const ARM64_DARWIN: Self = Self {
-        field_offsets: [0, 8, 16, 24, 32, 40, 48, 56, 64],
-        size: 72,
+        field_offsets: [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80],
+        size: 88,
         alignment: 8,
     };
 
@@ -154,6 +162,8 @@ impl DarwinFileJobField {
         Self::MetadataLength,
         Self::MetadataModifiedSeconds,
         Self::MetadataModifiedNanoseconds,
+        Self::IdentityDevice,
+        Self::IdentityInode,
         Self::FailureKind,
         Self::FailureErrno,
         Self::Readiness,
@@ -180,6 +190,8 @@ pub enum DarwinFileJobOwnedBytes {
     TwoPathInputs,
     /// One NUL-terminated path followed by target-owned metadata scratch storage.
     PathInputAndMetadataOutput,
+    /// Target-owned metadata scratch storage for an already-open descriptor.
+    MetadataOutput,
     /// One NUL-terminated path followed by uninitialized worker-owned output capacity.
     PathInputAndReadOutput,
 }
@@ -212,6 +224,7 @@ pub enum DarwinFileJobResult {
     TransferredByteCount,
     Position,
     Metadata,
+    Identity,
 }
 
 /// Complete operation-specific interpretation of the shared generated job layout.
@@ -322,6 +335,12 @@ impl DarwinFileOperation {
                 Operand::None,
                 Result::TransferredByteCount,
             ),
+            Self::Identity => (
+                Bytes::MetadataOutput,
+                Retirement::Live,
+                Operand::None,
+                Result::Identity,
+            ),
         };
         DarwinFileJobContract {
             owned_bytes,
@@ -346,9 +365,9 @@ impl DarwinFileJobAbiSchema {
         asynchronous: RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous(),
         field_offsets: [
             0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152,
-            160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248,
+            160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248, 256, 264,
         ],
-        fixed_size: 256,
+        fixed_size: 272,
         alignment: 8,
     };
 
@@ -400,7 +419,7 @@ mod tests {
         for (index, field) in DarwinFileCompletionField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.size(), 72);
+        assert_eq!(schema.size(), 88);
         assert_eq!(schema.alignment(), 8);
     }
 
@@ -435,11 +454,11 @@ mod tests {
         for (index, field) in DarwinFileJobField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.fixed_size(), 256);
+        assert_eq!(schema.fixed_size(), 272);
         assert_eq!(schema.alignment(), asynchronous.fixed_header_alignment());
         assert_eq!(schema.owned_bytes_offset(), schema.fixed_size());
-        assert_eq!(schema.allocation_size(0), Some(256));
-        assert_eq!(schema.allocation_size(31), Some(287));
+        assert_eq!(schema.allocation_size(0), Some(272));
+        assert_eq!(schema.allocation_size(31), Some(303));
         assert_eq!(schema.allocation_size(u64::MAX), None);
     }
 
@@ -580,6 +599,13 @@ mod tests {
                 Retirement::None,
                 Operand::None,
                 Result::TransferredByteCount,
+            ),
+            (
+                DarwinFileOperation::Identity,
+                Bytes::MetadataOutput,
+                Retirement::Live,
+                Operand::None,
+                Result::Identity,
             ),
         ];
 

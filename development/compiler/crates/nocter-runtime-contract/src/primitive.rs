@@ -240,6 +240,8 @@ closed_role_enum! {
         FileOpenCreate,
         /// Constructs one generated local-file append computation.
         FileOpenAppend,
+        /// Opens or creates a destination without truncating it before identity validation.
+        FileOpenCopyDestination,
         /// Constructs one generated local-directory open computation.
         DirectoryOpen,
         /// Constructs one generated local-file sequential read computation.
@@ -264,6 +266,8 @@ closed_role_enum! {
         FileWriteAt,
         /// Constructs one generated local-file explicit-close computation.
         FileClose,
+        /// Constructs one generated open-file identity computation.
+        FileIdentity,
         /// Constructs one generated local-file removal computation.
         FilesystemRemoveFile,
         /// Constructs one generated local-filesystem rename computation.
@@ -292,6 +296,8 @@ closed_role_enum! {
         FileCompletionMetadataLength,
         FileCompletionMetadataModifiedSeconds,
         FileCompletionMetadataModifiedNanoseconds,
+        FileCompletionIdentityDevice,
+        FileCompletionIdentityInode,
         FileCompletionFailureKind,
         FileCompletionFailureErrno,
         /// Retires and clears a completion's owner when policy did not take it.
@@ -459,6 +465,7 @@ impl PrimitiveRole {
             Self::FileOpenRead => "file_open_read",
             Self::FileOpenCreate => "file_open_create",
             Self::FileOpenAppend => "file_open_append",
+            Self::FileOpenCopyDestination => "file_open_copy_destination",
             Self::DirectoryOpen => "directory_open",
             Self::FileRead => "file_read",
             Self::DirectoryRead => "directory_read",
@@ -471,6 +478,7 @@ impl PrimitiveRole {
             Self::FileReadAt => "file_read_at",
             Self::FileWriteAt => "file_write_at",
             Self::FileClose => "file_close",
+            Self::FileIdentity => "file_identity",
             Self::FilesystemRemoveFile => "filesystem_remove_file",
             Self::FilesystemRename => "filesystem_rename",
             Self::FilesystemCreateDirectory => "filesystem_create_directory",
@@ -492,6 +500,8 @@ impl PrimitiveRole {
             Self::FileCompletionMetadataModifiedNanoseconds => {
                 "file_completion_metadata_modified_nanoseconds"
             }
+            Self::FileCompletionIdentityDevice => "file_completion_identity_device",
+            Self::FileCompletionIdentityInode => "file_completion_identity_inode",
             Self::FileCompletionFailureKind => "file_completion_failure_kind",
             Self::FileCompletionFailureErrno => "file_completion_failure_errno",
             Self::FileCompletionDispose => "file_completion_dispose",
@@ -595,6 +605,7 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::FileOpenCopyDestination
                     | Self::DirectoryOpen
                     | Self::FileRead
                     | Self::DirectoryRead
@@ -606,6 +617,7 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FileIdentity
                     | Self::FilesystemRemoveFile
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
@@ -642,6 +654,7 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::FileOpenCopyDestination
                     | Self::DirectoryOpen
                     | Self::FileRead
                     | Self::DirectoryRead
@@ -653,6 +666,7 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FileIdentity
                     | Self::FileClose
                     | Self::FilesystemRemoveFile
                     | Self::FilesystemRename
@@ -684,6 +698,7 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::FileOpenCopyDestination
                     | Self::DirectoryOpen
                     | Self::FileRead
                     | Self::DirectoryRead
@@ -695,6 +710,7 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FileIdentity
                     | Self::FilesystemRemoveFile
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
@@ -715,6 +731,7 @@ impl PrimitiveRole {
                     | Self::FileOpenRead
                     | Self::FileOpenCreate
                     | Self::FileOpenAppend
+                    | Self::FileOpenCopyDestination
                     | Self::DirectoryOpen
                     | Self::FileRead
                     | Self::DirectoryRead
@@ -726,6 +743,7 @@ impl PrimitiveRole {
                     | Self::FileTruncate
                     | Self::FileReadAt
                     | Self::FileWriteAt
+                    | Self::FileIdentity
                     | Self::FilesystemRemoveFile
                     | Self::FilesystemRename
                     | Self::FilesystemCreateDirectory
@@ -920,6 +938,7 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::DirectoryRead,
@@ -931,6 +950,7 @@ mod tests {
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FileIdentity,
                 PrimitiveRole::FilesystemRemoveFile,
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
@@ -989,6 +1009,7 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::DirectoryRead,
@@ -1001,6 +1022,7 @@ mod tests {
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
                 PrimitiveRole::FileClose,
+                PrimitiveRole::FileIdentity,
                 PrimitiveRole::FilesystemRemoveFile,
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
@@ -1035,6 +1057,7 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::DirectoryRead,
@@ -1046,6 +1069,7 @@ mod tests {
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FileIdentity,
                 PrimitiveRole::FilesystemRemoveFile,
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,
@@ -1074,6 +1098,7 @@ mod tests {
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
+                PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
                 PrimitiveRole::FileRead,
                 PrimitiveRole::DirectoryRead,
@@ -1085,6 +1110,7 @@ mod tests {
                 PrimitiveRole::FileTruncate,
                 PrimitiveRole::FileReadAt,
                 PrimitiveRole::FileWriteAt,
+                PrimitiveRole::FileIdentity,
                 PrimitiveRole::FilesystemRemoveFile,
                 PrimitiveRole::FilesystemRename,
                 PrimitiveRole::FilesystemCreateDirectory,

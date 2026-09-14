@@ -56,6 +56,8 @@ terminal-state behavior remain exactly the common `BlockingBufReader` contract.
 construction functions and its read, write, flush, position, seek, truncate, positioned-I/O, and
 close methods are asynchronous. Each call owns the operating-system input while a bounded worker
 performs the blocking operation; no worker retains an authored path or caller byte view.
+Every library-opened local descriptor is close-on-exec, so successful process replacement cannot
+inherit a file solely because a `File` or `BlockingFile` remains live.
 
 An operation temporarily moves the descriptor owner out of `File`. An ordinary completion restores
 it before public error mapping. Cancellation after submission leaves the `File` terminal because a

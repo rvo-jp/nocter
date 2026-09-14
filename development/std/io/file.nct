@@ -3,11 +3,14 @@
 see ./index.nct
 see ./byte_helpers.nct
 see ./file_position.nct
+see ./file_identity.nct
 
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
 use /internal/io
 use /internal/path as internal_path
+use /internal/ptr as internal_ptr
+use /mem
 use /ptr
 
 #target: "arm64-darwin"
@@ -23,6 +26,11 @@ blocking func create_fd(path: &str): usize! {
 #target: "arm64-darwin"
 blocking func append_fd(path: &str): usize! {
     return open_fd(path, darwin.OPEN_CREATE_APPEND)?
+}
+
+#target: "arm64-darwin"
+blocking func copy_destination_fd(path: &str): usize! {
+    return open_fd(path, darwin.OPEN_COPY_DESTINATION)?
 }
 
 #target: "arm64-darwin"
@@ -211,6 +219,47 @@ construct BlockingFile {
         let fd = append_fd(path)?
         return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
     }
+
+    blocking func open_copy_destination(path: &str): Self! {
+        let fd = copy_destination_fd(path)?
+        return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
+    }
+}
+
+#target: "arm64-darwin"
+blocking func observe_blocking_file_identity(file: &BlockingFile): FileIdentity! {
+    require_open(file)?
+    var allocator = mem.page_try_allocator()
+    var storage = allocator.try_alloc(darwin.STAT_BUFFER_SIZE, 8)?
+    var result = darwin.syscall2(
+        darwin.SYS_FSTAT64,
+        file.fd,
+        ptr.addr(storage.bytes().ptr()),
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall2(
+            darwin.SYS_FSTAT64,
+            file.fd,
+            ptr.addr(storage.bytes().ptr()),
+        )
+    }
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    let device_pointer: *u32 = internal_ptr.from_addr(ptr.addr(storage.bytes().ptr()))
+    let inode_pointer: *u64 = internal_ptr.from_addr(ptr.addr(storage.bytes().ptr()))
+    let device: u32 = internal_ptr.take_value_at_ptr(device_pointer, darwin.STAT_DEVICE_OFFSET)
+    let inode: u64 = internal_ptr.take_value_at_ptr(inode_pointer, darwin.STAT_INODE_OFFSET)
+    return file_identity(device as u64, inode)
+}
+
+blocking func blocking_files_share_identity(
+    left: &BlockingFile,
+    right: &BlockingFile,
+): bool! {
+    let left_identity = observe_blocking_file_identity(left)?
+    let right_identity = observe_blocking_file_identity(right)?
+    return same_file_identity(left_identity, right_identity)
 }
 
 noalloc func require_open(file: &BlockingFile): void! {

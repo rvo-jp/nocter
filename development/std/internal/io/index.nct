@@ -22,6 +22,9 @@ primitive func file_open_create_raw(path: &str): future FileCompletion from stat
 primitive func file_open_append_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func file_open_copy_destination_raw(path: &str): future FileCompletion from static
+
+#target: "arm64-darwin"
 primitive func directory_open_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
@@ -76,6 +79,9 @@ primitive func file_write_at_raw(
 
 #target: "arm64-darwin"
 noalloc primitive func file_close_raw(owner: FileOwner): future FileCompletion from static
+
+#target: "arm64-darwin"
+primitive func file_identity_raw(owner: FileOwner): future FileCompletion from static
 
 #target: "arm64-darwin"
 primitive func filesystem_remove_file_raw(path: &str): future FileCompletion from static
@@ -155,6 +161,12 @@ noalloc primitive func file_completion_metadata_modified_nanoseconds_raw(
 ): u64
 
 #target: "arm64-darwin"
+noalloc primitive func file_completion_identity_device_raw(completion: &FileCompletion): u64
+
+#target: "arm64-darwin"
+noalloc primitive func file_completion_identity_inode_raw(completion: &FileCompletion): u64
+
+#target: "arm64-darwin"
 noalloc primitive func file_completion_failure_kind_raw(
     completion: &FileCompletion,
 ): usize
@@ -175,6 +187,9 @@ pub(/) func file_open_create(path: &str): future FileCompletion from static
 
 /// Constructs one generated local-file append computation.
 pub(/) func file_open_append(path: &str): future FileCompletion from static
+
+/// Opens or creates a copy destination without truncating it before identity validation.
+pub(/) func file_open_copy_destination(path: &str): future FileCompletion from static
 
 /// Constructs one generated local-directory open computation.
 pub(/) func directory_open(path: &str): future FileCompletion from static
@@ -220,6 +235,9 @@ pub(/) func file_write_at(
 ): future FileCompletion from static
 
 pub(/) noalloc func file_close(owner: FileOwner): future FileCompletion from static
+
+/// Observes identity from one already-open descriptor and returns its owner in the completion.
+pub(/) func file_identity(owner: FileOwner): future FileCompletion from static
 
 /// Constructs one generated non-directory removal computation.
 pub(/) func filesystem_remove_file(path: &str): future FileCompletion from static
@@ -281,6 +299,10 @@ pub(/) noalloc func file_completion_metadata_modified_seconds(
 pub(/) noalloc func file_completion_metadata_modified_nanoseconds(
     completion: &FileCompletion,
 ): u64
+
+pub(/) noalloc func file_completion_identity_device(completion: &FileCompletion): u64
+
+pub(/) noalloc func file_completion_identity_inode(completion: &FileCompletion): u64
 
 /// Reports whether a failed completion means that the queried path is absent.
 pub(/) noalloc func file_completion_is_absent(completion: &FileCompletion): bool

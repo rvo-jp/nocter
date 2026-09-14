@@ -14,6 +14,10 @@ func file_open_append(path: &str): future FileCompletion from static {
     return file_open_append_raw(path)
 }
 
+func file_open_copy_destination(path: &str): future FileCompletion from static {
+    return file_open_copy_destination_raw(path)
+}
+
 func directory_open(path: &str): future FileCompletion from static {
     return directory_open_raw(path)
 }
@@ -80,6 +84,10 @@ func file_write_at(
 
 noalloc func file_close(owner: FileOwner): future FileCompletion from static {
     return file_close_raw(move owner)
+}
+
+func file_identity(owner: FileOwner): future FileCompletion from static {
+    return file_identity_raw(move owner)
 }
 
 func filesystem_remove_file(path: &str): future FileCompletion from static {
@@ -164,4 +172,12 @@ noalloc func file_completion_metadata_modified_nanoseconds(
     completion: &FileCompletion,
 ): u64 {
     return file_completion_metadata_modified_nanoseconds_raw(completion)
+}
+
+noalloc func file_completion_identity_device(completion: &FileCompletion): u64 {
+    return file_completion_identity_device_raw(completion)
+}
+
+noalloc func file_completion_identity_inode(completion: &FileCompletion): u64 {
+    return file_completion_identity_inode_raw(completion)
 }

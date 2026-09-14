@@ -299,6 +299,7 @@ pub const fn bundled_primitive_source_location(
         Role::FileOpenRead => (&["internal", "io"], "file_open_read_raw"),
         Role::FileOpenCreate => (&["internal", "io"], "file_open_create_raw"),
         Role::FileOpenAppend => (&["internal", "io"], "file_open_append_raw"),
+        Role::FileOpenCopyDestination => (&["internal", "io"], "file_open_copy_destination_raw"),
         Role::DirectoryOpen => (&["internal", "io"], "directory_open_raw"),
         Role::FileRead => (&["internal", "io"], "file_read_raw"),
         Role::DirectoryRead => (&["internal", "io"], "directory_read_raw"),
@@ -311,6 +312,7 @@ pub const fn bundled_primitive_source_location(
         Role::FileReadAt => (&["internal", "io"], "file_read_at_raw"),
         Role::FileWriteAt => (&["internal", "io"], "file_write_at_raw"),
         Role::FileClose => (&["internal", "io"], "file_close_raw"),
+        Role::FileIdentity => (&["internal", "io"], "file_identity_raw"),
         Role::FilesystemRemoveFile => (&["internal", "io"], "filesystem_remove_file_raw"),
         Role::FilesystemRename => (&["internal", "io"], "filesystem_rename_raw"),
         Role::FilesystemCreateDirectory => (&["internal", "io"], "filesystem_create_directory_raw"),
@@ -343,6 +345,12 @@ pub const fn bundled_primitive_source_location(
             &["internal", "io"],
             "file_completion_metadata_modified_nanoseconds_raw",
         ),
+        Role::FileCompletionIdentityDevice => {
+            (&["internal", "io"], "file_completion_identity_device_raw")
+        }
+        Role::FileCompletionIdentityInode => {
+            (&["internal", "io"], "file_completion_identity_inode_raw")
+        }
         Role::FileCompletionFailureKind => {
             (&["internal", "io"], "file_completion_failure_kind_raw")
         }

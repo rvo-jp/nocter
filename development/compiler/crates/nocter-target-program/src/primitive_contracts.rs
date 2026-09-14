@@ -960,6 +960,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
         | PrimitiveRole::FileOpenAppend
+        | PrimitiveRole::FileOpenCopyDestination
         | PrimitiveRole::DirectoryOpen
         | PrimitiveRole::FilesystemRemoveFile
         | PrimitiveRole::FilesystemCreateDirectory
@@ -1005,7 +1006,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::FileFlush | PrimitiveRole::FileClose => make(
+        PrimitiveRole::FileFlush | PrimitiveRole::FileClose | PrimitiveRole::FileIdentity => make(
             0,
             vec![file_owner()],
             TypeContract::asynchronous(file_completion()),
@@ -1075,7 +1076,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             vec![],
         ),
         PrimitiveRole::FileCompletionMetadataLength
-        | PrimitiveRole::FileCompletionMetadataModifiedNanoseconds => make(
+        | PrimitiveRole::FileCompletionMetadataModifiedNanoseconds
+        | PrimitiveRole::FileCompletionIdentityDevice
+        | PrimitiveRole::FileCompletionIdentityInode => make(
             0,
             vec![TypeContract::readonly(file_completion())],
             u64(),

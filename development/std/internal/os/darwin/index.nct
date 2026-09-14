@@ -94,6 +94,9 @@ pub(/) const SYS_RMDIR: usize
 #target: "arm64-darwin"
 pub(/) const SYS_STAT64: usize
 
+#target: "arm64-darwin"
+pub(/) const SYS_FSTAT64: usize
+
 pub(/) const SYS_LSTAT64: usize
 
 pub(/) const SYS_SYMLINK: usize
@@ -143,6 +146,9 @@ pub(/) const OPEN_CREATE_TRUNCATE: usize
 
 #target: "arm64-darwin"
 pub(/) const OPEN_CREATE_APPEND: usize
+
+#target: "arm64-darwin"
+pub(/) const OPEN_COPY_DESTINATION: usize
 
 #target: "arm64-darwin"
 pub(/) const SEEK_FROM_START: usize
@@ -218,6 +224,12 @@ pub(/) const STAT_BUFFER_SIZE: usize
 
 #target: "arm64-darwin"
 pub(/) const STAT_MODE_OFFSET: usize
+
+#target: "arm64-darwin"
+pub(/) const STAT_DEVICE_OFFSET: usize
+
+#target: "arm64-darwin"
+pub(/) const STAT_INODE_OFFSET: usize
 
 #target: "arm64-darwin"
 pub(/) const STAT_SIZE_OFFSET: usize

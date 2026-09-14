@@ -3,7 +3,7 @@
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::FileExt;
+use std::os::unix::fs::{FileExt, MetadataExt};
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
@@ -113,6 +113,7 @@ enum FileJobPayload {
         bytes: Box<[u8]>,
         offset: u64,
     },
+    Identity(DarwinFileOwner),
     RemoveFile(PathBuf),
     Rename {
         source: PathBuf,
@@ -284,6 +285,13 @@ impl DarwinFileJob {
     }
 
     #[must_use]
+    pub fn identity(owner: DarwinFileOwner) -> Self {
+        Self {
+            payload: FileJobPayload::Identity(owner),
+        }
+    }
+
+    #[must_use]
     pub fn canonicalize(path: PathBuf, maximum: usize) -> Self {
         Self {
             payload: FileJobPayload::Canonicalize { path, maximum },
@@ -302,6 +310,7 @@ impl DarwinFileJob {
             FileJobPayload::Truncate { .. } => FileJobKind::Truncate,
             FileJobPayload::ReadAt { .. } => FileJobKind::ReadAt,
             FileJobPayload::WriteAt { .. } => FileJobKind::WriteAt,
+            FileJobPayload::Identity(_) => FileJobKind::Identity,
             FileJobPayload::RemoveFile(_) => FileJobKind::RemoveFile,
             FileJobPayload::Rename { .. } => FileJobKind::Rename,
             FileJobPayload::CreateDirectory(_) => FileJobKind::CreateDirectory,
@@ -345,6 +354,10 @@ pub enum DarwinFileOutcome {
     WriteAt {
         owner: DarwinFileOwner,
         fact: FileWriteFact,
+    },
+    Identity {
+        owner: DarwinFileOwner,
+        result: Result<(u64, u64), FileOperationError>,
     },
     RemoveFile(Result<(), FileOperationError>),
     Rename(Result<(), FileOperationError>),
@@ -594,6 +607,7 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
             let fact = write_file_at(owner.0.resource_mut(), &bytes, offset);
             DarwinFileOutcome::WriteAt { owner, fact }
         }
+        FileJobPayload::Identity(owner) => identity_outcome(owner),
         FileJobPayload::RemoveFile(path) => DarwinFileOutcome::RemoveFile(
             std::fs::remove_file(path).map_err(|error| file_failure(&error)),
         ),
@@ -626,6 +640,16 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
             DarwinFileOutcome::Canonicalize(canonical_path(path, maximum))
         }
     }
+}
+
+fn identity_outcome(mut owner: DarwinFileOwner) -> DarwinFileOutcome {
+    let result = owner
+        .0
+        .resource_mut()
+        .metadata()
+        .map(|metadata| (metadata.dev(), metadata.ino()))
+        .map_err(|error| file_failure(&error));
+    DarwinFileOutcome::Identity { owner, result }
 }
 
 fn read_link_path(path: PathBuf, maximum: usize) -> Result<Box<[u8]>, FileOperationError> {
@@ -721,6 +745,11 @@ fn open_file(path: &PathBuf, access: FileAccess) -> io::Result<File> {
             .truncate(true)
             .open(path),
         FileAccess::Append => OpenOptions::new().append(true).create(true).open(path),
+        FileAccess::CopyDestination => OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path),
         FileAccess::Directory => {
             let directory = File::open(path)?;
             if directory.metadata()?.is_dir() {

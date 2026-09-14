@@ -9,8 +9,7 @@ phased authority replacement live in
 
 ## Next Work
 
-Continue v0.50.0 Phase 2 with identity-safe bounded copy, recursive removal, and traversal. The
-completed ranges provide canonical
+Continue v0.50.0 Phase 2 with recursive removal and traversal. The completed ranges provide canonical
 asynchronous and explicit blocking twins for single-entry removal, rename,
 single-directory creation, empty-directory removal, metadata, and existence queries over
 owned-path jobs. Directory acquisition and raw record batches now use the same bounded service,
@@ -23,8 +22,10 @@ publish the same portable metadata facts while retaining follow-versus-inspect a
 operation. Symbolic-link creation likewise has canonical asynchronous and explicit blocking forms
 over one typed two-path job. Link target reading and canonicalization use one bounded path-output
 policy; canonicalization resolves through an event-only descriptor and publishes only after that
-temporary descriptor is closed. Preserve one path-validation authority, one portable
-error policy, bounded recursive work, and typed target facts. Do not implement an asynchronous surface by calling a public
+temporary descriptor is closed. Identity-safe copy opens both endpoints without destructive
+truncation, compares device and inode facts from those descriptors, then reuses the shared bounded
+byte-copy algorithm. Preserve one path-validation authority, one portable error policy, bounded
+recursive work, and typed target facts. Do not implement an asynchronous surface by calling a public
 blocking wrapper or by retaining caller storage in a worker.
 
 Phase 1 closed the canonical file cutover. `File` is executor-safe; `BlockingFile` is its explicit

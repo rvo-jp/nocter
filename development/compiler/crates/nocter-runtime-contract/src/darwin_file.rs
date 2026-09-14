@@ -23,6 +23,7 @@ pub enum DarwinFileOperation {
     CreateSymlink,
     ReadLink,
     Canonicalize,
+    Identity,
 }
 
 /// Fixed output capacity required by Darwin canonical-path queries.
@@ -123,6 +124,7 @@ impl DarwinFileOperation {
         Self::CreateSymlink,
         Self::ReadLink,
         Self::Canonicalize,
+        Self::Identity,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -147,6 +149,7 @@ impl DarwinFileOperation {
             Self::CreateSymlink => 15,
             Self::ReadLink => 16,
             Self::Canonicalize => 17,
+            Self::Identity => 18,
         }
     }
 
@@ -172,6 +175,7 @@ impl DarwinFileOperation {
             15 => Some(Self::CreateSymlink),
             16 => Some(Self::ReadLink),
             17 => Some(Self::Canonicalize),
+            18 => Some(Self::Identity),
             _ => None,
         }
     }
@@ -223,10 +227,17 @@ pub enum DarwinFileAccess {
     Create,
     Append,
     Directory,
+    CopyDestination,
 }
 
 impl DarwinFileAccess {
-    pub const ALL: &'static [Self] = &[Self::Read, Self::Create, Self::Append, Self::Directory];
+    pub const ALL: &'static [Self] = &[
+        Self::Read,
+        Self::Create,
+        Self::Append,
+        Self::Directory,
+        Self::CopyDestination,
+    ];
 
     #[must_use]
     pub const fn code(self) -> u8 {
@@ -235,6 +246,7 @@ impl DarwinFileAccess {
             Self::Create => 1,
             Self::Append => 2,
             Self::Directory => 3,
+            Self::CopyDestination => 4,
         }
     }
 
@@ -245,6 +257,7 @@ impl DarwinFileAccess {
             1 => Some(Self::Create),
             2 => Some(Self::Append),
             3 => Some(Self::Directory),
+            4 => Some(Self::CopyDestination),
             _ => None,
         }
     }

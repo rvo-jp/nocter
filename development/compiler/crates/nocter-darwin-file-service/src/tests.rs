@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -119,6 +120,15 @@ fn read_seek_and_explicit_close_preserve_one_owned_file() {
     temporary.flush().unwrap();
     let mut service = service();
     let owner = open_for_read(&service, temporary.path());
+    let identity = service.submit(DarwinFileJob::identity(owner)).unwrap();
+    wait_for_job(&service, identity);
+    let JobOutcome::Completed(DarwinFileOutcome::Identity { owner, result }) =
+        service.consume(identity).unwrap()
+    else {
+        panic!("identity job returned the wrong outcome")
+    };
+    let metadata = std::fs::metadata(temporary.path()).unwrap();
+    assert_eq!(result.unwrap(), (metadata.dev(), metadata.ino()));
 
     let read = service.submit(DarwinFileJob::read(owner, 3)).unwrap();
     wait_for_job(&service, read);
@@ -152,6 +162,43 @@ fn read_seek_and_explicit_close_preserve_one_owned_file() {
     let retirement = owner.retire().unwrap();
     wait_until(|| service.retirement_status(retirement) == Some(RetirementStatus::Completed));
     service.consume_retirement(retirement).unwrap();
+    service.shutdown().unwrap();
+}
+
+#[test]
+fn copy_destination_open_preserves_existing_bytes_before_identity_check() {
+    let mut temporary = NamedTempFile::new().unwrap();
+    temporary.write_all(b"preserved").unwrap();
+    temporary.flush().unwrap();
+    let expected = std::fs::metadata(temporary.path()).unwrap();
+    let mut service = service();
+
+    let open = service
+        .submit(DarwinFileJob::open(
+            service.reserve_file().unwrap(),
+            temporary.path().to_path_buf(),
+            FileAccess::CopyDestination,
+        ))
+        .unwrap();
+    wait_for_job(&service, open);
+    let JobOutcome::Completed(DarwinFileOutcome::Open(result)) = service.consume(open).unwrap()
+    else {
+        panic!("copy-destination open returned the wrong outcome")
+    };
+    let owner = result.unwrap();
+    assert_eq!(std::fs::read(temporary.path()).unwrap(), b"preserved");
+
+    let identity = service.submit(DarwinFileJob::identity(owner)).unwrap();
+    wait_for_job(&service, identity);
+    let JobOutcome::Completed(DarwinFileOutcome::Identity { owner, result }) =
+        service.consume(identity).unwrap()
+    else {
+        panic!("identity job returned the wrong outcome")
+    };
+    assert_eq!(result.unwrap(), (expected.dev(), expected.ino()));
+
+    drop(owner);
+    wait_until(|| service.retirement_snapshot().drained());
     service.shutdown().unwrap();
 }
 

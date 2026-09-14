@@ -198,6 +198,7 @@ pub(crate) fn select(
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
         | PrimitiveRole::FileOpenAppend
+        | PrimitiveRole::FileOpenCopyDestination
         | PrimitiveRole::DirectoryOpen
         | PrimitiveRole::FileRead
         | PrimitiveRole::DirectoryRead
@@ -210,6 +211,7 @@ pub(crate) fn select(
         | PrimitiveRole::FileReadAt
         | PrimitiveRole::FileWriteAt
         | PrimitiveRole::FileClose
+        | PrimitiveRole::FileIdentity
         | PrimitiveRole::FilesystemRemoveFile
         | PrimitiveRole::FilesystemRename
         | PrimitiveRole::FilesystemCreateDirectory
@@ -227,6 +229,8 @@ pub(crate) fn select(
         | PrimitiveRole::FileCompletionMetadataLength
         | PrimitiveRole::FileCompletionMetadataModifiedSeconds
         | PrimitiveRole::FileCompletionMetadataModifiedNanoseconds
+        | PrimitiveRole::FileCompletionIdentityDevice
+        | PrimitiveRole::FileCompletionIdentityInode
         | PrimitiveRole::FileCompletionFailureKind
         | PrimitiveRole::FileCompletionFailureErrno
         | PrimitiveRole::FileCompletionDispose => {

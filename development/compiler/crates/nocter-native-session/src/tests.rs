@@ -2082,6 +2082,12 @@ fn standard_symbolic_link_targets_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
+    std::fs::write(package_root.0.join("item"), b"value").unwrap();
+    std::fs::hard_link(
+        package_root.0.join("item"),
+        package_root.0.join("hard-link"),
+    )
+    .unwrap();
     package_root.source(
         "main.nct",
         r#"use std/fs
@@ -2096,8 +2102,30 @@ async func main(): i32 {
     let canonical = await fs.canonicalize("link") catch _ { return 5 }
     let name = canonical.file_name() otherwise { return 6 }
     if name != "item" { return 7 }
+    let copied = await fs.copy("item", "copy") catch _ { return 11 }
+    if copied != 5 { return 12 }
+    let copied_text = await fs.read_to_string("copy") catch _ { return 13 }
+    if &copied_text != "value" { return 14 }
+    var alias_rejected = false
+    let _alias_copy = await fs.copy("item", "link") catch failure {
+        if !failure.has_code("std.fs.same_file") { return 15 }
+        alias_rejected = true
+        0
+    }
+    if !alias_rejected { return 19 }
+    var hard_link_rejected = false
+    let _hard_link_copy = await fs.copy("item", "hard-link") catch failure {
+        if !failure.has_code("std.fs.same_file") { return 20 }
+        hard_link_rejected = true
+        0
+    }
+    if !hard_link_rejected { return 21 }
+    let preserved = await fs.read_to_string("item") catch _ { return 16 }
+    if &preserved != "value" { return 17 }
     await fs.remove_file("link") catch _ { return 4 }
     await fs.remove_file("item") catch _ { return 8 }
+    await fs.remove_file("copy") catch _ { return 18 }
+    await fs.remove_file("hard-link") catch _ { return 22 }
     await fs.remove_dir("target") catch _ { return 10 }
     return 0
 }
@@ -2151,6 +2179,21 @@ blocking func main(): i32! {
     let canonical = fs.canonicalize_blocking(&target)?
     let canonical_name = canonical.file_name() otherwise { return 13 }
     if canonical_name != "items.json" { return 14 }
+
+    let copied = fs.copy_blocking(&target, "copied.json")?
+    if copied != 5 { return 15 }
+    let copied_text = fs.read_to_string_blocking("copied.json")?
+    if &copied_text != "value" { return 16 }
+    var self_copy_rejected = false
+    let _self_copy = fs.copy_blocking(&target, &target) catch failure {
+        if !failure.has_code("std.fs.same_file") { return 17 }
+        self_copy_rejected = true
+        0
+    }
+    if !self_copy_rejected { return 19 }
+    let preserved = fs.read_to_string_blocking(&target)?
+    if &preserved != "value" { return 18 }
+    fs.remove_file_blocking("copied.json")?
 
     fs.remove_file_blocking(&target)?
     fs.remove_dir_blocking("workspace/cache")?
