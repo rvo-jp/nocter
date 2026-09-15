@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     ExpectedSyntax, LexDiagnosticKind, NodeId, NodeKind, ParseDiagnosticKind, SyntaxElement,
@@ -60,7 +60,7 @@ impl DeclarationSyntaxProjection {
         self.surface
     }
 
-    /// Returns executable bodies keyed by their stable declaration-surface block locator.
+    /// Returns semantic body roots keyed by their stable declaration-surface locator.
     #[must_use]
     pub const fn body_surfaces(&self) -> &[crate::BodySyntaxSurface] {
         &self.bodies
@@ -125,6 +125,7 @@ pub(crate) fn declaration_projection(
     let mut bodies = Vec::new();
     let mut node_locators = HashMap::new();
     let mut token_locators = HashMap::new();
+    let body_roots = body_roots(tree);
     let mut pending = vec![Visit::Element(SyntaxElement::Node(tree.root_id()))];
     while let Some(visit) = pending.pop() {
         match visit {
@@ -138,7 +139,7 @@ pub(crate) fn declaration_projection(
                     .expect("surface traversal retains one syntax-tree owner");
                 encode(0, syntax.kind().as_str().as_bytes(), &mut canonical);
                 pending.push(Visit::CloseNode);
-                if syntax.kind() == NodeKind::Block {
+                if body_roots.contains(&node) {
                     bodies.push(crate::body_surface::body_surface(
                         DeclarationSyntaxLocator::Node(index),
                         tree,
@@ -187,10 +188,9 @@ pub(crate) fn declaration_projection(
 }
 
 fn encode_declaration_diagnostics(tree: &SyntaxTree, canonical: &mut Vec<u8>) {
-    let body_ranges = tree
-        .nodes()
-        .filter(|(_, node)| node.kind() == NodeKind::Block)
-        .map(|(_, node)| node.range())
+    let body_ranges = body_roots(tree)
+        .into_iter()
+        .filter_map(|body| tree.node(body).map(crate::SyntaxNode::range))
         .collect::<Vec<_>>();
     for diagnostic in tree.lexed().diagnostics() {
         if body_ranges
@@ -225,6 +225,23 @@ fn encode_declaration_diagnostics(tree: &SyntaxTree, canonical: &mut Vec<u8>) {
             }
         }
     }
+}
+
+fn body_roots(tree: &SyntaxTree) -> HashSet<NodeId> {
+    let mut roots = tree
+        .nodes()
+        .filter_map(|(node, syntax)| (syntax.kind() == NodeKind::Block).then_some(node))
+        .collect::<HashSet<_>>();
+    for (declaration, syntax) in tree.nodes() {
+        if matches!(
+            syntax.kind(),
+            NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration
+        ) && let Some(initializer) = crate::direct_node(tree, declaration, NodeKind::Expression)
+        {
+            roots.insert(initializer);
+        }
+    }
+    roots
 }
 
 const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
@@ -320,6 +337,25 @@ mod tests {
             surface("func answer(): i32 { return 1 }\n"),
             surface("func answer(): i32 { let value = 40\n return value + 2 }\n")
         );
+    }
+
+    #[test]
+    fn initializer_edits_preserve_the_declaration_surface() {
+        assert_eq!(
+            surface("const ANSWER: i32 = 1\nstatic VALUES: [i32; 1] = [1]\n"),
+            surface("const ANSWER: i32 = 40 + 2\nstatic VALUES: [i32; 1] = [42]\n")
+        );
+    }
+
+    #[test]
+    fn initializer_expressions_are_independent_body_surfaces() {
+        let (tree, source) = tree("const ANSWER: i32 = 40 + 2\nstatic VALUES: [i32; 1] = [42]\n");
+        let projection =
+            project_declaration_syntax(crate::BoundSyntax::new(&source, &tree).unwrap());
+
+        assert_eq!(projection.body_surfaces().len(), 2);
+        assert_eq!(projection.body_surfaces()[0].canonical_bytes(), b"40 + 2");
+        assert_eq!(projection.body_surfaces()[1].canonical_bytes(), b"[42]");
     }
 
     #[test]

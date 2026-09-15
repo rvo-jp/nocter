@@ -74,7 +74,7 @@ impl BodySyntaxProjection {
     }
 }
 
-/// Exact normalized source input of one executable declaration body.
+/// Exact normalized source input of one block or initializer declaration body.
 ///
 /// `locator` belongs to the enclosing declaration surface and is therefore stable across edits to
 /// this or another body while that declaration surface remains equal. Exact body bytes retain all

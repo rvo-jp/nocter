@@ -4,7 +4,8 @@ use std::collections::BTreeSet;
 
 use crate::semantic::BodySourcePublication;
 
-/// Collects exact body inputs from source-syntax products already demanded by module surfaces.
+/// Collects every exact semantic-body input from source-syntax products already demanded by
+/// module surfaces.
 pub(crate) fn collect(
     database: &Database,
     unit: &DiscoveredUnit,

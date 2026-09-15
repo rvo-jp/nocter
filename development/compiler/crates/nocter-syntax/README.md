@@ -13,8 +13,9 @@ syntax-owned subtree completeness, and a reusable parse product that binds only 
 source text. Source-backed semantic helpers accept `BoundSyntax`, which proves the source file and
 tree share one exact source identity. It also publishes a canonical declaration-syntax surface
 that excludes body contents, trivia, and source identities without interpreting a declaration.
-Each pruned executable block is published separately as exact normalized body bytes keyed by its
-stable declaration-surface locator. Its source-syntax provider
+Each pruned semantic body root—callable block or constant/static initializer expression—is
+published separately as exact normalized body bytes keyed by its stable declaration-surface
+locator. Its source-syntax provider
 contract lets callers choose direct or revisioned parsing without exposing either mechanism to
 package or discovery code. It does not resolve names or apply semantic rules.
 
@@ -54,8 +55,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - A consumer never infers subtree completeness from file-wide diagnostic presence.
 - Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.
 - Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.
-- Body edits and body-local diagnostics do not change the declaration-syntax surface; declaration
-  shape, body presence, and declaration-local diagnostics do.
+- Block and initializer edits and their body-local diagnostics do not change the
+  declaration-syntax surface; declaration shape, body presence, and declaration-local diagnostics
+  do.
 - Editing one body changes only that body's exact surface; unchanged sibling bodies retain equal
   locators and bytes.
 - A `BodySyntaxProjection` is a complete immutable locator table. The checking body-source catalog

@@ -120,9 +120,7 @@ impl CompileTimePlanTable {
             if !visited.insert(target.clone()) {
                 continue;
             }
-            let plan = self
-                .get(&target)
-                .ok_or(MissingCompileTimePlan { target })?;
+            let plan = self.get(&target).ok_or(MissingCompileTimePlan { target })?;
             constants.extend(plan.constant_dependencies().iter().copied());
             pending.extend(plan.call_dependencies().iter().cloned());
         }

@@ -22,7 +22,7 @@ interpret editor requests.
 ## Internal Responsibilities
 
 - content-addressed parse, declaration-surface, and module-surface queries
-- stable body-input collection from declaration surfaces
+- stable block-and-initializer body-input collection from declaration surfaces
 - atomic semantic-scope publication
 - private declaration, preparation, body, materialization, relation, finalization, and unit query
   graph
@@ -65,6 +65,9 @@ interpret editor requests.
 - A body query receives a sealed exact-body input that binds the demanded physical source identity
   and fingerprint to the declaration identity or lexical product that consumes it. The checking
   context cannot accept an unrelated source token as a procedural invalidation proof.
+- Declaration-surface pruning and exact-body publication share the syntax crate's complete semantic
+  body-root set. Adding a new semantic body form therefore cannot leave computation with an
+  unpublished per-body input while direct checking still succeeds.
 - The current checking context owns one immutable body-source catalog for its complete query graph.
   Per-body name and type queries select from that catalog, while final materialization shares the
   same catalog allocation; computation does not ask checking to rediscover body syntax per stage.
