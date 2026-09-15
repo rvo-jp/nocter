@@ -48,8 +48,8 @@ pub use path::ModulePath;
 pub use program::{
     AcceptedDeclarationProgram, BodyAnalysisDeclarationProgram, DeclarationAnalysisProgram,
     DeclarationGraph, DeclarationProgram, DeclarationProgramBuilder, DeclarationSite, Module,
-    Package, ProgramBuildError, ProgramBuildFailure, RejectedDeclarationAnalysis,
-    RejectedDeclarationProgram,
+    Package, PreparedDeclarationProgram, ProgramBuildError, ProgramBuildFailure,
+    RejectedDeclarationAnalysis, RejectedDeclarationProgram,
 };
 pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,

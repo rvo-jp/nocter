@@ -146,7 +146,11 @@ declaration construction. `ConstantDeclaration` and `StaticDeclaration` contain 
 metadata. `DeclarationProgram` owns only the validated graph and header-type authority; value-table
 shape and payload compatibility are validated separately. The public builder still publishes only
 an `AcceptedDeclarationProgram` that pairs both complete products, so no caller can treat metadata
-alone as accepted compilation input. Accepted programs and all declaration/name/body recovery
+alone as accepted compilation input. `DeclarationProgramBuilder::prepare` consumes every mutable
+declaration/type builder and produces a construction-only `PreparedDeclarationProgram`. That type
+can complete reserved constant and static value slots, but exposes no checking admission; its
+consuming finish transition validates the full value table and publishes the aggregate. Accepted
+programs and all declaration/name/body recovery
 branches carry the same immutable table beside their graph; editor presentation therefore does not
 need a fallback source interpreter or a value copied into presentation metadata. This separation
 is the construction seam for completing non-structural initializer values after ordinary checking

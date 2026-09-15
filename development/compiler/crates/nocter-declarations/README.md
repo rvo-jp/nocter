@@ -24,7 +24,10 @@ coordinates, or checking internals.
 
 ## Invariants
 
-- Builders reserve and define every identity exactly once before freeze.
+- Builders reserve and define every declaration identity exactly once before metadata freeze.
+  `PreparedDeclarationProgram` then owns the still-open value slots; it is a construction-only
+  capability and cannot cross into checking. Its consuming finish transition is the sole route to
+  an accepted or recovery aggregate with a complete value table.
 - Graph/type integrity and declaration-value integrity are validated independently. The public
   builder publishes only an accepted aggregate containing both complete authorities.
 - Namespace lookup consumes frozen tables rather than iterating declarations.

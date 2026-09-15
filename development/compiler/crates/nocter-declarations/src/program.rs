@@ -106,6 +106,20 @@ pub struct AcceptedDeclarationProgram {
     admission: DeclarationAnalysisAdmission,
 }
 
+/// Validated declaration metadata awaiting its complete initializer-value authority.
+///
+/// This is a construction capability, not checking input. It owns all still-open value slots and
+/// can publish only an accepted or explicit recovery aggregate after every slot is completed and
+/// validated against the frozen declaration types.
+#[derive(Debug)]
+pub struct PreparedDeclarationProgram {
+    program: DeclarationProgram,
+    values: crate::value_table::DeclarationValueTableBuilder,
+    report: crate::validate::DeclarationValidationReport,
+    admission: DeclarationAnalysisAdmission,
+    body_analysis: crate::validate::BodyAnalysisCapability,
+}
+
 impl DeclarationGraph {
     /// Creates a checking-only graph view with a deterministic body-symbol suffix.
     ///
@@ -757,6 +771,20 @@ impl DeclarationProgramBuilder {
         Ok(())
     }
 
+    /// Completes constant metadata while leaving its reserved value slot to the prepared-value
+    /// stage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is unknown or its metadata was already defined.
+    pub fn define_constant_metadata(
+        &mut self,
+        id: ConstantId,
+        declaration: ConstantDeclaration,
+    ) -> Result<(), DefinitionError> {
+        self.declarations.define_constant(id, declaration)
+    }
+
     /// Reserves one static identity whose metadata and value must later be defined together.
     pub fn reserve_static(&mut self) -> StaticId {
         let declaration = self.declarations.reserve_static();
@@ -779,6 +807,20 @@ impl DeclarationProgramBuilder {
         self.declarations.define_static(id, declaration)?;
         self.values.define_static(id, value)?;
         Ok(())
+    }
+
+    /// Completes static metadata while leaving its reserved value slot to the prepared-value
+    /// stage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is unknown or its metadata was already defined.
+    pub fn define_static_metadata(
+        &mut self,
+        id: StaticId,
+        declaration: StaticDeclaration,
+    ) -> Result<(), DefinitionError> {
+        self.declarations.define_static(id, declaration)
     }
 
     #[must_use]
@@ -830,65 +872,76 @@ impl DeclarationProgramBuilder {
     /// Returns the exact production build error and, only when the complete declaration report is
     /// nonempty, the structurally valid declaration program plus its frozen analysis facts.
     pub fn finish_recovering(self) -> Result<AcceptedDeclarationProgram, ProgramBuildFailure> {
-        let module_namespaces = self
-            .module_namespaces
-            .try_finish_with(|module, namespace| {
-                namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
-            })
-            .map_err(ProgramBuildFailure::Error)?;
-        let declarations = self
-            .declarations
-            .finish()
-            .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::Error)?;
-        let values = self
-            .values
-            .finish()
-            .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::Error)?;
+        self.prepare()
+            .map_err(ProgramBuildFailure::Error)?
+            .finish_recovering()
+    }
+
+    /// Freezes and validates graph/type metadata without requiring initializer values to be
+    /// complete yet.
+    ///
+    /// The returned construction capability cannot enter checking. Its consuming finish
+    /// transition is the only way to publish an accepted or recovery program.
+    ///
+    /// # Errors
+    ///
+    /// Returns a structural build or metadata-integrity error.
+    pub fn prepare(self) -> Result<PreparedDeclarationProgram, ProgramBuildError> {
+        let Self {
+            target,
+            symbols,
+            packages,
+            package_ids,
+            root_packages,
+            standard_library,
+            modules,
+            module_namespaces,
+            module_ids,
+            declaration_sites,
+            imports,
+            package_targets,
+            declarations,
+            values,
+            types,
+        } = self;
+        let module_namespaces = module_namespaces.try_finish_with(|module, namespace| {
+            namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
+        })?;
+        let declarations = declarations.finish().map_err(ProgramBuildError::from)?;
         let mut program = DeclarationProgram {
             graph: DeclarationGraph {
-                target: self.target,
-                symbols: self.symbols,
-                packages: self.packages.finish(),
-                package_ids: self.package_ids,
-                root_packages: self.root_packages.into_boxed_slice(),
-                standard_library: self.standard_library,
-                modules: self.modules.finish(),
-                module_ids: self.module_ids,
+                target,
+                symbols,
+                packages: packages.finish(),
+                package_ids,
+                root_packages: root_packages.into_boxed_slice(),
+                standard_library,
+                modules: modules.finish(),
+                module_ids,
                 module_namespaces,
-                declaration_sites: self.declaration_sites.finish(),
-                imports: self.imports.finish(),
-                package_targets: self.package_targets.finish(),
+                declaration_sites: declaration_sites.finish(),
+                imports: imports.finish(),
+                package_targets: package_targets.finish(),
                 declarations,
                 interface_capabilities: crate::InterfaceCapabilityGraph::default(),
             },
-            types: self.types.freeze(),
+            types: types.freeze(),
         };
         let interface_capabilities = crate::InterfaceCapabilityGraph::build(&program);
         program.graph.interface_capabilities = interface_capabilities;
         crate::validate::validate_integrity(&program)
             .map_err(ProgramValidationError::from)
-            .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::Error)?;
-        crate::validate::validate_values(&program, &values)
-            .map_err(ProgramValidationError::from)
-            .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::Error)?;
+            .map_err(ProgramBuildError::from)?;
         let validation = crate::validate::validate_language_rules(&program)
             .map_err(ProgramValidationError::from)
-            .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::Error)?;
+            .map_err(ProgramBuildError::from)?;
         let (report, admission, body_analysis) = validation.into_parts();
-        if !report.is_empty() {
-            return Err(ProgramBuildFailure::Rejected(Box::new(
-                RejectedDeclarationProgram::new(program, values, report, admission, body_analysis),
-            )));
-        }
-        Ok(AcceptedDeclarationProgram {
+        Ok(PreparedDeclarationProgram {
             program,
             values,
+            report,
             admission,
+            body_analysis,
         })
     }
 
@@ -909,6 +962,79 @@ impl DeclarationProgramBuilder {
         self.modules
             .get(module)
             .ok_or(ProgramBuildError::UnknownModule)
+    }
+}
+
+impl PreparedDeclarationProgram {
+    /// Completes one reserved constant value after declaration metadata has been frozen.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is unknown or already has a value.
+    pub fn define_constant_value(
+        &mut self,
+        id: ConstantId,
+        value: ConstantValue,
+    ) -> Result<(), DefinitionError> {
+        self.values.define_constant(id, value)
+    }
+
+    /// Completes one reserved immutable-static value after declaration metadata has been frozen.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is unknown or already has a value.
+    pub fn define_static_value(
+        &mut self,
+        id: StaticId,
+        value: FrozenValue,
+    ) -> Result<(), DefinitionError> {
+        self.values.define_static(id, value)
+    }
+
+    /// Publishes the complete accepted program without retaining authored recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an incomplete value authority, a value/type mismatch, or an authored declaration
+    /// rejection.
+    pub fn finish(self) -> Result<AcceptedDeclarationProgram, ProgramBuildError> {
+        self.finish_recovering()
+            .map_err(ProgramBuildFailure::into_error)
+    }
+
+    /// Publishes the complete accepted program or an authored-rule recovery aggregate.
+    ///
+    /// # Errors
+    ///
+    /// Returns incomplete or ill-typed value tables as structural errors. Authored metadata rules
+    /// return the same explicit rejected-program capability as the direct builder path.
+    pub fn finish_recovering(self) -> Result<AcceptedDeclarationProgram, ProgramBuildFailure> {
+        let values = self
+            .values
+            .finish()
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::Error)?;
+        crate::validate::validate_values(&self.program, &values)
+            .map_err(ProgramValidationError::from)
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::Error)?;
+        if !self.report.is_empty() {
+            return Err(ProgramBuildFailure::Rejected(Box::new(
+                RejectedDeclarationProgram::new(
+                    self.program,
+                    values,
+                    self.report,
+                    self.admission,
+                    self.body_analysis,
+                ),
+            )));
+        }
+        Ok(AcceptedDeclarationProgram {
+            program: self.program,
+            values,
+            admission: self.admission,
+        })
     }
 }
 
@@ -1204,8 +1330,8 @@ mod tests {
     use nocter_model::{BuiltinType, ConstantValue, PackageIdentity, SymbolTable, TypeKind};
 
     use crate::{
-        ConstantDeclaration, DeclarationProgramBuilder, DefinitionError, ModuleNamespace,
-        ModulePath, ProgramBuildError, Visibility,
+        ConstantDeclaration, DeclarationProgramBuilder, DeclarationValueTableError,
+        DefinitionError, ModuleNamespace, ModulePath, ProgramBuildError, Visibility,
     };
 
     #[test]
@@ -1408,6 +1534,88 @@ mod tests {
         );
 
         let program = builder.finish().unwrap();
+        assert_eq!(
+            program
+                .declarations()
+                .constants()
+                .get(constant)
+                .unwrap()
+                .ty(),
+            ty
+        );
+        assert_eq!(
+            program.values().constants().get(constant),
+            Some(&ConstantValue::Integer(42))
+        );
+    }
+
+    #[test]
+    fn prepared_program_requires_value_completion_before_publication() {
+        let symbols = SymbolTable::from_spellings(["app", "answer"]);
+        let app_name = symbols.get("app").unwrap();
+        let constant_name = symbols.get("answer").unwrap();
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let root = builder.add_module(app, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(root, ModuleNamespace::default())
+            .unwrap();
+        let site = builder
+            .add_declaration_site(root, Visibility::Private)
+            .unwrap();
+        let ty = builder.types().builtin(BuiltinType::I32);
+        let constant = builder.reserve_constant();
+        builder
+            .define_constant_metadata(
+                constant,
+                ConstantDeclaration::new(site, constant_name, ty, None),
+            )
+            .unwrap();
+
+        let prepared = builder.prepare().unwrap();
+        assert_eq!(
+            prepared.finish().unwrap_err(),
+            ProgramBuildError::InvalidValueTable(DeclarationValueTableError::MissingConstant(
+                constant
+            ))
+        );
+    }
+
+    #[test]
+    fn prepared_program_publishes_metadata_and_late_value_atomically() {
+        let symbols = SymbolTable::from_spellings(["app", "answer"]);
+        let app_name = symbols.get("app").unwrap();
+        let constant_name = symbols.get("answer").unwrap();
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let root = builder.add_module(app, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(root, ModuleNamespace::default())
+            .unwrap();
+        let site = builder
+            .add_declaration_site(root, Visibility::Private)
+            .unwrap();
+        let ty = builder.types().builtin(BuiltinType::I32);
+        let constant = builder.reserve_constant();
+        builder
+            .define_constant_metadata(
+                constant,
+                ConstantDeclaration::new(site, constant_name, ty, None),
+            )
+            .unwrap();
+
+        let mut prepared = builder.prepare().unwrap();
+        prepared
+            .define_constant_value(constant, ConstantValue::Integer(42))
+            .unwrap();
+        let program = prepared.finish().unwrap();
+
         assert_eq!(
             program
                 .declarations()
