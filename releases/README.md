@@ -6,13 +6,14 @@ boundaries without redefining those rules.
 
 ## Latest Published Release
 
-**Nocter v0.52.0** is the latest published release. It supports the `arm64-darwin` host and target.
+**Nocter v0.53.0** is the latest published release. It supports the `arm64-darwin` host and target.
 
-- [Read the v0.52.0 release notes](v0.52.0.md)
-- [Download v0.52.0 from GitHub Releases](https://github.com/rvo-jp/nocter/releases/tag/v0.52.0)
+- [Read the v0.53.0 release notes](v0.53.0.md)
+- [Download v0.53.0 from GitHub Releases](https://github.com/rvo-jp/nocter/releases/tag/v0.53.0)
 
 ## Previous Releases
 
+- [Nocter v0.52.0](v0.52.0.md)
 - [Nocter v0.51.0](v0.51.0.md)
 - [Nocter v0.50.0](v0.50.0.md)
 - [Nocter v0.49.0](v0.49.0.md)

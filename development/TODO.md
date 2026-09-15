@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.53.0 is a qualified release candidate. The exact release-content commit passed the
-whole-repository compiler gate, deterministic two-build packaging, and fresh installed-home
-qualification. The retained archive and measured identities are recorded in the release-preparation
+Nocter v0.52.0 is published and externally audited. The v0.53.0 Structured Services and Streaming
+Codecs candidate is complete and qualified, publication is authorized, and public metadata now
+selects v0.53.0. The retained archive and measured identities are recorded in the release-preparation
 record. The completed implementation scope lives in
 [`development/history/milestones/v0.53.0.md`](history/milestones/v0.53.0.md).
 
 ## Next Work
 
-Await explicit publication authorization. Publication must reuse the retained qualified archive
-without rebuilding it, then update published-version surfaces and record an immutable release
-audit. Do not tag, upload, or publish before that authorization.
+Commit this publication metadata, create annotated tag `v0.53.0`, fast-forward `main`, upload the
+retained qualified archive as the release's single asset, and verify the public tag, release asset,
+latest-release endpoint, downloaded archive, installed identity, and source-identified Pages
+deployment. Do not rebuild or replace the qualified archive.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

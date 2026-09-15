@@ -351,4 +351,5 @@ remains the allocating convenience that collects all arguments.
 
 This contract does not add `PATH` search, shell parsing, caller-provided descriptors, merged output,
 capture or input size limits, process groups, terminal control, arbitrary signals, or another
-target. Process timeouts remain later v0.49.0 work.
+target. Callers may apply the structured timeout operations from `std/task` to asynchronous process
+computations without changing process ownership or observation rules.
