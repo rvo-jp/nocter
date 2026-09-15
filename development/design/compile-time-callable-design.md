@@ -156,6 +156,13 @@ need a fallback source interpreter or a value copied into presentation metadata.
 is the construction seam for completing non-structural initializer values after ordinary checking
 without introducing optional values into declaration metadata.
 
+Constant and immutable-static declarations also own an explicit expression-form `BodyId`. The
+frontend projection binds that identity to one expression root, while callable, destruction, and
+test bodies retain block form. Name resolution and typed expression checking consume the shared
+body-source contract, so initializer calls will use the ordinary checker's selected dispatch and
+generic arguments. Declaration integrity validates the owner/form relation in both directions;
+later compile-time projection never has to find an initializer by walking declaration syntax.
+
 Header construction assigns every distinct fixed-array length expression a dense
 `ConstantExpressionId`. One heterogeneous query then resolves constant values, array lengths, and
 immutable static values. A static requests the identities required by its recursive frozen type;

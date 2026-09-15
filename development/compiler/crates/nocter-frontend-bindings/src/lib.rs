@@ -253,7 +253,7 @@ impl AssociatedProjectionUse {
 #[derive(Clone, Debug, Default)]
 pub struct FrontendBindings {
     module_sources: BTreeMap<ModuleId, Box<[SourceId]>>,
-    body_blocks: BTreeMap<BodyId, Box<[NodeId]>>,
+    body_roots: BTreeMap<BodyId, Box<[NodeId]>>,
     parameter_declarations: BTreeMap<ParameterId, Box<[SyntaxToken]>>,
     declarations: HashMap<SyntaxToken, Box<[FrontendDeclaration]>>,
     associated_projection_uses: Box<[AssociatedProjectionUse]>,
@@ -269,8 +269,8 @@ impl FrontendBindings {
     }
 
     #[must_use]
-    pub fn body_blocks(&self, body: BodyId) -> &[NodeId] {
-        self.body_blocks.get(&body).map_or(&[], AsRef::as_ref)
+    pub fn body_roots(&self, body: BodyId) -> &[NodeId] {
+        self.body_roots.get(&body).map_or(&[], AsRef::as_ref)
     }
 
     #[must_use]
@@ -329,7 +329,7 @@ impl FrontendBindings {
 #[derive(Debug, Default)]
 pub struct FrontendBindingsBuilder {
     module_sources: BTreeMap<ModuleId, Vec<SourceId>>,
-    body_blocks: BTreeMap<BodyId, Vec<NodeId>>,
+    body_roots: BTreeMap<BodyId, Vec<NodeId>>,
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
@@ -365,8 +365,8 @@ impl FrontendBindingsBuilder {
         Ok(())
     }
 
-    pub fn add_body_block(&mut self, body: BodyId, block: NodeId) {
-        self.body_blocks.entry(body).or_default().push(block);
+    pub fn add_body_root(&mut self, body: BodyId, root: NodeId) {
+        self.body_roots.entry(body).or_default().push(root);
     }
 
     pub fn add_parameter_declaration(&mut self, parameter: ParameterId, token: SyntaxToken) {
@@ -486,8 +486,8 @@ impl FrontendBindingsBuilder {
                     (module, sources.into_boxed_slice())
                 })
                 .collect(),
-            body_blocks: self
-                .body_blocks
+            body_roots: self
+                .body_roots
                 .into_iter()
                 .map(|(body, blocks)| (body, blocks.into_boxed_slice()))
                 .collect(),

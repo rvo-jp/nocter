@@ -3,8 +3,8 @@ use std::{collections::HashSet, fmt, hash::Hash};
 use nocter_model::{CallableCapability, GenericParameterId, ModuleId, Symbol, TypeId};
 
 use crate::{
-    BodyOwner, CallableKind, CallableOwner, DeclarationProgram, GenericOwner, ParameterOwner,
-    ParameterRole, Visibility,
+    BodyForm, BodyOwner, CallableKind, CallableOwner, DeclarationProgram, GenericOwner,
+    ParameterOwner, ParameterRole, Visibility,
 };
 
 mod attachment_rules;
@@ -123,6 +123,7 @@ pub(crate) fn validate_integrity(
     graph::validate_standard_declarations(program)?;
     types::validate_nominal_types(program)?;
     types::validate_aliases_interfaces(program)?;
+    validate_compile_time_values(program)?;
     callables::validate(program)?;
     validate_constructions_instances_interface_implementations(program)?;
     validate_drops_tests(program)?;
@@ -135,6 +136,41 @@ pub(crate) fn validate_integrity(
     graph::validate_namespaces(program)?;
     graph::validate_imports(program)?;
     graph::validate_package_targets(program)?;
+    Ok(())
+}
+
+fn validate_compile_time_values(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+    let declarations = program.declarations();
+    for (id, constant) in declarations.constants().iter() {
+        require_site(program, constant.site(), DeclarationDomain::Constant)?;
+        require_symbol(program, constant.name(), DeclarationDomain::Constant)?;
+        require_type(program, constant.ty(), DeclarationDomain::Constant)?;
+        let body = require(
+            declarations.bodies().get(constant.initializer()),
+            DeclarationDomain::Constant,
+            DeclarationDomain::Body,
+        )?;
+        if body.owner() != BodyOwner::Constant(id) || body.form() != BodyForm::Expression {
+            return Err(ProgramIntegrityError::OwnerMismatch(
+                DeclarationDomain::Constant,
+            ));
+        }
+    }
+    for (id, static_value) in declarations.statics().iter() {
+        require_site(program, static_value.site(), DeclarationDomain::Static)?;
+        require_symbol(program, static_value.name(), DeclarationDomain::Static)?;
+        require_type(program, static_value.ty(), DeclarationDomain::Static)?;
+        let body = require(
+            declarations.bodies().get(static_value.initializer()),
+            DeclarationDomain::Static,
+            DeclarationDomain::Body,
+        )?;
+        if body.owner() != BodyOwner::Static(id) || body.form() != BodyForm::Expression {
+            return Err(ProgramIntegrityError::OwnerMismatch(
+                DeclarationDomain::Static,
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -466,15 +502,23 @@ fn validate_bodies(program: &DeclarationProgram) -> Result<(), ProgramIntegrityE
             BodyOwner::Callable(owner) => declarations
                 .callables()
                 .get(owner)
-                .is_some_and(|owner| owner.body() == Some(id)),
+                .is_some_and(|owner| owner.body() == Some(id) && body.form() == BodyForm::Block),
+            BodyOwner::Constant(owner) => {
+                declarations.constants().get(owner).is_some_and(|owner| {
+                    owner.initializer() == id && body.form() == BodyForm::Expression
+                })
+            }
+            BodyOwner::Static(owner) => declarations.statics().get(owner).is_some_and(|owner| {
+                owner.initializer() == id && body.form() == BodyForm::Expression
+            }),
             BodyOwner::Drop(owner) => declarations
                 .drops()
                 .get(owner)
-                .is_some_and(|owner| owner.body() == id),
+                .is_some_and(|owner| owner.body() == id && body.form() == BodyForm::Block),
             BodyOwner::Test(owner) => declarations
                 .tests()
                 .get(owner)
-                .is_some_and(|owner| owner.body() == id),
+                .is_some_and(|owner| owner.body() == id && body.form() == BodyForm::Block),
         };
         if !reciprocal {
             return Err(ProgramIntegrityError::OwnerMismatch(

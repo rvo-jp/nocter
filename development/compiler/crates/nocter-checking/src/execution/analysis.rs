@@ -85,7 +85,7 @@ fn collect_facts(
         let root = match declaration.owner() {
             BodyOwner::Callable(callable) => Some(Root::Callable(callable)),
             BodyOwner::Drop(drop) => Some(Root::Drop(drop)),
-            BodyOwner::Test(_) => None,
+            BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Test(_) => None,
         };
         if let Some(root) = root {
             let mut root_facts =

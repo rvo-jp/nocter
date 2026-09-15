@@ -3,7 +3,7 @@ use nocter_syntax::NodeKind;
 
 use crate::{PreparedTypes, SurfaceDeclarationId};
 
-use super::super::{HeaderDefinitionError, projection, syntax};
+use super::super::{HeaderDefinitionError, allocation::AllocatedHeaders, projection, syntax};
 use super::{name, site, target};
 
 /// Freezes metadata selected by the header-constant pass before initializer values are attached.
@@ -11,7 +11,10 @@ use super::{name, site, target};
 /// Initializer syntax is intentionally unavailable here: fixed-array normalization and ordinary
 /// value use must consume the exact same already-evaluated authority. Value completion belongs to
 /// the later consuming program transition, not declaration definition.
-pub(super) fn define_all(types: &mut PreparedTypes<'_>) -> Result<(), HeaderDefinitionError> {
+pub(super) fn define_all(
+    types: &mut PreparedTypes<'_>,
+    allocated: &AllocatedHeaders,
+) -> Result<(), HeaderDefinitionError> {
     let mut values = types
         .constant_values
         .iter()
@@ -25,6 +28,8 @@ pub(super) fn define_all(types: &mut PreparedTypes<'_>) -> Result<(), HeaderDefi
             site(types, declaration)?,
             name(types, declaration)?,
             ty,
+            allocated.bodies[declaration.index()]
+                .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?,
             target::gate(types, declaration),
         );
         let program = &mut types.namespaces.imports.generics.headers.reserved.program;

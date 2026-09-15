@@ -111,7 +111,7 @@ impl BodyChecker<'_, '_> {
             .declarations()
             .nominal_types()
             .get(definition)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         Ok(NominalConstructionOwner {
             definition,
             arguments: NominalOwnerArguments::Inferred(
@@ -886,7 +886,7 @@ impl BodyChecker<'_, '_> {
             let declaration = declarations
                 .generic_parameters()
                 .get(parameter)
-                .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+                .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
             if declaration.name() == name {
                 return Ok(Some(parameter));
             }
@@ -903,24 +903,24 @@ impl BodyChecker<'_, '_> {
                 let callable = declarations
                     .callables()
                     .get(callable)
-                    .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
                 let owner = match callable.owner() {
                     CallableOwner::Module(_) => &[][..],
                     CallableOwner::Construction(owner) => declarations
                         .constructions()
                         .get(owner)
                         .map(nocter_declarations::ConstructionDeclaration::generic_parameters)
-                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?,
+                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?,
                     CallableOwner::Instance(owner) => declarations
                         .instances()
                         .get(owner)
                         .map(nocter_declarations::InstanceDeclaration::generic_parameters)
-                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?,
+                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?,
                     CallableOwner::Interface(owner) => declarations
                         .interfaces()
                         .get(owner)
                         .map(nocter_declarations::InterfaceDeclaration::generic_parameters)
-                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?,
+                        .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?,
                 };
                 Ok(owner
                     .iter()
@@ -932,8 +932,8 @@ impl BodyChecker<'_, '_> {
                 .drops()
                 .get(drop)
                 .map(|drop| drop.generic_parameters().to_vec())
-                .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block())),
-            BodyOwner::Test(_) => Ok(Vec::new()),
+                .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root())),
+            BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Test(_) => Ok(Vec::new()),
         }
     }
 
@@ -978,7 +978,7 @@ impl BodyChecker<'_, '_> {
                     .map(nocter_declarations::DropDeclaration::target),
                 Some(SemanticEntity::Drop(drop)),
             ),
-            BodyOwner::Test(_) => (None, None),
+            BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Test(_) => (None, None),
         };
         let Some(ty) = ty else {
             return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -996,7 +996,7 @@ impl BodyChecker<'_, '_> {
         self.graph
             .symbols()
             .get(self.token_text(token)?)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))
+            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))
     }
 
     pub(super) fn project_exported(
@@ -1023,7 +1023,7 @@ impl BodyChecker<'_, '_> {
         entity: SemanticEntity,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.projections
             .push(super::NodeProjection::new(entity, origin));
         Ok(())

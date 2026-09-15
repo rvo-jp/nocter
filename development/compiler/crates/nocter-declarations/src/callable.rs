@@ -1,9 +1,9 @@
 use std::fmt;
 
 use nocter_model::{
-    ArgumentPackType, BodyId, CallableCapability, CallableId, CompilationTarget, ConstructionId,
-    DeclarationSiteId, DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId,
-    RequirementId, Symbol, TestId, TypeId, VariantId,
+    ArgumentPackType, BodyId, CallableCapability, CallableId, CompilationTarget, ConstantId,
+    ConstructionId, DeclarationSiteId, DropId, GenericParameterId, InstanceId, InterfaceId,
+    ModuleId, ParameterId, RequirementId, StaticId, Symbol, TestId, TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -404,23 +404,48 @@ impl Parameter {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum BodyOwner {
     Callable(CallableId),
+    Constant(ConstantId),
+    Static(StaticId),
     Drop(DropId),
     Test(TestId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BodyForm {
+    Block,
+    Expression,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Body {
     owner: BodyOwner,
+    form: BodyForm,
 }
 
 impl Body {
     #[must_use]
-    pub const fn new(owner: BodyOwner) -> Self {
-        Self { owner }
+    pub const fn block(owner: BodyOwner) -> Self {
+        Self {
+            owner,
+            form: BodyForm::Block,
+        }
+    }
+
+    #[must_use]
+    pub const fn expression(owner: BodyOwner) -> Self {
+        Self {
+            owner,
+            form: BodyForm::Expression,
+        }
     }
 
     #[must_use]
     pub const fn owner(self) -> BodyOwner {
         self.owner
+    }
+
+    #[must_use]
+    pub const fn form(self) -> BodyForm {
+        self.form
     }
 }

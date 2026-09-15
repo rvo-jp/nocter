@@ -86,7 +86,7 @@ impl BodyChecker<'_, '_> {
             .declarations()
             .nominal_types()
             .get(definition)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.block()))?
+            .ok_or(BodyCheckInternalError::InvalidSyntax(self.source.root()))?
             .requirements()
             .to_vec();
         self.requirements_hold(&requirements, substitution)

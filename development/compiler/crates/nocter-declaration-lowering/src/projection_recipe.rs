@@ -53,7 +53,7 @@ enum ProjectionOperation {
     },
     Body {
         body: BodyId,
-        block: SurfaceOrigin,
+        root: SurfaceOrigin,
         role: SourceRole,
         origin: SurfaceOrigin,
     },
@@ -163,14 +163,14 @@ impl FrontendProjectionRecipe {
             .operations
             .iter()
             .filter_map(|operation| {
-                let ProjectionOperation::Body { body, block, .. } = operation else {
+                let ProjectionOperation::Body { body, root, .. } = operation else {
                     return None;
                 };
-                let source = self.sources.get(block.source.index())?;
+                let source = self.sources.get(root.source.index())?;
                 Some(ReusableBodyIdentity {
                     body: *body,
                     canonical_path: source.canonical_path.clone(),
-                    locator: block.syntax,
+                    locator: root.syntax,
                 })
             })
             .collect::<Vec<_>>();
@@ -225,17 +225,17 @@ impl FrontendProjectionRecipe {
                 }
                 ProjectionOperation::Body {
                     body,
-                    block,
+                    root,
                     role,
                     origin,
                 } => {
-                    let block = match domain.syntax(*block)? {
+                    let root = match domain.syntax(*root)? {
                         SyntaxOrigin::Node(node) => node,
                         SyntaxOrigin::Token(_) => {
                             return Err(ProjectionRecipeError::ExpectedNode);
                         }
                     };
-                    bindings.add_body_block(*body, block);
+                    bindings.add_body_root(*body, root);
                     index.insert(
                         SemanticEntity::Body(*body),
                         *role,
@@ -475,15 +475,15 @@ impl ProjectionRecipeBuilder {
     pub(crate) fn body(
         &mut self,
         body: BodyId,
-        block: nocter_syntax::NodeId,
+        root: nocter_syntax::NodeId,
         role: SourceRole,
         origin: SourceOrigin,
     ) -> Result<(), ProjectionRecipeError> {
-        let block = self.origin(SyntaxOrigin::Node(block))?;
+        let root = self.origin(SyntaxOrigin::Node(root))?;
         let origin = self.source_origin(origin)?;
         self.operations.push(ProjectionOperation::Body {
             body,
-            block,
+            root,
             role,
             origin,
         });

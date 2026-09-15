@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::{BodyOwner, DeclarationGraph, ExportedEntity};
+use nocter_declarations::{BodyForm, BodyOwner, DeclarationGraph, ExportedEntity};
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{
     ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
@@ -124,17 +124,22 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
 
     fn resolve_active(&mut self) -> Result<(), NameResolutionError> {
         let root_scope = self.push_scope(None);
-        self.record_block_scope(self.source.block(), root_scope)?;
+        if self.source.form() == BodyForm::Block {
+            self.record_block_scope(self.source.root(), root_scope)?;
+        }
         self.callable_boundaries.push(0);
         self.seed_parameters()?;
         let mut actions = Vec::new();
         actions.push(Action::ExitClosure {
             outer_scope_count: 0,
         });
-        self.schedule_block_contents(self.source.block(), &mut actions)?;
+        match self.source.form() {
+            BodyForm::Block => self.schedule_block_contents(self.source.root(), &mut actions)?,
+            BodyForm::Expression => actions.push(Action::Visit(self.source.root())),
+        }
         self.run(actions)?;
         if !self.active.is_empty() || !self.callable_boundaries.is_empty() {
-            return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.block()).into());
+            return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.root()).into());
         }
         Ok(())
     }
@@ -176,7 +181,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 }
                 Action::ExitScope => {
                     self.active.pop().ok_or_else(|| {
-                        NameResolutionInternalError::InvalidSyntaxNode(self.source.block())
+                        NameResolutionInternalError::InvalidSyntaxNode(self.source.root())
                     })?;
                 }
                 Action::Declare(introduction) => self.declare_local(introduction)?,
@@ -727,7 +732,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                     ))?
                     .receiver(),
             ],
-            BodyOwner::Test(_) => Vec::new(),
+            BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Test(_) => Vec::new(),
         };
         for parameter in parameters {
             let declaration = declarations.parameters().get(parameter).copied().ok_or(
@@ -754,14 +759,14 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         let origin = self.origin(introduction.token)?;
         self.check_collision(name, origin, false)?;
         let scope = self.active.last().map(|scope| scope.id).ok_or(
-            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.root()),
         )?;
         let id = self
             .locals
             .insert(LocalBinding::new(name, scope, introduction.kind));
         let origin_id = self.local_origins.insert(origin.syntax());
         if origin_id != id {
-            return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.block()).into());
+            return Err(NameResolutionInternalError::InvalidSyntaxNode(self.source.root()).into());
         }
         self.current_names_mut()?.insert(
             name,
@@ -805,7 +810,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     ) -> Result<(), NameResolutionError> {
         self.check_collision(name, origin, capture_collision)?;
         let scope = self.active.last().map(|scope| scope.id).ok_or(
-            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.root()),
         )?;
         self.current_names_mut()?.insert(
             name,
@@ -827,7 +832,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         self.scopes
             .get_mut(scope)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(
-                self.source.block(),
+                self.source.root(),
             ))?
             .add_binding(ScopeBinding::new(name, target));
         Ok(())
@@ -877,7 +882,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             return Ok(());
         }
         let boundary = *self.callable_boundaries.last().ok_or(
-            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.root()),
         )?;
         if let Some(binding) = self.lookup_scopes_before(name, boundary) {
             if binding.target.is_callable_binding() {
@@ -1068,7 +1073,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         &mut self,
     ) -> Result<&mut BTreeMap<Symbol, ActiveBinding>, NameResolutionInternalError> {
         self.active.last_mut().map(|scope| &mut scope.names).ok_or(
-            NameResolutionInternalError::InvalidSyntaxNode(self.source.block()),
+            NameResolutionInternalError::InvalidSyntaxNode(self.source.root()),
         )
     }
 
@@ -1158,5 +1163,5 @@ fn descendant(
 }
 
 const fn node_for_error(source: BodySource<'_>) -> NodeId {
-    source.block()
+    source.root()
 }

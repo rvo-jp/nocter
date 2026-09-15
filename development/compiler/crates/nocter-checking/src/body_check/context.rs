@@ -59,6 +59,24 @@ pub(super) fn body_contract(
                 }
             })
             .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
+        BodyOwner::Constant(constant) => graph
+            .declarations()
+            .constants()
+            .get(constant)
+            .map(|declaration| BodyContract {
+                result: declaration.ty(),
+                execution: BodyExecution::Immediate,
+            })
+            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
+        BodyOwner::Static(static_value) => graph
+            .declarations()
+            .statics()
+            .get(static_value)
+            .map(|declaration| BodyContract {
+                result: declaration.ty(),
+                execution: BodyExecution::Immediate,
+            })
+            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
         BodyOwner::Drop(_) => Ok(BodyContract {
             result: types.builtin(BuiltinType::Void),
             execution: BodyExecution::Immediate,

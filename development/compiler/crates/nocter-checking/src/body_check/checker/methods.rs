@@ -229,7 +229,7 @@ impl BodyChecker<'_, '_> {
             ReceiverDraft::Value { value, ty } => {
                 let preparation = match (capability, self.types.get(ty)) {
                     (CallableCapability::Owned, Some(TypeKind::Borrow { .. })) => {
-                        return Err(self.rule(BodyRule::InvalidCall, self.source.block())?);
+                        return Err(self.rule(BodyRule::InvalidCall, self.source.root())?);
                     }
                     (CallableCapability::Owned, Some(_)) => ReceiverPreparation::Owned,
                     (
@@ -254,7 +254,7 @@ impl BodyChecker<'_, '_> {
                         }),
                     ) => ReceiverPreparation::PreserveBorrow(BorrowCapability::ReadWrite),
                     (CallableCapability::ReadWrite, Some(TypeKind::Borrow { .. })) => {
-                        return Err(self.rule(BodyRule::InvalidCall, self.source.block())?);
+                        return Err(self.rule(BodyRule::InvalidCall, self.source.root())?);
                     }
                     (CallableCapability::Readonly, Some(_)) => {
                         ReceiverPreparation::BorrowTemporary(BorrowCapability::Readonly)
@@ -360,7 +360,7 @@ impl BodyChecker<'_, '_> {
         callable: nocter_model::CallableId,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.projections.push(super::NodeProjection::new(
             SemanticEntity::Callable(callable),
             origin,
@@ -376,7 +376,7 @@ impl BodyChecker<'_, '_> {
         owned: bool,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.record_member_interruption_origin(origin, receiver, available, owned);
         Ok(())
     }

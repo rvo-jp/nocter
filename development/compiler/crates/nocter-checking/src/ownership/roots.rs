@@ -31,7 +31,7 @@ pub(crate) fn initialized_body_roots(
             .drops()
             .get(drop)
             .map(|declaration| vec![PlaceRoot::Parameter(declaration.receiver())]),
-        BodyOwner::Test(_) => Some(Vec::new()),
+        BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Test(_) => Some(Vec::new()),
     }
 }
 
@@ -70,6 +70,8 @@ pub(crate) fn owned_body_roots(
             }
             Some(roots)
         }
-        BodyOwner::Drop(_) | BodyOwner::Test(_) => Some(Vec::new()),
+        BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Drop(_) | BodyOwner::Test(_) => {
+            Some(Vec::new())
+        }
     }
 }

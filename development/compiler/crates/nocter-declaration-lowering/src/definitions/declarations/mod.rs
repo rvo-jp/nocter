@@ -28,8 +28,8 @@ pub(super) fn define(
     types: &mut PreparedTypes<'_>,
     allocated: &mut AllocatedHeaders,
 ) -> Result<(), HeaderDefinitionError> {
-    constant::define_all(types)?;
-    static_value::define_all(types)?;
+    constant::define_all(types, allocated)?;
+    static_value::define_all(types, allocated)?;
     for index in 0..surface_count(types) {
         let declaration = SurfaceDeclarationId::from_index(index);
         if representative(types, declaration) != declaration {

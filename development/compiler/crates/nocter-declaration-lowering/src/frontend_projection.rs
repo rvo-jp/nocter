@@ -79,12 +79,12 @@ impl FrontendProjectionBuilder {
     pub(crate) fn insert_body(
         &mut self,
         body: BodyId,
-        block: NodeId,
+        root: NodeId,
         role: SourceRole,
         origin: SourceOrigin,
     ) {
         self.binding_count += 1;
-        let result = self.recipe.body(body, block, role, origin);
+        let result = self.recipe.body(body, root, role, origin);
         self.retain(result);
     }
 

@@ -379,7 +379,7 @@ impl BodyChecker<'_, '_> {
                 ParameterRole::Ordinary { .. }
                 | ParameterRole::ArgumentPack { .. }
                 | ParameterRole::Receiver(_) => {
-                    return Err(BodyCheckInternalError::InvalidSyntax(self.source.block()).into());
+                    return Err(BodyCheckInternalError::InvalidSyntax(self.source.root()).into());
                 }
             }
         }

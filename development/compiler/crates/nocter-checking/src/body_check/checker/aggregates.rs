@@ -254,7 +254,7 @@ impl BodyChecker<'_, '_> {
         field: nocter_model::FieldId,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.projections
             .push(NodeProjection::new(SemanticEntity::Field(field), origin));
         Ok(())

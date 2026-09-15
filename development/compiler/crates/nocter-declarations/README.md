@@ -18,6 +18,8 @@ coordinates, or checking internals.
 - one identity-indexed declaration-value table separate from constant and static metadata
 - module, import, and prelude namespaces
 - callable execution, guarantees, provenance, constant, and requirement contracts
+- explicit block or expression body forms, with constant and static initializers represented by
+  ordinary semantic body identities rather than embedded syntax
 - canonical interface dependency paths, `Self`-inheritance closure, and effective member identities
 - visibility and path contracts
 - accepted/recovery admission shapes
@@ -38,6 +40,9 @@ coordinates, or checking internals.
 - `DeclarationProgram` contains graph/type metadata only. Declaration records never embed
   evaluated constant or static payloads. Every accepted, rejected, and checking branch carries the
   same immutable value table beside that program.
+- Every constant and immutable static owns exactly one expression-form body. Every callable,
+  destruction, and test implementation owns a block-form body. Integrity validation proves both
+  directions of each relationship before the graph can leave construction.
 - An accepted immutable program may create owned checking branches without rebuilding declaration
   decisions; every branch preserves semantic IDs and the type-authority lineage.
 - Interface prerequisite cycles and effective member collisions cannot cross the accepted-program

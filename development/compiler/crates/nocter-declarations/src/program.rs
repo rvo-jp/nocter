@@ -1330,8 +1330,9 @@ mod tests {
     use nocter_model::{BuiltinType, ConstantValue, PackageIdentity, SymbolTable, TypeKind};
 
     use crate::{
-        ConstantDeclaration, DeclarationProgramBuilder, DeclarationValueTableError,
-        DefinitionError, ModuleNamespace, ModulePath, ProgramBuildError, Visibility,
+        Body, BodyOwner, ConstantDeclaration, DeclarationProgramBuilder,
+        DeclarationValueTableError, DefinitionError, ModuleNamespace, ModulePath,
+        ProgramBuildError, Visibility,
     };
 
     #[test]
@@ -1514,10 +1515,13 @@ mod tests {
             .unwrap();
         let ty = builder.types().builtin(BuiltinType::I32);
         let constant = builder.reserve_constant();
+        let initializer = builder
+            .declarations_mut()
+            .add_body(Body::expression(BodyOwner::Constant(constant)));
         builder
             .define_constant(
                 constant,
-                ConstantDeclaration::new(site, constant_name, ty, None),
+                ConstantDeclaration::new(site, constant_name, ty, initializer, None),
                 ConstantValue::Integer(42),
             )
             .unwrap();
@@ -1526,7 +1530,7 @@ mod tests {
             builder
                 .define_constant(
                     constant,
-                    ConstantDeclaration::new(site, constant_name, ty, None),
+                    ConstantDeclaration::new(site, constant_name, ty, initializer, None),
                     ConstantValue::Integer(7),
                 )
                 .unwrap_err(),
@@ -1568,10 +1572,13 @@ mod tests {
             .unwrap();
         let ty = builder.types().builtin(BuiltinType::I32);
         let constant = builder.reserve_constant();
+        let initializer = builder
+            .declarations_mut()
+            .add_body(Body::expression(BodyOwner::Constant(constant)));
         builder
             .define_constant_metadata(
                 constant,
-                ConstantDeclaration::new(site, constant_name, ty, None),
+                ConstantDeclaration::new(site, constant_name, ty, initializer, None),
             )
             .unwrap();
 
@@ -1603,10 +1610,13 @@ mod tests {
             .unwrap();
         let ty = builder.types().builtin(BuiltinType::I32);
         let constant = builder.reserve_constant();
+        let initializer = builder
+            .declarations_mut()
+            .add_body(Body::expression(BodyOwner::Constant(constant)));
         builder
             .define_constant_metadata(
                 constant,
-                ConstantDeclaration::new(site, constant_name, ty, None),
+                ConstantDeclaration::new(site, constant_name, ty, initializer, None),
             )
             .unwrap();
 

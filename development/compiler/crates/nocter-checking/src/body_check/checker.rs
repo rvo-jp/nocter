@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::{DeclarationGraph, DeclarationValueTable};
+use nocter_declarations::{BodyForm, DeclarationGraph, DeclarationValueTable};
 use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair};
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
@@ -336,11 +336,21 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
 
     pub(super) fn check(mut self) -> Result<CheckedBodyDraft, BodyConstructionFailure> {
         let checked = (|| {
-            let root = self.check_block(self.source.block(), BlockExpectation::Callable)?;
+            let root = match self.source.form() {
+                BodyForm::Block => {
+                    self.check_block(self.source.root(), BlockExpectation::Callable)?
+                }
+                BodyForm::Expression => {
+                    self.check_expression(self.source.root(), Some(self.result_type))?
+                }
+            };
             if self.consumed_uses.len() != self.names.uses().len() {
                 return Err(BodyCheckInternalError::UnconsumedNameUses(self.source.body()).into());
             }
-            let opaque_witness = self.finish_opaque_witness(self.source.block())?;
+            let opaque_witness = match self.source.form() {
+                BodyForm::Block => self.finish_opaque_witness(self.source.root())?,
+                BodyForm::Expression => None,
+            };
             Ok::<_, BodyCheckError>((root, opaque_witness))
         })();
         let (root, opaque_witness) = checked
@@ -1236,7 +1246,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         token: SyntaxToken,
     ) -> Result<BodyCheckError, BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         Ok(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
     }
 
@@ -1266,7 +1276,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
 
     fn token_text(&self, token: SyntaxToken) -> Result<&str, BodyCheckInternalError> {
         token_text(self.input.sources(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))
     }
 
     const fn tree(&self) -> &'syntax nocter_syntax::SyntaxTree {

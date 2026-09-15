@@ -20,7 +20,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - program-wide preparation and standard semantic roles
 - lexical name evidence and body scopes
 - source-neutral lexical recipes with current body-local locator and spelling rebinding
-- one current-generation body-source catalog that owns each body-local locator projection
+- one current-generation body-source catalog that owns each block or initializer-expression root
+  and its body-local locator projection
 - body-local structural type-extension recipes independent of sibling allocation order
 - source-neutral checked-body and source-evidence recipes with canonical current replay
 - type checking, inference, operations, construction, and calls
@@ -55,6 +56,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   the semantic authority.
 - Type and copyability authority cannot be paired across generations.
 - A body transaction commits all semantic mutations together or is discarded/frozen as one branch.
+- Constant and immutable-static initializers enter lexical resolution and typed expression
+  checking through the same semantic-body contract as executable blocks. Their expression form,
+  result type, declaration owner, and source root are fixed upstream and mutually validated; the
+  checker does not rediscover initializer meaning from declaration syntax.
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.

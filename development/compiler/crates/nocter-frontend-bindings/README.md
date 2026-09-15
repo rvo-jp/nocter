@@ -20,3 +20,6 @@ name, path, or source location.
   step may discard a conflicting producer.
 - Named builtin fallback and standard roles remain distinct authorities.
 - Source projection is not an input to role selection.
+- Body projection records one syntax root per semantic body identity. The declaration-owned body
+  form determines whether that root must be a block or an expression; callers never infer the form
+  from syntax or assume that every body is a block.

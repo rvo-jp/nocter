@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_compile_input::{CompileUnitInput, SyntaxTreeHandle};
-use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_declarations::{BodyForm, BodyOwner, DeclarationGraph};
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{Arena, ArenaBuilder, BodyId, DeclarationSiteId, ModuleId};
 use nocter_source::SourceId;
@@ -16,9 +16,10 @@ use nocter_syntax::{BodySyntaxProjection, NodeId, NodeKind, SyntaxTree};
 pub struct BodySource<'syntax> {
     body: BodyId,
     owner: BodyOwner,
+    form: BodyForm,
     module: ModuleId,
     syntax: &'syntax SyntaxTree,
-    block: NodeId,
+    root: NodeId,
 }
 
 impl<'syntax> BodySource<'syntax> {
@@ -33,6 +34,11 @@ impl<'syntax> BodySource<'syntax> {
     }
 
     #[must_use]
+    pub const fn form(self) -> BodyForm {
+        self.form
+    }
+
+    #[must_use]
     pub const fn module(self) -> ModuleId {
         self.module
     }
@@ -43,8 +49,8 @@ impl<'syntax> BodySource<'syntax> {
     }
 
     #[must_use]
-    pub const fn block(self) -> NodeId {
-        self.block
+    pub const fn root(self) -> NodeId {
+        self.root
     }
 }
 
@@ -57,9 +63,10 @@ pub struct BodySourceCatalog<'syntax> {
 #[derive(Clone, Debug)]
 struct BodySourceEntry<'syntax> {
     owner: BodyOwner,
+    form: BodyForm,
     module: ModuleId,
     syntax: SyntaxTreeHandle<'syntax>,
-    block: NodeId,
+    root: NodeId,
     projection: BodySyntaxProjection,
 }
 
@@ -141,9 +148,10 @@ impl BodySourceEntry<'_> {
         BodySource {
             body,
             owner: self.owner,
+            form: self.form,
             module: self.module,
             syntax: self.syntax.as_syntax_tree(),
-            block: self.block,
+            root: self.root,
         }
     }
 }
@@ -199,7 +207,7 @@ impl fmt::Display for BodySourceError {
                 )
             }
             Self::InvalidBodyProjection(body) => {
-                write!(formatter, "body {body:?} is not projected to a block node")
+                write!(formatter, "body {body:?} has an invalid syntax root")
             }
             Self::MissingSyntaxSource(body) => {
                 write!(
@@ -245,31 +253,36 @@ pub fn catalog_body_sources<'syntax>(
     let mut bodies = ArenaBuilder::new();
 
     for (body, declaration) in graph.declarations().bodies().iter() {
-        let blocks = bindings.body_blocks(body);
-        let [block] = blocks else {
-            if blocks.is_empty() {
+        let roots = bindings.body_roots(body);
+        let [root] = roots else {
+            if roots.is_empty() {
                 return Err(BodySourceError::MissingBodyProjection(body));
             }
             return Err(BodySourceError::DuplicateBodyProjection(body));
         };
         let tree = syntax
-            .get(&block.source())
+            .get(&root.source())
             .cloned()
             .ok_or(BodySourceError::MissingSyntaxSource(body))?;
-        if tree.node(*block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
+        let expected = match declaration.form() {
+            BodyForm::Block => NodeKind::Block,
+            BodyForm::Expression => NodeKind::Expression,
+        };
+        if tree.node(*root).map(nocter_syntax::SyntaxNode::kind) != Some(expected) {
             return Err(BodySourceError::InvalidBodyProjection(body));
         }
         let module = body_module(graph, body, declaration.owner())?;
         if modules.get(&tree.source()).copied() != Some(module) {
             return Err(BodySourceError::BodyOutsideOwnerModule(body));
         }
-        let projection = BodySyntaxProjection::for_body(&tree, *block)
+        let projection = BodySyntaxProjection::for_body(&tree, *root)
             .ok_or(BodySourceError::InvalidBodyProjection(body))?;
         let actual = bodies.insert(BodySourceEntry {
             owner: declaration.owner(),
+            form: declaration.form(),
             module,
             syntax: tree.clone(),
-            block: *block,
+            root: *root,
             projection,
         });
         if actual != body {
@@ -328,6 +341,14 @@ fn body_module(
             .callables()
             .get(owner)
             .map(nocter_declarations::CallableDeclaration::site),
+        BodyOwner::Constant(owner) => declarations
+            .constants()
+            .get(owner)
+            .map(nocter_declarations::ConstantDeclaration::site),
+        BodyOwner::Static(owner) => declarations
+            .statics()
+            .get(owner)
+            .map(nocter_declarations::StaticDeclaration::site),
         BodyOwner::Drop(owner) => declarations
             .drops()
             .get(owner)
@@ -426,11 +447,11 @@ mod tests {
                     assert_eq!(
                         entry
                             .syntax()
-                            .node(entry.block())
+                            .node(entry.root())
                             .map(nocter_syntax::SyntaxNode::kind),
                         Some(NodeKind::Block)
                     );
-                    assert_eq!(catalog.get(entry.body()).unwrap().block(), entry.block());
+                    assert_eq!(catalog.get(entry.body()).unwrap().root(), entry.root());
                     assert!(std::ptr::eq(
                         catalog.project(entry.body()).unwrap().syntax(),
                         shared_catalog.project(entry.body()).unwrap().syntax(),
@@ -440,7 +461,7 @@ mod tests {
                         entry.owner(),
                         entry.module(),
                         entry.syntax().source(),
-                        entry.block(),
+                        entry.root(),
                     )
                 })
                 .collect();

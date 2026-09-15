@@ -67,10 +67,10 @@ pub(super) fn body(
     declaration: SurfaceDeclarationId,
     body: nocter_model::BodyId,
     role: SourceRole,
-    block: NodeId,
+    root: NodeId,
 ) -> Result<(), HeaderDefinitionError> {
-    let origin = SourceOrigin::from_node(tree(types, declaration)?, block)
-        .map_err(|_| HeaderDefinitionError::InconsistentSource(block.source()))?;
+    let origin = SourceOrigin::from_node(tree(types, declaration)?, root)
+        .map_err(|_| HeaderDefinitionError::InconsistentSource(root.source()))?;
     types
         .namespaces
         .imports
@@ -78,7 +78,7 @@ pub(super) fn body(
         .headers
         .reserved
         .source_index
-        .insert_body(body, block, role, origin);
+        .insert_body(body, root, role, origin);
     Ok(())
 }
 

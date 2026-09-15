@@ -33,10 +33,13 @@ fn constant_storage_rejects_integer_values_outside_their_declared_range() {
         .unwrap();
     let ty = program.types().builtin(BuiltinType::U8);
     let constant = program.reserve_constant();
+    let initializer = program
+        .declarations_mut()
+        .add_body(Body::expression(BodyOwner::Constant(constant)));
     program
         .define_constant(
             constant,
-            ConstantDeclaration::new(site, constant_name, ty, None),
+            ConstantDeclaration::new(site, constant_name, ty, initializer, None),
             ConstantValue::Integer(256),
         )
         .unwrap();
@@ -347,7 +350,7 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
     ));
     let body = program
         .declarations_mut()
-        .add_body(Body::new(BodyOwner::Callable(callable)));
+        .add_body(Body::block(BodyOwner::Callable(callable)));
     program
         .declarations_mut()
         .define_callable(
@@ -563,7 +566,7 @@ fn define_nonempty_generic_construction(
     let callable = program.declarations_mut().reserve_callable();
     let body = program
         .declarations_mut()
-        .add_body(Body::new(BodyOwner::Callable(callable)));
+        .add_body(Body::block(BodyOwner::Callable(callable)));
     program
         .declarations_mut()
         .define_callable(
@@ -659,7 +662,7 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
         ));
         let body = program
             .declarations_mut()
-            .add_body(Body::new(BodyOwner::Drop(drop)));
+            .add_body(Body::block(BodyOwner::Drop(drop)));
         program
             .declarations_mut()
             .define_drop(

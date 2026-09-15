@@ -501,6 +501,24 @@ impl<'program> Analyzer<'program> {
                     || facts.types.builtin(BuiltinType::Void),
                     nocter_declarations::CallableDeclaration::body_result,
                 ),
+            BodyOwner::Constant(constant) => facts
+                .graph
+                .declarations()
+                .constants()
+                .get(constant)
+                .map_or_else(
+                    || facts.types.builtin(BuiltinType::Void),
+                    nocter_declarations::ConstantDeclaration::ty,
+                ),
+            BodyOwner::Static(static_value) => facts
+                .graph
+                .declarations()
+                .statics()
+                .get(static_value)
+                .map_or_else(
+                    || facts.types.builtin(BuiltinType::Void),
+                    nocter_declarations::StaticDeclaration::ty,
+                ),
             BodyOwner::Drop(_) | BodyOwner::Test(_) => facts.types.builtin(BuiltinType::Void),
         };
         Self {
@@ -620,7 +638,7 @@ impl<'program> Analyzer<'program> {
                     ValueProvenance::from_source(ProvenanceSource::Unknown),
                 );
             }
-            BodyOwner::Test(_) => {}
+            BodyOwner::Constant(_) | BodyOwner::Static(_) | BodyOwner::Test(_) => {}
         }
         Ok(state)
     }

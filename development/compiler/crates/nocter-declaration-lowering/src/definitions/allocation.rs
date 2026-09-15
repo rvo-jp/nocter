@@ -57,6 +57,14 @@ pub(super) fn allocate(
         }
         requirements[index] = allocate_requirements(types, declaration)?;
         match entity(types, declaration) {
+            Some(ReservedEntity::Constant(constant)) => {
+                bodies[index] =
+                    allocate_initializer_body(types, declaration, BodyOwner::Constant(constant))?;
+            }
+            Some(ReservedEntity::Static(static_value)) => {
+                bodies[index] =
+                    allocate_initializer_body(types, declaration, BodyOwner::Static(static_value))?;
+            }
             Some(ReservedEntity::Callable(callable)) => {
                 let (receiver, ordinary) =
                     allocate_callable_parameters(types, declaration, callable)?;
@@ -697,7 +705,7 @@ fn allocate_callable_body(
             .reserved
             .program
             .declarations_mut()
-            .add_body(Body::new(BodyOwner::Callable(callable)));
+            .add_body(Body::block(BodyOwner::Callable(callable)));
         projection::body(
             types,
             occurrence,
@@ -727,9 +735,49 @@ fn allocate_body(
         .reserved
         .program
         .declarations_mut()
-        .add_body(Body::new(owner));
+        .add_body(Body::block(owner));
     projection::body(types, declaration, body, SourceRole::Declaration, block)?;
     Ok(Some(body))
+}
+
+fn allocate_initializer_body(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    owner: BodyOwner,
+) -> Result<Option<BodyId>, HeaderDefinitionError> {
+    let mut found = None;
+    for index in 0..surface_count(types) {
+        let occurrence = SurfaceDeclarationId::from_index(index);
+        if representative(types, occurrence) != declaration {
+            continue;
+        }
+        let tree = projection::tree(types, occurrence)?;
+        let root = surface_node(types, occurrence)?;
+        let Some(expression) = syntax::direct_node(tree, root, NodeKind::Expression) else {
+            continue;
+        };
+        if found.is_some() {
+            return Err(HeaderDefinitionError::InvalidSurface(occurrence));
+        }
+        let body = types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .program
+            .declarations_mut()
+            .add_body(Body::expression(owner));
+        projection::body(
+            types,
+            occurrence,
+            body,
+            projection::role(types, occurrence),
+            expression,
+        )?;
+        found = Some(body);
+    }
+    Ok(found)
 }
 
 fn requirement_owner(

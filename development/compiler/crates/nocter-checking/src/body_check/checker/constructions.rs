@@ -485,7 +485,7 @@ impl BodyChecker<'_, '_> {
             return Ok(());
         };
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.record_construction_interruption_origin(origin, owner);
         Ok(())
     }
@@ -508,7 +508,7 @@ impl BodyChecker<'_, '_> {
         callable: nocter_model::CallableId,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.projections.push(super::NodeProjection::new(
             SemanticEntity::Callable(callable),
             origin,
@@ -522,7 +522,7 @@ impl BodyChecker<'_, '_> {
         variant: VariantId,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.projections.push(super::NodeProjection::new(
             SemanticEntity::Variant(variant),
             origin,

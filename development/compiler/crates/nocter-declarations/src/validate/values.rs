@@ -1,6 +1,6 @@
 use nocter_model::{BorrowCapability, BuiltinType, ConstantValue, FrozenValue, TypeId, TypeKind};
 
-use super::{DeclarationDomain, ProgramIntegrityError, require_site, require_symbol, require_type};
+use super::{DeclarationDomain, ProgramIntegrityError};
 use crate::{DeclarationProgram, DeclarationValueTable};
 
 /// Validates the complete value authority against independently frozen declaration metadata.
@@ -20,9 +20,6 @@ fn validate_constants(
     values: &DeclarationValueTable,
 ) -> Result<(), ProgramIntegrityError> {
     for (id, constant) in program.declarations().constants().iter() {
-        require_site(program, constant.site(), DeclarationDomain::Constant)?;
-        require_symbol(program, constant.name(), DeclarationDomain::Constant)?;
-        require_type(program, constant.ty(), DeclarationDomain::Constant)?;
         let value =
             values
                 .constants()
@@ -44,9 +41,6 @@ fn validate_statics(
     values: &DeclarationValueTable,
 ) -> Result<(), ProgramIntegrityError> {
     for (id, static_value) in program.declarations().statics().iter() {
-        require_site(program, static_value.site(), DeclarationDomain::Static)?;
-        require_symbol(program, static_value.name(), DeclarationDomain::Static)?;
-        require_type(program, static_value.ty(), DeclarationDomain::Static)?;
         let value =
             values
                 .statics()

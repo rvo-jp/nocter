@@ -203,7 +203,9 @@ impl DeclarationArenas {
                 .drops
                 .get(drop)
                 .map(|declaration| Box::from(declaration.generic_parameters())),
-            crate::BodyOwner::Test(_) => Some(Box::new([])),
+            crate::BodyOwner::Constant(_)
+            | crate::BodyOwner::Static(_)
+            | crate::BodyOwner::Test(_) => Some(Box::new([])),
         }
     }
 }

@@ -400,7 +400,7 @@ impl BodyChecker<'_, '_> {
         constructor: CallableId,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.block()))?;
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
         self.projections.push(super::NodeProjection::new(
             SemanticEntity::Callable(constructor),
             origin,

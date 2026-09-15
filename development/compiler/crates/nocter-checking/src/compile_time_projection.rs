@@ -799,6 +799,42 @@ mod tests {
     }
 
     #[test]
+    fn constant_initializer_is_an_ordinary_checked_expression_body() {
+        let output = check("const ANSWER: i32 = 40 + 2\n");
+        let program = output.program();
+        let (_, declaration) = program
+            .graph()
+            .declarations()
+            .constants()
+            .iter()
+            .next()
+            .unwrap();
+        let initializer = declaration.initializer();
+        let body = program
+            .graph()
+            .declarations()
+            .bodies()
+            .get(initializer)
+            .unwrap();
+
+        assert_eq!(body.form(), nocter_declarations::BodyForm::Expression);
+        assert!(program.bodies().get(initializer).is_some());
+        assert_eq!(
+            program.constant_value(
+                program
+                    .graph()
+                    .declarations()
+                    .constants()
+                    .iter()
+                    .next()
+                    .unwrap()
+                    .0
+            ),
+            Some(&nocter_model::ConstantValue::Integer(42))
+        );
+    }
+
+    #[test]
     fn ordinary_checked_scalar_body_projects_without_rechecking_source() {
         let output = check(
             "const func increment(value: i32): i32 {\n\

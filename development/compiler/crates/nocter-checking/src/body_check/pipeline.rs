@@ -943,7 +943,7 @@ pub(super) fn reserve_body_closures(
     source: BodySource<'_>,
 ) -> HashMap<NodeId, nocter_model::ClosureId> {
     let mut reserved = HashMap::new();
-    let mut pending = vec![source.block()];
+    let mut pending = vec![source.root()];
     while let Some(node) = pending.pop() {
         if source
             .syntax()
