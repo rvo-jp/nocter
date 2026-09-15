@@ -313,16 +313,16 @@ impl<'program> CompileTimeExecutor<'program> {
             parameters,
             locals: HashMap::new(),
         };
-        let outcome = self.evaluate_node(&mut frame, plan.root(), depth)?;
-        let value = match outcome {
-            Flow::Value(value) | Flow::Return(value) => value,
-            Flow::Unreachable => {
+        let value = match self.evaluate_node(&mut frame, plan.root(), depth) {
+            Ok(value) | Err(EvaluationInterrupt::Return(value)) => value,
+            Err(EvaluationInterrupt::Unreachable) => {
                 return Err(error(
                     CompileTimeExecutionRule::ReachedUnreachable,
                     target,
                     Some(plan.root()),
                 ));
             }
+            Err(EvaluationInterrupt::Failure(error)) => return Err(error),
         };
         let value = value
             .into_type(plan.result())
@@ -340,9 +340,11 @@ impl<'program> CompileTimeExecutor<'program> {
         frame: &mut Frame<'_>,
         node_id: BodyNodeId,
         depth: u32,
-    ) -> Result<Flow, CompileTimeExecutionError> {
+    ) -> EvaluationResult<CompileTimeValue> {
         if self.remaining_steps == 0 {
-            return Err(frame.error(CompileTimeExecutionRule::StepLimit, Some(node_id)));
+            return Err(frame
+                .error(CompileTimeExecutionRule::StepLimit, Some(node_id))
+                .into());
         }
         self.remaining_steps -= 1;
         let node = frame
@@ -350,33 +352,28 @@ impl<'program> CompileTimeExecutor<'program> {
             .nodes()
             .get(node_id)
             .ok_or_else(|| frame.error(CompileTimeExecutionRule::InvalidPlan, Some(node_id)))?;
-        let flow = match node.operation() {
-            CompileTimeOperation::Complete => Flow::Value(CompileTimeValue::void()),
-            CompileTimeOperation::Literal(value) => Flow::Value(
-                scalar_value(node.ty(), value.clone())
-                    .map_err(|rule| frame.error(rule, Some(node_id)))?,
-            ),
+        let value = match node.operation() {
+            CompileTimeOperation::Complete => CompileTimeValue::void(),
+            CompileTimeOperation::Literal(value) => scalar_value(node.ty(), value.clone())
+                .map_err(|rule| frame.error(rule, Some(node_id)))?,
             CompileTimeOperation::DeclaredConstant(id) => {
                 let value = self.constants.get(*id).cloned().ok_or_else(|| {
                     frame.error(CompileTimeExecutionRule::MissingConstant, Some(node_id))
                 })?;
-                Flow::Value(
-                    scalar_value(node.ty(), value)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                scalar_value(node.ty(), value).map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::ReadParameter(parameter) => {
-                Flow::Value(frame.parameters.get(parameter).cloned().ok_or_else(|| {
+                frame.parameters.get(parameter).cloned().ok_or_else(|| {
                     frame.error(CompileTimeExecutionRule::InvalidPlan, Some(node_id))
-                })?)
+                })?
             }
             CompileTimeOperation::ReadLocal(local) => {
-                Flow::Value(frame.locals.get(local).cloned().ok_or_else(|| {
+                frame.locals.get(local).cloned().ok_or_else(|| {
                     frame.error(CompileTimeExecutionRule::InvalidPlan, Some(node_id))
-                })?)
+                })?
             }
             CompileTimeOperation::Unary { operation, operand } => {
-                let operand = self.value(frame, *operand, depth)?;
+                let operand = self.evaluate_node(frame, *operand, depth)?;
                 let ty = scalar_type(node.ty()).map_err(|rule| frame.error(rule, Some(node_id)))?;
                 let value = scalar::unary(
                     *operation,
@@ -386,18 +383,16 @@ impl<'program> CompileTimeExecutor<'program> {
                     self.target,
                 )
                 .map_err(|failure| frame.error(map_scalar_failure(failure), Some(node_id)))?;
-                Flow::Value(
-                    CompileTimeValue::scalar(ty, value)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::scalar(ty, value)
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::Binary {
                 operation,
                 left,
                 right,
             } => {
-                let left = self.value(frame, *left, depth)?;
-                let right = self.value(frame, *right, depth)?;
+                let left = self.evaluate_node(frame, *left, depth)?;
+                let right = self.evaluate_node(frame, *right, depth)?;
                 let ty = scalar_type(node.ty()).map_err(|rule| frame.error(rule, Some(node_id)))?;
                 let value = scalar::binary(
                     *operation,
@@ -409,13 +404,11 @@ impl<'program> CompileTimeExecutor<'program> {
                     self.target,
                 )
                 .map_err(|failure| frame.error(map_scalar_failure(failure), Some(node_id)))?;
-                Flow::Value(
-                    CompileTimeValue::scalar(ty, value)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::scalar(ty, value)
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::NumericConversion { operand, target } => {
-                let operand = self.value(frame, *operand, depth)?;
+                let operand = self.evaluate_node(frame, *operand, depth)?;
                 let value = scalar::convert(
                     *target,
                     scalar_representation(&operand)
@@ -423,18 +416,16 @@ impl<'program> CompileTimeExecutor<'program> {
                     self.target,
                 )
                 .map_err(|failure| frame.error(map_scalar_failure(failure), Some(node_id)))?;
-                Flow::Value(
-                    CompileTimeValue::scalar(*target, value)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::scalar(*target, value)
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::Comparison {
                 operation,
                 left,
                 right,
             } => {
-                let left = self.value(frame, *left, depth)?;
-                let right = self.value(frame, *right, depth)?;
+                let left = self.evaluate_node(frame, *left, depth)?;
+                let right = self.evaluate_node(frame, *right, depth)?;
                 let value = scalar::compare(
                     *operation,
                     scalar_representation(&left)
@@ -444,24 +435,18 @@ impl<'program> CompileTimeExecutor<'program> {
                     self.target,
                 )
                 .map_err(|failure| frame.error(map_scalar_failure(failure), Some(node_id)))?;
-                Flow::Value(
-                    CompileTimeValue::scalar(ConstantScalarType::Bool, value)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::scalar(ConstantScalarType::Bool, value)
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::Tuple(elements) => {
                 let values = self.values(frame, elements, depth)?;
-                Flow::Value(
-                    CompileTimeValue::tuple(node.ty().clone(), values)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::tuple(node.ty().clone(), values)
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::FixedArray(elements) => {
                 let values = self.values(frame, elements, depth)?;
-                Flow::Value(
-                    CompileTimeValue::fixed_array(node.ty().clone(), values)
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::fixed_array(node.ty().clone(), values)
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::Call {
                 target,
@@ -471,60 +456,59 @@ impl<'program> CompileTimeExecutor<'program> {
                 let mut values =
                     Vec::with_capacity(arguments.len() + usize::from(receiver.is_some()));
                 if let Some(receiver) = receiver {
-                    values.push(self.value(frame, *receiver, depth)?);
+                    values.push(self.evaluate_node(frame, *receiver, depth)?);
                 }
                 values.extend(self.values(frame, arguments, depth)?);
-                Flow::Value(
-                    self.evaluate_call(target.clone(), values.into_boxed_slice(), depth + 1)?
-                        .as_ref()
-                        .clone(),
-                )
+                self.evaluate_call(target.clone(), values.into_boxed_slice(), depth + 1)
+                    .map_err(EvaluationInterrupt::Failure)?
+                    .as_ref()
+                    .clone()
             }
             CompileTimeOperation::Block { statements, result } => {
                 for statement in statements {
-                    match self.evaluate_node(frame, *statement, depth)? {
-                        Flow::Value(_) => {}
-                        flow @ (Flow::Return(_) | Flow::Unreachable) => return Ok(flow),
-                    }
+                    self.evaluate_node(frame, *statement, depth)?;
                 }
                 match result {
                     Some(result) => self.evaluate_node(frame, *result, depth)?,
-                    None => Flow::Value(CompileTimeValue::void()),
+                    None => CompileTimeValue::void(),
                 }
             }
             CompileTimeOperation::Bind {
                 binding,
                 initializer,
             } => {
-                let value = self.value(frame, *initializer, depth)?;
+                let value = self.evaluate_node(frame, *initializer, depth)?;
                 if let Some(binding) = binding {
                     let expected = frame.plan.locals().get(*binding).ok_or_else(|| {
                         frame.error(CompileTimeExecutionRule::InvalidPlan, Some(node_id))
                     })?;
                     if !value.matches_type(expected) {
-                        return Err(
-                            frame.error(CompileTimeExecutionRule::TypeMismatch, Some(node_id))
-                        );
+                        return Err(frame
+                            .error(CompileTimeExecutionRule::TypeMismatch, Some(node_id))
+                            .into());
                     }
                     frame.locals.insert(*binding, value);
                 }
-                Flow::Value(CompileTimeValue::void())
+                CompileTimeValue::void()
             }
             CompileTimeOperation::Discard(value) => {
-                self.value(frame, *value, depth)?;
-                Flow::Value(CompileTimeValue::void())
+                self.evaluate_node(frame, *value, depth)?;
+                CompileTimeValue::void()
             }
-            CompileTimeOperation::Unreachable => Flow::Unreachable,
-            CompileTimeOperation::Return(value) => Flow::Return(match value {
-                Some(value) => self.value(frame, *value, depth)?,
-                None => CompileTimeValue::void(),
-            }),
+            CompileTimeOperation::Unreachable => return Err(EvaluationInterrupt::Unreachable),
+            CompileTimeOperation::Return(value) => {
+                let value = match value {
+                    Some(value) => self.evaluate_node(frame, *value, depth)?,
+                    None => CompileTimeValue::void(),
+                };
+                return Err(EvaluationInterrupt::Return(value));
+            }
             CompileTimeOperation::If {
                 condition,
                 then_branch,
                 else_branch,
             } => {
-                let condition = self.value(frame, *condition, depth)?;
+                let condition = self.evaluate_node(frame, *condition, depth)?;
                 if bool_representation(&condition)
                     .map_err(|rule| frame.error(rule, Some(node_id)))?
                 {
@@ -532,7 +516,7 @@ impl<'program> CompileTimeExecutor<'program> {
                 } else if let Some(else_branch) = else_branch {
                     self.evaluate_node(frame, *else_branch, depth)?
                 } else {
-                    Flow::Value(CompileTimeValue::void())
+                    CompileTimeValue::void()
                 }
             }
             CompileTimeOperation::Logical {
@@ -540,46 +524,25 @@ impl<'program> CompileTimeExecutor<'program> {
                 left,
                 right,
             } => {
-                let left = self.value(frame, *left, depth)?;
+                let left = self.evaluate_node(frame, *left, depth)?;
                 let left =
                     bool_representation(&left).map_err(|rule| frame.error(rule, Some(node_id)))?;
                 let value = match operation {
                     CompileTimeLogicalOperation::And if !left => false,
                     CompileTimeLogicalOperation::Or if left => true,
                     CompileTimeLogicalOperation::And | CompileTimeLogicalOperation::Or => {
-                        let right = self.value(frame, *right, depth)?;
+                        let right = self.evaluate_node(frame, *right, depth)?;
                         bool_representation(&right)
                             .map_err(|rule| frame.error(rule, Some(node_id)))?
                     }
                 };
-                Flow::Value(
-                    CompileTimeValue::scalar(ConstantScalarType::Bool, ConstantValue::Bool(value))
-                        .map_err(|rule| frame.error(rule, Some(node_id)))?,
-                )
+                CompileTimeValue::scalar(ConstantScalarType::Bool, ConstantValue::Bool(value))
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
             }
         };
-        match flow {
-            Flow::Value(value) => value
-                .into_type(node.ty())
-                .map(Flow::Value)
-                .map_err(|rule| frame.error(rule, Some(node_id))),
-            Flow::Return(value) => Ok(Flow::Return(value)),
-            Flow::Unreachable => Ok(Flow::Unreachable),
-        }
-    }
-
-    fn value(
-        &mut self,
-        frame: &mut Frame<'_>,
-        node: BodyNodeId,
-        depth: u32,
-    ) -> Result<CompileTimeValue, CompileTimeExecutionError> {
-        match self.evaluate_node(frame, node, depth)? {
-            Flow::Value(value) => Ok(value),
-            Flow::Return(_) | Flow::Unreachable => {
-                Err(frame.error(CompileTimeExecutionRule::InvalidPlan, Some(node)))
-            }
-        }
+        value
+            .into_type(node.ty())
+            .map_err(|rule| frame.error(rule, Some(node_id)).into())
     }
 
     fn values(
@@ -587,10 +550,10 @@ impl<'program> CompileTimeExecutor<'program> {
         frame: &mut Frame<'_>,
         nodes: &[BodyNodeId],
         depth: u32,
-    ) -> Result<Vec<CompileTimeValue>, CompileTimeExecutionError> {
+    ) -> EvaluationResult<Vec<CompileTimeValue>> {
         nodes
             .iter()
-            .map(|node| self.value(frame, *node, depth))
+            .map(|node| self.evaluate_node(frame, *node, depth))
             .collect()
     }
 }
@@ -612,11 +575,19 @@ impl Frame<'_> {
     }
 }
 
-enum Flow {
-    Value(CompileTimeValue),
+enum EvaluationInterrupt {
     Return(CompileTimeValue),
     Unreachable,
+    Failure(CompileTimeExecutionError),
 }
+
+impl From<CompileTimeExecutionError> for EvaluationInterrupt {
+    fn from(error: CompileTimeExecutionError) -> Self {
+        Self::Failure(error)
+    }
+}
+
+type EvaluationResult<T> = Result<T, EvaluationInterrupt>;
 
 fn bind_parameters(
     plan: &CompileTimeCallablePlan,

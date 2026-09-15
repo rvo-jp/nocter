@@ -42,6 +42,10 @@ generation.
 - One closed-plan executor owns its remaining budget and memoized call results. It validates input,
   local, node, and result shapes; recursive calls therefore cannot bypass the depth limit or make
   malformed values observable.
+- Every nested operation produces either a typed value or one function-level control interruption.
+  `return` and unreachable control therefore propagate uniformly through discarded expressions,
+  aggregate elements, operands, arguments, and nested blocks instead of relying on each parent
+  operation to remember a special case.
 - The executor's typed result performs the only conversion into scalar declaration constants or
   recursively frozen tuple/array statics; adapters cannot flatten aggregate structure themselves.
 - Constant expressions and checked callable plans delegate arithmetic, comparison, conversion, and

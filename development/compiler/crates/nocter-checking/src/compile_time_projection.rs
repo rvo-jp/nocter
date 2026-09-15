@@ -763,7 +763,7 @@ mod tests {
 
     use nocter_constant_evaluation::{
         CompileTimeCallTarget, CompileTimeGenericArgument, CompileTimeOperation, CompileTimeType,
-        CompileTimeValueType, ConstantScalarType,
+        CompileTimeValue, CompileTimeValueType, ConstantScalarType,
     };
 
     use crate::test_support::Fixture;
@@ -902,6 +902,35 @@ mod tests {
         );
 
         assert_eq!(output.program().compile_time_plans().len(), 2);
+    }
+
+    #[test]
+    fn checked_recursive_control_executes_without_reinterpreting_source() {
+        let output = check(
+            "const func sum_to(value: u32): u32 {\n\
+                 if value == 0 { return 0 }\n\
+                 return value + sum_to(value - 1)\n\
+             }\n",
+        );
+        let program = output.program();
+        let (sum_to, _) = callable(program, "sum_to");
+        let target = CompileTimeCallTarget::new(sum_to, []).unwrap();
+        let mut executor = program.compile_time_program().executor(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            nocter_constant_evaluation::CompileTimeEvaluationLimits::default(),
+        );
+        let input = CompileTimeValue::scalar(
+            ConstantScalarType::Integer(BuiltinType::U32),
+            nocter_model::ConstantValue::Integer(5),
+        )
+        .unwrap();
+
+        let result = executor.evaluate(&target, [input]).unwrap();
+
+        assert_eq!(
+            result.scalar_value(),
+            Some(&nocter_model::ConstantValue::Integer(15))
+        );
     }
 
     #[test]
