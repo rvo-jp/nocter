@@ -3,7 +3,7 @@
 use /string.String
 use /vec.Vec
 
-func normalized_capacity(requested: usize): usize {
+const func normalized_capacity(requested: usize): usize {
     if requested == 0 {
         return 1
     }

@@ -12,7 +12,7 @@ struct ByteChunks<R> {
     is_finished: bool
 }
 
-func normalized_chunk_size(requested: usize): usize {
+const func normalized_chunk_size(requested: usize): usize {
     if requested == 0 {
         return 1
     }

@@ -10,15 +10,15 @@ const PATH_COMPONENT: u8 = 1
 const QUERY_COMPONENT: u8 = 2
 const FRAGMENT_COMPONENT: u8 = 3
 
-noalloc func is_alpha(value: u8): bool {
+const noalloc func is_alpha(value: u8): bool {
     return (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
 }
 
-noalloc func is_digit(value: u8): bool {
+const noalloc func is_digit(value: u8): bool {
     return value >= 48 && value <= 57
 }
 
-noalloc func is_unreserved(value: u8): bool {
+const noalloc func is_unreserved(value: u8): bool {
     return is_alpha(value)
         || is_digit(value)
         || value == 45
@@ -27,7 +27,7 @@ noalloc func is_unreserved(value: u8): bool {
         || value == 126
 }
 
-noalloc func is_sub_delimiter(value: u8): bool {
+const noalloc func is_sub_delimiter(value: u8): bool {
     return value == 33
         || value == 36
         || value == 38
@@ -41,7 +41,7 @@ noalloc func is_sub_delimiter(value: u8): bool {
         || value == 61
 }
 
-noalloc func allowed_component_byte(value: u8, component: u8): bool {
+const noalloc func allowed_component_byte(value: u8, component: u8): bool {
     if is_unreserved(value) || is_sub_delimiter(value) { return true }
     if component != HOST_COMPONENT && (value == 58 || value == 64) { return true }
     if component >= QUERY_COMPONENT && (value == 47 || value == 63) { return true }
@@ -56,7 +56,7 @@ noalloc func hex_value(value: u8): u8? {
     return none
 }
 
-noalloc func uppercase_hex(value: u8): u8 {
+const noalloc func uppercase_hex(value: u8): u8 {
     if value >= 97 && value <= 102 { return value - 32 }
     return value
 }

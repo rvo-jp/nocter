@@ -39,13 +39,13 @@ noalloc func utc_datetime_out_of_range(): error {
     )
 }
 
-noalloc func is_leap_year(year: i64): bool {
+const noalloc func is_leap_year(year: i64): bool {
     if year % 4 != 0 { return false }
     if year % 100 != 0 { return true }
     return year % 400 == 0
 }
 
-noalloc func days_in_month(year: i64, month: i64): i64 {
+const noalloc func days_in_month(year: i64, month: i64): i64 {
     if month == 2 {
         if is_leap_year(year) { return 29 }
         return 28
@@ -54,7 +54,7 @@ noalloc func days_in_month(year: i64, month: i64): i64 {
     return 31
 }
 
-noalloc func valid_utc_components(
+const noalloc func valid_utc_components(
     year: i64,
     month: i64,
     day: i64,
@@ -93,7 +93,7 @@ noalloc func utc_datetime_unchecked(
 }
 
 // Returns days relative to 1970-01-01. Callers validate year, month, and day first.
-noalloc func days_from_civil(year: i64, month: i64, day: i64): i64 {
+const noalloc func days_from_civil(year: i64, month: i64, day: i64): i64 {
     let adjusted_year: i64 = if month <= 2 { year - 1 } else { year }
     let era: i64 = if adjusted_year >= 0 {
         adjusted_year / 400

@@ -302,9 +302,7 @@ impl Projector<'_> {
             return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
         }
         let operation = match comparison.plan() {
-            CheckedComparisonPlan::Direct { step, negate }
-                if matches!(step.implementation(), ComparisonImplementation::Primitive) =>
-            {
+            CheckedComparisonPlan::Direct { step, negate } if primitive_comparison_step(step) => {
                 match (step.operation(), step.reverse(), *negate) {
                     (ComparisonOperation::Equal, _, false) => CompileTimeComparisonOperation::Equal,
                     (ComparisonOperation::Equal, _, true) => {
@@ -325,11 +323,10 @@ impl Projector<'_> {
                 }
             }
             CheckedComparisonPlan::Inclusive { strict, equal }
-                if matches!(strict.implementation(), ComparisonImplementation::Primitive)
-                    && matches!(equal.implementation(), ComparisonImplementation::Primitive)
+                if primitive_comparison_step(strict)
+                    && primitive_comparison_step(equal)
                     && strict.operation() == ComparisonOperation::Less
-                    && equal.operation() == ComparisonOperation::Equal
-                    && strict.reverse() == equal.reverse() =>
+                    && equal.operation() == ComparisonOperation::Equal =>
             {
                 if strict.reverse() {
                     CompileTimeComparisonOperation::GreaterEqual
@@ -581,6 +578,12 @@ impl Projector<'_> {
             Some(_) | None => false,
         }
     }
+}
+
+fn primitive_comparison_step(step: &crate::CheckedComparisonStep) -> bool {
+    matches!(step.implementation(), ComparisonImplementation::Primitive)
+        && step.left_coercion().is_none()
+        && step.right_coercion().is_none()
 }
 
 impl Specializer<'_> {
@@ -929,6 +932,34 @@ mod tests {
         assert_eq!(
             result.scalar_value(),
             Some(&nocter_model::ConstantValue::Integer(15))
+        );
+    }
+
+    #[test]
+    fn conditional_expression_projects_as_compile_time_control() {
+        let output = check(
+            "const func divide_toward_origin(value: i64): i64 {\n\
+                 let result: i64 = if value >= 0 { value / 4 } else { (value - 3) / 4 }\n\
+                 return result\n\
+             }\n",
+        );
+        let program = output.program();
+        let (callable, _) = callable(program, "divide_toward_origin");
+        let target = CompileTimeCallTarget::new(callable, []).unwrap();
+        let mut executor = program
+            .compile_time_program()
+            .executor(nocter_constant_evaluation::CompileTimeEvaluationLimits::default());
+        let input = CompileTimeValue::scalar(
+            ConstantScalarType::Integer(BuiltinType::I64),
+            nocter_model::ConstantValue::Integer(-5),
+        )
+        .unwrap();
+
+        let result = executor.evaluate(&target, [input]).unwrap();
+
+        assert_eq!(
+            result.scalar_value(),
+            Some(&nocter_model::ConstantValue::Integer(-2))
         );
     }
 
