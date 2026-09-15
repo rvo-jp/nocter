@@ -2,7 +2,7 @@
 
 ## Current State
 
-Nocter v0.53.0 development is active. Phases 0 through 3 are complete: JSON compact generation uses
+Nocter v0.53.0 development is active. Phases 0 through 4 are complete: JSON compact generation uses
 one effect-neutral pull encoder, `TaskGroup<T>` provides runtime-sized structured ownership, and
 the HTTP module now exposes a bounded one-request server typestate without detached work. The
 active scope and completion gates live in
@@ -10,10 +10,10 @@ active scope and completion gates live in
 
 ## Next Work
 
-Implement Phase 4 as operational safety over the completed HTTP server lifecycle. Add explicit
-accept, request-read, and response-write timeout operations; verify cleanup on every timeout,
-transport failure, codec failure, handler failure, and task cancellation path. Keep connection and
-task limits in application-owned orchestration rather than hidden global server state.
+Implement Phase 5 as one complete bounded service using only public APIs. Use `TaskGroup` as the
+connection owner, enforce an application-selected outstanding-task limit, exercise successful and
+failing handler outcomes, and qualify editor presentation, installed packaging, and the complete
+repository. Do not add an implicit server loop or hidden task registry.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

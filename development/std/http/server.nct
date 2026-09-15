@@ -13,6 +13,9 @@ see ./values.nct
 
 use /net
 use /net.SocketAddress
+use /task
+use /task.Timeout
+use /time.Duration
 use /vec.Vec
 
 async func read_server_request_head(
@@ -97,17 +100,61 @@ construct Server {
     }
 }
 
+async func accept_server(server: &+Server): ServerConnection! {
+    let accepted = await server.listener.accept()?
+    return ServerConnection {
+        stream: move accepted.0,
+        peer: accepted.1,
+        limits: server.limits,
+    }
+}
+
+async func read_server_connection(
+    connection: ServerConnection,
+): (IncomingRequest, Responder)! {
+    var owner = move connection
+    let parsed = await read_server_request_head(&+owner.stream, owner.limits)?
+    let suppress_body = ascii_case_equal(parsed.head.request_method().text(), "HEAD")
+    let request = await collect_server_request_body(&+owner.stream, move parsed)?
+    let responder = Responder {
+        stream: move owner.stream,
+        suppress_body: suppress_body,
+        limits: owner.limits,
+    }
+    return (move request, move responder)
+}
+
+async func send_server_response(
+    responder: Responder,
+    response: OutgoingResponse,
+): void! {
+    var owner = move responder
+    let head = encode_server_response_head(&response, owner.limits)?
+    await owner.stream.write(&head) catch failure {
+        return failure.context("while writing the HTTP response head")
+    }
+    if send_response_body(&response, owner.suppress_body) {
+        await owner.stream.write(response.body()) catch failure {
+            return failure.context("while writing the HTTP response body")
+        }
+    }
+    owner.stream.close()
+    return
+}
+
 instance Server {
     noalloc method &self.local_address(): SocketAddress! {
         return self.listener.local_address()?
     }
 
     async method &+self.accept(): ServerConnection! {
-        let accepted = await self.listener.accept()?
-        return ServerConnection {
-            stream: move accepted.0,
-            peer: accepted.1,
-            limits: self.limits,
+        return await accept_server(self)?
+    }
+
+    async method &+self.accept_with_timeout(timeout: Duration): ServerConnection! {
+        match await task.with_timeout(accept_server(self), timeout) {
+            Timeout.completed(result) { return move result? }
+            Timeout.elapsed { return server_operation_timed_out() }
         }
     }
 
@@ -123,16 +170,16 @@ instance ServerConnection {
     }
 
     async method self.read_request(): (IncomingRequest, Responder)! {
-        var owner = move self
-        let parsed = await read_server_request_head(&+owner.stream, owner.limits)?
-        let suppress_body = ascii_case_equal(parsed.head.request_method().text(), "HEAD")
-        let request = await collect_server_request_body(&+owner.stream, move parsed)?
-        let responder = Responder {
-            stream: move owner.stream,
-            suppress_body: suppress_body,
-            limits: owner.limits,
+        return await read_server_connection(move self)?
+    }
+
+    async method self.read_request_with_timeout(
+        timeout: Duration,
+    ): (IncomingRequest, Responder)! {
+        match await task.with_timeout(read_server_connection(move self), timeout) {
+            Timeout.completed(result) { return move result? }
+            Timeout.elapsed { return server_operation_timed_out() }
         }
-        return (move request, move responder)
     }
 
     noalloc method self.close(): void {
@@ -144,18 +191,17 @@ instance ServerConnection {
 
 instance Responder {
     async method self.respond(response: OutgoingResponse): void! {
-        var owner = move self
-        let head = encode_server_response_head(&response, owner.limits)?
-        await owner.stream.write(&head) catch failure {
-            return failure.context("while writing the HTTP response head")
+        return await send_server_response(move self, move response)?
+    }
+
+    async method self.respond_with_timeout(
+        response: OutgoingResponse,
+        timeout: Duration,
+    ): void! {
+        match await task.with_timeout(send_server_response(move self, move response), timeout) {
+            Timeout.completed(result) { return move result? }
+            Timeout.elapsed { return server_operation_timed_out() }
         }
-        if send_response_body(&response, owner.suppress_body) {
-            await owner.stream.write(response.body()) catch failure {
-                return failure.context("while writing the HTTP response body")
-            }
-        }
-        owner.stream.close()
-        return
     }
 
     noalloc method self.close(): void {

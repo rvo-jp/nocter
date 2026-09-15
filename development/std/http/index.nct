@@ -389,6 +389,9 @@ instance Server {
     /// Accepts one connection without blocking the executor thread.
     pub async method &+self.accept(): ServerConnection!
 
+    /// Accepts one connection before a fixed monotonic deadline.
+    pub async method &+self.accept_with_timeout(timeout: Duration): ServerConnection!
+
     /// Closes the listener; later accepts fail through the network contract.
     pub noalloc method &+self.close(): void
 }
@@ -403,6 +406,11 @@ instance ServerConnection {
     /// Decodes one complete bounded request and transfers response authority.
     pub async method self.read_request(): (IncomingRequest, Responder)!
 
+    /// Decodes one complete request before a fixed monotonic deadline.
+    pub async method self.read_request_with_timeout(
+        timeout: Duration,
+    ): (IncomingRequest, Responder)!
+
     /// Closes this connection without reading a request.
     pub noalloc method self.close(): void
 }
@@ -413,6 +421,12 @@ pub struct Responder
 instance Responder {
     /// Encodes, writes, and closes one complete response.
     pub async method self.respond(response: OutgoingResponse): void!
+
+    /// Writes and closes one complete response before a fixed monotonic deadline.
+    pub async method self.respond_with_timeout(
+        response: OutgoingResponse,
+        timeout: Duration,
+    ): void!
 
     /// Closes this connection without sending a response.
     pub noalloc method self.close(): void

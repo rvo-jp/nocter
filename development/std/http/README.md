@@ -45,6 +45,28 @@ request body, streaming response body, or implicit task spawning. Whole bodies a
 `Limits`; a later API can add a streaming typestate without weakening the ownership boundary of the
 current complete-message path.
 
+## Server Deadlines and Capacity
+
+`accept_with_timeout`, `read_request_with_timeout`, and `respond_with_timeout` apply one fixed
+monotonic deadline to the complete named operation. The duration does not restart after each byte,
+field, body fragment, or write. Each method composes its ordinary operation with `std/task` timeout
+ownership; the HTTP codec and TCP transport do not implement another timer. Expiry reports
+`std.http.timed_out`.
+
+An expired accept cancels only its temporary borrowing computation and leaves `Server` available
+for another accept. Request decoding consumes `ServerConnection`, so expiry destroys the stream
+instead of returning a partially decoded request. Response transmission consumes `Responder` and
+`OutgoingResponse`; expiry destroys both and closes the stream instead of exposing a partially sent
+response for retry. Transport and codec failures retain their original stable code while adding
+operation context where appropriate.
+
+Concurrent connection capacity belongs to application task ownership, not hidden listener state.
+An application caps accepted work by checking `TaskGroup.len()` and awaiting `TaskGroup.next()`
+before accepting when its selected limit is reached. This bounds accepted streams and child tasks
+together. The application's aggregate body-storage bound is therefore its maximum retained task
+count multiplied by the `Limits` body bound selected for that server. Kernel backlog policy remains
+the TCP listener's responsibility.
+
 ## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a

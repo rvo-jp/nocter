@@ -91,6 +91,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("http", "io"),
     ("http", "net"),
     ("http", "string"),
+    ("http", "task"),
     ("http", "time"),
     ("http", "tls"),
     ("http", "url"),

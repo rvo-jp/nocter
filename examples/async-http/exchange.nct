@@ -13,10 +13,10 @@ func loopback(): SocketAddress {
     return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
 }
 
-async func serve_once(server: Server): void! {
+async func serve_once(server: Server, timeout: Duration): void! {
     var owner = move server
-    let connection = await owner.accept()?
-    let exchange = await connection.read_request()?
+    let connection = await owner.accept_with_timeout(timeout)?
+    let exchange = await connection.read_request_with_timeout(timeout)?
     let request = move exchange.0
     let responder = move exchange.1
     if request.request_method().text() != "POST"
@@ -27,7 +27,7 @@ async func serve_once(server: Server): void! {
     var response = OutgoingResponse.ok()
     response.append_header_text("X-Example", "local")?
     response.set_text_body("pong")
-    await responder.respond(move response)?
+    await responder.respond_with_timeout(move response, timeout)?
     return
 }
 
@@ -45,7 +45,7 @@ async func run(): i32! {
     let response = client.send_with_timeout(move request, timeout)
     let exchanged = await task.join(
         move response,
-        serve_once(move server),
+        serve_once(move server, timeout),
     )
     let response_result = move exchanged.0
     let server_result = move exchanged.1

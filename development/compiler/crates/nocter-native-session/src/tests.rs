@@ -17,6 +17,8 @@ use super::{
 };
 use nocter_session::{AnalyzedUnit, AnalyzedUnitStatus, CompiledTarget, ExecutableCompileRequest};
 
+mod http_server;
+
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 const JSON_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public JSON BlockingWriter contract tests.
