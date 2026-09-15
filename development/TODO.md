@@ -10,12 +10,13 @@ adopted design and remaining phases live in
 
 ## Next Work
 
-Continue v0.52.0 Phase 3 from the implemented dependency-query core, the end-to-end declared-
-constant identity path, and the separate `DeclarationValueTable`. Expand the query key/value domain
-from its implemented constant/static/array-length values to callable plans and callable
-specializations. Do not expose compile-time calls in public constant syntax until that query owns
-callable plans and values. Do not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as
-part of this milestone.
+Continue v0.52.0 Phase 3 from the implemented header-value query and the checking-owned closed
+callable-specialization query. Replace their current stage-separated ownership with one
+semantic-construction query boundary that can request declaration values, checked callable plans,
+and later call results by stable identity without allowing declaration lowering or checking to
+re-enter each other. Do not expose compile-time calls in public constant syntax until that boundary
+owns both callable plans and values. Do not add `isolated`, `deterministic`, `pure`, or `realtime`
+syntax as part of this milestone.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

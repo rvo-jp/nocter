@@ -135,11 +135,13 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A queried lexical rejection can reproduce its exact `PreparationFailure` branch. Session never
   reconstructs a name-resolution error variant from a diagnostic and separate recovery value.
 - `SourceIndex` cannot affect a semantic decision.
-- Program finalization projects the canonical callable and body arenas exactly once and stores one
-  `CompileTimePlanTable` in `CheckedProgram`. Consumers can read a plan by `CallableId`, but cannot
-  request projection, pair a declaration with an unrelated body, or repeat lookup, typing,
-  conversion, operator, or dispatch selection. Unsupported authored `const` operations remain
-  source-neutral until the finalization boundary projects them through canonical node origins.
+- Program finalization seeds every closed non-generic compile-time root, follows already-selected
+  direct calls, and projects each reachable `CompileTimeCallTarget` specialization exactly once
+  through one query. Its `CompileTimePlanTable` uses closed evaluator-domain type shapes rather
+  than store-relative `TypeId` arguments. Consumers cannot request projection, pair a declaration
+  with an unrelated body, or repeat lookup, typing, conversion, operator, or dispatch selection.
+  Unsupported authored `const` operations remain source-neutral until the finalization boundary
+  projects them through canonical node origins.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.

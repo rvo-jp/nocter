@@ -120,6 +120,22 @@ where
             .filter(|state| matches!(state, QueryState::Complete(_)))
             .count()
     }
+
+    /// Consumes the authority and returns exactly its completed immutable values.
+    ///
+    /// Active states cannot survive an externally observable `resolve` call, and failed branches
+    /// are removed before it returns. Consuming the query therefore freezes one complete result
+    /// set without cloning either the query state or its values.
+    #[must_use]
+    pub fn into_completed(self) -> HashMap<K, Arc<V>> {
+        self.states
+            .into_iter()
+            .filter_map(|(key, state)| match state {
+                QueryState::Complete(value) => Some((key, value)),
+                QueryState::Active => None,
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -227,5 +243,17 @@ mod tests {
 
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(computation.visits.get(&7), Some(&1));
+    }
+
+    #[test]
+    fn consuming_a_query_freezes_only_completed_values() {
+        let mut computation = graph(&[(0, &[1])]);
+        let mut query = DependencyQuery::default();
+        query.resolve(&mut computation, 0).unwrap();
+
+        let completed = query.into_completed();
+
+        assert_eq!(completed.get(&0).map(AsRef::as_ref), Some(&1));
+        assert_eq!(completed.get(&1).map(AsRef::as_ref), Some(&1));
     }
 }

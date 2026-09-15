@@ -22,6 +22,11 @@ runtime execution, name lookup, overload selection, or target code generation.
 - Failure cannot publish a partially evaluated semantic constant.
 - Callable-plan construction validates every node, parameter, and local edge before publication.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
+- Callable specialization keys contain closed evaluator-domain type shapes rather than `TypeId`, so
+  a plan identity cannot be paired with a sibling checked-program type store.
+- One query owns every reachable closed callable specialization. Generic bodies are projected only
+  under an exact argument set, and recursive source calls close as graph edges rather than being
+  mistaken for plan-construction cycles.
 - Evaluation limits count semantic plan operations and source-call depth, never host instructions
   or elapsed time; all callers use the same nonzero limit contract.
 - One dependency query owns absent, active, and completed key states. It memoizes shared

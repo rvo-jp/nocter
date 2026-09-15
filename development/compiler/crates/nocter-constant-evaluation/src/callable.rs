@@ -1,6 +1,6 @@
 use nocter_model::{
-    Arena, BodyNodeId, CallableId, ConstantId, GenericParameterId, LocalBindingId, ParameterId,
-    TypeId,
+    Arena, BodyNodeId, BorrowCapability, BuiltinType, CallableId, ConstantId, GenericParameterId,
+    LocalBindingId, ParameterId,
 };
 
 use crate::ConstantScalarType;
@@ -15,6 +15,25 @@ pub enum CompileTimeValueType {
     Tuple(Box<[CompileTimeValueType]>),
     FixedArray {
         element: Box<CompileTimeValueType>,
+        length: u64,
+    },
+}
+
+/// Closed semantic type shape used to identify one callable specialization.
+///
+/// This domain deliberately distinguishes `str` from `&str`: only the borrow is a value, but the
+/// referent can still be a generic argument. It contains no `TypeId`, so a plan identity cannot be
+/// paired with the wrong checked-program type store.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum CompileTimeType {
+    Builtin(BuiltinType),
+    Borrow {
+        capability: BorrowCapability,
+        referent: Box<CompileTimeType>,
+    },
+    Tuple(Box<[CompileTimeType]>),
+    FixedArray {
+        element: Box<CompileTimeType>,
         length: u64,
     },
 }
@@ -53,31 +72,31 @@ pub enum CompileTimeComparisonOperation {
     GreaterEqual,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CompileTimeGenericArgument {
     parameter: GenericParameterId,
-    ty: TypeId,
+    ty: CompileTimeType,
 }
 
 impl CompileTimeGenericArgument {
     #[must_use]
-    pub const fn new(parameter: GenericParameterId, ty: TypeId) -> Self {
+    pub const fn new(parameter: GenericParameterId, ty: CompileTimeType) -> Self {
         Self { parameter, ty }
     }
 
     #[must_use]
-    pub const fn parameter(self) -> GenericParameterId {
+    pub const fn parameter(&self) -> GenericParameterId {
         self.parameter
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
-        self.ty
+    pub const fn ty(&self) -> &CompileTimeType {
+        &self.ty
     }
 }
 
 /// One already-selected compile-time call target.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CompileTimeCallTarget {
     callable: CallableId,
     generic_arguments: Box<[CompileTimeGenericArgument]>,

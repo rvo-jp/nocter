@@ -1,13 +1,16 @@
+mod query;
+
+use std::collections::HashMap;
+
 use nocter_constant_evaluation::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
     CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
-    CompileTimeNode, CompileTimeOperation, CompileTimePlanTable, CompileTimeUnaryOperation,
+    CompileTimeNode, CompileTimeOperation, CompileTimeType, CompileTimeUnaryOperation,
     CompileTimeValueType, ConstantScalarType, FloatFormat, InvalidCompileTimeCallablePlan,
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
-    Arena, BorrowCapability, BuiltinType, CallableId, CompileTimeGuarantee, TypeId, TypeKind,
-    TypeStore,
+    BorrowCapability, BuiltinType, CallableId, CompileTimeGuarantee, TypeId, TypeKind, TypeStore,
 };
 
 use crate::{
@@ -68,63 +71,19 @@ struct Projector<'a> {
     callable: CallableId,
     body_id: nocter_model::BodyId,
     body: &'a CheckedBody,
+    specialization: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
 }
 
-/// Builds the only compile-time plan authority for one checked program generation.
-///
-/// This operation performs no lookup, inference, overload selection, or type checking. It accepts
-/// only closed decisions already present in canonical checked bodies. Runtime-only declarations
-/// retain empty identity slots, while authored compile-time declarations with bodies must project
-/// completely or reject program finalization.
-///
-/// # Errors
-///
-/// Returns the exact unsupported operation or invalid plan edge without publishing a partial
-/// table.
-pub(crate) fn build_compile_time_plan_table(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
-    bodies: &Arena<nocter_model::BodyId, CheckedBody>,
-) -> Result<CompileTimePlanTable, CompileTimeProjectionError> {
-    let plans = graph
-        .declarations()
-        .callables()
-        .try_map(|callable, declaration| {
-            if declaration.guarantees().compile_time() != CompileTimeGuarantee::Evaluatable {
-                return Ok(None);
-            }
-            let Some(body_id) = declaration.body() else {
-                // Interface requirements have no executable body of their own. A concrete static
-                // implementation is selected before any call can enter a compile-time plan.
-                return Ok(None);
-            };
-            let body = bodies.get(body_id).ok_or(CompileTimeProjectionError {
-                callable,
-                body: Some(body_id),
-                node: None,
-                rule: CompileTimeProjectionRule::InvalidPlan,
-            })?;
-            project_compile_time_callable(graph, types, callable, body_id, body).map(Some)
-        })?;
-    CompileTimePlanTable::new(plans).map_err(|error| CompileTimeProjectionError {
-        callable: error.caller(),
-        body: graph
-            .declarations()
-            .callables()
-            .get(error.caller())
-            .and_then(nocter_declarations::CallableDeclaration::body),
-        node: Some(error.node()),
-        rule: CompileTimeProjectionRule::UnavailableCallTarget,
-    })
-}
+pub(crate) use query::build_compile_time_plan_table;
 
 fn project_compile_time_callable(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    callable: CallableId,
+    target: &CompileTimeCallTarget,
     body_id: nocter_model::BodyId,
     body: &CheckedBody,
 ) -> Result<CompileTimeCallablePlan, CompileTimeProjectionError> {
+    let callable = target.callable();
     let declaration =
         graph
             .declarations()
@@ -136,12 +95,39 @@ fn project_compile_time_callable(
                 node: None,
                 rule: CompileTimeProjectionRule::InvalidPlan,
             })?;
+    let domain = graph
+        .declarations()
+        .callable_generic_domain(callable)
+        .ok_or(CompileTimeProjectionError {
+            callable,
+            body: Some(body_id),
+            node: None,
+            rule: CompileTimeProjectionRule::InvalidPlan,
+        })?;
+    if domain.len() != target.generic_arguments().len()
+        || domain.iter().copied().ne(target
+            .generic_arguments()
+            .iter()
+            .map(CompileTimeGenericArgument::parameter))
+    {
+        return Err(CompileTimeProjectionError {
+            callable,
+            body: Some(body_id),
+            node: None,
+            rule: CompileTimeProjectionRule::InvalidPlan,
+        });
+    }
     let projector = Projector {
         graph,
         types,
         callable,
         body_id,
         body,
+        specialization: target
+            .generic_arguments()
+            .iter()
+            .map(|argument| (argument.parameter(), argument.ty().clone()))
+            .collect(),
     };
     let locals = body.locals().try_map(|_, local| {
         projector
@@ -392,8 +378,15 @@ impl Projector<'_> {
             .generic_arguments()
             .as_slice()
             .iter()
-            .map(|argument| CompileTimeGenericArgument::new(argument.parameter(), argument.ty()));
-        let target = CompileTimeCallTarget::new(callee, generic_arguments.collect::<Vec<_>>())
+            .map(|argument| {
+                self.specialization_type(argument.ty())
+                    .map(|ty| CompileTimeGenericArgument::new(argument.parameter(), ty))
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| {
+                self.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
+            })?;
+        let target = CompileTimeCallTarget::new(callee, generic_arguments)
             .map_err(|_| self.error(Some(node), CompileTimeProjectionRule::InvalidPlan))?;
         Ok(CompileTimeOperation::Call {
             target,
@@ -470,57 +463,85 @@ impl Projector<'_> {
     }
 
     fn value_type(&self, ty: TypeId) -> Option<CompileTimeValueType> {
+        value_type(&self.specialization_type(ty)?)
+    }
+
+    fn specialization_type(&self, ty: TypeId) -> Option<CompileTimeType> {
         match self.types.get(ty)? {
-            TypeKind::Builtin(BuiltinType::Void) => Some(CompileTimeValueType::Void),
-            TypeKind::Builtin(BuiltinType::Never) => Some(CompileTimeValueType::Never),
-            TypeKind::Builtin(BuiltinType::Bool) => {
-                Some(CompileTimeValueType::Scalar(ConstantScalarType::Bool))
-            }
-            TypeKind::Builtin(BuiltinType::Char) => {
-                Some(CompileTimeValueType::Scalar(ConstantScalarType::Character))
-            }
-            TypeKind::Builtin(BuiltinType::F32) => Some(CompileTimeValueType::Scalar(
-                ConstantScalarType::Float(FloatFormat::Binary32),
-            )),
-            TypeKind::Builtin(BuiltinType::F64) => Some(CompileTimeValueType::Scalar(
-                ConstantScalarType::Float(FloatFormat::Binary64),
-            )),
-            TypeKind::Builtin(builtin) if integer_builtin(*builtin) => Some(
-                CompileTimeValueType::Scalar(ConstantScalarType::Integer(*builtin)),
-            ),
+            TypeKind::Builtin(builtin) => Some(CompileTimeType::Builtin(*builtin)),
+            TypeKind::GenericParameter(parameter) => self.specialization.get(parameter).cloned(),
             TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
+                capability,
                 referent,
-            } if matches!(
-                self.types.get(*referent),
-                Some(TypeKind::Builtin(BuiltinType::Str))
-            ) =>
-            {
-                Some(CompileTimeValueType::Scalar(ConstantScalarType::Text))
-            }
-            TypeKind::Borrow {
-                capability: BorrowCapability::Readonly,
-                referent,
-            } => self
-                .value_type(*referent)
-                .map(Box::new)
-                .map(CompileTimeValueType::ReadonlyBorrow),
+            } => Some(CompileTimeType::Borrow {
+                capability: *capability,
+                referent: Box::new(self.specialization_type(*referent)?),
+            }),
             TypeKind::Tuple(elements) => elements
                 .iter()
-                .map(|element| self.value_type(element))
+                .map(|element| self.specialization_type(element))
                 .collect::<Option<Vec<_>>>()
-                .map(|elements| CompileTimeValueType::Tuple(elements.into_boxed_slice())),
-            TypeKind::FixedArray { element, length } => {
-                self.value_type(*element)
-                    .map(|element| CompileTimeValueType::FixedArray {
-                        element: Box::new(element),
-                        length: *length,
-                    })
-            }
+                .map(|elements| CompileTimeType::Tuple(elements.into_boxed_slice())),
+            TypeKind::FixedArray { element, length } => Some(CompileTimeType::FixedArray {
+                element: Box::new(self.specialization_type(*element)?),
+                length: *length,
+            }),
             _ => None,
         }
     }
+}
 
+fn value_type(ty: &CompileTimeType) -> Option<CompileTimeValueType> {
+    match ty {
+        CompileTimeType::Builtin(BuiltinType::Void) => Some(CompileTimeValueType::Void),
+        CompileTimeType::Builtin(BuiltinType::Never) => Some(CompileTimeValueType::Never),
+        CompileTimeType::Builtin(BuiltinType::Bool) => {
+            Some(CompileTimeValueType::Scalar(ConstantScalarType::Bool))
+        }
+        CompileTimeType::Builtin(BuiltinType::Char) => {
+            Some(CompileTimeValueType::Scalar(ConstantScalarType::Character))
+        }
+        CompileTimeType::Builtin(BuiltinType::F32) => Some(CompileTimeValueType::Scalar(
+            ConstantScalarType::Float(FloatFormat::Binary32),
+        )),
+        CompileTimeType::Builtin(BuiltinType::F64) => Some(CompileTimeValueType::Scalar(
+            ConstantScalarType::Float(FloatFormat::Binary64),
+        )),
+        CompileTimeType::Builtin(builtin) if integer_builtin(*builtin) => Some(
+            CompileTimeValueType::Scalar(ConstantScalarType::Integer(*builtin)),
+        ),
+        CompileTimeType::Borrow {
+            capability: BorrowCapability::Readonly,
+            referent,
+        } if matches!(
+            referent.as_ref(),
+            CompileTimeType::Builtin(BuiltinType::Str)
+        ) =>
+        {
+            Some(CompileTimeValueType::Scalar(ConstantScalarType::Text))
+        }
+        CompileTimeType::Borrow {
+            capability: BorrowCapability::Readonly,
+            referent,
+        } => value_type(referent)
+            .map(Box::new)
+            .map(CompileTimeValueType::ReadonlyBorrow),
+        CompileTimeType::Tuple(elements) => elements
+            .iter()
+            .map(value_type)
+            .collect::<Option<Vec<_>>>()
+            .map(|elements| CompileTimeValueType::Tuple(elements.into_boxed_slice())),
+        CompileTimeType::FixedArray { element, length } => {
+            value_type(element).map(|element| CompileTimeValueType::FixedArray {
+                element: Box::new(element),
+                length: *length,
+            })
+        }
+        CompileTimeType::Builtin(_) | CompileTimeType::Borrow { .. } => None,
+    }
+}
+
+impl Projector<'_> {
     const fn error(
         &self,
         node: Option<nocter_model::BodyNodeId>,
@@ -554,8 +575,11 @@ const fn integer_builtin(builtin: BuiltinType) -> bool {
 #[cfg(test)]
 mod tests {
     use nocter_declaration_lowering::lower_compile_unit_declarations;
+    use nocter_model::BuiltinType;
 
-    use nocter_constant_evaluation::CompileTimeOperation;
+    use nocter_constant_evaluation::{
+        CompileTimeCallTarget, CompileTimeGenericArgument, CompileTimeOperation, CompileTimeType,
+    };
 
     use crate::test_support::Fixture;
     use crate::{check_prepared_program, prepare_program_checking};
@@ -598,7 +622,8 @@ mod tests {
         let program = output.program();
         let (callable, body) = callable(program, "increment");
         assert!(program.bodies().get(body).is_some());
-        let plan = program.compile_time_plans().get(callable).unwrap();
+        let target = CompileTimeCallTarget::new(callable, []).unwrap();
+        let plan = program.compile_time_plans().get(&target).unwrap();
 
         assert!(
             plan.nodes()
@@ -647,10 +672,46 @@ mod tests {
         let program = output.program();
         let (callable, _) = callable(program, "runtime");
 
-        assert!(program.compile_time_plans().get(callable).is_none());
-        assert_eq!(
-            program.compile_time_plans().len(),
-            program.graph().declarations().callables().len()
+        let target = CompileTimeCallTarget::new(callable, []).unwrap();
+        assert!(program.compile_time_plans().get(&target).is_none());
+        assert!(program.compile_time_plans().is_empty());
+    }
+
+    #[test]
+    fn a_reachable_generic_callable_projects_once_for_its_closed_specialization() {
+        let output = check(
+            "const func identity<T>(value: T): T where copy T { return value }\n\
+             const func answer(): i32 { return identity(42) }\n",
         );
+        let program = output.program();
+        let (identity, _) = callable(program, "identity");
+        let parameter = program
+            .graph()
+            .declarations()
+            .callable_generic_domain(identity)
+            .unwrap()[0];
+        let target = CompileTimeCallTarget::new(
+            identity,
+            [CompileTimeGenericArgument::new(
+                parameter,
+                CompileTimeType::Builtin(BuiltinType::I32),
+            )],
+        )
+        .unwrap();
+
+        let plan = program.compile_time_plans().get(&target).unwrap();
+
+        assert_eq!(plan.parameters().len(), 1);
+        assert_eq!(program.compile_time_plans().len(), 2);
+    }
+
+    #[test]
+    fn recursive_generic_plan_edges_do_not_become_construction_cycles() {
+        let output = check(
+            "const func recurse<T>(value: T): T where copy T { return recurse(value) }\n\
+             const func start(): i32 { return recurse(1) }\n",
+        );
+
+        assert_eq!(output.program().compile_time_plans().len(), 2);
     }
 }
