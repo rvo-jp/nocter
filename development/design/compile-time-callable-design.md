@@ -143,10 +143,14 @@ value authorities.
 
 `DeclarationValueTable` is the sole identity-indexed authority for values already completed during
 declaration construction. `ConstantDeclaration` and `StaticDeclaration` contain only semantic
-metadata. Their builder transition accepts metadata and value together, so no caller can publish
-one half independently. Accepted programs and all declaration/name/body recovery branches carry
-the same immutable table paired with their graph; editor presentation therefore does not need a
-fallback source interpreter or a value copied into presentation metadata.
+metadata. `DeclarationProgram` owns only the validated graph and header-type authority; value-table
+shape and payload compatibility are validated separately. The public builder still publishes only
+an `AcceptedDeclarationProgram` that pairs both complete products, so no caller can treat metadata
+alone as accepted compilation input. Accepted programs and all declaration/name/body recovery
+branches carry the same immutable table beside their graph; editor presentation therefore does not
+need a fallback source interpreter or a value copied into presentation metadata. This separation
+is the construction seam for completing non-structural initializer values after ordinary checking
+without introducing optional values into declaration metadata.
 
 Header construction assigns every distinct fixed-array length expression a dense
 `ConstantExpressionId`. One heterogeneous query then resolves constant values, array lengths, and

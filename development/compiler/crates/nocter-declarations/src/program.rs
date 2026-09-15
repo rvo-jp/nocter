@@ -92,7 +92,6 @@ pub struct DeclarationGraph {
 pub struct DeclarationProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
-    values: DeclarationValueTable,
 }
 
 /// A declaration program whose complete integrity and authored-language validation succeeded.
@@ -103,6 +102,7 @@ pub struct DeclarationProgram {
 #[derive(Debug)]
 pub struct AcceptedDeclarationProgram {
     program: DeclarationProgram,
+    values: DeclarationValueTable,
     admission: DeclarationAnalysisAdmission,
 }
 
@@ -366,13 +366,8 @@ impl DeclarationProgram {
         self.types.store()
     }
 
-    #[must_use]
-    pub const fn values(&self) -> &DeclarationValueTable {
-        &self.values
-    }
-
-    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeAuthority, DeclarationValueTable) {
-        (self.graph, self.types, self.values)
+    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeAuthority) {
+        (self.graph, self.types)
     }
 }
 
@@ -394,6 +389,7 @@ impl AcceptedDeclarationProgram {
     pub fn checking_branch(&self) -> Self {
         Self {
             program: self.program.clone(),
+            values: self.values.clone(),
             admission: self.admission.clone(),
         }
     }
@@ -427,6 +423,12 @@ impl AcceptedDeclarationProgram {
         &self.program
     }
 
+    /// Returns the only complete declaration-value authority paired with this accepted graph.
+    #[must_use]
+    pub const fn values(&self) -> &DeclarationValueTable {
+        &self.values
+    }
+
     /// Opens this accepted program branch's Phase 2-to-Phase 3 ownership boundary.
     ///
     /// The returned type authority keeps every declaration `TypeId` as an immutable prefix.
@@ -442,8 +444,8 @@ impl AcceptedDeclarationProgram {
         DeclarationValueTable,
         DeclarationAnalysisAdmission,
     ) {
-        let (graph, types, values) = self.program.into_unvalidated_parts();
-        (graph, types, values, self.admission)
+        let (graph, types) = self.program.into_unvalidated_parts();
+        (graph, types, self.values, self.admission)
     }
 }
 
@@ -862,11 +864,14 @@ impl DeclarationProgramBuilder {
                 interface_capabilities: crate::InterfaceCapabilityGraph::default(),
             },
             types: self.types.freeze(),
-            values,
         };
         let interface_capabilities = crate::InterfaceCapabilityGraph::build(&program);
         program.graph.interface_capabilities = interface_capabilities;
         crate::validate::validate_integrity(&program)
+            .map_err(ProgramValidationError::from)
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::Error)?;
+        crate::validate::validate_values(&program, &values)
             .map_err(ProgramValidationError::from)
             .map_err(ProgramBuildError::from)
             .map_err(ProgramBuildFailure::Error)?;
@@ -877,10 +882,14 @@ impl DeclarationProgramBuilder {
         let (report, admission, body_analysis) = validation.into_parts();
         if !report.is_empty() {
             return Err(ProgramBuildFailure::Rejected(Box::new(
-                RejectedDeclarationProgram::new(program, report, admission, body_analysis),
+                RejectedDeclarationProgram::new(program, values, report, admission, body_analysis),
             )));
         }
-        Ok(AcceptedDeclarationProgram { program, admission })
+        Ok(AcceptedDeclarationProgram {
+            program,
+            values,
+            admission,
+        })
     }
 
     fn require_symbol(&self, symbol: Symbol) -> Result<(), ProgramBuildError> {
@@ -911,6 +920,7 @@ impl DeclarationProgramBuilder {
 #[derive(Debug)]
 pub struct RejectedDeclarationProgram {
     program: DeclarationProgram,
+    values: DeclarationValueTable,
     report: crate::validate::DeclarationValidationReport,
     admission: DeclarationAnalysisAdmission,
     body_analysis: crate::validate::BodyAnalysisCapability,
@@ -919,12 +929,14 @@ pub struct RejectedDeclarationProgram {
 impl RejectedDeclarationProgram {
     const fn new(
         program: DeclarationProgram,
+        values: DeclarationValueTable,
         report: crate::validate::DeclarationValidationReport,
         admission: DeclarationAnalysisAdmission,
         body_analysis: crate::validate::BodyAnalysisCapability,
     ) -> Self {
         Self {
             program,
+            values,
             report,
             admission,
             body_analysis,
@@ -944,7 +956,8 @@ impl RejectedDeclarationProgram {
         crate::validate::DeclarationValidationReport,
         RejectedDeclarationAnalysis,
     ) {
-        let (graph, types, values) = self.program.into_unvalidated_parts();
+        let (graph, types) = self.program.into_unvalidated_parts();
+        let values = self.values;
         let analysis = match self.body_analysis {
             crate::validate::BodyAnalysisCapability::DeclarationsOnly => {
                 RejectedDeclarationAnalysis::Declarations(DeclarationAnalysisProgram {

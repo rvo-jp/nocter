@@ -136,6 +136,12 @@ impl LoweredDeclarations {
         &self.source_index
     }
 
+    /// Returns values from the accepted declaration aggregate rather than from graph metadata.
+    #[must_use]
+    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        self.reusable.program.values()
+    }
+
     #[must_use]
     pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
         self.reusable.primitive_bindings()
@@ -190,6 +196,11 @@ impl ReusableDeclarations {
     #[must_use]
     pub const fn program(&self) -> &DeclarationProgram {
         self.program.program()
+    }
+
+    #[must_use]
+    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        self.program.values()
     }
 
     /// Opens one owned checking branch without rebuilding declaration decisions.

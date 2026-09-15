@@ -239,8 +239,8 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let program = lowered.program();
     let declarations = program.declarations();
 
-    assert_header_constants(program);
-    assert_header_statics(program);
+    assert_header_constants(program, lowered.declaration_values());
+    assert_header_statics(lowered.declaration_values());
 
     assert_eq!(declarations.nominal_types().len(), 2);
     assert_eq!(declarations.fields().len(), 1);
@@ -349,9 +349,11 @@ fn lower_full_header_program() -> (SourceMap, crate::LoweredDeclarations) {
     (sources, lowered)
 }
 
-fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
-    let values = program
-        .values()
+fn assert_header_constants(
+    program: &nocter_declarations::DeclarationProgram,
+    declaration_values: &nocter_declarations::DeclarationValueTable,
+) {
+    let values = declaration_values
         .constants()
         .iter()
         .map(|(_, value)| value.clone())
@@ -379,9 +381,8 @@ fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
     );
 }
 
-fn assert_header_statics(program: &nocter_declarations::DeclarationProgram) {
-    let values = program
-        .values()
+fn assert_header_statics(declaration_values: &nocter_declarations::DeclarationValueTable) {
+    let values = declaration_values
         .statics()
         .iter()
         .map(|(_, value)| value.clone())

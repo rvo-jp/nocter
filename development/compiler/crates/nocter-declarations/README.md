@@ -3,8 +3,8 @@
 ## Responsibility
 
 Own the immutable, syntax-independent declaration graph and its namespaces, visibility, callable,
-requirement, standard-role, and target metadata, plus the separately indexed evaluated values that
-complete constant and static declarations.
+requirement, standard-role, and target metadata. Own the separately indexed value authority that
+is paired only by an accepted or recovery aggregate, never embedded in graph/type metadata.
 
 ## Contract
 
@@ -25,15 +25,16 @@ coordinates, or checking internals.
 ## Invariants
 
 - Builders reserve and define every identity exactly once before freeze.
-- Constant and static metadata complete together with their evaluated values; the public builder
-  cannot publish either half independently.
+- Graph/type integrity and declaration-value integrity are validated independently. The public
+  builder publishes only an accepted aggregate containing both complete authorities.
 - Namespace lookup consumes frozen tables rather than iterating declarations.
 - A declaration identity never contains a source range or rendered name.
 - Authored callable execution and guarantees are declaration data; consumers do not rediscover
   modifiers from syntax or result shapes.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.
-- Declaration records never embed evaluated constant or static payloads. Every complete, rejected,
-  and checking branch carries the same immutable value table beside the graph.
+- `DeclarationProgram` contains graph/type metadata only. Declaration records never embed
+  evaluated constant or static payloads. Every accepted, rejected, and checking branch carries the
+  same immutable value table beside that program.
 - An accepted immutable program may create owned checking branches without rebuilding declaration
   decisions; every branch preserves semantic IDs and the type-authority lineage.
 - Interface prerequisite cycles and effective member collisions cannot cross the accepted-program
