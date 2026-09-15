@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nocter_model::{
-    Arena, BodyNodeId, CompilationTarget, ConstantId, ConstantValue, LocalBindingId, ParameterId,
+    Arena, BodyId, BodyNodeId, CompilationTarget, ConstantId, ConstantValue, LocalBindingId,
+    ParameterId,
 };
 
 use crate::scalar::{self, ScalarEvaluationFailure};
@@ -26,9 +27,15 @@ pub enum CompileTimeExecutionRule {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CompileTimeExecutionSubject {
+    Call(CompileTimeCallTarget),
+    Initializer(BodyId),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompileTimeExecutionError {
     rule: CompileTimeExecutionRule,
-    target: CompileTimeCallTarget,
+    subject: CompileTimeExecutionSubject,
     node: Option<BodyNodeId>,
 }
 
@@ -39,8 +46,8 @@ impl CompileTimeExecutionError {
     }
 
     #[must_use]
-    pub const fn target(&self) -> &CompileTimeCallTarget {
-        &self.target
+    pub const fn subject(&self) -> &CompileTimeExecutionSubject {
+        &self.subject
     }
 
     #[must_use]
@@ -97,6 +104,23 @@ impl<'program> CompileTimeExecutor<'program> {
         self.evaluate_call(target.clone(), arguments.into(), 1)
     }
 
+    /// Executes one already-closed declaration initializer plan.
+    ///
+    /// Nested calls use the same callable table, cache, and deterministic budget as ordinary
+    /// compile-time calls.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-neutral initializer identity and operation identity for deterministic
+    /// execution, resource-limit, or plan-integrity failures.
+    pub fn evaluate_initializer(
+        &mut self,
+        body: BodyId,
+        plan: &CompileTimeCallablePlan,
+    ) -> Result<Arc<CompileTimeValue>, CompileTimeExecutionError> {
+        self.evaluate_plan(CompileTimeExecutionSubject::Initializer(body), plan, &[], 1)
+    }
+
     fn evaluate_call(
         &mut self,
         target: CompileTimeCallTarget,
@@ -113,18 +137,38 @@ impl<'program> CompileTimeExecutor<'program> {
         if depth > self.maximum_call_depth {
             return Err(error(
                 CompileTimeExecutionRule::CallDepthLimit,
-                target,
+                CompileTimeExecutionSubject::Call(target),
                 None,
             ));
         }
-        let plan = self
-            .plans
-            .get(&target)
-            .ok_or_else(|| error(CompileTimeExecutionRule::MissingPlan, target.clone(), None))?;
-        let parameters = bind_parameters(plan, &key.arguments)
-            .map_err(|rule| error(rule, target.clone(), None))?;
+        let plan = self.plans.get(&target).ok_or_else(|| {
+            error(
+                CompileTimeExecutionRule::MissingPlan,
+                CompileTimeExecutionSubject::Call(target.clone()),
+                None,
+            )
+        })?;
+        let value = self.evaluate_plan(
+            CompileTimeExecutionSubject::Call(target.clone()),
+            plan,
+            &key.arguments,
+            depth,
+        )?;
+        self.completed_calls.insert(key, Arc::clone(&value));
+        Ok(value)
+    }
+
+    fn evaluate_plan(
+        &mut self,
+        subject: CompileTimeExecutionSubject,
+        plan: &CompileTimeCallablePlan,
+        arguments: &[CompileTimeValue],
+        depth: u32,
+    ) -> Result<Arc<CompileTimeValue>, CompileTimeExecutionError> {
+        let parameters =
+            bind_parameters(plan, arguments).map_err(|rule| error(rule, subject.clone(), None))?;
         let mut frame = Frame {
-            target: target.clone(),
+            subject: subject.clone(),
             plan,
             parameters,
             locals: HashMap::new(),
@@ -134,7 +178,7 @@ impl<'program> CompileTimeExecutor<'program> {
             Err(EvaluationInterrupt::Unreachable) => {
                 return Err(error(
                     CompileTimeExecutionRule::ReachedUnreachable,
-                    target,
+                    subject,
                     Some(plan.root()),
                 ));
             }
@@ -142,10 +186,8 @@ impl<'program> CompileTimeExecutor<'program> {
         };
         let value = value
             .into_type(plan.result())
-            .map_err(|rule| error(rule, target.clone(), Some(plan.root())))?;
-        let value = Arc::new(value);
-        self.completed_calls.insert(key, Arc::clone(&value));
-        Ok(value)
+            .map_err(|rule| error(rule, subject, Some(plan.root())))?;
+        Ok(Arc::new(value))
     }
 
     // Keeping the exhaustive operation dispatch together ensures that every new checked-plan
@@ -375,7 +417,7 @@ impl<'program> CompileTimeExecutor<'program> {
 }
 
 struct Frame<'plan> {
-    target: CompileTimeCallTarget,
+    subject: CompileTimeExecutionSubject,
     plan: &'plan CompileTimeCallablePlan,
     parameters: HashMap<ParameterId, CompileTimeValue>,
     locals: HashMap<LocalBindingId, CompileTimeValue>,
@@ -387,7 +429,7 @@ impl Frame<'_> {
         rule: CompileTimeExecutionRule,
         node: Option<BodyNodeId>,
     ) -> CompileTimeExecutionError {
-        error(rule, self.target.clone(), node)
+        error(rule, self.subject.clone(), node)
     }
 }
 
@@ -467,10 +509,14 @@ const fn map_scalar_failure(failure: ScalarEvaluationFailure) -> CompileTimeExec
 
 const fn error(
     rule: CompileTimeExecutionRule,
-    target: CompileTimeCallTarget,
+    subject: CompileTimeExecutionSubject,
     node: Option<BodyNodeId>,
 ) -> CompileTimeExecutionError {
-    CompileTimeExecutionError { rule, target, node }
+    CompileTimeExecutionError {
+        rule,
+        subject,
+        node,
+    }
 }
 
 #[cfg(test)]
@@ -480,10 +526,13 @@ mod tests {
     use std::sync::Arc;
 
     use nocter_model::{
-        Arena, ArenaBuilder, BuiltinType, CompilationTarget, ConstantValue, FrozenValue,
+        Arena, ArenaBuilder, BodyId, BuiltinType, CompilationTarget, ConstantValue, FrozenValue,
     };
 
-    use super::{CompileTimeExecutionRule, CompileTimeExecutor, CompileTimeValue};
+    use super::{
+        CompileTimeExecutionRule, CompileTimeExecutionSubject, CompileTimeExecutor,
+        CompileTimeValue,
+    };
     use crate::{
         CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
         CompileTimeEvaluationLimits, CompileTimeNode, CompileTimeOperation, CompileTimeParameter,
@@ -616,6 +665,49 @@ mod tests {
     }
 
     #[test]
+    fn an_initializer_uses_the_same_closed_execution_model() {
+        let mut body_ids = ArenaBuilder::<BodyId, ()>::new();
+        let body = body_ids.insert(());
+        let mut nodes = ArenaBuilder::new();
+        let forty = nodes.insert(CompileTimeNode::new(
+            i32_type(),
+            CompileTimeOperation::Literal(ConstantValue::Integer(40)),
+        ));
+        let two = nodes.insert(CompileTimeNode::new(
+            i32_type(),
+            CompileTimeOperation::Literal(ConstantValue::Integer(2)),
+        ));
+        let sum = nodes.insert(CompileTimeNode::new(
+            i32_type(),
+            CompileTimeOperation::Binary {
+                operation: CompileTimeBinaryOperation::Add,
+                left: forty,
+                right: two,
+            },
+        ));
+        let plan = CompileTimeCallablePlan::new(
+            Vec::<CompileTimeParameter<CompileTimeValueType>>::new(),
+            i32_type(),
+            Arena::default(),
+            nodes.finish(),
+            sum,
+        )
+        .unwrap();
+        let plans = CompileTimePlanTable::new(HashMap::new()).unwrap();
+        let constants = Arena::default();
+        let mut executor = CompileTimeExecutor::new(
+            &plans,
+            &constants,
+            CompilationTarget::Arm64Darwin,
+            CompileTimeEvaluationLimits::default(),
+        );
+
+        let result = executor.evaluate_initializer(body, &plan).unwrap();
+
+        assert_eq!(result.scalar_value(), Some(&ConstantValue::Integer(42)));
+    }
+
+    #[test]
     fn recursive_calls_stop_at_the_deterministic_depth_limit() {
         let mut callable_ids = ArenaBuilder::new();
         let recurse = callable_ids.insert(());
@@ -650,7 +742,7 @@ mod tests {
         let error = executor.evaluate(&target, []).unwrap_err();
 
         assert_eq!(error.rule(), CompileTimeExecutionRule::CallDepthLimit);
-        assert_eq!(error.target(), &target);
+        assert_eq!(error.subject(), &CompileTimeExecutionSubject::Call(target));
     }
 
     #[test]

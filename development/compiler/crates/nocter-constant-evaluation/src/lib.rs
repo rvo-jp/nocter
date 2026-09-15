@@ -33,7 +33,10 @@ pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_expression_plan,
     evaluate_frozen_expression_plan,
 };
-pub use execution::{CompileTimeExecutionError, CompileTimeExecutionRule, CompileTimeExecutor};
+pub use execution::{
+    CompileTimeExecutionError, CompileTimeExecutionRule, CompileTimeExecutionSubject,
+    CompileTimeExecutor,
+};
 pub use floating::{
     FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, FloatLiteralError,
     TargetFloatEvaluator,
