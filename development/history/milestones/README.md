@@ -8,6 +8,8 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.52.0: Compile-Time Callable Evaluation](v0.52.0.md)
+- [v0.52.0 Release Preparation](v0.52.0-release-preparation.md)
 - [v0.51.0: Unified Execution Contracts](v0.51.0.md)
 - [v0.51.0 Release Preparation](v0.51.0-release-preparation.md)
 - [v0.50.0: Local Data and Asynchronous Streaming](v0.50.0.md)

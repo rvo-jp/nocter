@@ -3,10 +3,10 @@
 ## Current State
 
 Nocter v0.51.0 is published and externally audited. v0.52.0 Compile-Time Callable Evaluation is
-implementation-complete. Authored `const` capability reaches one canonical checked-body
-projection, structural constants are isolated from final checked initializer values, and
-`CheckedProgram` publishes closed values and callable specializations through one
-`CompileTimeProgram`. The adopted design and completed phases live in
+implementation-complete and its release identity is prepared for qualification. Authored `const`
+capability reaches one canonical checked-body projection, structural constants are isolated from
+final checked initializer values, and `CheckedProgram` publishes closed values and callable
+specializations through one `CompileTimeProgram`. The adopted design and completed phases live in
 [`development/history/milestones/v0.52.0.md`](history/milestones/v0.52.0.md).
 
 ## Next Work
