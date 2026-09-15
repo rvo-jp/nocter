@@ -2,18 +2,16 @@
 
 ## Current State
 
-Nocter v0.53.0 implementation is complete. JSON compact generation uses one effect-neutral pull
-encoder, `TaskGroup<T>` provides runtime-sized structured ownership, and the HTTP module exposes a
-bounded one-request server typestate without detached work. A public bounded-concurrency service
-now crosses native execution, installed-standard-library, and editor contracts. The completed scope
-and qualification record live in
+Nocter v0.53.0 release preparation is active. The implementation and whole-repository compiler
+gate are complete. Release identity now selects `0.53.0`; public notes and the release-preparation
+contract are authored. The completed implementation scope lives in
 [`development/history/milestones/v0.53.0.md`](history/milestones/v0.53.0.md).
 
 ## Next Work
 
-Prepare v0.53.0 for release without expanding its scope. Re-run release qualification from a clean
-tree, update exact-version public release surfaces, build the release archive, smoke-test the
-installed image, and publish only after explicit user authorization.
+Commit the exact release content, run deterministic two-build packaging and installed-home
+qualification from that clean commit, then record the measured artifact identities. Do not update
+published-version surfaces, tag, upload, or publish without explicit user authorization.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
