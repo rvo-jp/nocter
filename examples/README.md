@@ -158,6 +158,20 @@ nocter check
 nocter run
 ```
 
+[http-service/index.nct](http-service/index.nct) runs three concurrent loopback requests through a
+service-owned, two-slot `TaskGroup`. The accept loop drains one completed handler before admitting
+more work, so the application-selected limit is the only connection-capacity authority. Two
+handlers send successful responses; one consumes its unique `Responder` by closing without a
+response, letting both the service and clients observe cleanup without a detached task or hidden
+server registry. Every accept, request decode, response write, and client request has a finite
+deadline.
+
+```sh
+cd examples/http-service
+nocter check
+nocter run
+```
+
 [async-loopback/index.nct](async-loopback/index.nct) starts TCP connection and listener acceptance
 concurrently, exchanges newline-delimited `ping` and `pong` through generic `BufReader<TcpStream>`
 and `BufWriter<TcpStream>` state, and bounds the complete exchange with structured timeout

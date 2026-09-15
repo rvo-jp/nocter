@@ -1,0 +1,143 @@
+see ./index.nct
+
+use std/http.{Client, Limits, OutgoingResponse, Request, Server, ServerConnection}
+use std/net.{IpAddress, Ipv4Address, SocketAddress}
+use std/string.String
+use std/task
+use std/task.TaskGroup
+use std/time.Duration
+use std/url.Url
+
+const CONNECTION_LIMIT: usize = 2
+
+const REQUEST_COUNT: usize = 3
+
+func loopback(): SocketAddress {
+    return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
+}
+
+async func handle_connection(connection: ServerConnection, timeout: Duration): bool {
+    let exchange = await connection.read_request_with_timeout(timeout) catch _ { return false }
+    let request = move exchange.0
+    let responder = move exchange.1
+    if request.target() == "/drop" {
+        responder.close()
+        return false
+    }
+    var response = OutgoingResponse.ok()
+    response.append_header_text("Content-Type", "text/plain; charset=utf-8") catch _ {
+        return false
+    }
+    response.set_text_body(request.target())
+    await responder.respond_with_timeout(move response, timeout) catch _ { return false }
+    return true
+}
+
+async func observe_handler(
+    handlers: &+TaskGroup<bool>,
+): bool! {
+    let completed = await handlers.next() otherwise {
+        return error.new("http-service.group", "non-empty handler group produced no result")
+    }
+    return completed
+}
+
+async func serve_bounded(server: Server, timeout: Duration): (usize, usize)! {
+    var owner = move server
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    var accepted: usize = 0
+    var succeeded: usize = 0
+    var failed: usize = 0
+    while accepted < REQUEST_COUNT {
+        if handlers.len() == CONNECTION_LIMIT {
+            if await observe_handler(&+handlers)? {
+                succeeded += 1
+            } else {
+                failed += 1
+            }
+        }
+        let connection = await owner.accept_with_timeout(timeout)?
+        handlers.add(handle_connection(move connection, timeout))
+        accepted += 1
+    }
+    while !handlers.is_empty() {
+        if await observe_handler(&+handlers)? {
+            succeeded += 1
+        } else {
+            failed += 1
+        }
+    }
+    owner.close()
+    return (succeeded, failed)
+}
+
+async func successful_request(client: &Client, url: String, expected: &str, timeout: Duration): bool {
+    let request = Request.get(Url.parse(&url) catch _ { return false }) catch _ { return false }
+    var response = await client.send_with_timeout(move request, timeout) catch _ { return false }
+    if response.status().code() != 200 { return false }
+    let body = await response.read_to_string_with_timeout(timeout) catch _ { return false }
+    return body == expected
+}
+
+async func expected_handler_failure(client: &Client, url: String, timeout: Duration): bool {
+    let request = Request.get(Url.parse(&url) catch _ { return false }) catch _ { return false }
+    let _response = await client.send_with_timeout(move request, timeout) catch failure {
+        return failure.has_code("std.http.premature_eof")
+    }
+    return false
+}
+
+async func run_clients(base: &str, timeout: Duration): usize! {
+    let client = Client.new()
+    var requests: TaskGroup<bool> = TaskGroup.empty()
+    requests.add(
+        successful_request(
+            &client,
+            String.concat(base, "/one"),
+            "/one",
+            timeout,
+        ),
+    )
+    requests.add(
+        expected_handler_failure(
+            &client,
+            String.concat(base, "/drop"),
+            timeout,
+        ),
+    )
+    requests.add(
+        successful_request(
+            &client,
+            String.concat(base, "/two"),
+            "/two",
+            timeout,
+        ),
+    )
+    var passed: usize = 0
+    while !requests.is_empty() {
+        let result = await requests.next() otherwise {
+            return error.new("http-service.group", "non-empty client group produced no result")
+        }
+        if result { passed += 1 }
+    }
+    return passed
+}
+
+async func run_service_example(): i32! {
+    let limits = Limits.new(1024, 8192, 32, 4, 1024, 128, 4096)?
+    let timeout = Duration.from_seconds(2)
+    let server = await Server.bind_with_limits(loopback(), limits)?
+    let address = server.local_address()?
+    let port = address.port().to_string()
+    let base = String.concat("http://127.0.0.1:", &port)
+    let completed = await task.join(
+        serve_bounded(move server, timeout),
+        run_clients(&base, timeout),
+    )
+    let service = move completed.0?
+    let clients = move completed.1?
+    if service.0 != 2 || service.1 != 1 || clients != 3 {
+        return error.new("http-service.result", "bounded service outcomes changed")
+    }
+    return 0
+}

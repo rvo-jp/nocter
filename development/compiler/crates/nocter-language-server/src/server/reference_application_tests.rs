@@ -264,6 +264,80 @@ fn assert_async_udp_source_features(server: &mut super::LanguageServer, source: 
 }
 
 #[test]
+fn http_service_uses_public_server_typestate_across_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/http-service");
+    let source = root.join("service.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (read_line, read_source) = source_line(&text, "connection.read_request_with_timeout");
+    let read_character = read_source.find("read_request_with_timeout").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        read_line,
+        read_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(concat!(
+            "pub async method ServerConnection.read_request_with_timeout(",
+            "timeout: Duration): (IncomingRequest, Responder)!"
+        )),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        read_line,
+        read_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/http/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        read_line,
+        read_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/http/server.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let completion_character = read_source.find("connection.").unwrap() + "connection.".len();
+    let completion = server.receive(&position_request(
+        5,
+        "textDocument/completion",
+        &source,
+        read_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in [
+        "close",
+        "peer_address",
+        "read_request",
+        "read_request_with_timeout",
+    ] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+#[test]
 fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/text-search");
     let source = root.join("search.nct");

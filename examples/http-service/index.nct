@@ -1,0 +1,14 @@
+#package: {
+    name: "http-service",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "http-service",
+}
+
+see ./service.nct
+
+async func main(): i32! {
+    return await run_service_example()
+}

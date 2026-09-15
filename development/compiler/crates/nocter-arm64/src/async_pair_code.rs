@@ -5,7 +5,15 @@ use crate::{
     Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
 };
 
-use crate::async_composition_code::*;
+use crate::async_composition_code::{
+    CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET, CONSUME_LINK_STACK_OFFSET,
+    CONSUME_PROCESS_CONTEXT_STACK_OFFSET, CONSUME_STACK_SIZE, FRAME_STACK_OFFSET,
+    OUTPUT_STACK_OFFSET, accept_initial_or_return_completed, add_immediate, add_register, argument,
+    compare_immediate, compare_register, emit_call_epilogue, emit_call_prologue, initialize_entry,
+    initialize_from_stack, lifecycle_states, load, load_frame, load_stack, return_to_caller, store,
+    store_immediate, store_stack, subtract_immediate, trap_state, trap_wait, validate_nonzero,
+    validate_nonzero_with_trap, validate_state, validate_state_any, zero,
+};
 
 const FIRST_CHILD_OFFSET: u64 = Arm64NocterAbi::asynchronous().fixed_header_size();
 const SECOND_CHILD_OFFSET: u64 = FIRST_CHILD_OFFSET + Arm64NocterAbi::word_size();

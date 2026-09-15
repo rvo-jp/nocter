@@ -221,7 +221,8 @@ fn lower_machine_entry(
         allocation_failure_error,
     };
     define_machine_functions(&selected, resources, &mut builder)?;
-    define_async_primitives(primitive_targets.asynchronous(), &mut builder)?;
+    let async_primitive_targets = primitive_targets.asynchronous();
+    crate::async_primitive_definitions::define(&async_primitive_targets, &mut builder)?;
     for (key, target) in &pack_callbacks {
         let function = selected
             .get(key.owner().index())
@@ -312,136 +313,6 @@ fn define_deferred_function(
         function.materialize_cancel(target, resources.functions)?,
     )?;
     builder.define_function(lifecycle.consume(), function.materialize_consume(target)?)?;
-    Ok(())
-}
-
-fn define_async_primitives(
-    targets: crate::Arm64AsyncPrimitiveTargets,
-    builder: &mut Arm64ProgramBuilder,
-) -> Result<(), Arm64LoweringError> {
-    if let Some(lifecycle) = targets.single_interest_lifecycle() {
-        if let Some(constructor) = targets.descriptor_readiness() {
-            builder.define_function(
-                constructor,
-                crate::async_interest_code::materialize_descriptor_constructor(lifecycle)
-                    .map_err(Arm64MaterializationError::Code)?,
-            )?;
-        }
-        if let Some(constructor) = targets.monotonic_deadline() {
-            builder.define_function(
-                constructor,
-                crate::async_interest_code::materialize_deadline_constructor(lifecycle)
-                    .map_err(Arm64MaterializationError::Code)?,
-            )?;
-        }
-        if let Some(constructor) = targets.process_completion() {
-            builder.define_function(
-                constructor,
-                crate::async_interest_code::materialize_process_constructor(lifecycle)
-                    .map_err(Arm64MaterializationError::Code)?,
-            )?;
-        }
-        define_async_interest_lifecycle(lifecycle, builder)?;
-    }
-    if let (Some(constructor), Some(lifecycle)) = (
-        targets.descriptor_readiness_or_deadline(),
-        targets.dual_interest_lifecycle(),
-    ) {
-        builder.define_function(
-            constructor,
-            crate::async_interest_code::materialize_descriptor_or_deadline_constructor(lifecycle)
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        define_async_interest_lifecycle(lifecycle, builder)?;
-    }
-    if let Some(join) = targets.task_join() {
-        builder.define_function(
-            join.constructor(),
-            crate::async_pair_constructor_code::materialize(join)
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            join.resume(),
-            crate::async_pair_code::materialize_join_resume()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            join.cancel(),
-            crate::async_pair_code::materialize_join_cancel()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            join.consume(),
-            crate::async_pair_code::materialize_join_consume()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-    }
-    if let Some(race) = targets.task_race() {
-        builder.define_function(
-            race.constructor(),
-            crate::async_pair_constructor_code::materialize(race)
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            race.resume(),
-            crate::async_pair_code::materialize_race_resume()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            race.cancel(),
-            crate::async_pair_code::materialize_race_cancel()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            race.consume(),
-            crate::async_pair_code::materialize_race_consume()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-    }
-    if let Some(group) = targets.task_group_ready() {
-        builder.define_function(
-            group.constructor(),
-            crate::async_group_constructor_code::materialize(group)
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            group.resume(),
-            crate::async_group_code::materialize_resume()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            group.cancel(),
-            crate::async_group_code::materialize_cancel()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-        builder.define_function(
-            group.consume(),
-            crate::async_group_code::materialize_consume()
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-    }
-    Ok(())
-}
-
-fn define_async_interest_lifecycle(
-    lifecycle: crate::Arm64AsyncInterestLifecycleTargets,
-    builder: &mut Arm64ProgramBuilder,
-) -> Result<(), Arm64LoweringError> {
-    builder.define_function(
-        lifecycle.resume(),
-        crate::async_interest_code::materialize_resume(lifecycle.interest_count())
-            .map_err(Arm64MaterializationError::Code)?,
-    )?;
-    builder.define_function(
-        lifecycle.cancel(),
-        crate::async_interest_code::materialize_cancel(lifecycle.interest_count())
-            .map_err(Arm64MaterializationError::Code)?,
-    )?;
-    builder.define_function(
-        lifecycle.consume(),
-        crate::async_interest_code::materialize_consume(lifecycle.interest_count())
-            .map_err(Arm64MaterializationError::Code)?,
-    )?;
     Ok(())
 }
 

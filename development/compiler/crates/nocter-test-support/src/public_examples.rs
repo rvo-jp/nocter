@@ -158,6 +158,21 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         postconditions: &[],
     },
     PublicPackageExample {
+        directory: "http-service",
+        package_identity: "workspace:http-service",
+        executable: "http-service",
+        fixtures: &[],
+        runs: &[PublicExampleRun {
+            name: "bounded-concurrent-service",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"",
+            stderr: b"",
+        }],
+        postconditions: &[],
+    },
+    PublicPackageExample {
         directory: "async-file-report",
         package_identity: "workspace:async-file-report",
         executable: "async-file-report",

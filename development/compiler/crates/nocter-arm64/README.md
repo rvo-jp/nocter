@@ -15,6 +15,7 @@ source, loader commands, or package state.
 
 - instruction and addressing selection
 - call, aggregate, pack, primitive, error, and region lowering
+- declaration-to-materializer binding for compiler-owned asynchronous primitive families
 - frame layout and register allocation
 - allocation-backed async-frame placement from the exact Machine field union
 - parallel-copy resolution

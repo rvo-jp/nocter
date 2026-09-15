@@ -25,6 +25,7 @@ mod async_interest_code;
 mod async_pack_capture_code;
 mod async_pair_code;
 mod async_pair_constructor_code;
+mod async_primitive_definitions;
 mod async_primitive_targets;
 mod async_release_code;
 mod async_release_selection;

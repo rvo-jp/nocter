@@ -65,7 +65,9 @@ An application caps accepted work by checking `TaskGroup.len()` and awaiting `Ta
 before accepting when its selected limit is reached. This bounds accepted streams and child tasks
 together. The application's aggregate body-storage bound is therefore its maximum retained task
 count multiplied by the `Limits` body bound selected for that server. Kernel backlog policy remains
-the TCP listener's responsibility.
+the TCP listener's responsibility. The
+[bounded HTTP service example](../../../examples/http-service/index.nct) demonstrates this complete
+composition with successful and explicit no-response paths.
 
 ## Client Lifecycle
 
