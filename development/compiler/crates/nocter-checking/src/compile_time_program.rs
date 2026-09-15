@@ -15,18 +15,25 @@ pub struct CompileTimeProgram {
     target: nocter_model::CompilationTarget,
     values: Arc<DeclarationValueTable>,
     plans: Arc<CompileTimePlanTable>,
+    initializer_plans: Arc<
+        nocter_model::Arena<
+            nocter_model::BodyId,
+            Option<nocter_constant_evaluation::CompileTimeCallablePlan>,
+        >,
+    >,
 }
 
 impl CompileTimeProgram {
     pub(crate) fn new(
         target: nocter_model::CompilationTarget,
         values: Arc<DeclarationValueTable>,
-        plans: CompileTimePlanTable,
+        projected: crate::compile_time_projection::ProjectedCompileTimePlans,
     ) -> Self {
         Self {
             target,
             values,
-            plans: Arc::new(plans),
+            plans: Arc::new(projected.callables),
+            initializer_plans: Arc::new(projected.initializers),
         }
     }
 
@@ -38,6 +45,14 @@ impl CompileTimeProgram {
     #[must_use]
     pub fn plans(&self) -> &CompileTimePlanTable {
         &self.plans
+    }
+
+    #[must_use]
+    pub fn initializer_plan(
+        &self,
+        body: nocter_model::BodyId,
+    ) -> Option<&nocter_constant_evaluation::CompileTimeCallablePlan> {
+        self.initializer_plans.get(body).and_then(Option::as_ref)
     }
 
     /// Opens deterministic execution over this program's exact value and plan authorities.

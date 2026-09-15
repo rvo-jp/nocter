@@ -25,7 +25,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - body-local structural type-extension recipes independent of sibling allocation order
 - source-neutral checked-body and source-evidence recipes with canonical current replay
 - type checking, inference, operations, construction, and calls
-- exhaustive projection of eligible ordinary checked bodies into compile-time callable plans
+- exhaustive projection of eligible ordinary checked bodies into compile-time callable and
+  initializer plans
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
 - ownership, cleanup dependencies, execution facts, loans, provenance, regions, and destruction
@@ -60,6 +61,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   checking through the same semantic-body contract as executable blocks. Their expression form,
   result type, declaration owner, and source root are fixed upstream and mutually validated; the
   checker does not rediscover initializer meaning from declaration syntax.
+- Initializer plans retain the same already-selected direct-call targets as callable plans. Their
+  call edges seed the shared specialization query, including generic callees that have no other
+  non-generic root; plan availability therefore cannot depend on an unrelated callable body.
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.

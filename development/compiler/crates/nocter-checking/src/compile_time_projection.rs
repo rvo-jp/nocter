@@ -9,9 +9,10 @@ use nocter_constant_evaluation::{
     CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType,
     ConstantScalarType, FloatFormat, InvalidCompileTimeCallable,
 };
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableId, CompileTimeGuarantee, TypeId, TypeKind, TypeStore,
+    Arena, BorrowCapability, BuiltinType, CallableId, CompileTimeGuarantee, TypeId, TypeKind,
+    TypeStore,
 };
 
 use crate::{
@@ -38,7 +39,7 @@ pub enum CompileTimeProjectionRule {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CompileTimeProjectionError {
-    callable: CallableId,
+    owner: BodyOwner,
     body: Option<nocter_model::BodyId>,
     node: Option<nocter_model::BodyNodeId>,
     rule: CompileTimeProjectionRule,
@@ -46,8 +47,8 @@ pub struct CompileTimeProjectionError {
 
 impl CompileTimeProjectionError {
     #[must_use]
-    pub const fn callable(self) -> CallableId {
-        self.callable
+    pub const fn owner(self) -> BodyOwner {
+        self.owner
     }
 
     #[must_use]
@@ -69,12 +70,17 @@ impl CompileTimeProjectionError {
 struct Projector<'a> {
     graph: &'a DeclarationGraph,
     types: &'a TypeStore,
-    callable: CallableId,
+    owner: BodyOwner,
     body_id: nocter_model::BodyId,
     body: &'a CheckedBody,
 }
 
 pub(crate) use query::build_compile_time_plan_table;
+
+pub(crate) struct ProjectedCompileTimePlans {
+    pub(crate) callables: nocter_constant_evaluation::CompileTimePlanTable,
+    pub(crate) initializers: Arena<nocter_model::BodyId, Option<CompileTimeCallablePlan>>,
+}
 
 fn project_compile_time_callable_recipe(
     graph: &DeclarationGraph,
@@ -89,15 +95,54 @@ fn project_compile_time_callable_recipe(
             .callables()
             .get(callable)
             .ok_or(CompileTimeProjectionError {
-                callable,
+                owner: BodyOwner::Callable(callable),
                 body: None,
                 node: None,
                 rule: CompileTimeProjectionRule::InvalidPlan,
             })?;
+    let parameters = declaration
+        .receiver()
+        .into_iter()
+        .chain(declaration.parameters().iter().copied())
+        .map(|parameter| {
+            graph
+                .declarations()
+                .parameters()
+                .get(parameter)
+                .copied()
+                .map(|declaration| CompileTimeParameter::new(parameter, declaration.ty()))
+                .ok_or(CompileTimeProjectionError {
+                    owner: BodyOwner::Callable(callable),
+                    body: Some(body_id),
+                    node: None,
+                    rule: CompileTimeProjectionRule::InvalidPlan,
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    project_compile_time_body_recipe(
+        graph,
+        types,
+        BodyOwner::Callable(callable),
+        body_id,
+        body,
+        declaration.body_result(),
+        parameters,
+    )
+}
+
+fn project_compile_time_body_recipe(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    owner: BodyOwner,
+    body_id: nocter_model::BodyId,
+    body: &CheckedBody,
+    result: TypeId,
+    parameters: Vec<CompileTimeParameter<TypeId>>,
+) -> Result<CompileTimeCallableRecipe, CompileTimeProjectionError> {
     let projector = Projector {
         graph,
         types,
-        callable,
+        owner,
         body_id,
         body,
     };
@@ -110,38 +155,50 @@ fn project_compile_time_callable_recipe(
         let operation = projector.operation(node, checked.operation())?;
         Ok(CompileTimeNode::new(checked.ty(), operation))
     })?;
-    let parameters = declaration
-        .receiver()
-        .into_iter()
-        .chain(declaration.parameters().iter().copied())
-        .map(|parameter| {
-            graph
-                .declarations()
-                .parameters()
-                .get(parameter)
-                .copied()
-                .map(|declaration| CompileTimeParameter::new(parameter, declaration.ty()))
-                .ok_or_else(|| projector.error(None, CompileTimeProjectionRule::InvalidPlan))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    projector.require_recipe_type(declaration.body_result(), None)?;
-    CompileTimeCallableRecipe::new(
-        parameters,
-        declaration.body_result(),
-        locals,
-        nodes,
-        body.root(),
+    projector.require_recipe_type(result, None)?;
+    CompileTimeCallableRecipe::new(parameters, result, locals, nodes, body.root()).map_err(
+        |error| {
+            let node = match error {
+                InvalidCompileTimeCallable::MissingNode(node)
+                | InvalidCompileTimeCallable::TypeMismatch(node) => Some(node),
+                InvalidCompileTimeCallable::MissingParameter(_)
+                | InvalidCompileTimeCallable::DuplicateParameter(_)
+                | InvalidCompileTimeCallable::MissingLocal(_) => None,
+            };
+            projector.error(node, CompileTimeProjectionRule::InvalidPlan)
+        },
     )
-    .map_err(|error| {
-        let node = match error {
-            InvalidCompileTimeCallable::MissingNode(node)
-            | InvalidCompileTimeCallable::TypeMismatch(node) => Some(node),
-            InvalidCompileTimeCallable::MissingParameter(_)
-            | InvalidCompileTimeCallable::DuplicateParameter(_)
-            | InvalidCompileTimeCallable::MissingLocal(_) => None,
-        };
-        projector.error(node, CompileTimeProjectionRule::InvalidPlan)
-    })
+}
+
+fn project_compile_time_initializer_plan(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    owner: BodyOwner,
+    body_id: nocter_model::BodyId,
+    body: &CheckedBody,
+) -> Result<CompileTimeCallablePlan, CompileTimeProjectionError> {
+    let result = match owner {
+        BodyOwner::Constant(id) => graph
+            .declarations()
+            .constants()
+            .get(id)
+            .map(nocter_declarations::ConstantDeclaration::ty),
+        BodyOwner::Static(id) => graph
+            .declarations()
+            .statics()
+            .get(id)
+            .map(nocter_declarations::StaticDeclaration::ty),
+        BodyOwner::Callable(_) | BodyOwner::Drop(_) | BodyOwner::Test(_) => None,
+    }
+    .ok_or(CompileTimeProjectionError {
+        owner,
+        body: Some(body_id),
+        node: None,
+        rule: CompileTimeProjectionRule::InvalidPlan,
+    })?;
+    let recipe =
+        project_compile_time_body_recipe(graph, types, owner, body_id, body, result, Vec::new())?;
+    specialize_compile_time_recipe(types, owner, Some(body_id), HashMap::new(), &recipe)
 }
 
 fn specialize_compile_time_callable_recipe(
@@ -157,7 +214,7 @@ fn specialize_compile_time_callable_recipe(
             .callables()
             .get(callable)
             .ok_or(CompileTimeProjectionError {
-                callable,
+                owner: BodyOwner::Callable(callable),
                 body: None,
                 node: None,
                 rule: CompileTimeProjectionRule::InvalidPlan,
@@ -166,7 +223,7 @@ fn specialize_compile_time_callable_recipe(
         .declarations()
         .callable_generic_domain(callable)
         .ok_or(CompileTimeProjectionError {
-            callable,
+            owner: BodyOwner::Callable(callable),
             body: declaration.body(),
             node: None,
             rule: CompileTimeProjectionRule::InvalidPlan,
@@ -178,21 +235,37 @@ fn specialize_compile_time_callable_recipe(
             .map(CompileTimeGenericArgument::parameter))
     {
         return Err(CompileTimeProjectionError {
-            callable,
+            owner: BodyOwner::Callable(callable),
             body: declaration.body(),
             node: None,
             rule: CompileTimeProjectionRule::InvalidPlan,
         });
     }
-    let specializer = Specializer {
+    specialize_compile_time_recipe(
         types,
-        callable,
-        body: declaration.body(),
-        substitution: target
+        BodyOwner::Callable(callable),
+        declaration.body(),
+        target
             .generic_arguments()
             .iter()
             .map(|argument| (argument.parameter(), argument.ty().clone()))
             .collect(),
+        recipe,
+    )
+}
+
+fn specialize_compile_time_recipe(
+    types: &TypeStore,
+    owner: BodyOwner,
+    body: Option<nocter_model::BodyId>,
+    substitution: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
+    recipe: &CompileTimeCallableRecipe,
+) -> Result<CompileTimeCallablePlan, CompileTimeProjectionError> {
+    let specializer = Specializer {
+        types,
+        owner,
+        body,
+        substitution,
     };
     let locals = recipe.locals().try_map(|_, ty| {
         specializer
@@ -240,7 +313,7 @@ fn specialize_compile_time_callable_recipe(
 
 struct Specializer<'a> {
     types: &'a TypeStore,
-    callable: CallableId,
+    owner: BodyOwner,
     body: Option<nocter_model::BodyId>,
     substitution: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
 }
@@ -641,7 +714,7 @@ impl Specializer<'_> {
         rule: CompileTimeProjectionRule,
     ) -> CompileTimeProjectionError {
         CompileTimeProjectionError {
-            callable: self.callable,
+            owner: self.owner,
             body: self.body,
             node,
             rule,
@@ -706,7 +779,7 @@ impl Projector<'_> {
         rule: CompileTimeProjectionRule,
     ) -> CompileTimeProjectionError {
         CompileTimeProjectionError {
-            callable: self.callable,
+            owner: self.owner,
             body: Some(self.body_id),
             node,
             rule,
@@ -819,6 +892,15 @@ mod tests {
 
         assert_eq!(body.form(), nocter_declarations::BodyForm::Expression);
         assert!(program.bodies().get(initializer).is_some());
+        assert!(
+            program
+                .compile_time_program()
+                .initializer_plan(initializer)
+                .unwrap()
+                .nodes()
+                .iter()
+                .any(|(_, node)| matches!(node.operation(), CompileTimeOperation::Binary { .. }))
+        );
         assert_eq!(
             program.constant_value(
                 program

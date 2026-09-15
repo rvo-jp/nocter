@@ -166,17 +166,33 @@ fn project_compile_time_failure(
         _ => materialized
             .source_index
             .diagnostic_origins()
-            .declaration(nocter_source_index::SemanticEntity::Callable(
-                error.callable(),
-            ))
-            .ok_or(BodyCheckInternalError::MissingSource(
-                nocter_source_index::SemanticEntity::Callable(error.callable()),
-            ))?,
+            .declaration(body_owner_entity(error.owner()))
+            .ok_or(BodyCheckInternalError::MissingSource(body_owner_entity(
+                error.owner(),
+            )))?,
     };
     Ok(crate::BodyCheckError::from_rule(
         crate::BodyRule::InvalidCompileTimeCallable,
         crate::BodyRule::InvalidCompileTimeCallable.diagnostic(origin),
     ))
+}
+
+const fn body_owner_entity(
+    owner: nocter_declarations::BodyOwner,
+) -> nocter_source_index::SemanticEntity {
+    match owner {
+        nocter_declarations::BodyOwner::Callable(id) => {
+            nocter_source_index::SemanticEntity::Callable(id)
+        }
+        nocter_declarations::BodyOwner::Constant(id) => {
+            nocter_source_index::SemanticEntity::Constant(id)
+        }
+        nocter_declarations::BodyOwner::Static(id) => {
+            nocter_source_index::SemanticEntity::Static(id)
+        }
+        nocter_declarations::BodyOwner::Drop(id) => nocter_source_index::SemanticEntity::Drop(id),
+        nocter_declarations::BodyOwner::Test(id) => nocter_source_index::SemanticEntity::Test(id),
+    }
 }
 
 fn build_materialized_body_recovery(

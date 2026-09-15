@@ -162,6 +162,11 @@ test bodies retain block form. Name resolution and typed expression checking con
 body-source contract, so initializer calls will use the ordinary checker's selected dispatch and
 generic arguments. Declaration integrity validates the owner/form relation in both directions;
 later compile-time projection never has to find an initializer by walking declaration syntax.
+Program finalization projects those checked expression bodies into zero-parameter initializer
+plans. Their direct-call edges enter the same specialization work queue as callable-plan edges, so
+a generic `const` helper used only by an initializer is still closed exactly once. The immutable
+compile-time program keeps initializer plans indexed by their semantic `BodyId`, beside—not inside—
+the callable specialization table.
 
 Header construction assigns every distinct fixed-array length expression a dense
 `ConstantExpressionId`. One heterogeneous query then resolves constant values, array lengths, and

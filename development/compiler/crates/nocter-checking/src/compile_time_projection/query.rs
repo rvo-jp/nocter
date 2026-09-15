@@ -5,11 +5,13 @@ use nocter_constant_evaluation::{
     CompileTimeOperation, CompileTimePlanTable, DependencyComputation, DependencyQuery,
     DependencyQueryError,
 };
+use nocter_declarations::BodyOwner;
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{Arena, CompileTimeGuarantee, TypeStore};
 
 use super::{
-    CompileTimeProjectionError, CompileTimeProjectionRule, project_compile_time_callable_recipe,
+    CompileTimeProjectionError, CompileTimeProjectionRule, ProjectedCompileTimePlans,
+    project_compile_time_callable_recipe, project_compile_time_initializer_plan,
     specialize_compile_time_callable_recipe,
 };
 use crate::CheckedBody;
@@ -43,7 +45,7 @@ impl
             .get(callable)
             .ok_or_else(|| {
                 DependencyQueryError::computation(CompileTimeProjectionError {
-                    callable,
+                    owner: BodyOwner::Callable(callable),
                     body: None,
                     node: None,
                     rule: CompileTimeProjectionRule::InvalidPlan,
@@ -52,7 +54,7 @@ impl
         if declaration.guarantees().compile_time() != CompileTimeGuarantee::Evaluatable {
             return Err(DependencyQueryError::computation(
                 CompileTimeProjectionError {
-                    callable,
+                    owner: BodyOwner::Callable(callable),
                     body: declaration.body(),
                     node: None,
                     rule: CompileTimeProjectionRule::RuntimeOnlyCall,
@@ -66,7 +68,7 @@ impl
             .and_then(Option::as_ref)
             .ok_or_else(|| {
                 DependencyQueryError::computation(CompileTimeProjectionError {
-                    callable,
+                    owner: BodyOwner::Callable(callable),
                     body,
                     node: None,
                     rule: CompileTimeProjectionRule::UnavailableCallTarget,
@@ -88,7 +90,7 @@ pub(crate) fn build_compile_time_plan_table(
     graph: &DeclarationGraph,
     types: &TypeStore,
     bodies: &Arena<nocter_model::BodyId, CheckedBody>,
-) -> Result<CompileTimePlanTable, CompileTimeProjectionError> {
+) -> Result<ProjectedCompileTimePlans, CompileTimeProjectionError> {
     let recipes = graph
         .declarations()
         .callables()
@@ -100,7 +102,7 @@ pub(crate) fn build_compile_time_plan_table(
                 return Ok(None);
             };
             let body = bodies.get(body_id).ok_or(CompileTimeProjectionError {
-                callable,
+                owner: BodyOwner::Callable(callable),
                 body: Some(body_id),
                 node: None,
                 rule: CompileTimeProjectionRule::InvalidPlan,
@@ -109,6 +111,13 @@ pub(crate) fn build_compile_time_plan_table(
         })?;
     let mut pending = VecDeque::new();
     let mut scheduled = HashSet::new();
+    let initializers = build_initializer_plans(graph, types, bodies)?;
+    for (_, plan) in initializers.iter() {
+        let Some(plan) = plan else {
+            continue;
+        };
+        schedule_calls(plan, &mut scheduled, &mut pending);
+    }
     for (callable, declaration) in graph.declarations().callables().iter() {
         if declaration.guarantees().compile_time() != CompileTimeGuarantee::Evaluatable
             || declaration.body().is_none()
@@ -121,7 +130,7 @@ pub(crate) fn build_compile_time_plan_table(
         }
         let target =
             CompileTimeCallTarget::new(callable, []).map_err(|_| CompileTimeProjectionError {
-                callable,
+                owner: BodyOwner::Callable(callable),
                 body: declaration.body(),
                 node: None,
                 rule: CompileTimeProjectionRule::InvalidPlan,
@@ -142,7 +151,7 @@ pub(crate) fn build_compile_time_plan_table(
             Err(DependencyQueryError::Computation(error)) => return Err(error),
             Err(DependencyQueryError::Cycle(_)) => {
                 return Err(CompileTimeProjectionError {
-                    callable: target.callable(),
+                    owner: BodyOwner::Callable(target.callable()),
                     body: graph
                         .declarations()
                         .callables()
@@ -153,20 +162,13 @@ pub(crate) fn build_compile_time_plan_table(
                 });
             }
         };
-        for (_, node) in plan.nodes().iter() {
-            let CompileTimeOperation::Call { target, .. } = node.operation() else {
-                continue;
-            };
-            if scheduled.insert(target.clone()) {
-                pending.push_back(target.clone());
-            }
-        }
+        schedule_calls(&plan, &mut scheduled, &mut pending);
     }
 
-    CompileTimePlanTable::new(query.into_completed()).map_err(|error| {
+    let callables = CompileTimePlanTable::new(query.into_completed()).map_err(|error| {
         let caller = error.caller().callable();
         CompileTimeProjectionError {
-            callable: caller,
+            owner: BodyOwner::Callable(caller),
             body: graph
                 .declarations()
                 .callables()
@@ -175,5 +177,54 @@ pub(crate) fn build_compile_time_plan_table(
             node: Some(error.node()),
             rule: CompileTimeProjectionRule::UnavailableCallTarget,
         }
+    })?;
+    Ok(ProjectedCompileTimePlans {
+        callables,
+        initializers,
     })
+}
+
+fn build_initializer_plans(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    bodies: &Arena<nocter_model::BodyId, CheckedBody>,
+) -> Result<Arena<nocter_model::BodyId, Option<CompileTimeCallablePlan>>, CompileTimeProjectionError>
+{
+    graph
+        .declarations()
+        .bodies()
+        .try_map(|body_id, declaration| match declaration.owner() {
+            BodyOwner::Constant(_) | BodyOwner::Static(_) => {
+                let body = bodies.get(body_id).ok_or(CompileTimeProjectionError {
+                    owner: declaration.owner(),
+                    body: Some(body_id),
+                    node: None,
+                    rule: CompileTimeProjectionRule::InvalidPlan,
+                })?;
+                project_compile_time_initializer_plan(
+                    graph,
+                    types,
+                    declaration.owner(),
+                    body_id,
+                    body,
+                )
+                .map(Some)
+            }
+            BodyOwner::Callable(_) | BodyOwner::Drop(_) | BodyOwner::Test(_) => Ok(None),
+        })
+}
+
+fn schedule_calls(
+    plan: &CompileTimeCallablePlan,
+    scheduled: &mut HashSet<CompileTimeCallTarget>,
+    pending: &mut VecDeque<CompileTimeCallTarget>,
+) {
+    for (_, node) in plan.nodes().iter() {
+        let CompileTimeOperation::Call { target, .. } = node.operation() else {
+            continue;
+        };
+        if scheduled.insert(target.clone()) {
+            pending.push_back(target.clone());
+        }
+    }
 }
