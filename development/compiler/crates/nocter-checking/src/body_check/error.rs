@@ -276,6 +276,7 @@ pub enum BodyCheckInternalError {
     DuplicateReusableBody(BodyId),
     UnknownReusableBody(BodyId),
     BodySemanticCommit,
+    CompileTimeValueDisagreement,
     InvalidQueriedBodyRejection(BodyId),
 }
 

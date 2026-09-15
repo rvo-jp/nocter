@@ -140,9 +140,34 @@ pub(super) fn finalize_materialized_program(
             ));
         }
     };
+    let checked_values = match crate::compile_time_values::build_checked_declaration_values(
+        materialized.environment.graph(),
+        &compile_time_plans,
+    ) {
+        Ok(values) => values,
+        Err(error) => {
+            let authored_error = project_compile_time_value_failure(&materialized, error)
+                .map_err(|internal| BodyCheckFailure::new(internal.into(), None))?;
+            let recovery = if retain_recovery {
+                build_materialized_body_recovery(materialized).map(Some)
+            } else {
+                Ok(None)
+            };
+            return Err(BodyCheckFailure::from_recovery_result(
+                authored_error,
+                recovery,
+            ));
+        }
+    };
+    if &checked_values != materialized.environment.values() {
+        return Err(BodyCheckFailure::new(
+            BodyCheckInternalError::CompileTimeValueDisagreement.into(),
+            None,
+        ));
+    }
     let compile_time = Arc::new(crate::CompileTimeProgram::new(
         materialized.environment.graph().target(),
-        materialized.environment.values_arc(),
+        Arc::new(checked_values),
         compile_time_plans,
     ));
     Ok(finish_checked_program(
@@ -152,29 +177,83 @@ pub(super) fn finalize_materialized_program(
     ))
 }
 
+fn project_compile_time_value_failure(
+    materialized: &QueriedProgramMaterialization,
+    error: crate::compile_time_values::CompileTimeValueBuildError,
+) -> Result<crate::BodyCheckError, BodyCheckInternalError> {
+    let origin =
+        compile_time_error_origin(materialized, error.owner(), error.body(), error.node())?;
+    let constant_rule = match error.rule() {
+        crate::compile_time_values::CompileTimeValueBuildRule::ConstantDependencyCycle => {
+            Some(crate::ConstantExpressionRule::DependencyCycle)
+        }
+        crate::compile_time_values::CompileTimeValueBuildRule::InvalidConstantValue
+        | crate::compile_time_values::CompileTimeValueBuildRule::InvalidStaticValue
+        | crate::compile_time_values::CompileTimeValueBuildRule::Execution(
+            nocter_constant_evaluation::CompileTimeExecutionRule::TypeMismatch,
+        ) => Some(crate::ConstantExpressionRule::TypeMismatch),
+        crate::compile_time_values::CompileTimeValueBuildRule::Execution(
+            nocter_constant_evaluation::CompileTimeExecutionRule::ArithmeticFailure,
+        ) => Some(crate::ConstantExpressionRule::ArithmeticFailure),
+        crate::compile_time_values::CompileTimeValueBuildRule::MissingInitializerPlan
+        | crate::compile_time_values::CompileTimeValueBuildRule::MissingCallPlan
+        | crate::compile_time_values::CompileTimeValueBuildRule::Execution(_) => None,
+    };
+    Ok(constant_rule.map_or_else(
+        || {
+            crate::BodyCheckError::from_rule(
+                crate::BodyRule::InvalidCompileTimeCallable,
+                crate::BodyRule::InvalidCompileTimeCallable.diagnostic(origin),
+            )
+        },
+        |rule| {
+            crate::BodyCheckError::from_constant_expression(
+                rule,
+                nocter_diagnostics::SourceDiagnostic::new(
+                    rule.code(),
+                    rule.message(),
+                    origin,
+                    [],
+                    Some(rule.help()),
+                ),
+            )
+        },
+    ))
+}
+
 fn project_compile_time_failure(
     materialized: &QueriedProgramMaterialization,
     error: crate::CompileTimeProjectionError,
 ) -> Result<crate::BodyCheckError, BodyCheckInternalError> {
-    let origin = match (error.body(), error.node()) {
+    let origin =
+        compile_time_error_origin(materialized, error.owner(), error.body(), error.node())?;
+    Ok(crate::BodyCheckError::from_rule(
+        crate::BodyRule::InvalidCompileTimeCallable,
+        crate::BodyRule::InvalidCompileTimeCallable.diagnostic(origin),
+    ))
+}
+
+fn compile_time_error_origin(
+    materialized: &QueriedProgramMaterialization,
+    owner: nocter_declarations::BodyOwner,
+    body: Option<BodyId>,
+    node: Option<nocter_model::BodyNodeId>,
+) -> Result<nocter_source_index::SourceOrigin, BodyCheckInternalError> {
+    match (body, node) {
         (Some(body), Some(node)) => materialized
             .node_origins
             .get(body)
             .and_then(|origins| origins.get(&node))
             .copied()
-            .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))?,
+            .ok_or(BodyCheckInternalError::MissingNodeOrigin(node)),
         _ => materialized
             .source_index
             .diagnostic_origins()
-            .declaration(body_owner_entity(error.owner()))
+            .declaration(body_owner_entity(owner))
             .ok_or(BodyCheckInternalError::MissingSource(body_owner_entity(
-                error.owner(),
-            )))?,
-    };
-    Ok(crate::BodyCheckError::from_rule(
-        crate::BodyRule::InvalidCompileTimeCallable,
-        crate::BodyRule::InvalidCompileTimeCallable.diagnostic(origin),
-    ))
+                owner,
+            ))),
+    }
 }
 
 const fn body_owner_entity(

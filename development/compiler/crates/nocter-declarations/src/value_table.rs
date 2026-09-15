@@ -3,13 +3,25 @@ use nocter_model::{Arena, ArenaBuilder, ConstantId, ConstantValue, FrozenValue, 
 use crate::DefinitionError;
 
 /// Evaluated values paired with declaration identities without becoming declaration metadata.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DeclarationValueTable {
     constants: Arena<ConstantId, ConstantValue>,
     statics: Arena<StaticId, FrozenValue>,
 }
 
 impl DeclarationValueTable {
+    /// Joins already complete dense constant and static authorities.
+    ///
+    /// This constructor cannot represent an unfilled declaration slot. Pairing identities and
+    /// validating declared types remains the declaration program's responsibility.
+    #[must_use]
+    pub const fn new(
+        constants: Arena<ConstantId, ConstantValue>,
+        statics: Arena<StaticId, FrozenValue>,
+    ) -> Self {
+        Self { constants, statics }
+    }
+
     #[must_use]
     pub const fn constants(&self) -> &Arena<ConstantId, ConstantValue> {
         &self.constants

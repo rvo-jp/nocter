@@ -77,9 +77,6 @@ impl ProgramEnvironment {
     pub(crate) fn values(&self) -> &DeclarationValueTable {
         &self.values
     }
-    pub(crate) fn values_arc(&self) -> Arc<DeclarationValueTable> {
-        Arc::clone(&self.values)
-    }
     pub(crate) fn interface_implementations(&self) -> &InterfaceImplementationTable {
         &self.interface_implementations
     }

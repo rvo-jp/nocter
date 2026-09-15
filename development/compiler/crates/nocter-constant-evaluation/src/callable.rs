@@ -355,6 +355,7 @@ pub struct CompileTimeCallable<T, C> {
     nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
     root: BodyNodeId,
     constant_dependencies: Box<[ConstantId]>,
+    call_dependencies: Box<[C]>,
 }
 
 /// One checked body recipe before its generic type domain is closed.
@@ -380,6 +381,7 @@ impl<T, C> CompileTimeCallable<T, C> {
     ) -> Result<Self, InvalidCompileTimeCallable>
     where
         T: PartialEq,
+        C: Clone + Ord,
     {
         let mut constant_dependencies = nodes
             .iter()
@@ -390,6 +392,15 @@ impl<T, C> CompileTimeCallable<T, C> {
             .collect::<Vec<_>>();
         constant_dependencies.sort_unstable();
         constant_dependencies.dedup();
+        let mut call_dependencies = nodes
+            .iter()
+            .filter_map(|(_, node)| match node.operation() {
+                CompileTimeOperation::Call { target, .. } => Some(target.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        call_dependencies.sort_unstable();
+        call_dependencies.dedup();
         let plan = Self {
             parameters: parameters.into(),
             result,
@@ -397,6 +408,7 @@ impl<T, C> CompileTimeCallable<T, C> {
             nodes,
             root,
             constant_dependencies: constant_dependencies.into_boxed_slice(),
+            call_dependencies: call_dependencies.into_boxed_slice(),
         };
         if let Some(parameter) =
             plan.parameters
@@ -447,6 +459,15 @@ impl<T, C> CompileTimeCallable<T, C> {
     #[must_use]
     pub const fn constant_dependencies(&self) -> &[ConstantId] {
         &self.constant_dependencies
+    }
+
+    /// Returns the canonical direct call inputs selected by this plan.
+    ///
+    /// Call-graph consumers use this frozen edge set rather than rediscovering calls from
+    /// operation nodes.
+    #[must_use]
+    pub const fn call_dependencies(&self) -> &[C] {
+        &self.call_dependencies
     }
 
     fn validate(&self) -> Result<(), InvalidCompileTimeCallable>

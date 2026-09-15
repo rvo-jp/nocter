@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use nocter_model::BodyNodeId;
+use nocter_model::{BodyNodeId, ConstantId};
 
 use crate::{CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeOperation};
 
@@ -101,6 +101,44 @@ impl CompileTimePlanTable {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.plans.is_empty()
+    }
+
+    /// Closes the declared-constant inputs reachable from `root` through the frozen call graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns the unavailable selected call target when `root` is not closed by this table.
+    pub fn constant_dependency_closure(
+        &self,
+        root: &CompileTimeCallablePlan,
+    ) -> Result<Box<[ConstantId]>, MissingCompileTimePlan> {
+        let mut constants = BTreeSet::new();
+        let mut visited = HashSet::new();
+        let mut pending = root.call_dependencies().to_vec();
+        constants.extend(root.constant_dependencies().iter().copied());
+        while let Some(target) = pending.pop() {
+            if !visited.insert(target.clone()) {
+                continue;
+            }
+            let plan = self
+                .get(&target)
+                .ok_or(MissingCompileTimePlan { target })?;
+            constants.extend(plan.constant_dependencies().iter().copied());
+            pending.extend(plan.call_dependencies().iter().cloned());
+        }
+        Ok(constants.into_iter().collect())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MissingCompileTimePlan {
+    target: CompileTimeCallTarget,
+}
+
+impl MissingCompileTimePlan {
+    #[must_use]
+    pub const fn target(&self) -> &CompileTimeCallTarget {
+        &self.target
     }
 }
 

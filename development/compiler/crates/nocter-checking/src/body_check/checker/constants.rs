@@ -50,7 +50,7 @@ impl BodyChecker<'_, '_> {
             )
             .map_err(|error| plan_error(&tree, error))?
         };
-        let value = evaluate_expression_plan(&plan, |id| self.values.constants().get(id).cloned())
+        let value = evaluate_expression_plan(&plan, |id| self.constants.get(id).cloned())
             .map_err(|error| evaluation_error(&tree, error))?;
         let ConstantValue::Integer(value) = value else {
             return Err(constant_error(

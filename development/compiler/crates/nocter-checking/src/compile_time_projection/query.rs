@@ -2,8 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use nocter_constant_evaluation::{
     CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeCallableRecipe,
-    CompileTimeOperation, CompileTimePlanTable, DependencyComputation, DependencyQuery,
-    DependencyQueryError,
+    CompileTimePlanTable, DependencyComputation, DependencyQuery, DependencyQueryError,
 };
 use nocter_declarations::BodyOwner;
 use nocter_declarations::DeclarationGraph;
@@ -219,10 +218,7 @@ fn schedule_calls(
     scheduled: &mut HashSet<CompileTimeCallTarget>,
     pending: &mut VecDeque<CompileTimeCallTarget>,
 ) {
-    for (_, node) in plan.nodes().iter() {
-        let CompileTimeOperation::Call { target, .. } = node.operation() else {
-            continue;
-        };
+    for target in plan.call_dependencies() {
         if scheduled.insert(target.clone()) {
             pending.push_back(target.clone());
         }

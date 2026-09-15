@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::{BodyForm, DeclarationGraph, DeclarationValueTable};
+use nocter_declarations::{BodyForm, DeclarationGraph};
 use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair};
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
@@ -132,7 +132,7 @@ pub(super) struct BodyUnitInput<'input, 'syntax> {
 pub(super) struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
-    values: &'input DeclarationValueTable,
+    constants: &'input nocter_model::Arena<ConstantId, nocter_model::ConstantValue>,
     types: &'input mut nocter_model::TypeTransaction,
     copyabilities: &'input mut crate::copyability::CopyabilityTransaction,
     closures: &'input mut ClosureTransaction,
@@ -279,7 +279,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         Ok(Self {
             input,
             graph,
-            values: facts.values(),
+            constants: facts.constants(),
             types,
             copyabilities,
             closures,

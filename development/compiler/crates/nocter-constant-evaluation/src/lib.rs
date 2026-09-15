@@ -46,7 +46,10 @@ pub use model::{
     ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
 };
 pub use plan::{plan_expression, plan_frozen_expression};
-pub use program::{CompileTimePlanTable, InvalidCompileTimePlanRule, InvalidCompileTimePlanTable};
+pub use program::{
+    CompileTimePlanTable, InvalidCompileTimePlanRule, InvalidCompileTimePlanTable,
+    MissingCompileTimePlan,
+};
 pub use query::{DependencyComputation, DependencyQuery, DependencyQueryError};
 pub use value::CompileTimeValue;
 

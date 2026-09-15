@@ -19,6 +19,7 @@ mod body_type_recipe;
 mod checked;
 mod compile_time_program;
 mod compile_time_projection;
+mod compile_time_values;
 mod concrete_destruction;
 mod concrete_dispatch;
 mod concrete_type;

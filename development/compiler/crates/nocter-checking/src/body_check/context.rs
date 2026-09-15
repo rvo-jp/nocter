@@ -4,7 +4,7 @@ use crate::{
     BodySource, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
     InterfaceImplementationTable, StandardSemanticTable,
 };
-use nocter_declarations::{BodyOwner, CallableExecution, DeclarationGraph, DeclarationValueTable};
+use nocter_declarations::{BodyOwner, CallableExecution, DeclarationGraph};
 use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind};
 use nocter_source_index::DiagnosticOrigins;
@@ -13,7 +13,7 @@ use nocter_source_index::DiagnosticOrigins;
 #[derive(Clone, Copy)]
 pub(super) struct BodyProgramFacts<'program> {
     graph: &'program DeclarationGraph,
-    values: &'program DeclarationValueTable,
+    constants: &'program nocter_model::Arena<nocter_model::ConstantId, nocter_model::ConstantValue>,
     drops: &'program DropTable,
     interface_implementations: &'program InterfaceImplementationTable,
     construction_surfaces: &'program ConstructionSurfaceTable,
@@ -123,7 +123,7 @@ impl<'program> BodyProgramFacts<'program> {
     ) -> Self {
         Self {
             graph: environment.graph(),
-            values: environment.values(),
+            constants: environment.values().constants(),
             drops: environment.drops(),
             interface_implementations: environment.interface_implementations(),
             construction_surfaces: environment.construction_surfaces(),
@@ -152,8 +152,10 @@ impl<'program> BodyProgramFacts<'program> {
         self.graph
     }
 
-    pub(super) const fn values(self) -> &'program DeclarationValueTable {
-        self.values
+    pub(super) const fn constants(
+        self,
+    ) -> &'program nocter_model::Arena<nocter_model::ConstantId, nocter_model::ConstantValue> {
+        self.constants
     }
 
     pub(super) const fn drops(self) -> &'program DropTable {
