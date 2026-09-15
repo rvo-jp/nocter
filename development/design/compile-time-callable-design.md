@@ -108,6 +108,11 @@ than rescanning plans to create a separate topological order. Short-circuit eval
 operation's value, but it does not erase the initializer's declared dependency edge or conceal a
 dependency cycle.
 
+One query owns each completed value behind a shared immutable handle. Resolving a completed key
+reuses that handle instead of cloning the value, which keeps memoization effective for frozen
+arrays and later aggregate values. The query authority itself cannot be cloned; a semantic
+construction therefore has one active stack and one completed-value cache.
+
 Literal payloads belong to the expression node that spells them. A checked reference to a declared
 constant instead carries `ConstantId`; checking may read the declaration's type but cannot copy its
 evaluated value into the body. Target reachability collects those identities, executable closure

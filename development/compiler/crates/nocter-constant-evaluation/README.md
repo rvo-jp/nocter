@@ -26,5 +26,8 @@ runtime execution, name lookup, overload selection, or target code generation.
   or elapsed time; all callers use the same nonzero limit contract.
 - One dependency query owns absent, active, and completed key states. It memoizes shared
   dependencies, reports exact active cycles, and removes failed active branches before returning.
+- Each completed query value is allocated once and shared across every dependent request. The
+  query has no `Clone` implementation, so a semantic construction cannot fork a second memoization
+  authority or copy a large frozen aggregate on each dependency edge.
 - Constant plans freeze reference edges once during planning. Evaluation requests those edges
   through the query and does not construct a separate dependency-order traversal.

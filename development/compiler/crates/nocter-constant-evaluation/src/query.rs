@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::sync::Arc;
 
 /// Computes one dependency value while retaining the same query authority for recursive requests.
 pub trait DependencyComputation<K, V, E> {
@@ -19,17 +20,17 @@ pub trait DependencyComputation<K, V, E> {
     ) -> Result<V, DependencyQueryError<K, E>>;
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 enum QueryState<V> {
     Active,
-    Complete(V),
+    Complete(Arc<V>),
 }
 
 /// One memoized dependency authority for a semantic construction.
 ///
 /// A key is either absent, active on the exact current stack, or complete. Failed computations
 /// remove their active state before returning, so no partial result can be observed or reused.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct DependencyQuery<K, V> {
     states: HashMap<K, QueryState<V>>,
     stack: Vec<K>,
@@ -47,7 +48,6 @@ impl<K, V> Default for DependencyQuery<K, V> {
 impl<K, V> DependencyQuery<K, V>
 where
     K: Clone + Eq + Hash,
-    V: Clone,
 {
     /// Resolves one key, reusing a completed value and rejecting active re-entry.
     ///
@@ -64,9 +64,9 @@ where
         &mut self,
         computation: &mut impl DependencyComputation<K, V, E>,
         key: K,
-    ) -> Result<V, DependencyQueryError<K, E>> {
+    ) -> Result<Arc<V>, DependencyQueryError<K, E>> {
         match self.states.get(&key) {
-            Some(QueryState::Complete(value)) => return Ok(value.clone()),
+            Some(QueryState::Complete(value)) => return Ok(Arc::clone(value)),
             Some(QueryState::Active) => {
                 let start = self
                     .stack
@@ -93,7 +93,9 @@ where
         );
         match result {
             Ok(value) => {
-                self.states.insert(key, QueryState::Complete(value.clone()));
+                let value = Arc::new(value);
+                self.states
+                    .insert(key, QueryState::Complete(Arc::clone(&value)));
                 Ok(value)
             }
             Err(error) => {
@@ -106,7 +108,7 @@ where
     #[must_use]
     pub fn completed(&self, key: &K) -> Option<&V> {
         match self.states.get(key) {
-            Some(QueryState::Complete(value)) => Some(value),
+            Some(QueryState::Complete(value)) => Some(value.as_ref()),
             Some(QueryState::Active) | None => None,
         }
     }
@@ -136,6 +138,7 @@ impl<K, E> DependencyQueryError<K, E> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     use super::{DependencyComputation, DependencyQuery, DependencyQueryError};
 
@@ -158,7 +161,7 @@ mod tests {
             let dependencies = self.edges.get(&key).cloned().unwrap_or_default();
             let mut value = u64::from(key);
             for dependency in dependencies {
-                value += query.resolve(self, dependency)?;
+                value += *query.resolve(self, dependency)?;
             }
             Ok(value)
         }
@@ -180,7 +183,7 @@ mod tests {
         let mut computation = graph(&[(0, &[1, 2]), (1, &[3]), (2, &[3])]);
         let mut query = DependencyQuery::default();
 
-        assert_eq!(query.resolve(&mut computation, 0), Ok(9));
+        assert_eq!(query.resolve(&mut computation, 0).as_deref(), Ok(&9));
         assert_eq!(computation.visits.get(&3), Some(&1));
         assert_eq!(query.complete_len(), 4);
     }
@@ -211,6 +214,18 @@ mod tests {
         assert_eq!(query.complete_len(), 0);
 
         computation.reject = None;
-        assert_eq!(query.resolve(&mut computation, 0), Ok(1));
+        assert_eq!(query.resolve(&mut computation, 0).as_deref(), Ok(&1));
+    }
+
+    #[test]
+    fn repeated_resolution_shares_one_completed_value() {
+        let mut computation = graph(&[]);
+        let mut query = DependencyQuery::default();
+
+        let first = query.resolve(&mut computation, 7).unwrap();
+        let second = query.resolve(&mut computation, 7).unwrap();
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(computation.visits.get(&7), Some(&1));
     }
 }
