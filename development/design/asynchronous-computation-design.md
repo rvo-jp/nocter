@@ -213,6 +213,12 @@ destination storage. That entry moves the output and retires the child frame. Ca
 similarly calls only the child's cancellation entry. Neither parent, executor, nor scheduler can
 inspect a child's output offset or cancellation state.
 
+Polling a completed but unconsumed computation is an idempotent terminal observation: it reports
+completed with an empty interest set and does not rerun the body or move the output. This lets a
+borrowing readiness composition identify a completed child before the owning source abstraction
+removes and consumes it. Consume and cancel remain the only terminal ownership operations and are
+still legal exactly once.
+
 ## Structured Execution
 
 The selected process entry is the first concrete execution owner. If `main` is `async` with
@@ -264,6 +270,22 @@ the public `Race<T>` enum, so the backend does not depend on a standard-library 
 Cancellation accepts both pending and completed-but-unconsumed composition states and calls every
 still-owned child cancellation entry exactly once.
 
+`TaskGroup<T>` keeps dynamic ownership in ordinary standard-library `Vec<future T>` storage. Its
+single compiler primitive borrows `&+[future T]`, polls handles in source order, and returns the
+structural tuple `(bool, usize)` indicating absence or one completed index. The primitive neither
+removes nor cancels a child. Machine owns the two tuple-element placements; ARM64 consumes those
+frozen offsets and implements only the erased readiness lifecycle. The standard library removes
+the indicated future and awaits it, while ordinary Vec destruction remains the sole cancellation
+authority for retained children.
+
+For a pending dynamic scan, the primitive copies each child's opaque wait records into one
+contiguous set while preserving the original readiness-cell pointers. Child metadata is allocated
+once per `next` wait, and combined-interest capacity is reused until a later scan requires growth;
+the published count always identifies exactly the initialized records. Both buffers belong to the
+borrowing wait frame and are released on cancellation or consumption. No executor,
+scheduler-specific public representation, or nominal `TaskGroup` layout crosses the compiler
+boundary.
+
 `task.with_timeout` is standard-library policy over that same private race operation and
 `time.sleep`. Two ordinary async helpers map child completion and elapsed time into one
 `Timeout<T>` output before racing them. An explicit expected `future Timeout<T>` type closes the
@@ -272,9 +294,10 @@ backend therefore gains neither a timeout-specific primitive nor another schedul
 The computation branch remains first, giving it one immediate poll and deterministic same-step
 priority over the timer branch.
 
-The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
-normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
-detached observation token. Detached execution is excluded until the language has an explicit
+The task API is lexically owned but does not install an implicit scope-exit join. Explicit `join`
+or repeated `TaskGroup.next` consumes child outputs; ordinary destruction on any exit path cancels
+every child still owned by the composition. A future or group is an ownership value, not a detached
+observation token. Detached execution is excluded until the language has an explicit
 process-lifetime ownership and failure-reporting contract.
 
 Creating a `future T` value is lazy. It does not run until consumed by `await` or transferred to a

@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.53.0 development is active. Phase 0 and Phase 1 are complete: JSON compact generation now
-uses one effect-neutral pull encoder, String generation is nonblocking, and BlockingWriter output is
-an explicit buffered driver over the same chunk sequence. The active scope and completion gates live
-in [`development/history/milestones/v0.53.0.md`](history/milestones/v0.53.0.md).
+Nocter v0.53.0 development is active. Phases 0 through 2 are complete: JSON compact generation uses
+one effect-neutral pull encoder, and `TaskGroup<T>` now provides runtime-sized structured ownership
+without detached work or a second executor. The active scope and completion gates live in
+[`development/history/milestones/v0.53.0.md`](history/milestones/v0.53.0.md).
 
 ## Next Work
 
-Implement Phase 2 as one dynamic structured-task area derived from HTTP server concurrency needs.
-Define ownership, completion, cancellation, and destruction before choosing convenience API names.
-Do not introduce detached tasks, a scheduler-specific public representation, or a second future
-execution authority.
+Implement Phase 3 as one HTTP server lifecycle over existing asynchronous network streams,
+`TaskGroup`, timeouts, and incremental codecs. Define bounded request framing and connection close
+ownership before adding convenience APIs. Do not introduce a compiler-recognized service,
+detached connection task, hidden unbounded buffer, or second transport lifecycle.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

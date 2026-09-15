@@ -1,6 +1,7 @@
 //! Compiler-owned asynchronous task services.
 
 see ./readiness.nct
+see ./group.nct
 
 /// Suspends until one descriptor may make progress in the requested direction.
 pub(/) async func wait_descriptor_ready(descriptor: usize, writable: bool): void
@@ -14,3 +15,9 @@ pub(/) async func wait_descriptor_ready_or_deadline(
 
 /// Suspends until the target reports that one exact process may be observed without waiting.
 pub(/) async func wait_process_complete(process: usize): void
+
+/// Waits until one computation in a nonempty mutable view completes.
+///
+/// The returned boolean is false only for an empty input. A completed computation remains in the
+/// caller-owned view and is identified by the returned index.
+pub(/) func group_ready<T>(computations: &+[future T]): future (bool, usize) from computations

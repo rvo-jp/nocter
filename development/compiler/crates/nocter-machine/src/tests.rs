@@ -47,7 +47,7 @@ fn structured_join_carries_machine_owned_tuple_placement() {
             if target.role() != PrimitiveRole::TaskJoin {
                 return None;
             }
-            let crate::MachinePrimitiveDependency::AsyncPair(plan) = target.dependency() else {
+            let crate::MachinePrimitiveDependency::AsyncTuple(plan) = target.dependency() else {
                 panic!("task.join must carry its physical output placement")
             };
             Some(*plan)
@@ -86,7 +86,7 @@ fn structured_race_carries_machine_owned_winner_and_output_placement() {
             if target.role() != PrimitiveRole::TaskRace {
                 return None;
             }
-            let crate::MachinePrimitiveDependency::AsyncPair(plan) = target.dependency() else {
+            let crate::MachinePrimitiveDependency::AsyncTuple(plan) = target.dependency() else {
                 panic!("task.race must carry its physical output placement")
             };
             Some(*plan)

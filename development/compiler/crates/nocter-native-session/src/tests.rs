@@ -4502,6 +4502,71 @@ fn structured_async_timeout_distinguishes_completion_from_elapsed_time() {
 }
 
 #[test]
+fn dynamic_task_group_drives_runtime_sized_children_and_preserves_empty_state() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/task\n\
+         use std/task.{TaskGroup, Timeout}\n\
+         use std/time\n\
+         \n\
+         async func delayed_number(value: i32, milliseconds: u64): i32 {\n\
+             await time.sleep(time.Duration.from_milliseconds(milliseconds))\n\
+             return value\n\
+         }\n\
+         async func main(): i32 {\n\
+             var empty: TaskGroup<i32> = TaskGroup.empty()\n\
+             let absent = await empty.next()\n\
+             let unexpected: i32 = absent otherwise {\n\
+                 var group: TaskGroup<i32> = TaskGroup.empty()\n\
+                 group.add(delayed_number(30, 30))\n\
+                 group.add(delayed_number(10, 10))\n\
+                 group.add(delayed_number(20, 20))\n\
+                 if group.len() != 3 { return 1 }\n\
+                 let first: i32 = await group.next() otherwise { return 2 }\n\
+                 if first != 10 || group.len() != 2 { return 3 }\n\
+                 let second: i32 = await group.next() otherwise { return 4 }\n\
+                 if second != 20 || group.len() != 1 { return 5 }\n\
+                 let third: i32 = await group.next() otherwise { return 6 }\n\
+                 if third != 30 || !group.is_empty() { return 7 }\n\
+                 var pairs: TaskGroup<(i32, i32)> = TaskGroup.empty()\n\
+                 pairs.add(task.join(delayed_number(19, 5), delayed_number(23, 10)))\n\
+                 let pair: (i32, i32) = await pairs.next() otherwise { return 8 }\n\
+                 if pair.0 + pair.1 != 42 { return 9 }\n\
+                 var retained: TaskGroup<i32> = TaskGroup.empty()\n\
+                 retained.add(delayed_number(42, 30))\n\
+                 let timed: Timeout<i32?> = await task.with_timeout(\n\
+                     retained.next(),\n\
+                     time.Duration.from_milliseconds(5),\n\
+                 )\n\
+                 match timed {\n\
+                     Timeout.completed(_) { return 10 }\n\
+                     Timeout.elapsed {}\n\
+                 }\n\
+                 if retained.len() != 1 { return 11 }\n\
+                 let retained_value: i32 = await retained.next() otherwise { return 12 }\n\
+                 if retained_value != 42 { return 13 }\n\
+                 return 0\n\
+             }\n\
+             return unexpected + 8\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "dynamic-task-group", 0);
+}
+
+#[test]
 fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

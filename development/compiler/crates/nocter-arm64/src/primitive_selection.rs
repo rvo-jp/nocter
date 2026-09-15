@@ -188,7 +188,8 @@ pub(crate) fn select(
         | PrimitiveRole::MonotonicDeadline
         | PrimitiveRole::ProcessCompletion
         | PrimitiveRole::TaskJoin
-        | PrimitiveRole::TaskRace => select_async_primitive(operation, target, selected),
+        | PrimitiveRole::TaskRace
+        | PrimitiveRole::TaskGroupReady => select_async_primitive(operation, target, selected),
         PrimitiveRole::ProcessAbandon => {
             validate_type_arguments(operation, target, 0)?;
             validate_register_abi(operation, target, &[1], 0)?;
@@ -439,29 +440,38 @@ fn select_async_primitive(
 ) -> Result<(), Arm64SelectionError> {
     if matches!(
         target.role(),
-        PrimitiveRole::TaskJoin | PrimitiveRole::TaskRace
+        PrimitiveRole::TaskJoin | PrimitiveRole::TaskRace | PrimitiveRole::TaskGroupReady
     ) {
-        validate_register_abi(operation, target, &[1, 1], 1)?;
+        let argument_words = if target.role() == PrimitiveRole::TaskGroupReady {
+            &[2][..]
+        } else {
+            &[1, 1][..]
+        };
+        validate_register_abi(operation, target, argument_words, 1)?;
         let expected_type_arguments = if target.role() == PrimitiveRole::TaskJoin {
             2
         } else {
             1
         };
         validate_type_arguments(operation, target, expected_type_arguments)?;
-        let nocter_machine::MachinePrimitiveDependency::AsyncPair(plan) = target.dependency()
+        let nocter_machine::MachinePrimitiveDependency::AsyncTuple(plan) = target.dependency()
         else {
             return Err(Arm64SelectionError::PrimitiveCall(operation));
         };
-        selected.push(if target.role() == PrimitiveRole::TaskJoin {
-            Arm64SelectedInstruction::ConstructTaskJoin {
+        selected.push(match target.role() {
+            PrimitiveRole::TaskJoin => Arm64SelectedInstruction::ConstructTaskJoin {
                 first_output_offset: plan.first_output_offset(),
                 second_output_offset: plan.second_output_offset(),
-            }
-        } else {
-            Arm64SelectedInstruction::ConstructTaskRace {
+            },
+            PrimitiveRole::TaskRace => Arm64SelectedInstruction::ConstructTaskRace {
                 winner_offset: plan.first_output_offset(),
                 output_offset: plan.second_output_offset(),
-            }
+            },
+            PrimitiveRole::TaskGroupReady => Arm64SelectedInstruction::ConstructTaskGroupReady {
+                available_offset: plan.first_output_offset(),
+                index_offset: plan.second_output_offset(),
+            },
+            _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
         });
         return Ok(());
     }

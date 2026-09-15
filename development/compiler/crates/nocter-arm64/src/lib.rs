@@ -12,12 +12,15 @@ mod allocation_selection;
 mod async_activation;
 mod async_cancel_code;
 mod async_cancellation;
+mod async_composition_code;
 mod async_constructor_code;
 mod async_consume_code;
 mod async_drive_code;
 mod async_drive_selection;
 mod async_frame;
 mod async_function;
+mod async_group_code;
+mod async_group_constructor_code;
 mod async_interest_code;
 mod async_pack_capture_code;
 mod async_pair_code;
@@ -142,7 +145,8 @@ pub use async_function::{
     Arm64AsyncParameterCapture,
 };
 pub use async_primitive_targets::{
-    Arm64AsyncInterestLifecycleTargets, Arm64AsyncPairTargets, Arm64AsyncPrimitiveTargets,
+    Arm64AsyncGroupTargets, Arm64AsyncInterestLifecycleTargets, Arm64AsyncPairTargets,
+    Arm64AsyncPrimitiveTargets,
 };
 pub use async_resume_error::Arm64AsyncResumeError;
 pub use async_wait_frame::Arm64AsyncWaitFrame;

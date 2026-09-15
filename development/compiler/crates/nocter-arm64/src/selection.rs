@@ -317,6 +317,11 @@ pub enum Arm64SelectedInstruction {
         winner_offset: u64,
         output_offset: u64,
     },
+    /// Constructs a borrowed dynamic child-set readiness computation.
+    ConstructTaskGroupReady {
+        available_offset: u64,
+        index_offset: u64,
+    },
     /// Calls one source-ABI entry from the compiler-owned plain connection target set.
     CallDarwinNetworkPrimitive(crate::Arm64DarwinNetworkPrimitive),
     /// Calls one source-ABI entry from the generated local-file target family.

@@ -1,0 +1,11 @@
+//! Dynamic child-readiness visibility boundary over the compiler-owned primitive.
+
+see ./index.nct
+
+primitive func task_group_ready_raw<T>(
+    computations: &+[future T],
+): future (bool, usize) from computations
+
+func group_ready<T>(computations: &+[future T]): future (bool, usize) from computations {
+    return task_group_ready_raw(computations)
+}

@@ -20,6 +20,37 @@ pub struct Arm64AsyncPairTargets {
     consume: Arm64FunctionId,
 }
 
+/// Native lifecycle entries for one borrowed runtime-sized child-set readiness computation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64AsyncGroupTargets {
+    constructor: Arm64FunctionId,
+    resume: Arm64FunctionId,
+    cancel: Arm64FunctionId,
+    consume: Arm64FunctionId,
+}
+
+impl Arm64AsyncGroupTargets {
+    #[must_use]
+    pub const fn constructor(self) -> Arm64FunctionId {
+        self.constructor
+    }
+
+    #[must_use]
+    pub const fn resume(self) -> Arm64FunctionId {
+        self.resume
+    }
+
+    #[must_use]
+    pub const fn cancel(self) -> Arm64FunctionId {
+        self.cancel
+    }
+
+    #[must_use]
+    pub const fn consume(self) -> Arm64FunctionId {
+        self.consume
+    }
+}
+
 impl Arm64AsyncPairTargets {
     #[must_use]
     pub const fn constructor(self) -> Arm64FunctionId {
@@ -75,6 +106,7 @@ pub struct Arm64AsyncPrimitiveTargets {
     dual_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
     task_join: Option<Arm64AsyncPairTargets>,
     task_race: Option<Arm64AsyncPairTargets>,
+    task_group_ready: Option<Arm64AsyncGroupTargets>,
 }
 
 impl Arm64AsyncPrimitiveTargets {
@@ -89,6 +121,7 @@ impl Arm64AsyncPrimitiveTargets {
         let process_completion = roles.contains(&PrimitiveRole::ProcessCompletion);
         let task_join = roles.contains(&PrimitiveRole::TaskJoin);
         let task_race = roles.contains(&PrimitiveRole::TaskRace);
+        let task_group_ready = roles.contains(&PrimitiveRole::TaskGroupReady);
         let single_interest_lifecycle =
             (descriptor_readiness || monotonic_deadline || process_completion)
                 .then(|| declare_lifecycle(builder, 1));
@@ -104,6 +137,7 @@ impl Arm64AsyncPrimitiveTargets {
             dual_interest_lifecycle,
             task_join: task_join.then(|| declare_pair(builder)),
             task_race: task_race.then(|| declare_pair(builder)),
+            task_group_ready: task_group_ready.then(|| declare_group(builder)),
         }
     }
 
@@ -145,6 +179,20 @@ impl Arm64AsyncPrimitiveTargets {
     #[must_use]
     pub const fn task_race(self) -> Option<Arm64AsyncPairTargets> {
         self.task_race
+    }
+
+    #[must_use]
+    pub const fn task_group_ready(self) -> Option<Arm64AsyncGroupTargets> {
+        self.task_group_ready
+    }
+}
+
+fn declare_group(builder: &mut Arm64ProgramBuilder) -> Arm64AsyncGroupTargets {
+    Arm64AsyncGroupTargets {
+        constructor: builder.declare_function(),
+        resume: builder.declare_function(),
+        cancel: builder.declare_function(),
+        consume: builder.declare_function(),
     }
 }
 

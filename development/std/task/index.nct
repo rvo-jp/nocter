@@ -3,6 +3,7 @@
 use /time.Duration
 
 see ./composition.nct
+see ./group.nct
 
 /// The completed branch of one two-computation race.
 pub enum Race<T> {
@@ -14,6 +15,35 @@ pub enum Race<T> {
 pub enum Timeout<T> {
     completed(value: T)
     elapsed
+}
+
+/// One runtime-sized, uniquely owned set of homogeneous child computations.
+///
+/// Adding transfers a lazy computation into the group. Awaiting `next` drives every retained
+/// child fairly and removes exactly one completed computation. Destroying the group cancels every
+/// child that remains.
+pub struct TaskGroup<T>
+
+construct TaskGroup<T> {
+    /// Creates an empty group without allocating child storage.
+    pub noalloc func empty(): Self
+}
+
+instance TaskGroup<T> {
+    /// Transfers one lazy computation into this group.
+    pub method &+self.add(computation: future T): void
+
+    /// Returns the number of computations still owned by this group.
+    pub noalloc method &self.len(): usize
+
+    /// Reports whether this group owns no computations.
+    pub noalloc method &self.is_empty(): bool
+
+    /// Drives all retained computations and removes one completed output.
+    ///
+    /// Returns absence immediately when the group is empty. Cancelling this wait leaves every
+    /// child in the group; destroying the group cancels them.
+    pub async method &+self.next(): T?
 }
 
 /// Starts two owned computations, waits for both, and returns their outputs in argument order.

@@ -276,9 +276,22 @@ pub(crate) fn materialize_resume(interest_count: u64) -> Result<Arm64Code, crate
     );
     let initial = code.create_label();
     let suspended = code.create_label();
+    let completed = code.create_label();
     compare_state(argument(4), states.initial(), initial, &mut code);
     compare_state(argument(4), suspended_tag, suspended, &mut code);
+    compare_state(argument(4), states.completed(), completed, &mut code);
     trap_state(&mut code);
+
+    code.bind(completed)?;
+    crate::frame_access::load_immediate(
+        &mut code,
+        argument(0),
+        schema.completed_status(),
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(&mut code, argument(1), 0, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(&mut code, argument(2), 0, Arm64DataSize::Bits64);
+    return_to_caller(&mut code);
 
     code.bind(initial)?;
     store_immediate(

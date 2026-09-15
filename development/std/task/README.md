@@ -30,6 +30,18 @@ elapsed time. The child is polled first and therefore wins if both outcomes can 
 same drive step. A zero timeout still permits one immediate child poll. Selecting elapsed time
 cancels the child before the timeout computation completes.
 
-The fixed arity is an intentional bounded-concurrency surface. A later homogeneous collection
-operation can build on the same ownership and scheduling contract without changing `join` or
-`race`.
+`TaskGroup<T>` owns a runtime-sized homogeneous set of `future T` values. `add` transfers one lazy
+computation into the group. `next` drives every retained computation and removes one completed
+output. It returns absence immediately when the group is empty. Selection among children already
+completed in the same drive step is deterministic but is not an ordering contract. A child starts
+only while `next` is being driven; adding a future does not create detached background work.
+
+The wait performed by `next` borrows the group's child set. Cancelling that wait releases its
+temporary readiness records but does not cancel or remove a child. The group remains the sole
+owner, so a later `next` can resume the same computations. Destroying the group instead destroys
+its backing Vec and therefore cancels every retained future exactly once. A completed child remains
+in the group until `next` removes and consumes it.
+
+`join` and `race` remain fixed-arity conveniences with distinct result policies. `TaskGroup` is the
+dynamic ownership primitive; it does not reinterpret child outputs, select a scheduler, or expose
+an independently copyable task handle.

@@ -962,6 +962,16 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             None,
             vec![0, 1],
         ),
+        PrimitiveRole::TaskGroupReady => make(
+            1,
+            vec![TypeContract::readwrite(TypeContract::slice(
+                TypeContract::asynchronous(TypeContract::Generic(0)),
+            ))],
+            TypeContract::asynchronous(TypeContract::tuple(vec![boolean(), usize()])),
+            private,
+            None,
+            vec![0],
+        ),
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
         | PrimitiveRole::FileOpenAppend

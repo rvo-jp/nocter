@@ -17,8 +17,8 @@ pub(crate) fn materialize(
     targets: Arm64AsyncPairTargets,
 ) -> Result<Arm64Code, crate::Arm64CodeError> {
     let mut code = Arm64CodeBuilder::new();
-    crate::async_pair_code::validate_nonzero(argument(0), &mut code);
-    crate::async_pair_code::validate_nonzero(argument(1), &mut code);
+    crate::async_composition_code::validate_nonzero(argument(0), &mut code);
+    crate::async_composition_code::validate_nonzero(argument(1), &mut code);
     crate::frame_access::adjust_stack(&mut code, STACK_SIZE, Arm64AddSubtract::Subtract);
     store_stack(FIRST_STACK_OFFSET, argument(0), &mut code);
     store_stack(SECOND_STACK_OFFSET, argument(1), &mut code);
@@ -41,14 +41,14 @@ pub(crate) fn materialize(
     crate::async_pair_code::initialize_pair_frame(argument(6), targets, &mut code)?;
     crate::address_code::move_register(&mut code, argument(6), argument(0));
     crate::frame_access::adjust_stack(&mut code, STACK_SIZE, Arm64AddSubtract::Add);
-    crate::async_pair_code::return_to_caller(&mut code);
+    crate::async_composition_code::return_to_caller(&mut code);
     code.finish()
 }
 
 fn store_stack(offset: u64, source: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    crate::async_pair_code::store_stack(offset, source, code);
+    crate::async_composition_code::store_stack(offset, source, code);
 }
 
 const fn argument(index: u8) -> crate::Arm64Register {
-    crate::async_pair_code::argument(index)
+    crate::async_composition_code::argument(index)
 }

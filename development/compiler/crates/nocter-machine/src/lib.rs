@@ -75,7 +75,7 @@ pub use pack::{
     MachinePack, MachinePackContribution, MachinePackNext, MachinePackNextOutcome,
     MachinePackSegment, MachinePackSpread,
 };
-pub use primitive_dependency::{MachineAsyncPairPlan, MachinePrimitiveDependency};
+pub use primitive_dependency::{MachineAsyncTuplePlan, MachinePrimitiveDependency};
 pub use program::{
     MachineBody, MachineFunction, MachineFunctionExecution, MachineFunctionKind, MachineProgram,
     MachineProgramRoot, MachineTestProgram,

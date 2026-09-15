@@ -514,6 +514,31 @@ pub(crate) fn emit_instruction(
                 .map(|targets| code.call(targets.constructor()))
                 .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget)
         }
+        Arm64SelectedInstruction::ConstructTaskGroupReady {
+            available_offset,
+            index_offset,
+        } => {
+            crate::frame_access::load_immediate(
+                code,
+                Arm64NocterAbi::argument_register(2)
+                    .ok_or(Arm64MaterializationError::MissingArgumentRegister(2))?,
+                available_offset,
+                Arm64DataSize::Bits64,
+            );
+            crate::frame_access::load_immediate(
+                code,
+                Arm64NocterAbi::argument_register(3)
+                    .ok_or(Arm64MaterializationError::MissingArgumentRegister(3))?,
+                index_offset,
+                Arm64DataSize::Bits64,
+            );
+            context
+                .primitives
+                .asynchronous()
+                .task_group_ready()
+                .map(|targets| code.call(targets.constructor()))
+                .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget)
+        }
         Arm64SelectedInstruction::CallDarwinNetworkPrimitive(primitive) => context
             .primitives
             .network()

@@ -398,6 +398,28 @@ fn define_async_primitives(
                 .map_err(Arm64MaterializationError::Code)?,
         )?;
     }
+    if let Some(group) = targets.task_group_ready() {
+        builder.define_function(
+            group.constructor(),
+            crate::async_group_constructor_code::materialize(group)
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            group.resume(),
+            crate::async_group_code::materialize_resume()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            group.cancel(),
+            crate::async_group_code::materialize_cancel()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            group.consume(),
+            crate::async_group_code::materialize_consume()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+    }
     Ok(())
 }
 

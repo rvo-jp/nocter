@@ -250,6 +250,8 @@ closed_role_enum! {
         TaskJoin,
         /// Takes ownership of two same-output computations and selects one deterministic winner.
         TaskRace,
+        /// Waits for one computation in a caller-owned runtime-sized mutable view to complete.
+        TaskGroupReady,
         /// Constructs one generated local-file read-only open computation.
         FileOpenRead,
         /// Constructs one generated local-file create-or-truncate computation.
@@ -478,6 +480,7 @@ impl PrimitiveRole {
             Self::ProcessAbandon => "process_abandon",
             Self::TaskJoin => "task_join",
             Self::TaskRace => "task_race",
+            Self::TaskGroupReady => "task_group_ready",
             Self::FileOpenRead => "file_open_read",
             Self::FileOpenCreate => "file_open_create",
             Self::FileOpenAppend => "file_open_append",
@@ -779,6 +782,7 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
+                PrimitiveRole::TaskGroupReady,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
@@ -854,6 +858,7 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
+                PrimitiveRole::TaskGroupReady,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,
@@ -902,6 +907,7 @@ mod tests {
                 PrimitiveRole::ProcessCompletion,
                 PrimitiveRole::TaskJoin,
                 PrimitiveRole::TaskRace,
+                PrimitiveRole::TaskGroupReady,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
                 PrimitiveRole::FileOpenAppend,

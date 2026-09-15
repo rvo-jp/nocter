@@ -1,13 +1,13 @@
 use nocter_model::TypeId;
 
-/// Physical output placement for one two-child structured composition result.
+/// Physical element placement for one two-element asynchronous tuple result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MachineAsyncPairPlan {
+pub struct MachineAsyncTuplePlan {
     first_output_offset: u64,
     second_output_offset: u64,
 }
 
-impl MachineAsyncPairPlan {
+impl MachineAsyncTuplePlan {
     pub(crate) const fn new(first_output_offset: u64, second_output_offset: u64) -> Self {
         Self {
             first_output_offset,
@@ -35,5 +35,5 @@ impl MachineAsyncPairPlan {
 pub enum MachinePrimitiveDependency {
     None,
     NoopDestruction { subject: TypeId },
-    AsyncPair(MachineAsyncPairPlan),
+    AsyncTuple(MachineAsyncTuplePlan),
 }

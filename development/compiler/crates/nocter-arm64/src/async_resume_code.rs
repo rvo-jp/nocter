@@ -24,6 +24,7 @@ pub(crate) fn materialize(
         .map(|(block, _)| (block, code.create_label()))
         .collect::<Vec<_>>();
     let initial = code.create_label();
+    let completed = code.create_label();
     let state_labels = plan
         .activation()
         .states()
@@ -34,7 +35,10 @@ pub(crate) fn materialize(
     Arm64FrameCode::emit_prologue(selected.frame().layout(), &mut code);
     store_async_frame(plan, argument(0)?, &mut code)?;
     restore_ambient_context(plan, &mut code)?;
-    emit_state_dispatch(plan, initial, &state_labels, &mut code)?;
+    emit_state_dispatch(plan, initial, completed, &state_labels, &mut code)?;
+
+    code.bind(completed)?;
+    emit_completed_poll(plan, &mut code)?;
 
     code.bind(initial)?;
     restore_fields(plan, plan.activation().initial(), &mut code)?;
@@ -125,6 +129,7 @@ fn emit_selected_entry(
 fn emit_state_dispatch(
     plan: &Arm64AsyncFunctionPlan,
     initial: crate::Arm64LabelId,
+    completed: crate::Arm64LabelId,
     states: &[(nocter_machine::MachineBlockId, crate::Arm64LabelId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64AsyncResumeError> {
@@ -147,9 +152,37 @@ fn emit_state_dispatch(
             code,
         )?;
     }
+    emit_tag_branch(actual, plan.frame().completed_tag(), completed, code)?;
     code.append(Arm64Instruction::Break {
         immediate: crate::runtime_trap::Arm64RuntimeTrap::AsyncFrameStateCorruption.immediate(),
     });
+    Ok(())
+}
+
+fn emit_completed_poll(
+    plan: &Arm64AsyncFunctionPlan,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64AsyncResumeError> {
+    let schema = Arm64NocterAbi::asynchronous();
+    crate::frame_access::load_immediate(
+        code,
+        abi_register(schema.status_result_register())?,
+        schema.completed_status(),
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(
+        code,
+        abi_register(schema.interests_pointer_result_register())?,
+        0,
+        Arm64DataSize::Bits64,
+    );
+    crate::frame_access::load_immediate(
+        code,
+        abi_register(schema.interest_count_result_register())?,
+        0,
+        Arm64DataSize::Bits64,
+    );
+    Arm64FrameCode::emit_epilogue(plan.selected().frame().layout(), code);
     Ok(())
 }
 

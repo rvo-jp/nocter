@@ -121,7 +121,8 @@ impl PrimitiveRole {
             | Self::MonotonicDeadline
             | Self::ProcessCompletion
             | Self::TaskJoin
-            | Self::TaskRace => ALLOCATING_FUTURE_WITH_ALLOCATION_CONTEXT,
+            | Self::TaskRace
+            | Self::TaskGroupReady => ALLOCATING_FUTURE_WITH_ALLOCATION_CONTEXT,
             Self::FileOpenRead
             | Self::FileOpenCreate
             | Self::FileOpenAppend

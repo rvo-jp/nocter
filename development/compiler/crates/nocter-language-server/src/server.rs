@@ -1472,6 +1472,51 @@ mod tests {
     }
 
     #[test]
+    fn task_group_hover_uses_the_public_dynamic_ownership_contract() {
+        let temporary = TemporaryDirectory::new();
+        let (mut server, _source_uri) =
+            open_semantic_source(&temporary, "func main(): void { return }\n");
+        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/task/index.nct");
+        let text = fs::read_to_string(&standard).unwrap();
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub struct TaskGroup<T>"))
+            .unwrap();
+        let character = source_line.find("TaskGroup").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":19,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub struct TaskGroup<T>"),
+            "{response}"
+        );
+        assert!(
+            response.contains("runtime-sized, uniquely owned"),
+            "{response}"
+        );
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("method &+self.next(): T?"))
+            .unwrap();
+        let character = source_line.find("next").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub async method &+TaskGroup<T>.next(): T?\\n```"),
+            "{response}"
+        );
+    }
+
+    #[test]
     fn text_transformation_hover_uses_the_public_standard_contract() {
         let temporary = TemporaryDirectory::new();
         let (mut server, _source_uri) =

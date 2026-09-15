@@ -410,6 +410,9 @@ primitive func descriptor_readiness_or_deadline_raw(
 ): future void
 #target: \"arm64-darwin\"
 primitive func process_completion_raw(process: usize): future void
+primitive func task_group_ready_raw<T>(
+    computations: &+[future T],
+): future (bool, usize) from computations
 pub async func descriptor_readiness_for_test(
     descriptor: usize,
     writable: bool,

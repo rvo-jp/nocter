@@ -1,0 +1,44 @@
+//! Runtime-sized structured computation ownership.
+
+see ./index.nct
+
+use /internal/task
+use /internal/safety
+use /vec.Vec
+
+struct TaskGroup<T> {
+    computations: Vec<future T>
+}
+
+construct TaskGroup<T> {
+    noalloc func empty(): Self {
+        let computations: Vec<future T> = Vec.empty()
+        return TaskGroup { computations: move computations }
+    }
+}
+
+instance TaskGroup<T> {
+    method &+self.add(computation: future T): void {
+        self.computations.push(move computation)
+    }
+
+    noalloc method &self.len(): usize {
+        return self.computations.len()
+    }
+
+    noalloc method &self.is_empty(): bool {
+        return self.computations.len() == 0
+    }
+
+    async method &+self.next(): T? {
+        let computations: &+[future T] = &+self.computations
+        let ready = await task.group_ready(computations)
+        if !ready.0 {
+            return none
+        }
+        let computation: future T = self.computations.swap_remove(ready.1) otherwise {
+            return safety.invariant_abort()
+        }
+        return await computation
+    }
+}

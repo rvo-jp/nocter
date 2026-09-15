@@ -224,10 +224,11 @@ parent. Such an escape is rejected by the ordinary result-provenance and loan ru
 
 ## Structured Ownership
 
-Asynchronous work remains under one lexical ownership authority. The initial model has no detached
-task and does not start a hidden global executor from synchronous code. Scheduling transfers a
-future into a scope-owned task; normal scope exit joins remaining children, and exceptional exit
-cancels them.
+Asynchronous work remains under one lexical ownership authority. The current model has no detached
+task and does not start a hidden global executor from synchronous code. Transferring a future into
+a composition transfers its sole cancellation authority. Destroying an unconsumed composition on
+any exit path cancels every child it still owns; joining occurs only through an explicit operation
+that consumes child outputs.
 
 The fixed-arity `std/task` compositions take ownership of their input futures. `task.join` drives
 two children until both complete and returns their outputs in argument order. `task.race` drives
@@ -249,6 +250,13 @@ the selected output or outputs and retires those child frames. Nested compositio
 children's original wait interests rather than creating another executor or treating an unrelated
 wakeup as completion. Timeout composition is ordinary standard-library code over this race
 substrate and `time.sleep`; it introduces no timeout-specific scheduler or backend lifecycle.
+
+`TaskGroup<T>` owns a runtime-sized homogeneous collection of `future T` values. Adding a child
+transfers ownership without starting it. Awaiting `next` drives the retained children and removes
+one completed `T`; an empty group produces absence immediately. Cancelling a pending `next` ends
+only that wait and leaves every child owned by the group. Destroying the group cancels all retained
+children through ordinary element destruction. There is no detached execution: children make
+progress only while an owning composition is driven.
 
 `async` describes a producer body that may suspend; the produced structural future supplies the
 nonblocking drive invariant. Under the initial allocation-backed representation, an `async`

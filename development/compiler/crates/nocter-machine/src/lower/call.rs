@@ -93,9 +93,14 @@ pub(super) fn lower_call_target(
                 .ok_or(MachineProgramError::MissingPrimitiveAbi(operation))?;
             let dependency = match dependency {
                 MirPrimitiveDependency::None
-                    if matches!(role, PrimitiveRole::TaskJoin | PrimitiveRole::TaskRace) =>
+                    if matches!(
+                        role,
+                        PrimitiveRole::TaskJoin
+                            | PrimitiveRole::TaskRace
+                            | PrimitiveRole::TaskGroupReady
+                    ) =>
                 {
-                    MachinePrimitiveDependency::AsyncPair(async_pair_plan(
+                    MachinePrimitiveDependency::AsyncTuple(async_tuple_plan(
                         operation, signature, context,
                     )?)
                 }
@@ -140,33 +145,33 @@ pub(super) fn lower_call_target(
     }
 }
 
-fn async_pair_plan(
+fn async_tuple_plan(
     operation: MirOperationId,
     signature: &MirCallSignature,
     context: ProgramLoweringContext<'_>,
-) -> Result<crate::MachineAsyncPairPlan, MachineProgramError> {
+) -> Result<crate::MachineAsyncTuplePlan, MachineProgramError> {
     let Some(RuntimeType::Future(output)) = context.types.get(signature.result()) else {
-        return Err(MachineProgramError::InvalidAsyncPair(operation));
+        return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     };
     let Some(RuntimeType::Tuple(elements)) = context.types.get(*output) else {
-        return Err(MachineProgramError::InvalidAsyncPair(operation));
+        return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     };
     let [first, second] = elements.as_ref() else {
-        return Err(MachineProgramError::InvalidAsyncPair(operation));
+        return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     };
     let Some(layout) = context.layouts.get(*output) else {
         return Err(MachineProgramError::MissingStoredLayout(*output));
     };
     let crate::MachineLayoutKind::Tuple { elements: placed } = layout.kind() else {
-        return Err(MachineProgramError::InvalidAsyncPair(operation));
+        return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     };
     let [first_placed, second_placed] = placed.as_ref() else {
-        return Err(MachineProgramError::InvalidAsyncPair(operation));
+        return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     };
     if first_placed.ty() != *first || second_placed.ty() != *second {
-        return Err(MachineProgramError::InvalidAsyncPair(operation));
+        return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     }
-    Ok(crate::MachineAsyncPairPlan::new(
+    Ok(crate::MachineAsyncTuplePlan::new(
         first_placed.offset(),
         second_placed.offset(),
     ))

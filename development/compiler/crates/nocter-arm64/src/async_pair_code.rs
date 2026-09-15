@@ -1,11 +1,11 @@
 //! Compiler-owned two-child composition lifecycles shared by join and race.
 
 use crate::{
-    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AsyncPairTargets, Arm64BaseRegister,
-    Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
+    Arm64AddSubtract, Arm64AsyncPairTargets, Arm64BranchCondition, Arm64Code, Arm64CodeBuilder,
+    Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
 };
-use nocter_runtime_contract::RuntimeAsyncStateTags;
+
+use crate::async_composition_code::*;
 
 const FIRST_CHILD_OFFSET: u64 = Arm64NocterAbi::asynchronous().fixed_header_size();
 const SECOND_CHILD_OFFSET: u64 = FIRST_CHILD_OFFSET + Arm64NocterAbi::word_size();
@@ -25,18 +25,6 @@ const SECOND_INTEREST_COUNT_OFFSET: u64 =
     SECOND_INTEREST_POINTER_OFFSET + Arm64NocterAbi::word_size();
 pub(super) const PAIR_FRAME_SIZE: u64 = SECOND_INTEREST_COUNT_OFFSET + Arm64NocterAbi::word_size();
 const MAX_INTEREST_COUNT: u64 = u32::MAX as u64;
-
-const FRAME_STACK_OFFSET: u64 = 0;
-const LINK_STACK_OFFSET: u64 = 8;
-const ALLOCATION_CONTEXT_STACK_OFFSET: u64 = 16;
-const PROCESS_CONTEXT_STACK_OFFSET: u64 = 24;
-const CALL_STACK_SIZE: u64 = 32;
-
-const OUTPUT_STACK_OFFSET: u64 = 8;
-const CONSUME_LINK_STACK_OFFSET: u64 = 16;
-const CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET: u64 = 24;
-const CONSUME_PROCESS_CONTEXT_STACK_OFFSET: u64 = 32;
-const CONSUME_STACK_SIZE: u64 = 48;
 
 pub(super) fn initialize_pair_frame(
     frame: crate::Arm64Register,
@@ -115,7 +103,7 @@ pub(crate) fn materialize_join_resume() -> Result<Arm64Code, crate::Arm64CodeErr
     let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     emit_call_prologue(argument(0), &mut code);
-    validate_state(states.initial(), &mut code);
+    accept_initial_or_return_completed(states.initial(), states.completed(), &mut code)?;
     release_interest_buffer(&mut code)?;
     clear_pending_interests(&mut code);
     poll_child(
@@ -167,7 +155,7 @@ pub(crate) fn materialize_race_resume() -> Result<Arm64Code, crate::Arm64CodeErr
     let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     emit_call_prologue(argument(0), &mut code);
-    validate_state(states.initial(), &mut code);
+    accept_initial_or_return_completed(states.initial(), states.completed(), &mut code)?;
     release_interest_buffer(&mut code)?;
     clear_pending_interests(&mut code);
 
@@ -436,12 +424,6 @@ pub(crate) fn materialize_race_consume() -> Result<Arm64Code, crate::Arm64CodeEr
     crate::frame_access::adjust_stack(&mut code, CONSUME_STACK_SIZE, Arm64AddSubtract::Add);
     return_to_caller(&mut code);
     code.finish()
-}
-
-fn lifecycle_states() -> Result<RuntimeAsyncStateTags, crate::Arm64CodeError> {
-    Arm64NocterAbi::asynchronous()
-        .state_tags(0)
-        .ok_or(crate::Arm64CodeError::AsyncStateTagExhausted)
 }
 
 fn poll_child(
@@ -717,264 +699,4 @@ fn release_pair_frame(code: &mut Arm64CodeBuilder) -> Result<(), crate::Arm64Cod
         code,
         crate::runtime_trap::Arm64RuntimeTrap::AsyncFrameReleaseFailure,
     )
-}
-
-fn emit_call_prologue(frame: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    crate::frame_access::adjust_stack(code, CALL_STACK_SIZE, Arm64AddSubtract::Subtract);
-    store_stack(FRAME_STACK_OFFSET, frame, code);
-    store_stack(LINK_STACK_OFFSET, Arm64NocterAbi::link_register(), code);
-    store_stack(
-        ALLOCATION_CONTEXT_STACK_OFFSET,
-        Arm64NocterAbi::allocation_context_register(),
-        code,
-    );
-    store_stack(
-        PROCESS_CONTEXT_STACK_OFFSET,
-        Arm64NocterAbi::process_context_register(),
-        code,
-    );
-}
-
-fn emit_call_epilogue(code: &mut Arm64CodeBuilder) {
-    load_stack(
-        ALLOCATION_CONTEXT_STACK_OFFSET,
-        Arm64NocterAbi::allocation_context_register(),
-        code,
-    );
-    load_stack(
-        PROCESS_CONTEXT_STACK_OFFSET,
-        Arm64NocterAbi::process_context_register(),
-        code,
-    );
-    load_stack(LINK_STACK_OFFSET, Arm64NocterAbi::link_register(), code);
-    crate::frame_access::adjust_stack(code, CALL_STACK_SIZE, Arm64AddSubtract::Add);
-    return_to_caller(code);
-}
-
-fn validate_state(expected: u64, code: &mut Arm64CodeBuilder) {
-    load_frame(argument(3), code);
-    load(
-        argument(3),
-        Arm64NocterAbi::asynchronous().state_tag_offset(),
-        argument(4),
-        code,
-    );
-    compare_immediate(argument(4), expected, code);
-    let valid = code.create_label();
-    code.branch_conditional(valid, Arm64BranchCondition::Equal);
-    trap_state(code);
-    code.bind(valid)
-        .expect("fresh join state-validation label binds once");
-}
-
-fn validate_state_any(
-    expected: &[u64],
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), crate::Arm64CodeError> {
-    load_frame(argument(3), code);
-    load(
-        argument(3),
-        Arm64NocterAbi::asynchronous().state_tag_offset(),
-        argument(4),
-        code,
-    );
-    let valid = code.create_label();
-    for state in expected {
-        compare_immediate(argument(4), *state, code);
-        code.branch_conditional(valid, Arm64BranchCondition::Equal);
-    }
-    trap_state(code);
-    code.bind(valid)
-}
-
-pub(super) fn validate_nonzero(value: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    validate_nonzero_with_trap(
-        value,
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncFrameStateCorruption,
-        code,
-    );
-}
-
-fn validate_nonzero_with_trap(
-    value: crate::Arm64Register,
-    trap: crate::runtime_trap::Arm64RuntimeTrap,
-    code: &mut Arm64CodeBuilder,
-) {
-    compare_immediate(value, 0, code);
-    let valid = code.create_label();
-    code.branch_conditional(valid, Arm64BranchCondition::NotEqual);
-    code.append(Arm64Instruction::Break {
-        immediate: trap.immediate(),
-    });
-    code.bind(valid)
-        .expect("fresh join pointer-validation label binds once");
-}
-
-fn load_frame(destination: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    load_stack(FRAME_STACK_OFFSET, destination, code);
-}
-
-fn initialize_entry(
-    frame: crate::Arm64Register,
-    offset: u64,
-    target: crate::Arm64FunctionId,
-    code: &mut Arm64CodeBuilder,
-) {
-    code.load_function_address(target, argument(4));
-    store(frame, offset, argument(4), code);
-}
-
-fn initialize_from_stack(
-    frame: crate::Arm64Register,
-    frame_offset: u64,
-    stack_offset: u64,
-    code: &mut Arm64CodeBuilder,
-) {
-    load_stack(stack_offset, argument(4), code);
-    store(frame, frame_offset, argument(4), code);
-}
-
-fn load(
-    frame: crate::Arm64Register,
-    offset: u64,
-    destination: crate::Arm64Register,
-    code: &mut Arm64CodeBuilder,
-) {
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        destination,
-        frame,
-        offset,
-    );
-}
-
-fn store(
-    frame: crate::Arm64Register,
-    offset: u64,
-    source: crate::Arm64Register,
-    code: &mut Arm64CodeBuilder,
-) {
-    crate::address_code::store_native(code, Arm64LoadStoreSize::Double, source, frame, offset);
-}
-
-fn store_immediate(
-    frame: crate::Arm64Register,
-    offset: u64,
-    value: u64,
-    code: &mut Arm64CodeBuilder,
-) {
-    crate::frame_access::load_immediate(code, argument(7), value, Arm64DataSize::Bits64);
-    store(frame, offset, argument(7), code);
-}
-
-pub(super) fn store_stack(offset: u64, source: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    crate::frame_access::store_at_stack_offset(code, Arm64LoadStoreSize::Double, source, offset);
-}
-
-fn load_stack(offset: u64, destination: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    crate::frame_access::load_at_stack_offset(
-        code,
-        Arm64LoadStoreSize::Double,
-        destination,
-        offset,
-    );
-}
-
-fn compare_immediate(value: crate::Arm64Register, expected: u64, code: &mut Arm64CodeBuilder) {
-    code.append(Arm64Instruction::AddSubtractImmediate {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Subtract,
-        set_flags: true,
-        destination: Arm64AddSubtractDestination::Zero,
-        source: Arm64BaseRegister::General(value),
-        immediate: u16::try_from(expected).expect("join state and status values fit an immediate"),
-        shift_12: false,
-    });
-}
-
-fn compare_register(
-    left: crate::Arm64Register,
-    right: crate::Arm64Register,
-    code: &mut Arm64CodeBuilder,
-) {
-    code.append(Arm64Instruction::AddSubtractRegister {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Subtract,
-        set_flags: true,
-        destination: Arm64DataRegister::Zero,
-        left: Arm64DataRegister::General(left),
-        right: Arm64DataRegister::General(right),
-    });
-}
-
-fn add_register(
-    destination: crate::Arm64Register,
-    left: crate::Arm64Register,
-    right: crate::Arm64Register,
-    set_flags: bool,
-    code: &mut Arm64CodeBuilder,
-) {
-    code.append(Arm64Instruction::AddSubtractRegister {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Add,
-        set_flags,
-        destination: Arm64DataRegister::General(destination),
-        left: Arm64DataRegister::General(left),
-        right: Arm64DataRegister::General(right),
-    });
-}
-
-fn add_immediate(value: crate::Arm64Register, immediate: u64, code: &mut Arm64CodeBuilder) {
-    code.append(Arm64Instruction::AddSubtractImmediate {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Add,
-        set_flags: false,
-        destination: Arm64AddSubtractDestination::General(value),
-        source: Arm64BaseRegister::General(value),
-        immediate: u16::try_from(immediate).expect("join interest stride fits an immediate"),
-        shift_12: false,
-    });
-}
-
-fn subtract_immediate(value: crate::Arm64Register, immediate: u64, code: &mut Arm64CodeBuilder) {
-    code.append(Arm64Instruction::AddSubtractImmediate {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Subtract,
-        set_flags: false,
-        destination: Arm64AddSubtractDestination::General(value),
-        source: Arm64BaseRegister::General(value),
-        immediate: u16::try_from(immediate).expect("join loop decrement fits an immediate"),
-        shift_12: false,
-    });
-}
-
-fn zero(register: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
-    crate::frame_access::load_immediate(code, register, 0, Arm64DataSize::Bits64);
-}
-
-fn trap_state(code: &mut Arm64CodeBuilder) {
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::AsyncFrameStateCorruption.immediate(),
-    });
-}
-
-fn trap_wait(code: &mut Arm64CodeBuilder) {
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption.immediate(),
-    });
-}
-
-pub(super) fn return_to_caller(code: &mut Arm64CodeBuilder) {
-    code.append(Arm64Instruction::Return {
-        target: Arm64NocterAbi::link_register(),
-    });
-}
-
-pub(super) const fn argument(index: u8) -> crate::Arm64Register {
-    match Arm64NocterAbi::argument_register(index) {
-        Some(register) => register,
-        None => panic!("async pair composition uses only ABI argument registers"),
-    }
 }
