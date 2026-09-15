@@ -237,11 +237,6 @@ fn evaluation_error(
             ConstantExpressionRule::ArithmeticFailure,
             error.origin(),
         ),
-        ConstantEvaluationRule::DependencyCycle => constant_error(
-            tree,
-            ConstantExpressionRule::DependencyCycle,
-            error.origin(),
-        ),
         ConstantEvaluationRule::MissingConstant | ConstantEvaluationRule::InvalidPlan => {
             BodyCheckInternalError::InvalidSyntax(origin_node(tree, error.origin())).into()
         }

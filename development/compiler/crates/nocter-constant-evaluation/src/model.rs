@@ -171,16 +171,41 @@ impl FrozenExpressionPlan {
             Self::FixedArray { ty, .. } => ty.clone(),
         }
     }
+
+    /// Returns the semantic constant edges frozen across every scalar leaf in this plan.
+    #[must_use]
+    pub fn dependencies(&self) -> Box<[(ConstantId, SyntaxOrigin)]> {
+        let mut dependencies = Vec::new();
+        self.collect_dependencies(&mut dependencies);
+        dependencies.into_boxed_slice()
+    }
+
+    fn collect_dependencies(&self, dependencies: &mut Vec<(ConstantId, SyntaxOrigin)>) {
+        match self {
+            Self::Scalar(plan) => dependencies.extend_from_slice(plan.dependencies()),
+            Self::FixedArray { elements, .. } => {
+                for element in elements {
+                    element.collect_dependencies(dependencies);
+                }
+            }
+        }
+    }
 }
 
 impl ConstantExpressionPlan {
-    pub(crate) const fn dependencies(&self) -> &[(ConstantId, SyntaxOrigin)] {
+    #[must_use]
+    pub const fn dependencies(&self) -> &[(ConstantId, SyntaxOrigin)] {
         &self.dependencies
     }
 
     #[must_use]
     pub fn result_type(&self) -> ConstantScalarType {
         self.nodes[self.root.0].ty
+    }
+
+    #[must_use]
+    pub fn origin(&self) -> SyntaxOrigin {
+        self.nodes[self.root.0].origin
     }
 
     #[must_use]

@@ -27,12 +27,12 @@ pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureS
 pub use constant::{ConstantValue, FrozenValue};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId,
-    ClosureId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId,
-    ExecutableStaticId, FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId,
-    InterfaceImplementationId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId,
-    MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
-    PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId, TypeId,
-    VariantId,
+    ClosureId, ConstantExpressionId, ConstantId, ConstructionId, DeclarationSiteId, DropId,
+    ExecutableItemId, ExecutableStaticId, FieldId, GenericParameterId, ImportId, InstanceId,
+    InterfaceId, InterfaceImplementationId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId,
+    MirLocalId, MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId, OpaqueTypeId,
+    PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId,
+    TypeId, VariantId,
 };
 pub use numeric::{BuiltinNumericType, lossless_builtin_numeric_conversion};
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};

@@ -249,7 +249,8 @@ struct Evaluator<'a> {
     memo: HashMap<EvaluationKey, TypeId>,
     active: HashSet<EvaluationKey>,
     alias_stack: Vec<TypeAliasId>,
-    array_lengths: &'a HashMap<NodeId, u64>,
+    array_expression_ids: &'a HashMap<NodeId, nocter_model::ConstantExpressionId>,
+    array_lengths: &'a HashMap<nocter_model::ConstantExpressionId, u64>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
 }
 
@@ -464,8 +465,9 @@ impl Evaluator<'_> {
             BoundTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
                 element: self.result(&key, element)?,
                 length: self
-                    .array_lengths
+                    .array_expression_ids
                     .get(&length)
+                    .and_then(|length| self.array_lengths.get(length))
                     .copied()
                     .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
             },
@@ -942,6 +944,8 @@ pub fn normalize_header_types(
         normalization_origins,
         constant_values,
         static_values,
+        array_expressions: _,
+        array_expression_ids,
         array_lengths,
     } = bindings;
     let context = prepare_context(
@@ -967,6 +971,7 @@ pub fn normalize_header_types(
         memo: HashMap::new(),
         active: HashSet::new(),
         alias_stack: Vec::new(),
+        array_expression_ids: &array_expression_ids,
         array_lengths: &array_lengths,
         associated_projection_uses: Vec::new(),
     };

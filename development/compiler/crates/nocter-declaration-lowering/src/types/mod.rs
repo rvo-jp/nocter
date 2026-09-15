@@ -19,9 +19,9 @@ use std::fmt;
 
 use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{
-    ArgumentPack, AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability,
-    CallableGuarantees, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
-    ParameterOrigin, Symbol, TypeAliasId,
+    Arena, ArenaBuilder, ArgumentPack, AssociatedTypeId, BorrowCapability, BuiltinType,
+    CallableCapability, CallableGuarantees, ConstantExpressionId, GenericParameterId, InterfaceId,
+    NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol, TypeAliasId,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, direct_node};
@@ -280,7 +280,9 @@ pub struct PreparedTypeBindings<'syntax> {
     normalization_origins: normalization_origins::NormalizationOrigins,
     constant_values: HashMap<nocter_model::ConstantId, PreparedConstantValue>,
     static_values: HashMap<nocter_model::StaticId, PreparedStaticValue>,
-    array_lengths: HashMap<NodeId, u64>,
+    array_expressions: Arena<ConstantExpressionId, NodeId>,
+    array_expression_ids: HashMap<NodeId, ConstantExpressionId>,
+    array_lengths: HashMap<ConstantExpressionId, u64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -442,6 +444,22 @@ pub fn bind_header_type_syntax(
     let (opaque_results, callable_results) =
         results::bind_all(&mut namespaces, &interface_applications, &mut arena)?;
 
+    let mut array_expression_nodes = arena
+        .kinds
+        .iter()
+        .filter_map(|kind| match kind {
+            BoundTypeKind::FixedArray { length, .. } => Some(*length),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    array_expression_nodes.sort_unstable_by_key(|node| (node.source(), node.index()));
+    array_expression_nodes.dedup();
+    let mut array_expressions = ArenaBuilder::new();
+    let array_expression_ids = array_expression_nodes
+        .into_iter()
+        .map(|node| (node, array_expressions.insert(node)))
+        .collect();
+
     Ok(PreparedTypeBindings {
         namespaces,
         kinds: arena.kinds.into_boxed_slice(),
@@ -457,6 +475,8 @@ pub fn bind_header_type_syntax(
         normalization_origins: arena.origins,
         constant_values: HashMap::new(),
         static_values: HashMap::new(),
+        array_expressions: array_expressions.finish(),
+        array_expression_ids,
         array_lengths: HashMap::new(),
     })
 }

@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
-use nocter_model::{ArenaBuilder, BuiltinType, CompilationTarget, ConstantId, ConstantValue};
+use nocter_model::{BuiltinType, CompilationTarget, ConstantValue};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 use crate::{
-    ConstantEvaluationRule, ConstantPlanError, ConstantPlanRule, ConstantReference,
-    ConstantResolver, ConstantScalarType, FloatFormat, evaluate_constant_plans,
-    evaluate_expression_plan, plan_expression,
+    ConstantPlanError, ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType,
+    FloatFormat, evaluate_expression_plan, plan_expression,
 };
 
 struct Resolver {
@@ -85,46 +82,6 @@ fn short_circuiting_skips_values_but_not_rhs_type_planning() {
             ..
         }
     ));
-}
-
-#[test]
-fn authored_dependency_cycles_are_rejected_before_evaluation() {
-    let mut ids = ArenaBuilder::<ConstantId, ()>::new();
-    let first = ids.insert(());
-    let second = ids.insert(());
-    let (first_sources, first_tree, first_expression) = parsed_expression("second");
-    let (second_sources, second_tree, second_expression) = parsed_expression("first");
-    let expected = ConstantScalarType::Integer(BuiltinType::I32);
-    let mut first_resolver = Resolver {
-        reference: Some(ConstantReference::new(second, expected)),
-        conversion: None,
-    };
-    let mut second_resolver = Resolver {
-        reference: Some(ConstantReference::new(first, expected)),
-        conversion: None,
-    };
-    let first_plan = plan_expression(
-        CompilationTarget::Arm64Darwin,
-        bound(&first_sources, &first_tree),
-        first_expression,
-        expected,
-        &mut first_resolver,
-    )
-    .unwrap();
-    let second_plan = plan_expression(
-        CompilationTarget::Arm64Darwin,
-        bound(&second_sources, &second_tree),
-        second_expression,
-        expected,
-        &mut second_resolver,
-    )
-    .unwrap();
-    let plans = HashMap::from([(first, first_plan), (second, second_plan)]);
-
-    assert_eq!(
-        evaluate_constant_plans(&plans).unwrap_err().rule(),
-        ConstantEvaluationRule::DependencyCycle
-    );
 }
 
 #[test]

@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::hash::BuildHasher;
-
 use nocter_model::{CompilationTarget, ConstantId, ConstantValue, FrozenValue};
 use nocter_syntax::Punctuation;
 use nocter_syntax::SyntaxOrigin;
@@ -12,14 +9,12 @@ use crate::model::{
 };
 use crate::support::{integer_spec, shift};
 use crate::{
-    DependencyComputation, DependencyQuery, DependencyQueryError, FloatBinaryOperation, FloatBits,
-    FloatComparisonOperation, FloatFormat, TargetFloatEvaluator,
+    FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, TargetFloatEvaluator,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstantEvaluationRule {
     ArithmeticFailure,
-    DependencyCycle,
     MissingConstant,
     InvalidPlan,
 }
@@ -36,9 +31,6 @@ impl ConstantEvaluationError {
         match self.rule {
             ConstantEvaluationRule::ArithmeticFailure => {
                 Some(ConstantExpressionRule::ArithmeticFailure)
-            }
-            ConstantEvaluationRule::DependencyCycle => {
-                Some(ConstantExpressionRule::DependencyCycle)
             }
             ConstantEvaluationRule::MissingConstant | ConstantEvaluationRule::InvalidPlan => None,
         }
@@ -99,93 +91,6 @@ pub fn evaluate_frozen_expression_plan(
             .map(|element| evaluate_frozen_expression_plan(element, lookup))
             .collect::<Result<Vec<_>, _>>()
             .map(|values| FrozenValue::FixedArray(values.into_boxed_slice())),
-    }
-}
-
-/// Evaluates a complete constant dependency graph after rejecting every authored cycle.
-///
-/// # Errors
-///
-/// Returns a dependency-cycle, arithmetic, missing-dependency, or invalid-plan failure. The latter
-/// two indicate a caller contract violation rather than an authored language error.
-pub fn evaluate_constant_plans<S: BuildHasher>(
-    plans: &HashMap<ConstantId, ConstantExpressionPlan, S>,
-) -> Result<HashMap<ConstantId, ConstantValue>, ConstantEvaluationError> {
-    let mut computation = ConstantPlanComputation { plans };
-    let mut query = DependencyQuery::default();
-    let mut ids = plans.keys().copied().collect::<Vec<_>>();
-    ids.sort_unstable();
-    for id in &ids {
-        query
-            .resolve(&mut computation, *id)
-            .map_err(|error| match error {
-                DependencyQueryError::Cycle(_) => ConstantEvaluationError {
-                    rule: ConstantEvaluationRule::DependencyCycle,
-                    origin: fallback_origin(plans),
-                },
-                DependencyQueryError::Computation(error) => error,
-            })?;
-    }
-    let mut values = HashMap::with_capacity(ids.len());
-    for id in ids {
-        let value = query
-            .completed(&id)
-            .ok_or(ConstantEvaluationError {
-                rule: ConstantEvaluationRule::InvalidPlan,
-                origin: fallback_origin(plans),
-            })?
-            .clone();
-        values.insert(id, value);
-    }
-    Ok(values)
-}
-
-struct ConstantPlanComputation<'plans, S> {
-    plans: &'plans HashMap<ConstantId, ConstantExpressionPlan, S>,
-}
-
-impl<S: BuildHasher> DependencyComputation<ConstantId, ConstantValue, ConstantEvaluationError>
-    for ConstantPlanComputation<'_, S>
-{
-    fn compute(
-        &mut self,
-        query: &mut DependencyQuery<ConstantId, ConstantValue>,
-        id: ConstantId,
-    ) -> Result<ConstantValue, DependencyQueryError<ConstantId, ConstantEvaluationError>> {
-        let plan = self.plans.get(&id).cloned().ok_or_else(|| {
-            DependencyQueryError::computation(ConstantEvaluationError {
-                rule: ConstantEvaluationRule::MissingConstant,
-                origin: fallback_origin(self.plans),
-            })
-        })?;
-        for &(dependency, origin) in plan.dependencies() {
-            if !self.plans.contains_key(&dependency) {
-                return Err(DependencyQueryError::computation(ConstantEvaluationError {
-                    rule: ConstantEvaluationRule::MissingConstant,
-                    origin,
-                }));
-            }
-            match query.resolve(self, dependency) {
-                Ok(_) => {}
-                Err(DependencyQueryError::Cycle(_)) => {
-                    return Err(DependencyQueryError::computation(ConstantEvaluationError {
-                        rule: ConstantEvaluationRule::DependencyCycle,
-                        origin,
-                    }));
-                }
-                Err(DependencyQueryError::Computation(error)) => {
-                    return Err(DependencyQueryError::Computation(error));
-                }
-            }
-        }
-        let mut evaluator = Evaluator {
-            plan: &plan,
-            lookup: |dependency, _| Ok(query.completed(&dependency).cloned()),
-        };
-        evaluator
-            .evaluate(plan.root)
-            .map(|value| value.value)
-            .map_err(DependencyQueryError::computation)
     }
 }
 
@@ -571,16 +476,6 @@ fn bool_value(value: &TypedValue, origin: SyntaxOrigin) -> Result<bool, Constant
         return Err(invalid(origin));
     };
     Ok(*value)
-}
-
-fn fallback_origin<S: BuildHasher>(
-    plans: &HashMap<ConstantId, ConstantExpressionPlan, S>,
-) -> SyntaxOrigin {
-    plans
-        .values()
-        .next()
-        .map(|plan| plan.nodes[plan.root.0].origin)
-        .expect("constant plan set must not request an absent constant when empty")
 }
 
 const fn arithmetic(origin: SyntaxOrigin) -> ConstantEvaluationError {

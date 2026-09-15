@@ -41,6 +41,7 @@ semantic_ids! {
     InterfaceId,
     AssociatedTypeId,
     ConstantId,
+    ConstantExpressionId,
     StaticId,
     CallableId,
     ConstructionId,

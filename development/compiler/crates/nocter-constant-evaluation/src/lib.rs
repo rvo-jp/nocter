@@ -26,8 +26,8 @@ pub use callable::{
     InvalidCompileTimeCallTarget, InvalidCompileTimeCallablePlan,
 };
 pub use evaluate::{
-    ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,
-    evaluate_expression_plan, evaluate_frozen_expression_plan,
+    ConstantEvaluationError, ConstantEvaluationRule, evaluate_expression_plan,
+    evaluate_frozen_expression_plan,
 };
 pub use floating::{
     FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, FloatLiteralError,

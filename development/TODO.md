@@ -12,9 +12,10 @@ adopted design and remaining phases live in
 
 Continue v0.52.0 Phase 3 from the implemented dependency-query core, the end-to-end declared-
 constant identity path, and the separate `DeclarationValueTable`. Expand the query key/value domain
-to static values, array lengths, callable plans, and callable specializations. Do not expose
-compile-time calls in public constant syntax until that query owns callable plans and values. Do
-not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as part of this milestone.
+from its implemented constant/static/array-length values to callable plans and callable
+specializations. Do not expose compile-time calls in public constant syntax until that query owns
+callable plans and values. Do not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as
+part of this milestone.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

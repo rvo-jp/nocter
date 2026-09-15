@@ -127,6 +127,13 @@ one half independently. Accepted programs and all declaration/name/body recovery
 the same immutable table paired with their graph; editor presentation therefore does not need a
 fallback source interpreter or a value copied into presentation metadata.
 
+Header construction assigns every distinct fixed-array length expression a dense
+`ConstantExpressionId`. One heterogeneous query then resolves constant values, array lengths, and
+immutable static values. A static requests the identities required by its recursive frozen type;
+an array-length plan requests its referenced constants. Root scheduling deliberately begins with
+statics, so successful construction proves that dependency edges—not a constants/lengths/statics
+pass order—determine evaluation.
+
 The query boundary is semantic and compiler-internal. The workspace computation engine may cache a
 completed compilation product between editor revisions, but it does not become the authority for
 dependencies inside one semantic construction.
