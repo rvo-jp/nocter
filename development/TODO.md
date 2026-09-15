@@ -2,16 +2,17 @@
 
 ## Current State
 
-Nocter v0.53.0 release preparation is active. The implementation and whole-repository compiler
-gate are complete. Release identity now selects `0.53.0`; public notes and the release-preparation
-contract are authored. The completed implementation scope lives in
+Nocter v0.53.0 is a qualified release candidate. The exact release-content commit passed the
+whole-repository compiler gate, deterministic two-build packaging, and fresh installed-home
+qualification. The retained archive and measured identities are recorded in the release-preparation
+record. The completed implementation scope lives in
 [`development/history/milestones/v0.53.0.md`](history/milestones/v0.53.0.md).
 
 ## Next Work
 
-Commit the exact release content, run deterministic two-build packaging and installed-home
-qualification from that clean commit, then record the measured artifact identities. Do not update
-published-version surfaces, tag, upload, or publish without explicit user authorization.
+Await explicit publication authorization. Publication must reuse the retained qualified archive
+without rebuilding it, then update published-version surfaces and record an immutable release
+audit. Do not tag, upload, or publish before that authorization.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
