@@ -964,6 +964,70 @@ mod tests {
     }
 
     #[test]
+    fn checked_static_text_borrow_executes_in_the_frozen_value_domain() {
+        let output = check("const func identity(text: &str): &str from text { return text }\n");
+        let program = output.program();
+        let (callable, _) = callable(program, "identity");
+        let target = CompileTimeCallTarget::new(callable, []).unwrap();
+        let mut executor = program
+            .compile_time_program()
+            .executor(nocter_constant_evaluation::CompileTimeEvaluationLimits::default());
+        let input = CompileTimeValue::scalar(
+            ConstantScalarType::Text,
+            nocter_model::ConstantValue::Text("nocter".into()),
+        )
+        .unwrap();
+
+        let result = executor.evaluate(&target, [input]).unwrap();
+
+        assert_eq!(
+            result.as_ref().clone().into_frozen().unwrap(),
+            nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Text("nocter".into()))
+        );
+    }
+
+    #[test]
+    fn checked_tuple_and_fixed_array_results_keep_their_closed_shapes() {
+        let output = check(
+            "const func pair(value: i32): (i32, i32) { return (value, value + 1) }\n\
+             const func values(value: i32): [i32; 2] { return [value, value + 1] }\n",
+        );
+        let program = output.program();
+        let input = || {
+            CompileTimeValue::scalar(
+                ConstantScalarType::Integer(BuiltinType::I32),
+                nocter_model::ConstantValue::Integer(4),
+            )
+            .unwrap()
+        };
+
+        let (pair, _) = callable(program, "pair");
+        let pair = CompileTimeCallTarget::new(pair, []).unwrap();
+        let mut executor = program
+            .compile_time_program()
+            .executor(nocter_constant_evaluation::CompileTimeEvaluationLimits::default());
+        let pair = executor.evaluate(&pair, [input()]).unwrap();
+        assert_eq!(
+            pair.as_ref().clone().into_frozen().unwrap(),
+            nocter_model::FrozenValue::Tuple(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(4)),
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(5)),
+            ]))
+        );
+
+        let (values, _) = callable(program, "values");
+        let values = CompileTimeCallTarget::new(values, []).unwrap();
+        let values = executor.evaluate(&values, [input()]).unwrap();
+        assert_eq!(
+            values.as_ref().clone().into_frozen().unwrap(),
+            nocter_model::FrozenValue::FixedArray(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(4)),
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(5)),
+            ]))
+        );
+    }
+
+    #[test]
     fn one_generic_recipe_can_produce_multiple_closed_plans() {
         let output = check(
             "const func identity<T>(value: T): T where copy T { return value }\n\
