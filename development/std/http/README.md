@@ -1,9 +1,51 @@
-# HTTP/1.1 Client
+# HTTP/1.1
 
 `std/http` owns validated HTTP/1.1 message values, the protocol's single transport-independent
-framing authority, and synchronous and asynchronous one-request-per-connection operations. The
-client composes the public URL, name-resolution, TCP, authenticated TLS, and I/O contracts; the
-codec remains independent of sockets, descriptors, DNS, executor state, and connection policy.
+framing authority, synchronous and asynchronous client operations, and an asynchronous server
+lifecycle. The client composes URL, name-resolution, TCP, authenticated TLS, and I/O contracts. The
+server composes TCP acceptance with the same field and body codecs. Codec state remains independent
+of sockets, descriptors, DNS, executor state, and connection policy.
+
+## Server Lifecycle
+
+`Server.bind` and `Server.bind_with_limits` create an asynchronous listener over one numeric socket
+address. `Server.accept` borrows the listener exclusively and returns a uniquely owned
+`ServerConnection`. Acceptance does not start a detached task, parse bytes, or transfer listener
+ownership. Destroying or explicitly closing the server closes only the listening socket; accepted
+connections retain their independent ownership.
+
+`ServerConnection.read_request(self)` consumes the accepted state. Success returns an
+`IncomingRequest` together with the only `Responder` for that connection. The request owns its
+validated method, origin-form target, ordered fields, and complete decoded body. The responder owns
+the TCP stream and immutable limits. This state transition makes a second request read, a response
+before decoding, and two responses on one connection unrepresentable instead of policing them with
+a caller-visible state flag. Failure or cancellation destroys the consuming computation and closes
+the still-owned stream.
+
+The request-head decoder accepts strict HTTP/1.1 request lines and CRLF fields. It requires exactly
+one non-empty `Host`, rejects conflicting framing evidence, supports fixed and chunked request
+bodies, and treats the absence of `Content-Length` and `Transfer-Encoding` as an empty body. Method
+and target bytes are validated and copied once when the complete head is known. Incremental scan
+offsets, retained fields, and framing evidence remain owned by one decoder across transport reads;
+accepted bytes are not rescanned. A complete request and any already-buffered following bytes are
+rejected as unsupported pipelining because the connection contract intentionally represents one
+request.
+
+`OutgoingResponse` owns one final status from 200 through 599, ordered user fields, and one complete
+body. `Responder.respond(self, response)` computes and validates the complete head before writing,
+adds the sole `Content-Length` when the status permits it, always adds `Connection: close`, writes
+the body when applicable, and closes the stream. Callers cannot provide `Connection`,
+`Content-Length`, or `Transfer-Encoding`; server framing therefore has one authority. Status 204,
+205, and 304 responses reject a non-empty body; 204 and 304 also omit `Content-Length`. A response
+to HEAD advertises the selected body length but does not transmit body bytes. Explicit responder
+close and ordinary destruction provide the no-response path.
+
+The initial server deliberately has no keep-alive, pipelining, upgrade, CONNECT tunnel, streaming
+request body, streaming response body, or implicit task spawning. Whole bodies are bounded by
+`Limits`; a later API can add a streaming typestate without weakening the ownership boundary of the
+current complete-message path.
+
+## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a
 canonical `Host`, `Connection: close`, and one computed `Content-Length`. Callers cannot supply
@@ -86,9 +128,10 @@ timeout of each stream read and write operation. It is not a wall-clock deadline
 response.
 
 `Method` preserves the exact case-sensitive token. `HeaderName` accepts the HTTP token alphabet,
-stores one lowercase canonical spelling, and hashes that canonical identity. `HeaderValue` stores exact bytes after removing wire
-optional whitespace at its edges; CR, LF, NUL, and other forbidden controls are rejected. `Headers`
-is ordered and preserves duplicates instead of silently combining fields.
+stores one lowercase canonical spelling, and hashes that canonical identity. `HeaderValue` stores
+exact bytes after removing wire optional whitespace at its edges; CR, LF, NUL, and other forbidden
+controls are rejected. `Headers` is ordered and preserves duplicates instead of silently combining
+fields.
 
 `RequestHead` accepts only non-empty ASCII origin-form targets beginning with `/`; percent escapes
 must be complete hexadecimal triplets and characters outside the path/query grammar are rejected. The private wire

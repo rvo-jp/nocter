@@ -1,0 +1,171 @@
+//! Shared HTTP/1.1 field retention and body-framing evidence.
+
+see ./body.nct
+see ./codec.nct
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+see ./values.nct
+see ./wire.nct
+
+struct MessageFields {
+    headers: Headers
+    content_length: usize
+    has_content_length: bool
+    has_transfer_encoding: bool
+    transfer_kind: u8
+}
+
+struct FieldBlockState {
+    head_start: usize
+    line_start: usize
+    scan_offset: usize
+    fields: MessageFields
+    limits: Limits
+}
+
+enum FieldBlockAttempt {
+    incomplete
+    ready(consumed: usize)
+    failed(failure: error)
+}
+
+noalloc func message_fields(): MessageFields {
+    return MessageFields {
+        headers: Headers.empty(),
+        content_length: 0,
+        has_content_length: false,
+        has_transfer_encoding: false,
+        transfer_kind: 0,
+    }
+}
+
+noalloc func field_block_state(
+    head_start: usize,
+    line_start: usize,
+    limits: Limits,
+): FieldBlockState {
+    return FieldBlockState {
+        head_start: head_start,
+        line_start: line_start,
+        scan_offset: line_start,
+        fields: message_fields(),
+        limits: limits,
+    }
+}
+
+func retain_message_field(
+    fields: &+MessageFields,
+    input: &[u8],
+    start: usize,
+    end: usize,
+    limits: Limits,
+): void! {
+    if fields.headers.len() == limits.header_count { return syntax_limit() }
+    var colon = start
+    while colon < end && input[colon] != 58 { colon += 1 }
+    if colon == end { return invalid_syntax() }
+    let name = header_name_from_range(input, start, colon)?
+    let value = header_value_from_range(input, colon + 1, end)?
+    if name.text() == "content-length" {
+        let length = match parse_decimal_list(value.bytes()) {
+            DecimalList.valid(number) { number }
+            DecimalList.invalid { return ambiguous_framing() }
+        }
+        if fields.has_content_length && fields.content_length != length {
+            return ambiguous_framing()
+        }
+        fields.content_length = length
+        fields.has_content_length = true
+    }
+    if name.text() == "transfer-encoding" {
+        if fields.has_transfer_encoding { return ambiguous_framing() }
+        fields.transfer_kind = transfer_coding_kind(value.bytes())
+        fields.has_transfer_encoding = true
+    }
+    fields.headers.append(Header.new(move name, move value))
+    return
+}
+
+func advance_field_block(
+    state: &+FieldBlockState,
+    input: &[u8],
+): FieldBlockAttempt {
+    if state.head_start > state.line_start || state.line_start > input.len() {
+        return FieldBlockAttempt.failed(invalid_syntax())
+    }
+    loop {
+        let line_end = match advance_line(
+            input,
+            state.line_start,
+            state.scan_offset,
+            state.limits.field_bytes,
+        ) {
+            LineAdvance.incomplete(next) {
+                if input.len() - state.head_start > state.limits.header_bytes {
+                    return FieldBlockAttempt.failed(syntax_limit())
+                }
+                state.scan_offset = next
+                return FieldBlockAttempt.incomplete
+            }
+            LineAdvance.ready(end) { end }
+            LineAdvance.malformed { return FieldBlockAttempt.failed(invalid_syntax()) }
+            LineAdvance.too_long { return FieldBlockAttempt.failed(syntax_limit()) }
+        }
+        if line_end + 2 - state.head_start > state.limits.header_bytes {
+            return FieldBlockAttempt.failed(syntax_limit())
+        }
+        if line_end == state.line_start { return FieldBlockAttempt.ready(line_end + 2) }
+        let field_start = state.line_start
+        retain_message_field(
+            &+state.fields,
+            input,
+            field_start,
+            line_end,
+            state.limits,
+        ) catch failure {
+            return FieldBlockAttempt.failed(move failure)
+        }
+        state.line_start = line_end + 2
+        state.scan_offset = state.line_start
+    }
+}
+
+noalloc func validate_framing_evidence(fields: &MessageFields): void! {
+    if fields.has_transfer_encoding && fields.has_content_length {
+        return ambiguous_framing()
+    }
+    if fields.has_transfer_encoding && fields.transfer_kind == 1 {
+        return unsupported_transfer_coding()
+    }
+    if fields.has_transfer_encoding && fields.transfer_kind != 0 {
+        return ambiguous_framing()
+    }
+    return
+}
+
+noalloc func response_body_framing(
+    fields: &MessageFields,
+    request_method: &Method,
+    status: Status,
+    limits: Limits,
+): BodyFraming! {
+    validate_framing_evidence(fields)?
+    if bodyless_response(request_method, status) { return BodyFraming.bodyless }
+    if fields.has_transfer_encoding { return BodyFraming.chunked }
+    if fields.has_content_length {
+        if fields.content_length > limits.body_bytes { return body_limit() }
+        return BodyFraming.fixed(fields.content_length)
+    }
+    return BodyFraming.close_delimited
+}
+
+noalloc func request_body_framing(fields: &MessageFields, limits: Limits): BodyFraming! {
+    validate_framing_evidence(fields)?
+    if fields.has_transfer_encoding { return BodyFraming.chunked }
+    if fields.has_content_length {
+        if fields.content_length > limits.body_bytes { return body_limit() }
+        return BodyFraming.fixed(fields.content_length)
+    }
+    return BodyFraming.bodyless
+}

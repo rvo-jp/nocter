@@ -2,9 +2,13 @@
 
 see ./body.nct
 see ./codec.nct
+see ./field_codec.nct
 see ./index.nct
 see ./request.nct
+see ./request_head.nct
 see ./response_head.nct
+see ./server_codec.nct
+see ./server_values.nct
 see ./storage.nct
 see ./values.nct
 
@@ -37,6 +41,14 @@ func decode_single_head_fragment(
         return ResponseHeadAttempt.failed(move failure)
     }
     return advance_response_head(move decoder, request_method)
+}
+
+func decode_single_request_head_fragment(text: &str, limits: Limits): RequestHeadAttempt {
+    var decoder = request_head_decoder(limits)
+    append_request_head_input_range(&+decoder, text.bytes(), 0, text.len()) catch failure {
+        return RequestHeadAttempt.failed(move failure)
+    }
+    return advance_request_head(move decoder)
 }
 
 func expect_head_failure(
@@ -113,6 +125,121 @@ test request_head_encoding_selects_one_fixed_body_length {
         return error.new("std.http.test", "request framing failure changed")
     }
     return error.new("std.http.test", "caller-controlled request framing was accepted")
+}
+
+test request_head_decoding_selects_one_bounded_body_framing {
+    let input = "POST /submit?q=1 HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\nX-Test: yes\r\n\r\nbody"
+    let attempt = decode_single_request_head_fragment(input, Limits.standard())
+    match move attempt {
+        RequestHeadAttempt.ready(parsed) {
+            if parsed.head.request_method().text() != "POST"
+                || parsed.head.target() != "/submit?q=1"
+                || parsed.head.headers().len() != 3
+                || parsed.consumed != input.len() - 4 {
+                return error.new("std.http.test", "decoded request head changed")
+            }
+            match parsed.decoder.state {
+                BodyState.fixed(length) {
+                    if length == 4 { return }
+                }
+                _ {}
+            }
+            return error.new("std.http.test", "request body framing changed")
+        }
+        _ { return error.new("std.http.test", "valid request head was rejected") }
+    }
+}
+
+test request_head_decoding_requires_one_host_and_rejects_ambiguous_framing {
+    let missing = decode_single_request_head_fragment(
+        "GET / HTTP/1.1\r\n\r\n",
+        Limits.standard(),
+    )
+    match move missing {
+        RequestHeadAttempt.failed(failure) {
+            if !failure.has_code("std.http.invalid_host") {
+                return error.new("std.http.test", "missing Host failure changed")
+            }
+        }
+        _ { return error.new("std.http.test", "missing Host was accepted") }
+    }
+    let duplicate = decode_single_request_head_fragment(
+        "GET / HTTP/1.1\r\nHost: one\r\nHost: two\r\n\r\n",
+        Limits.standard(),
+    )
+    match move duplicate {
+        RequestHeadAttempt.failed(failure) {
+            if !failure.has_code("std.http.invalid_host") {
+                return error.new("std.http.test", "duplicate Host failure changed")
+            }
+        }
+        _ { return error.new("std.http.test", "duplicate Host was accepted") }
+    }
+    let ambiguous = decode_single_request_head_fragment(
+        "POST / HTTP/1.1\r\nHost: one\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\n",
+        Limits.standard(),
+    )
+    match move ambiguous {
+        RequestHeadAttempt.failed(failure) {
+            if failure.has_code("std.http.ambiguous_framing") { return }
+            return error.new("std.http.test", "request framing failure changed")
+        }
+        _ { return error.new("std.http.test", "ambiguous request framing was accepted") }
+    }
+}
+
+test request_head_decoder_accepts_every_single_fragment_boundary {
+    let input = "POST /fragment HTTP/1.1\r\nHost: example.test\r\nContent-Length: 0\r\nX-Test: yes\r\n\r\n"
+    let bytes = input.bytes()
+    var split: usize = 0
+    while split < bytes.len() {
+        var decoder = request_head_decoder(Limits.standard())
+        append_request_head_input_range(&+decoder, bytes, 0, split)?
+        let partial = advance_request_head(move decoder)
+        var suspended = match move partial {
+            RequestHeadAttempt.incomplete(value) { move value }
+            _ { return error.new("std.http.test", "incomplete request fragment was accepted early") }
+        }
+        append_request_head_input_range(&+suspended, bytes, split, bytes.len())?
+        let complete = advance_request_head(move suspended)
+        match move complete {
+            RequestHeadAttempt.ready(parsed) {
+                if parsed.consumed != bytes.len() || parsed.head.headers().len() != 3 {
+                    return error.new("std.http.test", "request fragment boundary changed output")
+                }
+            }
+            _ { return error.new("std.http.test", "fragmented request head was rejected") }
+        }
+        split += 1
+    }
+    return
+}
+
+test server_response_encoding_owns_connection_and_length_fields {
+    var response = OutgoingResponse.ok()
+    response.append_header_text("X-Test", "yes")?
+    response.set_text_body("pong")
+    let encoded = encode_server_response_head(&response, Limits.standard())?
+    let expected = "HTTP/1.1 200 \r\nx-test: yes\r\ncontent-length: 4\r\nconnection: close\r\n\r\n"
+    if !bytes_equal(&encoded, expected.bytes()) {
+        return error.new("std.http.test", "server response encoding changed")
+    }
+    response.append_header_text("Connection", "keep-alive")?
+    let _reserved = encode_server_response_head(&response, Limits.standard()) catch failure {
+        if failure.has_code("std.http.reserved_header") { return }
+        return error.new("std.http.test", "server reserved-field failure changed")
+    }
+    return error.new("std.http.test", "caller-controlled server connection policy was accepted")
+}
+
+test server_response_rejects_body_for_bodyless_status {
+    var response = OutgoingResponse.new(Status.new(204)?)?
+    response.set_text_body("unexpected")
+    let _encoded = encode_server_response_head(&response, Limits.standard()) catch failure {
+        if failure.has_code("std.http.invalid_response_body") { return }
+        return error.new("std.http.test", "bodyless response failure changed")
+    }
+    return error.new("std.http.test", "bodyless status accepted a response body")
 }
 
 test request_targets_and_generated_fields_obey_their_exact_limits {
@@ -210,7 +337,7 @@ test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
     let first = decode_single_head_fragment(sequence, &request_method, Limits.standard())
     match move first {
         ResponseHeadAttempt.informational(status, decoder) {
-            if !status.is_informational() || decoder.state.head_start != 25 {
+            if !status.is_informational() || decoder.state.field_block.head_start != 25 {
                 return error.new("std.http.test", "informational response boundary changed")
             }
             return
@@ -261,7 +388,8 @@ test response_head_decoder_retains_completed_work_across_partial_input {
     let partial = advance_response_head(move initial, &request_method)
     var decoder = match move partial {
         ResponseHeadAttempt.incomplete(value) {
-            if value.state.headers.len() != 1 || value.state.scan_offset != prefix.len() {
+            if value.state.field_block.fields.headers.len() != 1
+                || value.state.field_block.scan_offset != prefix.len() {
                 return error.new("std.http.test", "incremental head state lost its cursor")
             }
             move value

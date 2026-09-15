@@ -1,0 +1,144 @@
+//! Shared bounded HTTP/1.1 wire encoding operations.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /vec.Vec
+
+enum ReservedFieldPolicy {
+    request_framing
+    server_response
+}
+
+noalloc func reserved_protocol_field(name: &str, policy: &ReservedFieldPolicy): bool {
+    if name == "content-length" || name == "transfer-encoding" { return true }
+    match policy {
+        ReservedFieldPolicy.request_framing { return false }
+        ReservedFieldPolicy.server_response { return name == "connection" }
+    }
+}
+
+noalloc func reserved_protocol_failure(policy: &ReservedFieldPolicy): error {
+    match policy {
+        ReservedFieldPolicy.request_framing { return ambiguous_framing() }
+        ReservedFieldPolicy.server_response { return reserved_header() }
+    }
+}
+
+func append_text(output: &+Vec<u8>, text: &str): void {
+    let bytes = text.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        output.push(bytes[offset])
+        offset += 1
+    }
+    return
+}
+
+func append_bytes(output: &+Vec<u8>, bytes: &[u8]): void {
+    var offset: usize = 0
+    while offset < bytes.len() {
+        output.push(bytes[offset])
+        offset += 1
+    }
+    return
+}
+
+func append_decimal(output: &+Vec<u8>, value: usize): void {
+    let start = output.len()
+    var remaining = value
+    if remaining == 0 { output.push(48) }
+    while remaining != 0 {
+        output.push(u8.truncate((remaining % 10) as u64) + 48)
+        remaining = remaining / 10
+    }
+    var left = start
+    var right = output.len() - 1
+    while left < right {
+        let digit = output[left]
+        output[left] = output[right]
+        output[right] = digit
+        left += 1
+        right -= 1
+    }
+    return
+}
+
+noalloc func decimal_digits(value: usize): usize {
+    var digits: usize = 1
+    var remaining = value
+    while remaining >= 10 {
+        remaining = remaining / 10
+        digits += 1
+    }
+    return digits
+}
+
+noalloc func content_length_field_bytes(body_length: usize): usize {
+    return 16 + decimal_digits(body_length)
+}
+
+func checked_head_capacity(
+    start_line_bytes: usize,
+    headers: &Headers,
+    generated_field_count: usize,
+    generated_section_bytes: usize,
+    limits: Limits,
+    policy: ReservedFieldPolicy,
+): usize! {
+    if start_line_bytes > limits.start_line_bytes { return syntax_limit() }
+    if generated_field_count > limits.header_count
+        || headers.len() > limits.header_count - generated_field_count
+        || generated_section_bytes > limits.header_bytes {
+        return syntax_limit()
+    }
+    var estimate = start_line_bytes + 2
+    var index: usize = 0
+    while index < headers.len() {
+        let header = headers.at(index) otherwise { return invalid_syntax() }
+        let name = header.name().text()
+        if reserved_protocol_field(name, &policy) { return reserved_protocol_failure(&policy) }
+        let field_bytes = name.len() + 2 + header.value().bytes().len()
+        if field_bytes > limits.field_bytes { return syntax_limit() }
+        if field_bytes + 2 > limits.header_bytes
+            || estimate > limits.header_bytes - field_bytes - 2 {
+            return syntax_limit()
+        }
+        estimate += field_bytes + 2
+        index += 1
+    }
+    if generated_section_bytes + 2 > limits.header_bytes
+        || estimate > limits.header_bytes - generated_section_bytes - 2 {
+        return syntax_limit()
+    }
+    return estimate + generated_section_bytes + 2
+}
+
+func append_fields(
+    output: &+Vec<u8>,
+    headers: &Headers,
+): void! {
+    var index: usize = 0
+    while index < headers.len() {
+        let header = headers.at(index) otherwise { return invalid_syntax() }
+        append_text(output, header.name().text())
+        append_text(output, ": ")
+        append_bytes(output, header.value().bytes())
+        append_text(output, "\r\n")
+        index += 1
+    }
+    return
+}
+
+func append_content_length(output: &+Vec<u8>, body_length: usize): void {
+    append_text(output, "content-length: ")
+    append_decimal(output, body_length)
+    append_text(output, "\r\n")
+    return
+}
+
+func append_connection_close(output: &+Vec<u8>): void {
+    append_text(output, "connection: close\r\n")
+    return
+}

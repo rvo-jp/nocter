@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.53.0 Phase 3 HTTP Server Lifecycle Review](v0.53.0-phase-3.md)
 - [v0.53.0 Phase 2 Dynamic Structured Task-group Review](v0.53.0-phase-2.md)
 - [v0.53.0 Phase 1 Effect-Neutral JSON Generation Review](v0.53.0-phase-1.md)
 - [v0.52.0 Phase 5 Compile-Time Evaluation Closure Review](v0.52.0-phase-5.md)

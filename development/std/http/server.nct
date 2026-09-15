@@ -1,0 +1,166 @@
+//! Asynchronous one-request HTTP server lifecycle over public TCP contracts.
+
+see ./body.nct
+see ./errors.nct
+see ./index.nct
+see ./request_head.nct
+see ./server_codec.nct
+see ./server_storage.nct
+see ./server_values.nct
+see ./storage.nct
+see ./transport_buffer.nct
+see ./values.nct
+
+use /net
+use /net.SocketAddress
+use /vec.Vec
+
+async func read_server_request_head(
+    stream: &+net.TcpStream,
+    limits: Limits,
+): ParsedRequestHead! {
+    var scratch = initialized_bytes(HTTP_BUFFER_BYTES)
+    var decoder = request_head_decoder(limits)
+    loop {
+        match advance_request_head(move decoder) {
+            RequestHeadAttempt.ready(parsed) { return move parsed }
+            RequestHeadAttempt.failed(failure) { return move failure }
+            RequestHeadAttempt.incomplete(next) {
+                decoder = move next
+                let received = await stream.read(&+scratch) catch failure {
+                    return failure.context("while reading the HTTP request head")
+                }
+                if received == 0 { return premature_eof() }
+                append_request_head_input_range(&+decoder, &scratch, 0, received)?
+            }
+        }
+    }
+}
+
+async func collect_server_request_body(
+    stream: &+net.TcpStream,
+    parsed: ParsedRequestHead,
+): IncomingRequest! {
+    var owner = move parsed
+    var body: Vec<u8> = Vec.empty()
+    var scratch = initialized_bytes(HTTP_BUFFER_BYTES)
+    var pending_start = owner.consumed
+    loop {
+        let progress = decode_body(
+            &+owner.decoder,
+            &owner.pending,
+            pending_start,
+            &+scratch,
+            false,
+        )?
+        append_prefix(&+body, &scratch, progress.written)
+        pending_start += progress.consumed
+        if progress.complete {
+            if pending_start != owner.pending.len() { return unsupported_pipelining() }
+            return incoming_request_from_parts(move owner.head, move body)
+        }
+        if progress.written != 0 { continue }
+        if pending_start == owner.pending.len() {
+            owner.pending = Vec.empty()
+            pending_start = 0
+        }
+        let received = await stream.read(&+scratch) catch failure {
+            return failure.context("while reading the HTTP request body")
+        }
+        if received == 0 {
+            let ending = decode_body(
+                &+owner.decoder,
+                &owner.pending,
+                pending_start,
+                &+scratch,
+                true,
+            )?
+            append_prefix(&+body, &scratch, ending.written)
+            pending_start += ending.consumed
+            if ending.complete && pending_start == owner.pending.len() {
+                return incoming_request_from_parts(move owner.head, move body)
+            }
+            return premature_eof()
+        }
+        append_prefix(&+owner.pending, &scratch, received)
+    }
+}
+
+construct Server {
+    async func bind(address: SocketAddress): Self! {
+        return await Server.bind_with_limits(address, Limits.standard())?
+    }
+
+    async func bind_with_limits(address: SocketAddress, limits: Limits): Self! {
+        let listener = await net.bind_tcp(address)?
+        return Server { listener: move listener, limits: limits }
+    }
+}
+
+instance Server {
+    noalloc method &self.local_address(): SocketAddress! {
+        return self.listener.local_address()?
+    }
+
+    async method &+self.accept(): ServerConnection! {
+        let accepted = await self.listener.accept()?
+        return ServerConnection {
+            stream: move accepted.0,
+            peer: accepted.1,
+            limits: self.limits,
+        }
+    }
+
+    noalloc method &+self.close(): void {
+        self.listener.close()
+        return
+    }
+}
+
+instance ServerConnection {
+    noalloc method &self.peer_address(): SocketAddress {
+        return self.peer
+    }
+
+    async method self.read_request(): (IncomingRequest, Responder)! {
+        var owner = move self
+        let parsed = await read_server_request_head(&+owner.stream, owner.limits)?
+        let suppress_body = ascii_case_equal(parsed.head.request_method().text(), "HEAD")
+        let request = await collect_server_request_body(&+owner.stream, move parsed)?
+        let responder = Responder {
+            stream: move owner.stream,
+            suppress_body: suppress_body,
+            limits: owner.limits,
+        }
+        return (move request, move responder)
+    }
+
+    noalloc method self.close(): void {
+        var owner = move self
+        owner.stream.close()
+        return
+    }
+}
+
+instance Responder {
+    async method self.respond(response: OutgoingResponse): void! {
+        var owner = move self
+        let head = encode_server_response_head(&response, owner.limits)?
+        await owner.stream.write(&head) catch failure {
+            return failure.context("while writing the HTTP response head")
+        }
+        if send_response_body(&response, owner.suppress_body) {
+            await owner.stream.write(response.body()) catch failure {
+                return failure.context("while writing the HTTP response body")
+            }
+        }
+        owner.stream.close()
+        return
+    }
+
+    noalloc method self.close(): void {
+        var owner = move self
+        owner.stream.close()
+        return
+    }
+}

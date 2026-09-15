@@ -61,7 +61,7 @@ func response_from_parts(
         decoder: move decoder,
         pending: move pending,
         pending_start: pending_start,
-        scratch: initialized_bytes(CLIENT_BUFFER_BYTES),
+        scratch: initialized_bytes(HTTP_BUFFER_BYTES),
         complete: false,
     }
 }

@@ -8,6 +8,21 @@ noalloc func invalid_status(): error {
     return error.new("std.http.invalid_status", "HTTP status must contain three decimal digits")
 }
 
+noalloc func invalid_response_status(): error {
+    return error.new(
+        "std.http.invalid_response_status",
+        "server response status must be a final code from 200 through 599",
+    )
+}
+
+noalloc func invalid_response_body(): error {
+    return error.new("std.http.invalid_response_body", "HTTP status forbids a response body")
+}
+
+noalloc func unsupported_pipelining(): error {
+    return error.new("std.http.unsupported_pipelining", "HTTP server connection accepts exactly one request")
+}
+
 noalloc func invalid_header_name(): error {
     return error.new("std.http.invalid_header_name", "HTTP field name must be a non-empty token")
 }
@@ -18,6 +33,10 @@ noalloc func invalid_header_value(): error {
 
 noalloc func invalid_target(): error {
     return error.new("std.http.invalid_target", "HTTP request target must use non-empty origin form")
+}
+
+noalloc func invalid_host(): error {
+    return error.new("std.http.invalid_host", "HTTP/1.1 request must contain exactly one non-empty Host field")
 }
 
 noalloc func invalid_limits(): error {
@@ -51,7 +70,7 @@ noalloc func premature_eof(): error {
 noalloc func reserved_header(): error {
     return error.new(
         "std.http.reserved_header",
-        "Host, Connection, Content-Length, and Transfer-Encoding are client-owned fields",
+        "HTTP connection and framing fields are protocol-owned",
     )
 }
 

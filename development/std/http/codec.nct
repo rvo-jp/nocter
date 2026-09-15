@@ -1,4 +1,4 @@
-//! Shared HTTP/1.1 response-field and body-framing rules.
+//! Shared HTTP/1.1 numeric framing syntax and response body exceptions.
 
 see ./index.nct
 see ./values.nct
@@ -62,5 +62,6 @@ noalloc func bodyless_response(request_method: &Method, status: Status): bool {
     return ascii_case_equal(request_method.text(), "HEAD")
         || (code >= 100 && code < 200)
         || code == 204
+        || code == 205
         || code == 304
 }

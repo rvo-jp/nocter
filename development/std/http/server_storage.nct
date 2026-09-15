@@ -1,0 +1,23 @@
+//! Sole ownership layout for HTTP server listeners and connection states.
+
+see ./index.nct
+see ./storage.nct
+
+use /net.{SocketAddress, TcpListener, TcpStream}
+
+struct Server {
+    listener: TcpListener
+    limits: Limits
+}
+
+struct ServerConnection {
+    stream: TcpStream
+    peer: SocketAddress
+    limits: Limits
+}
+
+struct Responder {
+    stream: TcpStream
+    suppress_body: bool
+    limits: Limits
+}

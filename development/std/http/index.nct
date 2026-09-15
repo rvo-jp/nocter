@@ -2,6 +2,7 @@
 
 use /hash.{Hash, HashState}
 use /io.{BlockingReader, Reader, TimedReader}
+use /net.SocketAddress
 use /string.String
 use /time.Duration
 use /tls.TrustAnchor
@@ -17,11 +18,18 @@ see ./client_transport.nct
 see ./codec.nct
 see ./errors.nct
 see ./exchange.nct
+see ./encoding.nct
+see ./field_codec.nct
 see ./request.nct
+see ./request_head.nct
 see ./request_convenience.nct
 see ./response_collection.nct
 see ./response_head.nct
 see ./response_progress.nct
+see ./server.nct
+see ./server_codec.nct
+see ./server_storage.nct
+see ./server_values.nct
 see ./storage.nct
 see ./tests.nct
 see ./transport_buffer.nct
@@ -151,7 +159,7 @@ instance Headers {
 pub copy struct Limits
 
 construct Limits {
-    /// Returns conservative defaults for ordinary client messages.
+    /// Returns conservative defaults for ordinary HTTP messages.
     pub noalloc func standard(): Self
 
     /// Constructs one nonzero, internally consistent limit set.
@@ -310,4 +318,102 @@ instance Response {
 
     /// Closes the owned connection; later reads report end of stream.
     pub noalloc method &+self.close(): void
+}
+
+/// One fully decoded, bounded HTTP/1.1 request received by a server.
+pub struct IncomingRequest
+
+instance IncomingRequest {
+    /// Borrows the request method.
+    pub noalloc method &self.request_method(): &Method from self
+
+    /// Borrows the exact origin-form request target.
+    pub noalloc method &self.target(): &str from self
+
+    /// Borrows the ordered request fields.
+    pub noalloc method &self.headers(): &Headers from self
+
+    /// Borrows the complete decoded request body.
+    pub noalloc method &self.body(): &[u8] from self
+}
+
+/// One owned HTTP/1.1 response to be sent by a `Responder`.
+pub struct OutgoingResponse
+
+construct OutgoingResponse {
+    /// Creates an empty-body final response.
+    pub noalloc func new(status: Status): Self!
+
+    /// Creates an empty successful response with status 200.
+    pub noalloc func ok(): Self
+}
+
+instance OutgoingResponse {
+    /// Returns the selected final status.
+    pub noalloc method &self.status(): Status
+
+    /// Borrows the ordered user fields.
+    pub noalloc method &self.headers(): &Headers from self
+
+    /// Borrows the complete response body.
+    pub noalloc method &self.body(): &[u8] from self
+
+    /// Appends one validated user field.
+    pub method &+self.append_header(header: Header): void
+
+    /// Validates and appends one textual user field.
+    pub method &+self.append_header_text(name: &str, value: &str): void!
+
+    /// Replaces the complete response body.
+    pub method &+self.set_body(body: Vec<u8>): void
+
+    /// Copies UTF-8 bytes into the complete response body.
+    pub method &+self.set_text_body(text: &str): void
+}
+
+/// One asynchronous HTTP listener with immutable parsing and buffering limits.
+pub struct Server
+
+construct Server {
+    /// Binds one numeric address with standard finite HTTP limits.
+    pub async func bind(address: SocketAddress): Self!
+
+    /// Binds one numeric address with caller-selected finite HTTP limits.
+    pub async func bind_with_limits(address: SocketAddress, limits: Limits): Self!
+}
+
+instance Server {
+    /// Returns the effective local address, including a kernel-selected port.
+    pub noalloc method &self.local_address(): SocketAddress!
+
+    /// Accepts one connection without blocking the executor thread.
+    pub async method &+self.accept(): ServerConnection!
+
+    /// Closes the listener; later accepts fail through the network contract.
+    pub noalloc method &+self.close(): void
+}
+
+/// One accepted stream that has not yet yielded its single request.
+pub struct ServerConnection
+
+instance ServerConnection {
+    /// Returns the accepted peer address.
+    pub noalloc method &self.peer_address(): SocketAddress
+
+    /// Decodes one complete bounded request and transfers response authority.
+    pub async method self.read_request(): (IncomingRequest, Responder)!
+
+    /// Closes this connection without reading a request.
+    pub noalloc method self.close(): void
+}
+
+/// The unique capability to send one response on one decoded request connection.
+pub struct Responder
+
+instance Responder {
+    /// Encodes, writes, and closes one complete response.
+    pub async method self.respond(response: OutgoingResponse): void!
+
+    /// Closes this connection without sending a response.
+    pub noalloc method self.close(): void
 }

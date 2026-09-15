@@ -1,0 +1,86 @@
+//! Server request projections and response value construction.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /vec.Vec
+
+func incoming_request_from_parts(head: RequestHead, body: Vec<u8>): IncomingRequest {
+    return IncomingRequest { head_value: move head, body_value: move body }
+}
+
+instance IncomingRequest {
+    noalloc method &self.request_method(): &Method from self {
+        return self.head_value.request_method()
+    }
+
+    noalloc method &self.target(): &str from self {
+        return self.head_value.target()
+    }
+
+    noalloc method &self.headers(): &Headers from self {
+        return self.head_value.headers()
+    }
+
+    noalloc method &self.body(): &[u8] from self {
+        let body: &[u8] = &self.body_value
+        return body
+    }
+}
+
+construct OutgoingResponse {
+    noalloc func new(status: Status): Self! {
+        if status.code() < 200 || status.code() > 599 { return invalid_response_status() }
+        return OutgoingResponse {
+            status_value: status,
+            header_values: Headers.empty(),
+            body_value: Vec.empty(),
+        }
+    }
+
+    noalloc func ok(): Self {
+        return OutgoingResponse {
+            status_value: Status { code_value: 200 },
+            header_values: Headers.empty(),
+            body_value: Vec.empty(),
+        }
+    }
+}
+
+instance OutgoingResponse {
+    noalloc method &self.status(): Status {
+        return self.status_value
+    }
+
+    noalloc method &self.headers(): &Headers from self {
+        return &self.header_values
+    }
+
+    noalloc method &self.body(): &[u8] from self {
+        let body: &[u8] = &self.body_value
+        return body
+    }
+
+    method &+self.append_header(header: Header): void {
+        self.header_values.append(move header)
+        return
+    }
+
+    method &+self.append_header_text(name: &str, value: &str): void! {
+        let header_name = HeaderName.parse(name)?
+        let header_value = HeaderValue.from_text(value)?
+        self.append_header(Header.new(move header_name, move header_value))
+        return
+    }
+
+    method &+self.set_body(body: Vec<u8>): void {
+        self.body_value = move body
+        return
+    }
+
+    method &+self.set_text_body(text: &str): void {
+        self.set_body(Vec.from_slice(text.bytes()))
+        return
+    }
+}

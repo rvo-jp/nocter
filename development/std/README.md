@@ -41,6 +41,6 @@ comments.
 | numeric network addresses and socket I/O | [Network I/O](net/README.md) | `std/net` |
 | authenticated TLS client streams | [Authenticated TLS](tls/README.md) | `std/tls` |
 | absolute HTTP-family URLs and request targets | [URL](url/README.md) | `std/url` |
-| HTTP/1.1 client, message values, and framing | [HTTP/1.1](http/README.md) | `std/http` |
+| HTTP/1.1 client, server, message values, and framing | [HTTP/1.1](http/README.md) | `std/http` |
 | Unicode scalars and text transforms | [Unicode Text and Scalars](char/README.md) | `std/char`, Unicode operations on `std/str` and `std/string` |
 | native assertions | [Native Assertions](testing/README.md) | `std/testing` |

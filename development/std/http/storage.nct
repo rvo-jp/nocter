@@ -51,6 +51,17 @@ struct ResponseHead {
     header_values: Headers
 }
 
+struct IncomingRequest {
+    head_value: RequestHead
+    body_value: Vec<u8>
+}
+
+struct OutgoingResponse {
+    status_value: Status
+    header_values: Headers
+    body_value: Vec<u8>
+}
+
 noalloc func response_head_from_parts(status: Status, headers: Headers): ResponseHead {
     return ResponseHead {
         status_value: status,

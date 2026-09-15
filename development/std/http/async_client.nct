@@ -36,7 +36,7 @@ async func read_response_head_async(
     limits: Limits,
     timeout: Duration?,
 ): ReceivedResponseHead! {
-    var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
+    var scratch = initialized_bytes(HTTP_BUFFER_BYTES)
     var decoder = response_head_decoder(limits)
     loop {
         match advance_final_response_head(move decoder, request_method) {

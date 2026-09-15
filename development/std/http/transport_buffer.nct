@@ -2,7 +2,7 @@
 
 use /vec.Vec
 
-const CLIENT_BUFFER_BYTES: usize = 8192
+const HTTP_BUFFER_BYTES: usize = 8192
 
 func initialized_bytes(size: usize): Vec<u8> {
     var bytes: Vec<u8> = Vec.with_capacity(size)

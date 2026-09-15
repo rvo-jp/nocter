@@ -280,13 +280,17 @@ construct Limits {
 }
 
 noalloc func valid_request_target(target: &str): bool {
-    if target.len() == 0 || target[0] != 47 { return false }
     let bytes = target.bytes()
-    var offset: usize = 0
-    while offset < bytes.len() {
+    return valid_request_target_range(bytes, 0, bytes.len())
+}
+
+noalloc func valid_request_target_range(bytes: &[u8], start: usize, end: usize): bool {
+    if start >= end || end > bytes.len() || bytes[start] != 47 { return false }
+    var offset = start
+    while offset < end {
         let value = bytes[offset]
         if value == 37 {
-            if offset + 2 >= bytes.len() { return false }
+            if offset + 2 >= end { return false }
             let high = bytes[offset + 1]
             let low = bytes[offset + 2]
             let high_hex = (high >= 48 && high <= 57)
@@ -318,6 +322,41 @@ noalloc func valid_request_target(target: &str): bool {
         }
     }
     return true
+}
+
+func method_from_range(bytes: &[u8], start: usize, end: usize): Method! {
+    if start >= end || end > bytes.len() { return invalid_method() }
+    var text = String.with_capacity(end - start)
+    var offset = start
+    while offset < end {
+        if !is_token_byte(bytes[offset]) { return invalid_method() }
+        text.push(ascii_char(bytes[offset]))
+        offset += 1
+    }
+    return Method { text_value: move text }
+}
+
+func request_head_from_ranges(
+    bytes: &[u8],
+    method_start: usize,
+    method_end: usize,
+    target_start: usize,
+    target_end: usize,
+    headers: Headers,
+): RequestHead! {
+    if !valid_request_target_range(bytes, target_start, target_end) { return invalid_target() }
+    let request_method = method_from_range(bytes, method_start, method_end)?
+    var target = String.with_capacity(target_end - target_start)
+    var offset = target_start
+    while offset < target_end {
+        target.push(ascii_char(bytes[offset]))
+        offset += 1
+    }
+    return RequestHead {
+        method_value: move request_method,
+        target_value: move target,
+        header_values: move headers,
+    }
 }
 
 construct RequestHead {

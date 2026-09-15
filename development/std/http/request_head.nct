@@ -1,0 +1,175 @@
+//! Stateful, incremental HTTP/1.1 request-head decoding.
+
+see ./body.nct
+see ./errors.nct
+see ./field_codec.nct
+see ./index.nct
+see ./storage.nct
+see ./values.nct
+see ./wire.nct
+
+use /vec.Vec
+
+enum RequestHeadPhase {
+    request_line
+    fields(method_end: usize, target_start: usize, target_end: usize)
+}
+
+struct RequestHeadState {
+    phase: RequestHeadPhase
+    field_block: FieldBlockState
+}
+
+struct RequestHeadDecoder {
+    input: Vec<u8>
+    state: RequestHeadState
+}
+
+enum RequestHeadAttempt {
+    incomplete(decoder: RequestHeadDecoder)
+    ready(parsed: ParsedRequestHead)
+    failed(failure: error)
+}
+
+struct ParsedRequestHead {
+    head: RequestHead
+    decoder: BodyDecoder
+    pending: Vec<u8>
+    consumed: usize
+}
+
+noalloc func request_head_decoder(limits: Limits): RequestHeadDecoder {
+    return RequestHeadDecoder {
+        input: Vec.empty(),
+        state: RequestHeadState {
+            phase: RequestHeadPhase.request_line,
+            field_block: field_block_state(0, 0, limits),
+        },
+    }
+}
+
+func append_request_head_input_range(
+    decoder: &+RequestHeadDecoder,
+    input: &[u8],
+    start: usize,
+    end: usize,
+): void! {
+    if start > end || end > input.len() { return invalid_syntax() }
+    var offset = start
+    while offset < end {
+        decoder.input.push(input[offset])
+        offset += 1
+    }
+    return
+}
+
+noalloc func request_line_parts(
+    input: &[u8],
+    start: usize,
+    end: usize,
+): (usize, usize, usize)! {
+    var method_end = start
+    while method_end < end && input[method_end] != 32 { method_end += 1 }
+    if method_end == start || method_end == end { return invalid_syntax() }
+    let target_start = method_end + 1
+    var target_end = target_start
+    while target_end < end && input[target_end] != 32 { target_end += 1 }
+    if target_end == target_start || target_end == end { return invalid_syntax() }
+    if end - target_end != 9
+        || input[target_end + 1] != 72
+        || input[target_end + 2] != 84
+        || input[target_end + 3] != 84
+        || input[target_end + 4] != 80
+        || input[target_end + 5] != 47
+        || input[target_end + 6] != 49
+        || input[target_end + 7] != 46
+        || input[target_end + 8] != 49 {
+        return invalid_syntax()
+    }
+    return (method_end, target_start, target_end)
+}
+
+noalloc func valid_request_host(headers: &Headers): bool {
+    var count: usize = 0
+    var offset: usize = 0
+    while offset < headers.len() {
+        let header = headers.at(offset) otherwise { return false }
+        if header.name().text() == "host" {
+            if header.value().bytes().len() == 0 { return false }
+            count += 1
+        }
+        offset += 1
+    }
+    return count == 1
+}
+
+func advance_request_head(decoder: RequestHeadDecoder): RequestHeadAttempt {
+    var owner = move decoder
+    let input: &[u8] = &owner.input
+    loop {
+        match owner.state.phase {
+            RequestHeadPhase.request_line {
+                let line_end = match advance_line(
+                    input,
+                    owner.state.field_block.line_start,
+                    owner.state.field_block.scan_offset,
+                    owner.state.field_block.limits.start_line_bytes,
+                ) {
+                    LineAdvance.incomplete(next) {
+                        owner.state.field_block.scan_offset = next
+                        return RequestHeadAttempt.incomplete(move owner)
+                    }
+                    LineAdvance.ready(end) { end }
+                    LineAdvance.malformed { return RequestHeadAttempt.failed(invalid_syntax()) }
+                    LineAdvance.too_long { return RequestHeadAttempt.failed(syntax_limit()) }
+                }
+                if line_end + 2 > owner.state.field_block.limits.header_bytes {
+                    return RequestHeadAttempt.failed(syntax_limit())
+                }
+                let parts = request_line_parts(
+                    input,
+                    owner.state.field_block.line_start,
+                    line_end,
+                ) catch failure {
+                    return RequestHeadAttempt.failed(move failure)
+                }
+                owner.state.field_block.line_start = line_end + 2
+                owner.state.field_block.scan_offset = owner.state.field_block.line_start
+                owner.state.phase = RequestHeadPhase.fields(parts.0, parts.1, parts.2)
+            }
+            RequestHeadPhase.fields(method_end, target_start, target_end) {
+                let consumed = match advance_field_block(&+owner.state.field_block, input) {
+                    FieldBlockAttempt.incomplete {
+                        return RequestHeadAttempt.incomplete(move owner)
+                    }
+                    FieldBlockAttempt.ready(value) { value }
+                    FieldBlockAttempt.failed(failure) {
+                        return RequestHeadAttempt.failed(move failure)
+                    }
+                }
+                if !valid_request_host(&owner.state.field_block.fields.headers) {
+                    return RequestHeadAttempt.failed(invalid_host())
+                }
+                let framing = request_body_framing(
+                    &owner.state.field_block.fields,
+                    owner.state.field_block.limits,
+                )
+                    catch failure { return RequestHeadAttempt.failed(move failure) }
+                let head = request_head_from_ranges(
+                    input,
+                    0,
+                    method_end,
+                    target_start,
+                    target_end,
+                    move owner.state.field_block.fields.headers,
+                ) catch failure { return RequestHeadAttempt.failed(move failure) }
+                return RequestHeadAttempt.ready(ParsedRequestHead {
+                    head: move head,
+                    decoder: body_decoder(move framing, owner.state.field_block.limits),
+                    pending: move owner.input,
+                    consumed: consumed,
+                })
+            }
+        }
+    }
+}
