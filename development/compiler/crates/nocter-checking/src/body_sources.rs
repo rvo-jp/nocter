@@ -275,7 +275,7 @@ pub fn catalog_body_sources<'syntax>(
         if modules.get(&tree.source()).copied() != Some(module) {
             return Err(BodySourceError::BodyOutsideOwnerModule(body));
         }
-        let projection = BodySyntaxProjection::for_body(&tree, *root)
+        let projection = BodySyntaxProjection::for_root(&tree, *root)
             .ok_or(BodySourceError::InvalidBodyProjection(body))?;
         let actual = bodies.insert(BodySourceEntry {
             owner: declaration.owner(),

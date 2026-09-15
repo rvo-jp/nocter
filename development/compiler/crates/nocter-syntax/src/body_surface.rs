@@ -23,9 +23,9 @@ pub struct BodySyntaxProjection {
 impl BodySyntaxProjection {
     /// Enumerates one body in deterministic syntax order.
     #[must_use]
-    pub fn for_body(tree: &SyntaxTree, body: NodeId) -> Option<Self> {
-        tree.node(body)?;
-        let mut pending = vec![SyntaxElement::Node(body)];
+    pub fn for_root(tree: &SyntaxTree, root: NodeId) -> Option<Self> {
+        tree.node(root)?;
+        let mut pending = vec![SyntaxElement::Node(root)];
         let mut nodes = Vec::new();
         let mut tokens = Vec::new();
         let mut locators = HashMap::new();
