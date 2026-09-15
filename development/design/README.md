@@ -43,6 +43,7 @@ under `development/history/`, not in current design documents.
 - [Execution Contract Boundary](execution-contract-design.md)
 - [Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md)
 - [Secure Transport Boundary](secure-transport-design.md)
+- [Streaming HTTP Service Boundary](streaming-http-service-design.md)
 
 ## Maintenance Contracts
 
