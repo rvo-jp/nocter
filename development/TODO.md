@@ -3,18 +3,18 @@
 ## Current State
 
 Nocter v0.51.0 is published and externally audited. The v0.52.0 Compile-Time Callable Evaluation
-candidate is implementation-complete and qualified. Authored `const` capability reaches one
-canonical checked-body projection, structural constants are isolated from final checked
-initializer values, and `CheckedProgram` publishes closed values and callable specializations
-through one `CompileTimeProgram`. The adopted design and completed phases live in
+candidate is complete and qualified, publication is authorized, and public metadata now selects
+v0.52.0. Authored `const` capability reaches one canonical checked-body projection, structural
+constants are isolated from final checked initializer values, and `CheckedProgram` publishes closed
+values and callable specializations through one `CompileTimeProgram`. The adopted design lives in
 [`development/history/milestones/v0.52.0.md`](history/milestones/v0.52.0.md).
 
 ## Next Work
 
-Publish v0.52.0 only when explicitly requested. Reuse the retained qualified archive without
-rebuilding it, create the annotated tag and public release metadata, update current-version entry
-points and generated documentation, deploy the source-identified Pages artifact, and perform the
-post-publication download and installation audit. Record immutable publication evidence afterward.
+Commit this publication metadata, create annotated tag `v0.52.0`, fast-forward `main`, upload the
+retained qualified archive as the release's single asset, and verify the public tag, release asset,
+latest-release endpoint, downloaded archive, installed identity, and source-identified Pages
+deployment. Do not rebuild or replace the qualified archive.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
