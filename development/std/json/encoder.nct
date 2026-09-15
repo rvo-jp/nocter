@@ -1,0 +1,247 @@
+//! Effect-neutral compact JSON token production.
+
+see ./index.nct
+
+use /internal/ptr
+use /internal/safety
+use /map.Map
+use /mem.TryAllocator
+use /ptr as ptr_module
+use /string.String
+use /vec.Vec
+
+enum EncodingFrame {
+    value(value: &Value)
+    array(values: &Vec<Value>, next_index: usize)
+    object(values: &Map<String, Value>, next_index: usize)
+    string_body(text: &str, next_index: usize)
+    chunk(bytes: &[u8])
+}
+
+struct Encoder {
+    frames: Vec<EncodingFrame>
+    scratch: [u8; 6]
+    scratch_len: usize
+    current: EncoderChunk
+}
+
+enum EncoderConstruction {
+    success(value: Encoder)
+    allocation(failure: error)
+}
+
+enum EncodingStep {
+    chunk
+    complete
+    allocation(failure: error)
+}
+
+enum EncoderChunk {
+    empty
+    borrowed(bytes: &[u8])
+    scratch
+}
+
+noalloc func hexadecimal_digit(value: u8): u8 {
+    if value < 10 { return 48 + value }
+    return 65 + value - 10
+}
+
+func try_encoder(
+    allocator: &+TryAllocator,
+    value: &Value,
+): EncoderConstruction {
+    var frames: Vec<EncodingFrame> = Vec.try_with_capacity(allocator, 1) catch failure {
+        return EncoderConstruction.allocation(move failure)
+    }
+    frames.try_push(EncodingFrame.value(value)) catch failure {
+        return EncoderConstruction.allocation(move failure)
+    }
+    return EncoderConstruction.success(
+        Encoder {
+            frames: move frames,
+            scratch: [0, 0, 0, 0, 0, 0],
+            scratch_len: 0,
+            current: EncoderChunk.empty,
+        },
+    )
+}
+
+instance Encoder {
+    noalloc method &self.scratch_bytes(): &[u8] {
+        return ptr.slice_from_raw_parts_value(
+            ptr_module.from_ref(&self.scratch[0]),
+            self.scratch_len,
+        )
+    }
+
+    noalloc method &+self.escape(byte: u8): void {
+        self.scratch[0] = 92
+        if byte == 34 || byte == 92 {
+            self.scratch[1] = byte
+            self.scratch_len = 2
+            return
+        }
+        if byte == 8 {
+            self.scratch[1] = 98
+            self.scratch_len = 2
+            return
+        }
+        if byte == 12 {
+            self.scratch[1] = 102
+            self.scratch_len = 2
+            return
+        }
+        if byte == 10 {
+            self.scratch[1] = 110
+            self.scratch_len = 2
+            return
+        }
+        if byte == 13 {
+            self.scratch[1] = 114
+            self.scratch_len = 2
+            return
+        }
+        if byte == 9 {
+            self.scratch[1] = 116
+            self.scratch_len = 2
+            return
+        }
+        self.scratch[1] = 117
+        self.scratch[2] = 48
+        self.scratch[3] = 48
+        self.scratch[4] = hexadecimal_digit(byte / 16)
+        self.scratch[5] = hexadecimal_digit(byte % 16)
+        self.scratch_len = 6
+        return
+    }
+
+    noalloc method &+self.emit(bytes: &[u8]): EncodingStep {
+        self.current = EncoderChunk.borrowed(bytes)
+        return EncodingStep.chunk
+    }
+
+    noalloc method &+self.emit_escape(byte: u8): EncodingStep {
+        self.escape(byte)
+        self.current = EncoderChunk.scratch
+        return EncodingStep.chunk
+    }
+
+    noalloc method &self.chunk(): &[u8] {
+        match self.current {
+            EncoderChunk.empty { return safety.invariant_abort() }
+            EncoderChunk.borrowed(bytes) { return bytes }
+            EncoderChunk.scratch { return self.scratch_bytes() }
+        }
+    }
+
+    method &+self.push(frame: EncodingFrame): void! {
+        self.frames.try_push(move frame)?
+        return
+    }
+
+    method &+self.advance(): EncodingStep {
+        loop {
+            let frame = self.frames.pop() otherwise { return EncodingStep.complete }
+            match move frame {
+                EncodingFrame.chunk(bytes) { return self.emit(bytes) }
+                EncodingFrame.value(current) {
+                    match current {
+                        Value.null { return self.emit("null".bytes()) }
+                        Value.boolean(state) {
+                            let truth = true
+                            if state == &truth {
+                                return self.emit("true".bytes())
+                            }
+                            return self.emit("false".bytes())
+                        }
+                        Value.number(number) {
+                            return self.emit(number.text().bytes())
+                        }
+                        Value.string(text) {
+                            self.push(EncodingFrame.chunk("\"".bytes())) catch failure {
+                                return EncodingStep.allocation(move failure)
+                            }
+                            self.push(EncodingFrame.string_body(text, 0)) catch failure {
+                                return EncodingStep.allocation(move failure)
+                            }
+                            return self.emit("\"".bytes())
+                        }
+                        Value.array(values) {
+                            self.push(EncodingFrame.array(values, 0)) catch failure {
+                                return EncodingStep.allocation(move failure)
+                            }
+                            return self.emit("[".bytes())
+                        }
+                        Value.object(values) {
+                            self.push(EncodingFrame.object(values, 0)) catch failure {
+                                return EncodingStep.allocation(move failure)
+                            }
+                            return self.emit("{".bytes())
+                        }
+                    }
+                }
+                EncodingFrame.array(values, next_index) {
+                    if next_index >= values.len() {
+                        return self.emit("]".bytes())
+                    }
+                    self.push(EncodingFrame.array(values, next_index + 1)) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    self.push(EncodingFrame.value(&values[next_index])) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    if next_index != 0 { return self.emit(",".bytes()) }
+                }
+                EncodingFrame.object(values, next_index) {
+                    let entry = values.entry_at(next_index) otherwise {
+                        return self.emit("}".bytes())
+                    }
+                    self.push(EncodingFrame.object(values, next_index + 1)) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    self.push(EncodingFrame.value(entry.value)) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    self.push(EncodingFrame.chunk(":".bytes())) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    self.push(EncodingFrame.chunk("\"".bytes())) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    self.push(EncodingFrame.string_body(entry.key, 0)) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    self.push(EncodingFrame.chunk("\"".bytes())) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    if next_index != 0 { return self.emit(",".bytes()) }
+                }
+                EncodingFrame.string_body(text, next_index) {
+                    if next_index >= text.len() { continue }
+                    let bytes = text.bytes()
+                    let first = bytes[next_index]
+                    if first == 34 || first == 92 || first < 32 {
+                        self.push(EncodingFrame.string_body(text, next_index + 1)) catch failure {
+                            return EncodingStep.allocation(move failure)
+                        }
+                        return self.emit_escape(first)
+                    }
+                    var end = next_index + 1
+                    while end < bytes.len() {
+                        let byte = bytes[end]
+                        if byte == 34 || byte == 92 || byte < 32 { break }
+                        end += 1
+                    }
+                    self.push(EncodingFrame.string_body(text, end)) catch failure {
+                        return EncodingStep.allocation(move failure)
+                    }
+                    let segment = text.get_range(next_index, end) otherwise {
+                        return safety.invariant_abort()
+                    }
+                    return self.emit(segment.bytes())
+                }
+            }
+        }
+    }
+}

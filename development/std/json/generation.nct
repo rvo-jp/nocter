@@ -1,169 +1,127 @@
-//! Non-recursive compact JSON traversal shared by String and BlockingWriter output.
+//! String and BlockingWriter drivers over one effect-neutral compact JSON encoder.
 
 see ./index.nct
-see ./escaping.nct
+see ./encoder.nct
 see ./generation_failure.nct
 
 use /internal/mem
 use /io.BlockingWriter
-use /map.Map
 use /mem.TryAllocator
 use /mem as mem_module
-use /internal/json/output.{ByteSink, StringSink, WriterSink}
 use /string.String
-use /vec.Vec
 
-enum GenerationFrame {
-    value(value: &Value)
-    array(values: &Vec<Value>, next_index: usize)
-    object(values: &Map<String, Value>, next_index: usize)
+const OUTPUT_CHUNK_CAPACITY: usize = 4096
+
+func stringify(value: &Value): String {
+    var allocator = mem_module.current_try_allocator()
+    var output: String = String.try_with_capacity(&+allocator, 0) catch _ {
+        return mem.allocation_abort()
+    }
+    let construction = try_encoder(&+allocator, value)
+    var encoder = match move construction {
+        EncoderConstruction.success(created) { move created }
+        EncoderConstruction.allocation(_) { return mem.allocation_abort() }
+    }
+    loop {
+        match encoder.advance() {
+            EncodingStep.chunk {
+                let chunk = encoder.chunk()
+                output.try_push_utf8(chunk) catch _ {
+                    return mem.allocation_abort()
+                }
+            }
+            EncodingStep.complete { return move output }
+            EncodingStep.allocation(_) { return mem.allocation_abort() }
+        }
+    }
 }
 
-blocking func emit_token<S>(
-    sink: &+S,
-    token: &str,
-): void! where S impl ByteSink {
-    sink.emit(token.bytes())?
+func try_stringify(
+    allocator: &+TryAllocator,
+    value: &Value,
+): String! from allocator {
+    var output: String = String.try_with_capacity(allocator, 0)?
+    let construction = try_encoder(allocator, value)
+    var encoder = match move construction {
+        EncoderConstruction.success(created) { move created }
+        EncoderConstruction.allocation(failure) { return move failure }
+    }
+    loop {
+        match encoder.advance() {
+            EncodingStep.chunk { output.try_push_utf8(encoder.chunk())? }
+            EncodingStep.complete { return move output }
+            EncodingStep.allocation(failure) { return move failure }
+        }
+    }
+}
+
+blocking func flush_buffer<W>(
+    destination: &+W,
+    buffer: &String,
+): void! where W impl BlockingWriter {
+    let text: &str = buffer as &str
+    if text.len() == 0 { return }
+    destination.write_blocking(text.bytes())?
     return
 }
 
-blocking func generate_core<S>(
+blocking func write_core<W>(
     allocator: &+TryAllocator,
-    sink: &+S,
+    destination: &+W,
     value: &Value,
-): GenerationAttempt where S impl ByteSink {
-    var frames: Vec<GenerationFrame> = Vec.try_with_capacity(allocator, 1) catch failure {
+): GenerationAttempt where W impl BlockingWriter {
+    var buffer = String.try_with_capacity(allocator, OUTPUT_CHUNK_CAPACITY) catch failure {
         return GenerationAttempt.allocation(move failure)
     }
-    frames.try_push(GenerationFrame.value(value)) catch failure {
-        return GenerationAttempt.allocation(move failure)
+    let construction = try_encoder(allocator, value)
+    var encoder = match move construction {
+        EncoderConstruction.success(created) { move created }
+        EncoderConstruction.allocation(failure) {
+            return GenerationAttempt.allocation(move failure)
+        }
     }
-
     loop {
-        let frame = frames.pop() otherwise { return GenerationAttempt.complete }
-        match move frame {
-            GenerationFrame.value(current) {
-                match current {
-                    Value.null {
-                        emit_token(sink, "null") catch failure {
-                            return GenerationAttempt.sink(move failure)
-                        }
+        match encoder.advance() {
+            EncodingStep.chunk {
+                let chunk = encoder.chunk()
+                let buffered: &str = &buffer as &str
+                let buffered_len = buffered.len()
+                if chunk.len() >= OUTPUT_CHUNK_CAPACITY {
+                    flush_buffer(destination, &buffer) catch failure {
+                        return GenerationAttempt.sink(move failure)
                     }
-                    Value.boolean(state) {
-                        let truth = true
-                        let token = if state == &truth { "true" } else { "false" }
-                        emit_token(sink, token) catch failure {
-                            return GenerationAttempt.sink(move failure)
-                        }
-                    }
-                    Value.number(number) {
-                        emit_token(sink, number.text()) catch failure {
-                            return GenerationAttempt.sink(move failure)
-                        }
-                    }
-                    Value.string(text) {
-                        emit_json_string(sink, text) catch failure {
-                            return GenerationAttempt.sink(move failure)
-                        }
-                    }
-                    Value.array(values) {
-                        emit_token(sink, "[") catch failure {
-                            return GenerationAttempt.sink(move failure)
-                        }
-                        frames.try_push(GenerationFrame.array(values, 0)) catch failure {
-                            return GenerationAttempt.allocation(move failure)
-                        }
-                    }
-                    Value.object(values) {
-                        emit_token(sink, "{") catch failure {
-                            return GenerationAttempt.sink(move failure)
-                        }
-                        frames.try_push(GenerationFrame.object(values, 0)) catch failure {
-                            return GenerationAttempt.allocation(move failure)
-                        }
-                    }
-                }
-            }
-            GenerationFrame.array(values, next_index) {
-                if next_index >= values.len() {
-                    emit_token(sink, "]") catch failure {
+                    buffer.clear()
+                    destination.write_blocking(chunk) catch failure {
                         return GenerationAttempt.sink(move failure)
                     }
                     continue
                 }
-                if next_index != 0 {
-                    emit_token(sink, ",") catch failure {
+                if buffered_len + chunk.len() > OUTPUT_CHUNK_CAPACITY {
+                    flush_buffer(destination, &buffer) catch failure {
                         return GenerationAttempt.sink(move failure)
                     }
+                    buffer.clear()
                 }
-                frames.try_push(GenerationFrame.array(values, next_index + 1)) catch failure {
-                    return GenerationAttempt.allocation(move failure)
-                }
-                frames.try_push(GenerationFrame.value(&values[next_index])) catch failure {
+                buffer.try_push_utf8(chunk) catch failure {
                     return GenerationAttempt.allocation(move failure)
                 }
             }
-            GenerationFrame.object(values, next_index) {
-                let entry = values.entry_at(next_index) otherwise {
-                    emit_token(sink, "}") catch failure {
-                        return GenerationAttempt.sink(move failure)
-                    }
-                    continue
-                }
-                if next_index != 0 {
-                    emit_token(sink, ",") catch failure {
-                        return GenerationAttempt.sink(move failure)
-                    }
-                }
-                emit_json_string(sink, entry.key) catch failure {
+            EncodingStep.complete {
+                flush_buffer(destination, &buffer) catch failure {
                     return GenerationAttempt.sink(move failure)
                 }
-                emit_token(sink, ":") catch failure {
-                    return GenerationAttempt.sink(move failure)
-                }
-                frames.try_push(GenerationFrame.object(values, next_index + 1)) catch failure {
-                    return GenerationAttempt.allocation(move failure)
-                }
-                frames.try_push(GenerationFrame.value(entry.value)) catch failure {
-                    return GenerationAttempt.allocation(move failure)
-                }
+                return GenerationAttempt.complete
+            }
+            EncodingStep.allocation(failure) {
+                return GenerationAttempt.allocation(move failure)
             }
         }
     }
 }
 
-blocking func stringify(value: &Value): String {
-    var allocator = mem_module.current_try_allocator()
-    var output: String = String.try_with_capacity(&+allocator, 0) catch _ {
-        return mem.allocation_abort()
-    }
-    var sink = StringSink.new(&+output)
-    let attempt = generate_core(&+allocator, &+sink, value)
-    match move attempt {
-        GenerationAttempt.complete { return move output }
-        GenerationAttempt.sink(_) { return mem.allocation_abort() }
-        GenerationAttempt.allocation(_) { return mem.allocation_abort() }
-    }
-}
-
-blocking func try_stringify(
-    allocator: &+TryAllocator,
-    value: &Value,
-): String! from allocator {
-    var output: String = String.try_with_capacity(allocator, 0)?
-    var sink = StringSink.new(&+output)
-    let attempt = generate_core(allocator, &+sink, value)
-    match move attempt {
-        GenerationAttempt.complete { return move output }
-        GenerationAttempt.sink(failure) { return move failure }
-        GenerationAttempt.allocation(failure) { return move failure }
-    }
-}
-
 blocking func write<W>(destination: &+W, value: &Value): void! where W impl BlockingWriter {
     var allocator = mem_module.current_try_allocator()
-    var sink = WriterSink<W>.new(destination)
-    let attempt = generate_core(&+allocator, &+sink, value)
+    let attempt = write_core(&+allocator, destination, value)
     match move attempt {
         GenerationAttempt.complete { return }
         GenerationAttempt.sink(failure) { return move failure }
@@ -176,8 +134,7 @@ blocking func try_write<W>(
     destination: &+W,
     value: &Value,
 ): void! where W impl BlockingWriter {
-    var sink = WriterSink<W>.new(destination)
-    let attempt = generate_core(allocator, &+sink, value)
+    let attempt = write_core(allocator, destination, value)
     match move attempt {
         GenerationAttempt.complete { return }
         GenerationAttempt.sink(failure) { return move failure }
@@ -185,7 +142,7 @@ blocking func try_write<W>(
     }
 }
 
-blocking func expect_generated(source: &str, expected: &str): void! {
+func expect_generated(source: &str, expected: &str): void! {
     let value = parse(source)?
     let generated = stringify(&value)
     if generated != expected {
@@ -250,7 +207,7 @@ test generator_uses_an_explicit_stack_for_deep_values {
     return
 }
 
-blocking func recoverable_stringify_inside_region(value: &Value): String! {
+func recoverable_stringify_inside_region(value: &Value): String! {
     var selected = mem_module.page_try_allocator()
     var backing = mem_module.page_allocator()
     region temporary using backing {

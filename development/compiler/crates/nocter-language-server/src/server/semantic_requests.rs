@@ -2932,14 +2932,14 @@ mod tests {
         ));
         let response = stringify_hover.response().unwrap();
         assert!(
-            response.contains("pub blocking func stringify(value: &Value): String"),
+            response.contains("pub func stringify(value: &Value): String"),
             "{response}"
         );
         for internal in [
-            "GenerationFrame",
+            "EncodingFrame",
+            "EncoderConstruction",
+            "EncodingStep",
             "GenerationAttempt",
-            "ByteSink",
-            "StringSink",
         ] {
             assert!(!response.contains(internal), "{response}");
         }
@@ -3029,9 +3029,9 @@ mod tests {
             for internal in [
                 "ParserState",
                 "Continuation",
-                "GenerationFrame",
-                "ByteSink",
-                "WriterSink",
+                "EncodingFrame",
+                "EncoderConstruction",
+                "EncodingStep",
             ] {
                 assert!(!rendered.contains(internal), "{name}: {rendered}");
             }
@@ -3097,7 +3097,7 @@ mod tests {
             "{response}"
         );
         assert!(response.contains("\"activeParameter\":2"), "{response}");
-        for internal in ["GenerationAttempt", "ByteSink", "WriterSink"] {
+        for internal in ["GenerationAttempt", "EncoderConstruction", "EncodingStep"] {
             assert!(!response.contains(internal), "{response}");
         }
         assert!(signature.issue().is_none(), "{:?}", signature.issue());

@@ -21,9 +21,9 @@ UTF-8 input view
                 -> Value / Number / String / Vec / Map
 
 Value
-    -> one owning traversal plan
-        -> one escaping and token-emission engine
-            -> String sink or BlockingWriter sink
+    -> one effect-neutral pull encoder
+        -> compact UTF-8 chunks
+            -> String accumulator or buffered BlockingWriter driver
 ```
 
 The byte cursor owns the only source offset. Number scanning, string escape decoding, parser
@@ -37,11 +37,11 @@ frame transfers one completed `Value` either to its parent or to the root slot. 
 the current builder, frame stack, and root through ordinary ownership. No initialized-entry bitmap,
 recursive host stack, caller-provided count, or recovery-side ownership table is allowed.
 
-The generation side likewise has one traversal authority. Both String generation and BlockingWriter
-generation consume the same scalar, number, container, separator, and string-escaping decisions.
-A sink boundary chooses where emitted UTF-8 bytes go and classifies sink failure; it cannot choose
-JSON spelling. A new output target must implement that sink contract instead of copying the JSON
-traversal or escaping algorithm.
+The generation side likewise has one traversal authority. Both String generation and
+BlockingWriter generation pull the same scalar, number, container, separator, and string-escaping
+decisions from an effect-neutral encoder. Drivers choose where each complete UTF-8 chunk goes and
+classify destination failure; they cannot choose JSON spelling. The encoder knows no writer or
+destination interface, so an in-memory caller does not inherit an I/O effect from a generic sink.
 
 ## Value and Number Boundary
 
@@ -85,7 +85,7 @@ Private parser failure has two cases:
 Private writer failure has two cases:
 
 - destination failure, which both `write` and `try_write` return;
-- traversal-stack allocation failure, which `write` terminates and `try_write` returns.
+- encoder or driver-buffer allocation failure, which `write` terminates and `try_write` returns.
 
 String generation has only allocation-class failure after accepting a valid Value. The ordinary
 wrapper terminates; the recoverable wrapper returns it.
@@ -183,7 +183,7 @@ knowledge.
 
 ## Generation State
 
-`GenerationFrame` is the only suspended traversal state. A value frame borrows one `Value`; an
+`EncodingFrame` is the only suspended traversal state. A value frame borrows one `Value`; an
 array or object frame borrows its source container and owns the next semantic ordinal. Processing a
 container frame first pushes its resumed ordinal and then its child value, so the LIFO stack emits
 depth-first compact JSON without recursive calls. Frames never own user values and therefore add no
@@ -196,17 +196,22 @@ the same unspecified iteration semantics. Separating source and ordinal also avo
 self-referential state in which a frame would move an iterator while retaining a result loan from
 that iterator.
 
-`std/internal/json/output.ByteSink.emit` is the only destination operation consumed by traversal
-and escaping. `StringSink` and `WriterSink` contain destination adaptation only; neither sees
-`Value`, punctuation, Number, or escape decisions. String escaping batches complete UTF-8 chunks
-in fixed local storage. Before a
-multibyte scalar crosses the local capacity boundary, the current chunk is flushed, so an owning
-String never receives a partial scalar even though BlockingWriter accepts arbitrary bytes.
+`Encoder` owns the frame stack, one six-byte control-escape scratch area, and the current chunk
+projection. An advance result contains only `chunk`, `complete`, or `allocation`; the borrowed bytes
+remain behind `Encoder.chunk`. This separation prevents borrowed input provenance from being
+conflated with an allocator-derived failure in one result value. A chunk is always a complete UTF-8
+sequence: it borrows static punctuation, validated Number or String storage, or the initialized
+escape scratch prefix.
 
-`GenerationAttempt` preserves destination failure and traversal-stack allocation failure until a
-public wrapper applies policy. `write` returns destination failure and terminates on stack
-allocation failure; `try_write` returns either. String-sink failure is allocation failure by
-construction, so `stringify` terminates and `try_stringify` returns it. None of these wrappers
+The String driver appends those chunks directly. The BlockingWriter driver accumulates small chunks
+in one reusable String, flushes before exceeding its capacity target, and writes larger borrowed
+chunks directly. Neither driver sees `Value`, punctuation, Number, or escape decisions.
+
+`EncoderConstruction` and the advance result preserve allocation failure without returning borrowed
+chunks in the same variant payload. `GenerationAttempt` then preserves destination failure and
+encoder or driver-buffer allocation failure until a public writer wrapper applies policy. `write`
+returns destination failure and terminates on owned allocation failure; `try_write` returns either.
+`stringify` terminates on allocation failure and `try_stringify` returns it. None of these wrappers
 compare public error-code text to reconstruct private failure classes.
 
 ## Runnable Consumer Boundary

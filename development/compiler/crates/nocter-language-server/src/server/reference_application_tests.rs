@@ -365,7 +365,12 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
         response.contains("pub func parse(text: &str): Value!"),
         "{response}"
     );
-    for internal in ["ParserState", "Continuation", "GenerationFrame", "ByteSink"] {
+    for internal in [
+        "ParserState",
+        "Continuation",
+        "EncodingFrame",
+        "EncoderConstruction",
+    ] {
         assert!(!response.contains(internal), "{response}");
     }
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -400,7 +405,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
         "{response}"
     );
     assert!(response.contains("\"activeParameter\":1"), "{response}");
-    assert!(!response.contains("WriterSink"), "{response}");
+    assert!(!response.contains("GenerationAttempt"), "{response}");
     assert!(signature.issue().is_none(), "{:?}", signature.issue());
 
     let incomplete = text.replace("output.write_text_blocking(\"\\n\")", "output.");
@@ -430,7 +435,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
             "{response}"
         );
     }
-    for internal in ["emit", "ByteSink", "WriterSink"] {
+    for internal in ["emit", "Encoder", "EncodingStep"] {
         assert!(!response.contains(internal), "{response}");
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());

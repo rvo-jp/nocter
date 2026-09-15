@@ -19,7 +19,7 @@ Parse one complete text and return its compact spelling:
 use std/json
 use std/string.String
 
-blocking func normalize(text: &str): String! {
+func normalize(text: &str): String! {
     let value = json.parse(text)?
     return json.stringify(&value)
 }
@@ -46,7 +46,7 @@ use std/json
 use std/mem.TryAllocator
 use std/string.String
 
-blocking func try_normalize(allocator: &+TryAllocator, text: &str): String! from allocator {
+func try_normalize(allocator: &+TryAllocator, text: &str): String! from allocator {
     let value = json.try_parse(allocator, text)?
     return json.try_stringify(allocator, &value)?
 }
@@ -157,17 +157,18 @@ value, and emits every other Unicode scalar directly as UTF-8. Solidus is not es
 give strings one generated spelling without promising canonical object order or normalized number
 spelling.
 
-`write` and `try_write` forward a destination `BlockingWriter` failure unchanged and do not
-construct the complete JSON text in memory. Traversal uses an explicit stack proportional to value nesting plus
-fixed-size local encoding buffers; it does not allocate a second JSON tree. `write` allocates that
-stack in the current context, while `try_write` uses the supplied `TryAllocator`. The writer remains
-responsible for its own internal allocation and I/O policy.
+One effect-neutral pull encoder owns container traversal, separators, exact number spelling, and
+string escaping. `stringify` and `try_stringify` consume that encoder into an owning `String` and
+do not carry `blocking`. They may allocate their result and explicit traversal stack but perform no
+external I/O.
 
-All four generation functions currently carry `blocking`. The shared generator is checked once
-against the package-internal `ByteSink` interface, whose contract admits a blocking
-`BlockingWriter`. Nocter does not yet make callable effects polymorphic over an interface witness, so the concrete
-in-memory `StringSink` cannot narrow that generic callable contract at a use site. This is a
-conservative admission, not a claim that writing into a `String` performs external I/O.
+`write` and `try_write` consume the same encoder through a buffered `BlockingWriter` driver. They
+forward a destination failure unchanged and do not construct the complete JSON text in memory.
+Traversal uses an explicit stack proportional to value nesting and the driver uses one reusable
+bounded-size output buffer; a raw chunk at least as large as that buffer is written directly.
+`write` allocates encoder and driver storage in the current context, while `try_write` uses the
+supplied `TryAllocator`. The writer remains responsible for its own internal allocation and I/O
+policy.
 
 ## Allocation and Failure
 

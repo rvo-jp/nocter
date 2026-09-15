@@ -6,7 +6,6 @@ use /mem.TryAllocator
 use /string.String
 use /vec.Vec
 see ./cursor.nct
-see ./escaping.nct
 see ./errors.nct
 see ./failure.nct
 see ./generation.nct
@@ -72,10 +71,10 @@ pub func parse(text: &str): Value!
 pub func try_parse(allocator: &+TryAllocator, text: &str): Value! from allocator
 
 /// Generates one compact JSON text using the current allocation context.
-pub blocking func stringify(value: &Value): String
+pub func stringify(value: &Value): String
 
 /// Generates one compact JSON text with recoverable allocation.
-pub blocking func try_stringify(
+pub func try_stringify(
     allocator: &+TryAllocator,
     value: &Value,
 ): String! from allocator
@@ -83,7 +82,7 @@ pub blocking func try_stringify(
 /// Writes one compact JSON text without constructing a complete intermediate String.
 pub blocking func write<W>(destination: &+W, value: &Value): void! where W impl BlockingWriter
 
-/// Writes one compact JSON text with recoverable traversal-stack allocation.
+/// Writes one compact JSON text with recoverable encoder and driver-buffer allocation.
 pub blocking func try_write<W>(
     allocator: &+TryAllocator,
     destination: &+W,

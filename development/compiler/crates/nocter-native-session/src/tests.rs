@@ -84,10 +84,16 @@ test try_write_uses_the_selected_traversal_allocator {
     return
 }
 test write_returns_destination_failure_after_partial_output {
-    let value = json.parse("[1,2]")?
-    var writer = RecordingWriter.failing_after(2)
+    var payload = String.with_capacity(5000)
+    var index: usize = 0
+    while index < 5000 {
+        payload.push_str("x")
+        index += 1
+    }
+    let value = json.Value.string(move payload)
+    var writer = RecordingWriter.failing_after(1)
     json.write(&+writer, &value) catch failure {
-        if !failure.has_code("test.destination") || writer.text() == "[1,2]" {
+        if !failure.has_code("test.destination") || writer.text() != "\"" {
             return error.new("test.failure", "destination failure identity or partial output changed")
         }
         return
@@ -5111,16 +5117,25 @@ fn recoverable_allocation_test_source() -> &'static str {
     )
 }
 
-const RECOVERABLE_JSON_FLOAT_TEST_SOURCE: &str = concat!(
-    "use /json.Number\n",
+const RECOVERABLE_JSON_TEST_SOURCE: &str = concat!(
+    "use /json\n",
     "use /mem\n",
     "test recoverable_json_float_propagates_allocator_failure {\n",
     "    var allocator = mem.failing_try_allocator_for_test()\n",
-    "    let _number = Number.try_from_f64(&+allocator, 0.1) catch failure {\n",
+    "    let _number = json.Number.try_from_f64(&+allocator, 0.1) catch failure {\n",
     "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
     "        return error.new(\"std.json.allocator\", \"wrong float allocator failure\")\n",
     "    }\n",
     "    return error.new(\"std.json.allocator\", \"invalid allocator created a number\")\n",
+    "}\n",
+    "test recoverable_json_generation_propagates_allocator_failure {\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let value = json.Value.null\n",
+    "    let _text = json.try_stringify(&+allocator, &value) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.json.allocator\", \"wrong generation allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.json.allocator\", \"invalid allocator generated JSON\")\n",
     "}\n",
 );
 
@@ -5237,7 +5252,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         ),
         (
             standard_root.join("allocator_failure_json_tests.nct"),
-            RECOVERABLE_JSON_FLOAT_TEST_SOURCE.to_string(),
+            RECOVERABLE_JSON_TEST_SOURCE.to_string(),
         ),
         (
             standard_root.join("allocator_failure_url_tests.nct"),
@@ -5281,7 +5296,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 30);
+    assert_eq!(case_count, 31);
 }
 
 #[test]

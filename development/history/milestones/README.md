@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.53.0: Structured Services and Streaming Codecs](v0.53.0.md)
 - [v0.52.0: Compile-Time Callable Evaluation](v0.52.0.md)
 - [v0.52.0 Release Preparation](v0.52.0-release-preparation.md)
 - [v0.51.0: Unified Execution Contracts](v0.51.0.md)

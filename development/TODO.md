@@ -2,18 +2,17 @@
 
 ## Current State
 
-Nocter v0.52.0 is published and externally audited. Compile-Time Callable Evaluation lets authored
-`const` capability reach one canonical checked-body projection, isolates structural constants from
-final checked initializer values, and publishes closed values and callable specializations through
-one `CompileTimeProgram`. The adopted design lives in
-[`development/history/milestones/v0.52.0.md`](history/milestones/v0.52.0.md).
+Nocter v0.53.0 development is active. Phase 0 and Phase 1 are complete: JSON compact generation now
+uses one effect-neutral pull encoder, String generation is nonblocking, and BlockingWriter output is
+an explicit buffered driver over the same chunk sequence. The active scope and completion gates live
+in [`development/history/milestones/v0.53.0.md`](history/milestones/v0.53.0.md).
 
 ## Next Work
 
-Plan the next practical milestone from concrete standard-library and application needs. Evaluate
-which remaining compile-time restrictions block real APIs before expanding the operation set or
-adding another surface capability. Keep one checked semantic authority and do not introduce a
-second evaluator, source interpreter, or compile-time-only callable model.
+Implement Phase 2 as one dynamic structured-task area derived from HTTP server concurrency needs.
+Define ownership, completion, cancellation, and destruction before choosing convenience API names.
+Do not introduce detached tasks, a scheduler-specific public representation, or a second future
+execution authority.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
