@@ -179,7 +179,10 @@ impl Projector<'_> {
     ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
         match operation {
             CheckedOperation::Complete => Ok(CompileTimeOperation::Complete),
-            CheckedOperation::Constant(value) => Ok(CompileTimeOperation::Constant(value.clone())),
+            CheckedOperation::Literal(value) => Ok(CompileTimeOperation::Literal(value.clone())),
+            CheckedOperation::DeclaredConstant(id) => {
+                Ok(CompileTimeOperation::DeclaredConstant(*id))
+            }
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place) => self.read_place(node, *place),
@@ -196,69 +199,7 @@ impl Projector<'_> {
                 Ok(CompileTimeOperation::FixedArray(elements.clone()))
             }
             CheckedOperation::Call(call) => self.call(node, call),
-            CheckedOperation::Comparison(comparison) => {
-                if comparison.left().coercion().is_some() || comparison.right().coercion().is_some()
-                {
-                    return Err(
-                        self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation)
-                    );
-                }
-                let operation = match comparison.plan() {
-                    CheckedComparisonPlan::Direct { step, negate }
-                        if matches!(step.implementation(), ComparisonImplementation::Primitive) =>
-                    {
-                        match (step.operation(), step.reverse(), *negate) {
-                            (ComparisonOperation::Equal, _, false) => {
-                                CompileTimeComparisonOperation::Equal
-                            }
-                            (ComparisonOperation::Equal, _, true) => {
-                                CompileTimeComparisonOperation::NotEqual
-                            }
-                            (ComparisonOperation::Less, false, false) => {
-                                CompileTimeComparisonOperation::Less
-                            }
-                            (ComparisonOperation::Less, false, true) => {
-                                CompileTimeComparisonOperation::GreaterEqual
-                            }
-                            (ComparisonOperation::Less, true, false) => {
-                                CompileTimeComparisonOperation::Greater
-                            }
-                            (ComparisonOperation::Less, true, true) => {
-                                CompileTimeComparisonOperation::LessEqual
-                            }
-                        }
-                    }
-                    CheckedComparisonPlan::Inclusive { strict, equal }
-                        if matches!(
-                            strict.implementation(),
-                            ComparisonImplementation::Primitive
-                        ) && matches!(
-                            equal.implementation(),
-                            ComparisonImplementation::Primitive
-                        ) && strict.operation() == ComparisonOperation::Less
-                            && equal.operation() == ComparisonOperation::Equal
-                            && strict.reverse() == equal.reverse() =>
-                    {
-                        if strict.reverse() {
-                            CompileTimeComparisonOperation::GreaterEqual
-                        } else {
-                            CompileTimeComparisonOperation::LessEqual
-                        }
-                    }
-                    CheckedComparisonPlan::Direct { .. }
-                    | CheckedComparisonPlan::Inclusive { .. }
-                    | CheckedComparisonPlan::Unreachable => {
-                        return Err(
-                            self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation)
-                        );
-                    }
-                };
-                Ok(CompileTimeOperation::Comparison {
-                    operation,
-                    left: comparison.left().value(),
-                    right: comparison.right().value(),
-                })
-            }
+            CheckedOperation::Comparison(comparison) => self.comparison(node, comparison),
             CheckedOperation::Control(control) => self.control(node, control),
             CheckedOperation::Borrow { .. }
             | CheckedOperation::Await(_)
@@ -276,6 +217,63 @@ impl Projector<'_> {
                 Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation))
             }
         }
+    }
+
+    fn comparison(
+        &self,
+        node: nocter_model::BodyNodeId,
+        comparison: &crate::CheckedComparison,
+    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+        if comparison.left().coercion().is_some() || comparison.right().coercion().is_some() {
+            return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
+        }
+        let operation = match comparison.plan() {
+            CheckedComparisonPlan::Direct { step, negate }
+                if matches!(step.implementation(), ComparisonImplementation::Primitive) =>
+            {
+                match (step.operation(), step.reverse(), *negate) {
+                    (ComparisonOperation::Equal, _, false) => CompileTimeComparisonOperation::Equal,
+                    (ComparisonOperation::Equal, _, true) => {
+                        CompileTimeComparisonOperation::NotEqual
+                    }
+                    (ComparisonOperation::Less, false, false) => {
+                        CompileTimeComparisonOperation::Less
+                    }
+                    (ComparisonOperation::Less, false, true) => {
+                        CompileTimeComparisonOperation::GreaterEqual
+                    }
+                    (ComparisonOperation::Less, true, false) => {
+                        CompileTimeComparisonOperation::Greater
+                    }
+                    (ComparisonOperation::Less, true, true) => {
+                        CompileTimeComparisonOperation::LessEqual
+                    }
+                }
+            }
+            CheckedComparisonPlan::Inclusive { strict, equal }
+                if matches!(strict.implementation(), ComparisonImplementation::Primitive)
+                    && matches!(equal.implementation(), ComparisonImplementation::Primitive)
+                    && strict.operation() == ComparisonOperation::Less
+                    && equal.operation() == ComparisonOperation::Equal
+                    && strict.reverse() == equal.reverse() =>
+            {
+                if strict.reverse() {
+                    CompileTimeComparisonOperation::GreaterEqual
+                } else {
+                    CompileTimeComparisonOperation::LessEqual
+                }
+            }
+            CheckedComparisonPlan::Direct { .. }
+            | CheckedComparisonPlan::Inclusive { .. }
+            | CheckedComparisonPlan::Unreachable => {
+                return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
+            }
+        };
+        Ok(CompileTimeOperation::Comparison {
+            operation,
+            left: comparison.left().value(),
+            right: comparison.right().value(),
+        })
     }
 
     fn read_place(

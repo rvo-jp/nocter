@@ -215,6 +215,46 @@ fn executable_closure_retains_only_reachable_static_values() {
     assert!(executable.static_id(dead).is_none());
 }
 
+#[test]
+fn executable_closure_freezes_only_reachable_declared_constants() {
+    let target = build_target_program(&Fixture::with_app(
+        "const LIVE: i32 = 42\n\
+         const DEAD: i32 = 7\n\
+         func unused(): i32 { DEAD }\n\
+         func main(): i32 { LIVE }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let graph = target.checked().graph();
+    let named_constant = |expected: &str| {
+        graph
+            .declarations()
+            .constants()
+            .iter()
+            .find_map(|(id, declaration)| {
+                (graph.symbols().spelling(declaration.name()) == Some(expected)).then_some(id)
+            })
+            .unwrap()
+    };
+    let live = named_constant("LIVE");
+    let dead = named_constant("DEAD");
+
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+
+    assert_eq!(
+        executable.constant(live),
+        Some(&nocter_model::ConstantValue::Integer(42))
+    );
+    assert_eq!(executable.constant(dead), None);
+}
+
 fn assert_reached_bodies_are_frozen(
     executable: &ExecutableProgram,
     unreachable: nocter_model::BodyId,

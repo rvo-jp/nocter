@@ -69,7 +69,7 @@ impl BodyChecker<'_, '_> {
         let checked = self.add_node(
             node,
             ty,
-            CheckedOperation::Constant(ConstantValue::Text(text.into_boxed_str())),
+            CheckedOperation::Literal(ConstantValue::Text(text.into_boxed_str())),
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)

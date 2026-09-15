@@ -385,7 +385,8 @@ impl<'program> Analyzer<'program> {
         let operation = checked.operation().clone();
         let mut result = match operation {
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
+            | CheckedOperation::DeclaredConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => (LoanValue::independent(), true),
             CheckedOperation::Place(place) => {
                 self.evaluate_place_indices(place, state, extra_active)?;

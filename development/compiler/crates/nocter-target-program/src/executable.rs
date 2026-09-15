@@ -7,9 +7,9 @@ use nocter_checking::{
     ResolvedPrimitiveDispatch, StaticSelection, is_concrete_type,
 };
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, ExecutableItemId,
-    ExecutableStaticId, LocalBindingId, PackageTargetId, ParameterId, StaticId, TestId, TypeId,
-    TypeStore,
+    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, ConstantId, ConstantValue,
+    ExecutableItemId, ExecutableStaticId, LocalBindingId, PackageTargetId, ParameterId, StaticId,
+    TestId, TypeId, TypeStore,
 };
 use nocter_runtime_contract::{
     RuntimeEnvironment, RuntimeEnvironmentError, RuntimeTypeTableBuildError,
@@ -351,6 +351,7 @@ pub struct ExecutableBody {
     prepared_borrows: Box<[ExecutableBorrowEdge]>,
     suspension_storage: Box<[ExecutableSuspensionStorage]>,
     destructions: Box<[ExecutableDestructionEdge]>,
+    constants: Box<[ConstantId]>,
     statics: Box<[StaticId]>,
     pack_literals: Box<[ExecutablePackLiteralPlan]>,
     argument_packs: Box<[ExecutableArgumentPackPlan]>,
@@ -492,6 +493,11 @@ impl ExecutableBody {
     pub const fn statics(&self) -> &[StaticId] {
         &self.statics
     }
+
+    #[must_use]
+    pub const fn constants(&self) -> &[ConstantId] {
+        &self.constants
+    }
 }
 
 /// One dense executable item and the body facts frozen for MIR lowering.
@@ -599,6 +605,7 @@ pub struct ExecutableProgram {
     types: TypeStore,
     checked_bodies: BTreeMap<BodyId, nocter_checking::CheckedBody>,
     items: Arena<ExecutableItemId, ExecutableItem>,
+    constants: BTreeMap<ConstantId, ConstantValue>,
     statics: Arena<ExecutableStaticId, ExecutableStatic>,
     static_ids: BTreeMap<StaticId, ExecutableStaticId>,
     runtime: RuntimeEnvironment,
@@ -650,6 +657,12 @@ impl ExecutableProgram {
     #[must_use]
     pub const fn items(&self) -> &Arena<ExecutableItemId, ExecutableItem> {
         &self.items
+    }
+
+    /// Returns one declaration value frozen into this executable closure.
+    #[must_use]
+    pub fn constant(&self, source: ConstantId) -> Option<&ConstantValue> {
+        self.constants.get(&source)
     }
 
     #[must_use]
@@ -814,6 +827,7 @@ pub enum ExecutableProgramError {
     Destruction(ConcreteDestructionError),
     DuplicateGeneric(nocter_model::GenericParameterId),
     UnknownBody(BodyId),
+    UnknownConstant(ConstantId),
     UnknownStatic(StaticId),
     UnknownItem(ExecutableItemKey),
     BodylessCallable(nocter_model::CallableId),
@@ -861,6 +875,7 @@ impl std::error::Error for ExecutableProgramError {
             Self::RuntimeEnvironment(error) => Some(error),
             Self::DuplicateGeneric(_)
             | Self::UnknownBody(_)
+            | Self::UnknownConstant(_)
             | Self::UnknownStatic(_)
             | Self::UnknownItem(_)
             | Self::BodylessCallable(_)

@@ -172,7 +172,8 @@ impl<'a> FunctionLowerer<'a> {
         let ty = self.concrete_type(checked.ty())?;
         let lowered = match checked.operation() {
             CheckedOperation::Complete => Ok(None),
-            CheckedOperation::Constant(constant) => self.lower_constant(ty, constant).map(Some),
+            CheckedOperation::Literal(constant) => self.lower_constant(ty, constant).map(Some),
+            CheckedOperation::DeclaredConstant(id) => self.lower_declared_constant(ty, *id),
             CheckedOperation::Copy(place) => {
                 let place = self.lower_place(*place)?;
                 self.append_value(
@@ -254,6 +255,18 @@ impl<'a> FunctionLowerer<'a> {
             self.lower_cleanup(node, nocter_checking::CleanupTiming::AtStatementEnd)?;
         }
         Ok(lowered)
+    }
+
+    fn lower_declared_constant(
+        &mut self,
+        ty: TypeId,
+        id: nocter_model::ConstantId,
+    ) -> Result<Option<MirValueId>, MirLoweringError> {
+        let value = self
+            .executable
+            .constant(id)
+            .ok_or(MirLoweringError::UnknownConstant(id))?;
+        self.lower_constant(ty, value).map(Some)
     }
 
     fn lower_constant(

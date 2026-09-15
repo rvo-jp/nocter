@@ -54,12 +54,14 @@ pub(super) fn build_executable(
     let semantic_environment =
         super::semantic_environment::ExecutableSemanticEnvironment::freeze(target);
     let checked_bodies = freeze_reached_bodies(target, &frozen.items)?;
+    let constants = freeze_reached_constants(target, &frozen.items)?;
     let statics = freeze_reached_statics(target, &frozen.items)?;
     Ok(ExecutableProgram {
         semantic_environment,
         types: frozen.types,
         checked_bodies,
         items: frozen.items,
+        constants,
         statics: statics.values,
         static_ids: statics.identities,
         runtime,
@@ -117,12 +119,14 @@ pub(super) fn build_selected_tests(
     let semantic_environment =
         super::semantic_environment::ExecutableSemanticEnvironment::freeze(target);
     let checked_bodies = freeze_reached_bodies(target, &frozen.items)?;
+    let constants = freeze_reached_constants(target, &frozen.items)?;
     let statics = freeze_reached_statics(target, &frozen.items)?;
     Ok(ExecutableProgram {
         semantic_environment,
         types: frozen.types,
         checked_bodies,
         items: frozen.items,
+        constants,
         statics: statics.values,
         static_ids: statics.identities,
         runtime,
@@ -181,6 +185,31 @@ fn freeze_reached_statics(
         values: values.finish(),
         identities,
     })
+}
+
+fn freeze_reached_constants(
+    target: &TargetProgram,
+    items: &nocter_model::Arena<ExecutableItemId, ExecutableItem>,
+) -> Result<BTreeMap<nocter_model::ConstantId, nocter_model::ConstantValue>, ExecutableProgramError>
+{
+    items
+        .iter()
+        .flat_map(|(_, item)| item.body().constants().iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|id| {
+            let value = target
+                .checked()
+                .graph()
+                .declarations()
+                .constants()
+                .get(id)
+                .ok_or(ExecutableProgramError::UnknownConstant(id))?
+                .value()
+                .clone();
+            Ok((id, value))
+        })
+        .collect()
 }
 
 struct FrozenStatics {
@@ -357,6 +386,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             prepared_borrows,
             suspension_storage,
             destructions,
+            constants: dependencies.constants().to_vec(),
             statics: dependencies.statics().to_vec(),
             pack_literals,
             argument_packs,
@@ -925,6 +955,7 @@ struct DraftItem {
     prepared_borrows: Vec<ExecutableBorrowEdge>,
     suspension_storage: Vec<ExecutableSuspensionStorage>,
     destructions: Vec<(CheckedDestruction, Option<ConcreteDestructionPlan>)>,
+    constants: Vec<nocter_model::ConstantId>,
     statics: Vec<nocter_model::StaticId>,
     pack_literals: Vec<pack_literal::DraftPackLiteralPlan>,
     argument_packs: Vec<super::ExecutableArgumentPackPlan>,
@@ -1110,6 +1141,7 @@ fn freeze_body(
             prepared_borrows: prepared_borrows.into_boxed_slice(),
             suspension_storage: draft.suspension_storage.into_boxed_slice(),
             destructions: destructions.into_boxed_slice(),
+            constants: draft.constants.into_boxed_slice(),
             statics: draft.statics.into_boxed_slice(),
             pack_literals: pack_literals.into_boxed_slice(),
             argument_packs: argument_packs.into_boxed_slice(),

@@ -239,7 +239,8 @@ impl OwnershipAnalyzer<'_> {
             .ok_or(BodyCheckInternalError::MissingNode(node))?;
         match checked.operation() {
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
+            | CheckedOperation::DeclaredConstant(_)
             | CheckedOperation::ArgumentPackLength(_)
             | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {

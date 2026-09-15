@@ -657,7 +657,8 @@ impl<'program> Analyzer<'program> {
         let operation = checked.operation().clone();
         let result = match operation {
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
+            | CheckedOperation::DeclaredConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => (ValueProvenance::independent(), true),
             CheckedOperation::Place(place) | CheckedOperation::Copy(place) => {
                 self.evaluate_place_indices(place, state)?;

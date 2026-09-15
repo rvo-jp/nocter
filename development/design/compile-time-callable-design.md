@@ -108,6 +108,13 @@ than rescanning plans to create a separate topological order. Short-circuit eval
 operation's value, but it does not erase the initializer's declared dependency edge or conceal a
 dependency cycle.
 
+Literal payloads belong to the expression node that spells them. A checked reference to a declared
+constant instead carries `ConstantId`; checking may read the declaration's type but cannot copy its
+evaluated value into the body. Target reachability collects those identities, executable closure
+freezes the required values once, and MIR can obtain a declared value only from that closed table.
+This keeps declaration evaluation, runtime reachability, and lowering from becoming competing
+value authorities.
+
 The query boundary is semantic and compiler-internal. The workspace computation engine may cache a
 completed compilation product between editor revisions, but it does not become the authority for
 dependencies inside one semantic construction.

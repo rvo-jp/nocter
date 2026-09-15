@@ -91,7 +91,7 @@ fn nested_index_evaluations_are_retained_once_in_source_order() {
     let values = place
         .evaluation_nodes()
         .map(|node| match body.nodes().get(node).unwrap().operation() {
-            CheckedOperation::Constant(crate::ConstantValue::Integer(value)) => *value,
+            CheckedOperation::Literal(crate::ConstantValue::Integer(value)) => *value,
             operation => panic!("unexpected index operation: {operation:?}"),
         })
         .collect::<Vec<_>>();

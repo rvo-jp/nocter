@@ -453,7 +453,8 @@ impl<'program> Collector<'program> {
     ) -> Result<(), BodyRelationError> {
         match operation {
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
+            | CheckedOperation::DeclaredConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => {}
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)

@@ -129,7 +129,7 @@ impl BodyChecker<'_, '_> {
             let checked = self.add_node(
                 node,
                 literal_ty,
-                CheckedOperation::Constant(ConstantValue::Integer(-i128::from(magnitude))),
+                CheckedOperation::Literal(ConstantValue::Integer(-i128::from(magnitude))),
             )?;
             return expected.map_or(Ok(checked), |expected| {
                 self.apply_expected(node, checked, expected)

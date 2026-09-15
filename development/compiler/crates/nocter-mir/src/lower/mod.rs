@@ -74,6 +74,7 @@ pub enum MirLoweringError {
     UnknownLocal(LocalBindingId),
     InvalidLoop(LoopId),
     UnknownParameter(ParameterId),
+    UnknownConstant(nocter_model::ConstantId),
     UnknownStatic(nocter_model::StaticId),
     MissingConcreteType(TypeId),
     MissingInput(ParameterId),

@@ -31,6 +31,8 @@ or assign a machine ABI.
   the selected storage role and drop item without inventing fields for target-owned bytes.
 - Calls target concrete executable item identities, closed primitive roles, or already validated
   target-service descriptors.
+- Declared constants are resolved only through values frozen by executable reachability; MIR never
+  reads declaration records or repeats constant evaluation.
 - Validation checks representation integrity, not source-language acceptance.
 - Suspension-frame liveness is derived once from the closed MIR CFG. Cancellation order and
   conditional initialization are consumed from checked ownership rather than inferred from MIR

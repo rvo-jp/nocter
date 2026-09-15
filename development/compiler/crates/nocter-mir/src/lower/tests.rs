@@ -408,6 +408,20 @@ fn lowers_static_string_values_as_readonly_str_borrows() {
 }
 
 #[test]
+fn lowers_a_declared_constant_through_the_executable_value_table() {
+    let program =
+        lower_fixture("const ANSWER: i32 = 40 + 2\nfunc main(): i32 { ANSWER }\n").unwrap();
+    let function = program.functions().iter().next().unwrap().1;
+
+    assert!(function.operations().iter().any(|(_, operation)| {
+        matches!(
+            operation.kind(),
+            MirOperationKind::Constant(crate::MirConstant::Integer(42))
+        )
+    }));
+}
+
+#[test]
 fn lowers_typed_string_literals_to_the_declared_constructor() {
     let program = lower_fixture(
         "struct Text {}\n\

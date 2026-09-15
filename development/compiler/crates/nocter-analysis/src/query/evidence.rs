@@ -907,7 +907,7 @@ impl<'a> SemanticQueryContext<'a> {
             .ok_or(EvidenceIntegrityError::MissingBodyNode { body, node })?;
         let is_scalar = matches!(
             node.operation(),
-            nocter_checking::CheckedOperation::Constant(
+            nocter_checking::CheckedOperation::Literal(
                 nocter_model::ConstantValue::Bool(_)
                     | nocter_model::ConstantValue::Character(_)
                     | nocter_model::ConstantValue::Integer(_)

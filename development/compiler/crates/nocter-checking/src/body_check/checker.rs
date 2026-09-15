@@ -5,8 +5,8 @@ use nocter_declarations::DeclarationGraph;
 use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair};
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
-    BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
-    TypeId, TypeKind,
+    BodyNodeId, BorrowCapability, BuiltinType, CaptureId, ConstantId, LocalBindingId,
+    NominalTypeId, PlaceId, TypeId, TypeKind,
 };
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{
@@ -955,7 +955,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 let checked = self.add_node(
                     node,
                     self.types.builtin(BuiltinType::Bool),
-                    CheckedOperation::Constant(ConstantValue::Bool(value)),
+                    CheckedOperation::Literal(ConstantValue::Bool(value)),
                 )?;
                 expected.map_or(Ok(checked), |expected| {
                     self.apply_expected(node, checked, expected)
@@ -982,7 +982,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 let checked = self.add_node(
                     node,
                     ty,
-                    CheckedOperation::Constant(ConstantValue::Integer(i128::from(value))),
+                    CheckedOperation::Literal(ConstantValue::Integer(i128::from(value))),
                 )?;
                 expected.map_or(Ok(checked), |expected| {
                     self.apply_expected(node, checked, expected)
@@ -995,7 +995,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 let checked = self.add_node(
                     node,
                     self.types.builtin(BuiltinType::U8),
-                    CheckedOperation::Constant(ConstantValue::Integer(i128::from(value))),
+                    CheckedOperation::Literal(ConstantValue::Integer(i128::from(value))),
                 )?;
                 expected.map_or(Ok(checked), |expected| {
                     self.apply_expected(node, checked, expected)
@@ -1007,7 +1007,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 let checked = self.add_node(
                     node,
                     self.types.builtin(BuiltinType::Char),
-                    CheckedOperation::Constant(ConstantValue::Character(value)),
+                    CheckedOperation::Literal(ConstantValue::Character(value)),
                 )?;
                 expected.map_or(Ok(checked), |expected| {
                     self.apply_expected(node, checked, expected)
@@ -1024,8 +1024,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        if let Some((ty, value)) = self.constant_reference(node)? {
-            let checked = self.add_node(node, ty, CheckedOperation::Constant(value))?;
+        if let Some((ty, constant)) = self.constant_reference(node)? {
+            let checked = self.add_node(node, ty, CheckedOperation::DeclaredConstant(constant))?;
             return expected.map_or(Ok(checked), |expected| {
                 self.apply_expected(node, checked, expected)
             });
@@ -1043,8 +1043,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        if let Some((ty, value)) = self.constant_reference(node)? {
-            let checked = self.add_node(node, ty, CheckedOperation::Constant(value))?;
+        if let Some((ty, constant)) = self.constant_reference(node)? {
+            let checked = self.add_node(node, ty, CheckedOperation::DeclaredConstant(constant))?;
             return expected.map_or(Ok(checked), |expected| {
                 self.apply_expected(node, checked, expected)
             });
@@ -1060,7 +1060,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn constant_reference(
         &mut self,
         node: NodeId,
-    ) -> Result<Option<(TypeId, ConstantValue)>, BodyCheckError> {
+    ) -> Result<Option<(TypeId, ConstantId)>, BodyCheckError> {
         let tokens = descendant_identifiers(self.tree(), node);
         let Some(last) = tokens.last().copied() else {
             return Ok(None);
@@ -1080,7 +1080,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .declarations()
             .constants()
             .get(id)
-            .map(|constant| Some((constant.ty(), constant.value().clone())))
+            .map(|constant| Some((constant.ty(), id)))
             .ok_or(
                 BodyCheckInternalError::UnsupportedNameTarget(
                     node,

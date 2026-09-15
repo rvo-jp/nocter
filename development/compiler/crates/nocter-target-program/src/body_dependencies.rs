@@ -10,8 +10,8 @@ use nocter_checking::{
     StaticSelection, TypedIterationStep,
 };
 use nocter_model::{
-    BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, DropId, LocalBindingId, LoopId,
-    ParameterId, PlaceId, StaticId, TypeId, VariantId,
+    BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, ConstantId, DropId, LocalBindingId,
+    LoopId, ParameterId, PlaceId, StaticId, TypeId, VariantId,
 };
 
 use crate::TargetProgram;
@@ -30,6 +30,7 @@ pub struct CheckedBodyDependencies {
     types: Box<[TypeId]>,
     prepared_borrows: Box<[PreparedBorrow]>,
     destructions: Box<[CheckedDestruction]>,
+    constants: Box<[ConstantId]>,
     statics: Box<[StaticId]>,
 }
 
@@ -76,6 +77,11 @@ impl CheckedBodyDependencies {
     #[must_use]
     pub const fn statics(&self) -> &[StaticId] {
         &self.statics
+    }
+
+    #[must_use]
+    pub const fn constants(&self) -> &[ConstantId] {
+        &self.constants
     }
 }
 
@@ -186,6 +192,8 @@ struct DependencyCollector<'program> {
     types: Vec<TypeId>,
     prepared_borrows: Vec<PreparedBorrow>,
     destructions: Vec<CheckedDestruction>,
+    constant_set: HashSet<ConstantId>,
+    constants: Vec<ConstantId>,
     static_set: HashSet<StaticId>,
     statics: Vec<StaticId>,
 }
@@ -212,6 +220,8 @@ impl<'program> DependencyCollector<'program> {
             types: Vec::new(),
             prepared_borrows: Vec::new(),
             destructions: Vec::new(),
+            constant_set: HashSet::new(),
+            constants: Vec::new(),
             static_set: HashSet::new(),
             statics: Vec::new(),
         }
@@ -226,6 +236,7 @@ impl<'program> DependencyCollector<'program> {
             types: self.types.into_boxed_slice(),
             prepared_borrows: self.prepared_borrows.into_boxed_slice(),
             destructions: self.destructions.into_boxed_slice(),
+            constants: self.constants.into_boxed_slice(),
             statics: self.statics.into_boxed_slice(),
         }
     }
@@ -276,8 +287,13 @@ impl<'program> DependencyCollector<'program> {
     fn visit_operation(&mut self, operation: &CheckedOperation) -> Result<(), BodyDependencyError> {
         match operation {
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
             | CheckedOperation::ArgumentPackLength(_) => {}
+            CheckedOperation::DeclaredConstant(id) => {
+                if self.constant_set.insert(*id) {
+                    self.constants.push(*id);
+                }
+            }
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)

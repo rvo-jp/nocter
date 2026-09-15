@@ -1,5 +1,6 @@
 use nocter_model::{
-    Arena, BodyNodeId, CallableId, GenericParameterId, LocalBindingId, ParameterId, TypeId,
+    Arena, BodyNodeId, CallableId, ConstantId, GenericParameterId, LocalBindingId, ParameterId,
+    TypeId,
 };
 
 use crate::ConstantScalarType;
@@ -135,7 +136,8 @@ impl InvalidCompileTimeCallTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CompileTimeOperation {
     Complete,
-    Constant(nocter_model::ConstantValue),
+    Literal(nocter_model::ConstantValue),
+    DeclaredConstant(ConstantId),
     ReadParameter(ParameterId),
     ReadLocal(LocalBindingId),
     Unary {
@@ -347,7 +349,8 @@ impl CompileTimeCallablePlan {
                     }
                 }
                 CompileTimeOperation::Complete
-                | CompileTimeOperation::Constant(_)
+                | CompileTimeOperation::Literal(_)
+                | CompileTimeOperation::DeclaredConstant(_)
                 | CompileTimeOperation::Unreachable => {}
             }
         }

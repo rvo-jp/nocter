@@ -83,7 +83,7 @@ fn negative_literals_include_the_exact_signed_minimum_in_one_constant() {
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Constant(ConstantValue::Integer(value)) if *value < 0 => {
+            CheckedOperation::Literal(ConstantValue::Integer(value)) if *value < 0 => {
                 Some((node.ty(), *value))
             }
             _ => None,
@@ -128,10 +128,8 @@ fn floating_literals_retain_target_bits_after_contextual_typing() {
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Constant(ConstantValue::Float32(bits)) => {
-                Some((32, u64::from(*bits)))
-            }
-            CheckedOperation::Constant(ConstantValue::Float64(bits)) => Some((64, *bits)),
+            CheckedOperation::Literal(ConstantValue::Float32(bits)) => Some((32, u64::from(*bits))),
+            CheckedOperation::Literal(ConstantValue::Float64(bits)) => Some((64, *bits)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -185,7 +183,7 @@ fn floating_arithmetic_negation_and_comparison_keep_one_exact_operand_type() {
             node.ty() == f64
                 && matches!(
                     node.operation(),
-                    CheckedOperation::Constant(ConstantValue::Float64(0x3ff0_0000_0000_0000))
+                    CheckedOperation::Literal(ConstantValue::Float64(0x3ff0_0000_0000_0000))
                 )
         })
     }));
@@ -215,7 +213,7 @@ fn comparison_context_reaches_a_negative_integer_literal() {
         body.nodes().iter().any(|(_, node)| {
             matches!(
                 node.operation(),
-                CheckedOperation::Constant(ConstantValue::Integer(value))
+                CheckedOperation::Literal(ConstantValue::Integer(value))
                     if *value == i128::from(i64::MIN)
             ) && node.ty() == output.program().types().builtin(BuiltinType::I64)
         })

@@ -82,7 +82,8 @@ pub(super) fn infer(
                 }
             }
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
+            | CheckedOperation::DeclaredConstant(_)
             | CheckedOperation::Place(_)
             | CheckedOperation::Copy(_)
             | CheckedOperation::Borrow {
@@ -169,7 +170,8 @@ fn append_operands(
     }
     match operation {
         CheckedOperation::Complete
-        | CheckedOperation::Constant(_)
+        | CheckedOperation::Literal(_)
+        | CheckedOperation::DeclaredConstant(_)
         | CheckedOperation::Place(_)
         | CheckedOperation::Copy(_)
         | CheckedOperation::Move(_)

@@ -209,7 +209,7 @@ fn annotations_supply_context_for_absence_and_empty_aggregate_literals() {
 }
 
 #[test]
-fn constants_share_values_between_expressions_and_body_array_annotations() {
+fn constant_values_type_array_annotations_while_body_references_keep_identity() {
     let output = check(
         "const WIDTH: usize = 2\n\
          const ANSWER: i32 = 40 + 2\n\
@@ -227,11 +227,21 @@ fn constants_share_values_between_expressions_and_body_array_annotations() {
             .iter()
             .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 4, .. }) })
     );
+    let answer = output
+        .program()
+        .graph()
+        .declarations()
+        .constants()
+        .iter()
+        .find_map(|(id, constant)| {
+            (constant.value() == &nocter_model::ConstantValue::Integer(42)).then_some(id)
+        })
+        .unwrap();
     assert!(output.program().bodies().iter().any(|(_, body)| {
         body.nodes().iter().any(|(_, node)| {
             matches!(
                 node.operation(),
-                CheckedOperation::Constant(nocter_model::ConstantValue::Integer(42))
+                CheckedOperation::DeclaredConstant(id) if *id == answer
             )
         })
     }));

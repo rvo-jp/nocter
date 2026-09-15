@@ -39,7 +39,7 @@ impl BodyChecker<'_, '_> {
             FloatBits::Binary32(bits) => ConstantValue::Float32(bits),
             FloatBits::Binary64(bits) => ConstantValue::Float64(bits),
         };
-        let checked = self.add_node(node, ty, CheckedOperation::Constant(value))?;
+        let checked = self.add_node(node, ty, CheckedOperation::Literal(value))?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
         })

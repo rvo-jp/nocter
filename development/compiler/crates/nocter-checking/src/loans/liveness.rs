@@ -120,7 +120,8 @@ impl Analyzer<'_> {
         let operation = checked.operation().clone();
         live = match operation {
             CheckedOperation::Complete
-            | CheckedOperation::Constant(_)
+            | CheckedOperation::Literal(_)
+            | CheckedOperation::DeclaredConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => live,
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)

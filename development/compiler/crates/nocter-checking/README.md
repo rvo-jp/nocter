@@ -56,6 +56,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Type and copyability authority cannot be paired across generations.
 - A body transaction commits all semantic mutations together or is discarded/frozen as one branch.
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
+- Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
+  checking never copies an evaluated declaration value into a checked body.
 - Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.

@@ -71,12 +71,12 @@ func character_value(): char { return '\u{1F600}' }
     for (_, body) in output.program().bodies().iter() {
         for (_, node) in body.nodes().iter() {
             match node.operation() {
-                CheckedOperation::Constant(nocter_model::ConstantValue::Integer(255))
+                CheckedOperation::Literal(nocter_model::ConstantValue::Integer(255))
                     if node.ty() == output.program().types().builtin(BuiltinType::U8) =>
                 {
                     byte = true;
                 }
-                CheckedOperation::Constant(nocter_model::ConstantValue::Character(0x1F600))
+                CheckedOperation::Literal(nocter_model::ConstantValue::Character(0x1F600))
                     if node.ty() == output.program().types().builtin(BuiltinType::Char) =>
                 {
                     character = true;
@@ -690,7 +690,7 @@ fn bare_string_expression_is_a_static_readonly_str() {
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .find_map(|(_, node)| match node.operation() {
-            CheckedOperation::Constant(crate::ConstantValue::Text(text)) => Some((node.ty(), text)),
+            CheckedOperation::Literal(crate::ConstantValue::Text(text)) => Some((node.ty(), text)),
             _ => None,
         })
         .unwrap();

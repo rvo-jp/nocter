@@ -1,7 +1,8 @@
 pub use nocter_model::ConstantValue;
 use nocter_model::{
-    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId, FieldId,
-    LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId, VariantId,
+    BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId,
+    ConstantId, FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId,
+    VariantId,
 };
 
 use super::{ArgumentPackSegment, CheckedArgumentPack};
@@ -63,7 +64,8 @@ impl CheckedOperation {
             Self::Interpolation(interpolation) => interpolation.rebind(semantics)?,
             Self::Control(control) => control.rebind(semantics)?,
             Self::Complete
-            | Self::Constant(_)
+            | Self::Literal(_)
+            | Self::DeclaredConstant(_)
             | Self::Place(_)
             | Self::Copy(_)
             | Self::Move(_)
@@ -82,7 +84,10 @@ impl CheckedOperation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CheckedOperation {
     Complete,
-    Constant(ConstantValue),
+    /// A literal whose value is intrinsic to this checked body node.
+    Literal(ConstantValue),
+    /// A reference to one declaration-owned constant value.
+    DeclaredConstant(ConstantId),
     Place(PlaceId),
     Copy(PlaceId),
     Move(PlaceId),
