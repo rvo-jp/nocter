@@ -1,5 +1,6 @@
 //! Sole ownership layout for HTTP server listeners and connection states.
 
+see ./body_cursor.nct
 see ./index.nct
 see ./storage.nct
 
@@ -16,8 +17,19 @@ struct ServerConnection {
     limits: Limits
 }
 
+struct IncomingRequest {
+    stream: TcpStream
+    peer: SocketAddress
+    head_value: RequestHead
+    body: BodyCursor
+    suppress_body: bool
+    limits: Limits
+}
+
 struct Responder {
     stream: TcpStream
+    peer: SocketAddress
+    request_body: BodyCursor
     suppress_body: bool
     limits: Limits
 }

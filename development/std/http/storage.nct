@@ -51,11 +51,6 @@ struct ResponseHead {
     header_values: Headers
 }
 
-struct IncomingRequest {
-    head_value: RequestHead
-    body_value: Vec<u8>
-}
-
 struct OutgoingResponse {
     status_value: Status
     header_values: Headers

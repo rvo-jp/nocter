@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.53.0 is published and externally audited. v0.54.0 Phase 0 is complete: the existing HTTP
-body and connection paths have been audited, and one body cursor plus a linear
-`ServerConnection -> IncomingRequest -> Responder -> ServerConnection?` ownership model is adopted.
-The milestone and current cross-boundary design own the exact completion contract.
+Nocter v0.53.0 is published and externally audited. v0.54.0 Phases 0–1 are complete. Client
+responses and server requests use one canonical body cursor; incoming request bodies implement
+ordinary asynchronous reader contracts, consuming finalization drains unread input before
+producing the unique responder, and safe transport overread remains owned for later reuse.
 
 ## Next Work
 
-Implement Phase 1 as one coherent change: extract the transport-independent canonical body cursor,
-remove the duplicate client completion flag, make incoming server requests stream through `Reader`
-and `TimedReader`, and make consuming body finalization drain unread bytes before transferring the
-unique responder. Preserve overread bytes for later sequential reuse; do not keep the collecting
-server path as a compatibility implementation.
+Implement Phase 2 as one coherent response-output change. Make validated response metadata the
+shared response-head authority, freeze one fixed-length or chunked response plan before output,
+stream bytes through ordinary writer contracts with transport backpressure, and make the existing
+owned-body response drive that same writer transition. Do not retain the current complete-response
+encoder as an independent framing implementation.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

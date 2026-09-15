@@ -17,10 +17,10 @@ func loopback(): SocketAddress {
 }
 
 async func handle_connection(connection: ServerConnection, timeout: Duration): bool {
-    let exchange = await connection.read_request_with_timeout(timeout) catch _ { return false }
-    let request = move exchange.0
-    let responder = move exchange.1
-    if request.target() == "/drop" {
+    let request = await connection.read_request_with_timeout(timeout) catch _ { return false }
+    let target = String.copy(request.target())
+    let responder = await request.finish_body_with_timeout(timeout) catch _ { return false }
+    if target == "/drop" {
         responder.close()
         return false
     }
@@ -28,7 +28,7 @@ async func handle_connection(connection: ServerConnection, timeout: Duration): b
     response.append_header_text("Content-Type", "text/plain; charset=utf-8") catch _ {
         return false
     }
-    response.set_text_body(request.target())
+    response.set_text_body(&target)
     await responder.respond_with_timeout(move response, timeout) catch _ { return false }
     return true
 }

@@ -11,6 +11,8 @@ use /vec.Vec
 
 see ./async_client.nct
 see ./body.nct
+see ./body_cursor.nct
+see ./body_cursor_tests.nct
 see ./client.nct
 see ./client_storage.nct
 see ./client_tests.nct
@@ -25,7 +27,6 @@ see ./request_head.nct
 see ./request_convenience.nct
 see ./response_collection.nct
 see ./response_head.nct
-see ./response_progress.nct
 see ./server.nct
 see ./server_codec.nct
 see ./server_storage.nct
@@ -320,10 +321,13 @@ instance Response {
     pub noalloc method &+self.close(): void
 }
 
-/// One fully decoded, bounded HTTP/1.1 request received by a server.
+/// One HTTP/1.1 request head and uniquely owned streaming request body.
 pub struct IncomingRequest
 
 instance IncomingRequest {
+    impl Reader
+    impl TimedReader
+
     /// Borrows the request method.
     pub noalloc method &self.request_method(): &Method from self
 
@@ -333,8 +337,23 @@ instance IncomingRequest {
     /// Borrows the ordered request fields.
     pub noalloc method &self.headers(): &Headers from self
 
-    /// Borrows the complete decoded request body.
-    pub noalloc method &self.body(): &[u8] from self
+    /// Reads at most `output.len()` decoded request-body bytes.
+    pub async method &+self.read(output: &+[u8]): usize!
+
+    /// Reads at most `output.len()` decoded bytes with an idle input timeout.
+    pub async method &+self.read_with_timeout(
+        output: &+[u8],
+        timeout: Duration,
+    ): usize!
+
+    /// Drains any unread body and transfers the unique response authority.
+    pub async method self.finish_body(): Responder!
+
+    /// Drains the unread body before one fixed monotonic deadline.
+    pub async method self.finish_body_with_timeout(timeout: Duration): Responder!
+
+    /// Closes the connection without draining the body or sending a response.
+    pub method self.close(): void
 }
 
 /// One owned HTTP/1.1 response to be sent by a `Responder`.
@@ -396,20 +415,20 @@ instance Server {
     pub noalloc method &+self.close(): void
 }
 
-/// One accepted stream that has not yet yielded its single request.
+/// One accepted stream that has not yet yielded its next request head.
 pub struct ServerConnection
 
 instance ServerConnection {
     /// Returns the accepted peer address.
     pub noalloc method &self.peer_address(): SocketAddress
 
-    /// Decodes one complete bounded request and transfers response authority.
-    pub async method self.read_request(): (IncomingRequest, Responder)!
+    /// Decodes one bounded request head and transfers its streaming body owner.
+    pub async method self.read_request(): IncomingRequest!
 
-    /// Decodes one complete request before a fixed monotonic deadline.
+    /// Decodes one request head before a fixed monotonic deadline.
     pub async method self.read_request_with_timeout(
         timeout: Duration,
-    ): (IncomingRequest, Responder)!
+    ): IncomingRequest!
 
     /// Closes this connection without reading a request.
     pub noalloc method self.close(): void
@@ -429,5 +448,5 @@ instance Responder {
     ): void!
 
     /// Closes this connection without sending a response.
-    pub noalloc method self.close(): void
+    pub method self.close(): void
 }

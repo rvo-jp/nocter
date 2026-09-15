@@ -7,15 +7,14 @@ observable behavior by `development/std/http/README.md`, and async computation s
 
 ## Outcome
 
-The synchronous and asynchronous HTTP clients use one request policy, one incremental response
-decoder, and one response owner. They differ only in how transport progress is driven. Adding an
-asynchronous API must not create a second implementation of header policy, response selection,
-body framing, limits, or connection cleanup.
+The synchronous and asynchronous HTTP clients use one request policy, one canonical body cursor,
+and one response owner. They differ only in how transport progress is driven. Neither path may
+create another implementation of header policy, response selection, body framing, limits, or
+connection cleanup.
 
-TLS is a later transport capability. This phase does not introduce a public transport interface or
-a private wrapper around the sole existing `TcpStream` implementation. Such an abstraction would
-have no independent contract to enforce. When secure transport exists, it may replace the private
-connection field behind the same response ownership contract without changing public HTTP values.
+One private transport sum owns either plain TCP or authenticated TLS. It is not a public extension
+interface: its purpose is to make both transports satisfy the same response ownership, progress,
+timeout, cancellation, and close boundary without exposing that choice in HTTP values.
 
 ## Shared Protocol Authority
 
@@ -27,7 +26,7 @@ bytes. It owns:
 - request-head encoding through the existing codec;
 - consumption of ordinary informational responses;
 - rejection of status 101 while no upgraded-connection owner exists; and
-- conversion of the final parsed head into the unique body-decoder state.
+- conversion of the final parsed head into the unique canonical body cursor.
 
 The exchange layer does not open sockets, resolve names, wait for readiness, apply I/O timeouts, or
 close descriptors. Synchronous and asynchronous orchestration supply bytes to it and consume only
@@ -54,14 +53,15 @@ ordinary async lifecycle.
 
 ## Response Ownership
 
-One `Response` uniquely owns one connection, one selected body decoder, pending received bytes, and
-completion state. Synchronous and asynchronous body reads advance that same state; they are not
-independent views and cannot be used concurrently. Completion, explicit close, decoding failure,
-network failure, or destruction releases the connection exactly once.
+One `Response` uniquely owns one connection and one canonical body cursor. That cursor owns the
+selected decoder and pending received range; its decoder state is the sole completion authority.
+Synchronous and asynchronous body reads advance that same state, so they are not independent views
+and cannot be used concurrently. Completion, explicit close, decoding failure, network failure, or
+destruction releases the connection exactly once.
 
-The public response type does not expose whether its private connection is plain or secure. A
-future TLS implementation must supply the same read, cancellation, and close ownership facts before
-the private representation is generalized.
+The public response type does not expose whether its private connection is plain or secure. Both
+variants supply the same read, cancellation, and close ownership facts before entering the response
+representation.
 
 ## Deadlines and Cancellation
 
@@ -87,7 +87,7 @@ failure cannot partially mutate the request. Text-body mutation copies bytes int
 body accepted by the general byte operation; it does not infer media type or character encoding.
 
 Whole-body asynchronous reads repeatedly call the public asynchronous response-read operations.
-They do not access the decoder, pending-input offsets, stream, or completion flag. The
+They do not access the body cursor, pending-input offsets, decoder, or stream. The
 timeout-bearing collector passes the same duration to each read and therefore preserves the
 established idle-timeout contract. UTF-8 collection is a final conversion of the owned byte result,
 not a second transport or framing path.
@@ -102,11 +102,11 @@ neither cancellation nor UTF-8 failure can rewind transport state.
 |---|---|---|
 | URL syntax and canonical components | `std/url` | HTTP request policy |
 | Request policy and final-head selection | private HTTP exchange layer | sync and async orchestration |
-| HTTP syntax, framing, and limits | private HTTP codec and decoder | exchange layer, response reads |
+| HTTP syntax, framing, and limits | private HTTP codec and canonical body cursor | exchange layer, response reads |
 | Host validation and candidate order | `std/net` resolver | async request construction |
 | Descriptor progress and operation timeout | `std/net` async TCP | async orchestration |
 | Computation lifecycle and cancellation | async runtime contract | HTTP computation owner |
-| Response connection and decoder ownership | private `Response` representation | sync and async body reads |
+| Response connection and cursor ownership | private `Response` representation | sync and async body reads |
 | Derived request and body collection conveniences | request and response contract adapters | applications |
 | Public declarations | `development/std/http/index.nct` | compiler, editor, applications |
 
@@ -114,8 +114,7 @@ neither cancellation nor UTF-8 failure can rewind transport state.
 
 - Do not duplicate the synchronous client and replace each socket call with `await`.
 - Do not resolve host names while polling an async computation.
-- Do not introduce a public `Transport` interface before two implementations share a proven
-  contract.
+- Do not expose the private plain/TLS transport sum as a public extension interface.
 - Do not let an async adapter parse status lines, select body framing, or count informational
   responses.
 - Do not create separate sync and async response owners over one stream.

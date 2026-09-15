@@ -1,5 +1,6 @@
 //! Native qualification for synchronous HTTP ownership and transport composition.
 
+see ./body_cursor.nct
 see ./client.nct
 see ./client_storage.nct
 see ./client_transport.nct
@@ -109,7 +110,7 @@ test final_response_head_policy_is_transport_independent {
             if parsed.head.status().code() != 204 {
                 return error.new("std.http.test", "final response selection changed")
             }
-            if parsed.pending_start != wire.len() {
+            if parsed.body.pending_start != wire.len() {
                 return error.new("std.http.test", "final response consumption changed")
             }
         }

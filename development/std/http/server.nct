@@ -1,6 +1,7 @@
 //! Asynchronous one-request HTTP server lifecycle over public TCP contracts.
 
 see ./body.nct
+see ./body_cursor.nct
 see ./errors.nct
 see ./index.nct
 see ./request_head.nct
@@ -16,7 +17,6 @@ use /net.SocketAddress
 use /task
 use /task.Timeout
 use /time.Duration
-use /vec.Vec
 
 async func read_server_request_head(
     stream: &+net.TcpStream,
@@ -40,52 +40,74 @@ async func read_server_request_head(
     }
 }
 
-async func collect_server_request_body(
+async func read_server_transport(
     stream: &+net.TcpStream,
-    parsed: ParsedRequestHead,
-): IncomingRequest! {
-    var owner = move parsed
-    var body: Vec<u8> = Vec.empty()
-    var scratch = initialized_bytes(HTTP_BUFFER_BYTES)
-    var pending_start = owner.consumed
+    output: &+[u8],
+    timeout: Duration?,
+): usize! {
+    let finite = timeout otherwise { return await stream.read(output)? }
+    return await stream.read_with_timeout(output, finite)?
+}
+
+async func read_server_request_body(
+    request: &+IncomingRequest,
+    output: &+[u8],
+    timeout: Duration?,
+): usize! {
+    if body_cursor_complete(&request.body) || output.len() == 0 { return 0 }
     loop {
-        let progress = decode_body(
-            &+owner.decoder,
-            &owner.pending,
-            pending_start,
-            &+scratch,
-            false,
-        )?
-        append_prefix(&+body, &scratch, progress.written)
-        pending_start += progress.consumed
-        if progress.complete {
-            if pending_start != owner.pending.len() { return unsupported_pipelining() }
-            return incoming_request_from_parts(move owner.head, move body)
-        }
-        if progress.written != 0 { continue }
-        if pending_start == owner.pending.len() {
-            owner.pending = Vec.empty()
-            pending_start = 0
-        }
-        let received = await stream.read(&+scratch) catch failure {
-            return failure.context("while reading the HTTP request body")
-        }
-        if received == 0 {
-            let ending = decode_body(
-                &+owner.decoder,
-                &owner.pending,
-                pending_start,
-                &+scratch,
-                true,
-            )?
-            append_prefix(&+body, &scratch, ending.written)
-            pending_start += ending.consumed
-            if ending.complete && pending_start == owner.pending.len() {
-                return incoming_request_from_parts(move owner.head, move body)
+        match advance_body_cursor(&+request.body, output, false) {
+            BodyCursorAttempt.ready(written) { return written }
+            BodyCursorAttempt.complete(written) { return written }
+            BodyCursorAttempt.failed(failure) {
+                request.stream.close()
+                return failure.context("while decoding the HTTP request body")
             }
-            return premature_eof()
+            BodyCursorAttempt.input {
+                let received = await read_server_transport(
+                    &+request.stream,
+                    &+request.body.transport_scratch,
+                    timeout,
+                ) catch failure {
+                    request.stream.close()
+                    fail_body_cursor(&+request.body)
+                    return failure.context("while reading the HTTP request body")
+                }
+                if received == 0 {
+                    match advance_body_cursor(&+request.body, output, true) {
+                        BodyCursorAttempt.complete(written) { return written }
+                        BodyCursorAttempt.failed(failure) {
+                            request.stream.close()
+                            return failure.context("at the end of the HTTP request body")
+                        }
+                        BodyCursorAttempt.ready(written) { return written }
+                        BodyCursorAttempt.input {
+                            request.stream.close()
+                            fail_body_cursor(&+request.body)
+                            return premature_eof()
+                        }
+                    }
+                }
+                append_body_cursor_scratch(&+request.body, received)
+            }
         }
-        append_prefix(&+owner.pending, &scratch, received)
+    }
+}
+
+async func finish_server_request(request: IncomingRequest): Responder! {
+    var owner = move request
+    if !body_cursor_complete(&owner.body) {
+        var discard = initialized_bytes(HTTP_BUFFER_BYTES)
+        while !body_cursor_complete(&owner.body) {
+            let _ = await read_server_request_body(&+owner, &+discard, none)?
+        }
+    }
+    return Responder {
+        stream: move owner.stream,
+        peer: owner.peer,
+        request_body: move owner.body,
+        suppress_body: owner.suppress_body,
+        limits: owner.limits,
     }
 }
 
@@ -111,17 +133,23 @@ async func accept_server(server: &+Server): ServerConnection! {
 
 async func read_server_connection(
     connection: ServerConnection,
-): (IncomingRequest, Responder)! {
+): IncomingRequest! {
     var owner = move connection
-    let parsed = await read_server_request_head(&+owner.stream, owner.limits)?
+    var parsed = await read_server_request_head(&+owner.stream, owner.limits)?
     let suppress_body = ascii_case_equal(parsed.head.request_method().text(), "HEAD")
-    let request = await collect_server_request_body(&+owner.stream, move parsed)?
-    let responder = Responder {
+    let body = body_cursor(
+        move parsed.decoder,
+        move parsed.pending,
+        parsed.consumed,
+    )
+    return IncomingRequest {
         stream: move owner.stream,
+        peer: owner.peer,
+        head_value: move parsed.head,
+        body: move body,
         suppress_body: suppress_body,
         limits: owner.limits,
     }
-    return (move request, move responder)
 }
 
 async func send_server_response(
@@ -169,13 +197,13 @@ instance ServerConnection {
         return self.peer
     }
 
-    async method self.read_request(): (IncomingRequest, Responder)! {
+    async method self.read_request(): IncomingRequest! {
         return await read_server_connection(move self)?
     }
 
     async method self.read_request_with_timeout(
         timeout: Duration,
-    ): (IncomingRequest, Responder)! {
+    ): IncomingRequest! {
         match await task.with_timeout(read_server_connection(move self), timeout) {
             Timeout.completed(result) { return move result? }
             Timeout.elapsed { return server_operation_timed_out() }
@@ -183,6 +211,36 @@ instance ServerConnection {
     }
 
     noalloc method self.close(): void {
+        var owner = move self
+        owner.stream.close()
+        return
+    }
+}
+
+instance IncomingRequest {
+    async method &+self.read(output: &+[u8]): usize! {
+        return await read_server_request_body(self, output, none)?
+    }
+
+    async method &+self.read_with_timeout(
+        output: &+[u8],
+        timeout: Duration,
+    ): usize! {
+        return await read_server_request_body(self, output, timeout)?
+    }
+
+    async method self.finish_body(): Responder! {
+        return await finish_server_request(move self)?
+    }
+
+    async method self.finish_body_with_timeout(timeout: Duration): Responder! {
+        match await task.with_timeout(finish_server_request(move self), timeout) {
+            Timeout.completed(result) { return move result? }
+            Timeout.elapsed { return server_operation_timed_out() }
+        }
+    }
+
+    method self.close(): void {
         var owner = move self
         owner.stream.close()
         return
@@ -204,7 +262,7 @@ instance Responder {
         }
     }
 
-    noalloc method self.close(): void {
+    method self.close(): void {
         var owner = move self
         owner.stream.close()
         return

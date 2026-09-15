@@ -22,6 +22,7 @@ enum BodyState {
     chunk_data_end
     trailers(bytes: usize, count: usize)
     complete
+    failed
 }
 
 struct BodyDecoder {
@@ -170,6 +171,7 @@ noalloc func decode_body(
             BodyState.complete {
                 return BodyProgress { consumed: consumed, written: written, complete: true }
             }
+            BodyState.failed { return body_cursor_failed() }
             BodyState.fixed(remaining) {
                 if remaining == 0 { BodyState.complete } else {
                     var available = input.len() - input_start - consumed

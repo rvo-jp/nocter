@@ -1,0 +1,97 @@
+//! Transport-independent ownership of one incrementally decoded HTTP body.
+
+see ./body.nct
+see ./errors.nct
+see ./transport_buffer.nct
+
+use /vec.Vec
+
+enum BodyCursorAttempt {
+    ready(written: usize)
+    input
+    complete(written: usize)
+    failed(failure: error)
+}
+
+struct BodyCursor {
+    decoder: BodyDecoder
+    pending: Vec<u8>
+    pending_start: usize
+    transport_scratch: Vec<u8>
+}
+
+func body_cursor(
+    decoder: BodyDecoder,
+    pending: Vec<u8>,
+    pending_start: usize,
+): BodyCursor {
+    return BodyCursor {
+        decoder: move decoder,
+        pending: move pending,
+        pending_start: pending_start,
+        transport_scratch: initialized_bytes(HTTP_BUFFER_BYTES),
+    }
+}
+
+noalloc func body_cursor_complete(cursor: &BodyCursor): bool {
+    match cursor.decoder.state {
+        BodyState.complete { return true }
+        _ { return false }
+    }
+}
+
+noalloc func fail_body_cursor(cursor: &+BodyCursor): void {
+    cursor.decoder.state = BodyState.failed
+    return
+}
+
+noalloc func terminate_body_cursor(cursor: &+BodyCursor): void {
+    cursor.decoder.state = BodyState.complete
+    return
+}
+
+func append_body_cursor_scratch(cursor: &+BodyCursor, count: usize): void {
+    if cursor.pending_start == cursor.pending.len() {
+        cursor.pending.clear()
+        cursor.pending_start = 0
+    }
+    append_prefix(&+cursor.pending, &cursor.transport_scratch, count)
+    return
+}
+
+func advance_body_cursor(
+    cursor: &+BodyCursor,
+    output: &+[u8],
+    end_of_input: bool,
+): BodyCursorAttempt {
+    if output.len() == 0 {
+        if body_cursor_complete(cursor) { return BodyCursorAttempt.complete(0) }
+        return BodyCursorAttempt.ready(0)
+    }
+    match cursor.decoder.state {
+        BodyState.failed { return BodyCursorAttempt.failed(body_cursor_failed()) }
+        _ {}
+    }
+    loop {
+        let decoded = decode_body(
+            &+cursor.decoder,
+            &cursor.pending,
+            cursor.pending_start,
+            output,
+            end_of_input,
+        ) catch failure {
+            fail_body_cursor(cursor)
+            return BodyCursorAttempt.failed(move failure)
+        }
+        cursor.pending_start += decoded.consumed
+        if decoded.complete {
+            return BodyCursorAttempt.complete(decoded.written)
+        }
+        if decoded.written != 0 { return BodyCursorAttempt.ready(decoded.written) }
+        if cursor.pending_start == cursor.pending.len() {
+            cursor.pending.clear()
+            cursor.pending_start = 0
+            return BodyCursorAttempt.input
+        }
+    }
+}

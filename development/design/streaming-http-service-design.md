@@ -53,7 +53,7 @@ One private body cursor owns:
 - the selected `BodyDecoder`;
 - the retained transport-input allocation;
 - the first unread input offset; and
-- one fixed-size output scratch allocation.
+- one fixed-size transport-input scratch allocation.
 
 The decoder's state is the sole completion authority. The cursor does not mirror completion in a
 Boolean, infer it from empty storage, or ask a transport whether EOF means message completion. Its

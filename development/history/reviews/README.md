@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.54.0 Phase 1 Canonical Body-cursor Review](v0.54.0-phase-1.md)
 - [v0.54.0 Phase 0 HTTP Streaming-model Review](v0.54.0-phase-0.md)
 - [v0.53.0 Phase 5 Bounded Service and Qualification Review](v0.53.0-phase-5.md)
 - [v0.53.0 Phase 4 HTTP Operational-safety Review](v0.53.0-phase-4.md)

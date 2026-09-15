@@ -1,0 +1,89 @@
+//! Canonical HTTP body-cursor ownership and overread tests.
+
+see ./body.nct
+see ./body_cursor.nct
+see ./index.nct
+see ./transport_buffer.nct
+
+use /vec.Vec
+
+test body_cursor_retains_overread_after_incremental_fixed_body_completion {
+    let wire = "abcNEXT"
+    var cursor = body_cursor(
+        body_decoder(BodyFraming.fixed(3), Limits.standard()),
+        Vec.from_slice(wire.bytes()),
+        0,
+    )
+    var first = initialized_bytes(2)
+    match advance_body_cursor(&+cursor, &+first, false) {
+        BodyCursorAttempt.ready(written) {
+            if written != 2 || first[0] != 97 || first[1] != 98 {
+                return error.new("std.http.test", "first cursor fragment changed")
+            }
+        }
+        _ { return error.new("std.http.test", "fixed body completed before its final byte") }
+    }
+    if body_cursor_complete(&cursor) {
+        return error.new("std.http.test", "cursor exposed completion before decoder completion")
+    }
+
+    var second = initialized_bytes(2)
+    match advance_body_cursor(&+cursor, &+second, false) {
+        BodyCursorAttempt.complete(written) {
+            if written != 1 || second[0] != 99 {
+                return error.new("std.http.test", "final cursor fragment changed")
+            }
+        }
+        _ { return error.new("std.http.test", "fixed body did not complete") }
+    }
+    if !body_cursor_complete(&cursor)
+        || cursor.pending_start != 3
+        || cursor.pending.len() != wire.len()
+        || cursor.pending[cursor.pending_start] != 78 {
+        return error.new("std.http.test", "cursor lost its decoder authority or overread")
+    }
+    return
+}
+
+test empty_body_cursor_output_never_requires_caller_progress {
+    var cursor = body_cursor(
+        body_decoder(BodyFraming.fixed(1), Limits.standard()),
+        Vec.from_slice("x".bytes()),
+        0,
+    )
+    var empty: Vec<u8> = Vec.empty()
+    match advance_body_cursor(&+cursor, &+empty, false) {
+        BodyCursorAttempt.ready(written) {
+            if written == 0 && cursor.pending_start == 0 { return }
+            return error.new("std.http.test", "empty cursor output advanced input")
+        }
+        _ { return error.new("std.http.test", "empty cursor output changed its state") }
+    }
+}
+
+test failed_body_cursor_never_becomes_response_safe_completion {
+    var cursor = body_cursor(
+        body_decoder(BodyFraming.fixed(1), Limits.standard()),
+        Vec.from_slice("x".bytes()),
+        2,
+    )
+    var output = initialized_bytes(1)
+    match advance_body_cursor(&+cursor, &+output, false) {
+        BodyCursorAttempt.failed(failure) {
+            if !failure.has_code("std.http.invalid_syntax") {
+                return error.new("std.http.test", "initial cursor failure changed")
+            }
+        }
+        _ { return error.new("std.http.test", "invalid cursor input did not fail") }
+    }
+    if body_cursor_complete(&cursor) {
+        return error.new("std.http.test", "failed cursor became successful completion")
+    }
+    match advance_body_cursor(&+cursor, &+output, false) {
+        BodyCursorAttempt.failed(failure) {
+            if failure.has_code("std.http.body_failed") { return }
+            return error.new("std.http.test", "terminal cursor failure identity changed")
+        }
+        _ { return error.new("std.http.test", "failed cursor resumed decoding") }
+    }
+}

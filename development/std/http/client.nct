@@ -1,6 +1,7 @@
 //! Synchronous request policy and the uniquely owned response lifecycle.
 
 see ./body.nct
+see ./body_cursor.nct
 see ./client_storage.nct
 see ./client_transport.nct
 see ./errors.nct
@@ -8,7 +9,6 @@ see ./exchange.nct
 see ./index.nct
 see ./request.nct
 see ./response_head.nct
-see ./response_progress.nct
 see ./storage.nct
 see ./transport_buffer.nct
 see ./values.nct
@@ -64,9 +64,7 @@ blocking func send_over_transport(
     return response_from_parts(
         move connection,
         move parsed.head,
-        move parsed.decoder,
-        move parsed.pending,
-        parsed.pending_start,
+        move parsed.body,
     )
 }
 
@@ -163,48 +161,48 @@ instance Response {
     }
 
     blocking method &+self.read_blocking(output: &+[u8]): usize! {
-        if self.complete || output.len() == 0 { return 0 }
+        if body_cursor_complete(&self.body) || output.len() == 0 { return 0 }
         loop {
-            match advance_response_body(self, output, false) {
-                ResponseBodyAttempt.ready(written) { return written }
-                ResponseBodyAttempt.complete(written) {
+            match advance_body_cursor(&+self.body, output, false) {
+                BodyCursorAttempt.ready(written) { return written }
+                BodyCursorAttempt.complete(written) {
                     self.stream.close()
                     return written
                 }
-                ResponseBodyAttempt.failed(failure) {
+                BodyCursorAttempt.failed(failure) {
                     self.stream.close()
-                    self.complete = true
                     return failure.context("while decoding the HTTP response body")
                 }
-                ResponseBodyAttempt.input {
-                    let received = self.stream.read_blocking(&+self.scratch) catch failure {
+                BodyCursorAttempt.input {
+                    let received = self.stream.read_blocking(
+                        &+self.body.transport_scratch,
+                    ) catch failure {
                         self.stream.close()
-                        self.complete = true
+                        fail_body_cursor(&+self.body)
                         return failure.context("while reading the HTTP response body")
                     }
                     if received == 0 {
-                        match advance_response_body(self, output, true) {
-                            ResponseBodyAttempt.complete(written) {
+                        match advance_body_cursor(&+self.body, output, true) {
+                            BodyCursorAttempt.complete(written) {
                                 self.stream.close()
                                 return written
                             }
-                            ResponseBodyAttempt.failed(failure) {
+                            BodyCursorAttempt.failed(failure) {
                                 self.stream.close()
-                                self.complete = true
                                 return failure.context("at the end of the HTTP response body")
                             }
-                            ResponseBodyAttempt.ready(written) {
+                            BodyCursorAttempt.ready(written) {
                                 self.stream.close()
                                 return written
                             }
-                            ResponseBodyAttempt.input {
+                            BodyCursorAttempt.input {
                                 self.stream.close()
-                                self.complete = true
+                                fail_body_cursor(&+self.body)
                                 return premature_eof()
                             }
                         }
                     }
-                    append_prefix(&+self.pending, &self.scratch, received)
+                    append_body_cursor_scratch(&+self.body, received)
                 }
             }
         }
@@ -212,7 +210,7 @@ instance Response {
 
     noalloc method &+self.close(): void {
         self.stream.close()
-        self.complete = true
+        terminate_body_cursor(&+self.body)
         return
     }
 }

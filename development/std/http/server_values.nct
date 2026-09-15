@@ -2,13 +2,10 @@
 
 see ./errors.nct
 see ./index.nct
+see ./server_storage.nct
 see ./storage.nct
 
 use /vec.Vec
-
-func incoming_request_from_parts(head: RequestHead, body: Vec<u8>): IncomingRequest {
-    return IncomingRequest { head_value: move head, body_value: move body }
-}
 
 instance IncomingRequest {
     noalloc method &self.request_method(): &Method from self {
@@ -21,11 +18,6 @@ instance IncomingRequest {
 
     noalloc method &self.headers(): &Headers from self {
         return self.head_value.headers()
-    }
-
-    noalloc method &self.body(): &[u8] from self {
-        let body: &[u8] = &self.body_value
-        return body
     }
 }
 

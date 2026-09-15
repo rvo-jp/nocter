@@ -282,7 +282,7 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     assert!(
         response.contains(concat!(
             "pub async method ServerConnection.read_request_with_timeout(",
-            "timeout: Duration): (IncomingRequest, Responder)!"
+            "timeout: Duration): IncomingRequest!"
         )),
         "{response}"
     );
@@ -335,6 +335,40 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+    let (finish_line, finish_source) = source_line(&text, "request.finish_body_with_timeout");
+    let finish_character = finish_source.find("finish_body_with_timeout").unwrap();
+    let hover = server.receive(&position_request(
+        6,
+        "textDocument/hover",
+        &source,
+        finish_line,
+        finish_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(concat!(
+            "pub async method IncomingRequest.finish_body_with_timeout(",
+            "timeout: Duration): Responder!"
+        )),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let implementation = server.receive(&position_request(
+        7,
+        "textDocument/implementation",
+        &source,
+        finish_line,
+        finish_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/http/server.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
 }
 
 #[test]

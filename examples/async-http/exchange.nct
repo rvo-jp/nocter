@@ -16,14 +16,16 @@ func loopback(): SocketAddress {
 async func serve_once(server: Server, timeout: Duration): void! {
     var owner = move server
     let connection = await owner.accept_with_timeout(timeout)?
-    let exchange = await connection.read_request_with_timeout(timeout)?
-    let request = move exchange.0
-    let responder = move exchange.1
+    var request = await connection.read_request_with_timeout(timeout)?
     if request.request_method().text() != "POST"
-    || request.target() != "/echo"
-    || request.body() != "ping".bytes() {
+    || request.target() != "/echo" {
         return error.new("async-http.request", "local request changed during HTTP decoding")
     }
+    let request_body = await collect_text_before(&+request, timeout)?
+    if request_body != "ping" {
+        return error.new("async-http.request", "local request body changed during HTTP decoding")
+    }
+    let responder = await request.finish_body_with_timeout(timeout)?
     var response = OutgoingResponse.ok()
     response.append_header_text("X-Example", "local")?
     response.set_text_body("pong")

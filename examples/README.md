@@ -147,10 +147,10 @@ nocter run
 
 [async-http/index.nct](async-http/index.nct) runs a complete HTTP/1.1 exchange over a kernel-selected
 IPv4 loopback port. A structured join drives the async `Client` and `Server` together. The server
-accepts one typed connection, decodes one bounded `IncomingRequest`, and consumes its unique
-`Responder` while sending an `OutgoingResponse`. The client applies an executor-safe per-read
-timeout through the generic `Reader` contract and validates the response as UTF-8 without external
-DNS or Internet availability.
+accepts one typed connection, streams one bounded `IncomingRequest` body through `Reader`, then
+consumes that request to obtain its unique `Responder` and send an `OutgoingResponse`. The client
+applies an executor-safe per-read timeout through the same generic reader contract and validates
+the response as UTF-8 without external DNS or Internet availability.
 
 ```sh
 cd examples/async-http
@@ -163,8 +163,8 @@ service-owned, two-slot `TaskGroup`. The accept loop drains one completed handle
 more work, so the application-selected limit is the only connection-capacity authority. Two
 handlers send successful responses; one consumes its unique `Responder` by closing without a
 response, letting both the service and clients observe cleanup without a detached task or hidden
-server registry. Every accept, request decode, response write, and client request has a finite
-deadline.
+server registry. Every accept, request-head decode, consuming body finalization, response write,
+and client request has a finite deadline.
 
 ```sh
 cd examples/http-service

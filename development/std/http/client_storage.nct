@@ -1,6 +1,7 @@
 //! Sole ownership layout for HTTP requests, clients, and transport-owning responses.
 
 see ./body.nct
+see ./body_cursor.nct
 see ./client_transport.nct
 see ./index.nct
 see ./storage.nct
@@ -29,11 +30,7 @@ struct Client {
 struct Response {
     stream: ClientTransport
     head: ResponseHead
-    decoder: BodyDecoder
-    pending: Vec<u8>
-    pending_start: usize
-    scratch: Vec<u8>
-    complete: bool
+    body: BodyCursor
 }
 
 noalloc func client_from_limits(limits: Limits): Client {
@@ -51,17 +48,11 @@ func request_from_parts(url: Url, head: RequestHead): Request {
 func response_from_parts(
     stream: ClientTransport,
     head: ResponseHead,
-    decoder: BodyDecoder,
-    pending: Vec<u8>,
-    pending_start: usize,
+    body: BodyCursor,
 ): Response {
     return Response {
         stream: move stream,
         head: move head,
-        decoder: move decoder,
-        pending: move pending,
-        pending_start: pending_start,
-        scratch: initialized_bytes(HTTP_BUFFER_BYTES),
-        complete: false,
+        body: move body,
     }
 }

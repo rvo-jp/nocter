@@ -19,12 +19,12 @@ noalloc func invalid_response_body(): error {
     return error.new("std.http.invalid_response_body", "HTTP status forbids a response body")
 }
 
-noalloc func unsupported_pipelining(): error {
-    return error.new("std.http.unsupported_pipelining", "HTTP server connection accepts exactly one request")
-}
-
 noalloc func server_operation_timed_out(): error {
     return error.new("std.http.timed_out", "HTTP server operation exceeded its deadline")
+}
+
+noalloc func body_cursor_failed(): error {
+    return error.new("std.http.body_failed", "HTTP body input has already failed")
 }
 
 noalloc func invalid_header_name(): error {

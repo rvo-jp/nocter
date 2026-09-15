@@ -1,12 +1,12 @@
 //! Asynchronous HTTP transport orchestration over the shared exchange state.
 
 see ./client_storage.nct
+see ./body_cursor.nct
 see ./client_transport.nct
 see ./errors.nct
 see ./exchange.nct
 see ./index.nct
 see ./response_head.nct
-see ./response_progress.nct
 see ./storage.nct
 see ./transport_buffer.nct
 see ./values.nct
@@ -83,9 +83,7 @@ async func send_prepared_request_async(
     return response_from_parts(
         move stream,
         move parsed.head,
-        move parsed.decoder,
-        move parsed.pending,
-        parsed.pending_start,
+        move parsed.body,
     )
 }
 
@@ -111,52 +109,50 @@ async func read_response_body_async(
     output: &+[u8],
     timeout: Duration?,
 ): usize! {
-    if response.complete || output.len() == 0 { return 0 }
+    if body_cursor_complete(&response.body) || output.len() == 0 { return 0 }
     loop {
-        match advance_response_body(response, output, false) {
-            ResponseBodyAttempt.ready(written) { return written }
-            ResponseBodyAttempt.complete(written) {
+        match advance_body_cursor(&+response.body, output, false) {
+            BodyCursorAttempt.ready(written) { return written }
+            BodyCursorAttempt.complete(written) {
                 response.stream.close()
                 return written
             }
-            ResponseBodyAttempt.failed(failure) {
+            BodyCursorAttempt.failed(failure) {
                 response.stream.close()
-                response.complete = true
                 return failure.context("while decoding the HTTP response body")
             }
-            ResponseBodyAttempt.input {
+            BodyCursorAttempt.input {
                 let received = await read_http_transport_async(
                     &+response.stream,
-                    &+response.scratch,
+                    &+response.body.transport_scratch,
                     timeout,
                 ) catch failure {
                     response.stream.close()
-                    response.complete = true
+                    fail_body_cursor(&+response.body)
                     return failure.context("while reading the HTTP response body")
                 }
                 if received == 0 {
-                    match advance_response_body(response, output, true) {
-                        ResponseBodyAttempt.complete(written) {
+                    match advance_body_cursor(&+response.body, output, true) {
+                        BodyCursorAttempt.complete(written) {
                             response.stream.close()
                             return written
                         }
-                        ResponseBodyAttempt.failed(failure) {
+                        BodyCursorAttempt.failed(failure) {
                             response.stream.close()
-                            response.complete = true
                             return failure.context("at the end of the HTTP response body")
                         }
-                        ResponseBodyAttempt.ready(written) {
+                        BodyCursorAttempt.ready(written) {
                             response.stream.close()
                             return written
                         }
-                        ResponseBodyAttempt.input {
+                        BodyCursorAttempt.input {
                             response.stream.close()
-                            response.complete = true
+                            fail_body_cursor(&+response.body)
                             return premature_eof()
                         }
                     }
                 }
-                append_prefix(&+response.pending, &response.scratch, received)
+                append_body_cursor_scratch(&+response.body, received)
             }
         }
     }

@@ -14,22 +14,25 @@ address. `Server.accept` borrows the listener exclusively and returns a uniquely
 ownership. Destroying or explicitly closing the server closes only the listening socket; accepted
 connections retain their independent ownership.
 
-`ServerConnection.read_request(self)` consumes the accepted state. Success returns an
-`IncomingRequest` together with the only `Responder` for that connection. The request owns its
-validated method, origin-form target, ordered fields, and complete decoded body. The responder owns
-the TCP stream and immutable limits. This state transition makes a second request read, a response
-before decoding, and two responses on one connection unrepresentable instead of policing them with
-a caller-visible state flag. Failure or cancellation destroys the consuming computation and closes
-the still-owned stream.
+`ServerConnection.read_request(self)` consumes the accepted state. Success returns one
+`IncomingRequest` that owns its validated method, origin-form target, ordered fields, body cursor,
+TCP stream, peer identity, and immutable limits. No responder exists while that body is readable.
+`IncomingRequest` implements `Reader` and `TimedReader`; each read writes decoded bytes directly
+into caller storage instead of retaining a complete-body allocation. The consuming `finish_body`
+operation drains any unread body through the same cursor and returns the only `Responder` for that
+request. It has no caller-visible "already complete" precondition. This transition makes a response
+beside an unfinished body and two responses on one connection unrepresentable. Failure or
+cancellation of a consuming transition destroys the owner and closes its stream.
 
 The request-head decoder accepts strict HTTP/1.1 request lines and CRLF fields. It requires exactly
 one non-empty `Host`, rejects conflicting framing evidence, supports fixed and chunked request
 bodies, and treats the absence of `Content-Length` and `Transfer-Encoding` as an empty body. Method
 and target bytes are validated and copied once when the complete head is known. Incremental scan
 offsets, retained fields, and framing evidence remain owned by one decoder across transport reads;
-accepted bytes are not rescanned. A complete request and any already-buffered following bytes are
-rejected as unsupported pipelining because the connection contract intentionally represents one
-request.
+accepted bytes are not rescanned. Bytes received beyond the current body remain in the cursor's
+pending range and transfer to the responder. They are neither discarded nor interpreted while the
+current response is unfinished. The current responder still closes after one response; a later
+persistent-connection transition can consume the preserved range without changing body decoding.
 
 `OutgoingResponse` owns one final status from 200 through 599, ordered user fields, and one complete
 body. `Responder.respond(self, response)` computes and validates the complete head before writing,
@@ -40,32 +43,38 @@ the body when applicable, and closes the stream. Callers cannot provide `Connect
 to HEAD advertises the selected body length but does not transmit body bytes. Explicit responder
 close and ordinary destruction provide the no-response path.
 
-The initial server deliberately has no keep-alive, pipelining, upgrade, CONNECT tunnel, streaming
-request body, streaming response body, or implicit task spawning. Whole bodies are bounded by
-`Limits`; a later API can add a streaming typestate without weakening the ownership boundary of the
-current complete-message path.
+The current server deliberately has no keep-alive, pipelined execution, upgrade, CONNECT tunnel,
+streaming response body, or implicit task spawning. Request bodies are streamed through fixed
+transport storage and remain bounded by `Limits`; complete response bodies remain caller-owned.
 
 ## Server Deadlines and Capacity
 
-`accept_with_timeout`, `read_request_with_timeout`, and `respond_with_timeout` apply one fixed
-monotonic deadline to the complete named operation. The duration does not restart after each byte,
-field, body fragment, or write. Each method composes its ordinary operation with `std/task` timeout
-ownership; the HTTP codec and TCP transport do not implement another timer. Expiry reports
-`std.http.timed_out`.
+`accept_with_timeout`, `read_request_with_timeout`, `finish_body_with_timeout`, and
+`respond_with_timeout` compose ordinary operations with `std/task` timeout ownership; the HTTP
+codec and TCP transport do not implement another timer. Acceptance and request-head decoding each
+use one fixed monotonic deadline. `finish_body_with_timeout` uses one fixed deadline for the entire
+unread body drain, and `respond_with_timeout` uses one fixed deadline for the complete response.
+Expiry reports `std.http.timed_out`.
+
+`IncomingRequest.read_with_timeout` instead applies one idle timeout when that read needs more
+transport input. Buffered decoded bytes return immediately. A successful fragment does not attach
+a deadline to later reads; applications select whether each later read, a generic timed collector,
+or consuming whole-body finalization provides the appropriate timeout scope.
 
 An expired accept cancels only its temporary borrowing computation and leaves `Server` available
-for another accept. Request decoding consumes `ServerConnection`, so expiry destroys the stream
-instead of returning a partially decoded request. Response transmission consumes `Responder` and
-`OutgoingResponse`; expiry destroys both and closes the stream instead of exposing a partially sent
-response for retry. Transport and codec failures retain their original stable code while adding
-operation context where appropriate.
+for another accept. Request-head decoding consumes `ServerConnection`, so expiry destroys the
+stream instead of returning a partial head. A cancelled borrowed body read releases its exclusive
+borrow and leaves the request cursor at its exact progressed state. Expired consuming finalization
+destroys the request; expired response transmission destroys both `Responder` and
+`OutgoingResponse`. Neither exposes a partially reusable stream. Transport and codec failures
+retain their original stable code while adding operation context where appropriate.
 
 Concurrent connection capacity belongs to application task ownership, not hidden listener state.
 An application caps accepted work by checking `TaskGroup.len()` and awaiting `TaskGroup.next()`
 before accepting when its selected limit is reached. This bounds accepted streams and child tasks
-together. The application's aggregate body-storage bound is therefore its maximum retained task
-count multiplied by the `Limits` body bound selected for that server. Kernel backlog policy remains
-the TCP listener's responsibility. The
+together. Request transfer storage is fixed per active cursor rather than proportional to accepted
+body length; `Limits` still bounds decoded bytes and syntax-controlled storage. Kernel backlog
+policy remains the TCP listener's responsibility. The
 [bounded HTTP service example](../../../examples/http-service/index.nct) demonstrates this complete
 composition with successful and explicit no-response paths.
 
@@ -111,11 +120,11 @@ request transmission, and final-response-head reception all occur while that com
 without blocking the executor thread. Dropping it releases the captured request before setup or
 cancels the connection or stream it uniquely owns after setup begins.
 
-`Response.read` uses the selected asynchronous transport while advancing the same decoder,
-pending bytes, completion flag, and uniquely owned stream used by `read_blocking`. Synchronous and
-asynchronous reads cannot form independent cursors or concurrently consume one response. Their
-transport loops share one body progress operation, so EOF and decoding decisions are not
-reimplemented by either adapter.
+`Response.read` uses the selected asynchronous transport while advancing the same canonical body
+cursor and uniquely owned stream used by `read_blocking`. The decoder state is the only completion
+authority; there is no mirrored Boolean. Synchronous and asynchronous reads cannot form independent
+cursors or concurrently consume one response. Their transport loops share one body progress
+operation, so EOF and decoding decisions are not reimplemented by either adapter.
 
 The generic `Reader` defaults implement `read_to_end` and `read_to_string` once for every
 asynchronous byte source. `Response` also implements `TimedReader`. Its timeout-bearing collection
