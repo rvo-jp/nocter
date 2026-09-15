@@ -527,6 +527,12 @@ impl TypeStore {
         self.kinds.get(id.index())
     }
 
+    /// Resolves an already-interned structural kind without extending this immutable snapshot.
+    #[must_use]
+    pub fn identity(&self, kind: &TypeKind) -> Option<TypeId> {
+        self.interned.get(kind).copied()
+    }
+
     #[must_use]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &TypeKind)> {
         self.kinds

@@ -135,8 +135,7 @@ pub(super) fn finish_recovering(
             }
         })
         .map_err(HeaderDefinitionFailure::without_recovery)?;
-    let constant_values = std::mem::take(&mut types.constant_values);
-    let static_values = std::mem::take(&mut types.static_values);
+    let structural_constants = std::mem::take(&mut types.structural_constants);
     let reserved = types.namespaces.imports.generics.headers.reserved;
     let runtime_bindings = reserved.runtime_bindings;
     let module_bindings = reserved
@@ -157,9 +156,8 @@ pub(super) fn finish_recovering(
         .finish(reserved.source_map.as_source_map(), &reserved.sources)
         .map_err(HeaderDefinitionError::from)
         .map_err(HeaderDefinitionFailure::without_recovery)?;
-    let program =
-        super::value_completion::complete(reserved.program, constant_values, static_values)
-            .map_err(HeaderDefinitionFailure::without_recovery)?;
+    let program = super::structural_completion::complete(reserved.program, structural_constants)
+        .map_err(HeaderDefinitionFailure::without_recovery)?;
     match program.finish_recovering() {
         Ok(program) => Ok(LoweredDeclarations::new(
             program,

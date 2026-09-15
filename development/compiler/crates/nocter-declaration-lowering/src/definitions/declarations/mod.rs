@@ -28,19 +28,19 @@ pub(super) fn define(
     types: &mut PreparedTypes<'_>,
     allocated: &mut AllocatedHeaders,
 ) -> Result<(), HeaderDefinitionError> {
-    constant::define_all(types, allocated)?;
-    static_value::define_all(types, allocated)?;
     for index in 0..surface_count(types) {
         let declaration = SurfaceDeclarationId::from_index(index);
         if representative(types, declaration) != declaration {
             continue;
         }
         match entity(types, declaration) {
-            Some(
-                ReservedEntity::BuiltinType(_)
-                | ReservedEntity::Constant(_)
-                | ReservedEntity::Static(_),
-            ) => {}
+            Some(ReservedEntity::BuiltinType(_)) => {}
+            Some(ReservedEntity::Constant(id)) => {
+                constant::define(types, allocated, declaration, id)?;
+            }
+            Some(ReservedEntity::Static(id)) => {
+                static_value::define(types, allocated, declaration, id)?;
+            }
             Some(ReservedEntity::NominalType(id)) => {
                 define_nominal(types, allocated, declaration, id)?;
             }

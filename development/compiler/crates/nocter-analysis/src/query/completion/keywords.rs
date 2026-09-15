@@ -67,29 +67,31 @@ pub(super) fn completions(
         completions.extend(
             [
                 (
+                    Keyword::Const,
                     Keyword::Const.as_str(),
                     "compile-time callable capability",
-                    modifiers.compile_time,
                 ),
                 (
+                    Keyword::NoAlloc,
                     Keyword::NoAlloc.as_str(),
                     "allocation-free callable guarantee",
-                    modifiers.noalloc,
                 ),
                 (
+                    Keyword::Blocking,
                     Keyword::Blocking.as_str(),
                     "synchronous waiting callable effect",
-                    modifiers.blocking,
                 ),
                 (
+                    Keyword::Async,
                     Keyword::Async.as_str(),
                     "deferred producer execution",
-                    modifiers.asynchronous,
                 ),
             ]
             .into_iter()
-            .filter(|(keyword, _, allowed)| *allowed && keyword.starts_with(modifiers.prefix))
-            .map(|(keyword, detail, _)| {
+            .filter(|(keyword, spelling, _)| {
+                modifiers.allows(*keyword) && spelling.starts_with(modifiers.prefix)
+            })
+            .map(|(_, keyword, detail)| {
                 SemanticCompletion::new(
                     keyword,
                     SemanticCompletionKind::Keyword,
@@ -104,10 +106,14 @@ pub(super) fn completions(
 
 struct CallableModifierPrefix<'a> {
     prefix: &'a str,
-    compile_time: bool,
-    noalloc: bool,
-    blocking: bool,
-    asynchronous: bool,
+    allowed: &'static [Keyword],
+    allow_async: bool,
+}
+
+impl CallableModifierPrefix<'_> {
+    fn allows(&self, keyword: Keyword) -> bool {
+        self.allowed.contains(&keyword) && (keyword != Keyword::Async || self.allow_async)
+    }
 }
 
 fn callable_modifier_prefix<'a>(
@@ -170,28 +176,31 @@ fn callable_modifier_prefix<'a>(
         .iter()
         .map(|word| Keyword::from_spelling(word))
         .collect::<Option<Vec<_>>>()?;
-    let (compile_time, noalloc, blocking, asynchronous) = match modifiers.as_slice() {
-        [] => (true, true, true, true),
-        [Keyword::Const] => (false, true, true, false),
-        [Keyword::NoAlloc] => (false, false, true, false),
-        [Keyword::Const, Keyword::NoAlloc] => (false, false, true, false),
+    let allowed: &'static [Keyword] = match modifiers.as_slice() {
+        [] => &[
+            Keyword::Const,
+            Keyword::NoAlloc,
+            Keyword::Blocking,
+            Keyword::Async,
+        ],
+        [Keyword::Const] => &[Keyword::NoAlloc, Keyword::Blocking],
+        [Keyword::NoAlloc] | [Keyword::Const, Keyword::NoAlloc] => &[Keyword::Blocking],
         [Keyword::Blocking | Keyword::Async]
-        | [Keyword::Const, Keyword::Blocking | Keyword::Async]
-        | [Keyword::NoAlloc, Keyword::Blocking | Keyword::Async]
+        | [
+            Keyword::Const | Keyword::NoAlloc,
+            Keyword::Blocking | Keyword::Async,
+        ]
         | [
             Keyword::Const,
             Keyword::NoAlloc,
             Keyword::Blocking | Keyword::Async,
-        ] => (false, false, false, false),
+        ] => &[],
         _ => return None,
     };
-    let asynchronous = asynchronous && container != Some(NodeKind::ConstructDeclaration);
     Some(CallableModifierPrefix {
         prefix,
-        compile_time,
-        noalloc,
-        blocking,
-        asynchronous,
+        allowed,
+        allow_async: container != Some(NodeKind::ConstructDeclaration),
     })
 }
 

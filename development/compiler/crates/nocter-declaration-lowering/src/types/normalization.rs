@@ -128,8 +128,8 @@ pub struct PreparedTypes<'syntax> {
     pub(crate) opaque_results: HashMap<OpaqueTypeId, NormalizedOpaqueResult>,
     pub(crate) callable_results: Box<[Option<TypeId>]>,
     pub(crate) requirements: Box<[Box<[RequirementKind]>]>,
-    pub(crate) constant_values: HashMap<nocter_model::ConstantId, super::PreparedConstantValue>,
-    pub(crate) static_values: HashMap<nocter_model::StaticId, super::PreparedStaticValue>,
+    pub(crate) structural_constants:
+        HashMap<nocter_model::ConstantId, super::PreparedStructuralConstant>,
     pub(crate) associated_projection_uses: Box<[AssociatedProjectionUse]>,
 }
 
@@ -942,8 +942,7 @@ pub fn normalize_header_types(
         callable_results: bound_callable_results,
         requirements: bound_requirements,
         normalization_origins,
-        constant_values,
-        static_values,
+        structural_constants,
         array_expressions: _,
         array_expression_ids,
         array_lengths,
@@ -1071,8 +1070,7 @@ pub fn normalize_header_types(
         opaque_results,
         callable_results,
         requirements: requirements.into_boxed_slice(),
-        constant_values,
-        static_values,
+        structural_constants,
         associated_projection_uses: associated_projection_uses.into_boxed_slice(),
     })
 }

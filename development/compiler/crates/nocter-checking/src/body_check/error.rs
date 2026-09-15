@@ -276,8 +276,8 @@ pub enum BodyCheckInternalError {
     DuplicateReusableBody(BodyId),
     UnknownReusableBody(BodyId),
     BodySemanticCommit,
-    CompileTimeValueDisagreement,
     InvalidQueriedBodyRejection(BodyId),
+    DeclarationValues(nocter_declarations::DeclarationValueTableError),
 }
 
 impl fmt::Display for BodyCheckInternalError {

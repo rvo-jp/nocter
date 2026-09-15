@@ -96,10 +96,10 @@ impl DeclarationLoweringRecovery {
     }
 
     #[must_use]
-    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+    pub const fn structural_constants(&self) -> &nocter_declarations::StructuralConstantTable {
         match &self.program {
-            DeclarationRecoveryProgram::Declarations(program) => program.values(),
-            DeclarationRecoveryProgram::Bodies(program) => program.values(),
+            DeclarationRecoveryProgram::Declarations(program) => program.structural_constants(),
+            DeclarationRecoveryProgram::Bodies(program) => program.structural_constants(),
         }
     }
 

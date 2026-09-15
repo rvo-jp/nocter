@@ -2,8 +2,10 @@ use nocter_constant_evaluation::{
     CompileTimeConstantResolver, CompileTimeEvaluationLimits, CompileTimeExecutionRule,
     CompileTimeExecutor, DependencyComputation, DependencyQuery, DependencyQueryError,
 };
-use nocter_declarations::{BodyOwner, DeclarationGraph, DeclarationValueTable};
-use nocter_model::{ConstantId, ConstantValue};
+use nocter_declarations::{
+    BodyOwner, DeclarationGraph, DeclarationValueTable, StructuralConstantTable,
+};
+use nocter_model::{ConstantId, ConstantValue, TypeStore};
 
 use crate::compile_time_projection::ProjectedCompileTimePlans;
 
@@ -42,6 +44,18 @@ pub(crate) enum CompileTimeValueBuildRule {
     Execution(CompileTimeExecutionRule),
     InvalidConstantValue,
     InvalidStaticValue,
+}
+
+#[derive(Debug)]
+pub(crate) enum CompileTimeValueCompletionError {
+    Authored(CompileTimeValueBuildError),
+    Integrity(nocter_declarations::DeclarationValueTableError),
+}
+
+impl From<CompileTimeValueBuildError> for CompileTimeValueCompletionError {
+    fn from(error: CompileTimeValueBuildError) -> Self {
+        Self::Authored(error)
+    }
 }
 
 struct CompletedConstants<'query> {
@@ -149,13 +163,15 @@ impl DependencyComputation<ConstantId, ConstantValue, CompileTimeValueBuildError
 /// Produces the complete declaration-value table from checked initializer plans.
 pub(crate) fn build_checked_declaration_values(
     graph: &DeclarationGraph,
+    types: &TypeStore,
+    structural: &StructuralConstantTable,
     projected: &ProjectedCompileTimePlans,
-) -> Result<DeclarationValueTable, CompileTimeValueBuildError> {
+) -> Result<DeclarationValueTable, CompileTimeValueCompletionError> {
     let mut computation = ConstantValueComputation { graph, projected };
     let mut query = DependencyQuery::default();
     for (constant, declaration) in graph.declarations().constants().iter() {
         if let Err(error) = query.resolve(&mut computation, constant) {
-            return Err(project_query_error(graph, declaration.initializer(), error));
+            return Err(project_query_error(graph, declaration.initializer(), error).into());
         }
     }
     let constants = graph
@@ -226,7 +242,8 @@ pub(crate) fn build_checked_declaration_values(
                     },
                 })
         })?;
-    Ok(DeclarationValueTable::new(constants, statics))
+    DeclarationValueTable::for_program(graph, types, structural, constants, statics)
+        .map_err(CompileTimeValueCompletionError::Integrity)
 }
 
 fn project_query_error(

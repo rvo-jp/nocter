@@ -626,35 +626,15 @@ impl BodyChecker<'_, '_> {
                     .parameters()
                     .get(parameter)
                     .ok_or(BodyCheckInternalError::MissingParameterType(target))?;
-                let ty = match declaration.role() {
-                    nocter_declarations::ParameterRole::Receiver(capability) => {
-                        let capability = match capability {
-                            nocter_model::CallableCapability::Readonly => {
-                                Some(BorrowCapability::Readonly)
-                            }
-                            nocter_model::CallableCapability::ReadWrite => {
-                                Some(BorrowCapability::ReadWrite)
-                            }
-                            nocter_model::CallableCapability::Owned => None,
-                        };
-                        if let Some(capability) = capability {
-                            self.types
-                                .intern(TypeKind::Borrow {
-                                    capability,
-                                    referent: declaration.ty(),
-                                })
-                                .map_err(|_| {
-                                    BodyCheckInternalError::UnknownType(declaration.ty())
-                                })?
-                        } else {
-                            declaration.ty()
-                        }
-                    }
-                    nocter_declarations::ParameterRole::Ordinary { .. } => declaration.ty(),
-                    nocter_declarations::ParameterRole::ArgumentPack { .. } => {
-                        return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
-                    }
-                };
+                if matches!(
+                    declaration.role(),
+                    nocter_declarations::ParameterRole::ArgumentPack { .. }
+                ) {
+                    return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
+                }
+                let ty = declaration
+                    .value_type(self.types)
+                    .ok_or(BodyCheckInternalError::UnknownType(declaration.ty()))?;
                 (PlaceRoot::Parameter(parameter), ty)
             }
             NameTarget::Local(local) => (

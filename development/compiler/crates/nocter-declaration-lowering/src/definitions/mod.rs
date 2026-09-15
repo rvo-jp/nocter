@@ -12,8 +12,8 @@ mod allocation;
 mod declarations;
 mod diagnostic;
 mod projection;
+mod structural_completion;
 mod syntax;
-mod value_completion;
 mod violation;
 
 #[cfg(test)]

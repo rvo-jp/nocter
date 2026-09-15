@@ -17,9 +17,9 @@ does not check callable bodies.
 ## Internal Responsibilities
 
 - deterministic identity reservation and definition
-- atomic completion of constant/static metadata and their separately stored evaluated values
-- one heterogeneous dependency query for header constants, fixed-array lengths, and immutable
-  statics, keyed by semantic identities rather than evaluation-pass order
+- constant/static metadata defined independently of initializer eligibility or value production
+- one restricted dependency query for fixed-array lengths and their scalar structural constants,
+  keyed by semantic identities rather than evaluation-pass order
 - one canonical `DeclarationSurface` topology consumed by both reservation and focused topology tests
 - define-once semantic projection recipes and current-generation materialization
 - declaration-only authority projection separated from current body imports and spellings
@@ -62,13 +62,12 @@ does not check callable bodies.
   frozen with `ReusableDeclarations`; materialization neither repeats module lookup nor declaration
   lowering.
 - Contract and private definition joins use exact identities, not text matching downstream.
-- Constant and static initialization is evaluated once before definition. Lowering freezes all
-  declaration metadata first, then `value_completion` consumes the evaluated products into the
-  sole prepared value authority. Only that join may publish an accepted or recovery aggregate;
-  later stages cannot reread initializer syntax or recover a payload from declaration metadata.
-- A static may demand its fixed-array length, and that length may demand constants, through the
-  same memoized query. There is no constants-first, lengths-second, statics-third correctness
-  precondition.
+- Lowering evaluates only constants eligible for structural type construction. It never evaluates
+  immutable statics or publishes a final initializer value. Metadata freeze is driven by reserved
+  declaration identities, not by whichever values the restricted evaluator can produce.
+- Each fixed-array length and its structural constant dependencies share one memoized query.
+  Speculative ordinary-constant planning is isolated and cannot leak source projections or a
+  partial semantic product.
 - Public contracts and private bodies must retain the same authored guarantee fingerprint before
   either occurrence reaches semantic declaration storage.
 - Callable execution is derived only from the syntax-owned `async` modifier. Result normalization,

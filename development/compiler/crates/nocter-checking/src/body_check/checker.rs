@@ -132,7 +132,7 @@ pub(super) struct BodyUnitInput<'input, 'syntax> {
 pub(super) struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
-    constants: &'input nocter_model::Arena<ConstantId, nocter_model::ConstantValue>,
+    constants: &'input dyn nocter_declarations::ConstantValueLookup,
     types: &'input mut nocter_model::TypeTransaction,
     copyabilities: &'input mut crate::copyability::CopyabilityTransaction,
     closures: &'input mut ClosureTransaction,

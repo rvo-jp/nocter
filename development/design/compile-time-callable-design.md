@@ -86,8 +86,17 @@ One checked-program `CompileTimeProgram` owns:
 - evaluated constant values;
 - recursively frozen static values;
 - projected callable plans;
-- the dependency graph among constants and callable specializations;
-- memoized results for closed calls.
+- the closed dependency edges carried by initializer and callable plans.
+
+Each executor opened from that program owns its deterministic budget and memoized results for
+closed calls. Execution state is intentionally not retained in the immutable semantic product.
+
+Declaration lowering does not produce this final value authority. It evaluates only the sparse
+scalar `StructuralConstantTable` required to normalize fixed-array types before checking can begin.
+Ordinary constant and static initializer bodies are checked with every other semantic body, then
+their closed initializer plans produce the dense final `DeclarationValueTable`. A call-based
+constant is therefore a valid program value but deliberately cannot become an early structural
+array-length dependency.
 
 Recursive source call graphs are valid. Only an active evaluation cycle with no terminating value,
 or a dependency cycle required to construct a declaration type, is rejected. Evaluation uses
@@ -141,20 +150,19 @@ freezes the required values once, and MIR can obtain a declared value only from 
 This keeps declaration evaluation, runtime reachability, and lowering from becoming competing
 value authorities.
 
-`DeclarationValueTable` is the sole identity-indexed authority for values already completed during
-declaration construction. `ConstantDeclaration` and `StaticDeclaration` contain only semantic
-metadata. `DeclarationProgram` owns only the validated graph and header-type authority; value-table
-shape and payload compatibility are validated separately. The public builder still publishes only
-an `AcceptedDeclarationProgram` that pairs both complete products, so no caller can treat metadata
-alone as accepted compilation input. `DeclarationProgramBuilder::prepare` consumes every mutable
-declaration/type builder and produces a construction-only `PreparedDeclarationProgram`. That type
-can complete reserved constant and static value slots, but exposes no checking admission; its
-consuming finish transition validates the full value table and publishes the aggregate. Accepted
-programs and all declaration/name/body recovery
-branches carry the same immutable table beside their graph; editor presentation therefore does not
-need a fallback source interpreter or a value copied into presentation metadata. This separation
-is the construction seam for completing non-structural initializer values after ordinary checking
-without introducing optional values into declaration metadata.
+`DeclarationValueTable` is the sole identity-indexed authority for final initializer values.
+`ConstantDeclaration` and `StaticDeclaration` contain only semantic metadata.
+`AcceptedDeclarationProgram` instead carries a sparse `StructuralConstantTable`, whose values may
+be used only for declaration and body type-shape construction. `DeclarationProgramBuilder::prepare`
+consumes every mutable declaration/type builder and produces a construction-only
+`PreparedDeclarationProgram`; its consuming transition validates the structural table before
+checking admission is published. Checked finalization validates the dense final value table against
+the exact declaration graph and final type store before constructing `CompileTimeProgram`. It also
+requires every sparse structural value to equal the corresponding checked-plan result. The
+restricted subset is necessarily evaluated once to construct types and once after ordinary
+checking, but the two strata cannot publish divergent meanings.
+Recovery and presentation consume the narrow read-only constant lookup capability justified by
+their phase, rather than assuming an incomplete final table or interpreting initializer source.
 
 Constant and immutable-static declarations also own an explicit expression-form `BodyId`. The
 frontend projection binds that identity to one expression root, while callable, destruction, and
@@ -169,20 +177,20 @@ compile-time program keeps initializer plans indexed by their semantic `BodyId`,
 the callable specialization table.
 
 Header construction assigns every distinct fixed-array length expression a dense
-`ConstantExpressionId`. One heterogeneous query then resolves constant values, array lengths, and
-immutable static values. A static requests the identities required by its recursive frozen type;
-an array-length plan requests its referenced constants. Root scheduling deliberately begins with
-statics, so successful construction proves that dependency edges—not a constants/lengths/statics
-pass order—determine evaluation.
+`ConstantExpressionId`. One restricted query resolves those lengths and only the scalar constant
+dependencies expressible without checked calls. Speculative planning of an ordinary constant uses
+a private resolver transaction; an initializer outside the structural subset contributes no value
+or source projection. A demanded length reports the authored structural failure, while an
+undemanded initializer remains exclusively the later checker's responsibility.
 
-The header-value stratum closes constants, statics, and array lengths before normalized
-declaration types are published. Ordinary checking then closes body recipes, and a specialization
-query closes every reachable callable target. Program finalization joins the exact shared value
-table and specialization table into one immutable `CompileTimeProgram`. This is intentionally not
-one re-entrant query: allowing a header computation to request a checked body would expose
-unfinished declaration types to checking, while allowing checking to reopen a header would make
-stage order a correctness precondition. A downstream consumer can see only the completed joined
-authority.
+The header stratum closes structural array lengths before normalized declaration types are
+published. Ordinary checking then closes initializer and callable recipes. A specialization query
+closes every reachable callable target, and a separate constant dependency query executes every
+initializer into one dense table. Program finalization joins that table and the specialization
+table into one immutable `CompileTimeProgram`. This is intentionally not one re-entrant query:
+allowing a header computation to request a checked body would expose unfinished declaration types
+to checking, while allowing checking to reopen a header would make stage order a correctness
+precondition. A downstream consumer can see only the completed joined authority.
 
 The query boundaries are semantic and compiler-internal. The workspace computation engine may
 cache a completed compilation product between editor revisions, but it does not become the
@@ -221,8 +229,8 @@ cannot silently become compile-time safe.
 - Compile-time projection consumes checked decisions and never reconstructs them.
 - Evaluation consumes only closed plans and never calls checking or target lowering.
 - Constant values have one table authority; declarations and checked nodes refer to identities.
-- Type construction requests constant values through the dependency query and cannot read a
-  partially initialized table.
+- Type construction reads only the validated sparse structural table and cannot observe or be
+  mistaken for the final initializer-value authority.
 - Runtime lowering ignores compile-time plans and continues to consume the ordinary checked body.
 - Editor presentation reads authored capability plus the same semantic identities used by
   compilation; it does not infer callability from source text or body contents.

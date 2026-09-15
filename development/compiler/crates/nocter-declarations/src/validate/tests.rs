@@ -37,11 +37,15 @@ fn constant_storage_rejects_integer_values_outside_their_declared_range() {
         .declarations_mut()
         .add_body(Body::expression(BodyOwner::Constant(constant)));
     program
-        .define_constant(
+        .define_constant_metadata(
             constant,
             ConstantDeclaration::new(site, constant_name, ty, initializer, None),
-            ConstantValue::Integer(256),
         )
+        .unwrap();
+
+    let mut program = program.prepare().unwrap();
+    program
+        .define_structural_constant(constant, ConstantValue::Integer(256))
         .unwrap();
 
     assert_eq!(

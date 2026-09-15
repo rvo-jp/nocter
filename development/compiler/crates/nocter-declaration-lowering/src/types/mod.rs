@@ -278,23 +278,16 @@ pub struct PreparedTypeBindings<'syntax> {
     callable_results: Box<[Option<BoundTypeId>]>,
     requirements: Box<[Box<[BoundRequirementKind]>]>,
     normalization_origins: normalization_origins::NormalizationOrigins,
-    constant_values: HashMap<nocter_model::ConstantId, PreparedConstantValue>,
-    static_values: HashMap<nocter_model::StaticId, PreparedStaticValue>,
+    structural_constants: HashMap<nocter_model::ConstantId, PreparedStructuralConstant>,
     array_expressions: Arena<ConstantExpressionId, NodeId>,
     array_expression_ids: HashMap<NodeId, ConstantExpressionId>,
     array_lengths: HashMap<ConstantExpressionId, u64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PreparedConstantValue {
+pub(crate) struct PreparedStructuralConstant {
     pub(crate) declaration: SurfaceDeclarationId,
     pub(crate) value: nocter_model::ConstantValue,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PreparedStaticValue {
-    pub(crate) declaration: SurfaceDeclarationId,
-    pub(crate) value: nocter_model::FrozenValue,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -390,7 +383,13 @@ pub fn bind_header_type_syntax(
             .ok_or(TypeBindingError::MissingSource(declaration))?
             .syntax_handle();
         let tree = syntax.as_syntax_tree();
-        let type_roots = header_type_roots(tree, surface.node(), &declaration_nodes);
+        let body_root = matches!(
+            surface.kind(),
+            crate::SurfaceDeclarationKind::Constant | crate::SurfaceDeclarationKind::Static
+        )
+        .then(|| direct_node(tree, surface.node(), NodeKind::Expression))
+        .flatten();
+        let type_roots = header_type_roots(tree, surface.node(), &declaration_nodes, body_root);
         for root in type_roots {
             if arena.roots.contains_key(&root) {
                 continue;
@@ -410,6 +409,7 @@ pub fn bind_header_type_syntax(
             tree,
             surface.node(),
             &declaration_nodes,
+            body_root,
             NodeKind::InterfaceApplication,
         ) {
             let bound = interface_application::bind(
@@ -473,8 +473,7 @@ pub fn bind_header_type_syntax(
         callable_results,
         requirements: requirements.into_boxed_slice(),
         normalization_origins: arena.origins,
-        constant_values: HashMap::new(),
-        static_values: HashMap::new(),
+        structural_constants: HashMap::new(),
         array_expressions: array_expressions.finish(),
         array_expression_ids,
         array_lengths: HashMap::new(),
@@ -529,14 +528,22 @@ fn header_type_roots(
     tree: &nocter_syntax::SyntaxTree,
     declaration: NodeId,
     declaration_nodes: &HashSet<NodeId>,
+    body_root: Option<NodeId>,
 ) -> Vec<NodeId> {
-    header_nodes(tree, declaration, declaration_nodes, NodeKind::Type)
+    header_nodes(
+        tree,
+        declaration,
+        declaration_nodes,
+        body_root,
+        NodeKind::Type,
+    )
 }
 
 fn header_nodes(
     tree: &nocter_syntax::SyntaxTree,
     declaration: NodeId,
     declaration_nodes: &HashSet<NodeId>,
+    body_root: Option<NodeId>,
     expected: NodeKind,
 ) -> Vec<NodeId> {
     let mut roots = Vec::new();
@@ -548,7 +555,10 @@ fn header_nodes(
         let Some(syntax) = tree.node(node) else {
             continue;
         };
-        if syntax.kind() == NodeKind::Block || declaration_nodes.contains(&node) {
+        if syntax.kind() == NodeKind::Block
+            || body_root == Some(node)
+            || declaration_nodes.contains(&node)
+        {
             continue;
         }
         if syntax.kind() == expected {

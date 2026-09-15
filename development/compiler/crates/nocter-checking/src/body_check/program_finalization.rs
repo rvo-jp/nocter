@@ -142,10 +142,12 @@ pub(super) fn finalize_materialized_program(
     };
     let checked_values = match crate::compile_time_values::build_checked_declaration_values(
         materialized.environment.graph(),
+        materialized.semantics.semantics().types(),
+        materialized.environment.structural_constants(),
         &compile_time_plans,
     ) {
         Ok(values) => values,
-        Err(error) => {
+        Err(crate::compile_time_values::CompileTimeValueCompletionError::Authored(error)) => {
             let authored_error = project_compile_time_value_failure(&materialized, error)
                 .map_err(|internal| BodyCheckFailure::new(internal.into(), None))?;
             let recovery = if retain_recovery {
@@ -158,13 +160,13 @@ pub(super) fn finalize_materialized_program(
                 recovery,
             ));
         }
+        Err(crate::compile_time_values::CompileTimeValueCompletionError::Integrity(error)) => {
+            return Err(BodyCheckFailure::new(
+                BodyCheckInternalError::DeclarationValues(error).into(),
+                None,
+            ));
+        }
     };
-    if &checked_values != materialized.environment.values() {
-        return Err(BodyCheckFailure::new(
-            BodyCheckInternalError::CompileTimeValueDisagreement.into(),
-            None,
-        ));
-    }
     let compile_time = Arc::new(crate::CompileTimeProgram::new(
         materialized.environment.graph().target(),
         Arc::new(checked_values),

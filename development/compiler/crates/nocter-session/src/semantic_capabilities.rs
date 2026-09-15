@@ -80,8 +80,8 @@ impl<'a> SemanticInterruptionView<'a> {
     }
 
     #[must_use]
-    pub fn declaration_values(self) -> &'a nocter_declarations::DeclarationValueTable {
-        self.recovery.prepared().declaration_values()
+    pub fn constant_values(self) -> &'a dyn nocter_declarations::ConstantValueLookup {
+        self.recovery.prepared().structural_constants()
     }
 
     #[must_use]

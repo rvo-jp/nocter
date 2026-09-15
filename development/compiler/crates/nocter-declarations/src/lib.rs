@@ -10,6 +10,7 @@ mod analysis_admission;
 mod arenas;
 mod callable;
 mod constant;
+mod constant_lookup;
 mod declaration;
 mod import;
 mod interface_capability;
@@ -20,8 +21,10 @@ mod program;
 mod requirement;
 mod standard;
 mod static_value;
+mod structural_constants;
 mod target;
 mod validate;
+mod value_shape;
 mod value_table;
 mod visibility;
 
@@ -32,9 +35,11 @@ pub use arenas::{
 pub use callable::{
     Body, BodyForm, BodyOwner, CallableDeclaration, CallableExecution, CallableKind, CallableOwner,
     CallableProvenance, CallableProvenanceContract, DuplicateCallableOrigin, LiteralShape,
-    Parameter, ParameterOwner, ParameterRole, ProvenanceAnnotation, ProvenanceOrigin,
+    Parameter, ParameterOwner, ParameterRole, ParameterValueTypeShape, ProvenanceAnnotation,
+    ProvenanceOrigin,
 };
 pub use constant::ConstantDeclaration;
+pub use constant_lookup::ConstantValueLookup;
 pub use declaration::{
     AssociatedTypeBinding, AssociatedTypeDeclaration, ConstructionDeclaration, DropDeclaration,
     FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, InterfaceApplication,
@@ -56,6 +61,7 @@ pub use requirement::{
 };
 pub use standard::{StandardDeclaration, StandardLibrary};
 pub use static_value::StaticDeclaration;
+pub use structural_constants::StructuralConstantTable;
 pub use target::PackageTarget;
 pub use validate::{
     DeclarationDomain, DeclarationRule, DeclarationValidationReport, DeclarationViolation,

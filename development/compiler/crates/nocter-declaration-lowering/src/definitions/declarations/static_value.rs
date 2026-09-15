@@ -6,31 +6,24 @@ use crate::{PreparedTypes, SurfaceDeclarationId};
 use super::super::{HeaderDefinitionError, allocation::AllocatedHeaders, projection, syntax};
 use super::{name, site, target};
 
-/// Freezes static metadata before the consuming program transition attaches evaluated values.
-pub(super) fn define_all(
+/// Freezes one static's metadata independently of initializer evaluation.
+pub(super) fn define(
     types: &mut PreparedTypes<'_>,
     allocated: &AllocatedHeaders,
+    declaration: SurfaceDeclarationId,
+    id: nocter_model::StaticId,
 ) -> Result<(), HeaderDefinitionError> {
-    let mut values = types
-        .static_values
-        .iter()
-        .map(|(id, prepared)| (*id, prepared.clone()))
-        .collect::<Vec<_>>();
-    values.sort_unstable_by_key(|(id, _)| *id);
-    for (id, prepared) in values {
-        let declaration = prepared.declaration;
-        let ty = static_type(types, declaration)?;
-        let definition = StaticDeclaration::new(
-            site(types, declaration)?,
-            name(types, declaration)?,
-            ty,
-            allocated.bodies[declaration.index()]
-                .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?,
-            target::gate(types, declaration),
-        );
-        let program = &mut types.namespaces.imports.generics.headers.reserved.program;
-        program.define_static_metadata(id, definition)?;
-    }
+    let ty = static_type(types, declaration)?;
+    let definition = StaticDeclaration::new(
+        site(types, declaration)?,
+        name(types, declaration)?,
+        ty,
+        allocated.bodies[declaration.index()]
+            .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?,
+        target::gate(types, declaration),
+    );
+    let program = &mut types.namespaces.imports.generics.headers.reserved.program;
+    program.define_static_metadata(id, definition)?;
     Ok(())
 }
 

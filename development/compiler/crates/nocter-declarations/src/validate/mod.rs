@@ -174,11 +174,11 @@ fn validate_compile_time_values(program: &DeclarationProgram) -> Result<(), Prog
     Ok(())
 }
 
-pub(crate) fn validate_values(
+pub(crate) fn validate_structural_constants(
     program: &DeclarationProgram,
-    values: &crate::DeclarationValueTable,
+    values: &crate::StructuralConstantTable,
 ) -> Result<(), ProgramIntegrityError> {
-    values::validate(program, values)
+    values::validate_structural(program, values)
 }
 
 pub(crate) fn validate_language_rules(

@@ -1,4 +1,4 @@
-//! Compile-time evaluation boundary for storage-independent constants and immutable statics.
+//! Restricted constant evaluation needed before structural type normalization.
 
 mod evaluator;
 

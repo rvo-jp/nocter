@@ -13,7 +13,7 @@ use nocter_source_index::DiagnosticOrigins;
 #[derive(Clone, Copy)]
 pub(super) struct BodyProgramFacts<'program> {
     graph: &'program DeclarationGraph,
-    constants: &'program nocter_model::Arena<nocter_model::ConstantId, nocter_model::ConstantValue>,
+    constants: &'program dyn nocter_declarations::ConstantValueLookup,
     drops: &'program DropTable,
     interface_implementations: &'program InterfaceImplementationTable,
     construction_surfaces: &'program ConstructionSurfaceTable,
@@ -123,7 +123,7 @@ impl<'program> BodyProgramFacts<'program> {
     ) -> Self {
         Self {
             graph: environment.graph(),
-            constants: environment.values().constants(),
+            constants: environment.structural_constants(),
             drops: environment.drops(),
             interface_implementations: environment.interface_implementations(),
             construction_surfaces: environment.construction_surfaces(),
@@ -152,9 +152,7 @@ impl<'program> BodyProgramFacts<'program> {
         self.graph
     }
 
-    pub(super) const fn constants(
-        self,
-    ) -> &'program nocter_model::Arena<nocter_model::ConstantId, nocter_model::ConstantValue> {
+    pub(super) const fn constants(self) -> &'program dyn nocter_declarations::ConstantValueLookup {
         self.constants
     }
 

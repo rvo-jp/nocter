@@ -40,7 +40,7 @@ struct BufReader<R> {
 
 construct BufReader<R> {
     func new(source: R): Self where R impl Reader {
-        return BufReader.with_capacity(move source, 8192)
+        return BufReader.with_capacity(move source, DEFAULT_BUFFER_CAPACITY)
     }
 
     func with_capacity(source: R, requested_capacity: usize): Self where R impl Reader {

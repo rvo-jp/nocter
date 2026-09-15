@@ -67,9 +67,11 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.
-- `ProgramEnvironment` carries the immutable declaration-value table selected with its graph.
-  Complete checking and every recovery capability read constant/static payloads through that table
-  rather than declaration records or independently supplied maps.
+- `ProgramEnvironment` carries the immutable structural-constant table selected with its graph.
+  Body type construction reads only that narrow capability. Finalization executes checked
+  initializer plans into the dense declaration-value table owned by `CompileTimeProgram`;
+  presentation consumes a shared read-only lookup contract rather than assuming both phases have
+  the same storage product.
 - Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.
@@ -161,6 +163,15 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   back into the other's internal state.
 - `CompileTimeProgram` retains the declaration graph's selected compilation target. Opening its
   executor therefore cannot pair plans and values with a caller-selected target profile.
+- Final declaration-value construction validates its dense constant/static arenas against the
+  exact declaration graph and final type store. A domain or shape mismatch becomes an internal
+  checking failure and cannot be projected as an authored initializer diagnostic.
+- The same boundary compares every early structural constant with its final checked-plan result.
+  Structural type construction and the published constant value therefore cannot drift even
+  though the bootstrap boundary necessarily evaluates that restricted subset twice.
+- Program preparation interns every effective parameter value type, including borrowed receiver
+  shapes, before sealing its reusable authority. Projection and body checking cannot make type
+  availability depend on whether a body happens to mention `self`.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.

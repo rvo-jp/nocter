@@ -3,8 +3,8 @@
 ## Responsibility
 
 Own the immutable, syntax-independent declaration graph and its namespaces, visibility, callable,
-requirement, standard-role, and target metadata. Own the separately indexed value authority that
-is paired only by an accepted or recovery aggregate, never embedded in graph/type metadata.
+requirement, standard-role, and target metadata. Define the sparse structural-constant and dense
+final-value products without evaluating either one.
 
 ## Contract
 
@@ -15,7 +15,8 @@ coordinates, or checking internals.
 ## Internal Responsibilities
 
 - declaration and member arenas
-- one identity-indexed declaration-value table separate from constant and static metadata
+- one sparse structural-constant table and one independently validated dense declaration-value
+  table, both separate from constant and static metadata
 - module, import, and prelude namespaces
 - callable execution, guarantees, provenance, constant, and requirement contracts
 - explicit block or expression body forms, with constant and static initializers represented by
@@ -27,19 +28,19 @@ coordinates, or checking internals.
 ## Invariants
 
 - Builders reserve and define every declaration identity exactly once before metadata freeze.
-  `PreparedDeclarationProgram` then owns the still-open value slots; it is a construction-only
-  capability and cannot cross into checking. Its consuming finish transition is the sole route to
-  an accepted or recovery aggregate with a complete value table.
-- Graph/type integrity and declaration-value integrity are validated independently. The public
-  builder publishes only an accepted aggregate containing both complete authorities.
+  `PreparedDeclarationProgram` owns a sparse structural-constant builder; it is a construction-only
+  capability and cannot cross into checking. Its consuming finish transition validates that table
+  and publishes checking admission without pretending ordinary initializers are already executed.
+- Graph/type integrity, structural-constant integrity, and final declaration-value integrity are
+  validated independently.
 - Namespace lookup consumes frozen tables rather than iterating declarations.
 - A declaration identity never contains a source range or rendered name.
 - Authored callable execution and guarantees are declaration data; consumers do not rediscover
   modifiers from syntax or result shapes.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.
 - `DeclarationProgram` contains graph/type metadata only. Declaration records never embed
-  evaluated constant or static payloads. Every accepted, rejected, and checking branch carries the
-  same immutable value table beside that program.
+  evaluated constant or static payloads. Accepted and recovery declaration branches carry only
+  structural constants; `CheckedProgram` later owns the dense final value table.
 - Every constant and immutable static owns exactly one expression-form body. Every callable,
   destruction, and test implementation owns a block-form body. Integrity validation proves both
   directions of each relationship before the graph can leave construction.

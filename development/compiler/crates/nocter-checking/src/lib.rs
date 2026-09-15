@@ -40,6 +40,7 @@ mod name_evidence;
 mod name_recovery;
 mod names;
 mod ownership;
+mod parameter_value_types;
 mod pattern_requirements;
 mod preparation;
 mod program_environment;

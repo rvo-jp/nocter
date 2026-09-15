@@ -1,6 +1,6 @@
-use nocter_model::{Arena, ArenaBuilder, ConstantId, ConstantValue, FrozenValue, StaticId};
+use nocter_model::{Arena, ConstantId, ConstantValue, FrozenValue, StaticId, TypeStore};
 
-use crate::DefinitionError;
+use crate::{DeclarationGraph, StructuralConstantTable};
 
 /// Evaluated values paired with declaration identities without becoming declaration metadata.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -10,16 +10,52 @@ pub struct DeclarationValueTable {
 }
 
 impl DeclarationValueTable {
-    /// Joins already complete dense constant and static authorities.
+    /// Validates and joins complete dense constant and static authorities.
     ///
-    /// This constructor cannot represent an unfilled declaration slot. Pairing identities and
-    /// validating declared types remains the declaration program's responsibility.
-    #[must_use]
-    pub const fn new(
+    /// This boundary rejects a missing, extra, or type-incompatible value before it can become an
+    /// observable semantic product.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact declaration-value domain or identity that disagrees with `graph`.
+    pub fn for_program(
+        graph: &DeclarationGraph,
+        types: &TypeStore,
+        structural: &StructuralConstantTable,
         constants: Arena<ConstantId, ConstantValue>,
         statics: Arena<StaticId, FrozenValue>,
-    ) -> Self {
-        Self { constants, statics }
+    ) -> Result<Self, DeclarationValueTableError> {
+        if constants.len() != graph.declarations().constants().len() {
+            return Err(DeclarationValueTableError::ConstantDomain);
+        }
+        if statics.len() != graph.declarations().statics().len() {
+            return Err(DeclarationValueTableError::StaticDomain);
+        }
+        for (id, declaration) in graph.declarations().constants().iter() {
+            let value = constants
+                .get(id)
+                .ok_or(DeclarationValueTableError::MissingConstant(id))?;
+            if !crate::value_shape::constant_matches(types, declaration.ty(), value) {
+                return Err(DeclarationValueTableError::InvalidConstant(id));
+            }
+        }
+        for (&id, structural_value) in structural.constants() {
+            let final_value = constants
+                .get(id)
+                .ok_or(DeclarationValueTableError::MissingConstant(id))?;
+            if final_value != structural_value {
+                return Err(DeclarationValueTableError::StructuralDisagreement(id));
+            }
+        }
+        for (id, declaration) in graph.declarations().statics().iter() {
+            let value = statics
+                .get(id)
+                .ok_or(DeclarationValueTableError::MissingStatic(id))?;
+            if !crate::value_shape::frozen_matches(types, declaration.ty(), value) {
+                return Err(DeclarationValueTableError::InvalidStatic(id));
+            }
+        }
+        Ok(Self { constants, statics })
     }
 
     #[must_use]
@@ -33,66 +69,15 @@ impl DeclarationValueTable {
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct DeclarationValueTableBuilder {
-    constants: ArenaBuilder<ConstantId, Option<ConstantValue>>,
-    statics: ArenaBuilder<StaticId, Option<FrozenValue>>,
-}
-
-impl DeclarationValueTableBuilder {
-    pub(crate) fn reserve_constant(&mut self) -> ConstantId {
-        self.constants.insert(None)
-    }
-
-    pub(crate) fn define_constant(
-        &mut self,
-        id: ConstantId,
-        value: ConstantValue,
-    ) -> Result<(), DefinitionError> {
-        let slot = self
-            .constants
-            .get_mut(id)
-            .ok_or(DefinitionError::UnknownId)?;
-        if slot.is_some() {
-            return Err(DefinitionError::AlreadyDefined);
-        }
-        *slot = Some(value);
-        Ok(())
-    }
-
-    pub(crate) fn reserve_static(&mut self) -> StaticId {
-        self.statics.insert(None)
-    }
-
-    pub(crate) fn define_static(
-        &mut self,
-        id: StaticId,
-        value: FrozenValue,
-    ) -> Result<(), DefinitionError> {
-        let slot = self.statics.get_mut(id).ok_or(DefinitionError::UnknownId)?;
-        if slot.is_some() {
-            return Err(DefinitionError::AlreadyDefined);
-        }
-        *slot = Some(value);
-        Ok(())
-    }
-
-    pub(crate) fn finish(self) -> Result<DeclarationValueTable, DeclarationValueTableError> {
-        Ok(DeclarationValueTable {
-            constants: self.constants.try_finish_with(|id, value| {
-                value.ok_or(DeclarationValueTableError::MissingConstant(id))
-            })?,
-            statics: self.statics.try_finish_with(|id, value| {
-                value.ok_or(DeclarationValueTableError::MissingStatic(id))
-            })?,
-        })
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationValueTableError {
+    ConstantDomain,
+    StaticDomain,
     MissingConstant(ConstantId),
     MissingStatic(StaticId),
+    InvalidConstant(ConstantId),
+    InvalidStatic(StaticId),
+    StructuralDisagreement(ConstantId),
 }
 
 impl std::fmt::Display for DeclarationValueTableError {

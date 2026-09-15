@@ -157,7 +157,7 @@ pub(super) fn hover_presentation(
 pub(super) fn evidence_presentation(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    values: &nocter_declarations::DeclarationValueTable,
+    values: &dyn nocter_declarations::ConstantValueLookup,
     body: Option<&nocter_checking::CheckedBody>,
     entity: SemanticEntity,
     spellings: &visible_spelling::VisibleSpellings,
@@ -197,7 +197,7 @@ fn checked_body(
 pub(super) struct Renderer<'a> {
     graph: &'a DeclarationGraph,
     types: &'a TypeStore,
-    values: Option<&'a nocter_declarations::DeclarationValueTable>,
+    values: Option<&'a dyn nocter_declarations::ConstantValueLookup>,
     output: String,
     generics: Option<&'a GenericArguments>,
     record_parameters: bool,
@@ -220,7 +220,7 @@ impl<'a> Renderer<'a> {
     fn new(
         graph: &'a DeclarationGraph,
         types: &'a TypeStore,
-        values: Option<&'a nocter_declarations::DeclarationValueTable>,
+        values: Option<&'a dyn nocter_declarations::ConstantValueLookup>,
         spellings: &'a visible_spelling::VisibleSpellings,
     ) -> Self {
         Self {
@@ -478,7 +478,7 @@ impl<'a> Renderer<'a> {
 
     fn constant(&mut self, id: nocter_model::ConstantId) -> Option<()> {
         let declaration = self.graph.declarations().constants().get(id)?;
-        let value = self.values?.constants().get(id)?;
+        let value = self.values?.constant(id)?;
         self.visibility(declaration.site())?;
         self.keyword(Keyword::Const);
         self.output.push_str(self.symbol(declaration.name())?);

@@ -1,9 +1,10 @@
 use std::fmt;
 
 use nocter_model::{
-    ArgumentPackType, BodyId, CallableCapability, CallableId, CompilationTarget, ConstantId,
-    ConstructionId, DeclarationSiteId, DropId, GenericParameterId, InstanceId, InterfaceId,
-    ModuleId, ParameterId, RequirementId, StaticId, Symbol, TestId, TypeId, VariantId,
+    ArgumentPackType, BodyId, BorrowCapability, CallableCapability, CallableId, CompilationTarget,
+    ConstantId, ConstructionId, DeclarationSiteId, DropId, GenericParameterId, InstanceId,
+    InterfaceId, ModuleId, ParameterId, RequirementId, StaticId, Symbol, TestId, TypeId, TypeKind,
+    TypeStore, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -399,6 +400,58 @@ impl Parameter {
     pub const fn role(self) -> ParameterRole {
         self.role
     }
+
+    /// Returns the semantic value type observed inside the parameter's body.
+    ///
+    /// Receiver declarations store their owner type and capability separately. This projection is
+    /// the sole read-only boundary that turns that contract into the borrow type used by body and
+    /// compile-time consumers.
+    #[must_use]
+    pub fn value_type(self, types: &TypeStore) -> Option<TypeId> {
+        match self.value_type_contract() {
+            ParameterValueTypeShape::Declared(ty) => types.get(ty).map(|_| ty),
+            ParameterValueTypeShape::Borrowed {
+                capability,
+                referent,
+            } => types.identity(&TypeKind::Borrow {
+                capability,
+                referent,
+            }),
+        }
+    }
+
+    /// Returns the structural contract for the value observed inside the parameter's body.
+    #[must_use]
+    pub fn value_type_contract(self) -> ParameterValueTypeShape {
+        match self.role {
+            ParameterRole::Ordinary { .. }
+            | ParameterRole::ArgumentPack { .. }
+            | ParameterRole::Receiver(CallableCapability::Owned) => {
+                ParameterValueTypeShape::Declared(self.ty())
+            }
+            ParameterRole::Receiver(CallableCapability::Readonly) => {
+                ParameterValueTypeShape::Borrowed {
+                    capability: BorrowCapability::Readonly,
+                    referent: self.ty(),
+                }
+            }
+            ParameterRole::Receiver(CallableCapability::ReadWrite) => {
+                ParameterValueTypeShape::Borrowed {
+                    capability: BorrowCapability::ReadWrite,
+                    referent: self.ty(),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParameterValueTypeShape {
+    Declared(TypeId),
+    Borrowed {
+        capability: BorrowCapability,
+        referent: TypeId,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

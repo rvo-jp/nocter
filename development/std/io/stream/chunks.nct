@@ -19,6 +19,8 @@ const func normalized_chunk_size(requested: usize): usize {
     return requested
 }
 
+const DEFAULT_CHUNK_SIZE: usize = normalized_chunk_size(8192)
+
 func initialized_chunk(capacity: usize): Vec<u8> {
     var storage: Vec<u8> = Vec.with_capacity(capacity)
     while storage.len() < capacity {
@@ -29,7 +31,7 @@ func initialized_chunk(capacity: usize): Vec<u8> {
 
 construct ByteChunks<R> {
     func new(source: R): Self where R impl Reader {
-        return ByteChunks.with_chunk_size(move source, 8192)
+        return ByteChunks.with_chunk_size(move source, DEFAULT_CHUNK_SIZE)
     }
 
     func with_chunk_size(source: R, requested_chunk_size: usize): Self where R impl Reader {

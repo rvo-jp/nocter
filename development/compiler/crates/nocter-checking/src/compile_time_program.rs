@@ -6,10 +6,11 @@ use crate::CompileTimePlanTable;
 
 /// Complete compile-time authority published by one accepted checked program.
 ///
-/// Declaration construction produces values before bodies can be checked. Program finalization
-/// then closes callable specializations and joins both immutable strata here. Keeping the strata
-/// explicit prevents either producer from re-entering the other while giving every downstream
-/// consumer one authority for compile-time facts.
+/// Declaration construction produces only the sparse structural constants required to construct
+/// types. Program finalization executes checked initializer plans, closes callable
+/// specializations, and joins the final immutable products here. Keeping those strata explicit
+/// prevents either producer from re-entering the other while giving every downstream consumer one
+/// authority for compile-time facts.
 #[derive(Clone, Debug)]
 pub struct CompileTimeProgram {
     target: nocter_model::CompilationTarget,

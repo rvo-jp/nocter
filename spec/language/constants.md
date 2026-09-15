@@ -14,10 +14,10 @@ exactly the declared type. A constant has no address, ownership state, destructo
 context, or result provenance. Referring to it produces its value; it does not create a place that
 can be borrowed, assigned, moved from, or dropped.
 
-The supported constant types are `bool`, the built-in signed and unsigned integer types, and
-readonly `&str`. A constant `&str` refers to static text embedded in the program. Owned values,
-nominal values, pointers, mutable borrows, slices, optionals, fallible values, callables, and
-generic-dependent values are not constant types.
+The supported constant types are `bool`, `char`, the built-in signed and unsigned integer and
+floating-point types, and readonly `&str`. A constant `&str` refers to static text embedded in the
+program. Owned values, nominal values, pointers, mutable borrows, slices, optionals, fallible
+values, callables, and generic-dependent values are not constant types.
 
 Visibility and target directives apply in the same way as for other targetable declarations.
 Every constant name uses ASCII `UPPER_SNAKE_CASE`: it begins with `A` through `Z`, contains only
@@ -57,18 +57,20 @@ An initialized public constant may remain inline when the value itself is the cl
 
 A constant expression may contain:
 
-- boolean, integer, and non-interpolated string literals;
+- boolean, integer, floating-point, character, and non-interpolated string literals;
 - references to constants, including forward and module-qualified references;
 - grouping;
 - `!` and integer negation;
 - integer arithmetic, remainder, shifts, equality, and ordering;
 - boolean `&&` and `||`, with ordinary short-circuit behavior;
-- an integer `as` conversion when the evaluated value is representable by the destination type.
+- a lossless numeric `as` conversion;
+- direct calls to `const func` and readonly or owned `const method` declarations.
 
-Function and method calls, construction, interpolation, allocation, mutation, borrowing, moves,
-control expressions, outcome propagation, user-defined operators, and runtime values are not
-constant expressions. Constant dependencies form a directed graph. A dependency cycle is an
-error even when source order would otherwise permit one of its names to resolve.
+Construction, interpolation, allocation, mutation through aliases, runtime storage, dynamic
+dispatch, asynchronous work, blocking operations, outcome propagation, destruction, and calls to
+runtime-only declarations are not constant expressions. Constant dependencies form a directed
+graph. A dependency cycle is an error even when source order would otherwise permit one of its
+names to resolve.
 
 Integer overflow, division by zero, an invalid shift count, and a conversion whose value is not
 representable are compile errors. Left-shift bit loss follows the fixed-width shift rule and is not
@@ -77,9 +79,40 @@ means an unevaluated right operand does not cause an arithmetic failure, but bot
 still be well-typed constant expressions and every authored dependency still participates in cycle
 detection.
 
+## Compile-Time Callables
+
+`const` before `func` or `method` promises that the ordinary callable implementation is also
+available to compile-time evaluation:
+
+```nct
+const func increment(value: i32): i32 {
+    return value + 1
+}
+
+const ANSWER: i32 = increment(41)
+```
+
+This modifier does not create a second function or make the callable compile-time-only. Runtime
+calls use the same declaration and body. The compiler first performs ordinary name resolution,
+type checking, generic specialization, operator selection, ownership checking, and dispatch
+selection. Compile-time evaluation consumes those completed decisions and never resolves the
+source again.
+
+A `const` callable body may use immutable scalar, static-text, tuple, and fixed-array values;
+parameters and immutable locals; primitive arithmetic, comparisons, and lossless conversions;
+blocks, conditionals, short-circuit logic, and returns; and direct calls to other compatible
+`const` callables. A generic `const` callable is admitted when a call supplies one closed supported
+specialization. Recursive calls are permitted within deterministic evaluator work and call-depth
+limits.
+
+The modifier is a promise, not an inference from the current implementation. A body containing an
+unsupported operation rejects the declaration even when no initializer currently calls it. A
+runtime-only callable cannot acquire compile-time capability through assignment or interface
+adaptation; the capability may only be forgotten.
+
 ## Fixed-Array Lengths
 
-The length in `[T; expression]` is a constant expression with expected type `usize`:
+The length in `[T; expression]` is a structural constant expression with expected type `usize`:
 
 ```nct
 const LANE_COUNT: usize = 4
@@ -107,6 +140,12 @@ failure rules while retaining their own lexical name scopes. Once a fixed-array 
 every later use observes the same normalized fixed-array type and never reinterprets the expression
 in another scope.
 
+Structural constant expressions are the call-free subset needed before declaration types are
+complete. They may use literals, scalar operators, lossless conversions, and references to other
+structural constants. A constant whose initializer calls a `const` callable remains valid as an
+ordinary value, but it cannot determine a fixed-array length. This boundary prevents type
+construction from invoking body checking before declaration types exist.
+
 ## Immutable Static Data
 
 `static` declares one immutable, addressable value whose initialized representation is embedded in
@@ -132,6 +171,7 @@ The static-initializer domain contains:
 - boolean, integer, character, and non-interpolated string literals;
 - references to `const` values;
 - the pure unary, binary, and conversion constant expressions defined for `const`;
+- direct calls to compatible `const` functions and methods;
 - tuple literals whose elements recursively belong to this domain;
 - fixed-array literals whose elements recursively belong to this domain.
 
@@ -162,6 +202,5 @@ storage from `const` values, and never prints an initializer's potentially large
 
 ## Future Direction
 
-This chapter does not define constant functions, associated or interface constants, constant
-generic parameters, compile-time construction of owned `String` and `Vec` values, or mutable
-globals.
+This chapter does not define associated or interface constants, constant generic parameters,
+compile-time construction of owned `String` and `Vec` values, or mutable globals.

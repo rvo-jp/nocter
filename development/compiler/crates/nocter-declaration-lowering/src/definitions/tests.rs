@@ -239,8 +239,7 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let program = lowered.program();
     let declarations = program.declarations();
 
-    assert_header_constants(program, lowered.declaration_values());
-    assert_header_statics(lowered.declaration_values());
+    assert_header_constants(program, lowered.structural_constants());
 
     assert_eq!(declarations.nominal_types().len(), 2);
     assert_eq!(declarations.fields().len(), 1);
@@ -351,12 +350,17 @@ fn lower_full_header_program() -> (SourceMap, crate::LoweredDeclarations) {
 
 fn assert_header_constants(
     program: &nocter_declarations::DeclarationProgram,
-    declaration_values: &nocter_declarations::DeclarationValueTable,
+    structural_constants: &nocter_declarations::StructuralConstantTable,
 ) {
-    let values = declaration_values
+    let mut values = structural_constants
         .constants()
         .iter()
-        .map(|(_, value)| value.clone())
+        .map(|(id, value)| (*id, value.clone()))
+        .collect::<Vec<_>>();
+    values.sort_unstable_by_key(|(id, _)| *id);
+    let values = values
+        .into_iter()
+        .map(|(_, value)| value)
         .collect::<Vec<_>>();
     assert_eq!(
         values,
@@ -370,7 +374,6 @@ fn assert_header_constants(
             nocter_model::ConstantValue::Text("nocter".into()),
             nocter_model::ConstantValue::Character(0x1F600),
             nocter_model::ConstantValue::Float64(0x3fd3_3333_3333_3334),
-            nocter_model::ConstantValue::Float64(0x3ff8_0000_0000_0000),
         ]
     );
     assert!(
@@ -378,43 +381,6 @@ fn assert_header_constants(
             .types()
             .iter()
             .any(|(_, ty)| matches!(ty, nocter_model::TypeKind::FixedArray { length: 42, .. }))
-    );
-}
-
-fn assert_header_statics(declaration_values: &nocter_declarations::DeclarationValueTable) {
-    let values = declaration_values
-        .statics()
-        .iter()
-        .map(|(_, value)| value.clone())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        values,
-        [
-            nocter_model::FrozenValue::FixedArray(Box::new([
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(65)),
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(90)),
-            ])),
-            nocter_model::FrozenValue::FixedArray(Box::new([
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Text(
-                    "first".into(),
-                )),
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Text(
-                    "second".into(),
-                )),
-            ])),
-            nocter_model::FrozenValue::FixedArray(Box::new([
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Float32(
-                    0x3f00_0000,
-                )),
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Float32(
-                    0x3fc0_0000,
-                )),
-            ])),
-            nocter_model::FrozenValue::Tuple(Box::new([
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(7)),
-                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Bool(true)),
-            ])),
-        ]
     );
 }
 
@@ -593,47 +559,23 @@ fn rejects_argument_packs_outside_the_single_final_callable_position() {
 }
 
 #[test]
-fn rejects_invalid_compile_time_value_contracts_without_runtime_fallback() {
+fn rejects_invalid_values_when_a_header_type_requires_them() {
     let cases = [
         (
-            "const INVALID: str = \"value\"\n",
-            DefinitionRule::InvalidCompileTimeValueType,
-        ),
-        (
-            "func make(): i32 { return 1 }\nconst INVALID: i32 = make()\n",
+            "func make(): usize { return 1 }\ntype Values = [i32; make()]\n",
             DefinitionRule::NonConstantExpression,
         ),
         (
-            "const INVALID: bool = 1\n",
+            "const INVALID: bool = 1\ntype Values = [i32; INVALID]\n",
             DefinitionRule::CompileTimeTypeMismatch,
         ),
         (
-            "const FIRST: i32 = SECOND\nconst SECOND: i32 = FIRST\n",
+            "const FIRST: usize = SECOND\nconst SECOND: usize = FIRST\ntype Values = [i32; FIRST]\n",
             DefinitionRule::CompileTimeCycle,
         ),
         (
-            "const INVALID: bool = false && 1\n",
-            DefinitionRule::CompileTimeTypeMismatch,
-        ),
-        (
-            "const INVALID: bool = false && INVALID\n",
-            DefinitionRule::CompileTimeCycle,
-        ),
-        (
-            "const INVALID: u8 = 255 + 1\n",
+            "const INVALID: usize = 0 - 1\ntype Values = [i32; INVALID]\n",
             DefinitionRule::CompileTimeArithmeticFailure,
-        ),
-        (
-            "static INVALID: &+str = \"value\"\n",
-            DefinitionRule::InvalidCompileTimeValueType,
-        ),
-        (
-            "static INVALID: [i32; 2] = [1]\n",
-            DefinitionRule::CompileTimeTypeMismatch,
-        ),
-        (
-            "func make(): i32 { return 1 }\nstatic INVALID: [i32; 1] = [make()]\n",
-            DefinitionRule::NonConstantExpression,
         ),
     ];
     for (source, rule) in cases {

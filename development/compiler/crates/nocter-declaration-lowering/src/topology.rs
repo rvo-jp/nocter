@@ -136,10 +136,10 @@ impl LoweredDeclarations {
         &self.source_index
     }
 
-    /// Returns values from the accepted declaration aggregate rather than from graph metadata.
+    /// Returns scalar constants admitted for later type-shape construction.
     #[must_use]
-    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
-        self.reusable.program.values()
+    pub const fn structural_constants(&self) -> &nocter_declarations::StructuralConstantTable {
+        self.reusable.program.structural_constants()
     }
 
     #[must_use]
@@ -199,8 +199,8 @@ impl ReusableDeclarations {
     }
 
     #[must_use]
-    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
-        self.program.values()
+    pub const fn structural_constants(&self) -> &nocter_declarations::StructuralConstantTable {
+        self.program.structural_constants()
     }
 
     /// Opens one owned checking branch without rebuilding declaration decisions.

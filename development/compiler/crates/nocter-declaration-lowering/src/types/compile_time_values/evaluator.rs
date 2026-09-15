@@ -3,14 +3,13 @@ use std::collections::{HashMap, HashSet};
 use nocter_constant_evaluation::{
     ConstantEvaluationError, ConstantEvaluationRule, ConstantExpressionPlan, ConstantPlanError,
     ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType,
-    DependencyComputation, DependencyQuery, DependencyQueryError, FloatFormat, FrozenType,
-    evaluate_expression_plan, evaluate_frozen_expression_plan, plan_expression,
-    plan_frozen_expression,
+    DependencyComputation, DependencyQuery, DependencyQueryError, FloatFormat,
+    evaluate_expression_plan, plan_expression,
 };
 use nocter_declarations::ExportedEntity;
 use nocter_model::{
     BorrowCapability, BuiltinType, CompilationTarget, ConstantExpressionId, ConstantId,
-    ConstantValue, FrozenValue, ModuleId, StaticId,
+    ConstantValue, ModuleId,
 };
 use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
@@ -25,19 +24,10 @@ use crate::{
     SurfaceDeclarationKind,
 };
 
-use super::super::{
-    BoundTypeId, BoundTypeKind, PreparedConstantValue, PreparedStaticValue, PreparedTypeBindings,
-};
+use super::super::{BoundTypeId, BoundTypeKind, PreparedStructuralConstant, PreparedTypeBindings};
 
 #[derive(Clone, Copy)]
 struct ConstantSource {
-    declaration: SurfaceDeclarationId,
-    initializer: NodeId,
-    ty: BoundTypeId,
-}
-
-#[derive(Clone, Copy)]
-struct StaticSource {
     declaration: SurfaceDeclarationId,
     initializer: NodeId,
     ty: BoundTypeId,
@@ -51,7 +41,7 @@ struct HeaderResolver<'a, 'syntax> {
     reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
 }
 
-/// Plans and evaluates every header const and static before structural type normalization.
+/// Plans and evaluates the scalar constants available to structural type normalization.
 ///
 /// The shared constant-evaluation crate owns expression typing, arithmetic, short-circuiting, and
 /// dependency cycles. This adapter owns only declaration namespaces, bound header types, and
@@ -73,7 +63,6 @@ pub fn evaluate(
         .program
         .target();
     let sources = collect_sources(&bindings)?;
-    let static_sources = collect_static_sources(&bindings)?;
     let source_ids = bindings
         .namespaces
         .imports
@@ -90,41 +79,23 @@ pub fn evaluate(
             )
         })
         .collect::<HashMap<_, _>>();
-    let mut resolver = HeaderResolver {
-        bindings: &bindings,
-        sources: &sources,
-        source_ids: &source_ids,
-        references: HashMap::new(),
-        reference_projections: HashMap::new(),
-    };
+    let evaluated = evaluate_header_values(target, &bindings, &source_ids, &sources)?;
 
-    let evaluated = evaluate_header_values(
-        target,
-        &bindings,
-        &source_ids,
-        &sources,
-        &static_sources,
-        &mut resolver,
-    )?;
-
-    let constant_values = evaluated
+    let structural_constants = evaluated
         .constants
         .into_iter()
         .map(|(id, value)| {
             (
                 id,
-                PreparedConstantValue {
+                PreparedStructuralConstant {
                     declaration: sources[&id].declaration,
                     value,
                 },
             )
         })
         .collect();
-    let projections = std::mem::take(&mut resolver.reference_projections);
-    drop(resolver);
-    project_references(&mut bindings, projections);
-    bindings.constant_values = constant_values;
-    bindings.static_values = evaluated.statics;
+    project_references(&mut bindings, evaluated.reference_projections);
+    bindings.structural_constants = structural_constants;
     bindings.array_lengths = evaluated.array_lengths;
     Ok(bindings)
 }
@@ -133,59 +104,54 @@ pub fn evaluate(
 enum HeaderValueKey {
     Constant(ConstantId),
     ArrayLength(ConstantExpressionId),
-    Static(StaticId),
 }
 
 #[derive(Clone, Debug)]
 enum HeaderValue {
     Constant(ConstantValue),
     ArrayLength(u64),
-    Static(FrozenValue),
 }
 
 struct EvaluatedHeaderValues {
     constants: HashMap<ConstantId, ConstantValue>,
     array_lengths: HashMap<ConstantExpressionId, u64>,
-    statics: HashMap<StaticId, PreparedStaticValue>,
+    reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
 }
 
-struct HeaderValueComputation<'input, 'syntax, 'resolver> {
-    target: CompilationTarget,
-    bindings: &'input PreparedTypeBindings<'syntax>,
-    source_ids: &'input HashMap<SourceId, crate::SurfaceSourceId>,
+struct HeaderValueComputation {
     constant_plans: HashMap<ConstantId, ConstantExpressionPlan>,
     array_length_plans: HashMap<ConstantExpressionId, ConstantExpressionPlan>,
-    static_sources: &'input HashMap<StaticId, StaticSource>,
-    resolver: &'resolver mut HeaderResolver<'input, 'syntax>,
 }
 
-fn evaluate_header_values<'input, 'syntax>(
+fn evaluate_header_values(
     target: CompilationTarget,
-    bindings: &'input PreparedTypeBindings<'syntax>,
-    source_ids: &'input HashMap<SourceId, crate::SurfaceSourceId>,
+    bindings: &PreparedTypeBindings<'_>,
+    source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
     constant_sources: &HashMap<ConstantId, ConstantSource>,
-    static_sources: &'input HashMap<StaticId, StaticSource>,
-    resolver: &mut HeaderResolver<'input, 'syntax>,
 ) -> Result<EvaluatedHeaderValues, HeaderDefinitionError> {
     let mut constant_plans = HashMap::new();
+    let mut reference_projections = HashMap::new();
     let mut constant_ids = constant_sources.keys().copied().collect::<Vec<_>>();
     constant_ids.sort_unstable();
     for id in &constant_ids {
         let source = constant_sources[id];
-        let expected = resolver
-            .scalar_type(source.ty, &mut HashSet::new())
-            .ok_or_else(|| {
-                rule_at(
-                    DefinitionRule::InvalidCompileTimeValueType,
-                    SyntaxOrigin::Node(source.initializer),
-                )
-            })?;
+        let mut resolver = HeaderResolver::new(bindings, constant_sources, source_ids);
+        let Some(expected) = resolver.scalar_type(source.ty, &mut HashSet::new()) else {
+            continue;
+        };
         let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
+        if contains_unbound_type(tree, source.initializer, &bindings.roots) {
+            continue;
+        }
         let syntax = nocter_syntax::BoundSyntax::new(file, tree)
             .ok_or_else(|| inconsistent_node(source.initializer))?;
-        let plan = plan_expression(target, syntax, source.initializer, expected, resolver)
-            .map_err(plan_error)?;
-        constant_plans.insert(*id, plan);
+        match plan_expression(target, syntax, source.initializer, expected, &mut resolver) {
+            Ok(plan) => {
+                constant_plans.insert(*id, plan);
+            }
+            Err(error) if optional_plan_failure(&error) => {}
+            Err(error) => return Err(plan_error(error)),
+        }
     }
 
     let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
@@ -197,51 +163,53 @@ fn evaluate_header_values<'input, 'syntax>(
         let (file, tree) = syntax_input(bindings, source_ids, expression)?;
         let syntax = nocter_syntax::BoundSyntax::new(file, tree)
             .ok_or_else(|| inconsistent_node(expression))?;
-        let plan =
-            plan_expression(target, syntax, expression, usize_ty, resolver).map_err(plan_error)?;
+        let mut resolver = HeaderResolver::new(bindings, constant_sources, source_ids);
+        let plan = plan_expression(target, syntax, expression, usize_ty, &mut resolver)
+            .map_err(plan_error)?;
+        merge_reference_projections(&mut reference_projections, resolver.reference_projections)?;
         array_length_plans.insert(id, plan);
     }
 
-    let mut static_ids = static_sources.keys().copied().collect::<Vec<_>>();
-    static_ids.sort_unstable();
-
     let mut computation = HeaderValueComputation {
-        target,
-        bindings,
-        source_ids,
         constant_plans,
         array_length_plans,
-        static_sources,
-        resolver,
     };
     let mut query = DependencyQuery::default();
-    // Resolve aggregate roots first so correctness cannot depend on an eager constants-first pass.
-    // Static type construction requests array lengths, and length plans request constants through
-    // this same authority.
-    for key in static_ids
+    // Resolve array lengths first so correctness cannot depend on an eager constants-first pass.
+    // Length plans request constants through this same authority.
+    for key in array_length_ids
         .iter()
         .copied()
-        .map(HeaderValueKey::Static)
-        .chain(
-            array_length_ids
-                .iter()
-                .copied()
-                .map(HeaderValueKey::ArrayLength),
-        )
-        .chain(constant_ids.iter().copied().map(HeaderValueKey::Constant))
+        .map(HeaderValueKey::ArrayLength)
     {
         if let Err(error) = query.resolve(&mut computation, key) {
             return Err(computation.query_error(key, error));
         }
     }
 
+    // Structural eligibility is intentionally best-effort for ordinary constant declarations.
+    // Their checked initializer plans remain the final semantic authority. A failure here only
+    // becomes a declaration error when an actual header array length demands that constant.
+    for id in &constant_ids {
+        if !computation.constant_plans.contains_key(id) {
+            continue;
+        }
+        let key = HeaderValueKey::Constant(*id);
+        if let Err(error) = query.resolve(&mut computation, key) {
+            let error = computation.query_error(key, error);
+            if !matches!(error, HeaderDefinitionError::Rule(_)) {
+                return Err(error);
+            }
+        }
+    }
+
     let constants = constant_ids
         .into_iter()
-        .map(|id| match query.completed(&HeaderValueKey::Constant(id)) {
-            Some(HeaderValue::Constant(value)) => Ok((id, value.clone())),
-            _ => Err(inconsistent_node(constant_sources[&id].initializer)),
+        .filter_map(|id| match query.completed(&HeaderValueKey::Constant(id)) {
+            Some(HeaderValue::Constant(value)) => Some((id, value.clone())),
+            Some(HeaderValue::ArrayLength(_)) | None => None,
         })
-        .collect::<Result<HashMap<_, _>, _>>()?;
+        .collect::<HashMap<_, _>>();
     let array_lengths = array_length_ids
         .into_iter()
         .map(
@@ -256,30 +224,17 @@ fn evaluate_header_values<'input, 'syntax>(
             },
         )
         .collect::<Result<HashMap<_, _>, _>>()?;
-    let statics = static_ids
-        .into_iter()
-        .map(|id| match query.completed(&HeaderValueKey::Static(id)) {
-            Some(HeaderValue::Static(value)) => Ok((
-                id,
-                PreparedStaticValue {
-                    declaration: static_sources[&id].declaration,
-                    value: value.clone(),
-                },
-            )),
-            _ => Err(inconsistent_node(static_sources[&id].initializer)),
-        })
-        .collect::<Result<HashMap<_, _>, _>>()?;
     Ok(EvaluatedHeaderValues {
         constants,
         array_lengths,
-        statics,
+        reference_projections,
     })
 }
 
 type HeaderQueryError = DependencyQueryError<HeaderValueKey, HeaderDefinitionError>;
 
 impl DependencyComputation<HeaderValueKey, HeaderValue, HeaderDefinitionError>
-    for HeaderValueComputation<'_, '_, '_>
+    for HeaderValueComputation
 {
     fn compute(
         &mut self,
@@ -289,12 +244,11 @@ impl DependencyComputation<HeaderValueKey, HeaderValue, HeaderDefinitionError>
         match key {
             HeaderValueKey::Constant(id) => self.constant(query, id),
             HeaderValueKey::ArrayLength(id) => self.array_length(query, id),
-            HeaderValueKey::Static(id) => self.static_value(query, id),
         }
     }
 }
 
-impl HeaderValueComputation<'_, '_, '_> {
+impl HeaderValueComputation {
     fn constant(
         &mut self,
         query: &mut DependencyQuery<HeaderValueKey, HeaderValue>,
@@ -351,50 +305,18 @@ impl HeaderValueComputation<'_, '_, '_> {
         Ok(HeaderValue::ArrayLength(length))
     }
 
-    fn static_value(
-        &mut self,
-        query: &mut DependencyQuery<HeaderValueKey, HeaderValue>,
-        id: StaticId,
-    ) -> Result<HeaderValue, HeaderQueryError> {
-        let source = self
-            .static_sources
-            .get(&id)
-            .copied()
-            .expect("queried static identity must retain its bound source");
-        let origin = SyntaxOrigin::Node(source.initializer);
-        let expected = self.frozen_type(query, source.ty, &mut HashSet::new(), origin)?;
-        let (file, tree) = syntax_input(self.bindings, self.source_ids, source.initializer)
-            .map_err(DependencyQueryError::computation)?;
-        let syntax = nocter_syntax::BoundSyntax::new(file, tree).ok_or_else(|| {
-            DependencyQueryError::computation(inconsistent_node(source.initializer))
-        })?;
-        let plan = plan_frozen_expression(
-            self.target,
-            syntax,
-            source.initializer,
-            &expected,
-            self.resolver,
-        )
-        .map_err(plan_error)
-        .map_err(DependencyQueryError::computation)?;
-        self.resolve_constant_dependencies(query, &plan.dependencies())?;
-        let value = evaluate_frozen_expression_plan(&plan, &mut |dependency| match query
-            .completed(&HeaderValueKey::Constant(dependency))
-        {
-            Some(HeaderValue::Constant(value)) => Some(value.clone()),
-            _ => None,
-        })
-        .map_err(evaluation_error)
-        .map_err(DependencyQueryError::computation)?;
-        Ok(HeaderValue::Static(value))
-    }
-
     fn resolve_constant_dependencies(
         &mut self,
         query: &mut DependencyQuery<HeaderValueKey, HeaderValue>,
         dependencies: &[(ConstantId, SyntaxOrigin)],
     ) -> Result<(), HeaderQueryError> {
         for &(dependency, origin) in dependencies {
+            if !self.constant_plans.contains_key(&dependency) {
+                return Err(DependencyQueryError::computation(rule_at(
+                    DefinitionRule::NonConstantExpression,
+                    origin,
+                )));
+            }
             let value =
                 self.resolve_dependency(query, HeaderValueKey::Constant(dependency), origin)?;
             if !matches!(value.as_ref(), HeaderValue::Constant(_)) {
@@ -421,85 +343,6 @@ impl HeaderValueComputation<'_, '_, '_> {
         }
     }
 
-    fn frozen_type(
-        &mut self,
-        query: &mut DependencyQuery<HeaderValueKey, HeaderValue>,
-        ty: BoundTypeId,
-        active_aliases: &mut HashSet<nocter_model::TypeAliasId>,
-        origin: SyntaxOrigin,
-    ) -> Result<FrozenType, HeaderQueryError> {
-        let kind = self
-            .bindings
-            .kinds
-            .get(ty.index())
-            .cloned()
-            .ok_or_else(|| DependencyQueryError::computation(inconsistent_origin(origin)))?;
-        match kind {
-            BoundTypeKind::Tuple(elements) => elements
-                .iter()
-                .map(|element| self.frozen_type(query, *element, active_aliases, origin))
-                .collect::<Result<Vec<_>, _>>()
-                .map(|elements| FrozenType::Tuple(elements.into_boxed_slice())),
-            BoundTypeKind::FixedArray {
-                element,
-                length: length_node,
-            } => {
-                let element = self.frozen_type(query, element, active_aliases, origin)?;
-                let id = self
-                    .bindings
-                    .array_expression_ids
-                    .get(&length_node)
-                    .copied()
-                    .ok_or_else(|| {
-                        DependencyQueryError::computation(inconsistent_node(length_node))
-                    })?;
-                let value = self.resolve_dependency(
-                    query,
-                    HeaderValueKey::ArrayLength(id),
-                    SyntaxOrigin::Node(length_node),
-                )?;
-                let HeaderValue::ArrayLength(length) = value.as_ref() else {
-                    return Err(DependencyQueryError::computation(inconsistent_node(
-                        length_node,
-                    )));
-                };
-                let length = usize::try_from(*length).map_err(|_| {
-                    DependencyQueryError::computation(rule_at(
-                        DefinitionRule::CompileTimeArithmeticFailure,
-                        SyntaxOrigin::Node(length_node),
-                    ))
-                })?;
-                Ok(FrozenType::FixedArray {
-                    element: Box::new(element),
-                    length,
-                })
-            }
-            BoundTypeKind::Alias {
-                definition,
-                arguments,
-            } if arguments.is_empty() && active_aliases.insert(definition) => {
-                let result = match self.bindings.alias_targets.get(&definition).copied() {
-                    Some(target) => self.frozen_type(query, target, active_aliases, origin),
-                    None => Err(DependencyQueryError::computation(inconsistent_origin(
-                        origin,
-                    ))),
-                };
-                active_aliases.remove(&definition);
-                result
-            }
-            _ => self
-                .resolver
-                .scalar_type(ty, active_aliases)
-                .map(FrozenType::Scalar)
-                .ok_or_else(|| {
-                    DependencyQueryError::computation(rule_at(
-                        DefinitionRule::InvalidCompileTimeValueType,
-                        origin,
-                    ))
-                }),
-        }
-    }
-
     fn query_error(&self, key: HeaderValueKey, error: HeaderQueryError) -> HeaderDefinitionError {
         match error {
             DependencyQueryError::Computation(error) => error,
@@ -521,71 +364,8 @@ impl HeaderValueComputation<'_, '_, '_> {
                 .array_length_plans
                 .get(&id)
                 .map(ConstantExpressionPlan::origin),
-            HeaderValueKey::Static(id) => self
-                .static_sources
-                .get(&id)
-                .map(|source| SyntaxOrigin::Node(source.initializer)),
         }
     }
-}
-
-fn collect_static_sources(
-    bindings: &PreparedTypeBindings<'_>,
-) -> Result<HashMap<StaticId, StaticSource>, HeaderDefinitionError> {
-    let reserved = &bindings.namespaces.imports.generics.headers.reserved;
-    let mut result = HashMap::new();
-    for (index, entity) in reserved.entities().iter().copied().enumerate() {
-        let Some(ReservedEntity::Static(id)) = entity else {
-            continue;
-        };
-        let declaration = SurfaceDeclarationId::from_index(index);
-        let surface = reserved.declarations[index];
-        if surface.kind() != SurfaceDeclarationKind::Static {
-            return Err(HeaderDefinitionError::InvalidSurface(declaration));
-        }
-        let tree = reserved
-            .sources
-            .get(surface.source().index())
-            .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?
-            .syntax();
-        let Some(initializer) = direct_node(tree, surface.node(), NodeKind::Expression) else {
-            continue;
-        };
-        let representative = reserved.contracts.representative(declaration);
-        let representative_surface = reserved.declarations[representative.index()];
-        let representative_tree = reserved
-            .sources
-            .get(representative_surface.source().index())
-            .ok_or(HeaderDefinitionError::InvalidSurface(representative))?
-            .syntax();
-        let ty_node = direct_node(
-            representative_tree,
-            representative_surface.node(),
-            NodeKind::Type,
-        )
-        .ok_or(HeaderDefinitionError::MissingType(
-            representative_surface.node(),
-        ))?;
-        let ty = bindings
-            .roots
-            .get(&ty_node)
-            .copied()
-            .ok_or(HeaderDefinitionError::MissingType(ty_node))?;
-        if result
-            .insert(
-                id,
-                StaticSource {
-                    declaration: representative,
-                    initializer,
-                    ty,
-                },
-            )
-            .is_some()
-        {
-            return Err(HeaderDefinitionError::InvalidSurface(declaration));
-        }
-    }
-    Ok(result)
 }
 
 fn collect_sources(
@@ -698,6 +478,20 @@ impl ConstantResolver for HeaderResolver<'_, '_> {
 }
 
 impl HeaderResolver<'_, '_> {
+    fn new<'a, 'syntax>(
+        bindings: &'a PreparedTypeBindings<'syntax>,
+        sources: &'a HashMap<ConstantId, ConstantSource>,
+        source_ids: &'a HashMap<SourceId, crate::SurfaceSourceId>,
+    ) -> HeaderResolver<'a, 'syntax> {
+        HeaderResolver {
+            bindings,
+            sources,
+            source_ids,
+            references: HashMap::new(),
+            reference_projections: HashMap::new(),
+        }
+    }
+
     fn scalar_type(
         &self,
         ty: BoundTypeId,
@@ -870,6 +664,25 @@ fn syntax_input<'a>(
     Ok((file, tree))
 }
 
+fn contains_unbound_type(
+    tree: &SyntaxTree,
+    root: NodeId,
+    bound_types: &HashMap<NodeId, BoundTypeId>,
+) -> bool {
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        if tree
+            .node(node)
+            .is_some_and(|node| node.kind() == NodeKind::Type)
+            && !bound_types.contains_key(&node)
+        {
+            return true;
+        }
+        pending.extend(child_nodes(tree, node));
+    }
+    false
+}
+
 fn plan_error(error: ConstantPlanError<HeaderDefinitionError>) -> HeaderDefinitionError {
     match error {
         ConstantPlanError::Context(error) => error,
@@ -882,6 +695,13 @@ fn plan_error(error: ConstantPlanError<HeaderDefinitionError>) -> HeaderDefiniti
         ),
         ConstantPlanError::InvalidSyntax(node) => inconsistent_node(node),
     }
+}
+
+fn optional_plan_failure(error: &ConstantPlanError<HeaderDefinitionError>) -> bool {
+    matches!(
+        error,
+        ConstantPlanError::Rule { .. } | ConstantPlanError::Context(HeaderDefinitionError::Rule(_))
+    )
 }
 
 fn evaluation_error(error: ConstantEvaluationError) -> HeaderDefinitionError {
@@ -918,6 +738,21 @@ fn project_references(
             .source_index
             .insert(semantic_entity(entity), SourceRole::Reference, origin);
     }
+}
+
+fn merge_reference_projections(
+    destination: &mut HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
+    source: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
+) -> Result<(), HeaderDefinitionError> {
+    for (token, projection) in source {
+        if destination
+            .insert(token, projection)
+            .is_some_and(|(existing, _)| existing != projection.0)
+        {
+            return Err(HeaderDefinitionError::InconsistentSource(token.source()));
+        }
+    }
+    Ok(())
 }
 
 const fn rule_at(rule: DefinitionRule, origin: SyntaxOrigin) -> HeaderDefinitionError {

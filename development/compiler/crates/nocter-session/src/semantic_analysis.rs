@@ -60,10 +60,10 @@ impl DeclarationEvidence {
         }
     }
 
-    fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+    fn constant_values(&self) -> &dyn nocter_declarations::ConstantValueLookup {
         match self {
-            Self::Lowering(analysis) => analysis.declaration_values(),
-            Self::Checking(analysis) => analysis.declaration_values(),
+            Self::Lowering(analysis) => analysis.structural_constants(),
+            Self::Checking(analysis) => analysis.structural_constants(),
         }
     }
 
@@ -148,11 +148,11 @@ impl<'a> SemanticEvidenceView<'a> {
     }
 
     #[must_use]
-    pub fn declaration_values(self) -> &'a nocter_declarations::DeclarationValueTable {
+    pub fn constant_values(self) -> &'a dyn nocter_declarations::ConstantValueLookup {
         match self.authority {
-            SemanticAuthorityView::Declarations { analysis, .. } => analysis.declaration_values(),
-            SemanticAuthorityView::Names(analysis) => analysis.declaration_values(),
-            SemanticAuthorityView::Bodies(analysis) => analysis.prepared().declaration_values(),
+            SemanticAuthorityView::Declarations { analysis, .. } => analysis.constant_values(),
+            SemanticAuthorityView::Names(analysis) => analysis.structural_constants(),
+            SemanticAuthorityView::Bodies(analysis) => analysis.prepared().structural_constants(),
             SemanticAuthorityView::Checked { program, .. } => program.declaration_values(),
         }
     }

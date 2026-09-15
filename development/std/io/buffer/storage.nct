@@ -10,6 +10,8 @@ const func normalized_capacity(requested: usize): usize {
     return requested
 }
 
+const DEFAULT_BUFFER_CAPACITY: usize = normalized_capacity(8192)
+
 func initialized_byte_storage(capacity: usize): Vec<u8> {
     var storage: Vec<u8> = Vec.with_capacity(capacity)
     while storage.len() < capacity {

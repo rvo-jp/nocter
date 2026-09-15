@@ -20,7 +20,7 @@ struct BlockingBufReader<R> {
 
 construct BlockingBufReader<R> {
     func new(source: R): Self where R impl BlockingReader {
-        return BlockingBufReader.with_capacity(move source, 8192)
+        return BlockingBufReader.with_capacity(move source, DEFAULT_BUFFER_CAPACITY)
     }
 
     func with_capacity(source: R, requested_capacity: usize): Self where R impl BlockingReader {

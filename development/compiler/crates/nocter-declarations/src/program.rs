@@ -2,17 +2,17 @@ use std::collections::HashMap;
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, CompilationTarget, ConstantId, ConstantValue, DeclarationSiteId,
-    FrozenValue, ImportId, ModuleId, PackageId, PackageIdentity, PackageTargetId, StaticId, Symbol,
-    SymbolTable, TypeAuthority, TypeStore, TypeTransaction,
+    Arena, ArenaBuilder, CompilationTarget, ConstantId, ConstantValue, DeclarationSiteId, ImportId,
+    ModuleId, PackageId, PackageIdentity, PackageTargetId, StaticId, Symbol, SymbolTable,
+    TypeAuthority, TypeStore, TypeTransaction,
 };
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 use crate::{
     ConstantDeclaration, DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas,
-    DeclarationValueTable, DeclarationValueTableError, DefinitionError, ExportedEntity,
-    ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath, PackageTarget,
-    ProgramValidationError, StandardLibrary, StaticDeclaration, Visibility,
+    DefinitionError, ExportedEntity, ImportDeclaration, IncompleteDefinition, ModuleNamespace,
+    ModulePath, PackageTarget, ProgramValidationError, StandardLibrary, StaticDeclaration,
+    StructuralConstantTable, Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,19 +102,18 @@ pub struct DeclarationProgram {
 #[derive(Debug)]
 pub struct AcceptedDeclarationProgram {
     program: DeclarationProgram,
-    values: DeclarationValueTable,
+    structural_constants: StructuralConstantTable,
     admission: DeclarationAnalysisAdmission,
 }
 
-/// Validated declaration metadata awaiting its complete initializer-value authority.
+/// Validated declaration metadata awaiting its structural-constant attachment.
 ///
-/// This is a construction capability, not checking input. It owns all still-open value slots and
-/// can publish only an accepted or explicit recovery aggregate after every slot is completed and
-/// validated against the frozen declaration types.
+/// This construction capability can publish checking admission only after its sparse structural
+/// values are validated. Ordinary initializer values do not enter this phase.
 #[derive(Debug)]
 pub struct PreparedDeclarationProgram {
     program: DeclarationProgram,
-    values: crate::value_table::DeclarationValueTableBuilder,
+    structural_constants: crate::structural_constants::StructuralConstantTableBuilder,
     report: crate::validate::DeclarationValidationReport,
     admission: DeclarationAnalysisAdmission,
     body_analysis: crate::validate::BodyAnalysisCapability,
@@ -403,7 +402,7 @@ impl AcceptedDeclarationProgram {
     pub fn checking_branch(&self) -> Self {
         Self {
             program: self.program.clone(),
-            values: self.values.clone(),
+            structural_constants: self.structural_constants.clone(),
             admission: self.admission.clone(),
         }
     }
@@ -437,10 +436,10 @@ impl AcceptedDeclarationProgram {
         &self.program
     }
 
-    /// Returns the only complete declaration-value authority paired with this accepted graph.
+    /// Returns constants admitted for declaration and body type-shape construction.
     #[must_use]
-    pub const fn values(&self) -> &DeclarationValueTable {
-        &self.values
+    pub const fn structural_constants(&self) -> &StructuralConstantTable {
+        &self.structural_constants
     }
 
     /// Opens this accepted program branch's Phase 2-to-Phase 3 ownership boundary.
@@ -455,11 +454,11 @@ impl AcceptedDeclarationProgram {
     ) -> (
         DeclarationGraph,
         TypeAuthority,
-        DeclarationValueTable,
+        StructuralConstantTable,
         DeclarationAnalysisAdmission,
     ) {
         let (graph, types) = self.program.into_unvalidated_parts();
-        (graph, types, self.values, self.admission)
+        (graph, types, self.structural_constants, self.admission)
     }
 }
 
@@ -478,7 +477,7 @@ pub struct DeclarationProgramBuilder {
     imports: ArenaBuilder<ImportId, ImportDeclaration>,
     package_targets: ArenaBuilder<PackageTargetId, PackageTarget>,
     declarations: DeclarationArenaBuilder,
-    values: crate::value_table::DeclarationValueTableBuilder,
+    structural_constants: crate::structural_constants::StructuralConstantTableBuilder,
     types: TypeTransaction,
 }
 
@@ -499,7 +498,8 @@ impl DeclarationProgramBuilder {
             imports: ArenaBuilder::new(),
             package_targets: ArenaBuilder::new(),
             declarations: DeclarationArenaBuilder::new(),
-            values: crate::value_table::DeclarationValueTableBuilder::default(),
+            structural_constants:
+                crate::structural_constants::StructuralConstantTableBuilder::default(),
             types: TypeAuthority::new().transaction(),
         }
     }
@@ -747,28 +747,9 @@ impl DeclarationProgramBuilder {
         &self.declarations
     }
 
-    /// Reserves one constant identity whose metadata and value must later be defined together.
+    /// Reserves one constant identity whose metadata must later be defined.
     pub fn reserve_constant(&mut self) -> ConstantId {
-        let declaration = self.declarations.reserve_constant();
-        let value = self.values.reserve_constant();
-        debug_assert_eq!(declaration, value);
-        declaration
-    }
-
-    /// Defines one constant's metadata and evaluated value as a single builder transition.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the identity is unknown or already complete.
-    pub fn define_constant(
-        &mut self,
-        id: ConstantId,
-        declaration: ConstantDeclaration,
-        value: ConstantValue,
-    ) -> Result<(), DefinitionError> {
-        self.declarations.define_constant(id, declaration)?;
-        self.values.define_constant(id, value)?;
-        Ok(())
+        self.declarations.reserve_constant()
     }
 
     /// Completes constant metadata while leaving its reserved value slot to the prepared-value
@@ -785,28 +766,9 @@ impl DeclarationProgramBuilder {
         self.declarations.define_constant(id, declaration)
     }
 
-    /// Reserves one static identity whose metadata and value must later be defined together.
+    /// Reserves one static identity whose metadata must later be defined.
     pub fn reserve_static(&mut self) -> StaticId {
-        let declaration = self.declarations.reserve_static();
-        let value = self.values.reserve_static();
-        debug_assert_eq!(declaration, value);
-        declaration
-    }
-
-    /// Defines one static's metadata and evaluated value as a single builder transition.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the identity is unknown or already complete.
-    pub fn define_static(
-        &mut self,
-        id: StaticId,
-        declaration: StaticDeclaration,
-        value: FrozenValue,
-    ) -> Result<(), DefinitionError> {
-        self.declarations.define_static(id, declaration)?;
-        self.values.define_static(id, value)?;
-        Ok(())
+        self.declarations.reserve_static()
     }
 
     /// Completes static metadata while leaving its reserved value slot to the prepared-value
@@ -901,7 +863,7 @@ impl DeclarationProgramBuilder {
             imports,
             package_targets,
             declarations,
-            values,
+            structural_constants,
             types,
         } = self;
         let module_namespaces = module_namespaces.try_finish_with(|module, namespace| {
@@ -938,7 +900,7 @@ impl DeclarationProgramBuilder {
         let (report, admission, body_analysis) = validation.into_parts();
         Ok(PreparedDeclarationProgram {
             program,
-            values,
+            structural_constants,
             report,
             admission,
             body_analysis,
@@ -966,38 +928,27 @@ impl DeclarationProgramBuilder {
 }
 
 impl PreparedDeclarationProgram {
-    /// Completes one reserved constant value after declaration metadata has been frozen.
+    /// Adds one scalar constant admitted for structural type construction.
     ///
     /// # Errors
     ///
     /// Returns an error when the identity is unknown or already has a value.
-    pub fn define_constant_value(
+    pub fn define_structural_constant(
         &mut self,
         id: ConstantId,
         value: ConstantValue,
     ) -> Result<(), DefinitionError> {
-        self.values.define_constant(id, value)
-    }
-
-    /// Completes one reserved immutable-static value after declaration metadata has been frozen.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the identity is unknown or already has a value.
-    pub fn define_static_value(
-        &mut self,
-        id: StaticId,
-        value: FrozenValue,
-    ) -> Result<(), DefinitionError> {
-        self.values.define_static(id, value)
+        if self.program.declarations().constants().get(id).is_none() {
+            return Err(DefinitionError::UnknownId);
+        }
+        self.structural_constants.define(id, value)
     }
 
     /// Publishes the complete accepted program without retaining authored recovery.
     ///
     /// # Errors
     ///
-    /// Returns an incomplete value authority, a value/type mismatch, or an authored declaration
-    /// rejection.
+    /// Returns a structural-constant mismatch or an authored declaration rejection.
     pub fn finish(self) -> Result<AcceptedDeclarationProgram, ProgramBuildError> {
         self.finish_recovering()
             .map_err(ProgramBuildFailure::into_error)
@@ -1007,15 +958,11 @@ impl PreparedDeclarationProgram {
     ///
     /// # Errors
     ///
-    /// Returns incomplete or ill-typed value tables as structural errors. Authored metadata rules
-    /// return the same explicit rejected-program capability as the direct builder path.
+    /// Returns ill-typed structural constants as structural errors. Authored metadata rules return
+    /// the same explicit rejected-program capability as the direct builder path.
     pub fn finish_recovering(self) -> Result<AcceptedDeclarationProgram, ProgramBuildFailure> {
-        let values = self
-            .values
-            .finish()
-            .map_err(ProgramBuildError::from)
-            .map_err(ProgramBuildFailure::Error)?;
-        crate::validate::validate_values(&self.program, &values)
+        let structural_constants = self.structural_constants.finish();
+        crate::validate::validate_structural_constants(&self.program, &structural_constants)
             .map_err(ProgramValidationError::from)
             .map_err(ProgramBuildError::from)
             .map_err(ProgramBuildFailure::Error)?;
@@ -1023,7 +970,7 @@ impl PreparedDeclarationProgram {
             return Err(ProgramBuildFailure::Rejected(Box::new(
                 RejectedDeclarationProgram::new(
                     self.program,
-                    values,
+                    structural_constants,
                     self.report,
                     self.admission,
                     self.body_analysis,
@@ -1032,7 +979,7 @@ impl PreparedDeclarationProgram {
         }
         Ok(AcceptedDeclarationProgram {
             program: self.program,
-            values,
+            structural_constants,
             admission: self.admission,
         })
     }
@@ -1046,7 +993,7 @@ impl PreparedDeclarationProgram {
 #[derive(Debug)]
 pub struct RejectedDeclarationProgram {
     program: DeclarationProgram,
-    values: DeclarationValueTable,
+    structural_constants: StructuralConstantTable,
     report: crate::validate::DeclarationValidationReport,
     admission: DeclarationAnalysisAdmission,
     body_analysis: crate::validate::BodyAnalysisCapability,
@@ -1055,14 +1002,14 @@ pub struct RejectedDeclarationProgram {
 impl RejectedDeclarationProgram {
     const fn new(
         program: DeclarationProgram,
-        values: DeclarationValueTable,
+        structural_constants: StructuralConstantTable,
         report: crate::validate::DeclarationValidationReport,
         admission: DeclarationAnalysisAdmission,
         body_analysis: crate::validate::BodyAnalysisCapability,
     ) -> Self {
         Self {
             program,
-            values,
+            structural_constants,
             report,
             admission,
             body_analysis,
@@ -1083,20 +1030,20 @@ impl RejectedDeclarationProgram {
         RejectedDeclarationAnalysis,
     ) {
         let (graph, types) = self.program.into_unvalidated_parts();
-        let values = self.values;
+        let structural_constants = self.structural_constants;
         let analysis = match self.body_analysis {
             crate::validate::BodyAnalysisCapability::DeclarationsOnly => {
                 RejectedDeclarationAnalysis::Declarations(DeclarationAnalysisProgram {
                     graph,
                     types,
-                    values,
+                    structural_constants,
                 })
             }
             crate::validate::BodyAnalysisCapability::AdmittedBodies => {
                 RejectedDeclarationAnalysis::Bodies(BodyAnalysisDeclarationProgram {
                     graph,
                     types,
-                    values,
+                    structural_constants,
                     admission: self.admission,
                 })
             }
@@ -1117,7 +1064,7 @@ pub enum RejectedDeclarationAnalysis {
 pub struct DeclarationAnalysisProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
-    values: DeclarationValueTable,
+    structural_constants: StructuralConstantTable,
 }
 
 impl DeclarationAnalysisProgram {
@@ -1132,13 +1079,13 @@ impl DeclarationAnalysisProgram {
     }
 
     #[must_use]
-    pub const fn values(&self) -> &DeclarationValueTable {
-        &self.values
+    pub const fn structural_constants(&self) -> &StructuralConstantTable {
+        &self.structural_constants
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeAuthority, DeclarationValueTable) {
-        (self.graph, self.types, self.values)
+    pub fn into_parts(self) -> (DeclarationGraph, TypeAuthority, StructuralConstantTable) {
+        (self.graph, self.types, self.structural_constants)
     }
 }
 
@@ -1148,7 +1095,7 @@ impl DeclarationAnalysisProgram {
 pub struct BodyAnalysisDeclarationProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
-    values: DeclarationValueTable,
+    structural_constants: StructuralConstantTable,
     admission: DeclarationAnalysisAdmission,
 }
 
@@ -1164,8 +1111,8 @@ impl BodyAnalysisDeclarationProgram {
     }
 
     #[must_use]
-    pub const fn values(&self) -> &DeclarationValueTable {
-        &self.values
+    pub const fn structural_constants(&self) -> &StructuralConstantTable {
+        &self.structural_constants
     }
 
     /// Appends the current body-only symbol domain while preserving declaration symbol IDs.
@@ -1184,10 +1131,15 @@ impl BodyAnalysisDeclarationProgram {
     ) -> (
         DeclarationGraph,
         TypeAuthority,
-        DeclarationValueTable,
+        StructuralConstantTable,
         DeclarationAnalysisAdmission,
     ) {
-        (self.graph, self.types, self.values, self.admission)
+        (
+            self.graph,
+            self.types,
+            self.structural_constants,
+            self.admission,
+        )
     }
 }
 
@@ -1233,7 +1185,6 @@ pub enum ProgramBuildError {
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
     TargetOutsidePackage,
-    InvalidValueTable(DeclarationValueTableError),
     IncompleteDefinition(IncompleteDefinition),
     InvalidProgram(ProgramValidationError),
 }
@@ -1298,7 +1249,6 @@ impl fmt::Display for ProgramBuildError {
             Self::TargetOutsidePackage => {
                 formatter.write_str("package target module belongs to another package")
             }
-            Self::InvalidValueTable(error) => error.fmt(formatter),
             Self::IncompleteDefinition(error) => error.fmt(formatter),
             Self::InvalidProgram(error) => error.fmt(formatter),
         }
@@ -1319,18 +1269,15 @@ impl From<ProgramValidationError> for ProgramBuildError {
     }
 }
 
-impl From<DeclarationValueTableError> for ProgramBuildError {
-    fn from(error: DeclarationValueTableError) -> Self {
-        Self::InvalidValueTable(error)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use nocter_model::{BuiltinType, ConstantValue, PackageIdentity, SymbolTable, TypeKind};
+    use nocter_model::{
+        ArenaBuilder, BuiltinType, ConstantValue, FrozenValue, PackageIdentity, StaticId,
+        SymbolTable, TypeKind,
+    };
 
     use crate::{
-        Body, BodyOwner, ConstantDeclaration, DeclarationProgramBuilder,
+        Body, BodyOwner, ConstantDeclaration, DeclarationProgramBuilder, DeclarationValueTable,
         DeclarationValueTableError, DefinitionError, ModuleNamespace, ModulePath,
         ProgramBuildError, Visibility,
     };
@@ -1497,64 +1444,7 @@ mod tests {
     }
 
     #[test]
-    fn constant_metadata_and_value_complete_as_one_transition() {
-        let symbols = SymbolTable::from_spellings(["app", "answer"]);
-        let app_name = symbols.get("app").unwrap();
-        let constant_name = symbols.get("answer").unwrap();
-        let mut builder =
-            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
-        let app = builder
-            .add_package(PackageIdentity::new("workspace:app"), app_name)
-            .unwrap();
-        let root = builder.add_module(app, ModulePath::root()).unwrap();
-        builder
-            .define_module_namespace(root, ModuleNamespace::default())
-            .unwrap();
-        let site = builder
-            .add_declaration_site(root, Visibility::Private)
-            .unwrap();
-        let ty = builder.types().builtin(BuiltinType::I32);
-        let constant = builder.reserve_constant();
-        let initializer = builder
-            .declarations_mut()
-            .add_body(Body::expression(BodyOwner::Constant(constant)));
-        builder
-            .define_constant(
-                constant,
-                ConstantDeclaration::new(site, constant_name, ty, initializer, None),
-                ConstantValue::Integer(42),
-            )
-            .unwrap();
-
-        assert_eq!(
-            builder
-                .define_constant(
-                    constant,
-                    ConstantDeclaration::new(site, constant_name, ty, initializer, None),
-                    ConstantValue::Integer(7),
-                )
-                .unwrap_err(),
-            DefinitionError::AlreadyDefined
-        );
-
-        let program = builder.finish().unwrap();
-        assert_eq!(
-            program
-                .declarations()
-                .constants()
-                .get(constant)
-                .unwrap()
-                .ty(),
-            ty
-        );
-        assert_eq!(
-            program.values().constants().get(constant),
-            Some(&ConstantValue::Integer(42))
-        );
-    }
-
-    #[test]
-    fn prepared_program_requires_value_completion_before_publication() {
+    fn constant_metadata_and_structural_value_complete_in_separate_transitions() {
         let symbols = SymbolTable::from_spellings(["app", "answer"]);
         let app_name = symbols.get("app").unwrap();
         let constant_name = symbols.get("answer").unwrap();
@@ -1582,17 +1472,78 @@ mod tests {
             )
             .unwrap();
 
-        let prepared = builder.prepare().unwrap();
         assert_eq!(
-            prepared.finish().unwrap_err(),
-            ProgramBuildError::InvalidValueTable(DeclarationValueTableError::MissingConstant(
-                constant
-            ))
+            builder
+                .define_constant_metadata(
+                    constant,
+                    ConstantDeclaration::new(site, constant_name, ty, initializer, None),
+                )
+                .unwrap_err(),
+            DefinitionError::AlreadyDefined
+        );
+
+        let mut prepared = builder.prepare().unwrap();
+        prepared
+            .define_structural_constant(constant, ConstantValue::Integer(42))
+            .unwrap();
+        assert_eq!(
+            prepared
+                .define_structural_constant(constant, ConstantValue::Integer(7))
+                .unwrap_err(),
+            DefinitionError::AlreadyDefined
+        );
+        let program = prepared.finish().unwrap();
+        assert_eq!(
+            program
+                .declarations()
+                .constants()
+                .get(constant)
+                .unwrap()
+                .ty(),
+            ty
+        );
+        assert_eq!(
+            program.structural_constants().constants().get(&constant),
+            Some(&ConstantValue::Integer(42))
         );
     }
 
     #[test]
-    fn prepared_program_publishes_metadata_and_late_value_atomically() {
+    fn prepared_program_does_not_require_an_ordinary_initializer_value() {
+        let symbols = SymbolTable::from_spellings(["app", "answer"]);
+        let app_name = symbols.get("app").unwrap();
+        let constant_name = symbols.get("answer").unwrap();
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let root = builder.add_module(app, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(root, ModuleNamespace::default())
+            .unwrap();
+        let site = builder
+            .add_declaration_site(root, Visibility::Private)
+            .unwrap();
+        let ty = builder.types().builtin(BuiltinType::I32);
+        let constant = builder.reserve_constant();
+        let initializer = builder
+            .declarations_mut()
+            .add_body(Body::expression(BodyOwner::Constant(constant)));
+        builder
+            .define_constant_metadata(
+                constant,
+                ConstantDeclaration::new(site, constant_name, ty, initializer, None),
+            )
+            .unwrap();
+
+        let program = builder.prepare().unwrap().finish().unwrap();
+
+        assert!(program.structural_constants().constants().is_empty());
+    }
+
+    #[test]
+    fn prepared_program_publishes_validated_structural_constants() {
         let symbols = SymbolTable::from_spellings(["app", "answer"]);
         let app_name = symbols.get("app").unwrap();
         let constant_name = symbols.get("answer").unwrap();
@@ -1622,7 +1573,7 @@ mod tests {
 
         let mut prepared = builder.prepare().unwrap();
         prepared
-            .define_constant_value(constant, ConstantValue::Integer(42))
+            .define_structural_constant(constant, ConstantValue::Integer(42))
             .unwrap();
         let program = prepared.finish().unwrap();
 
@@ -1636,8 +1587,22 @@ mod tests {
             ty
         );
         assert_eq!(
-            program.values().constants().get(constant),
+            program.structural_constants().constants().get(&constant),
             Some(&ConstantValue::Integer(42))
+        );
+
+        let mut constants = ArenaBuilder::new();
+        assert_eq!(constants.insert(ConstantValue::Integer(7)), constant);
+        let statics = ArenaBuilder::<StaticId, FrozenValue>::new().finish();
+        assert_eq!(
+            DeclarationValueTable::for_program(
+                program.graph(),
+                program.types(),
+                program.structural_constants(),
+                constants.finish(),
+                statics,
+            ),
+            Err(DeclarationValueTableError::StructuralDisagreement(constant))
         );
     }
 

@@ -110,7 +110,8 @@ fn project_compile_time_callable_recipe(
                 .parameters()
                 .get(parameter)
                 .copied()
-                .map(|declaration| CompileTimeParameter::new(parameter, declaration.ty()))
+                .and_then(|declaration| declaration.value_type(types))
+                .map(|ty| CompileTimeParameter::new(parameter, ty))
                 .ok_or(CompileTimeProjectionError {
                     owner: BodyOwner::Callable(callable),
                     body: Some(body_id),
@@ -914,6 +915,140 @@ mod tests {
             ),
             Some(&nocter_model::ConstantValue::Integer(42))
         );
+    }
+
+    #[test]
+    fn constant_initializer_executes_a_checked_const_call() {
+        let output = check(
+            "const func increment(value: i32): i32 { return value + 1 }\n\
+             const ANSWER: i32 = increment(41)\n",
+        );
+        let program = output.program();
+        let answer = program.graph().symbols().get("ANSWER").unwrap();
+        let id = program
+            .graph()
+            .declarations()
+            .constants()
+            .iter()
+            .find_map(|(id, declaration)| (declaration.name() == answer).then_some(id))
+            .unwrap();
+
+        assert_eq!(
+            program.constant_value(id),
+            Some(&nocter_model::ConstantValue::Integer(42))
+        );
+    }
+
+    #[test]
+    fn initializer_reachability_specializes_a_generic_const_call() {
+        let output = check(
+            "const func identity<T>(value: T): T where copy T { return value }\n\
+             const ANSWER: i32 = identity(42)\n",
+        );
+        let program = output.program();
+        let answer = program.graph().symbols().get("ANSWER").unwrap();
+        let id = program
+            .graph()
+            .declarations()
+            .constants()
+            .iter()
+            .find_map(|(id, declaration)| (declaration.name() == answer).then_some(id))
+            .unwrap();
+
+        assert_eq!(
+            program.constant_value(id),
+            Some(&nocter_model::ConstantValue::Integer(42))
+        );
+        assert_eq!(program.compile_time_plans().len(), 1);
+    }
+
+    #[test]
+    fn static_initializer_executes_checked_calls_into_one_frozen_value() {
+        let output = check(
+            "const func increment(value: i32): i32 { return value + 1 }\n\
+             static VALUES: (i32, [i32; 2]) = (increment(40), [increment(1), increment(2)])\n",
+        );
+        let program = output.program();
+        let values = program.graph().symbols().get("VALUES").unwrap();
+        let id = program
+            .graph()
+            .declarations()
+            .statics()
+            .iter()
+            .find_map(|(id, declaration)| (declaration.name() == values).then_some(id))
+            .unwrap();
+
+        assert_eq!(
+            program.static_value(id),
+            Some(&nocter_model::FrozenValue::Tuple(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(41)),
+                nocter_model::FrozenValue::FixedArray(Box::new([
+                    nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(2)),
+                    nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(3)),
+                ])),
+            ])))
+        );
+    }
+
+    #[test]
+    fn constant_initializer_executes_a_checked_readonly_method_call() {
+        let fixture = Fixture::with_standard(
+            "const LABEL: &str = \"nocter\".identity()\n\
+             const ANSWER: i32 = \"nocter\".answer()\n",
+            "instance str {\n\
+                 pub const method &self.identity(): &str from self { return self }\n\
+                 pub const method &self.answer(): i32 { return 42 }\n\
+             }\n",
+        );
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        let output = check_prepared_program(&input, prepared).unwrap();
+        let program = output.program();
+        let label = program.graph().symbols().get("LABEL").unwrap();
+        let id = program
+            .graph()
+            .declarations()
+            .constants()
+            .iter()
+            .find_map(|(id, declaration)| (declaration.name() == label).then_some(id))
+            .unwrap();
+
+        assert_eq!(
+            program.constant_value(id),
+            Some(&nocter_model::ConstantValue::Text("nocter".into()))
+        );
+        let answer = program.graph().symbols().get("ANSWER").unwrap();
+        let answer = program
+            .graph()
+            .declarations()
+            .constants()
+            .iter()
+            .find_map(|(id, declaration)| (declaration.name() == answer).then_some(id))
+            .unwrap();
+        assert_eq!(
+            program.constant_value(answer),
+            Some(&nocter_model::ConstantValue::Integer(42))
+        );
+    }
+
+    #[test]
+    fn unused_const_method_does_not_depend_on_receiver_use_to_project() {
+        let fixture = Fixture::with_standard(
+            "func main(): void { return }\n",
+            "instance str {\n\
+                 pub const method &self.answer(): i32 { return 42 }\n\
+             }\n",
+        );
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+
+        check_prepared_program(&input, prepared).unwrap();
     }
 
     #[test]

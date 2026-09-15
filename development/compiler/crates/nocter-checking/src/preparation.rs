@@ -171,8 +171,8 @@ impl ReusablePreparedProgram {
     }
 
     #[must_use]
-    pub fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
-        self.environment.values()
+    pub fn structural_constants(&self) -> &nocter_declarations::StructuralConstantTable {
+        self.environment.structural_constants()
     }
 
     pub(crate) fn open_current<S>(
@@ -223,8 +223,8 @@ impl PreparedSemanticProgram {
     }
 
     #[must_use]
-    pub fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
-        self.environment.values()
+    pub fn structural_constants(&self) -> &nocter_declarations::StructuralConstantTable {
+        self.environment.structural_constants()
     }
 
     #[must_use]
@@ -428,6 +428,10 @@ pub enum PreparationError {
     InterfaceImplementation(InterfaceImplementationBuildError),
     ConstructionSurfaces(ConstructionSurfaceBuildError),
     InstanceOperations(InstanceOperationBuildError),
+    ParameterValueType {
+        parameter: nocter_model::ParameterId,
+        declared: nocter_model::TypeId,
+    },
     DeclarationPatterns(crate::SubstitutionError),
     StandardSemantics(StandardSemanticError),
     NameResolution(NameResolutionError),
@@ -535,6 +539,7 @@ impl PreparationError {
             | Self::TargetMismatch { .. }
             | Self::DropTable(_)
             | Self::ConstructionSurfaces(_)
+            | Self::ParameterValueType { .. }
             | Self::DeclarationPatterns(_)
             | Self::StandardSemantics(_) => None,
             Self::InterfaceImplementation(error) => error.source_diagnostic(),
@@ -557,6 +562,7 @@ impl PreparationError {
             | Self::DropTable(_)
             | Self::ConstructionSurfaces(_)
             | Self::InstanceOperations(_)
+            | Self::ParameterValueType { .. }
             | Self::DeclarationPatterns(_)
             | Self::StandardSemantics(_)
             | Self::NameResolution(_) => None,
@@ -578,6 +584,13 @@ impl fmt::Display for PreparationError {
             Self::InterfaceImplementation(error) => error.fmt(formatter),
             Self::ConstructionSurfaces(error) => error.fmt(formatter),
             Self::InstanceOperations(error) => error.fmt(formatter),
+            Self::ParameterValueType {
+                parameter,
+                declared,
+            } => write!(
+                formatter,
+                "parameter {parameter:?} refers to unknown declared type {declared:?}"
+            ),
             Self::DeclarationPatterns(error) => error.fmt(formatter),
             Self::StandardSemantics(error) => error.fmt(formatter),
             Self::NameResolution(error) => error.fmt(formatter),
@@ -733,7 +746,7 @@ impl PreparationProgram {
     ) -> (
         DeclarationGraph,
         TypeAuthority,
-        nocter_declarations::DeclarationValueTable,
+        nocter_declarations::StructuralConstantTable,
         nocter_declarations::DeclarationAnalysisAdmission,
     ) {
         match self {
@@ -761,7 +774,7 @@ struct ReusablePreparationFailure {
 struct DeclarationRecoveryFacts {
     graph: DeclarationGraph,
     types: TypeStore,
-    values: nocter_declarations::DeclarationValueTable,
+    structural_constants: nocter_declarations::StructuralConstantTable,
     standard_semantics: Option<StandardSemanticTable>,
 }
 
@@ -774,7 +787,7 @@ impl DeclarationRecoveryFacts {
         crate::DeclarationAnalysisRecovery::new(
             self.graph,
             self.types,
-            self.values,
+            self.structural_constants,
             source_ownership,
             source_index,
             self.standard_semantics,
@@ -881,7 +894,7 @@ pub(crate) fn prepare_program_checking_from_current_queried_names<'syntax>(
             let recovery = crate::NameAnalysisRecovery::new(
                 semantic.graph().clone(),
                 semantic.types().clone(),
-                semantic.declaration_values().clone(),
+                semantic.structural_constants().clone(),
                 bodies,
                 bindings.source_ownership().clone(),
                 source_index,
@@ -908,14 +921,14 @@ fn prepare_program_checking_internal<'syntax>(
     let body_sources = match prepare_body_sources(input, program.graph(), bindings) {
         Ok(body_sources) => body_sources,
         Err(error) => {
-            let (graph, types, values, _) = program.into_parts();
+            let (graph, types, structural_constants, _) = program.into_parts();
             return Err(declaration_failure(
                 error,
                 retain_names,
                 DeclarationRecoveryFacts {
                     graph,
                     types: types.into_store(),
-                    values,
+                    structural_constants,
                     standard_semantics: None,
                 },
                 bindings.source_ownership().clone(),
@@ -957,7 +970,7 @@ fn prepare_program_checking_internal<'syntax>(
                     crate::NameAnalysisRecovery::new(
                         reusable.graph().clone(),
                         reusable.types().clone(),
-                        reusable.declaration_values().clone(),
+                        reusable.structural_constants().clone(),
                         partial.bodies,
                         bindings.source_ownership().clone(),
                         partial.source_index,
@@ -988,18 +1001,18 @@ fn prepare_reusable_program_internal(
     diagnostic_origins: DiagnosticOrigins<'_>,
 ) -> Result<ReusablePreparedProgram, Box<ReusablePreparationFailure>> {
     if input.toolchain().is_none() {
-        let (graph, types, values, _) = program.into_parts();
+        let (graph, types, structural_constants, _) = program.into_parts();
         return Err(Box::new(ReusablePreparationFailure {
             error: PreparationError::MissingToolchain,
             facts: DeclarationRecoveryFacts {
                 graph,
                 types: types.into_store(),
-                values,
+                structural_constants,
                 standard_semantics: None,
             },
         }));
     }
-    let (graph, types, values, admission) = program.into_parts();
+    let (graph, types, structural_constants, admission) = program.into_parts();
     if input.target() != graph.target() {
         let program_target = graph.target();
         return Err(Box::new(ReusablePreparationFailure {
@@ -1010,7 +1023,7 @@ fn prepare_reusable_program_internal(
             facts: DeclarationRecoveryFacts {
                 graph,
                 types: types.into_store(),
-                values,
+                structural_constants,
                 standard_semantics: None,
             },
         }));
@@ -1023,7 +1036,7 @@ fn prepare_reusable_program_internal(
                 facts: DeclarationRecoveryFacts {
                     graph,
                     types: types.into_store(),
-                    values,
+                    structural_constants,
                     standard_semantics: None,
                 },
             }));
@@ -1045,7 +1058,7 @@ fn prepare_reusable_program_internal(
                 facts: DeclarationRecoveryFacts {
                     graph,
                     types: type_transaction.freeze().into_store(),
-                    values,
+                    structural_constants,
                     standard_semantics: Some(standard_semantics),
                 },
             }));
@@ -1066,7 +1079,7 @@ fn prepare_reusable_program_internal(
     Ok(ReusablePreparedProgram {
         environment: crate::program_environment::ProgramEnvironment::new(
             graph,
-            values,
+            structural_constants,
             interface_implementations,
             construction_surfaces,
             instance_operations,
@@ -1114,6 +1127,12 @@ fn build_program_authorities(
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
     let operations = crate::admitted_operations::AdmittedOperations::new(graph, admission);
     validate_declaration_types(graph, types, diagnostic_origins)?;
+    crate::parameter_value_types::prepare_parameter_value_types(graph, types).map_err(
+        |(parameter, declared)| PreparationError::ParameterValueType {
+            parameter,
+            declared,
+        },
+    )?;
     let copyabilities = CopyabilityTable::build(graph, types, diagnostic_origins)?;
     let declaration_patterns = DeclarationPatternTable::build(graph, types)?;
     let drops = DropTable::build_from_ids(graph, types, operations.drops())?;
