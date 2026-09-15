@@ -4,9 +4,10 @@ use std::collections::HashMap;
 
 use nocter_constant_evaluation::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
-    CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
-    CompileTimeNode, CompileTimeOperation, CompileTimeType, CompileTimeUnaryOperation,
-    CompileTimeValueType, ConstantScalarType, FloatFormat, InvalidCompileTimeCallablePlan,
+    CompileTimeCallableRecipe, CompileTimeComparisonOperation, CompileTimeGenericArgument,
+    CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation,
+    CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType,
+    ConstantScalarType, FloatFormat, InvalidCompileTimeCallable,
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
@@ -71,17 +72,65 @@ struct Projector<'a> {
     callable: CallableId,
     body_id: nocter_model::BodyId,
     body: &'a CheckedBody,
-    specialization: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
 }
 
 pub(crate) use query::build_compile_time_plan_table;
 
-fn project_compile_time_callable(
+fn project_compile_time_callable_recipe(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    callable: CallableId,
+    body_id: nocter_model::BodyId,
+    body: &CheckedBody,
+) -> Result<CompileTimeCallableRecipe, CompileTimeProjectionError> {
+    let declaration =
+        graph
+            .declarations()
+            .callables()
+            .get(callable)
+            .ok_or(CompileTimeProjectionError {
+                callable,
+                body: None,
+                node: None,
+                rule: CompileTimeProjectionRule::InvalidPlan,
+            })?;
+    let projector = Projector {
+        graph,
+        types,
+        callable,
+        body_id,
+        body,
+    };
+    let locals = body.locals().try_map(|_, local| {
+        projector.require_recipe_type(local.ty(), None)?;
+        Ok(local.ty())
+    })?;
+    let nodes = body.nodes().try_map(|node, checked| {
+        projector.require_recipe_type(checked.ty(), Some(node))?;
+        let operation = projector.operation(node, checked.operation())?;
+        Ok(CompileTimeNode::new(checked.ty(), operation))
+    })?;
+    let parameters = declaration
+        .receiver()
+        .into_iter()
+        .chain(declaration.parameters().iter().copied())
+        .collect::<Vec<_>>();
+    CompileTimeCallableRecipe::new(parameters, locals, nodes, body.root()).map_err(|error| {
+        let node = match error {
+            InvalidCompileTimeCallable::MissingNode(node) => Some(node),
+            InvalidCompileTimeCallable::MissingParameter(_)
+            | InvalidCompileTimeCallable::DuplicateParameter(_)
+            | InvalidCompileTimeCallable::MissingLocal(_) => None,
+        };
+        projector.error(node, CompileTimeProjectionRule::InvalidPlan)
+    })
+}
+
+fn specialize_compile_time_callable_recipe(
     graph: &DeclarationGraph,
     types: &TypeStore,
     target: &CompileTimeCallTarget,
-    body_id: nocter_model::BodyId,
-    body: &CheckedBody,
+    recipe: &CompileTimeCallableRecipe,
 ) -> Result<CompileTimeCallablePlan, CompileTimeProjectionError> {
     let callable = target.callable();
     let declaration =
@@ -100,7 +149,7 @@ fn project_compile_time_callable(
         .callable_generic_domain(callable)
         .ok_or(CompileTimeProjectionError {
             callable,
-            body: Some(body_id),
+            body: declaration.body(),
             node: None,
             rule: CompileTimeProjectionRule::InvalidPlan,
         })?;
@@ -112,49 +161,53 @@ fn project_compile_time_callable(
     {
         return Err(CompileTimeProjectionError {
             callable,
-            body: Some(body_id),
+            body: declaration.body(),
             node: None,
             rule: CompileTimeProjectionRule::InvalidPlan,
         });
     }
-    let projector = Projector {
-        graph,
+    let specializer = Specializer {
         types,
         callable,
-        body_id,
-        body,
-        specialization: target
+        body: declaration.body(),
+        substitution: target
             .generic_arguments()
             .iter()
             .map(|argument| (argument.parameter(), argument.ty().clone()))
             .collect(),
     };
-    let locals = body.locals().try_map(|_, local| {
-        projector
-            .value_type(local.ty())
-            .ok_or_else(|| projector.error(None, CompileTimeProjectionRule::UnsupportedValueType))
+    let locals = recipe.locals().try_map(|_, ty| {
+        specializer
+            .value_type(*ty)
+            .ok_or_else(|| specializer.error(None, CompileTimeProjectionRule::UnsupportedValueType))
     })?;
-    let nodes = body.nodes().try_map(|node, checked| {
-        let ty = projector.value_type(checked.ty()).ok_or_else(|| {
-            projector.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
+    let nodes = recipe.nodes().try_map(|node, recipe_node| {
+        let ty = specializer.value_type(*recipe_node.ty()).ok_or_else(|| {
+            specializer.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
         })?;
-        let operation = projector.operation(node, checked.operation())?;
+        let operation = recipe_node
+            .operation()
+            .clone()
+            .try_map_call_target(|target| specializer.call_target(&target, node))?;
         Ok(CompileTimeNode::new(ty, operation))
     })?;
-    let parameters = declaration
-        .receiver()
-        .into_iter()
-        .chain(declaration.parameters().iter().copied())
-        .collect::<Vec<_>>();
-    CompileTimeCallablePlan::new(parameters, locals, nodes, body.root()).map_err(|error| {
-        let node = match error {
-            InvalidCompileTimeCallablePlan::MissingNode(node) => Some(node),
-            InvalidCompileTimeCallablePlan::MissingParameter(_)
-            | InvalidCompileTimeCallablePlan::DuplicateParameter(_)
-            | InvalidCompileTimeCallablePlan::MissingLocal(_) => None,
-        };
-        projector.error(node, CompileTimeProjectionRule::InvalidPlan)
-    })
+    CompileTimeCallablePlan::new(recipe.parameters().to_vec(), locals, nodes, recipe.root())
+        .map_err(|error| {
+            let node = match error {
+                InvalidCompileTimeCallable::MissingNode(node) => Some(node),
+                InvalidCompileTimeCallable::MissingParameter(_)
+                | InvalidCompileTimeCallable::DuplicateParameter(_)
+                | InvalidCompileTimeCallable::MissingLocal(_) => None,
+            };
+            specializer.error(node, CompileTimeProjectionRule::InvalidPlan)
+        })
+}
+
+struct Specializer<'a> {
+    types: &'a TypeStore,
+    callable: CallableId,
+    body: Option<nocter_model::BodyId>,
+    substitution: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
 }
 
 impl Projector<'_> {
@@ -162,7 +215,7 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         operation: &CheckedOperation,
-    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
         match operation {
             CheckedOperation::Complete => Ok(CompileTimeOperation::Complete),
             CheckedOperation::Literal(value) => Ok(CompileTimeOperation::Literal(value.clone())),
@@ -209,7 +262,7 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         comparison: &crate::CheckedComparison,
-    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
         if comparison.left().coercion().is_some() || comparison.right().coercion().is_some() {
             return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
         }
@@ -266,7 +319,7 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         place: nocter_model::PlaceId,
-    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
         let place = self
             .body
             .places()
@@ -288,7 +341,7 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         operation: &PrimitiveOperation,
-    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
         match operation {
             PrimitiveOperation::Unary { operation, operand } => Ok(CompileTimeOperation::Unary {
                 operation: match operation {
@@ -320,7 +373,7 @@ impl Projector<'_> {
                 right: *right,
             }),
             PrimitiveOperation::NumericConversion { operand, target } => {
-                let Some(CompileTimeValueType::Scalar(target)) = self.value_type(*target) else {
+                let Some(target) = constant_scalar_type(self.types, *target) else {
                     return Err(
                         self.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
                     );
@@ -337,7 +390,7 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         call: &crate::CheckedCall,
-    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
         if call.pack().is_some() {
             return Err(self.error(Some(node), CompileTimeProjectionRule::ArgumentPack));
         }
@@ -378,15 +431,9 @@ impl Projector<'_> {
             .generic_arguments()
             .as_slice()
             .iter()
-            .map(|argument| {
-                self.specialization_type(argument.ty())
-                    .map(|ty| CompileTimeGenericArgument::new(argument.parameter(), ty))
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| {
-                self.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
-            })?;
-        let target = CompileTimeCallTarget::new(callee, generic_arguments)
+            .map(|argument| CompileTimeGenericArgument::new(argument.parameter(), argument.ty()))
+            .collect::<Vec<_>>();
+        let target = CompileTimeRecipeCallTarget::new(callee, generic_arguments)
             .map_err(|_| self.error(Some(node), CompileTimeProjectionRule::InvalidPlan))?;
         Ok(CompileTimeOperation::Call {
             target,
@@ -399,7 +446,7 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         control: &CheckedControl,
-    ) -> Result<CompileTimeOperation, CompileTimeProjectionError> {
+    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
         match control {
             CheckedControl::Block {
                 statements, result, ..
@@ -462,6 +509,66 @@ impl Projector<'_> {
         }
     }
 
+    fn require_recipe_type(
+        &self,
+        ty: TypeId,
+        node: Option<nocter_model::BodyNodeId>,
+    ) -> Result<(), CompileTimeProjectionError> {
+        if self.recipe_type_supported(ty) {
+            Ok(())
+        } else {
+            Err(self.error(node, CompileTimeProjectionRule::UnsupportedValueType))
+        }
+    }
+
+    fn recipe_type_supported(&self, ty: TypeId) -> bool {
+        match self.types.get(ty) {
+            Some(TypeKind::Builtin(builtin)) => supported_builtin_value(*builtin),
+            Some(TypeKind::GenericParameter(_)) => true,
+            Some(TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                referent,
+            }) if matches!(
+                self.types.get(*referent),
+                Some(TypeKind::Builtin(BuiltinType::Str))
+            ) =>
+            {
+                true
+            }
+            Some(TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                referent,
+            }) => self.recipe_type_supported(*referent),
+            Some(TypeKind::Tuple(elements)) => elements
+                .iter()
+                .all(|element| self.recipe_type_supported(element)),
+            Some(TypeKind::FixedArray { element, .. }) => self.recipe_type_supported(*element),
+            Some(_) | None => false,
+        }
+    }
+}
+
+impl Specializer<'_> {
+    fn call_target(
+        &self,
+        target: &CompileTimeRecipeCallTarget,
+        node: nocter_model::BodyNodeId,
+    ) -> Result<CompileTimeCallTarget, CompileTimeProjectionError> {
+        let arguments = target
+            .generic_arguments()
+            .iter()
+            .map(|argument| {
+                self.specialization_type(*argument.ty())
+                    .map(|ty| CompileTimeGenericArgument::new(argument.parameter(), ty))
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| {
+                self.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
+            })?;
+        CompileTimeCallTarget::new(target.callable(), arguments)
+            .map_err(|_| self.error(Some(node), CompileTimeProjectionRule::InvalidPlan))
+    }
+
     fn value_type(&self, ty: TypeId) -> Option<CompileTimeValueType> {
         value_type(&self.specialization_type(ty)?)
     }
@@ -469,7 +576,7 @@ impl Projector<'_> {
     fn specialization_type(&self, ty: TypeId) -> Option<CompileTimeType> {
         match self.types.get(ty)? {
             TypeKind::Builtin(builtin) => Some(CompileTimeType::Builtin(*builtin)),
-            TypeKind::GenericParameter(parameter) => self.specialization.get(parameter).cloned(),
+            TypeKind::GenericParameter(parameter) => self.substitution.get(parameter).cloned(),
             TypeKind::Borrow {
                 capability,
                 referent,
@@ -487,6 +594,19 @@ impl Projector<'_> {
                 length: *length,
             }),
             _ => None,
+        }
+    }
+
+    const fn error(
+        &self,
+        node: Option<nocter_model::BodyNodeId>,
+        rule: CompileTimeProjectionRule,
+    ) -> CompileTimeProjectionError {
+        CompileTimeProjectionError {
+            callable: self.callable,
+            body: self.body,
+            node,
+            rule,
         }
     }
 }
@@ -554,6 +674,35 @@ impl Projector<'_> {
             rule,
         }
     }
+}
+
+fn constant_scalar_type(types: &TypeStore, ty: TypeId) -> Option<ConstantScalarType> {
+    match types.get(ty)? {
+        TypeKind::Builtin(BuiltinType::Bool) => Some(ConstantScalarType::Bool),
+        TypeKind::Builtin(BuiltinType::Char) => Some(ConstantScalarType::Character),
+        TypeKind::Builtin(BuiltinType::F32) => {
+            Some(ConstantScalarType::Float(FloatFormat::Binary32))
+        }
+        TypeKind::Builtin(BuiltinType::F64) => {
+            Some(ConstantScalarType::Float(FloatFormat::Binary64))
+        }
+        TypeKind::Builtin(builtin) if integer_builtin(*builtin) => {
+            Some(ConstantScalarType::Integer(*builtin))
+        }
+        _ => None,
+    }
+}
+
+const fn supported_builtin_value(builtin: BuiltinType) -> bool {
+    matches!(
+        builtin,
+        BuiltinType::Void
+            | BuiltinType::Never
+            | BuiltinType::Bool
+            | BuiltinType::Char
+            | BuiltinType::F32
+            | BuiltinType::F64
+    ) || integer_builtin(builtin)
 }
 
 const fn integer_builtin(builtin: BuiltinType) -> bool {
@@ -713,5 +862,38 @@ mod tests {
         );
 
         assert_eq!(output.program().compile_time_plans().len(), 2);
+    }
+
+    #[test]
+    fn one_generic_recipe_can_produce_multiple_closed_plans() {
+        let output = check(
+            "const func identity<T>(value: T): T where copy T { return value }\n\
+             const func integer(): i32 { return identity(1) }\n\
+             const func boolean(): bool { return identity(true) }\n",
+        );
+
+        assert_eq!(output.program().compile_time_plans().len(), 4);
+    }
+
+    #[test]
+    fn an_unreached_generic_body_still_validates_its_compile_time_operations() {
+        let fixture = Fixture::new(
+            "const func invalid<T>(value: T): T where copy T {\n\
+                 var result = value\n\
+                 result = value\n\
+                 return result\n\
+             }\n",
+        );
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        let error = check_prepared_program(&input, prepared).unwrap_err();
+
+        assert_eq!(
+            error.rule(),
+            Some(crate::BodyRule::InvalidCompileTimeCallable)
+        );
     }
 }

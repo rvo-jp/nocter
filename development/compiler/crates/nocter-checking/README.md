@@ -135,12 +135,15 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A queried lexical rejection can reproduce its exact `PreparationFailure` branch. Session never
   reconstructs a name-resolution error variant from a diagnostic and separate recovery value.
 - `SourceIndex` cannot affect a semantic decision.
-- Program finalization seeds every closed non-generic compile-time root, follows already-selected
-  direct calls, and projects each reachable `CompileTimeCallTarget` specialization exactly once
-  through one query. Its `CompileTimePlanTable` uses closed evaluator-domain type shapes rather
-  than store-relative `TypeId` arguments. Consumers cannot request projection, pair a declaration
-  with an unrelated body, or repeat lookup, typing, conversion, operator, or dispatch selection.
-  Unsupported authored `const` operations remain source-neutral until the finalization boundary
+- Program finalization projects each eligible checked body exactly once into a callable recipe,
+  including generic bodies that have no current call site. Unsupported authored `const` operations
+  therefore reject at their declaration rather than depending on reachability. It then seeds every
+  closed non-generic root, follows already-selected direct calls, and specializes each reachable
+  `CompileTimeCallTarget` exactly once through one query. Specialization reads recipes, not checked
+  bodies, and transforms only type and call-target edges. Its `CompileTimePlanTable` uses closed
+  evaluator-domain type shapes rather than store-relative `TypeId` arguments. Consumers cannot
+  request projection, pair a declaration with an unrelated body, or repeat lookup, typing,
+  conversion, operator, or dispatch selection. Failures remain source-neutral until finalization
   projects them through canonical node origins.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared

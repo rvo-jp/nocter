@@ -53,17 +53,23 @@ Ordinary body checking remains the sole authority for names, types, conversions,
 generic substitution, overloads, operators, ownership, and dispatch. It produces the same checked
 body graph for runtime and compile-time-capable callables.
 
-Program finalization seeds every closed non-generic compile-time root and follows its already
-selected direct-call edges. One query projects each reachable closed `CompileTimeCallTarget` into a
+Program finalization projects each eligible checked body exactly once into a
+`CompileTimeCallableRecipe`. The recipe uses the canonical checked node graph, retains `TypeId`
+only as a reference into that exact checked generation, and freezes every already-selected
+operation and call edge. This first projection validates generic bodies even when no current call
+site supplies a closed specialization.
+
+Finalization then seeds every closed non-generic compile-time root and follows its recipe call
+edges. One query specializes each reachable closed `CompileTimeCallTarget` into a
 source-independent `CompileTimeCallablePlan`, then publishes the closed specialization set as the
 `CompileTimePlanTable` inside the checked program. A specialization key stores evaluator-domain
-type shapes, not generation-relative `TypeId` values. Projection is validation, not type checking:
-it accepts only checked operations that have a defined compile-time meaning and retains their
-already-selected semantic identities. Consumers can read the resulting table but cannot request a
-second projection. Rejection points to the checked operation's source locator and is mapped to
-authored diagnostic `E0421` only at the exact-current source boundary.
+type shapes, not generation-relative `TypeId` values. Recipe specialization transforms only type
+and call-target edges through one exhaustive operation mapping; it never reads a checked body or
+repeats an operation decision. Consumers can read the resulting table but cannot request a second
+projection. Rejection points to the checked operation's source locator and is mapped to authored
+diagnostic `E0421` only at the exact-current source boundary.
 
-A generic body is projected when a closed root or direct call supplies its complete generic
+A generic recipe is specialized when a closed root or direct call supplies its complete generic
 domain. Multiple callers share that completed specialization. Recursive source calls do not form a
 plan-construction dependency cycle: the caller plan completes before its target edges are queued,
 and evaluation later applies the independent source-call-depth budget.

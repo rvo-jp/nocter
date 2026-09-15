@@ -73,14 +73,14 @@ pub enum CompileTimeComparisonOperation {
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct CompileTimeGenericArgument {
+pub struct CompileTimeGenericArgument<T = CompileTimeType> {
     parameter: GenericParameterId,
-    ty: CompileTimeType,
+    ty: T,
 }
 
-impl CompileTimeGenericArgument {
+impl<T> CompileTimeGenericArgument<T> {
     #[must_use]
-    pub const fn new(parameter: GenericParameterId, ty: CompileTimeType) -> Self {
+    pub const fn new(parameter: GenericParameterId, ty: T) -> Self {
         Self { parameter, ty }
     }
 
@@ -90,19 +90,19 @@ impl CompileTimeGenericArgument {
     }
 
     #[must_use]
-    pub const fn ty(&self) -> &CompileTimeType {
+    pub const fn ty(&self) -> &T {
         &self.ty
     }
 }
 
 /// One already-selected compile-time call target.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct CompileTimeCallTarget {
+pub struct CompileTimeCallTarget<T = CompileTimeType> {
     callable: CallableId,
-    generic_arguments: Box<[CompileTimeGenericArgument]>,
+    generic_arguments: Box<[CompileTimeGenericArgument<T>]>,
 }
 
-impl CompileTimeCallTarget {
+impl<T> CompileTimeCallTarget<T> {
     /// Creates a call target with one canonical argument per generic parameter.
     ///
     /// # Errors
@@ -111,7 +111,7 @@ impl CompileTimeCallTarget {
     /// meaning depends on caller convention.
     pub fn new(
         callable: CallableId,
-        generic_arguments: impl Into<Box<[CompileTimeGenericArgument]>>,
+        generic_arguments: impl Into<Box<[CompileTimeGenericArgument<T>]>>,
     ) -> Result<Self, InvalidCompileTimeCallTarget> {
         let generic_arguments = generic_arguments.into();
         if let Some(pair) = generic_arguments
@@ -134,10 +134,13 @@ impl CompileTimeCallTarget {
     }
 
     #[must_use]
-    pub const fn generic_arguments(&self) -> &[CompileTimeGenericArgument] {
+    pub const fn generic_arguments(&self) -> &[CompileTimeGenericArgument<T>] {
         &self.generic_arguments
     }
 }
+
+/// Checked-program-relative call edge retained before closed type specialization.
+pub type CompileTimeRecipeCallTarget = CompileTimeCallTarget<nocter_model::TypeId>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InvalidCompileTimeCallTarget {
@@ -153,7 +156,7 @@ impl InvalidCompileTimeCallTarget {
 
 /// Syntax-independent operation admitted by checked-body compile-time projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CompileTimeOperation {
+pub enum CompileTimeOperation<C = CompileTimeCallTarget> {
     Complete,
     Literal(nocter_model::ConstantValue),
     DeclaredConstant(ConstantId),
@@ -180,7 +183,7 @@ pub enum CompileTimeOperation {
     Tuple(Box<[BodyNodeId]>),
     FixedArray(Box<[BodyNodeId]>),
     Call {
-        target: CompileTimeCallTarget,
+        target: C,
         receiver: Option<BodyNodeId>,
         arguments: Box<[BodyNodeId]>,
     },
@@ -207,40 +210,136 @@ pub enum CompileTimeOperation {
     },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompileTimeNode {
-    ty: CompileTimeValueType,
-    operation: CompileTimeOperation,
+impl<C> CompileTimeOperation<C> {
+    /// Rebinds the only representation-specific edge while preserving the checked operation.
+    ///
+    /// This is the exhaustive recipe-to-plan boundary. Adding an operation variant therefore
+    /// cannot silently leave specialization with a second partial operation model.
+    ///
+    /// # Errors
+    ///
+    /// Returns the call-target mapper's failure without publishing a partially rebound operation.
+    pub fn try_map_call_target<D, E>(
+        self,
+        mut map: impl FnMut(C) -> Result<D, E>,
+    ) -> Result<CompileTimeOperation<D>, E> {
+        Ok(match self {
+            Self::Complete => CompileTimeOperation::Complete,
+            Self::Literal(value) => CompileTimeOperation::Literal(value),
+            Self::DeclaredConstant(id) => CompileTimeOperation::DeclaredConstant(id),
+            Self::ReadParameter(parameter) => CompileTimeOperation::ReadParameter(parameter),
+            Self::ReadLocal(local) => CompileTimeOperation::ReadLocal(local),
+            Self::Unary { operation, operand } => {
+                CompileTimeOperation::Unary { operation, operand }
+            }
+            Self::Binary {
+                operation,
+                left,
+                right,
+            } => CompileTimeOperation::Binary {
+                operation,
+                left,
+                right,
+            },
+            Self::NumericConversion { operand, target } => {
+                CompileTimeOperation::NumericConversion { operand, target }
+            }
+            Self::Comparison {
+                operation,
+                left,
+                right,
+            } => CompileTimeOperation::Comparison {
+                operation,
+                left,
+                right,
+            },
+            Self::Tuple(elements) => CompileTimeOperation::Tuple(elements),
+            Self::FixedArray(elements) => CompileTimeOperation::FixedArray(elements),
+            Self::Call {
+                target,
+                receiver,
+                arguments,
+            } => CompileTimeOperation::Call {
+                target: map(target)?,
+                receiver,
+                arguments,
+            },
+            Self::Block { statements, result } => {
+                CompileTimeOperation::Block { statements, result }
+            }
+            Self::Bind {
+                binding,
+                initializer,
+            } => CompileTimeOperation::Bind {
+                binding,
+                initializer,
+            },
+            Self::Discard(value) => CompileTimeOperation::Discard(value),
+            Self::Unreachable => CompileTimeOperation::Unreachable,
+            Self::Return(value) => CompileTimeOperation::Return(value),
+            Self::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => CompileTimeOperation::If {
+                condition,
+                then_branch,
+                else_branch,
+            },
+            Self::Logical {
+                operation,
+                left,
+                right,
+            } => CompileTimeOperation::Logical {
+                operation,
+                left,
+                right,
+            },
+        })
+    }
 }
 
-impl CompileTimeNode {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompileTimeNode<T = CompileTimeValueType, C = CompileTimeCallTarget> {
+    ty: T,
+    operation: CompileTimeOperation<C>,
+}
+
+impl<T, C> CompileTimeNode<T, C> {
     #[must_use]
-    pub const fn new(ty: CompileTimeValueType, operation: CompileTimeOperation) -> Self {
+    pub const fn new(ty: T, operation: CompileTimeOperation<C>) -> Self {
         Self { ty, operation }
     }
 
     #[must_use]
-    pub const fn ty(&self) -> &CompileTimeValueType {
+    pub const fn ty(&self) -> &T {
         &self.ty
     }
 
     #[must_use]
-    pub const fn operation(&self) -> &CompileTimeOperation {
+    pub const fn operation(&self) -> &CompileTimeOperation<C> {
         &self.operation
     }
 }
 
-/// One ordinary checked body lowered into the closed compile-time operation domain.
+/// One ordinary checked body lowered into a compile-time operation domain.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompileTimeCallablePlan {
+pub struct CompileTimeCallable<T, C> {
     parameters: Box<[ParameterId]>,
-    locals: Arena<LocalBindingId, CompileTimeValueType>,
-    nodes: Arena<BodyNodeId, CompileTimeNode>,
+    locals: Arena<LocalBindingId, T>,
+    nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
     root: BodyNodeId,
 }
 
-impl CompileTimeCallablePlan {
-    /// Builds a plan whose identities remain in the checked body's canonical domains.
+/// One checked body recipe before its generic type domain is closed.
+pub type CompileTimeCallableRecipe =
+    CompileTimeCallable<nocter_model::TypeId, CompileTimeRecipeCallTarget>;
+
+/// One checked body plan after its complete generic type domain is closed.
+pub type CompileTimeCallablePlan = CompileTimeCallable<CompileTimeValueType, CompileTimeCallTarget>;
+
+impl<T, C> CompileTimeCallable<T, C> {
+    /// Builds a recipe or plan whose identities remain in one canonical body-node domain.
     ///
     /// # Errors
     ///
@@ -248,10 +347,10 @@ impl CompileTimeCallablePlan {
     /// published.
     pub fn new(
         parameters: impl Into<Box<[ParameterId]>>,
-        locals: Arena<LocalBindingId, CompileTimeValueType>,
-        nodes: Arena<BodyNodeId, CompileTimeNode>,
+        locals: Arena<LocalBindingId, T>,
+        nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
         root: BodyNodeId,
-    ) -> Result<Self, InvalidCompileTimeCallablePlan> {
+    ) -> Result<Self, InvalidCompileTimeCallable> {
         let plan = Self {
             parameters: parameters.into(),
             locals,
@@ -269,9 +368,7 @@ impl CompileTimeCallablePlan {
                         .then_some(parameter)
                 })
         {
-            return Err(InvalidCompileTimeCallablePlan::DuplicateParameter(
-                parameter,
-            ));
+            return Err(InvalidCompileTimeCallable::DuplicateParameter(parameter));
         }
         plan.validate()?;
         Ok(plan)
@@ -283,12 +380,12 @@ impl CompileTimeCallablePlan {
     }
 
     #[must_use]
-    pub const fn locals(&self) -> &Arena<LocalBindingId, CompileTimeValueType> {
+    pub const fn locals(&self) -> &Arena<LocalBindingId, T> {
         &self.locals
     }
 
     #[must_use]
-    pub const fn nodes(&self) -> &Arena<BodyNodeId, CompileTimeNode> {
+    pub const fn nodes(&self) -> &Arena<BodyNodeId, CompileTimeNode<T, C>> {
         &self.nodes
     }
 
@@ -297,13 +394,13 @@ impl CompileTimeCallablePlan {
         self.root
     }
 
-    fn validate(&self) -> Result<(), InvalidCompileTimeCallablePlan> {
+    fn validate(&self) -> Result<(), InvalidCompileTimeCallable> {
         self.require_node(self.root)?;
         for (_, node) in self.nodes.iter() {
             match node.operation() {
                 CompileTimeOperation::ReadParameter(parameter) => {
                     if !self.parameters.contains(parameter) {
-                        return Err(InvalidCompileTimeCallablePlan::MissingParameter(*parameter));
+                        return Err(InvalidCompileTimeCallable::MissingParameter(*parameter));
                     }
                 }
                 CompileTimeOperation::ReadLocal(local) => self.require_local(*local)?,
@@ -376,23 +473,23 @@ impl CompileTimeCallablePlan {
         Ok(())
     }
 
-    fn require_node(&self, node: BodyNodeId) -> Result<(), InvalidCompileTimeCallablePlan> {
+    fn require_node(&self, node: BodyNodeId) -> Result<(), InvalidCompileTimeCallable> {
         self.nodes
             .get(node)
             .map(|_| ())
-            .ok_or(InvalidCompileTimeCallablePlan::MissingNode(node))
+            .ok_or(InvalidCompileTimeCallable::MissingNode(node))
     }
 
-    fn require_local(&self, local: LocalBindingId) -> Result<(), InvalidCompileTimeCallablePlan> {
+    fn require_local(&self, local: LocalBindingId) -> Result<(), InvalidCompileTimeCallable> {
         self.locals
             .get(local)
             .map(|_| ())
-            .ok_or(InvalidCompileTimeCallablePlan::MissingLocal(local))
+            .ok_or(InvalidCompileTimeCallable::MissingLocal(local))
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InvalidCompileTimeCallablePlan {
+pub enum InvalidCompileTimeCallable {
     MissingNode(BodyNodeId),
     MissingParameter(ParameterId),
     DuplicateParameter(ParameterId),

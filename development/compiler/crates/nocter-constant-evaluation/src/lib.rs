@@ -20,10 +20,11 @@ use nocter_language::DiagnosticCode;
 
 pub use budget::CompileTimeEvaluationLimits;
 pub use callable::{
-    CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
-    CompileTimeComparisonOperation, CompileTimeGenericArgument, CompileTimeLogicalOperation,
-    CompileTimeNode, CompileTimeOperation, CompileTimeType, CompileTimeUnaryOperation,
-    CompileTimeValueType, InvalidCompileTimeCallTarget, InvalidCompileTimeCallablePlan,
+    CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallable,
+    CompileTimeCallablePlan, CompileTimeCallableRecipe, CompileTimeComparisonOperation,
+    CompileTimeGenericArgument, CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation,
+    CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType,
+    InvalidCompileTimeCallTarget, InvalidCompileTimeCallable,
 };
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_expression_plan,

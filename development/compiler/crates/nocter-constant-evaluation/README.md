@@ -8,10 +8,12 @@ checked callable bodies.
 ## Contract
 
 The crate consumes syntax-owned constant expressions plus explicit semantic support and produces
-typed scalar constants, recursively frozen values, or validated callable plans, plus semantic
-evaluation failures. Callable plans retain checked body identities and already-selected call
-targets; this crate never consumes a checked body directly. It does not perform body checking,
-runtime execution, name lookup, overload selection, or target code generation.
+typed scalar constants, recursively frozen values, checked-body callable recipes, or closed
+callable plans, plus semantic evaluation failures. Recipes retain checked body identities,
+store-relative types, and already-selected call targets; closed plans replace only those type edges
+with evaluator-domain shapes. This crate never consumes a checked body directly. It does not
+perform body checking, runtime execution, name lookup, overload selection, or target code
+generation.
 
 ## Invariants
 
@@ -20,8 +22,12 @@ runtime execution, name lookup, overload selection, or target code generation.
 - Decimal floating evaluation receives syntax-owned suffix decomposition and a selected format;
   it never parses a suffix or asks the compiler host for a floating-point value.
 - Failure cannot publish a partially evaluated semantic constant.
-- Callable-plan construction validates every node, parameter, and local edge before publication.
+- Callable recipe and plan construction validate every node, parameter, and local edge before
+  publication.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
+- One generic operation representation serves both checked recipes and closed plans. Its exhaustive
+  call-target mapping is the only recipe-to-plan operation transform, so specialization cannot
+  grow a second partial operation model.
 - Callable specialization keys contain closed evaluator-domain type shapes rather than `TypeId`, so
   a plan identity cannot be paired with a sibling checked-program type store.
 - One query owns every reachable closed callable specialization. Generic bodies are projected only

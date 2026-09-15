@@ -1,19 +1,23 @@
 use std::collections::{HashSet, VecDeque};
 
 use nocter_constant_evaluation::{
-    CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeOperation, CompileTimePlanTable,
-    DependencyComputation, DependencyQuery, DependencyQueryError,
+    CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeCallableRecipe,
+    CompileTimeOperation, CompileTimePlanTable, DependencyComputation, DependencyQuery,
+    DependencyQueryError,
 };
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{Arena, CompileTimeGuarantee, TypeStore};
 
-use super::{CompileTimeProjectionError, CompileTimeProjectionRule, project_compile_time_callable};
+use super::{
+    CompileTimeProjectionError, CompileTimeProjectionRule, project_compile_time_callable_recipe,
+    specialize_compile_time_callable_recipe,
+};
 use crate::CheckedBody;
 
 struct PlanComputation<'a> {
     graph: &'a DeclarationGraph,
     types: &'a TypeStore,
-    bodies: &'a Arena<nocter_model::BodyId, CheckedBody>,
+    recipes: &'a Arena<nocter_model::CallableId, Option<CompileTimeCallableRecipe>>,
 }
 
 impl
@@ -55,31 +59,29 @@ impl
                 },
             ));
         }
-        let body_id = declaration.body().ok_or_else(|| {
-            DependencyQueryError::computation(CompileTimeProjectionError {
-                callable,
-                body: None,
-                node: None,
-                rule: CompileTimeProjectionRule::UnavailableCallTarget,
-            })
-        })?;
-        let body = self.bodies.get(body_id).ok_or_else(|| {
-            DependencyQueryError::computation(CompileTimeProjectionError {
-                callable,
-                body: Some(body_id),
-                node: None,
-                rule: CompileTimeProjectionRule::InvalidPlan,
-            })
-        })?;
-        project_compile_time_callable(self.graph, self.types, &target, body_id, body)
+        let body = declaration.body();
+        let recipe = self
+            .recipes
+            .get(callable)
+            .and_then(Option::as_ref)
+            .ok_or_else(|| {
+                DependencyQueryError::computation(CompileTimeProjectionError {
+                    callable,
+                    body,
+                    node: None,
+                    rule: CompileTimeProjectionRule::UnavailableCallTarget,
+                })
+            })?;
+        specialize_compile_time_callable_recipe(self.graph, self.types, &target, recipe)
             .map_err(DependencyQueryError::computation)
     }
 }
 
 /// Builds the only closed compile-time specialization authority for one checked generation.
 ///
-/// Every non-generic compile-time body is a root. Projected direct calls discover further closed
-/// specializations, including generic callees, and one dependency query memoizes each target.
+/// Every non-generic compile-time body is a root. Specialized recipe call edges discover further
+/// closed specializations, including generic callees, and one dependency query memoizes each
+/// target.
 /// Source recursion is not a plan-construction cycle: a plan completes before its call edges are
 /// scheduled, so recursive call graphs close normally and remain governed by evaluation depth.
 pub(crate) fn build_compile_time_plan_table(
@@ -87,6 +89,24 @@ pub(crate) fn build_compile_time_plan_table(
     types: &TypeStore,
     bodies: &Arena<nocter_model::BodyId, CheckedBody>,
 ) -> Result<CompileTimePlanTable, CompileTimeProjectionError> {
+    let recipes = graph
+        .declarations()
+        .callables()
+        .try_map(|callable, declaration| {
+            if declaration.guarantees().compile_time() != CompileTimeGuarantee::Evaluatable {
+                return Ok(None);
+            }
+            let Some(body_id) = declaration.body() else {
+                return Ok(None);
+            };
+            let body = bodies.get(body_id).ok_or(CompileTimeProjectionError {
+                callable,
+                body: Some(body_id),
+                node: None,
+                rule: CompileTimeProjectionRule::InvalidPlan,
+            })?;
+            project_compile_time_callable_recipe(graph, types, callable, body_id, body).map(Some)
+        })?;
     let mut pending = VecDeque::new();
     let mut scheduled = HashSet::new();
     for (callable, declaration) in graph.declarations().callables().iter() {
@@ -113,7 +133,7 @@ pub(crate) fn build_compile_time_plan_table(
     let mut computation = PlanComputation {
         graph,
         types,
-        bodies,
+        recipes: &recipes,
     };
     let mut query = DependencyQuery::default();
     while let Some(target) = pending.pop_front() {
