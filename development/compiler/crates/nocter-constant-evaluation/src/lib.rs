@@ -34,8 +34,8 @@ pub use evaluate::{
     evaluate_frozen_expression_plan,
 };
 pub use execution::{
-    CompileTimeExecutionError, CompileTimeExecutionRule, CompileTimeExecutionSubject,
-    CompileTimeExecutor,
+    CompileTimeConstantResolver, CompileTimeExecutionError, CompileTimeExecutionRule,
+    CompileTimeExecutionSubject, CompileTimeExecutor,
 };
 pub use floating::{
     FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, FloatLiteralError,

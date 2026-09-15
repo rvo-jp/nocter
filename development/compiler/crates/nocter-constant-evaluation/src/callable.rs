@@ -354,6 +354,7 @@ pub struct CompileTimeCallable<T, C> {
     locals: Arena<LocalBindingId, T>,
     nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
     root: BodyNodeId,
+    constant_dependencies: Box<[ConstantId]>,
 }
 
 /// One checked body recipe before its generic type domain is closed.
@@ -380,12 +381,22 @@ impl<T, C> CompileTimeCallable<T, C> {
     where
         T: PartialEq,
     {
+        let mut constant_dependencies = nodes
+            .iter()
+            .filter_map(|(_, node)| match node.operation() {
+                CompileTimeOperation::DeclaredConstant(id) => Some(*id),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        constant_dependencies.sort_unstable();
+        constant_dependencies.dedup();
         let plan = Self {
             parameters: parameters.into(),
             result,
             locals,
             nodes,
             root,
+            constant_dependencies: constant_dependencies.into_boxed_slice(),
         };
         if let Some(parameter) =
             plan.parameters
@@ -427,6 +438,15 @@ impl<T, C> CompileTimeCallable<T, C> {
     #[must_use]
     pub const fn root(&self) -> BodyNodeId {
         self.root
+    }
+
+    /// Returns the canonical direct constant inputs read by this plan.
+    ///
+    /// The list is derived and frozen at construction, so dependency queries do not need to scan
+    /// operation nodes or maintain a second interpretation of the operation domain.
+    #[must_use]
+    pub const fn constant_dependencies(&self) -> &[ConstantId] {
+        &self.constant_dependencies
     }
 
     fn validate(&self) -> Result<(), InvalidCompileTimeCallable>
@@ -550,4 +570,44 @@ pub enum InvalidCompileTimeCallable {
     DuplicateParameter(ParameterId),
     MissingLocal(LocalBindingId),
     TypeMismatch(BodyNodeId),
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::{Arena, ArenaBuilder};
+
+    use super::{
+        CompileTimeCallablePlan, CompileTimeNode, CompileTimeOperation, CompileTimeParameter,
+        CompileTimeValueType,
+    };
+
+    #[test]
+    fn construction_freezes_sorted_unique_constant_dependencies() {
+        let mut constant_ids = ArenaBuilder::new();
+        let first = constant_ids.insert(());
+        let second = constant_ids.insert(());
+        let mut nodes = ArenaBuilder::new();
+        let second_read = nodes.insert(CompileTimeNode::new(
+            CompileTimeValueType::Never,
+            CompileTimeOperation::DeclaredConstant(second),
+        ));
+        nodes.insert(CompileTimeNode::new(
+            CompileTimeValueType::Never,
+            CompileTimeOperation::DeclaredConstant(first),
+        ));
+        nodes.insert(CompileTimeNode::new(
+            CompileTimeValueType::Never,
+            CompileTimeOperation::DeclaredConstant(second),
+        ));
+        let plan = CompileTimeCallablePlan::new(
+            Vec::<CompileTimeParameter<CompileTimeValueType>>::new(),
+            CompileTimeValueType::Never,
+            Arena::default(),
+            nodes.finish(),
+            second_read,
+        )
+        .unwrap();
+
+        assert_eq!(plan.constant_dependencies(), &[first, second]);
+    }
 }

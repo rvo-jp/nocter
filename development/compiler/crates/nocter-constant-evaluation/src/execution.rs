@@ -62,10 +62,25 @@ struct CallKey {
     arguments: Box<[CompileTimeValue]>,
 }
 
+/// Immutable constant lookup used by checked-plan execution.
+///
+/// Execution depends only on this semantic contract. A complete program can provide its dense
+/// value arena, while a dependency query can expose only values that it has already completed.
+pub trait CompileTimeConstantResolver {
+    #[must_use]
+    fn resolve_constant(&self, id: ConstantId) -> Option<&ConstantValue>;
+}
+
+impl CompileTimeConstantResolver for Arena<ConstantId, ConstantValue> {
+    fn resolve_constant(&self, id: ConstantId) -> Option<&ConstantValue> {
+        self.get(id)
+    }
+}
+
 /// Evaluates closed callable plans with one deterministic budget and call-result cache.
 pub struct CompileTimeExecutor<'program> {
     plans: &'program CompileTimePlanTable,
-    constants: &'program Arena<ConstantId, ConstantValue>,
+    constants: &'program dyn CompileTimeConstantResolver,
     target: CompilationTarget,
     remaining_steps: u64,
     maximum_call_depth: u32,
@@ -76,7 +91,7 @@ impl<'program> CompileTimeExecutor<'program> {
     #[must_use]
     pub fn new(
         plans: &'program CompileTimePlanTable,
-        constants: &'program Arena<ConstantId, ConstantValue>,
+        constants: &'program dyn CompileTimeConstantResolver,
         target: CompilationTarget,
         limits: CompileTimeEvaluationLimits,
     ) -> Self {
@@ -215,9 +230,13 @@ impl<'program> CompileTimeExecutor<'program> {
             CompileTimeOperation::Literal(value) => scalar_value(node.ty(), value.clone())
                 .map_err(|rule| frame.error(rule, Some(node_id)))?,
             CompileTimeOperation::DeclaredConstant(id) => {
-                let value = self.constants.get(*id).cloned().ok_or_else(|| {
-                    frame.error(CompileTimeExecutionRule::MissingConstant, Some(node_id))
-                })?;
+                let value = self
+                    .constants
+                    .resolve_constant(*id)
+                    .cloned()
+                    .ok_or_else(|| {
+                        frame.error(CompileTimeExecutionRule::MissingConstant, Some(node_id))
+                    })?;
                 scalar_value(node.ty(), value).map_err(|rule| frame.error(rule, Some(node_id)))?
             }
             CompileTimeOperation::ReadParameter(parameter) => {
