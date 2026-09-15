@@ -17,6 +17,7 @@ mod scalar;
 mod support;
 #[cfg(test)]
 mod tests;
+mod value;
 
 use nocter_language::DiagnosticCode;
 
@@ -32,9 +33,7 @@ pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_expression_plan,
     evaluate_frozen_expression_plan,
 };
-pub use execution::{
-    CompileTimeExecutionError, CompileTimeExecutionRule, CompileTimeExecutor, CompileTimeValue,
-};
+pub use execution::{CompileTimeExecutionError, CompileTimeExecutionRule, CompileTimeExecutor};
 pub use floating::{
     FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, FloatLiteralError,
     TargetFloatEvaluator,
@@ -46,6 +45,7 @@ pub use model::{
 pub use plan::{plan_expression, plan_frozen_expression};
 pub use program::{CompileTimePlanTable, InvalidCompileTimePlanRule, InvalidCompileTimePlanTable};
 pub use query::{DependencyComputation, DependencyQuery, DependencyQueryError};
+pub use value::CompileTimeValue;
 
 /// Public constant-expression diagnostic family shared by header and body semantic adapters.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
