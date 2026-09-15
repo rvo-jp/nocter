@@ -91,6 +91,12 @@ The existing owned-body response operation derives a fixed-length plan, writes i
 through the same writer transition, and finalizes it. It is a convenience owner, not another
 framing or connection-lifecycle authority.
 
+`ResponseOutputState` belongs to the planner contract, not transport storage. Pure fixed-length and
+chunked transition functions validate the next logical fragment before any byte is written. The
+driver marks the owner failed before awaiting transport and publishes the planned next state only
+after every wire byte succeeds. Cancellation therefore cannot leave a writable owner whose
+reported progress exceeds its accepted wire prefix.
+
 ## Persistence Selection
 
 Validated field processing records semantic connection tokens while it already owns header

@@ -1,0 +1,162 @@
+//! Linear streaming response output over one frozen framing plan.
+
+see ./encoding.nct
+see ./errors.nct
+see ./index.nct
+see ./response_plan.nct
+see ./server_storage.nct
+see ./storage.nct
+
+use /task
+use /task.Timeout
+use /time.Duration
+use /vec.Vec
+
+func response_writer_from_plan(
+    responder: Responder,
+    plan: ResponsePlan,
+): ResponseWriter {
+    var owner = move responder
+    var prepared = move plan
+    return ResponseWriter {
+        stream: move owner.stream,
+        peer: owner.peer,
+        request_body: move owner.request_body,
+        state: move prepared.state,
+        suppress_body: owner.suppress_body,
+        limits: owner.limits,
+        protocol_scratch: Vec.with_capacity(32),
+    }
+}
+
+async func begin_response_writer(
+    responder: Responder,
+    head: ResponseHead,
+    framing: ResponseFraming,
+): ResponseWriter! {
+    var owner = move responder
+    let plan = plan_server_response(&head, move framing, owner.limits)?
+    await owner.stream.write(&plan.head) catch failure {
+        owner.stream.close()
+        return failure.context("while writing the HTTP response head")
+    }
+    return response_writer_from_plan(move owner, move plan)
+}
+
+async func write_chunk_prefix(writer: &+ResponseWriter, length: usize): void! {
+    writer.protocol_scratch.clear()
+    append_hexadecimal(&+writer.protocol_scratch, length)
+    append_text(&+writer.protocol_scratch, "\r\n")
+    await writer.stream.write(&writer.protocol_scratch)?
+    return
+}
+
+async func write_response_fragment(writer: &+ResponseWriter, bytes: &[u8]): void! {
+    match writer.state {
+        ResponseOutputState.failed { return response_writer_failed() }
+        ResponseOutputState.fixed(remaining) {
+            if bytes.len() == 0 { return }
+            let next_remaining = plan_fixed_response_fragment(remaining, bytes.len())?
+            writer.state = ResponseOutputState.failed
+            if !writer.suppress_body {
+                await writer.stream.write(bytes) catch failure {
+                    writer.stream.close()
+                    return failure.context("while writing the fixed HTTP response body")
+                }
+            }
+            writer.state = ResponseOutputState.fixed(next_remaining)
+            return
+        }
+        ResponseOutputState.chunked(written) {
+            if bytes.len() == 0 { return }
+            let next_written = plan_chunked_response_fragment(
+                written,
+                bytes.len(),
+                writer.limits,
+            )?
+            writer.state = ResponseOutputState.failed
+            if !writer.suppress_body {
+                await write_chunk_prefix(writer, bytes.len()) catch failure {
+                    writer.stream.close()
+                    return failure.context("while writing the HTTP response chunk size")
+                }
+                await writer.stream.write(bytes) catch failure {
+                    writer.stream.close()
+                    return failure.context("while writing the HTTP response chunk body")
+                }
+                await writer.stream.write("\r\n".bytes()) catch failure {
+                    writer.stream.close()
+                    return failure.context("while completing the HTTP response chunk")
+                }
+            }
+            writer.state = ResponseOutputState.chunked(next_written)
+            return
+        }
+    }
+}
+
+async func finish_response_writer(writer: ResponseWriter): void! {
+    var owner = move writer
+    match owner.state {
+        ResponseOutputState.failed {
+            owner.stream.close()
+            return response_writer_failed()
+        }
+        ResponseOutputState.fixed(remaining) {
+            validate_fixed_response_finish(remaining) catch failure {
+                owner.stream.close()
+                return move failure
+            }
+            owner.stream.close()
+            return
+        }
+        ResponseOutputState.chunked(_) {
+            owner.state = ResponseOutputState.failed
+            if !owner.suppress_body {
+                await owner.stream.write("0\r\n\r\n".bytes()) catch failure {
+                    owner.stream.close()
+                    return failure.context("while completing the chunked HTTP response body")
+                }
+            }
+            owner.stream.close()
+            return
+        }
+    }
+}
+
+instance ResponseWriter {
+    async method &+self.write(bytes: &[u8]): void! {
+        return await write_response_fragment(self, bytes)?
+    }
+
+    async method &+self.write_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): void! {
+        match await task.with_timeout(write_response_fragment(self, bytes), timeout) {
+            Timeout.completed(result) { return move result? }
+            Timeout.elapsed {
+                self.stream.close()
+                self.state = ResponseOutputState.failed
+                return server_operation_timed_out()
+            }
+        }
+    }
+
+    async method self.finish(): void! {
+        return await finish_response_writer(move self)?
+    }
+
+    async method self.finish_with_timeout(timeout: Duration): void! {
+        match await task.with_timeout(finish_response_writer(move self), timeout) {
+            Timeout.completed(result) { return move result? }
+            Timeout.elapsed { return server_operation_timed_out() }
+        }
+    }
+
+    method self.close(): void {
+        var owner = move self
+        owner.stream.close()
+        return
+    }
+}

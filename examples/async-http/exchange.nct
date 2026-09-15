@@ -2,7 +2,7 @@ see ./index.nct
 
 see ./streaming.nct
 
-use std/http.{Client, OutgoingResponse, Request, Server}
+use std/http.{Client, Request, ResponseHead, Server}
 use std/net.{IpAddress, Ipv4Address, SocketAddress}
 use std/string.String
 use std/task
@@ -26,10 +26,12 @@ async func serve_once(server: Server, timeout: Duration): void! {
         return error.new("async-http.request", "local request body changed during HTTP decoding")
     }
     let responder = await request.finish_body_with_timeout(timeout)?
-    var response = OutgoingResponse.ok()
-    response.append_header_text("X-Example", "local")?
-    response.set_text_body("pong")
-    await responder.respond_with_timeout(move response, timeout)?
+    var head = ResponseHead.ok()
+    head.append_header_text("X-Example", "local")?
+    var writer = await responder.begin_chunked_with_timeout(move head, timeout)?
+    await writer.write_with_timeout("po".bytes(), timeout)?
+    await writer.write_with_timeout("ng".bytes(), timeout)?
+    await writer.finish_with_timeout(timeout)?
     return
 }
 

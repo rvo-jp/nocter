@@ -148,9 +148,10 @@ nocter run
 [async-http/index.nct](async-http/index.nct) runs a complete HTTP/1.1 exchange over a kernel-selected
 IPv4 loopback port. A structured join drives the async `Client` and `Server` together. The server
 accepts one typed connection, streams one bounded `IncomingRequest` body through `Reader`, then
-consumes that request to obtain its unique `Responder` and send an `OutgoingResponse`. The client
-applies an executor-safe per-read timeout through the same generic reader contract and validates
-the response as UTF-8 without external DNS or Internet availability.
+consumes that request to obtain its unique `Responder`. A chunked `ResponseWriter` emits two body
+fragments under transport backpressure. The client applies an executor-safe per-read timeout
+through the same generic reader contract and validates the response as UTF-8 without external DNS
+or Internet availability.
 
 ```sh
 cd examples/async-http

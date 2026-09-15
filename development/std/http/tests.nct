@@ -7,7 +7,7 @@ see ./index.nct
 see ./request.nct
 see ./request_head.nct
 see ./response_head.nct
-see ./server_codec.nct
+see ./response_plan.nct
 see ./server_values.nct
 see ./storage.nct
 see ./values.nct
@@ -216,16 +216,19 @@ test request_head_decoder_accepts_every_single_fragment_boundary {
 }
 
 test server_response_encoding_owns_connection_and_length_fields {
-    var response = OutgoingResponse.ok()
-    response.append_header_text("X-Test", "yes")?
-    response.set_text_body("pong")
-    let encoded = encode_server_response_head(&response, Limits.standard())?
+    var head = ResponseHead.ok()
+    head.append_header_text("X-Test", "yes")?
+    let plan = plan_server_response(&head, ResponseFraming.fixed(4), Limits.standard())?
     let expected = "HTTP/1.1 200 \r\nx-test: yes\r\ncontent-length: 4\r\nconnection: close\r\n\r\n"
-    if !bytes_equal(&encoded, expected.bytes()) {
+    if !bytes_equal(&plan.head, expected.bytes()) {
         return error.new("std.http.test", "server response encoding changed")
     }
-    response.append_header_text("Connection", "keep-alive")?
-    let _reserved = encode_server_response_head(&response, Limits.standard()) catch failure {
+    head.append_header_text("Connection", "keep-alive")?
+    let _reserved = plan_server_response(
+        &head,
+        ResponseFraming.fixed(4),
+        Limits.standard(),
+    ) catch failure {
         if failure.has_code("std.http.reserved_header") { return }
         return error.new("std.http.test", "server reserved-field failure changed")
     }
@@ -233,13 +236,51 @@ test server_response_encoding_owns_connection_and_length_fields {
 }
 
 test server_response_rejects_body_for_bodyless_status {
-    var response = OutgoingResponse.new(Status.new(204)?)?
-    response.set_text_body("unexpected")
-    let _encoded = encode_server_response_head(&response, Limits.standard()) catch failure {
+    let head = ResponseHead.new(Status.new(204)?)?
+    let _encoded = plan_server_response(
+        &head,
+        ResponseFraming.fixed(1),
+        Limits.standard(),
+    ) catch failure {
         if failure.has_code("std.http.invalid_response_body") { return }
         return error.new("std.http.test", "bodyless response failure changed")
     }
     return error.new("std.http.test", "bodyless status accepted a response body")
+}
+
+test server_response_plan_freezes_chunked_framing_once {
+    var head = ResponseHead.ok()
+    head.append_header_text("X-Stream", "yes")?
+    let plan = plan_server_response(&head, ResponseFraming.chunked, Limits.standard())?
+    let expected = "HTTP/1.1 200 \r\nx-stream: yes\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n"
+    if !bytes_equal(&plan.head, expected.bytes()) {
+        return error.new("std.http.test", "chunked response plan changed")
+    }
+    match plan.state {
+        ResponseOutputState.chunked(written) {
+            if written == 0 { return }
+        }
+        _ {}
+    }
+    return error.new("std.http.test", "chunked response state changed")
+}
+
+test response_output_state_rejects_overflow_and_premature_finish {
+    let remaining = plan_fixed_response_fragment(4, 3)?
+    if remaining != 1 {
+        return error.new("std.http.test", "fixed response remainder changed")
+    }
+    let _overflow = plan_fixed_response_fragment(remaining, 2) catch failure {
+        if !failure.has_code("std.http.response_body_overflow") {
+            return error.new("std.http.test", "response overflow failure changed")
+        }
+        validate_fixed_response_finish(remaining) catch finish_failure {
+            if finish_failure.has_code("std.http.incomplete_response_body") { return }
+            return error.new("std.http.test", "premature response finish failure changed")
+        }
+        return error.new("std.http.test", "incomplete fixed response finished")
+    }
+    return error.new("std.http.test", "fixed response accepted excess bytes")
 }
 
 test request_targets_and_generated_fields_obey_their_exact_limits {

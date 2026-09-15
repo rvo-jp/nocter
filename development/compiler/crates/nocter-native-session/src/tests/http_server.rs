@@ -63,13 +63,13 @@ fn public_http_server_deadlines_cancel_owned_operations_without_poisoning_listen
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn public_http_server_streams_and_drains_request_bodies_before_response_authority() {
+fn public_http_server_streams_request_and_response_bodies_through_linear_authority() {
     let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        "use std/http.{Client, OutgoingResponse, Request, Server}\n\
+        "use std/http.{Client, Request, ResponseHead, Server}\n\
          use std/net.{IpAddress, Ipv4Address, SocketAddress}\n\
          use std/string.String\n\
          use std/task\n\
@@ -94,9 +94,11 @@ fn public_http_server_streams_and_drains_request_bodies_before_response_authorit
                  return error.new(\"test.body\", \"streaming request prefix changed\")\n\
              }\n\
              let responder = await request.finish_body_with_timeout(timeout)?\n\
-             var response = OutgoingResponse.ok()\n\
-             response.set_text_body(\"ok\")\n\
-             await responder.respond_with_timeout(move response, timeout)?\n\
+             let head = ResponseHead.ok()\n\
+             var writer = await responder.begin_chunked_with_timeout(move head, timeout)?\n\
+             await writer.write_with_timeout(\"o\".bytes(), timeout)?\n\
+             await writer.write_with_timeout(\"k\".bytes(), timeout)?\n\
+             await writer.finish_with_timeout(timeout)?\n\
              return\n\
          }\n\
          \n\

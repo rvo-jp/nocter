@@ -372,6 +372,75 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
 }
 
 #[test]
+fn async_http_projects_streaming_response_writer_contracts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/async-http");
+    let source = root.join("exchange.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (begin_line, begin_source) = source_line(&text, "responder.begin_chunked_with_timeout");
+    let begin_character = begin_source.find("begin_chunked_with_timeout").unwrap();
+    let hover = server.receive(&position_request(
+        20,
+        "textDocument/hover",
+        &source,
+        begin_line,
+        begin_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(concat!(
+            "pub async method Responder.begin_chunked_with_timeout(",
+            "head: ResponseHead, timeout: Duration): ResponseWriter!"
+        )),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let (write_line, write_source) = source_line(&text, "writer.write_with_timeout");
+    let write_character = write_source.find("write_with_timeout").unwrap();
+    let implementation = server.receive(&position_request(
+        21,
+        "textDocument/implementation",
+        &source,
+        write_line,
+        write_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(
+        response.contains("/std/http/response_writer.nct"),
+        "{response}"
+    );
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let completion_character = write_source.find("writer.").unwrap() + "writer.".len();
+    let completion = server.receive(&position_request(
+        22,
+        "textDocument/completion",
+        &source,
+        write_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in [
+        "flush",
+        "write",
+        "write_line",
+        "write_text",
+        "write_with_timeout",
+    ] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+#[test]
 fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/text-search");
     let source = root.join("search.nct");

@@ -398,4 +398,30 @@ instance ResponseHead {
     noalloc method &self.headers(): &Headers from self {
         return &self.header_values
     }
+
+    method &+self.append_header(header: Header): void {
+        self.header_values.append(move header)
+        return
+    }
+
+    method &+self.append_header_text(name: &str, value: &str): void! {
+        let header_name = HeaderName.parse(name)?
+        let header_value = HeaderValue.from_text(value)?
+        self.append_header(Header.new(move header_name, move header_value))
+        return
+    }
+}
+
+construct ResponseHead {
+    noalloc func new(status: Status): Self! {
+        if status.code() < 200 || status.code() > 599 { return invalid_response_status() }
+        return response_head_from_parts(status, Headers.empty())
+    }
+
+    noalloc func ok(): Self {
+        return ResponseHead {
+            status_value: Status { code_value: 200 },
+            header_values: Headers.empty(),
+        }
+    }
 }

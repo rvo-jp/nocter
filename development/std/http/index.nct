@@ -1,7 +1,7 @@
 //! Validated HTTP/1.1 message values and transport-independent framing.
 
 use /hash.{Hash, HashState}
-use /io.{BlockingReader, Reader, TimedReader}
+use /io.{BlockingReader, Reader, TimedReader, TimedWriter, Writer}
 use /net.SocketAddress
 use /string.String
 use /time.Duration
@@ -27,8 +27,9 @@ see ./request_head.nct
 see ./request_convenience.nct
 see ./response_collection.nct
 see ./response_head.nct
+see ./response_plan.nct
+see ./response_writer.nct
 see ./server.nct
-see ./server_codec.nct
 see ./server_storage.nct
 see ./server_values.nct
 see ./storage.nct
@@ -197,15 +198,29 @@ instance RequestHead {
     pub noalloc method &self.headers(): &Headers from self
 }
 
-/// One parsed final or informational HTTP/1.1 response head.
+/// One validated HTTP/1.1 response status and ordered field set.
 pub struct ResponseHead
 
+construct ResponseHead {
+    /// Creates an empty final response head.
+    pub noalloc func new(status: Status): Self!
+
+    /// Creates an empty successful response head with status 200.
+    pub noalloc func ok(): Self
+}
+
 instance ResponseHead {
-    /// Returns the parsed status.
+    /// Returns the response status.
     pub noalloc method &self.status(): Status
 
     /// Borrows the ordered fields.
     pub noalloc method &self.headers(): &Headers from self
+
+    /// Appends one validated ordered field.
+    pub method &+self.append_header(header: Header): void
+
+    /// Validates and appends one textual field.
+    pub method &+self.append_header_text(name: &str, value: &str): void!
 }
 
 /// One owned HTTP request with a parsed URL and bounded byte body.
@@ -438,6 +453,28 @@ instance ServerConnection {
 pub struct Responder
 
 instance Responder {
+    /// Writes a fixed-length response head and returns its streaming body writer.
+    pub async method self.begin_fixed(
+        head: ResponseHead,
+        content_length: usize,
+    ): ResponseWriter!
+
+    /// Begins a fixed-length response before one fixed monotonic deadline.
+    pub async method self.begin_fixed_with_timeout(
+        head: ResponseHead,
+        content_length: usize,
+        timeout: Duration,
+    ): ResponseWriter!
+
+    /// Writes a chunked response head and returns its streaming body writer.
+    pub async method self.begin_chunked(head: ResponseHead): ResponseWriter!
+
+    /// Begins a chunked response before one fixed monotonic deadline.
+    pub async method self.begin_chunked_with_timeout(
+        head: ResponseHead,
+        timeout: Duration,
+    ): ResponseWriter!
+
     /// Encodes, writes, and closes one complete response.
     pub async method self.respond(response: OutgoingResponse): void!
 
@@ -448,5 +485,31 @@ instance Responder {
     ): void!
 
     /// Closes this connection without sending a response.
+    pub method self.close(): void
+}
+
+/// The unique streaming body output for one frozen HTTP/1.1 response plan.
+pub struct ResponseWriter
+
+instance ResponseWriter {
+    impl TimedWriter
+    impl Writer
+
+    /// Writes one complete body fragment with transport backpressure.
+    pub async method &+self.write(bytes: &[u8]): void!
+
+    /// Writes one complete fragment before one fixed monotonic deadline.
+    pub async method &+self.write_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): void!
+
+    /// Completes framing and closes the current non-persistent connection.
+    pub async method self.finish(): void!
+
+    /// Completes framing before one fixed monotonic deadline.
+    pub async method self.finish_with_timeout(timeout: Duration): void!
+
+    /// Closes the connection without completing response framing.
     pub method self.close(): void
 }

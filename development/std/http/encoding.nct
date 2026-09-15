@@ -138,6 +138,32 @@ func append_content_length(output: &+Vec<u8>, body_length: usize): void {
     return
 }
 
+func append_transfer_encoding_chunked(output: &+Vec<u8>): void {
+    append_text(output, "transfer-encoding: chunked\r\n")
+    return
+}
+
+func append_hexadecimal(output: &+Vec<u8>, value: usize): void {
+    let start = output.len()
+    var remaining = value
+    if remaining == 0 { output.push(48) }
+    while remaining != 0 {
+        let digit = u8.truncate((remaining % 16) as u64)
+        output.push(if digit < 10 { digit + 48 } else { digit - 10 + 97 })
+        remaining = remaining / 16
+    }
+    var left = start
+    var right = output.len() - 1
+    while left < right {
+        let digit = output[left]
+        output[left] = output[right]
+        output[right] = digit
+        left += 1
+        right -= 1
+    }
+    return
+}
+
 func append_connection_close(output: &+Vec<u8>): void {
     append_text(output, "connection: close\r\n")
     return

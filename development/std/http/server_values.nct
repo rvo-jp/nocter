@@ -23,18 +23,15 @@ instance IncomingRequest {
 
 construct OutgoingResponse {
     noalloc func new(status: Status): Self! {
-        if status.code() < 200 || status.code() > 599 { return invalid_response_status() }
         return OutgoingResponse {
-            status_value: status,
-            header_values: Headers.empty(),
+            head_value: ResponseHead.new(status)?,
             body_value: Vec.empty(),
         }
     }
 
     noalloc func ok(): Self {
         return OutgoingResponse {
-            status_value: Status { code_value: 200 },
-            header_values: Headers.empty(),
+            head_value: ResponseHead.ok(),
             body_value: Vec.empty(),
         }
     }
@@ -42,11 +39,11 @@ construct OutgoingResponse {
 
 instance OutgoingResponse {
     noalloc method &self.status(): Status {
-        return self.status_value
+        return self.head_value.status()
     }
 
     noalloc method &self.headers(): &Headers from self {
-        return &self.header_values
+        return self.head_value.headers()
     }
 
     noalloc method &self.body(): &[u8] from self {
@@ -55,14 +52,12 @@ instance OutgoingResponse {
     }
 
     method &+self.append_header(header: Header): void {
-        self.header_values.append(move header)
+        self.head_value.append_header(move header)
         return
     }
 
     method &+self.append_header_text(name: &str, value: &str): void! {
-        let header_name = HeaderName.parse(name)?
-        let header_value = HeaderValue.from_text(value)?
-        self.append_header(Header.new(move header_name, move header_value))
+        self.head_value.append_header_text(name, value)?
         return
     }
 

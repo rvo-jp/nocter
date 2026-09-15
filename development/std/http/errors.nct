@@ -19,6 +19,18 @@ noalloc func invalid_response_body(): error {
     return error.new("std.http.invalid_response_body", "HTTP status forbids a response body")
 }
 
+noalloc func response_body_overflow(): error {
+    return error.new("std.http.response_body_overflow", "response body exceeds its frozen length")
+}
+
+noalloc func incomplete_response_body(): error {
+    return error.new("std.http.incomplete_response_body", "fixed-length response ended before its frozen length")
+}
+
+noalloc func response_writer_failed(): error {
+    return error.new("std.http.response_writer_failed", "response writer has already failed")
+}
+
 noalloc func server_operation_timed_out(): error {
     return error.new("std.http.timed_out", "HTTP server operation exceeded its deadline")
 }

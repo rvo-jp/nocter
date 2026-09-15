@@ -34,27 +34,39 @@ pending range and transfer to the responder. They are neither discarded nor inte
 current response is unfinished. The current responder still closes after one response; a later
 persistent-connection transition can consume the preserved range without changing body decoding.
 
-`OutgoingResponse` owns one final status from 200 through 599, ordered user fields, and one complete
-body. `Responder.respond(self, response)` computes and validates the complete head before writing,
-adds the sole `Content-Length` when the status permits it, always adds `Connection: close`, writes
-the body when applicable, and closes the stream. Callers cannot provide `Connection`,
-`Content-Length`, or `Transfer-Encoding`; server framing therefore has one authority. Status 204,
-205, and 304 responses reject a non-empty body; 204 and 304 also omit `Content-Length`. A response
-to HEAD advertises the selected body length but does not transmit body bytes. Explicit responder
-close and ordinary destruction provide the no-response path.
+`ResponseHead` is the shared validated status-and-fields value for received and authored metadata.
+`Responder.begin_fixed` or `begin_chunked` consumes that head, validates reserved fields and limits,
+writes one frozen head, and returns the unique `ResponseWriter`. The writer implements `Writer` and
+`TimedWriter`. Fixed output rejects a fragment beyond its remaining length and rejects premature
+finish. Chunked output owns hexadecimal chunk spelling and emits exactly one terminal chunk at
+finish. Empty writes emit no chunk. Both paths await complete transport writes and retain only one
+32-byte protocol scratch allocation, independent of response size.
 
-The current server deliberately has no keep-alive, pipelined execution, upgrade, CONNECT tunnel,
-streaming response body, or implicit task spawning. Request bodies are streamed through fixed
-transport storage and remain bounded by `Limits`; complete response bodies remain caller-owned.
+Callers cannot provide `Connection`, `Content-Length`, or `Transfer-Encoding`; the frozen response
+plan is the sole framing authority. Status 204, 205, and 304 reject a non-empty or chunked body; 204
+and 304 omit `Content-Length`. A response to HEAD accepts and counts caller body fragments but does
+not transmit them. Transport failure or cancellation leaves the writer terminal and closes its
+stream no later than owner destruction. A fragment rejected before transport progress leaves the
+writer available for a corrected write.
+
+`OutgoingResponse` owns a `ResponseHead` plus a complete body. `Responder.respond` derives a
+fixed-length plan, writes that body through `ResponseWriter`, and finishes the same transition. It
+does not encode a second response head or implement another body-output path. The current finish
+always closes after successful framing; Phase 3 will publish a reusable connection only when the
+request, response, and connection policy all permit it. Explicit close and ordinary destruction
+provide incomplete-response and no-response paths.
+
+The current server deliberately has no keep-alive, pipelined execution, upgrade, CONNECT tunnel, or
+implicit task spawning. Request and response bodies stream through bounded transfer storage;
+complete owned response bodies remain a convenience rather than a separate protocol path.
 
 ## Server Deadlines and Capacity
 
-`accept_with_timeout`, `read_request_with_timeout`, `finish_body_with_timeout`, and
-`respond_with_timeout` compose ordinary operations with `std/task` timeout ownership; the HTTP
-codec and TCP transport do not implement another timer. Acceptance and request-head decoding each
-use one fixed monotonic deadline. `finish_body_with_timeout` uses one fixed deadline for the entire
-unread body drain, and `respond_with_timeout` uses one fixed deadline for the complete response.
-Expiry reports `std.http.timed_out`.
+Timeout-bearing acceptance, request-head decoding, body finalization, response begin, response
+write, response finish, and complete-response operations compose their ordinary transitions with
+`std/task`; the HTTP codec and TCP transport do not implement another clock. Each named operation
+uses one fixed monotonic deadline. `ResponseWriter.write_with_timeout` covers the complete logical
+fragment, including chunk prefix, bytes, and suffix. Expiry reports `std.http.timed_out`.
 
 `IncomingRequest.read_with_timeout` instead applies one idle timeout when that read needs more
 transport input. Buffered decoded bytes return immediately. A successful fragment does not attach
@@ -65,9 +77,10 @@ An expired accept cancels only its temporary borrowing computation and leaves `S
 for another accept. Request-head decoding consumes `ServerConnection`, so expiry destroys the
 stream instead of returning a partial head. A cancelled borrowed body read releases its exclusive
 borrow and leaves the request cursor at its exact progressed state. Expired consuming finalization
-destroys the request; expired response transmission destroys both `Responder` and
-`OutgoingResponse`. Neither exposes a partially reusable stream. Transport and codec failures
-retain their original stable code while adding operation context where appropriate.
+destroys the request. Expired response begin or consuming finish destroys its connection owner; an
+expired borrowed writer operation marks the writer terminal and closes the transport. None exposes
+a partially reusable stream. Transport and codec failures retain their original stable code while
+adding operation context where appropriate.
 
 Concurrent connection capacity belongs to application task ownership, not hidden listener state.
 An application caps accepted work by checking `TaskGroup.len()` and awaiting `TaskGroup.next()`

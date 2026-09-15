@@ -2,9 +2,11 @@
 
 see ./body_cursor.nct
 see ./index.nct
+see ./response_plan.nct
 see ./storage.nct
 
 use /net.{SocketAddress, TcpListener, TcpStream}
+use /vec.Vec
 
 struct Server {
     listener: TcpListener
@@ -32,4 +34,14 @@ struct Responder {
     request_body: BodyCursor
     suppress_body: bool
     limits: Limits
+}
+
+struct ResponseWriter {
+    stream: TcpStream
+    peer: SocketAddress
+    request_body: BodyCursor
+    state: ResponseOutputState
+    suppress_body: bool
+    limits: Limits
+    protocol_scratch: Vec<u8>
 }
