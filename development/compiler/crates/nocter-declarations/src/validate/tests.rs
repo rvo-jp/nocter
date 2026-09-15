@@ -32,12 +32,12 @@ fn constant_storage_rejects_integer_values_outside_their_declared_range() {
         .add_declaration_site(module, Visibility::Private)
         .unwrap();
     let ty = program.types().builtin(BuiltinType::U8);
-    let constant = program.declarations_mut().reserve_constant();
+    let constant = program.reserve_constant();
     program
-        .declarations_mut()
         .define_constant(
             constant,
-            ConstantDeclaration::new(site, constant_name, ty, ConstantValue::Integer(256), None),
+            ConstantDeclaration::new(site, constant_name, ty, None),
+            ConstantValue::Integer(256),
         )
         .unwrap();
 
@@ -527,7 +527,7 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
     let RejectedDeclarationAnalysis::Bodies(analysis) = analysis else {
         panic!("local construction rejection unnecessarily disabled body analysis");
     };
-    let (_, _, admission) = analysis.into_parts();
+    let (_, _, _, admission) = analysis.into_parts();
     assert!(
         constructions
             .iter()

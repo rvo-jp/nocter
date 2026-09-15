@@ -19,7 +19,7 @@ fn required_and_default_methods_receive_exact_dispatch_selections() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     let mut types = types.transaction();
     let table =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -92,7 +92,7 @@ fn interface_implementation_method_failures_have_distinct_rules() {
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-        let (graph, types, _admission) = program.into_parts();
+        let (graph, types, _values, _admission) = program.into_parts();
         let mut types = types.transaction();
         let error = build_interface_implementation_table(
             &graph,
@@ -112,7 +112,7 @@ fn interface_noalloc_requirements_are_directional() {
     let input = invalid.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     let error = build_interface_implementation_table(
         &graph,
         &mut types.transaction(),
@@ -127,7 +127,7 @@ fn interface_noalloc_requirements_are_directional() {
     let input = valid.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     build_interface_implementation_table(
         &graph,
         &mut types.transaction(),
@@ -152,7 +152,7 @@ fn missing_method_failure_retains_every_specialized_required_signature() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     let mut types = types.transaction();
     let error =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -182,7 +182,7 @@ fn exact_overlap_diagnostic_is_input_order_independent() {
         let input = fixture.input(reverse);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-        let (graph, types, _admission) = program.into_parts();
+        let (graph, types, _values, _admission) = program.into_parts();
         let mut types = types.transaction();
         diagnostics.push(
             build_interface_implementation_table(
@@ -208,7 +208,7 @@ fn refined_pattern_overlaps_a_general_generic_pattern() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     let mut types = types.transaction();
     let error =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -225,7 +225,7 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     let mut types = types.transaction();
     let table =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -261,7 +261,7 @@ fn associated_type_bounds_use_the_same_interface_implementation_table() {
         let input = fixture.input(false);
         let lowered = lower_compile_unit_declarations(&input).unwrap();
         let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-        let (graph, types, _admission) = program.into_parts();
+        let (graph, types, _values, _admission) = program.into_parts();
         let mut types = types.transaction();
 
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -277,7 +277,7 @@ fn unsatisfied_associated_type_bound_has_its_own_rule() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
     let mut types = types.transaction();
     let error =
         build_interface_implementation_table(&graph, &mut types, source_index.diagnostic_origins())
@@ -360,7 +360,7 @@ fn layered_diamond_prerequisites_have_bounded_canonical_closure() {
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _bindings, _source_index) = lowered.into_checking_parts();
-    let (graph, _types, _admission) = program.into_parts();
+    let (graph, _types, _values, _admission) = program.into_parts();
     let interface_count = graph.declarations().interfaces().len();
 
     assert!(

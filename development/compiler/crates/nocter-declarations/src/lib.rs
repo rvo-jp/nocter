@@ -22,6 +22,7 @@ mod standard;
 mod static_value;
 mod target;
 mod validate;
+mod value_table;
 mod visibility;
 
 pub use analysis_admission::DeclarationAnalysisAdmission;
@@ -60,4 +61,5 @@ pub use validate::{
     DeclarationDomain, DeclarationRule, DeclarationValidationReport, DeclarationViolation,
     ProgramIntegrityError, ProgramValidationError,
 };
+pub use value_table::{DeclarationValueTable, DeclarationValueTableError};
 pub use visibility::Visibility;

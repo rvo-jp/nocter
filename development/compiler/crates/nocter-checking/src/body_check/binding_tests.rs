@@ -233,8 +233,9 @@ fn constant_values_type_array_annotations_while_body_references_keep_identity() 
         .declarations()
         .constants()
         .iter()
-        .find_map(|(id, constant)| {
-            (constant.value() == &nocter_model::ConstantValue::Integer(42)).then_some(id)
+        .find_map(|(id, _)| {
+            (output.program().constant_value(id) == Some(&nocter_model::ConstantValue::Integer(42)))
+                .then_some(id)
         })
         .unwrap();
     assert!(output.program().bodies().iter().any(|(_, body)| {

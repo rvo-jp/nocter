@@ -104,6 +104,7 @@ impl BodyNameEvidenceTable {
 pub struct NameAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,
+    values: nocter_declarations::DeclarationValueTable,
     body_names: BodyNameEvidenceTable,
     source_ownership: SourceOwnershipTable,
     source_index: SourceIndex,
@@ -113,6 +114,7 @@ impl NameAnalysisRecovery {
     pub(crate) const fn new(
         graph: DeclarationGraph,
         types: TypeStore,
+        values: nocter_declarations::DeclarationValueTable,
         body_names: Arena<BodyId, BodyNameEvidence>,
         source_ownership: SourceOwnershipTable,
         source_index: SourceIndex,
@@ -120,6 +122,7 @@ impl NameAnalysisRecovery {
         Self {
             graph,
             types,
+            values,
             body_names: BodyNameEvidenceTable::new(body_names),
             source_ownership,
             source_index,
@@ -134,6 +137,11 @@ impl NameAnalysisRecovery {
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
+    }
+
+    #[must_use]
+    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        &self.values
     }
 
     #[must_use]

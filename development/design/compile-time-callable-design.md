@@ -115,6 +115,13 @@ freezes the required values once, and MIR can obtain a declared value only from 
 This keeps declaration evaluation, runtime reachability, and lowering from becoming competing
 value authorities.
 
+`DeclarationValueTable` is the sole identity-indexed authority for values already completed during
+declaration construction. `ConstantDeclaration` and `StaticDeclaration` contain only semantic
+metadata. Their builder transition accepts metadata and value together, so no caller can publish
+one half independently. Accepted programs and all declaration/name/body recovery branches carry
+the same immutable table paired with their graph; editor presentation therefore does not need a
+fallback source interpreter or a value copied into presentation metadata.
+
 The query boundary is semantic and compiler-internal. The workspace computation engine may cache a
 completed compilation product between editor revisions, but it does not become the authority for
 dependencies inside one semantic construction.

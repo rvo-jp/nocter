@@ -80,6 +80,11 @@ impl<'a> SemanticInterruptionView<'a> {
     }
 
     #[must_use]
+    pub fn declaration_values(self) -> &'a nocter_declarations::DeclarationValueTable {
+        self.recovery.prepared().declaration_values()
+    }
+
+    #[must_use]
     pub const fn source_index(self) -> &'a SourceIndex {
         self.recovery.source_index()
     }

@@ -96,6 +96,14 @@ impl DeclarationLoweringRecovery {
     }
 
     #[must_use]
+    pub const fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        match &self.program {
+            DeclarationRecoveryProgram::Declarations(program) => program.values(),
+            DeclarationRecoveryProgram::Bodies(program) => program.values(),
+        }
+    }
+
+    #[must_use]
     pub const fn source_ownership(&self) -> &SourceOwnershipTable {
         self.frontend_bindings.source_ownership()
     }

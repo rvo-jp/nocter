@@ -90,7 +90,12 @@ pub(super) fn presentation(
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
     let graph = checked.graph();
-    let mut renderer = Renderer::new(graph, checked.types(), spellings);
+    let mut renderer = Renderer::new(
+        graph,
+        checked.types(),
+        Some(checked.declaration_values()),
+        spellings,
+    );
     renderer.entity(checked_body(checked, entity), entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -103,7 +108,7 @@ pub(super) fn type_presentation_with_spellings(
     ty: TypeId,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(graph, types, spellings);
+    let mut renderer = Renderer::new(graph, types, None, spellings);
     renderer.ty(ty)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -115,7 +120,7 @@ pub(super) fn recovery_type_presentation(
     graph: &DeclarationGraph,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(graph, projection.types(), spellings);
+    let mut renderer = Renderer::new(graph, projection.types(), None, spellings);
     renderer.ty(projection.root())?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -130,7 +135,12 @@ pub(super) fn hover_presentation(
 ) -> Result<SemanticPresentation, PresentationError> {
     let graph = checked.graph();
     let source_access = checked.source_access_context(source)?;
-    let mut renderer = Renderer::new(graph, checked.types(), spellings);
+    let mut renderer = Renderer::new(
+        graph,
+        checked.types(),
+        Some(checked.declaration_values()),
+        spellings,
+    );
     renderer
         .entity(checked_body(checked, entity), entity)
         .ok_or(PresentationError::InvalidEntity(entity))?;
@@ -147,11 +157,12 @@ pub(super) fn hover_presentation(
 pub(super) fn evidence_presentation(
     graph: &DeclarationGraph,
     types: &TypeStore,
+    values: &nocter_declarations::DeclarationValueTable,
     body: Option<&nocter_checking::CheckedBody>,
     entity: SemanticEntity,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(graph, types, spellings);
+    let mut renderer = Renderer::new(graph, types, Some(values), spellings);
     renderer.entity(body, entity)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -164,7 +175,7 @@ pub(super) fn required_interface_implementation_method_presentation(
     required: &RequiredInterfaceImplementationMethod,
     spellings: &visible_spelling::VisibleSpellings,
 ) -> Option<SemanticPresentation> {
-    let mut renderer = Renderer::new(graph, types, spellings);
+    let mut renderer = Renderer::new(graph, types, None, spellings);
     renderer.required_interface_implementation_method(required)?;
     Some(SemanticPresentation {
         code: renderer.output.into_boxed_str(),
@@ -186,6 +197,7 @@ fn checked_body(
 pub(super) struct Renderer<'a> {
     graph: &'a DeclarationGraph,
     types: &'a TypeStore,
+    values: Option<&'a nocter_declarations::DeclarationValueTable>,
     output: String,
     generics: Option<&'a GenericArguments>,
     record_parameters: bool,
@@ -208,11 +220,13 @@ impl<'a> Renderer<'a> {
     fn new(
         graph: &'a DeclarationGraph,
         types: &'a TypeStore,
+        values: Option<&'a nocter_declarations::DeclarationValueTable>,
         spellings: &'a visible_spelling::VisibleSpellings,
     ) -> Self {
         Self {
             graph,
             types,
+            values,
             output: String::new(),
             generics: None,
             record_parameters: false,
@@ -464,13 +478,14 @@ impl<'a> Renderer<'a> {
 
     fn constant(&mut self, id: nocter_model::ConstantId) -> Option<()> {
         let declaration = self.graph.declarations().constants().get(id)?;
+        let value = self.values?.constants().get(id)?;
         self.visibility(declaration.site())?;
         self.keyword(Keyword::Const);
         self.output.push_str(self.symbol(declaration.name())?);
         self.output.push_str(": ");
         self.ty(declaration.ty())?;
         self.output.push_str(" = ");
-        match declaration.value() {
+        match value {
             nocter_model::ConstantValue::Bool(value) => self.output.push_str(
                 if *value {
                     Keyword::True

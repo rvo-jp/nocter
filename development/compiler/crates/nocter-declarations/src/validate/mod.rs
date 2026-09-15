@@ -152,11 +152,14 @@ pub(crate) fn validate_language_rules(
 }
 
 fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    for (_, constant) in program.declarations().constants().iter() {
+    for (id, constant) in program.declarations().constants().iter() {
         require_site(program, constant.site(), DeclarationDomain::Constant)?;
         require_symbol(program, constant.name(), DeclarationDomain::Constant)?;
         require_type(program, constant.ty(), DeclarationDomain::Constant)?;
-        if !constant_value_matches(program, constant.ty(), constant.value()) {
+        let value = program.values().constants().get(id).ok_or(
+            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Constant),
+        )?;
+        if !constant_value_matches(program, constant.ty(), value) {
             return Err(ProgramIntegrityError::InvalidDeclarationShape(
                 DeclarationDomain::Constant,
             ));
@@ -166,11 +169,14 @@ fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegri
 }
 
 fn validate_statics(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
-    for (_, static_value) in program.declarations().statics().iter() {
+    for (id, static_value) in program.declarations().statics().iter() {
         require_site(program, static_value.site(), DeclarationDomain::Static)?;
         require_symbol(program, static_value.name(), DeclarationDomain::Static)?;
         require_type(program, static_value.ty(), DeclarationDomain::Static)?;
-        if !frozen_value_matches(program, static_value.ty(), static_value.value()) {
+        let value = program.values().statics().get(id).ok_or(
+            ProgramIntegrityError::InvalidDeclarationShape(DeclarationDomain::Static),
+        )?;
+        if !frozen_value_matches(program, static_value.ty(), value) {
             return Err(ProgramIntegrityError::InvalidDeclarationShape(
                 DeclarationDomain::Static,
             ));

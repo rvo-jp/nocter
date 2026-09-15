@@ -763,26 +763,23 @@ fn reserve_entity(
     program: &mut DeclarationProgramBuilder,
     kind: SurfaceDeclarationKind,
 ) -> Option<ReservedEntity> {
-    let declarations = program.declarations_mut();
     match kind {
         SurfaceDeclarationKind::Struct | SurfaceDeclarationKind::Enum => Some(
-            ReservedEntity::NominalType(declarations.reserve_nominal_type()),
+            ReservedEntity::NominalType(program.declarations_mut().reserve_nominal_type()),
         ),
-        SurfaceDeclarationKind::TypeAlias => {
-            Some(ReservedEntity::TypeAlias(declarations.reserve_type_alias()))
-        }
-        SurfaceDeclarationKind::Interface => {
-            Some(ReservedEntity::Interface(declarations.reserve_interface()))
-        }
+        SurfaceDeclarationKind::TypeAlias => Some(ReservedEntity::TypeAlias(
+            program.declarations_mut().reserve_type_alias(),
+        )),
+        SurfaceDeclarationKind::Interface => Some(ReservedEntity::Interface(
+            program.declarations_mut().reserve_interface(),
+        )),
         SurfaceDeclarationKind::AssociatedType => Some(ReservedEntity::AssociatedType(
-            declarations.reserve_associated_type(),
+            program.declarations_mut().reserve_associated_type(),
         )),
         SurfaceDeclarationKind::Constant => {
-            Some(ReservedEntity::Constant(declarations.reserve_constant()))
+            Some(ReservedEntity::Constant(program.reserve_constant()))
         }
-        SurfaceDeclarationKind::Static => {
-            Some(ReservedEntity::Static(declarations.reserve_static()))
-        }
+        SurfaceDeclarationKind::Static => Some(ReservedEntity::Static(program.reserve_static())),
         SurfaceDeclarationKind::Function
         | SurfaceDeclarationKind::PrimitiveFunction
         | SurfaceDeclarationKind::InterfaceMethod
@@ -793,27 +790,33 @@ fn reserve_entity(
         | SurfaceDeclarationKind::Equality
         | SurfaceDeclarationKind::Ordering
         | SurfaceDeclarationKind::Index
-        | SurfaceDeclarationKind::Expansion => {
-            Some(ReservedEntity::Callable(declarations.reserve_callable()))
-        }
-        SurfaceDeclarationKind::Construction => Some(ReservedEntity::Construction(
-            declarations.reserve_construction(),
+        | SurfaceDeclarationKind::Expansion => Some(ReservedEntity::Callable(
+            program.declarations_mut().reserve_callable(),
         )),
-        SurfaceDeclarationKind::Instance => {
-            Some(ReservedEntity::Instance(declarations.reserve_instance()))
-        }
+        SurfaceDeclarationKind::Construction => Some(ReservedEntity::Construction(
+            program.declarations_mut().reserve_construction(),
+        )),
+        SurfaceDeclarationKind::Instance => Some(ReservedEntity::Instance(
+            program.declarations_mut().reserve_instance(),
+        )),
         SurfaceDeclarationKind::InterfaceImplementation => {
             Some(ReservedEntity::InterfaceImplementation(
-                declarations.reserve_interface_implementation(),
+                program
+                    .declarations_mut()
+                    .reserve_interface_implementation(),
             ))
         }
-        SurfaceDeclarationKind::Drop => Some(ReservedEntity::Drop(declarations.reserve_drop())),
-        SurfaceDeclarationKind::Test => Some(ReservedEntity::Test(declarations.reserve_test())),
-        SurfaceDeclarationKind::Variant => {
-            Some(ReservedEntity::Variant(declarations.reserve_variant()))
-        }
+        SurfaceDeclarationKind::Drop => Some(ReservedEntity::Drop(
+            program.declarations_mut().reserve_drop(),
+        )),
+        SurfaceDeclarationKind::Test => Some(ReservedEntity::Test(
+            program.declarations_mut().reserve_test(),
+        )),
+        SurfaceDeclarationKind::Variant => Some(ReservedEntity::Variant(
+            program.declarations_mut().reserve_variant(),
+        )),
         SurfaceDeclarationKind::OpaqueType => Some(ReservedEntity::OpaqueType(
-            declarations.reserve_opaque_type(),
+            program.declarations_mut().reserve_opaque_type(),
         )),
         SurfaceDeclarationKind::Field | SurfaceDeclarationKind::PrimitiveType => None,
     }

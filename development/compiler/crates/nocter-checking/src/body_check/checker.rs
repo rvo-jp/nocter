@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use nocter_compile_input::CompileUnitInput;
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{DeclarationGraph, DeclarationValueTable};
 use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair};
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
@@ -132,6 +132,7 @@ pub(super) struct BodyUnitInput<'input, 'syntax> {
 pub(super) struct BodyChecker<'input, 'syntax> {
     input: &'input CompileUnitInput<'syntax>,
     graph: &'input DeclarationGraph,
+    values: &'input DeclarationValueTable,
     types: &'input mut nocter_model::TypeTransaction,
     copyabilities: &'input mut crate::copyability::CopyabilityTransaction,
     closures: &'input mut ClosureTransaction,
@@ -236,12 +237,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let source_namespaces = facts.source_namespaces();
         let source_access = body_source_access(facts, source)?;
         let diagnostic_origins = facts.diagnostic_origins();
-        let mut uses = HashMap::new();
-        for use_ in names.uses() {
-            if uses.insert(use_.origin(), use_.target()).is_some() {
-                return Err(BodyCheckInternalError::DuplicateNameUse(use_.origin()).into());
-            }
-        }
+        let uses = collect_name_uses(names)?;
         let mut local_declarations = HashMap::new();
         for (local, _) in names.locals().iter() {
             let origin = names
@@ -283,6 +279,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         Ok(Self {
             input,
             graph,
+            values: facts.values(),
             types,
             copyabilities,
             closures,
@@ -1275,4 +1272,16 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     const fn tree(&self) -> &'syntax nocter_syntax::SyntaxTree {
         self.source.syntax()
     }
+}
+
+fn collect_name_uses(
+    names: &ResolvedBodyNames,
+) -> Result<HashMap<SyntaxOrigin, NameTarget>, BodyCheckError> {
+    let mut uses = HashMap::new();
+    for use_ in names.uses() {
+        if uses.insert(use_.origin(), use_.target()).is_some() {
+            return Err(BodyCheckInternalError::DuplicateNameUse(use_.origin()).into());
+        }
+    }
+    Ok(uses)
 }

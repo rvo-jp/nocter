@@ -170,6 +170,11 @@ impl ReusablePreparedProgram {
         self.semantics.types()
     }
 
+    #[must_use]
+    pub fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        self.environment.values()
+    }
+
     pub(crate) fn open_current<S>(
         &self,
         spellings: impl IntoIterator<Item = S>,
@@ -215,6 +220,11 @@ impl PreparedSemanticProgram {
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         self.semantics.types()
+    }
+
+    #[must_use]
+    pub fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        self.environment.values()
     }
 
     #[must_use]
@@ -723,6 +733,7 @@ impl PreparationProgram {
     ) -> (
         DeclarationGraph,
         TypeAuthority,
+        nocter_declarations::DeclarationValueTable,
         nocter_declarations::DeclarationAnalysisAdmission,
     ) {
         match self {
@@ -744,9 +755,31 @@ struct PreparedProgramAuthorities {
 
 struct ReusablePreparationFailure {
     error: PreparationError,
+    facts: DeclarationRecoveryFacts,
+}
+
+struct DeclarationRecoveryFacts {
     graph: DeclarationGraph,
     types: TypeStore,
+    values: nocter_declarations::DeclarationValueTable,
     standard_semantics: Option<StandardSemanticTable>,
+}
+
+impl DeclarationRecoveryFacts {
+    fn into_recovery(
+        self,
+        source_ownership: nocter_frontend_bindings::SourceOwnershipTable,
+        source_index: SourceIndex,
+    ) -> crate::DeclarationAnalysisRecovery {
+        crate::DeclarationAnalysisRecovery::new(
+            self.graph,
+            self.types,
+            self.values,
+            source_ownership,
+            source_index,
+            self.standard_semantics,
+        )
+    }
 }
 
 /// Builds source-neutral program-wide checking authorities from an accepted declaration branch.
@@ -797,23 +830,13 @@ pub(crate) fn prepare_reusable_program_for_query(
             prepared,
         ))),
         Err(failure) => {
-            let ReusablePreparationFailure {
-                error,
-                graph,
-                types,
-                standard_semantics,
-            } = *failure;
+            let ReusablePreparationFailure { error, facts } = *failure;
             let rule = QueriedPreparationRule::capture(error)?;
             Ok(ReusableProgramPreparationQueryOutcome::Rejected(Box::new(
                 QueriedProgramPreparationRejection {
                     rule,
-                    analysis: crate::DeclarationAnalysisRecovery::new(
-                        graph,
-                        types,
-                        bindings.source_ownership().clone(),
-                        source_index,
-                        standard_semantics,
-                    ),
+                    analysis: facts
+                        .into_recovery(bindings.source_ownership().clone(), source_index),
                 },
             )))
         }
@@ -858,6 +881,7 @@ pub(crate) fn prepare_program_checking_from_current_queried_names<'syntax>(
             let recovery = crate::NameAnalysisRecovery::new(
                 semantic.graph().clone(),
                 semantic.types().clone(),
+                semantic.declaration_values().clone(),
                 bodies,
                 bindings.source_ownership().clone(),
                 source_index,
@@ -884,15 +908,18 @@ fn prepare_program_checking_internal<'syntax>(
     let body_sources = match prepare_body_sources(input, program.graph(), bindings) {
         Ok(body_sources) => body_sources,
         Err(error) => {
-            let (graph, types, _) = program.into_parts();
+            let (graph, types, values, _) = program.into_parts();
             return Err(declaration_failure(
                 error,
                 retain_names,
-                graph,
-                types.into_store(),
+                DeclarationRecoveryFacts {
+                    graph,
+                    types: types.into_store(),
+                    values,
+                    standard_semantics: None,
+                },
                 bindings.source_ownership().clone(),
                 source_index,
-                None,
             ));
         }
     };
@@ -904,20 +931,13 @@ fn prepare_program_checking_internal<'syntax>(
     ) {
         Ok(reusable) => reusable,
         Err(failure) => {
-            let ReusablePreparationFailure {
-                error,
-                graph,
-                types,
-                standard_semantics,
-            } = *failure;
+            let ReusablePreparationFailure { error, facts } = *failure;
             return Err(declaration_failure(
                 error,
                 retain_names,
-                graph,
-                types,
+                facts,
                 bindings.source_ownership().clone(),
                 source_index,
-                standard_semantics,
             ));
         }
     };
@@ -937,6 +957,7 @@ fn prepare_program_checking_internal<'syntax>(
                     crate::NameAnalysisRecovery::new(
                         reusable.graph().clone(),
                         reusable.types().clone(),
+                        reusable.declaration_values().clone(),
                         partial.bodies,
                         bindings.source_ownership().clone(),
                         partial.source_index,
@@ -967,15 +988,18 @@ fn prepare_reusable_program_internal(
     diagnostic_origins: DiagnosticOrigins<'_>,
 ) -> Result<ReusablePreparedProgram, Box<ReusablePreparationFailure>> {
     if input.toolchain().is_none() {
-        let (graph, types, _) = program.into_parts();
+        let (graph, types, values, _) = program.into_parts();
         return Err(Box::new(ReusablePreparationFailure {
             error: PreparationError::MissingToolchain,
-            graph,
-            types: types.into_store(),
-            standard_semantics: None,
+            facts: DeclarationRecoveryFacts {
+                graph,
+                types: types.into_store(),
+                values,
+                standard_semantics: None,
+            },
         }));
     }
-    let (graph, types, admission) = program.into_parts();
+    let (graph, types, values, admission) = program.into_parts();
     if input.target() != graph.target() {
         let program_target = graph.target();
         return Err(Box::new(ReusablePreparationFailure {
@@ -983,9 +1007,12 @@ fn prepare_reusable_program_internal(
                 input: input.target(),
                 program: program_target,
             },
-            graph,
-            types: types.into_store(),
-            standard_semantics: None,
+            facts: DeclarationRecoveryFacts {
+                graph,
+                types: types.into_store(),
+                values,
+                standard_semantics: None,
+            },
         }));
     }
     let standard_semantics = match StandardSemanticTable::build(&graph, types.store()) {
@@ -993,9 +1020,12 @@ fn prepare_reusable_program_internal(
         Err(error) => {
             return Err(Box::new(ReusablePreparationFailure {
                 error: error.into(),
-                graph,
-                types: types.into_store(),
-                standard_semantics: None,
+                facts: DeclarationRecoveryFacts {
+                    graph,
+                    types: types.into_store(),
+                    values,
+                    standard_semantics: None,
+                },
             }));
         }
     };
@@ -1012,9 +1042,12 @@ fn prepare_reusable_program_internal(
         Err(error) => {
             return Err(Box::new(ReusablePreparationFailure {
                 error,
-                graph,
-                types: type_transaction.freeze().into_store(),
-                standard_semantics: Some(standard_semantics),
+                facts: DeclarationRecoveryFacts {
+                    graph,
+                    types: type_transaction.freeze().into_store(),
+                    values,
+                    standard_semantics: Some(standard_semantics),
+                },
             }));
         }
     };
@@ -1033,6 +1066,7 @@ fn prepare_reusable_program_internal(
     Ok(ReusablePreparedProgram {
         environment: crate::program_environment::ProgramEnvironment::new(
             graph,
+            values,
             interface_implementations,
             construction_surfaces,
             instance_operations,
@@ -1124,21 +1158,12 @@ fn build_program_authorities(
 fn declaration_failure(
     error: PreparationError,
     retain_recovery: bool,
-    graph: DeclarationGraph,
-    types: TypeStore,
+    facts: DeclarationRecoveryFacts,
     source_ownership: nocter_frontend_bindings::SourceOwnershipTable,
     source_index: SourceIndex,
-    standard_semantics: Option<StandardSemanticTable>,
 ) -> PreparationFailure {
-    let recovery = retain_recovery.then(|| {
-        Box::new(crate::DeclarationAnalysisRecovery::new(
-            graph,
-            types,
-            source_ownership,
-            source_index,
-            standard_semantics,
-        ))
-    });
+    let recovery =
+        retain_recovery.then(|| Box::new(facts.into_recovery(source_ownership, source_index)));
     match recovery {
         Some(recovery) => PreparationFailure::with_declaration_recovery(error, recovery),
         None => PreparationFailure::new(error),

@@ -17,6 +17,7 @@ does not check callable bodies.
 ## Internal Responsibilities
 
 - deterministic identity reservation and definition
+- atomic completion of constant/static metadata and their separately stored evaluated values
 - one canonical `DeclarationSurface` topology consumed by both reservation and focused topology tests
 - define-once semantic projection recipes and current-generation materialization
 - declaration-only authority projection separated from current body imports and spellings
@@ -59,6 +60,9 @@ does not check callable bodies.
   frozen with `ReusableDeclarations`; materialization neither repeats module lookup nor declaration
   lowering.
 - Contract and private definition joins use exact identities, not text matching downstream.
+- Constant and static initialization is evaluated once before definition; lowering completes each
+  declaration and its value in one builder transition, and later stages cannot reread initializer
+  syntax or recover a payload from declaration metadata.
 - Public contracts and private bodies must retain the same authored guarantee fingerprint before
   either occurrence reaches semantic declaration storage.
 - Callable execution is derived only from the syntax-owned `async` modifier. Result normalization,

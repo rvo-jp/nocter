@@ -1,4 +1,4 @@
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{DeclarationGraph, DeclarationValueTable};
 use nocter_frontend_bindings::SourceOwnershipTable;
 use nocter_model::{Arena, TypeProjection, TypeStore};
 use nocter_source::{ByteOffset, SourceId, TextRange};
@@ -22,6 +22,7 @@ use crate::{
 pub struct DeclarationAnalysisRecovery {
     graph: DeclarationGraph,
     types: TypeStore,
+    values: DeclarationValueTable,
     source_ownership: SourceOwnershipTable,
     source_index: SourceIndex,
     standard_semantics: Option<crate::StandardSemanticTable>,
@@ -31,6 +32,7 @@ impl DeclarationAnalysisRecovery {
     pub(crate) fn new(
         graph: DeclarationGraph,
         types: TypeStore,
+        values: DeclarationValueTable,
         source_ownership: SourceOwnershipTable,
         source_index: SourceIndex,
         standard_semantics: Option<crate::StandardSemanticTable>,
@@ -38,6 +40,7 @@ impl DeclarationAnalysisRecovery {
         Self {
             graph,
             types,
+            values,
             source_ownership,
             source_index,
             standard_semantics,
@@ -48,6 +51,7 @@ impl DeclarationAnalysisRecovery {
         Self {
             graph: self.graph.clone(),
             types: self.types.clone(),
+            values: self.values.clone(),
             source_ownership: self.source_ownership.clone(),
             source_index: self.source_index.clone(),
             standard_semantics: self.standard_semantics.clone(),
@@ -62,6 +66,11 @@ impl DeclarationAnalysisRecovery {
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         &self.types
+    }
+
+    #[must_use]
+    pub const fn declaration_values(&self) -> &DeclarationValueTable {
+        &self.values
     }
 
     #[must_use]

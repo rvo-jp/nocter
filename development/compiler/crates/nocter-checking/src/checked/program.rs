@@ -69,6 +69,26 @@ impl CheckedProgram {
         self.environment.graph()
     }
 
+    /// Returns the single evaluated value owned by one declared constant identity.
+    #[must_use]
+    pub fn constant_value(
+        &self,
+        id: nocter_model::ConstantId,
+    ) -> Option<&nocter_model::ConstantValue> {
+        self.environment.values().constants().get(id)
+    }
+
+    /// Returns the single evaluated value owned by one declared static identity.
+    #[must_use]
+    pub fn static_value(&self, id: nocter_model::StaticId) -> Option<&nocter_model::FrozenValue> {
+        self.environment.values().statics().get(id)
+    }
+
+    #[must_use]
+    pub fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        self.environment.values()
+    }
+
     #[must_use]
     pub fn types(&self) -> &TypeStore {
         self.semantics.semantics().types()

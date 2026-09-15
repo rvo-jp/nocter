@@ -2,16 +2,17 @@ use std::collections::HashMap;
 use std::fmt;
 
 use nocter_model::{
-    Arena, ArenaBuilder, CompilationTarget, DeclarationSiteId, ImportId, ModuleId, PackageId,
-    PackageIdentity, PackageTargetId, Symbol, SymbolTable, TypeAuthority, TypeStore,
-    TypeTransaction,
+    Arena, ArenaBuilder, CompilationTarget, ConstantId, ConstantValue, DeclarationSiteId,
+    FrozenValue, ImportId, ModuleId, PackageId, PackageIdentity, PackageTargetId, StaticId, Symbol,
+    SymbolTable, TypeAuthority, TypeStore, TypeTransaction,
 };
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 use crate::{
-    DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas, ExportedEntity,
+    ConstantDeclaration, DeclarationAnalysisAdmission, DeclarationArenaBuilder, DeclarationArenas,
+    DeclarationValueTable, DeclarationValueTableError, DefinitionError, ExportedEntity,
     ImportDeclaration, IncompleteDefinition, ModuleNamespace, ModulePath, PackageTarget,
-    ProgramValidationError, StandardLibrary, Visibility,
+    ProgramValidationError, StandardLibrary, StaticDeclaration, Visibility,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -91,6 +92,7 @@ pub struct DeclarationGraph {
 pub struct DeclarationProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
+    values: DeclarationValueTable,
 }
 
 /// A declaration program whose complete integrity and authored-language validation succeeded.
@@ -364,8 +366,13 @@ impl DeclarationProgram {
         self.types.store()
     }
 
-    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeAuthority) {
-        (self.graph, self.types)
+    #[must_use]
+    pub const fn values(&self) -> &DeclarationValueTable {
+        &self.values
+    }
+
+    fn into_unvalidated_parts(self) -> (DeclarationGraph, TypeAuthority, DeclarationValueTable) {
+        (self.graph, self.types, self.values)
     }
 }
 
@@ -432,10 +439,11 @@ impl AcceptedDeclarationProgram {
     ) -> (
         DeclarationGraph,
         TypeAuthority,
+        DeclarationValueTable,
         DeclarationAnalysisAdmission,
     ) {
-        let (graph, types) = self.program.into_unvalidated_parts();
-        (graph, types, self.admission)
+        let (graph, types, values) = self.program.into_unvalidated_parts();
+        (graph, types, values, self.admission)
     }
 }
 
@@ -454,6 +462,7 @@ pub struct DeclarationProgramBuilder {
     imports: ArenaBuilder<ImportId, ImportDeclaration>,
     package_targets: ArenaBuilder<PackageTargetId, PackageTarget>,
     declarations: DeclarationArenaBuilder,
+    values: crate::value_table::DeclarationValueTableBuilder,
     types: TypeTransaction,
 }
 
@@ -474,6 +483,7 @@ impl DeclarationProgramBuilder {
             imports: ArenaBuilder::new(),
             package_targets: ArenaBuilder::new(),
             declarations: DeclarationArenaBuilder::new(),
+            values: crate::value_table::DeclarationValueTableBuilder::default(),
             types: TypeAuthority::new().transaction(),
         }
     }
@@ -721,6 +731,54 @@ impl DeclarationProgramBuilder {
         &self.declarations
     }
 
+    /// Reserves one constant identity whose metadata and value must later be defined together.
+    pub fn reserve_constant(&mut self) -> ConstantId {
+        let declaration = self.declarations.reserve_constant();
+        let value = self.values.reserve_constant();
+        debug_assert_eq!(declaration, value);
+        declaration
+    }
+
+    /// Defines one constant's metadata and evaluated value as a single builder transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is unknown or already complete.
+    pub fn define_constant(
+        &mut self,
+        id: ConstantId,
+        declaration: ConstantDeclaration,
+        value: ConstantValue,
+    ) -> Result<(), DefinitionError> {
+        self.declarations.define_constant(id, declaration)?;
+        self.values.define_constant(id, value)?;
+        Ok(())
+    }
+
+    /// Reserves one static identity whose metadata and value must later be defined together.
+    pub fn reserve_static(&mut self) -> StaticId {
+        let declaration = self.declarations.reserve_static();
+        let value = self.values.reserve_static();
+        debug_assert_eq!(declaration, value);
+        declaration
+    }
+
+    /// Defines one static's metadata and evaluated value as a single builder transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the identity is unknown or already complete.
+    pub fn define_static(
+        &mut self,
+        id: StaticId,
+        declaration: StaticDeclaration,
+        value: FrozenValue,
+    ) -> Result<(), DefinitionError> {
+        self.declarations.define_static(id, declaration)?;
+        self.values.define_static(id, value)?;
+        Ok(())
+    }
+
     #[must_use]
     pub fn module_package(&self, module: ModuleId) -> Option<PackageId> {
         self.modules.get(module).map(Module::package)
@@ -776,6 +834,16 @@ impl DeclarationProgramBuilder {
                 namespace.ok_or(ProgramBuildError::MissingModuleNamespace(module))
             })
             .map_err(ProgramBuildFailure::Error)?;
+        let declarations = self
+            .declarations
+            .finish()
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::Error)?;
+        let values = self
+            .values
+            .finish()
+            .map_err(ProgramBuildError::from)
+            .map_err(ProgramBuildFailure::Error)?;
         let mut program = DeclarationProgram {
             graph: DeclarationGraph {
                 target: self.target,
@@ -790,14 +858,11 @@ impl DeclarationProgramBuilder {
                 declaration_sites: self.declaration_sites.finish(),
                 imports: self.imports.finish(),
                 package_targets: self.package_targets.finish(),
-                declarations: self
-                    .declarations
-                    .finish()
-                    .map_err(ProgramBuildError::from)
-                    .map_err(ProgramBuildFailure::Error)?,
+                declarations,
                 interface_capabilities: crate::InterfaceCapabilityGraph::default(),
             },
             types: self.types.freeze(),
+            values,
         };
         let interface_capabilities = crate::InterfaceCapabilityGraph::build(&program);
         program.graph.interface_capabilities = interface_capabilities;
@@ -879,18 +944,20 @@ impl RejectedDeclarationProgram {
         crate::validate::DeclarationValidationReport,
         RejectedDeclarationAnalysis,
     ) {
-        let (graph, types) = self.program.into_unvalidated_parts();
+        let (graph, types, values) = self.program.into_unvalidated_parts();
         let analysis = match self.body_analysis {
             crate::validate::BodyAnalysisCapability::DeclarationsOnly => {
                 RejectedDeclarationAnalysis::Declarations(DeclarationAnalysisProgram {
                     graph,
                     types,
+                    values,
                 })
             }
             crate::validate::BodyAnalysisCapability::AdmittedBodies => {
                 RejectedDeclarationAnalysis::Bodies(BodyAnalysisDeclarationProgram {
                     graph,
                     types,
+                    values,
                     admission: self.admission,
                 })
             }
@@ -911,6 +978,7 @@ pub enum RejectedDeclarationAnalysis {
 pub struct DeclarationAnalysisProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
+    values: DeclarationValueTable,
 }
 
 impl DeclarationAnalysisProgram {
@@ -925,8 +993,13 @@ impl DeclarationAnalysisProgram {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (DeclarationGraph, TypeAuthority) {
-        (self.graph, self.types)
+    pub const fn values(&self) -> &DeclarationValueTable {
+        &self.values
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (DeclarationGraph, TypeAuthority, DeclarationValueTable) {
+        (self.graph, self.types, self.values)
     }
 }
 
@@ -936,6 +1009,7 @@ impl DeclarationAnalysisProgram {
 pub struct BodyAnalysisDeclarationProgram {
     graph: DeclarationGraph,
     types: TypeAuthority,
+    values: DeclarationValueTable,
     admission: DeclarationAnalysisAdmission,
 }
 
@@ -948,6 +1022,11 @@ impl BodyAnalysisDeclarationProgram {
     #[must_use]
     pub const fn types(&self) -> &TypeStore {
         self.types.store()
+    }
+
+    #[must_use]
+    pub const fn values(&self) -> &DeclarationValueTable {
+        &self.values
     }
 
     /// Appends the current body-only symbol domain while preserving declaration symbol IDs.
@@ -966,9 +1045,10 @@ impl BodyAnalysisDeclarationProgram {
     ) -> (
         DeclarationGraph,
         TypeAuthority,
+        DeclarationValueTable,
         DeclarationAnalysisAdmission,
     ) {
-        (self.graph, self.types, self.admission)
+        (self.graph, self.types, self.values, self.admission)
     }
 }
 
@@ -1014,6 +1094,7 @@ pub enum ProgramBuildError {
     VisibilityOutsidePackage,
     InvalidVisibilityAncestor,
     TargetOutsidePackage,
+    InvalidValueTable(DeclarationValueTableError),
     IncompleteDefinition(IncompleteDefinition),
     InvalidProgram(ProgramValidationError),
 }
@@ -1078,6 +1159,7 @@ impl fmt::Display for ProgramBuildError {
             Self::TargetOutsidePackage => {
                 formatter.write_str("package target module belongs to another package")
             }
+            Self::InvalidValueTable(error) => error.fmt(formatter),
             Self::IncompleteDefinition(error) => error.fmt(formatter),
             Self::InvalidProgram(error) => error.fmt(formatter),
         }
@@ -1098,12 +1180,19 @@ impl From<ProgramValidationError> for ProgramBuildError {
     }
 }
 
+impl From<DeclarationValueTableError> for ProgramBuildError {
+    fn from(error: DeclarationValueTableError) -> Self {
+        Self::InvalidValueTable(error)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use nocter_model::{BuiltinType, PackageIdentity, SymbolTable, TypeKind};
+    use nocter_model::{BuiltinType, ConstantValue, PackageIdentity, SymbolTable, TypeKind};
 
     use crate::{
-        DeclarationProgramBuilder, ModuleNamespace, ModulePath, ProgramBuildError, Visibility,
+        ConstantDeclaration, DeclarationProgramBuilder, DefinitionError, ModuleNamespace,
+        ModulePath, ProgramBuildError, Visibility,
     };
 
     #[test]
@@ -1268,6 +1357,60 @@ mod tests {
     }
 
     #[test]
+    fn constant_metadata_and_value_complete_as_one_transition() {
+        let symbols = SymbolTable::from_spellings(["app", "answer"]);
+        let app_name = symbols.get("app").unwrap();
+        let constant_name = symbols.get("answer").unwrap();
+        let mut builder =
+            DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+        let app = builder
+            .add_package(PackageIdentity::new("workspace:app"), app_name)
+            .unwrap();
+        let root = builder.add_module(app, ModulePath::root()).unwrap();
+        builder
+            .define_module_namespace(root, ModuleNamespace::default())
+            .unwrap();
+        let site = builder
+            .add_declaration_site(root, Visibility::Private)
+            .unwrap();
+        let ty = builder.types().builtin(BuiltinType::I32);
+        let constant = builder.reserve_constant();
+        builder
+            .define_constant(
+                constant,
+                ConstantDeclaration::new(site, constant_name, ty, None),
+                ConstantValue::Integer(42),
+            )
+            .unwrap();
+
+        assert_eq!(
+            builder
+                .define_constant(
+                    constant,
+                    ConstantDeclaration::new(site, constant_name, ty, None),
+                    ConstantValue::Integer(7),
+                )
+                .unwrap_err(),
+            DefinitionError::AlreadyDefined
+        );
+
+        let program = builder.finish().unwrap();
+        assert_eq!(
+            program
+                .declarations()
+                .constants()
+                .get(constant)
+                .unwrap()
+                .ty(),
+            ty
+        );
+        assert_eq!(
+            program.values().constants().get(constant),
+            Some(&ConstantValue::Integer(42))
+        );
+    }
+
+    #[test]
     fn phase_three_extends_the_single_type_store_without_translating_ids() {
         let symbols = SymbolTable::from_spellings(["app"]);
         let app_name = symbols.get("app").unwrap();
@@ -1284,7 +1427,7 @@ mod tests {
         let program = builder.finish().unwrap();
         let prefix_len = program.types().type_count();
 
-        let (graph, types, _admission) = program.into_parts();
+        let (graph, types, _values, _admission) = program.into_parts();
         let mut transaction = types.transaction();
         let optional = transaction.intern(TypeKind::Optional(i32_type)).unwrap();
         let types = transaction.commit(&types).unwrap();

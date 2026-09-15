@@ -350,10 +350,10 @@ fn lower_full_header_program() -> (SourceMap, crate::LoweredDeclarations) {
 
 fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
     let values = program
-        .declarations()
+        .values()
         .constants()
         .iter()
-        .map(|(_, constant)| constant.value().clone())
+        .map(|(_, value)| value.clone())
         .collect::<Vec<_>>();
     assert_eq!(
         values,
@@ -380,10 +380,10 @@ fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
 
 fn assert_header_statics(program: &nocter_declarations::DeclarationProgram) {
     let values = program
-        .declarations()
+        .values()
         .statics()
         .iter()
-        .map(|(_, declaration)| declaration.value().clone())
+        .map(|(_, value)| value.clone())
         .collect::<Vec<_>>();
     assert_eq!(
         values,

@@ -6,7 +6,7 @@ use crate::{PreparedTypes, SurfaceDeclarationId};
 use super::super::{HeaderDefinitionError, projection, syntax};
 use super::{name, site, target};
 
-/// Freezes the values selected by the header-constant pass into declaration storage.
+/// Freezes metadata and the value selected by the header-constant pass into paired authorities.
 ///
 /// Initializer syntax is intentionally unavailable here: fixed-array normalization and ordinary
 /// value use must consume the exact same already-evaluated authority.
@@ -24,18 +24,10 @@ pub(super) fn define_all(types: &mut PreparedTypes<'_>) -> Result<(), HeaderDefi
             site(types, declaration)?,
             name(types, declaration)?,
             ty,
-            prepared.value,
             target::gate(types, declaration),
         );
-        types
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .program
-            .declarations_mut()
-            .define_constant(id, definition)?;
+        let program = &mut types.namespaces.imports.generics.headers.reserved.program;
+        program.define_constant(id, definition, prepared.value)?;
     }
     Ok(())
 }

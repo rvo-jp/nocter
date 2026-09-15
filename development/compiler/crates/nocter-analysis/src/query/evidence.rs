@@ -98,6 +98,7 @@ impl<'a> SemanticQueryContext<'a> {
             evidence_presentation(
                 self.graph(),
                 self.types(),
+                self.evidence.declaration_values(),
                 self.body_for_entity(entity)?,
                 entity,
                 spellings,
@@ -118,6 +119,7 @@ impl<'a> SemanticQueryContext<'a> {
             Ok(evidence_presentation(
                 self.graph(),
                 self.types(),
+                self.evidence.declaration_values(),
                 self.body_for_entity(entity)?,
                 entity,
                 spellings,
@@ -179,7 +181,14 @@ impl<'a> InterruptedBodyQuery<'a> {
         entity: SemanticEntity,
         spellings: &super::presentation::visible_spelling::VisibleSpellings,
     ) -> Option<SemanticPresentation> {
-        evidence_presentation(self.0.graph(), self.0.types(), None, entity, spellings)
+        evidence_presentation(
+            self.0.graph(),
+            self.0.types(),
+            self.0.declaration_values(),
+            None,
+            entity,
+            spellings,
+        )
     }
 
     pub(super) fn member_completions(

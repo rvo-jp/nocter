@@ -46,8 +46,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   declaration recovery and repair evidence as one exact-current rejection; opening a session
   branch clones that authority and cannot rerun preparation or publish an internal error as source.
 - Declaration recovery is constructed only inside checking from one preparation transaction. Its
-  graph, type authority, source ownership, and source projection cannot be supplied independently
-  through the public contract.
+  graph, type authority, declaration values, source ownership, and source projection cannot be
+  supplied independently through the public contract.
 - Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
   one evidence identity; no optional-evidence state exists.
 - One independent capability-evidence table owns each specialized predicate and every authored
@@ -58,6 +58,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.
+- `ProgramEnvironment` carries the immutable declaration-value table selected with its graph.
+  Complete checking and every recovery capability read constant/static payloads through that table
+  rather than declaration records or independently supplied maps.
 - Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.

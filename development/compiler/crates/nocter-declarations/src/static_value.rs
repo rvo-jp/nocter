@@ -1,12 +1,11 @@
-use nocter_model::{CompilationTarget, DeclarationSiteId, FrozenValue, Symbol, TypeId};
+use nocter_model::{CompilationTarget, DeclarationSiteId, Symbol, TypeId};
 
-/// One complete immutable static after its contract and initializer have been joined and evaluated.
+/// One complete immutable static contract, separate from its evaluated value authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StaticDeclaration {
     site: DeclarationSiteId,
     name: Symbol,
     ty: TypeId,
-    value: FrozenValue,
     target_gate: Option<CompilationTarget>,
 }
 
@@ -16,14 +15,12 @@ impl StaticDeclaration {
         site: DeclarationSiteId,
         name: Symbol,
         ty: TypeId,
-        value: FrozenValue,
         target_gate: Option<CompilationTarget>,
     ) -> Self {
         Self {
             site,
             name,
             ty,
-            value,
             target_gate,
         }
     }
@@ -41,11 +38,6 @@ impl StaticDeclaration {
     #[must_use]
     pub const fn ty(&self) -> TypeId {
         self.ty
-    }
-
-    #[must_use]
-    pub const fn value(&self) -> &FrozenValue {
-        &self.value
     }
 
     #[must_use]

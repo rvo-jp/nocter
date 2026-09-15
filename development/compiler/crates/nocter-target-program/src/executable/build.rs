@@ -168,16 +168,19 @@ fn freeze_reached_statics(
     let mut values = nocter_model::ArenaBuilder::new();
     let mut identities = BTreeMap::new();
     for id in required {
-        let definition = target
-            .checked()
+        let checked = target.checked();
+        let definition = checked
             .graph()
             .declarations()
             .statics()
             .get(id)
             .ok_or(ExecutableProgramError::UnknownStatic(id))?;
+        let value = checked
+            .static_value(id)
+            .ok_or(ExecutableProgramError::UnknownStatic(id))?;
         let executable = values.insert(super::ExecutableStatic {
             ty: definition.ty(),
-            value: definition.value().clone(),
+            value: value.clone(),
         });
         identities.insert(id, executable);
     }
@@ -200,12 +203,8 @@ fn freeze_reached_constants(
         .map(|id| {
             let value = target
                 .checked()
-                .graph()
-                .declarations()
-                .constants()
-                .get(id)
+                .constant_value(id)
                 .ok_or(ExecutableProgramError::UnknownConstant(id))?
-                .value()
                 .clone();
             Ok((id, value))
         })

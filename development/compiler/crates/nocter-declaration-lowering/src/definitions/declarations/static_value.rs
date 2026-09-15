@@ -6,7 +6,7 @@ use crate::{PreparedTypes, SurfaceDeclarationId};
 use super::super::{HeaderDefinitionError, projection, syntax};
 use super::{name, site, target};
 
-/// Freezes already evaluated static values into declaration storage without rereading initializers.
+/// Freezes static metadata and its evaluated value into paired authorities without rereading syntax.
 pub(super) fn define_all(types: &mut PreparedTypes<'_>) -> Result<(), HeaderDefinitionError> {
     let mut values = types
         .static_values
@@ -21,18 +21,10 @@ pub(super) fn define_all(types: &mut PreparedTypes<'_>) -> Result<(), HeaderDefi
             site(types, declaration)?,
             name(types, declaration)?,
             ty,
-            prepared.value,
             target::gate(types, declaration),
         );
-        types
-            .namespaces
-            .imports
-            .generics
-            .headers
-            .reserved
-            .program
-            .declarations_mut()
-            .define_static(id, definition)?;
+        let program = &mut types.namespaces.imports.generics.headers.reserved.program;
+        program.define_static(id, definition, prepared.value)?;
     }
     Ok(())
 }

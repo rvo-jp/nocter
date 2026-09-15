@@ -3,7 +3,7 @@ use crate::{
     ConstructionSurfaceTable, DropTable, InstanceOperationTable, InterfaceImplementationTable,
     StandardSemanticTable,
 };
-use nocter_declarations::DeclarationGraph;
+use nocter_declarations::{DeclarationGraph, DeclarationValueTable};
 use std::sync::Arc;
 
 /// Immutable, source-neutral program facts whose identities stay valid across every descendant
@@ -14,6 +14,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub(crate) struct ProgramEnvironment {
     graph: Arc<DeclarationGraph>,
+    values: Arc<DeclarationValueTable>,
     interface_implementations: Arc<InterfaceImplementationTable>,
     construction_surfaces: Arc<ConstructionSurfaceTable>,
     instance_operations: Arc<InstanceOperationTable>,
@@ -30,6 +31,7 @@ impl ProgramEnvironment {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         graph: DeclarationGraph,
+        values: DeclarationValueTable,
         interface_implementations: InterfaceImplementationTable,
         construction_surfaces: ConstructionSurfaceTable,
         instance_operations: InstanceOperationTable,
@@ -40,6 +42,7 @@ impl ProgramEnvironment {
     ) -> Self {
         Self {
             graph: Arc::new(graph),
+            values: Arc::new(values),
             interface_implementations: Arc::new(interface_implementations),
             construction_surfaces: Arc::new(construction_surfaces),
             instance_operations: Arc::new(instance_operations),
@@ -57,6 +60,7 @@ impl ProgramEnvironment {
     {
         Self {
             graph: Arc::new(self.graph.with_checking_symbols(spellings)),
+            values: Arc::clone(&self.values),
             interface_implementations: Arc::clone(&self.interface_implementations),
             construction_surfaces: Arc::clone(&self.construction_surfaces),
             instance_operations: Arc::clone(&self.instance_operations),
@@ -69,6 +73,9 @@ impl ProgramEnvironment {
 
     pub(crate) fn graph(&self) -> &DeclarationGraph {
         &self.graph
+    }
+    pub(crate) fn values(&self) -> &DeclarationValueTable {
+        &self.values
     }
     pub(crate) fn interface_implementations(&self) -> &InterfaceImplementationTable {
         &self.interface_implementations

@@ -60,6 +60,13 @@ impl DeclarationEvidence {
         }
     }
 
+    fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
+        match self {
+            Self::Lowering(analysis) => analysis.declaration_values(),
+            Self::Checking(analysis) => analysis.declaration_values(),
+        }
+    }
+
     fn source_ownership(&self) -> &SourceOwnershipTable {
         match self {
             Self::Lowering(analysis) => analysis.source_ownership(),
@@ -137,6 +144,16 @@ impl<'a> SemanticEvidenceView<'a> {
             SemanticAuthorityView::Names(analysis) => analysis.types(),
             SemanticAuthorityView::Bodies(analysis) => analysis.prepared().types(),
             SemanticAuthorityView::Checked { program, .. } => program.types(),
+        }
+    }
+
+    #[must_use]
+    pub fn declaration_values(self) -> &'a nocter_declarations::DeclarationValueTable {
+        match self.authority {
+            SemanticAuthorityView::Declarations { analysis, .. } => analysis.declaration_values(),
+            SemanticAuthorityView::Names(analysis) => analysis.declaration_values(),
+            SemanticAuthorityView::Bodies(analysis) => analysis.prepared().declaration_values(),
+            SemanticAuthorityView::Checked { program, .. } => program.declaration_values(),
         }
     }
 

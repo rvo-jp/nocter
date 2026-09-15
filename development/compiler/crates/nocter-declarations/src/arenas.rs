@@ -288,20 +288,29 @@ impl DeclarationArenaBuilder {
         AssociatedTypeId,
         AssociatedTypeDeclaration
     );
-    reservation_methods!(
-        reserve_constant,
-        define_constant,
-        constants,
-        ConstantId,
-        ConstantDeclaration
-    );
-    reservation_methods!(
-        reserve_static,
-        define_static,
-        statics,
-        StaticId,
-        StaticDeclaration
-    );
+    pub(crate) fn reserve_constant(&mut self) -> ConstantId {
+        self.constants.reserve()
+    }
+
+    pub(crate) fn define_constant(
+        &mut self,
+        id: ConstantId,
+        value: ConstantDeclaration,
+    ) -> Result<(), DefinitionError> {
+        self.constants.define(id, value)
+    }
+
+    pub(crate) fn reserve_static(&mut self) -> StaticId {
+        self.statics.reserve()
+    }
+
+    pub(crate) fn define_static(
+        &mut self,
+        id: StaticId,
+        value: StaticDeclaration,
+    ) -> Result<(), DefinitionError> {
+        self.statics.define(id, value)
+    }
     reservation_methods!(
         reserve_callable,
         define_callable,
