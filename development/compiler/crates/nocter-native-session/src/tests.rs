@@ -2871,7 +2871,7 @@ fn standard_http_framing_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard HTTP framing tests failed native compilation")
     };
-    assert_eq!(cases.len(), 34);
+    assert_eq!(cases.len(), 41);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -4665,6 +4665,80 @@ fn large_async_output_staging_preserves_the_consume_entry() {
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_status(image.image(), &package_root.0, "large-async-output", 0);
+}
+
+#[test]
+fn large_fallible_async_output_preserves_the_failure_variant() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/vec.Vec\n\
+         \n\
+         struct Payload {\n\
+             first: Vec<u8>\n\
+             second: Vec<u8>\n\
+             third: Vec<u8>\n\
+             fourth: Vec<u8>\n\
+             fifth: Vec<u8>\n\
+             sixth: Vec<u8>\n\
+             seventh: Vec<u8>\n\
+             eighth: Vec<u8>\n\
+             ninth: Vec<u8>\n\
+             tenth: Vec<u8>\n\
+             eleventh: Vec<u8>\n\
+             twelfth: Vec<u8>\n\
+         }\n\
+         \n\
+         struct Owner { payload: Payload }\n\
+         struct Huge {\n\
+             first: Payload\n\
+             second: Payload\n\
+             third: Payload\n\
+             fourth: Payload\n\
+             fifth: Payload\n\
+             sixth: Payload\n\
+             seventh: Payload\n\
+             eighth: Payload\n\
+         }\n\
+         \n\
+         instance Owner {\n\
+             async method self.fail(): Huge! {\n\
+                 return error.new(\"test.expected\", \"expected failure\")\n\
+             }\n\
+         }\n\
+         \n\
+         async func main(): i32 {\n\
+             let payload = Payload {\n\
+                 first: Vec [], second: Vec [], third: Vec [], fourth: Vec [],\n\
+                 fifth: Vec [], sixth: Vec [], seventh: Vec [], eighth: Vec [],\n\
+                 ninth: Vec [], tenth: Vec [], eleventh: Vec [], twelfth: Vec [],\n\
+             }\n\
+             let owner = Owner { payload: move payload }\n\
+             let _payload = await owner.fail() catch failure {\n\
+                 if failure.has_code(\"test.expected\") { return 0 }\n\
+                 return 1\n\
+             }\n\
+             return 2\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(
+        image.image(),
+        &package_root.0,
+        "large-fallible-async-output",
+        0,
+    );
 }
 
 #[test]

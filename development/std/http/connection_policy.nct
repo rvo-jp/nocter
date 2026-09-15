@@ -1,0 +1,49 @@
+//! Sole HTTP/1.1 request connection-disposition selection.
+
+see ./errors.nct
+see ./index.nct
+see ./values.nct
+see ./wire.nct
+
+enum ConnectionDisposition {
+    reuse
+    close
+}
+
+noalloc func connection_value_requests_close(bytes: &[u8]): bool! {
+    var offset: usize = 0
+    var requests_close = false
+    loop {
+        while offset < bytes.len() && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if offset == bytes.len() { return invalid_syntax() }
+        let start = offset
+        while offset < bytes.len() && bytes[offset] != 44 {
+            if bytes[offset] == 32 || bytes[offset] == 9 { break }
+            if !is_token_byte(bytes[offset]) { return invalid_syntax() }
+            offset += 1
+        }
+        let end = offset
+        if end == start { return invalid_syntax() }
+        while offset < bytes.len() && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if range_ascii_equal(bytes, start, end, "close") { requests_close = true }
+        if offset == bytes.len() { return requests_close }
+        if bytes[offset] != 44 { return invalid_syntax() }
+        offset += 1
+    }
+}
+
+noalloc func request_connection_disposition(headers: &Headers): ConnectionDisposition! {
+    var index: usize = 0
+    var requests_close = false
+    while index < headers.len() {
+        let header = headers.at(index) otherwise { return invalid_syntax() }
+        if header.name().text() == "connection" {
+            if connection_value_requests_close(header.value().bytes())? {
+                requests_close = true
+            }
+        }
+        index += 1
+    }
+    if requests_close { return ConnectionDisposition.close }
+    return ConnectionDisposition.reuse
+}

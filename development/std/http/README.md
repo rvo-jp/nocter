@@ -31,8 +31,10 @@ and target bytes are validated and copied once when the complete head is known. 
 offsets, retained fields, and framing evidence remain owned by one decoder across transport reads;
 accepted bytes are not rescanned. Bytes received beyond the current body remain in the cursor's
 pending range and transfer to the responder. They are neither discarded nor interpreted while the
-current response is unfinished. The current responder still closes after one response; a later
-persistent-connection transition can consume the preserved range without changing body decoding.
+current response is unfinished. Once response framing completes, the unread suffix transfers
+inside a returned `ServerConnection`. Before the next head starts, it is compacted into the other
+reusable transport buffer; the prior request is neither retained nor rescanned, and repeated
+partial pipelining cannot grow a connection buffer without bound.
 
 `ResponseHead` is the shared validated status-and-fields value for received and authored metadata.
 `Responder.begin_fixed` or `begin_chunked` consumes that head, validates reserved fields and limits,
@@ -51,14 +53,19 @@ writer available for a corrected write.
 
 `OutgoingResponse` owns a `ResponseHead` plus a complete body. `Responder.respond` derives a
 fixed-length plan, writes that body through `ResponseWriter`, and finishes the same transition. It
-does not encode a second response head or implement another body-output path. The current finish
-always closes after successful framing; Phase 3 will publish a reusable connection only when the
-request, response, and connection policy all permit it. Explicit close and ordinary destruction
-provide incomplete-response and no-response paths.
+does not encode a second response head or implement another body-output path. Successful finish
+returns `ServerConnection?`: a value transfers the exact reusable stream and retained input;
+`none` reports that the exchange completed with connection closure. `Responder.close_after_response`
+forces a terminal response plan without exposing protocol-controlled `Connection` fields.
 
-The current server deliberately has no keep-alive, pipelined execution, upgrade, CONNECT tunnel, or
-implicit task spawning. Request and response bodies stream through bounded transfer storage;
-complete owned response bodies remain a convenience rather than a separate protocol path.
+HTTP/1.1 connections are reusable by default. Validated comma-separated `Connection` values are
+processed once while parsing the request, and any case-insensitive `close` token selects terminal
+behavior. Unknown valid connection options do not create capabilities. Reuse remains strictly
+sequential: bytes for a later pipelined request may already be buffered, but no later head is parsed
+and no handler begins until the prior response has completed and returned the connection. The
+server deliberately has no connection pool, concurrent pipelined execution, upgrade, CONNECT
+tunnel, or implicit task spawning. Request and response bodies stream through bounded transfer
+storage; complete owned response bodies remain a convenience rather than a separate protocol path.
 
 ## Server Deadlines and Capacity
 

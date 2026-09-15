@@ -18,6 +18,8 @@ see ./client_storage.nct
 see ./client_tests.nct
 see ./client_transport.nct
 see ./codec.nct
+see ./connection_input.nct
+see ./connection_policy.nct
 see ./errors.nct
 see ./exchange.nct
 see ./encoding.nct
@@ -446,13 +448,16 @@ instance ServerConnection {
     ): IncomingRequest!
 
     /// Closes this connection without reading a request.
-    pub noalloc method self.close(): void
+    pub method self.close(): void
 }
 
 /// The unique capability to send one response on one decoded request connection.
 pub struct Responder
 
 instance Responder {
+    /// Forces the completed response to advertise and perform connection closure.
+    pub noalloc method &+self.close_after_response(): void
+
     /// Writes a fixed-length response head and returns its streaming body writer.
     pub async method self.begin_fixed(
         head: ResponseHead,
@@ -475,14 +480,14 @@ instance Responder {
         timeout: Duration,
     ): ResponseWriter!
 
-    /// Encodes, writes, and closes one complete response.
-    pub async method self.respond(response: OutgoingResponse): void!
+    /// Sends one complete response and returns a reusable connection when safe.
+    pub async method self.respond(response: OutgoingResponse): ServerConnection?!
 
-    /// Writes and closes one complete response before a fixed monotonic deadline.
+    /// Sends one complete response before a fixed monotonic deadline.
     pub async method self.respond_with_timeout(
         response: OutgoingResponse,
         timeout: Duration,
-    ): void!
+    ): ServerConnection?!
 
     /// Closes this connection without sending a response.
     pub method self.close(): void
@@ -504,11 +509,11 @@ instance ResponseWriter {
         timeout: Duration,
     ): void!
 
-    /// Completes framing and closes the current non-persistent connection.
-    pub async method self.finish(): void!
+    /// Completes framing and returns a reusable connection when policy permits it.
+    pub async method self.finish(): ServerConnection?!
 
     /// Completes framing before one fixed monotonic deadline.
-    pub async method self.finish_with_timeout(timeout: Duration): void!
+    pub async method self.finish_with_timeout(timeout: Duration): ServerConnection?!
 
     /// Closes the connection without completing response framing.
     pub method self.close(): void

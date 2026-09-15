@@ -1,5 +1,7 @@
 //! Linear streaming response output over one frozen framing plan.
 
+see ./connection_input.nct
+see ./connection_policy.nct
 see ./encoding.nct
 see ./errors.nct
 see ./index.nct
@@ -24,6 +26,7 @@ func response_writer_from_plan(
         request_body: move owner.request_body,
         state: move prepared.state,
         suppress_body: owner.suppress_body,
+        disposition: owner.disposition,
         limits: owner.limits,
         protocol_scratch: Vec.with_capacity(32),
     }
@@ -35,7 +38,12 @@ async func begin_response_writer(
     framing: ResponseFraming,
 ): ResponseWriter! {
     var owner = move responder
-    let plan = plan_server_response(&head, move framing, owner.limits)?
+    let plan = plan_server_response(
+        &head,
+        move framing,
+        owner.disposition,
+        owner.limits,
+    )?
     await owner.stream.write(&plan.head) catch failure {
         owner.stream.close()
         return failure.context("while writing the HTTP response head")
@@ -95,7 +103,7 @@ async func write_response_fragment(writer: &+ResponseWriter, bytes: &[u8]): void
     }
 }
 
-async func finish_response_writer(writer: ResponseWriter): void! {
+async func finish_response_writer(writer: ResponseWriter): ServerConnection?! {
     var owner = move writer
     match owner.state {
         ResponseOutputState.failed {
@@ -107,8 +115,6 @@ async func finish_response_writer(writer: ResponseWriter): void! {
                 owner.stream.close()
                 return move failure
             }
-            owner.stream.close()
-            return
         }
         ResponseOutputState.chunked(_) {
             owner.state = ResponseOutputState.failed
@@ -118,8 +124,21 @@ async func finish_response_writer(writer: ResponseWriter): void! {
                     return failure.context("while completing the chunked HTTP response body")
                 }
             }
+        }
+    }
+    match owner.disposition {
+        ConnectionDisposition.close {
             owner.stream.close()
-            return
+            return none
+        }
+        ConnectionDisposition.reuse {
+            let input = connection_input_from_body_cursor(move owner.request_body)?
+            return ServerConnection {
+                stream: move owner.stream,
+                peer: owner.peer,
+                input: move input,
+                limits: owner.limits,
+            }
         }
     }
 }
@@ -143,11 +162,11 @@ instance ResponseWriter {
         }
     }
 
-    async method self.finish(): void! {
+    async method self.finish(): ServerConnection?! {
         return await finish_response_writer(move self)?
     }
 
-    async method self.finish_with_timeout(timeout: Duration): void! {
+    async method self.finish_with_timeout(timeout: Duration): ServerConnection?! {
         match await task.with_timeout(finish_response_writer(move self), timeout) {
             Timeout.completed(result) { return move result? }
             Timeout.elapsed { return server_operation_timed_out() }

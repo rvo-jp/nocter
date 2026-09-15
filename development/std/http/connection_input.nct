@@ -1,0 +1,78 @@
+//! Retained transport input transferred between sequential HTTP exchanges.
+
+see ./body_cursor.nct
+see ./connection_policy.nct
+see ./errors.nct
+see ./index.nct
+see ./request_head.nct
+see ./transport_buffer.nct
+
+use /vec.Vec
+
+struct ConnectionInput {
+    pending: Vec<u8>
+    pending_start: usize
+    transport_scratch: Vec<u8>
+}
+
+func empty_connection_input(): ConnectionInput {
+    return ConnectionInput {
+        pending: Vec.empty(),
+        pending_start: 0,
+        transport_scratch: initialized_bytes(HTTP_BUFFER_BYTES),
+    }
+}
+
+func request_head_decoder_from_connection_input(
+    limits: Limits,
+    input: ConnectionInput,
+): (RequestHeadDecoder, Vec<u8>) {
+    var owner = move input
+    if owner.pending_start == owner.pending.len() {
+        owner.pending.clear()
+        return (
+            request_head_decoder_with_input(limits, move owner.pending),
+            move owner.transport_scratch,
+        )
+    }
+    var next_pending = move owner.transport_scratch
+    next_pending.clear()
+    var offset = owner.pending_start
+    while offset < owner.pending.len() {
+        next_pending.push(owner.pending[offset])
+        offset += 1
+    }
+    owner.pending.clear()
+    while owner.pending.len() < HTTP_BUFFER_BYTES { owner.pending.push(0) }
+    return (
+        request_head_decoder_with_input(limits, move next_pending),
+        move owner.pending,
+    )
+}
+
+noalloc func body_cursor_from_connection_input(
+    parsed: ParsedRequestHead,
+    transport_scratch: Vec<u8>,
+): (RequestHead, BodyCursor, ConnectionDisposition) {
+    var owner = move parsed
+    return (
+        move owner.head,
+        BodyCursor {
+            decoder: move owner.decoder,
+            pending: move owner.pending,
+            pending_start: owner.consumed,
+            transport_scratch: move transport_scratch,
+        },
+        owner.disposition,
+    )
+}
+
+func connection_input_from_body_cursor(cursor: BodyCursor): ConnectionInput! {
+    if !body_cursor_complete(&cursor) { return invalid_syntax() }
+    var owner = move cursor
+    return ConnectionInput {
+        pending: move owner.pending,
+        pending_start: owner.pending_start,
+        transport_scratch: move owner.transport_scratch,
+    }
+}

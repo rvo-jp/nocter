@@ -1,6 +1,7 @@
 //! Stateful, incremental HTTP/1.1 request-head decoding.
 
 see ./body.nct
+see ./connection_policy.nct
 see ./errors.nct
 see ./field_codec.nct
 see ./index.nct
@@ -36,11 +37,19 @@ struct ParsedRequestHead {
     decoder: BodyDecoder
     pending: Vec<u8>
     consumed: usize
+    disposition: ConnectionDisposition
 }
 
 noalloc func request_head_decoder(limits: Limits): RequestHeadDecoder {
+    return request_head_decoder_with_input(limits, Vec.empty())
+}
+
+noalloc func request_head_decoder_with_input(
+    limits: Limits,
+    input: Vec<u8>,
+): RequestHeadDecoder {
     return RequestHeadDecoder {
-        input: Vec.empty(),
+        input: move input,
         state: RequestHeadState {
             phase: RequestHeadPhase.request_line,
             field_block: field_block_state(0, 0, limits),
@@ -155,9 +164,12 @@ func advance_request_head(decoder: RequestHeadDecoder): RequestHeadAttempt {
                     owner.state.field_block.limits,
                 )
                     catch failure { return RequestHeadAttempt.failed(move failure) }
+                let disposition = request_connection_disposition(
+                    &owner.state.field_block.fields.headers,
+                ) catch failure { return RequestHeadAttempt.failed(move failure) }
                 let head = request_head_from_ranges(
                     input,
-                    0,
+                    owner.state.field_block.head_start,
                     method_end,
                     target_start,
                     target_end,
@@ -168,6 +180,7 @@ func advance_request_head(decoder: RequestHeadDecoder): RequestHeadAttempt {
                     decoder: body_decoder(move framing, owner.state.field_block.limits),
                     pending: move owner.input,
                     consumed: consumed,
+                    disposition: disposition,
                 })
             }
         }

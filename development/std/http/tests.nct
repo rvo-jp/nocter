@@ -2,6 +2,8 @@
 
 see ./body.nct
 see ./codec.nct
+see ./connection_input.nct
+see ./connection_policy.nct
 see ./field_codec.nct
 see ./index.nct
 see ./request.nct
@@ -10,6 +12,7 @@ see ./response_head.nct
 see ./response_plan.nct
 see ./server_values.nct
 see ./storage.nct
+see ./transport_buffer.nct
 see ./values.nct
 
 use /hash.HashState
@@ -215,10 +218,124 @@ test request_head_decoder_accepts_every_single_fragment_boundary {
     return
 }
 
+test http_1_1_connections_are_reusable_by_default {
+    var decoder = request_head_decoder(Limits.standard())
+    let input = "GET /one HTTP/1.1\r\nHost: example.test\r\n\r\n"
+    append_request_head_input_range(&+decoder, input.bytes(), 0, input.len())?
+    match advance_request_head(move decoder) {
+        RequestHeadAttempt.ready(parsed) {
+            match parsed.disposition {
+                ConnectionDisposition.reuse { return }
+                ConnectionDisposition.close {}
+            }
+        }
+        _ {}
+    }
+    return error.new("std.http.test", "HTTP/1.1 default connection policy changed")
+}
+
+test connection_tokens_select_close_across_comma_separated_values {
+    var decoder = request_head_decoder(Limits.standard())
+    let input = "GET /two HTTP/1.1\r\nHost: example.test\r\nConnection: keep-alive, Close\r\n\r\n"
+    append_request_head_input_range(&+decoder, input.bytes(), 0, input.len())?
+    match advance_request_head(move decoder) {
+        RequestHeadAttempt.ready(parsed) {
+            match parsed.disposition {
+                ConnectionDisposition.close { return }
+                ConnectionDisposition.reuse {}
+            }
+        }
+        _ {}
+    }
+    return error.new("std.http.test", "Connection close token was not selected")
+}
+
+test connection_policy_validates_tokens_after_close {
+    var decoder = request_head_decoder(Limits.standard())
+    let input = "GET /bad HTTP/1.1\r\nHost: example.test\r\nConnection: close,\r\n\r\n"
+    append_request_head_input_range(&+decoder, input.bytes(), 0, input.len())?
+    match advance_request_head(move decoder) {
+        RequestHeadAttempt.failed(failure) {
+            if failure.has_code("std.http.invalid_syntax") { return }
+        }
+        _ {}
+    }
+    return error.new("std.http.test", "malformed trailing Connection token was accepted")
+}
+
+test connection_policy_rejects_empty_tokens_between_options {
+    let _close = connection_value_requests_close("close,,keep-alive".bytes())
+        catch failure {
+            if failure.has_code("std.http.invalid_syntax") { return }
+            return error.new("std.http.test", "empty Connection token failure changed")
+        }
+    return error.new("std.http.test", "empty Connection token was accepted")
+}
+
+test consumed_connection_input_is_normalized_before_the_next_head {
+    var pending: Vec<u8> = Vec [
+        u8.truncate(65),
+        u8.truncate(66),
+        u8.truncate(67),
+    ]
+    let input = ConnectionInput {
+        pending: move pending,
+        pending_start: 3,
+        transport_scratch: byte_buffer(1),
+    }
+    let prepared = request_head_decoder_from_connection_input(Limits.standard(), move input)
+    if prepared.0.input.len() == 0
+        && prepared.0.state.field_block.head_start == 0 {
+        return
+    }
+    return error.new("std.http.test", "consumed connection input retained its old prefix")
+}
+
+test unread_connection_input_is_compacted_into_the_reusable_buffer {
+    var pending: Vec<u8> = Vec [
+        u8.truncate(65),
+        u8.truncate(66),
+        u8.truncate(67),
+        u8.truncate(68),
+    ]
+    let input = ConnectionInput {
+        pending: move pending,
+        pending_start: 2,
+        transport_scratch: byte_buffer(4),
+    }
+    let prepared = request_head_decoder_from_connection_input(Limits.standard(), move input)
+    if prepared.0.input.len() == 2
+        && prepared.0.input[0] == 67
+        && prepared.0.input[1] == 68
+        && prepared.0.state.field_block.head_start == 0
+        && prepared.1.len() == HTTP_BUFFER_BYTES {
+        return
+    }
+    return error.new("std.http.test", "unread connection input was not compacted")
+}
+
+test reusable_server_response_omits_connection_close {
+    let head = ResponseHead.ok()
+    let plan = plan_server_response(
+        &head,
+        ResponseFraming.fixed(0),
+        ConnectionDisposition.reuse,
+        Limits.standard(),
+    )?
+    let expected = "HTTP/1.1 200 \r\ncontent-length: 0\r\n\r\n"
+    if bytes_equal(&plan.head, expected.bytes()) { return }
+    return error.new("std.http.test", "reusable response emitted a close policy")
+}
+
 test server_response_encoding_owns_connection_and_length_fields {
     var head = ResponseHead.ok()
     head.append_header_text("X-Test", "yes")?
-    let plan = plan_server_response(&head, ResponseFraming.fixed(4), Limits.standard())?
+    let plan = plan_server_response(
+        &head,
+        ResponseFraming.fixed(4),
+        ConnectionDisposition.close,
+        Limits.standard(),
+    )?
     let expected = "HTTP/1.1 200 \r\nx-test: yes\r\ncontent-length: 4\r\nconnection: close\r\n\r\n"
     if !bytes_equal(&plan.head, expected.bytes()) {
         return error.new("std.http.test", "server response encoding changed")
@@ -227,6 +344,7 @@ test server_response_encoding_owns_connection_and_length_fields {
     let _reserved = plan_server_response(
         &head,
         ResponseFraming.fixed(4),
+        ConnectionDisposition.close,
         Limits.standard(),
     ) catch failure {
         if failure.has_code("std.http.reserved_header") { return }
@@ -240,6 +358,7 @@ test server_response_rejects_body_for_bodyless_status {
     let _encoded = plan_server_response(
         &head,
         ResponseFraming.fixed(1),
+        ConnectionDisposition.close,
         Limits.standard(),
     ) catch failure {
         if failure.has_code("std.http.invalid_response_body") { return }
@@ -251,7 +370,12 @@ test server_response_rejects_body_for_bodyless_status {
 test server_response_plan_freezes_chunked_framing_once {
     var head = ResponseHead.ok()
     head.append_header_text("X-Stream", "yes")?
-    let plan = plan_server_response(&head, ResponseFraming.chunked, Limits.standard())?
+    let plan = plan_server_response(
+        &head,
+        ResponseFraming.chunked,
+        ConnectionDisposition.close,
+        Limits.standard(),
+    )?
     let expected = "HTTP/1.1 200 \r\nx-stream: yes\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n"
     if !bytes_equal(&plan.head, expected.bytes()) {
         return error.new("std.http.test", "chunked response plan changed")

@@ -1,7 +1,9 @@
-//! Asynchronous one-request HTTP server lifecycle over public TCP contracts.
+//! Asynchronous sequential HTTP server lifecycle over public TCP contracts.
 
 see ./body.nct
 see ./body_cursor.nct
+see ./connection_input.nct
+see ./connection_policy.nct
 see ./errors.nct
 see ./index.nct
 see ./request_head.nct
@@ -17,29 +19,7 @@ use /net
 use /net.SocketAddress
 use /task
 use /task.Timeout
-use /time.Duration
-
-async func read_server_request_head(
-    stream: &+net.TcpStream,
-    limits: Limits,
-): ParsedRequestHead! {
-    var scratch = initialized_bytes(HTTP_BUFFER_BYTES)
-    var decoder = request_head_decoder(limits)
-    loop {
-        match advance_request_head(move decoder) {
-            RequestHeadAttempt.ready(parsed) { return move parsed }
-            RequestHeadAttempt.failed(failure) { return move failure }
-            RequestHeadAttempt.incomplete(next) {
-                decoder = move next
-                let received = await stream.read(&+scratch) catch failure {
-                    return failure.context("while reading the HTTP request head")
-                }
-                if received == 0 { return premature_eof() }
-                append_request_head_input_range(&+decoder, &scratch, 0, received)?
-            }
-        }
-    }
-}
+use /time.{Duration, Instant}
 
 async func read_server_transport(
     stream: &+net.TcpStream,
@@ -48,6 +28,23 @@ async func read_server_transport(
 ): usize! {
     let finite = timeout otherwise { return await stream.read(output)? }
     return await stream.read_with_timeout(output, finite)?
+}
+
+async func read_server_head_transport(
+    stream: &+net.TcpStream,
+    output: &+[u8],
+    started: Instant,
+    timeout: Duration?,
+): usize! {
+    let finite = timeout otherwise { return await stream.read(output)? }
+    let elapsed = started.elapsed()
+    let remaining: Duration = finite.checked_sub(&elapsed) otherwise {
+        return server_operation_timed_out()
+    }
+    match await task.with_timeout(stream.read(output), remaining) {
+        Timeout.completed(result) { return move result? }
+        Timeout.elapsed { return server_operation_timed_out() }
+    }
 }
 
 async func read_server_request_body(
@@ -108,6 +105,7 @@ async func finish_server_request(request: IncomingRequest): Responder! {
         peer: owner.peer,
         request_body: move owner.body,
         suppress_body: owner.suppress_body,
+        disposition: owner.disposition,
         limits: owner.limits,
     }
 }
@@ -125,38 +123,104 @@ construct Server {
 
 async func accept_server(server: &+Server): ServerConnection! {
     let accepted = await server.listener.accept()?
+    return server_connection_from_transport(move accepted, server.limits)
+}
+
+async func accept_server_with_timeout(
+    server: &+Server,
+    timeout: Duration,
+): ServerConnection! {
+    let accepted = await server.listener.accept_with_timeout(timeout) catch failure {
+        if failure.has_code("std.net.timed_out") {
+            return server_operation_timed_out()
+        }
+        return move failure
+    }
+    return server_connection_from_transport(move accepted, server.limits)
+}
+
+func server_connection_from_transport(
+    accepted: (net.TcpStream, SocketAddress),
+    limits: Limits,
+): ServerConnection {
+    var owner = move accepted
+    let peer = owner.1
+    let stream = move owner.0
     return ServerConnection {
-        stream: move accepted.0,
-        peer: accepted.1,
-        limits: server.limits,
+        stream: move stream,
+        peer: peer,
+        input: empty_connection_input(),
+        limits: limits,
     }
 }
 
 async func read_server_connection(
     connection: ServerConnection,
+    timeout: Duration?,
 ): IncomingRequest! {
     var owner = move connection
-    var parsed = await read_server_request_head(&+owner.stream, owner.limits)?
-    let suppress_body = ascii_case_equal(parsed.head.request_method().text(), "HEAD")
-    let body = body_cursor(
-        move parsed.decoder,
-        move parsed.pending,
-        parsed.consumed,
-    )
-    return IncomingRequest {
-        stream: move owner.stream,
-        peer: owner.peer,
-        head_value: move parsed.head,
-        body: move body,
-        suppress_body: suppress_body,
-        limits: owner.limits,
+    let peer = owner.peer
+    let limits = owner.limits
+    let prepared = request_head_decoder_from_connection_input(limits, move owner.input)
+    var decoder = move prepared.0
+    var transport_scratch = move prepared.1
+    let started = Instant.now()
+    loop {
+        match advance_request_head(move decoder) {
+            RequestHeadAttempt.incomplete(next) {
+                decoder = move next
+                let received = await read_server_head_transport(
+                    &+owner.stream,
+                    &+transport_scratch,
+                    started,
+                    timeout,
+                )
+                    catch failure {
+                        owner.stream.close()
+                        return failure.context("while reading the HTTP request head")
+                    }
+                if received == 0 {
+                    owner.stream.close()
+                    return premature_eof()
+                }
+                append_request_head_input_range(
+                    &+decoder,
+                    &transport_scratch,
+                    0,
+                    received,
+                )?
+            }
+            RequestHeadAttempt.failed(failure) {
+                owner.stream.close()
+                return move failure
+            }
+            RequestHeadAttempt.ready(parsed) {
+                let request = body_cursor_from_connection_input(
+                    move parsed,
+                    move transport_scratch,
+                )
+                let suppress_body = ascii_case_equal(
+                    request.0.request_method().text(),
+                    "HEAD",
+                )
+                return IncomingRequest {
+                    stream: move owner.stream,
+                    peer: peer,
+                    head_value: move request.0,
+                    body: move request.1,
+                    suppress_body: suppress_body,
+                    disposition: request.2,
+                    limits: limits,
+                }
+            }
+        }
     }
 }
 
 async func send_server_response(
     responder: Responder,
     response: OutgoingResponse,
-): void! {
+): ServerConnection?! {
     var owned_response = move response
     let body = move owned_response.body_value
     var writer = await begin_response_writer(
@@ -178,10 +242,7 @@ instance Server {
     }
 
     async method &+self.accept_with_timeout(timeout: Duration): ServerConnection! {
-        match await task.with_timeout(accept_server(self), timeout) {
-            Timeout.completed(result) { return move result? }
-            Timeout.elapsed { return server_operation_timed_out() }
-        }
+        return await accept_server_with_timeout(self, timeout)?
     }
 
     noalloc method &+self.close(): void {
@@ -196,19 +257,16 @@ instance ServerConnection {
     }
 
     async method self.read_request(): IncomingRequest! {
-        return await read_server_connection(move self)?
+        return await read_server_connection(move self, none)?
     }
 
     async method self.read_request_with_timeout(
         timeout: Duration,
     ): IncomingRequest! {
-        match await task.with_timeout(read_server_connection(move self), timeout) {
-            Timeout.completed(result) { return move result? }
-            Timeout.elapsed { return server_operation_timed_out() }
-        }
+        return await read_server_connection(move self, timeout)?
     }
 
-    noalloc method self.close(): void {
+    method self.close(): void {
         var owner = move self
         owner.stream.close()
         return
@@ -246,6 +304,11 @@ instance IncomingRequest {
 }
 
 instance Responder {
+    noalloc method &+self.close_after_response(): void {
+        self.disposition = ConnectionDisposition.close
+        return
+    }
+
     async method self.begin_fixed(
         head: ResponseHead,
         content_length: usize,
@@ -296,14 +359,14 @@ instance Responder {
         }
     }
 
-    async method self.respond(response: OutgoingResponse): void! {
+    async method self.respond(response: OutgoingResponse): ServerConnection?! {
         return await send_server_response(move self, move response)?
     }
 
     async method self.respond_with_timeout(
         response: OutgoingResponse,
         timeout: Duration,
-    ): void! {
+    ): ServerConnection?! {
         match await task.with_timeout(send_server_response(move self, move response), timeout) {
             Timeout.completed(result) { return move result? }
             Timeout.elapsed { return server_operation_timed_out() }

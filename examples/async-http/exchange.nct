@@ -31,7 +31,7 @@ async func serve_once(server: Server, timeout: Duration): void! {
     var writer = await responder.begin_chunked_with_timeout(move head, timeout)?
     await writer.write_with_timeout("po".bytes(), timeout)?
     await writer.write_with_timeout("ng".bytes(), timeout)?
-    await writer.finish_with_timeout(timeout)?
+    let _next = await writer.finish_with_timeout(timeout)?
     return
 }
 

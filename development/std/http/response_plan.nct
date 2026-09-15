@@ -1,6 +1,7 @@
 //! Sole validation and wire-head planning authority for server responses.
 
 see ./encoding.nct
+see ./connection_policy.nct
 see ./errors.nct
 see ./index.nct
 see ./storage.nct
@@ -34,14 +35,19 @@ noalloc func status_omits_content_length(status: Status): bool {
 func plan_server_response(
     head: &ResponseHead,
     framing: ResponseFraming,
+    disposition: ConnectionDisposition,
     limits: Limits,
 ): ResponsePlan! {
     if head.status().code() < 200 || head.status().code() > 599 {
         return invalid_response_status()
     }
     let connection_bytes: usize = 17
-    var generated_count: usize = 1
-    var generated_section_bytes: usize = connection_bytes + 2
+    let close_connection = match disposition {
+        ConnectionDisposition.reuse { false }
+        ConnectionDisposition.close { true }
+    }
+    var generated_count: usize = if close_connection { 1 } else { 0 }
+    var generated_section_bytes: usize = if close_connection { connection_bytes + 2 } else { 0 }
     let state = match framing {
         ResponseFraming.fixed(length) {
             if length > limits.body_bytes { return body_limit() }
@@ -65,7 +71,7 @@ func plan_server_response(
             ResponseOutputState.chunked(0)
         }
     }
-    if connection_bytes > limits.field_bytes { return syntax_limit() }
+    if close_connection && connection_bytes > limits.field_bytes { return syntax_limit() }
     let estimate = checked_head_capacity(
         13,
         head.headers(),
@@ -87,7 +93,7 @@ func plan_server_response(
         }
         ResponseFraming.chunked { append_transfer_encoding_chunked(&+output) }
     }
-    append_connection_close(&+output)
+    if close_connection { append_connection_close(&+output) }
     append_text(&+output, "\r\n")
     return ResponsePlan { head: move output, state: move state }
 }

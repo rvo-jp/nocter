@@ -29,7 +29,8 @@ async func handle_connection(connection: ServerConnection, timeout: Duration): b
         return false
     }
     response.set_text_body(&target)
-    await responder.respond_with_timeout(move response, timeout) catch _ { return false }
+    let _next = await responder.respond_with_timeout(move response, timeout)
+    catch _ { return false }
     return true
 }
 

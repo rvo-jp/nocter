@@ -46,14 +46,16 @@ pub(crate) fn form_stack_address(
         });
         return;
     }
-    let offset_register = scratch(0);
-    load_immediate(code, offset_register, offset, Arm64DataSize::Bits64);
+    // Keep address formation self-contained in the destination. Callers deliberately choose that
+    // register around the values they must preserve; borrowing an additional implicit scratch here
+    // would silently clobber a store source when both compiler scratch registers are occupied.
+    load_immediate(code, destination, offset, Arm64DataSize::Bits64);
     code.append(Arm64Instruction::AddSubtractExtendedRegister {
         operation: Arm64AddSubtract::Add,
         set_flags: false,
         destination: Arm64AddSubtractDestination::General(destination),
         left: Arm64BaseRegister::StackPointer,
-        right: offset_register,
+        right: destination,
         shift: 0,
     });
 }

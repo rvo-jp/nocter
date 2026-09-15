@@ -30,6 +30,46 @@ fn word(instruction: Arm64Instruction) -> u32 {
 }
 
 #[test]
+fn large_stack_store_preserves_a_scratch_register_source() {
+    let mut code = crate::Arm64CodeBuilder::new();
+    crate::frame_access::store_at_stack_offset(
+        &mut code,
+        Arm64LoadStoreSize::Double,
+        x(16),
+        0xa538,
+    );
+    let code = code.finish().unwrap();
+    let expected = [
+        word(Arm64Instruction::MoveWide {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64MoveWide::Zero,
+            destination: x(17),
+            immediate: 0xa538,
+            shift: 0,
+        }),
+        word(Arm64Instruction::AddSubtractExtendedRegister {
+            operation: Arm64AddSubtract::Add,
+            set_flags: false,
+            destination: destination(17),
+            left: Arm64BaseRegister::StackPointer,
+            right: x(17),
+            shift: 0,
+        }),
+        word(Arm64Instruction::StoreUnsigned {
+            size: Arm64LoadStoreSize::Double,
+            source: data(16),
+            base: base(17),
+            offset: 0,
+        }),
+    ];
+    let expected = expected
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect::<Vec<_>>();
+    assert_eq!(code.bytes(), expected);
+}
+
+#[test]
 fn encodes_integer_arithmetic_without_untyped_register_31() {
     assert_eq!(
         word(Arm64Instruction::AddSubtractImmediate {

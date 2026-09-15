@@ -438,6 +438,25 @@ fn async_http_projects_streaming_response_writer_contracts() {
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+    let (finish_line, finish_source) = source_line(&text, "writer.finish_with_timeout");
+    let finish_character = finish_source.find("finish_with_timeout").unwrap();
+    let hover = server.receive(&position_request(
+        23,
+        "textDocument/hover",
+        &source,
+        finish_line,
+        finish_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(concat!(
+            "pub async method ResponseWriter.finish_with_timeout(",
+            "timeout: Duration): ServerConnection?!"
+        )),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
 }
 
 #[test]
