@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nocter_model::{
-    Arena, BodyNodeId, CompilationTarget, ConstantId, ConstantValue, LocalBindingId, ParameterId,
+    Arena, BodyNodeId, CompilationTarget, ConstantId, ConstantValue, FrozenValue, LocalBindingId,
+    ParameterId,
 };
 
 use crate::scalar::{self, ScalarEvaluationFailure};
@@ -70,7 +71,12 @@ impl CompileTimeValue {
         }
     }
 
-    fn tuple(
+    /// Constructs a typed tuple after validating every element against its positional shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeMismatch` for a non-tuple type or a mismatched element.
+    pub fn tuple(
         ty: CompileTimeValueType,
         values: Vec<Self>,
     ) -> Result<Self, CompileTimeExecutionRule> {
@@ -80,7 +86,12 @@ impl CompileTimeValue {
         )
     }
 
-    fn fixed_array(
+    /// Constructs a typed fixed array after validating its length and element shapes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeMismatch` for a non-array type or a mismatched element.
+    pub fn fixed_array(
         ty: CompileTimeValueType,
         values: Vec<Self>,
     ) -> Result<Self, CompileTimeExecutionRule> {
@@ -142,6 +153,46 @@ impl CompileTimeValue {
         }
         self.ty = expected.clone();
         Ok(self)
+    }
+
+    /// Converts a scalar callable result into the declaration constant domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeMismatch` when the value is aggregate or void.
+    pub fn into_constant(self) -> Result<ConstantValue, CompileTimeExecutionRule> {
+        match self.representation {
+            CompileTimeValueRepresentation::Scalar(value) => Ok(value),
+            CompileTimeValueRepresentation::Void
+            | CompileTimeValueRepresentation::Tuple(_)
+            | CompileTimeValueRepresentation::FixedArray(_) => {
+                Err(CompileTimeExecutionRule::TypeMismatch)
+            }
+        }
+    }
+
+    /// Converts a callable result into the recursively frozen static-value domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TypeMismatch` for `void`; every value-producing plan shape is preserved.
+    pub fn into_frozen(self) -> Result<FrozenValue, CompileTimeExecutionRule> {
+        match self.representation {
+            CompileTimeValueRepresentation::Scalar(value) => Ok(FrozenValue::Scalar(value)),
+            CompileTimeValueRepresentation::Tuple(values) => values
+                .into_vec()
+                .into_iter()
+                .map(Self::into_frozen)
+                .collect::<Result<Vec<_>, _>>()
+                .map(|values| FrozenValue::Tuple(values.into_boxed_slice())),
+            CompileTimeValueRepresentation::FixedArray(values) => values
+                .into_vec()
+                .into_iter()
+                .map(Self::into_frozen)
+                .collect::<Result<Vec<_>, _>>()
+                .map(|values| FrozenValue::FixedArray(values.into_boxed_slice())),
+            CompileTimeValueRepresentation::Void => Err(CompileTimeExecutionRule::TypeMismatch),
+        }
     }
 }
 
@@ -655,7 +706,9 @@ mod tests {
     use std::num::{NonZeroU32, NonZeroU64};
     use std::sync::Arc;
 
-    use nocter_model::{Arena, ArenaBuilder, BuiltinType, CompilationTarget, ConstantValue};
+    use nocter_model::{
+        Arena, ArenaBuilder, BuiltinType, CompilationTarget, ConstantValue, FrozenValue,
+    };
 
     use super::{CompileTimeExecutionRule, CompileTimeExecutor, CompileTimeValue};
     use crate::{
@@ -837,5 +890,31 @@ mod tests {
 
         assert_eq!(error, CompileTimeExecutionRule::TypeMismatch);
         assert_eq!(integer(1).scalar_value(), Some(&ConstantValue::Integer(1)));
+    }
+
+    #[test]
+    fn aggregate_results_preserve_frozen_tuple_and_array_structure() {
+        let array_type = CompileTimeValueType::FixedArray {
+            element: Box::new(i32_type()),
+            length: 2,
+        };
+        let array = CompileTimeValue::fixed_array(array_type.clone(), vec![integer(1), integer(2)])
+            .unwrap();
+        let tuple = CompileTimeValue::tuple(
+            CompileTimeValueType::Tuple(Box::new([i32_type(), array_type])),
+            vec![integer(3), array],
+        )
+        .unwrap();
+
+        assert_eq!(
+            tuple.into_frozen().unwrap(),
+            FrozenValue::Tuple(Box::new([
+                FrozenValue::Scalar(ConstantValue::Integer(3)),
+                FrozenValue::FixedArray(Box::new([
+                    FrozenValue::Scalar(ConstantValue::Integer(1)),
+                    FrozenValue::Scalar(ConstantValue::Integer(2)),
+                ])),
+            ]))
+        );
     }
 }
