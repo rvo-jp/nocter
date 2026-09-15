@@ -23,7 +23,8 @@ generation.
   it never parses a suffix or asks the compiler host for a floating-point value.
 - Failure cannot publish a partially evaluated semantic constant.
 - Callable recipe and plan construction validate every node, parameter, and local edge before
-  publication.
+  publication. A closed plan retains the exact type of every parameter and its result, so execution
+  does not rely on its caller to pair values with an external signature.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
 - One generic operation representation serves both checked recipes and closed plans. Its exhaustive
   call-target mapping is the only recipe-to-plan operation transform, so specialization cannot
@@ -35,6 +36,11 @@ generation.
   mistaken for plan-construction cycles.
 - Evaluation limits count semantic plan operations and source-call depth, never host instructions
   or elapsed time; all callers use the same nonzero limit contract.
+- One closed-plan executor owns its remaining budget and memoized call results. It validates input,
+  local, node, and result shapes; recursive calls therefore cannot bypass the depth limit or make
+  malformed values observable.
+- Constant expressions and checked callable plans delegate arithmetic, comparison, conversion, and
+  target floating behavior to one scalar operation implementation.
 - One dependency query owns absent, active, and completed key states. It memoizes shared
   dependencies, reports exact active cycles, and removes failed active branches before returning.
 - Each completed query value is allocated once and shared across every dependent request. The

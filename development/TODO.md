@@ -12,11 +12,12 @@ adopted design and remaining phases live in
 
 ## Next Work
 
-Continue v0.52.0 Phase 4 by adding deterministic execution for closed callable plans, then admit
-already-selected direct function and method calls in constant and static initializer plans. Extend
-the value domain through tuples and fixed arrays without creating a source-reading evaluator or a
-second checker. Do not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as part of this
-milestone.
+Continue v0.52.0 Phase 4 from the implemented closed-plan executor. Admit direct function and
+method calls in constant and static initializer plans by feeding ordinary checking's selected call
+identity and typed arguments into that executor; do not teach the header expression planner to
+perform overload or generic selection. Extend initializer values through tuples and fixed arrays
+without creating a source-reading evaluator or a second checker. Do not add `isolated`,
+`deterministic`, `pure`, or `realtime` syntax as part of this milestone.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

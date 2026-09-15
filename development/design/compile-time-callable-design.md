@@ -94,7 +94,12 @@ or a dependency cycle required to construct a declaration type, is rejected. Eva
 `CompileTimeEvaluationLimits`: one positive semantic-operation step count and one positive
 source-call-depth count. The default limits are 1,000,000 plan operations and 256 nested source
 calls. The counts are independent of host instructions and elapsed time, so compiler resource
-exhaustion becomes a deterministic source diagnostic rather than a host stack overflow.
+exhaustion becomes a deterministic source diagnostic rather than a host stack overflow. Closed
+plans carry parameter and result value shapes in addition to operation-node shapes. The executor
+validates every call boundary itself and memoizes only fully completed typed results, so its
+correctness does not depend on an initializer adapter supplying matching arguments. Both
+expression evaluation and callable execution use the same scalar-operation authority for
+arithmetic, comparisons, conversions, shifts, and target floating behavior.
 
 ## Dependency Queries
 

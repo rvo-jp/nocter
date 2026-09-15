@@ -96,7 +96,7 @@ mod tests {
     use super::CompileTimePlanTable;
     use crate::{
         CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeNode, CompileTimeOperation,
-        CompileTimeValueType,
+        CompileTimeParameter, CompileTimeValueType,
     };
 
     #[test]
@@ -113,8 +113,14 @@ mod tests {
                 arguments: Box::new([]),
             },
         ));
-        let caller_plan =
-            CompileTimeCallablePlan::new([], Arena::default(), nodes.finish(), call).unwrap();
+        let caller_plan = CompileTimeCallablePlan::new(
+            Vec::<CompileTimeParameter<CompileTimeValueType>>::new(),
+            CompileTimeValueType::Void,
+            Arena::default(),
+            nodes.finish(),
+            call,
+        )
+        .unwrap();
         let caller_target = CompileTimeCallTarget::new(caller, []).unwrap();
         let mut plans = HashMap::new();
         plans.insert(caller_target.clone(), Arc::new(caller_plan));

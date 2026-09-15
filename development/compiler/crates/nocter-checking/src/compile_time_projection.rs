@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use nocter_constant_evaluation::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
     CompileTimeCallableRecipe, CompileTimeComparisonOperation, CompileTimeGenericArgument,
-    CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation,
+    CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation, CompileTimeParameter,
     CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType,
     ConstantScalarType, FloatFormat, InvalidCompileTimeCallable,
 };
@@ -114,8 +114,25 @@ fn project_compile_time_callable_recipe(
         .receiver()
         .into_iter()
         .chain(declaration.parameters().iter().copied())
-        .collect::<Vec<_>>();
-    CompileTimeCallableRecipe::new(parameters, locals, nodes, body.root()).map_err(|error| {
+        .map(|parameter| {
+            graph
+                .declarations()
+                .parameters()
+                .get(parameter)
+                .copied()
+                .map(|declaration| CompileTimeParameter::new(parameter, declaration.ty()))
+                .ok_or_else(|| projector.error(None, CompileTimeProjectionRule::InvalidPlan))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    projector.require_recipe_type(declaration.body_result(), None)?;
+    CompileTimeCallableRecipe::new(
+        parameters,
+        declaration.body_result(),
+        locals,
+        nodes,
+        body.root(),
+    )
+    .map_err(|error| {
         let node = match error {
             InvalidCompileTimeCallable::MissingNode(node) => Some(node),
             InvalidCompileTimeCallable::MissingParameter(_)
@@ -191,8 +208,23 @@ fn specialize_compile_time_callable_recipe(
             .try_map_call_target(|target| specializer.call_target(&target, node))?;
         Ok(CompileTimeNode::new(ty, operation))
     })?;
-    CompileTimeCallablePlan::new(recipe.parameters().to_vec(), locals, nodes, recipe.root())
-        .map_err(|error| {
+    let parameters = recipe
+        .parameters()
+        .iter()
+        .map(|parameter| {
+            specializer
+                .value_type(*parameter.ty())
+                .map(|ty| CompileTimeParameter::new(parameter.id(), ty))
+                .ok_or_else(|| {
+                    specializer.error(None, CompileTimeProjectionRule::UnsupportedValueType)
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = specializer
+        .value_type(*recipe.result())
+        .ok_or_else(|| specializer.error(None, CompileTimeProjectionRule::UnsupportedValueType))?;
+    CompileTimeCallablePlan::new(parameters, result, locals, nodes, recipe.root()).map_err(
+        |error| {
             let node = match error {
                 InvalidCompileTimeCallable::MissingNode(node) => Some(node),
                 InvalidCompileTimeCallable::MissingParameter(_)
@@ -200,7 +232,8 @@ fn specialize_compile_time_callable_recipe(
                 | InvalidCompileTimeCallable::MissingLocal(_) => None,
             };
             specializer.error(node, CompileTimeProjectionRule::InvalidPlan)
-        })
+        },
+    )
 }
 
 struct Specializer<'a> {
@@ -728,6 +761,7 @@ mod tests {
 
     use nocter_constant_evaluation::{
         CompileTimeCallTarget, CompileTimeGenericArgument, CompileTimeOperation, CompileTimeType,
+        CompileTimeValueType, ConstantScalarType,
     };
 
     use crate::test_support::Fixture;
@@ -851,6 +885,10 @@ mod tests {
         let plan = program.compile_time_plans().get(&target).unwrap();
 
         assert_eq!(plan.parameters().len(), 1);
+        assert_eq!(
+            plan.parameters()[0].ty(),
+            &CompileTimeValueType::Scalar(ConstantScalarType::Integer(BuiltinType::I32))
+        );
         assert_eq!(program.compile_time_plans().len(), 2);
     }
 

@@ -7,11 +7,13 @@
 mod budget;
 mod callable;
 mod evaluate;
+mod execution;
 mod floating;
 mod model;
 mod plan;
 mod program;
 mod query;
+mod scalar;
 mod support;
 #[cfg(test)]
 mod tests;
@@ -23,12 +25,15 @@ pub use callable::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallable,
     CompileTimeCallablePlan, CompileTimeCallableRecipe, CompileTimeComparisonOperation,
     CompileTimeGenericArgument, CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation,
-    CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType,
-    InvalidCompileTimeCallTarget, InvalidCompileTimeCallable,
+    CompileTimeParameter, CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation,
+    CompileTimeValueType, InvalidCompileTimeCallTarget, InvalidCompileTimeCallable,
 };
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_expression_plan,
     evaluate_frozen_expression_plan,
+};
+pub use execution::{
+    CompileTimeExecutionError, CompileTimeExecutionRule, CompileTimeExecutor, CompileTimeValue,
 };
 pub use floating::{
     FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, FloatLiteralError,

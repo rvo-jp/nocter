@@ -322,10 +322,35 @@ impl<T, C> CompileTimeNode<T, C> {
     }
 }
 
+/// One positional input and its value shape in a compile-time callable.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompileTimeParameter<T> {
+    id: ParameterId,
+    ty: T,
+}
+
+impl<T> CompileTimeParameter<T> {
+    #[must_use]
+    pub const fn new(id: ParameterId, ty: T) -> Self {
+        Self { id, ty }
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> ParameterId {
+        self.id
+    }
+
+    #[must_use]
+    pub const fn ty(&self) -> &T {
+        &self.ty
+    }
+}
+
 /// One ordinary checked body lowered into a compile-time operation domain.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompileTimeCallable<T, C> {
-    parameters: Box<[ParameterId]>,
+    parameters: Box<[CompileTimeParameter<T>]>,
+    result: T,
     locals: Arena<LocalBindingId, T>,
     nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
     root: BodyNodeId,
@@ -346,13 +371,15 @@ impl<T, C> CompileTimeCallable<T, C> {
     /// Returns the first missing node, parameter, or local reference. No partially valid plan is
     /// published.
     pub fn new(
-        parameters: impl Into<Box<[ParameterId]>>,
+        parameters: impl Into<Box<[CompileTimeParameter<T>]>>,
+        result: T,
         locals: Arena<LocalBindingId, T>,
         nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
         root: BodyNodeId,
     ) -> Result<Self, InvalidCompileTimeCallable> {
         let plan = Self {
             parameters: parameters.into(),
+            result,
             locals,
             nodes,
             root,
@@ -360,12 +387,12 @@ impl<T, C> CompileTimeCallable<T, C> {
         if let Some(parameter) =
             plan.parameters
                 .iter()
-                .copied()
                 .enumerate()
                 .find_map(|(index, parameter)| {
                     plan.parameters[..index]
-                        .contains(&parameter)
-                        .then_some(parameter)
+                        .iter()
+                        .any(|previous| previous.id() == parameter.id())
+                        .then_some(parameter.id())
                 })
         {
             return Err(InvalidCompileTimeCallable::DuplicateParameter(parameter));
@@ -375,8 +402,13 @@ impl<T, C> CompileTimeCallable<T, C> {
     }
 
     #[must_use]
-    pub const fn parameters(&self) -> &[ParameterId] {
+    pub const fn parameters(&self) -> &[CompileTimeParameter<T>] {
         &self.parameters
+    }
+
+    #[must_use]
+    pub const fn result(&self) -> &T {
+        &self.result
     }
 
     #[must_use]
@@ -399,7 +431,11 @@ impl<T, C> CompileTimeCallable<T, C> {
         for (_, node) in self.nodes.iter() {
             match node.operation() {
                 CompileTimeOperation::ReadParameter(parameter) => {
-                    if !self.parameters.contains(parameter) {
+                    if !self
+                        .parameters
+                        .iter()
+                        .any(|candidate| candidate.id() == *parameter)
+                    {
                         return Err(InvalidCompileTimeCallable::MissingParameter(*parameter));
                     }
                 }
