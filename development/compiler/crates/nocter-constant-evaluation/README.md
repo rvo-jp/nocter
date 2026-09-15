@@ -25,6 +25,9 @@ generation.
 - Callable recipe and plan construction validate every node, parameter, and local edge before
   publication. A closed plan retains the exact type of every parameter and its result, so execution
   does not rely on its caller to pair values with an external signature.
+- Closing a plan table validates each call edge's target, receiver/argument arity, input shapes,
+  and result shape against the target plan. An executor can never observe a partially linked plan
+  graph.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
 - One generic operation representation serves both checked recipes and closed plans. Its exhaustive
   call-target mapping is the only recipe-to-plan operation transform, so specialization cannot

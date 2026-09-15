@@ -134,7 +134,8 @@ fn project_compile_time_callable_recipe(
     )
     .map_err(|error| {
         let node = match error {
-            InvalidCompileTimeCallable::MissingNode(node) => Some(node),
+            InvalidCompileTimeCallable::MissingNode(node)
+            | InvalidCompileTimeCallable::TypeMismatch(node) => Some(node),
             InvalidCompileTimeCallable::MissingParameter(_)
             | InvalidCompileTimeCallable::DuplicateParameter(_)
             | InvalidCompileTimeCallable::MissingLocal(_) => None,
@@ -226,7 +227,8 @@ fn specialize_compile_time_callable_recipe(
     CompileTimeCallablePlan::new(parameters, result, locals, nodes, recipe.root()).map_err(
         |error| {
             let node = match error {
-                InvalidCompileTimeCallable::MissingNode(node) => Some(node),
+                InvalidCompileTimeCallable::MissingNode(node)
+                | InvalidCompileTimeCallable::TypeMismatch(node) => Some(node),
                 InvalidCompileTimeCallable::MissingParameter(_)
                 | InvalidCompileTimeCallable::DuplicateParameter(_)
                 | InvalidCompileTimeCallable::MissingLocal(_) => None,

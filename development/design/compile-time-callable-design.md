@@ -100,6 +100,9 @@ validates every call boundary itself and memoizes only fully completed typed res
 correctness does not depend on an initializer adapter supplying matching arguments. Both
 expression evaluation and callable execution use the same scalar-operation authority for
 arithmetic, comparisons, conversions, shifts, and target floating behavior.
+The plan-table transition first validates every call edge against its target plan, including
+receiver/argument arity and types and the produced result type. No partially linked call graph is
+published.
 
 ## Dependency Queries
 

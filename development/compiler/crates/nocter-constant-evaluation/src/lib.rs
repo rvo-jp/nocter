@@ -44,7 +44,7 @@ pub use model::{
     ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
 };
 pub use plan::{plan_expression, plan_frozen_expression};
-pub use program::{CompileTimePlanTable, InvalidCompileTimePlanTable};
+pub use program::{CompileTimePlanTable, InvalidCompileTimePlanRule, InvalidCompileTimePlanTable};
 pub use query::{DependencyComputation, DependencyQuery, DependencyQueryError};
 
 /// Public constant-expression diagnostic family shared by header and body semantic adapters.

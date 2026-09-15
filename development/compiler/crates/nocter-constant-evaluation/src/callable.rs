@@ -376,7 +376,10 @@ impl<T, C> CompileTimeCallable<T, C> {
         locals: Arena<LocalBindingId, T>,
         nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
         root: BodyNodeId,
-    ) -> Result<Self, InvalidCompileTimeCallable> {
+    ) -> Result<Self, InvalidCompileTimeCallable>
+    where
+        T: PartialEq,
+    {
         let plan = Self {
             parameters: parameters.into(),
             result,
@@ -426,20 +429,31 @@ impl<T, C> CompileTimeCallable<T, C> {
         self.root
     }
 
-    fn validate(&self) -> Result<(), InvalidCompileTimeCallable> {
+    fn validate(&self) -> Result<(), InvalidCompileTimeCallable>
+    where
+        T: PartialEq,
+    {
         self.require_node(self.root)?;
-        for (_, node) in self.nodes.iter() {
+        for (node_id, node) in self.nodes.iter() {
             match node.operation() {
                 CompileTimeOperation::ReadParameter(parameter) => {
-                    if !self
+                    let Some(parameter) = self
                         .parameters
                         .iter()
-                        .any(|candidate| candidate.id() == *parameter)
-                    {
+                        .find(|candidate| candidate.id() == *parameter)
+                    else {
                         return Err(InvalidCompileTimeCallable::MissingParameter(*parameter));
+                    };
+                    if parameter.ty() != node.ty() {
+                        return Err(InvalidCompileTimeCallable::TypeMismatch(node_id));
                     }
                 }
-                CompileTimeOperation::ReadLocal(local) => self.require_local(*local)?,
+                CompileTimeOperation::ReadLocal(local) => {
+                    self.require_local(*local)?;
+                    if self.locals.get(*local) != Some(node.ty()) {
+                        return Err(InvalidCompileTimeCallable::TypeMismatch(node_id));
+                    }
+                }
                 CompileTimeOperation::Unary { operand, .. }
                 | CompileTimeOperation::NumericConversion { operand, .. }
                 | CompileTimeOperation::Discard(operand) => self.require_node(*operand)?,
@@ -479,10 +493,15 @@ impl<T, C> CompileTimeCallable<T, C> {
                     binding,
                     initializer,
                 } => {
+                    self.require_node(*initializer)?;
                     if let Some(binding) = binding {
                         self.require_local(*binding)?;
+                        if self.locals.get(*binding)
+                            != self.nodes.get(*initializer).map(CompileTimeNode::ty)
+                        {
+                            return Err(InvalidCompileTimeCallable::TypeMismatch(node_id));
+                        }
                     }
-                    self.require_node(*initializer)?;
                 }
                 CompileTimeOperation::Return(value) => {
                     if let Some(value) = value {
@@ -530,4 +549,5 @@ pub enum InvalidCompileTimeCallable {
     MissingParameter(ParameterId),
     DuplicateParameter(ParameterId),
     MissingLocal(LocalBindingId),
+    TypeMismatch(BodyNodeId),
 }
