@@ -8,7 +8,7 @@ checked callable bodies.
 ## Contract
 
 The crate consumes syntax-owned constant expressions plus explicit semantic support and produces
-typed scalar constants, recursively frozen values, checked-body callable recipes, or closed
+typed scalar constants, recursively frozen tuple and fixed-array values, checked-body callable recipes, or closed
 callable plans, plus semantic evaluation failures. Recipes retain checked body identities,
 store-relative types, and already-selected call targets; closed plans replace only those type edges
 with evaluator-domain shapes. This crate never consumes a checked body directly. It does not

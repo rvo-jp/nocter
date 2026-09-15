@@ -132,13 +132,14 @@ The static-initializer domain contains:
 - boolean, integer, character, and non-interpolated string literals;
 - references to `const` values;
 - the pure unary, binary, and conversion constant expressions defined for `const`;
+- tuple literals whose elements recursively belong to this domain;
 - fixed-array literals whose elements recursively belong to this domain.
 
 The declared static type must recursively contain only `bool`, integer types, `char`, readonly
-`&str`, and fixed arrays of those types. Owned values, nominal values, pointers, mutable borrows,
-slices, optionals, fallible values, callables, generic-dependent values, and values with destruction
-are rejected. Every readonly string reference in a static initializer refers to embedded static
-text.
+`&str`, tuples, and fixed arrays of those types. Owned values, nominal values, pointers, mutable
+borrows, slices, optionals, fallible values, callables, generic-dependent values, and values with
+destruction are rejected. Every readonly string reference in a static initializer refers to
+embedded static text.
 
 A static initializer is evaluated exactly once before program execution. The selected target layout
 determines its size, alignment, and byte encoding. The resulting representation is placed in

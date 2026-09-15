@@ -285,7 +285,7 @@ fn collect_frozen_text(value: &FrozenValue, texts: &mut BTreeSet<Box<str>>) {
         FrozenValue::Scalar(ConstantValue::Text(text)) => {
             texts.insert(text.clone());
         }
-        FrozenValue::FixedArray(values) => {
+        FrozenValue::Tuple(values) | FrozenValue::FixedArray(values) => {
             for value in values {
                 collect_frozen_text(value, texts);
             }
@@ -366,6 +366,21 @@ fn encode_frozen(
             relocations.push((pointer, text.clone()));
             Ok(())
         }
+        (FrozenValue::Tuple(values), MachineLayoutKind::Tuple { elements })
+            if elements.len() == values.len() =>
+        {
+            encode_frozen_tuple(
+                program,
+                layouts,
+                target,
+                values,
+                elements,
+                offset,
+                bytes,
+                relocations,
+                owner,
+            )
+        }
         (
             FrozenValue::FixedArray(values),
             MachineLayoutKind::FixedArray {
@@ -373,31 +388,87 @@ fn encode_frozen(
                 length,
                 stride,
             },
-        ) if usize::try_from(*length) == Ok(values.len()) => {
-            for (index, value) in values.iter().enumerate() {
-                let element_offset = offset
-                    .checked_add(
-                        stride
-                            .checked_mul(index as u64)
-                            .ok_or(MachineProgramError::InvalidStaticData(owner))?,
-                    )
-                    .ok_or(MachineProgramError::InvalidStaticData(owner))?;
-                encode_frozen(
-                    program,
-                    layouts,
-                    target,
-                    *element,
-                    value,
-                    element_offset,
-                    bytes,
-                    relocations,
-                    owner,
-                )?;
-            }
-            Ok(())
-        }
+        ) if usize::try_from(*length) == Ok(values.len()) => encode_frozen_array(
+            program,
+            layouts,
+            target,
+            *element,
+            *stride,
+            values,
+            offset,
+            bytes,
+            relocations,
+            owner,
+        ),
         _ => Err(MachineProgramError::InvalidStaticData(owner)),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn encode_frozen_array(
+    program: &MirProgram,
+    layouts: &MachineLayoutPlan,
+    target: MachineTarget,
+    element: TypeId,
+    stride: u64,
+    values: &[FrozenValue],
+    offset: u64,
+    bytes: &mut [u8],
+    relocations: &mut Vec<(u64, Box<str>)>,
+    owner: ExecutableStaticId,
+) -> Result<(), MachineProgramError> {
+    for (index, value) in values.iter().enumerate() {
+        let element_offset = offset
+            .checked_add(
+                stride
+                    .checked_mul(index as u64)
+                    .ok_or(MachineProgramError::InvalidStaticData(owner))?,
+            )
+            .ok_or(MachineProgramError::InvalidStaticData(owner))?;
+        encode_frozen(
+            program,
+            layouts,
+            target,
+            element,
+            value,
+            element_offset,
+            bytes,
+            relocations,
+            owner,
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn encode_frozen_tuple(
+    program: &MirProgram,
+    layouts: &MachineLayoutPlan,
+    target: MachineTarget,
+    values: &[FrozenValue],
+    elements: &[crate::MachineTupleElementLayout],
+    offset: u64,
+    bytes: &mut [u8],
+    relocations: &mut Vec<(u64, Box<str>)>,
+    owner: ExecutableStaticId,
+) -> Result<(), MachineProgramError> {
+    for (value, element) in values.iter().zip(elements) {
+        let element_offset = offset
+            .checked_add(element.offset())
+            .ok_or(MachineProgramError::InvalidStaticData(owner))?;
+        encode_frozen(
+            program,
+            layouts,
+            target,
+            element.ty(),
+            value,
+            element_offset,
+            bytes,
+            relocations,
+            owner,
+        )?;
+    }
+    Ok(())
 }
 
 fn write_integer(

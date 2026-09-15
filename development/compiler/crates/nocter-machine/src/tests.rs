@@ -1090,7 +1090,8 @@ fn immutable_statics_use_typed_layout_and_explicit_text_relocations() {
     let mir = lower_fixture(
         "static VALUES: [u32; 2] = [65, 90]\n\
          static LABELS: [&str; 2] = [\"first\", \"second\"]\n\
-         func main(): i32 {\n    let _ = LABELS[0]\n    let _ = VALUES[1]\n    return 0\n}\n",
+         static PAIR: (u8, u32) = (7, 42)\n\
+         func main(): i32 {\n    let _ = LABELS[0]\n    let _ = VALUES[1]\n    let _ = PAIR.0\n    return 0\n}\n",
     );
     let program = MachineProgram::lower(&mir).unwrap();
     let entries = program
@@ -1102,6 +1103,11 @@ fn immutable_statics_use_typed_layout_and_explicit_text_relocations() {
     assert!(entries.iter().any(|entry| {
         entry.alignment() == 4
             && entry.bytes() == [65, 0, 0, 0, 90, 0, 0, 0]
+            && entry.relocations().is_empty()
+    }));
+    assert!(entries.iter().any(|entry| {
+        entry.alignment() == 4
+            && entry.bytes() == [7, 0, 0, 0, 42, 0, 0, 0]
             && entry.relocations().is_empty()
     }));
     let labels = entries

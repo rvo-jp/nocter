@@ -146,6 +146,35 @@ pub fn plan_frozen_expression<R: ConstantResolver>(
             plan_expression(target, syntax, expression, *expected, resolver)
                 .map(FrozenExpressionPlan::Scalar)
         }
+        FrozenType::Tuple(expected_elements) => {
+            if tree.node(semantic).map(nocter_syntax::SyntaxNode::kind)
+                != Some(NodeKind::TupleExpression)
+            {
+                return Err(ConstantPlanError::Rule {
+                    rule: ConstantPlanRule::TypeMismatch,
+                    origin: SyntaxOrigin::Node(expression),
+                });
+            }
+            let children = expression_children(tree, semantic);
+            if children.len() != expected_elements.len() {
+                return Err(ConstantPlanError::Rule {
+                    rule: ConstantPlanRule::TypeMismatch,
+                    origin: SyntaxOrigin::Node(expression),
+                });
+            }
+            let elements = children
+                .into_iter()
+                .zip(expected_elements)
+                .map(|(child, expected)| {
+                    plan_frozen_expression(target, syntax, child, expected, resolver)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_boxed_slice();
+            Ok(FrozenExpressionPlan::Tuple {
+                ty: expected.clone(),
+                elements,
+            })
+        }
         FrozenType::FixedArray { element, length } => {
             if tree.node(semantic).map(nocter_syntax::SyntaxNode::kind)
                 != Some(NodeKind::ArrayLiteral)

@@ -33,4 +33,19 @@ impl CompileTimeProgram {
     pub fn plans(&self) -> &CompileTimePlanTable {
         &self.plans
     }
+
+    /// Opens deterministic execution over this program's exact value and plan authorities.
+    #[must_use]
+    pub fn executor(
+        &self,
+        target: nocter_model::CompilationTarget,
+        limits: nocter_constant_evaluation::CompileTimeEvaluationLimits,
+    ) -> nocter_constant_evaluation::CompileTimeExecutor<'_> {
+        nocter_constant_evaluation::CompileTimeExecutor::new(
+            self.plans(),
+            self.values().constants(),
+            target,
+            limits,
+        )
+    }
 }

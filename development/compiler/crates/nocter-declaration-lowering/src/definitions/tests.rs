@@ -20,6 +20,7 @@ const FLOAT_WIDENED: f64 = 1.5f32 as f64
 static LIMITS: [u32; BASE / 20] = [65, 90]
 static LABELS: [&str; 2] = ["first", "second"]
 static FLOATS: [f32; 2] = [0.5, 1.5]
+static PAIR: (u8, bool) = (7, true)
 type Bytes = [u8; ANSWER]
 
 #target: "arm64-darwin"
@@ -407,6 +408,10 @@ fn assert_header_statics(program: &nocter_declarations::DeclarationProgram) {
                 nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Float32(
                     0x3fc0_0000,
                 )),
+            ])),
+            nocter_model::FrozenValue::Tuple(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(7)),
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Bool(true)),
             ])),
         ]
     );

@@ -188,6 +188,13 @@ fn validate_statics(program: &DeclarationProgram) -> Result<(), ProgramIntegrity
 fn frozen_value_matches(program: &DeclarationProgram, ty: TypeId, value: &FrozenValue) -> bool {
     match (program.types().get(ty), value) {
         (_, FrozenValue::Scalar(value)) => constant_value_matches(program, ty, value),
+        (Some(TypeKind::Tuple(elements)), FrozenValue::Tuple(values)) => {
+            elements.iter().len() == values.len()
+                && elements
+                    .iter()
+                    .zip(values)
+                    .all(|(element, value)| frozen_value_matches(program, element, value))
+        }
         (Some(TypeKind::FixedArray { element, length }), FrozenValue::FixedArray(values)) => {
             usize::try_from(*length) == Ok(values.len())
                 && values

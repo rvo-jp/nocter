@@ -88,6 +88,11 @@ pub fn evaluate_frozen_expression_plan(
         FrozenExpressionPlan::Scalar(plan) => {
             evaluate_expression_plan(plan, lookup).map(FrozenValue::Scalar)
         }
+        FrozenExpressionPlan::Tuple { elements, .. } => elements
+            .iter()
+            .map(|element| evaluate_frozen_expression_plan(element, lookup))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|values| FrozenValue::Tuple(values.into_boxed_slice())),
         FrozenExpressionPlan::FixedArray { elements, .. } => elements
             .iter()
             .map(|element| evaluate_frozen_expression_plan(element, lookup))

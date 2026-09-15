@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nocter_model::{
-    BodyNodeId, CompilationTarget, ConstantId, ConstantValue, LocalBindingId, ParameterId,
+    Arena, BodyNodeId, CompilationTarget, ConstantId, ConstantValue, LocalBindingId, ParameterId,
 };
 
 use crate::scalar::{self, ScalarEvaluationFailure};
@@ -189,30 +189,27 @@ struct CallKey {
 }
 
 /// Evaluates closed callable plans with one deterministic budget and call-result cache.
-pub struct CompileTimeExecutor<'program, L> {
+pub struct CompileTimeExecutor<'program> {
     plans: &'program CompileTimePlanTable,
+    constants: &'program Arena<ConstantId, ConstantValue>,
     target: CompilationTarget,
-    lookup_constant: L,
     remaining_steps: u64,
     maximum_call_depth: u32,
     completed_calls: HashMap<CallKey, Arc<CompileTimeValue>>,
 }
 
-impl<'program, L> CompileTimeExecutor<'program, L>
-where
-    L: FnMut(ConstantId) -> Option<ConstantValue>,
-{
+impl<'program> CompileTimeExecutor<'program> {
     #[must_use]
     pub fn new(
         plans: &'program CompileTimePlanTable,
+        constants: &'program Arena<ConstantId, ConstantValue>,
         target: CompilationTarget,
         limits: CompileTimeEvaluationLimits,
-        lookup_constant: L,
     ) -> Self {
         Self {
             plans,
+            constants,
             target,
-            lookup_constant,
             remaining_steps: limits.steps().get(),
             maximum_call_depth: limits.call_depth().get(),
             completed_calls: HashMap::new(),
@@ -309,7 +306,7 @@ where
                     .map_err(|rule| frame.error(rule, Some(node_id)))?,
             ),
             CompileTimeOperation::DeclaredConstant(id) => {
-                let value = (self.lookup_constant)(*id).ok_or_else(|| {
+                let value = self.constants.get(*id).cloned().ok_or_else(|| {
                     frame.error(CompileTimeExecutionRule::MissingConstant, Some(node_id))
                 })?;
                 Flow::Value(
@@ -741,11 +738,12 @@ mod tests {
             (answer_target.clone(), Arc::new(answer_plan)),
         ]))
         .unwrap();
+        let constants = Arena::default();
         let mut executor = CompileTimeExecutor::new(
             &plans,
+            &constants,
             CompilationTarget::Arm64Darwin,
             CompileTimeEvaluationLimits::default(),
-            |_| None,
         );
 
         let result = executor.evaluate(&answer_target, []).unwrap();
@@ -775,11 +773,12 @@ mod tests {
         let target = CompileTimeCallTarget::new(identity, []).unwrap();
         let plans =
             CompileTimePlanTable::new(HashMap::from([(target.clone(), Arc::new(plan))])).unwrap();
+        let constants = Arena::default();
         let mut executor = CompileTimeExecutor::new(
             &plans,
+            &constants,
             CompilationTarget::Arm64Darwin,
             CompileTimeEvaluationLimits::default(),
-            |_| None,
         );
         let boolean =
             CompileTimeValue::scalar(ConstantScalarType::Bool, ConstantValue::Bool(true)).unwrap();
@@ -818,8 +817,9 @@ mod tests {
             NonZeroU64::new(100).unwrap(),
             NonZeroU32::new(3).unwrap(),
         );
+        let constants = Arena::default();
         let mut executor =
-            CompileTimeExecutor::new(&plans, CompilationTarget::Arm64Darwin, limits, |_| None);
+            CompileTimeExecutor::new(&plans, &constants, CompilationTarget::Arm64Darwin, limits);
 
         let error = executor.evaluate(&target, []).unwrap_err();
 

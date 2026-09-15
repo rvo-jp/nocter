@@ -17,6 +17,7 @@ pub enum ConstantScalarType {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum FrozenType {
     Scalar(ConstantScalarType),
+    Tuple(Box<[FrozenType]>),
     FixedArray {
         element: Box<FrozenType>,
         length: usize,
@@ -157,6 +158,10 @@ pub struct ConstantExpressionPlan {
 #[derive(Clone, Debug)]
 pub enum FrozenExpressionPlan {
     Scalar(ConstantExpressionPlan),
+    Tuple {
+        ty: FrozenType,
+        elements: Box<[FrozenExpressionPlan]>,
+    },
     FixedArray {
         ty: FrozenType,
         elements: Box<[FrozenExpressionPlan]>,
@@ -168,7 +173,7 @@ impl FrozenExpressionPlan {
     pub fn result_type(&self) -> FrozenType {
         match self {
             Self::Scalar(plan) => FrozenType::Scalar(plan.result_type()),
-            Self::FixedArray { ty, .. } => ty.clone(),
+            Self::Tuple { ty, .. } | Self::FixedArray { ty, .. } => ty.clone(),
         }
     }
 
@@ -183,7 +188,7 @@ impl FrozenExpressionPlan {
     fn collect_dependencies(&self, dependencies: &mut Vec<(ConstantId, SyntaxOrigin)>) {
         match self {
             Self::Scalar(plan) => dependencies.extend_from_slice(plan.dependencies()),
-            Self::FixedArray { elements, .. } => {
+            Self::Tuple { elements, .. } | Self::FixedArray { elements, .. } => {
                 for element in elements {
                     element.collect_dependencies(dependencies);
                 }

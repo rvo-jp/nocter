@@ -435,6 +435,11 @@ impl HeaderValueComputation<'_, '_, '_> {
             .cloned()
             .ok_or_else(|| DependencyQueryError::computation(inconsistent_origin(origin)))?;
         match kind {
+            BoundTypeKind::Tuple(elements) => elements
+                .iter()
+                .map(|element| self.frozen_type(query, *element, active_aliases, origin))
+                .collect::<Result<Vec<_>, _>>()
+                .map(|elements| FrozenType::Tuple(elements.into_boxed_slice())),
             BoundTypeKind::FixedArray {
                 element,
                 length: length_node,

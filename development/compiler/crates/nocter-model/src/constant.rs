@@ -20,5 +20,6 @@ pub enum ConstantValue {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum FrozenValue {
     Scalar(ConstantValue),
+    Tuple(Box<[FrozenValue]>),
     FixedArray(Box<[FrozenValue]>),
 }
