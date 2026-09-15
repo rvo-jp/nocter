@@ -13,6 +13,7 @@ mod declarations;
 mod diagnostic;
 mod projection;
 mod syntax;
+mod value_completion;
 mod violation;
 
 #[cfg(test)]

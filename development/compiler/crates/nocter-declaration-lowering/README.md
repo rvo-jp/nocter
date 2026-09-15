@@ -62,9 +62,10 @@ does not check callable bodies.
   frozen with `ReusableDeclarations`; materialization neither repeats module lookup nor declaration
   lowering.
 - Contract and private definition joins use exact identities, not text matching downstream.
-- Constant and static initialization is evaluated once before definition; lowering completes each
-  declaration and its value in one builder transition, and later stages cannot reread initializer
-  syntax or recover a payload from declaration metadata.
+- Constant and static initialization is evaluated once before definition. Lowering freezes all
+  declaration metadata first, then `value_completion` consumes the evaluated products into the
+  sole prepared value authority. Only that join may publish an accepted or recovery aggregate;
+  later stages cannot reread initializer syntax or recover a payload from declaration metadata.
 - A static may demand its fixed-array length, and that length may demand constants, through the
   same memoized query. There is no constants-first, lengths-second, statics-third correctness
   precondition.
