@@ -150,6 +150,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   and the closed specialization table into one `CompileTimeProgram`. Downstream consumers cannot
   observe or assemble a partial pairing, while neither declaration lowering nor checking can call
   back into the other's internal state.
+- `CompileTimeProgram` retains the declaration graph's selected compilation target. Opening its
+  executor therefore cannot pair plans and values with a caller-selected target profile.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.

@@ -12,13 +12,19 @@ use crate::CompileTimePlanTable;
 /// consumer one authority for compile-time facts.
 #[derive(Clone, Debug)]
 pub struct CompileTimeProgram {
+    target: nocter_model::CompilationTarget,
     values: Arc<DeclarationValueTable>,
     plans: Arc<CompileTimePlanTable>,
 }
 
 impl CompileTimeProgram {
-    pub(crate) fn new(values: Arc<DeclarationValueTable>, plans: CompileTimePlanTable) -> Self {
+    pub(crate) fn new(
+        target: nocter_model::CompilationTarget,
+        values: Arc<DeclarationValueTable>,
+        plans: CompileTimePlanTable,
+    ) -> Self {
         Self {
+            target,
             values,
             plans: Arc::new(plans),
         }
@@ -38,13 +44,12 @@ impl CompileTimeProgram {
     #[must_use]
     pub fn executor(
         &self,
-        target: nocter_model::CompilationTarget,
         limits: nocter_constant_evaluation::CompileTimeEvaluationLimits,
     ) -> nocter_constant_evaluation::CompileTimeExecutor<'_> {
         nocter_constant_evaluation::CompileTimeExecutor::new(
             self.plans(),
             self.values().constants(),
-            target,
+            self.target,
             limits,
         )
     }

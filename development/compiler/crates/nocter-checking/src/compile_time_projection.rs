@@ -915,10 +915,9 @@ mod tests {
         let program = output.program();
         let (sum_to, _) = callable(program, "sum_to");
         let target = CompileTimeCallTarget::new(sum_to, []).unwrap();
-        let mut executor = program.compile_time_program().executor(
-            nocter_model::CompilationTarget::Arm64Darwin,
-            nocter_constant_evaluation::CompileTimeEvaluationLimits::default(),
-        );
+        let mut executor = program
+            .compile_time_program()
+            .executor(nocter_constant_evaluation::CompileTimeEvaluationLimits::default());
         let input = CompileTimeValue::scalar(
             ConstantScalarType::Integer(BuiltinType::U32),
             nocter_model::ConstantValue::Integer(5),

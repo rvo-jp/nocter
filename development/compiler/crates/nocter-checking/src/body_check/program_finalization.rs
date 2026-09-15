@@ -141,6 +141,7 @@ pub(super) fn finalize_materialized_program(
         }
     };
     let compile_time = Arc::new(crate::CompileTimeProgram::new(
+        materialized.environment.graph().target(),
         materialized.environment.values_arc(),
         compile_time_plans,
     ));
