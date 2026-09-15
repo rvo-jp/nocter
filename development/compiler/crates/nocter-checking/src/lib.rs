@@ -17,6 +17,7 @@ mod body_relations;
 mod body_sources;
 mod body_type_recipe;
 mod checked;
+mod compile_time_program;
 mod compile_time_projection;
 mod concrete_destruction;
 mod concrete_dispatch;
@@ -112,6 +113,7 @@ pub use checked::{
     SpreadMode, StaticDispatch, StaticSelection, SuspensionStorage, TypedAsyncIteration,
     TypedIteration, TypedIterationStep, ValueProvenance,
 };
+pub use compile_time_program::CompileTimeProgram;
 pub use compile_time_projection::{CompileTimeProjectionError, CompileTimeProjectionRule};
 pub use concrete_destruction::{
     ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,

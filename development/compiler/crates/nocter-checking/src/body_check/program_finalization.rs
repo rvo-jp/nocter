@@ -125,7 +125,7 @@ pub(super) fn finalize_materialized_program(
         materialized.semantics.semantics().types(),
         &materialized.bodies,
     ) {
-        Ok(plans) => Arc::new(plans),
+        Ok(plans) => plans,
         Err(error) => {
             let authored_error = project_compile_time_failure(&materialized, error)
                 .map_err(|internal| BodyCheckFailure::new(internal.into(), None))?;
@@ -140,10 +140,14 @@ pub(super) fn finalize_materialized_program(
             ));
         }
     };
+    let compile_time = Arc::new(crate::CompileTimeProgram::new(
+        materialized.environment.values_arc(),
+        compile_time_plans,
+    ));
     Ok(finish_checked_program(
         materialized,
         relations,
-        compile_time_plans,
+        compile_time,
     ))
 }
 
@@ -210,7 +214,7 @@ fn build_materialized_body_recovery(
 fn finish_checked_program(
     materialized: QueriedProgramMaterialization,
     relations: ReusableProgramRelations,
-    compile_time_plans: Arc<crate::CompileTimePlanTable>,
+    compile_time: Arc<crate::CompileTimeProgram>,
 ) -> CheckedProgramOutput {
     let QueriedProgramMaterialization {
         environment,
@@ -237,7 +241,7 @@ fn finish_checked_program(
                 execution_facts,
                 loans,
                 opaque_witnesses,
-                compile_time_plans,
+                compile_time,
                 associated_type_completion_contexts,
             },
             bodies,

@@ -3,20 +3,20 @@
 ## Current State
 
 Nocter v0.51.0 is published and externally audited. v0.52.0 Compile-Time Callable Evaluation is in
-progress. Phases 0-2 are complete: authored `const` capability reaches one canonical checked-body
-projection, and `CheckedProgram` owns the only identity-indexed compile-time plan table. The
+progress. Phases 0-3 are complete: authored `const` capability reaches one canonical checked-body
+projection, header values and closed callable specializations are resolved by typed dependency
+queries, and `CheckedProgram` publishes both immutable strata through one `CompileTimeProgram`.
+The
 adopted design and remaining phases live in
 [`development/history/milestones/v0.52.0.md`](history/milestones/v0.52.0.md).
 
 ## Next Work
 
-Continue v0.52.0 Phase 3 from the implemented header-value query and the checking-owned closed
-callable-specialization query. Replace their current stage-separated ownership with one
-semantic-construction query boundary that can request declaration values, checked callable plans,
-and later call results by stable identity without allowing declaration lowering or checking to
-re-enter each other. Do not expose compile-time calls in public constant syntax until that boundary
-owns both callable plans and values. Do not add `isolated`, `deterministic`, `pure`, or `realtime`
-syntax as part of this milestone.
+Continue v0.52.0 Phase 4 by adding deterministic execution for closed callable plans, then admit
+already-selected direct function and method calls in constant and static initializer plans. Extend
+the value domain through tuples and fixed arrays without creating a source-reading evaluator or a
+second checker. Do not add `isolated`, `deterministic`, `pure`, or `realtime` syntax as part of this
+milestone.
 
 Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

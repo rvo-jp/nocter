@@ -145,6 +145,11 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   request projection, pair a declaration with an unrelated body, or repeat lookup, typing,
   conversion, operator, or dispatch selection. Failures remain source-neutral until finalization
   projects them through canonical node origins.
+- Declaration construction and callable specialization are ordered immutable strata rather than
+  one re-entrant heterogeneous query. Finalization joins the exact shared declaration value table
+  and the closed specialization table into one `CompileTimeProgram`. Downstream consumers cannot
+  observe or assemble a partial pairing, while neither declaration lowering nor checking can call
+  back into the other's internal state.
 
 The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.

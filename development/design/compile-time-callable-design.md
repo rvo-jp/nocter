@@ -81,7 +81,7 @@ only values, typed operations, selected callable identities, and the compilation
 numeric representation requires it. It cannot inspect syntax, perform lookup, select an overload,
 or ask the target backend to execute code.
 
-One `CompileTimeProgram` owns:
+One checked-program `CompileTimeProgram` owns:
 
 - evaluated constant values;
 - recursively frozen static values;
@@ -98,8 +98,8 @@ exhaustion becomes a deterministic source diagnostic rather than a host stack ov
 
 ## Dependency Queries
 
-Semantic construction must request facts by stable identity instead of running whole stages in a
-fixed order. The initial query set is:
+Semantic construction requests facts by stable identity within typed, ordered strata instead of
+placing unrelated partially constructed facts in one heterogeneous cache. The initial query set is:
 
 ```text
 callable signature(CallableId, substitution)
@@ -147,9 +147,18 @@ an array-length plan requests its referenced constants. Root scheduling delibera
 statics, so successful construction proves that dependency edges—not a constants/lengths/statics
 pass order—determine evaluation.
 
-The query boundary is semantic and compiler-internal. The workspace computation engine may cache a
-completed compilation product between editor revisions, but it does not become the authority for
-dependencies inside one semantic construction.
+The header-value stratum closes constants, statics, and array lengths before normalized
+declaration types are published. Ordinary checking then closes body recipes, and a specialization
+query closes every reachable callable target. Program finalization joins the exact shared value
+table and specialization table into one immutable `CompileTimeProgram`. This is intentionally not
+one re-entrant query: allowing a header computation to request a checked body would expose
+unfinished declaration types to checking, while allowing checking to reopen a header would make
+stage order a correctness precondition. A downstream consumer can see only the completed joined
+authority.
+
+The query boundaries are semantic and compiler-internal. The workspace computation engine may
+cache a completed compilation product between editor revisions, but it does not become the
+authority for dependencies inside one semantic construction.
 
 ## Initial Value Domain
 

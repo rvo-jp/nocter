@@ -24,7 +24,7 @@ pub struct CheckedProgram {
     execution_facts: Arc<crate::ExecutionFactTable>,
     loans: Arc<LoanTable>,
     opaque_witnesses: Arc<OpaqueWitnessTable>,
-    compile_time_plans: Arc<crate::CompileTimePlanTable>,
+    compile_time: Arc<crate::CompileTimeProgram>,
     bodies: Arc<Arena<BodyId, CheckedBody>>,
     associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
 }
@@ -34,7 +34,7 @@ pub(crate) struct CheckedProgramAuthorities {
     pub(crate) execution_facts: Arc<crate::ExecutionFactTable>,
     pub(crate) loans: Arc<LoanTable>,
     pub(crate) opaque_witnesses: Arc<OpaqueWitnessTable>,
-    pub(crate) compile_time_plans: Arc<crate::CompileTimePlanTable>,
+    pub(crate) compile_time: Arc<crate::CompileTimeProgram>,
     pub(crate) associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
 }
 
@@ -58,7 +58,7 @@ impl CheckedProgram {
             execution_facts: authorities.execution_facts,
             loans: authorities.loans,
             opaque_witnesses: authorities.opaque_witnesses,
-            compile_time_plans: authorities.compile_time_plans,
+            compile_time: authorities.compile_time,
             bodies,
             associated_type_completion_contexts: authorities.associated_type_completion_contexts,
         }
@@ -75,18 +75,18 @@ impl CheckedProgram {
         &self,
         id: nocter_model::ConstantId,
     ) -> Option<&nocter_model::ConstantValue> {
-        self.environment.values().constants().get(id)
+        self.compile_time.values().constants().get(id)
     }
 
     /// Returns the single evaluated value owned by one declared static identity.
     #[must_use]
     pub fn static_value(&self, id: nocter_model::StaticId) -> Option<&nocter_model::FrozenValue> {
-        self.environment.values().statics().get(id)
+        self.compile_time.values().statics().get(id)
     }
 
     #[must_use]
     pub fn declaration_values(&self) -> &nocter_declarations::DeclarationValueTable {
-        self.environment.values()
+        self.compile_time.values()
     }
 
     #[must_use]
@@ -187,7 +187,13 @@ impl CheckedProgram {
     /// Returns the canonical compile-time plans accepted during this program's finalization.
     #[must_use]
     pub fn compile_time_plans(&self) -> &crate::CompileTimePlanTable {
-        &self.compile_time_plans
+        self.compile_time.plans()
+    }
+
+    /// Returns the complete compile-time authority for this accepted program.
+    #[must_use]
+    pub fn compile_time_program(&self) -> &crate::CompileTimeProgram {
+        &self.compile_time
     }
 
     #[must_use]
