@@ -2,21 +2,20 @@
 
 ## Current State
 
-Nocter v0.51.0 is published and externally audited. The v0.52.0 Compile-Time Callable Evaluation
-candidate is complete and qualified, publication is authorized, and public metadata now selects
-v0.52.0. Authored `const` capability reaches one canonical checked-body projection, structural
-constants are isolated from final checked initializer values, and `CheckedProgram` publishes closed
-values and callable specializations through one `CompileTimeProgram`. The adopted design lives in
+Nocter v0.52.0 is published and externally audited. Compile-Time Callable Evaluation lets authored
+`const` capability reach one canonical checked-body projection, isolates structural constants from
+final checked initializer values, and publishes closed values and callable specializations through
+one `CompileTimeProgram`. The adopted design lives in
 [`development/history/milestones/v0.52.0.md`](history/milestones/v0.52.0.md).
 
 ## Next Work
 
-Commit this publication metadata, create annotated tag `v0.52.0`, fast-forward `main`, upload the
-retained qualified archive as the release's single asset, and verify the public tag, release asset,
-latest-release endpoint, downloaded archive, installed identity, and source-identified Pages
-deployment. Do not rebuild or replace the qualified archive.
+Plan the next practical milestone from concrete standard-library and application needs. Evaluate
+which remaining compile-time restrictions block real APIs before expanding the operation set or
+adding another surface capability. Keep one checked semantic authority and do not introduce a
+second evaluator, source interpreter, or compile-time-only callable model.
 
-Preserve the v0.51.0 tag, release asset, public notes, specification snapshot, and publication audit
+Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
 
 Preserve every published tag and asset, including v0.49.0.
