@@ -22,12 +22,16 @@ enum ResolvedCallTarget<'program> {
         import: nocter_machine::MachineImportId,
         abi: &'program nocter_machine::MachineCallableAbi,
     },
+    Erased {
+        callable: nocter_machine::MachineAddressId,
+        abi: &'program nocter_machine::MachineCallableAbi,
+    },
 }
 
 impl<'program> ResolvedCallTarget<'program> {
     const fn abi(self) -> &'program nocter_machine::MachineCallableAbi {
         match self {
-            Self::Direct { abi, .. } | Self::Imported { abi, .. } => abi,
+            Self::Direct { abi, .. } | Self::Imported { abi, .. } | Self::Erased { abi, .. } => abi,
             Self::Primitive(target) => target.abi(),
         }
     }
@@ -71,6 +75,13 @@ fn resolve_call_target<'program>(
                 })
                 .ok_or(Arm64SelectionError::ImportedCall(operation))
         }
+        MachineCallTarget::Erased { callable, .. } => program
+            .erased_call_abi(target)
+            .map(|abi| ResolvedCallTarget::Erased {
+                callable: *callable,
+                abi,
+            })
+            .ok_or(Arm64SelectionError::ImportedCall(operation)),
     }
 }
 
@@ -236,10 +247,17 @@ pub(crate) fn select_call(
         context.frame(),
         selected,
     )?;
+    let argument_abi = if matches!(target, ResolvedCallTarget::Erased { .. }) {
+        abi.arguments()
+            .get(1..)
+            .ok_or(Arm64SelectionError::CallArguments(operation))?
+    } else {
+        abi.arguments()
+    };
     select_call_arguments(
         operation,
-        call,
-        abi,
+        call.arguments(),
+        argument_abi,
         context.values(),
         context.frame(),
         selected,
@@ -268,8 +286,87 @@ pub(crate) fn select_call(
         ResolvedCallTarget::Imported { import, .. } => {
             selected.push(Arm64SelectedInstruction::CallImported(import));
         }
+        ResolvedCallTarget::Erased { callable, abi } => {
+            select_erased_target(context, operation, callable, abi, selected)?;
+        }
     }
     select_call_result(operation, abi.result(), result, context.values(), selected)
+}
+
+fn select_erased_target(
+    context: Arm64SelectionContext<'_>,
+    operation: MachineOperationId,
+    callable: nocter_machine::MachineAddressId,
+    abi: &nocter_machine::MachineCallableAbi,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let environment = abi
+        .arguments()
+        .first()
+        .ok_or(Arm64SelectionError::CallArguments(operation))?;
+    let Some(MachineArgumentLocation::Registers(registers)) = environment.location() else {
+        return Err(Arm64SelectionError::CallArguments(operation));
+    };
+    if environment.class() != (MachineValueClass::Direct { words: 1 }) || registers.words() != 1 {
+        return Err(Arm64SelectionError::CallArguments(operation));
+    }
+    let function = context
+        .program()
+        .function(context.owner())
+        .ok_or(Arm64SelectionError::UnknownFunction(context.owner()))?;
+    let ty = function
+        .body()
+        .address(callable)
+        .map(nocter_machine::MachineAddress::ty)
+        .ok_or(Arm64SelectionError::CallArguments(operation))?;
+    let Some(nocter_machine::MachineLayoutKind::ErasedCallable {
+        environment_offset,
+        invoke_offset,
+        ..
+    }) = context
+        .program()
+        .layouts()
+        .get(ty)
+        .map(|layout| layout.kind())
+    else {
+        return Err(Arm64SelectionError::CallArguments(operation));
+    };
+    let callable = context.addresses().use_address(callable, selected)?;
+    selected.push(Arm64SelectedInstruction::LoadMemory {
+        bytes: word_bytes(),
+        extension: Arm64SelectedLoadExtension::Zero,
+        destination: Arm64SelectedRegister::Fixed(abi_register(registers.first())?),
+        source: offset_memory(callable, *environment_offset)?,
+    });
+    let target = Arm64SelectedRegister::Fixed(scratch_boundary());
+    selected.push(Arm64SelectedInstruction::LoadMemory {
+        bytes: word_bytes(),
+        extension: Arm64SelectedLoadExtension::Zero,
+        destination: target,
+        source: offset_memory(callable, *invoke_offset)?,
+    });
+    selected.push(Arm64SelectedInstruction::CallRegister(target));
+    Ok(())
+}
+
+fn offset_memory(
+    address: Arm64SelectedMemoryAddress,
+    offset: u64,
+) -> Result<Arm64SelectedMemoryAddress, Arm64SelectionError> {
+    match address {
+        Arm64SelectedMemoryAddress::Stack(stack) => Ok(Arm64SelectedMemoryAddress::Stack(
+            crate::memory_selection::offset_stack_address(stack, offset)?,
+        )),
+        Arm64SelectedMemoryAddress::Register {
+            base,
+            offset: base_offset,
+        } => Ok(Arm64SelectedMemoryAddress::Register {
+            base,
+            offset: base_offset
+                .checked_add(offset)
+                .ok_or(Arm64SelectionError::AddressOverflow)?,
+        }),
+    }
 }
 
 pub(crate) fn select_return(
@@ -483,16 +580,16 @@ fn select_indirect_parameter(
 
 fn select_call_arguments(
     operation: MachineOperationId,
-    call: &MachineCall,
-    abi: &nocter_machine::MachineCallableAbi,
+    arguments: &[MachineValueId],
+    abi: &[nocter_machine::MachineArgumentAbi],
     values: &Arm64ValuePlan,
     frame: &Arm64FunctionFrame,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    if call.arguments().len() != abi.arguments().len() {
+    if arguments.len() != abi.len() {
         return Err(Arm64SelectionError::CallArguments(operation));
     }
-    for (value, argument) in call.arguments().iter().copied().zip(abi.arguments()) {
+    for (value, argument) in arguments.iter().copied().zip(abi) {
         match (argument.class(), argument.location()) {
             (MachineValueClass::Zero, None) => {}
             (

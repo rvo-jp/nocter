@@ -7,6 +7,7 @@
 mod async_frame;
 mod builder;
 mod destruction;
+mod erased_callable;
 mod lower;
 mod operation;
 mod pack;
@@ -39,6 +40,7 @@ pub use destruction::{
     MirCaptureDestruction, MirDestructionKind, MirDestructionPlan, MirFieldDestruction,
     MirPayloadDestruction, MirTupleElementDestruction, MirVariantDestruction,
 };
+pub use erased_callable::MirErasedCallable;
 pub use lower::{MirLoweringError, lower_executable};
 pub use operation::{
     MirAggregate, MirBinaryOperation, MirCall, MirCallAllocation, MirCallSignature, MirCallTarget,

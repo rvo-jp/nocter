@@ -156,6 +156,7 @@ pub enum MachineDestructionKind {
         failure: Box<MachineDestructionPlan>,
     },
     Async,
+    ErasedCallable,
     Error,
     Closure(Box<[MachineDestructionCapture]>),
     Opaque(Box<MachineDestructionPlan>),

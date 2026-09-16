@@ -23,6 +23,7 @@ mod collection_loop;
 mod comparison;
 mod control;
 mod destruction_plan;
+mod erased_callable;
 mod function;
 mod index_place;
 mod interpolation;

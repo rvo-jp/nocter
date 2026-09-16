@@ -39,6 +39,7 @@ impl MachineDestruction {
 pub(crate) struct MachineDestructionPlanTable {
     entries: MachineTable<MachineDestructionId, MachineDestruction>,
     calls: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionId>,
+    erased_environments: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionId>,
     pack_segments:
         BTreeMap<(MachineLinkageId, MirOperationId, usize, PackComponent), MachineDestructionId>,
     async_sites: BTreeMap<(MachineLinkageId, AsyncDestructionSite), MachineDestructionId>,
@@ -71,6 +72,7 @@ impl MachineDestructionPlanTable {
     ) -> Result<Self, MachineProgramError> {
         let mut plans = BTreeSet::new();
         let mut calls = BTreeMap::new();
+        let mut erased_environments = BTreeMap::new();
         let mut pack_segments = BTreeMap::new();
         let mut async_sites = BTreeMap::new();
         for (item, function) in program.functions().iter() {
@@ -82,6 +84,7 @@ impl MachineDestructionPlanTable {
                 functions,
                 &mut plans,
                 &mut calls,
+                &mut erased_environments,
                 &mut pack_segments,
             )?;
             if let Some(frame) = function.async_frame() {
@@ -103,6 +106,7 @@ impl MachineDestructionPlanTable {
                 functions,
                 &mut plans,
                 &mut calls,
+                &mut erased_environments,
                 &mut pack_segments,
             )?,
             nocter_mir::MirRoot::Tests { cases, .. } => {
@@ -114,6 +118,7 @@ impl MachineDestructionPlanTable {
                         functions,
                         &mut plans,
                         &mut calls,
+                        &mut erased_environments,
                         &mut pack_segments,
                     )?;
                 }
@@ -141,6 +146,9 @@ impl MachineDestructionPlanTable {
         let calls = close_edges(calls, &ids, |(owner, operation)| {
             MachineProgramError::MissingGeneratedDestruction(owner, operation)
         })?;
+        let erased_environments = close_edges(erased_environments, &ids, |(owner, operation)| {
+            MachineProgramError::MissingGeneratedDestruction(owner, operation)
+        })?;
         let pack_segments = close_edges(pack_segments, &ids, |(owner, operation, segment, _)| {
             MachineProgramError::MissingPackDestruction {
                 owner,
@@ -154,6 +162,7 @@ impl MachineDestructionPlanTable {
         Ok(Self {
             entries: MachineTable::from_values(entries),
             calls,
+            erased_environments,
             pack_segments,
             async_sites,
         })
@@ -171,6 +180,15 @@ impl MachineDestructionPlanTable {
         operation: MirOperationId,
     ) -> Option<MachineDestructionId> {
         self.calls.get(&(owner, operation)).copied()
+    }
+
+    #[must_use]
+    pub(crate) fn erased_environment(
+        &self,
+        owner: MachineLinkageId,
+        operation: MirOperationId,
+    ) -> Option<MachineDestructionId> {
+        self.erased_environments.get(&(owner, operation)).copied()
     }
 
     #[must_use]
@@ -291,12 +309,27 @@ fn collect_body(
     functions: crate::function_domain::MachineFunctionDomain<'_>,
     plans: &mut BTreeSet<MachineDestructionPlan>,
     calls: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
+    erased_environments: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
     pack_segments: &mut BTreeMap<
         (MachineLinkageId, MirOperationId, usize, PackComponent),
         MachineDestructionPlan,
     >,
 ) -> Result<(), MachineProgramError> {
     for (operation, value) in body.operations().iter() {
+        if let MirOperationKind::EraseCallable(erasure) = value.kind()
+            && let Some(source) = erasure.environment_destruction()
+        {
+            let plan = lower_plan(source, owner, operation, layouts, functions)?;
+            if erased_environments
+                .insert((owner, operation), plan.clone())
+                .is_some()
+            {
+                return Err(MachineProgramError::DuplicateDestructionCall(
+                    owner, operation,
+                ));
+            }
+            plans.insert(plan);
+        }
         let MirOperationKind::Call(call) = value.kind() else {
             continue;
         };

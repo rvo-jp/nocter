@@ -81,6 +81,10 @@ pub enum MachineCallTarget {
     Direct(MachineFunctionId),
     Primitive(MachinePrimitiveTarget),
     Imported(MachineImportedTarget),
+    Erased {
+        callable: MachineAddressId,
+        abi: MachineRuntimeCallAbiId,
+    },
 }
 
 /// Allocation context visible only for the duration of one call.

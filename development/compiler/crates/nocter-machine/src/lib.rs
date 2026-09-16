@@ -11,6 +11,7 @@ mod data;
 mod dataflow;
 mod destruction;
 mod destruction_table;
+mod erased_callable;
 mod function_domain;
 mod generated_destruction;
 mod identity;
@@ -52,6 +53,7 @@ pub use destruction::{
     MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
     MachineDestructionVariant,
 };
+pub use erased_callable::MachineErasedCallable;
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
     MachineFunctionId, MachineImportId, MachineLinkageId, MachineOperationId, MachinePackId,

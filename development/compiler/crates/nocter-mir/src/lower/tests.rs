@@ -2002,6 +2002,44 @@ fn lowers_closure_construction_and_invocation_from_one_concrete_layout() {
 }
 
 #[test]
+fn lowers_erased_callable_construction_invocation_and_release_as_closed_operations() {
+    let program = lower_fixture(
+        "func main(): i32 {\n\
+             let factor = 2\n\
+             let callback: any &func(i32): i32 = (&factor; value) { value * factor }\n\
+             callback(4)\n\
+         }\n",
+    )
+    .unwrap();
+
+    let mut constructed = false;
+    let mut invoked = false;
+    let mut released = false;
+    for (_, function) in program.functions().iter() {
+        for (_, operation) in function.operations().iter() {
+            match operation.kind() {
+                MirOperationKind::EraseCallable(erasure) => {
+                    constructed =
+                        erasure.capability() == nocter_model::CallableCapability::Readonly;
+                }
+                MirOperationKind::Call(call) => {
+                    invoked |= matches!(
+                        call.target(),
+                        crate::MirCallTarget::ErasedCallable { capability, .. }
+                            if *capability == nocter_model::CallableCapability::Readonly
+                    );
+                }
+                MirOperationKind::ReleaseErasedCallable { .. } => released = true,
+                _ => {}
+            }
+        }
+    }
+    assert!(constructed);
+    assert!(invoked);
+    assert!(released);
+}
+
+#[test]
 fn lowers_readonly_capture_through_the_frozen_environment_representation() {
     let program = lower_fixture(
         "func main(): i32 {\n\

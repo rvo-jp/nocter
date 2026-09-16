@@ -13,10 +13,10 @@ use super::signature::{build_signature, callable_signature};
 use super::{
     ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDestructionEdge,
     ExecutableDispatchEdge, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
-    ExecutableExecution, ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall,
-    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableStorageIdentity,
-    ExecutableSuspensionStorage, ExecutableTargetServiceCall, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableErasedCallable, ExecutableExecution, ExecutableItem, ExecutableItemKey,
+    ExecutablePrimitiveCall, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
+    ExecutableStorageIdentity, ExecutableSuspensionStorage, ExecutableTargetServiceCall,
+    ExecutableTestCase, ExecutableTypeEdge,
 };
 
 mod pack_literal;
@@ -321,6 +321,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         }
 
         let mut closures = Vec::new();
+        let mut closure_keys = BTreeMap::new();
         for closure in dependencies.closures().iter().copied() {
             let key = ExecutableItemKey::Closure(ClosureInstanceKey::new_in(
                 self.specialization(),
@@ -328,8 +329,17 @@ impl<'program> ExecutableClosureBuilder<'program> {
                 item_generic_arguments(key),
             )?);
             self.enqueue(key.clone());
+            closure_keys.insert(closure, key.clone());
             closures.push((closure, key));
         }
+
+        let erased_callables = self.specialize_erased_callables(
+            context.body,
+            dependencies.nodes(),
+            &substitution,
+            &closure_keys,
+            &mut drops,
+        )?;
 
         for selection in dependencies.drop_selections() {
             let selection = self.specialize_drop(selection, &substitution)?;
@@ -389,7 +399,70 @@ impl<'program> ExecutableClosureBuilder<'program> {
             statics: dependencies.statics().to_vec(),
             pack_literals,
             argument_packs,
+            erased_callables,
         })
+    }
+
+    fn specialize_erased_callables(
+        &mut self,
+        body: BodyId,
+        nodes: &[BodyNodeId],
+        substitution: &TypeSubstitution,
+        closure_keys: &BTreeMap<nocter_model::ClosureId, ExecutableItemKey>,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<Vec<DraftErasedCallable>, ExecutableProgramError> {
+        let checked = self
+            .target
+            .checked()
+            .bodies()
+            .get(body)
+            .ok_or(ExecutableProgramError::UnknownBody(body))?;
+        let mut descriptors = Vec::new();
+        for source in nodes.iter().copied() {
+            let node = checked
+                .nodes()
+                .get(source)
+                .ok_or(ExecutableProgramError::UnknownBody(body))?;
+            let nocter_checking::CheckedOperation::CallableErasure(erasure) = node.operation()
+            else {
+                continue;
+            };
+            let value = checked
+                .nodes()
+                .get(erasure.value())
+                .ok_or(ExecutableProgramError::UnknownBody(body))?;
+            let ty = self.resolver.specialize_type(node.ty(), substitution)?;
+            let environment = self.resolver.specialize_type(value.ty(), substitution)?;
+            let Some(TypeKind::Callable(callable)) = self.resolver.types().get(ty) else {
+                return Err(ExecutableProgramError::InvalidCallableInvocation(ty));
+            };
+            if !callable.is_erased() || callable.pack().is_some() {
+                return Err(ExecutableProgramError::InvalidCallableInvocation(ty));
+            }
+            let capability = callable.capability();
+            let body = closure_keys.get(&erasure.closure()).cloned().ok_or(
+                ExecutableProgramError::InvalidCallableInvocation(environment),
+            )?;
+            let environment_destruction = self
+                .resolver
+                .resolve_destruction(environment, &TypeSubstitution::default())?;
+            if let Some(plan) = &environment_destruction {
+                let mut selections = BTreeSet::new();
+                collect_drops(plan, &mut selections);
+                for selection in selections {
+                    self.record_drop(selection, drops)?;
+                }
+            }
+            descriptors.push(DraftErasedCallable {
+                source,
+                ty,
+                environment,
+                body,
+                capability,
+                environment_destruction,
+            });
+        }
+        Ok(descriptors)
     }
 
     fn freeze_suspension_storage(
@@ -928,7 +1001,9 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
             }
             collect_drops(failure, drops);
         }
-        ConcreteDestructionKind::Async | ConcreteDestructionKind::Error => {}
+        ConcreteDestructionKind::Async
+        | ConcreteDestructionKind::ErasedCallable
+        | ConcreteDestructionKind::Error => {}
         ConcreteDestructionKind::Closure(captures) => {
             for capture in captures {
                 collect_drops(capture.plan(), drops);
@@ -958,6 +1033,16 @@ struct DraftItem {
     statics: Vec<nocter_model::StaticId>,
     pack_literals: Vec<pack_literal::DraftPackLiteralPlan>,
     argument_packs: Vec<super::ExecutableArgumentPackPlan>,
+    erased_callables: Vec<DraftErasedCallable>,
+}
+
+struct DraftErasedCallable {
+    source: BodyNodeId,
+    ty: TypeId,
+    environment: TypeId,
+    body: ExecutableItemKey,
+    capability: CallableCapability,
+    environment_destruction: Option<ConcreteDestructionPlan>,
 }
 
 struct DraftDispatchEdge {
@@ -1126,6 +1211,21 @@ fn freeze_body(
     pack_literals.sort_unstable_by_key(super::ExecutablePackLiteralPlan::source);
     let mut argument_packs = draft.argument_packs;
     argument_packs.sort_unstable_by_key(super::ExecutableArgumentPackPlan::source);
+    let mut erased_callables = draft
+        .erased_callables
+        .into_iter()
+        .map(|descriptor| {
+            Ok(ExecutableErasedCallable::new(
+                descriptor.source,
+                descriptor.ty,
+                descriptor.environment,
+                item_id(item_ids, &descriptor.body)?,
+                descriptor.capability,
+                descriptor.environment_destruction,
+            ))
+        })
+        .collect::<Result<Vec<_>, ExecutableProgramError>>()?;
+    erased_callables.sort_unstable_by_key(ExecutableErasedCallable::source);
     Ok((
         signature,
         closure,
@@ -1144,6 +1244,7 @@ fn freeze_body(
             statics: draft.statics.into_boxed_slice(),
             pack_literals: pack_literals.into_boxed_slice(),
             argument_packs: argument_packs.into_boxed_slice(),
+            erased_callables: erased_callables.into_boxed_slice(),
         },
     ))
 }

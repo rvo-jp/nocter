@@ -17,7 +17,8 @@ pub(crate) fn validate_call_pack(
         MirCallTarget::Direct(item) => environment.item_pack_input(*item),
         MirCallTarget::StandardPrimitive { .. }
         | MirCallTarget::TargetService { .. }
-        | MirCallTarget::Structural(_) => None,
+        | MirCallTarget::Structural(_)
+        | MirCallTarget::ErasedCallable { .. } => None,
     };
     match (expected, call.pack()) {
         (None, None) => Ok(()),

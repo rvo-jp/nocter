@@ -77,6 +77,28 @@ fn lower_operation(
         MirOperationKind::Aggregate(aggregate) => MachineOperationKind::Aggregate(
             lower_aggregate_operation(operation, value, aggregate, context)?,
         ),
+        MirOperationKind::EraseCallable(erasure) => {
+            let invoke = program
+                .functions
+                .for_item(erasure.body())
+                .ok_or(MachineProgramError::MissingItemFunction(erasure.body()))?;
+            let destroy = program
+                .destructions
+                .erased_environment(ids.owner(), operation)
+                .map(|destruction| {
+                    program
+                        .functions
+                        .for_destruction(destruction)
+                        .ok_or(MachineProgramError::MissingDestruction(destruction))
+                })
+                .transpose()?;
+            MachineOperationKind::EraseCallable(crate::MachineErasedCallable::new(
+                ids.value(erasure.environment())?,
+                erasure.environment_ty(),
+                invoke,
+                destroy,
+            ))
+        }
         MirOperationKind::InvokeDrop {
             body,
             place,
@@ -105,6 +127,11 @@ fn lower_operation(
         },
         MirOperationKind::ReleaseComputation { place } => {
             MachineOperationKind::ReleaseComputation {
+                place: ids.address(*place)?,
+            }
+        }
+        MirOperationKind::ReleaseErasedCallable { place } => {
+            MachineOperationKind::ReleaseErasedCallable {
                 place: ids.address(*place)?,
             }
         }

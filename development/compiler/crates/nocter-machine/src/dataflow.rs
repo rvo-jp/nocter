@@ -365,10 +365,14 @@ fn operation_inputs(
                 }
             }
         }
+        MachineOperationKind::EraseCallable(erasure) => {
+            insert_value(body, erasure.environment(), &mut inputs)?;
+        }
         MachineOperationKind::InvokeDrop { place, .. }
         | MachineOperationKind::ReportError { place }
         | MachineOperationKind::ReleaseError { place }
-        | MachineOperationKind::ReleaseComputation { place } => {
+        | MachineOperationKind::ReleaseComputation { place }
+        | MachineOperationKind::ReleaseErasedCallable { place } => {
             add_address_inputs(body, *place, &mut inputs)?;
         }
         MachineOperationKind::DriveComputation {
@@ -393,6 +397,9 @@ fn add_call_inputs(
     call: &MachineCall,
     inputs: &mut BTreeSet<MachineValueId>,
 ) -> Result<(), MachineDataflowError> {
+    if let crate::MachineCallTarget::Erased { callable, .. } = call.target() {
+        add_address_inputs(body, *callable, inputs)?;
+    }
     for argument in call.arguments() {
         insert_value(body, *argument, inputs)?;
     }

@@ -312,6 +312,17 @@ impl MachineProgram {
     }
 
     #[must_use]
+    pub fn erased_call_abi(
+        &self,
+        target: &crate::MachineCallTarget,
+    ) -> Option<&crate::MachineCallableAbi> {
+        let crate::MachineCallTarget::Erased { abi, .. } = target else {
+            return None;
+        };
+        self.runtime_call_abis.get(*abi)
+    }
+
+    #[must_use]
     pub fn import(
         &self,
         id: crate::MachineImportId,

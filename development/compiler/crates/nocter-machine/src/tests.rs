@@ -1230,9 +1230,9 @@ fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
         .find_map(|(_, operation)| match operation.kind() {
             MachineOperationKind::Call(call) => match call.target() {
                 crate::MachineCallTarget::Direct(target) => Some(*target),
-                crate::MachineCallTarget::Primitive(_) | crate::MachineCallTarget::Imported(_) => {
-                    None
-                }
+                crate::MachineCallTarget::Primitive(_)
+                | crate::MachineCallTarget::Imported(_)
+                | crate::MachineCallTarget::Erased { .. } => None,
             },
             _ => None,
         });
@@ -1982,6 +1982,42 @@ fn allocation_context_requirement_propagates_only_through_inherited_calls() {
                 )
             })
     }));
+}
+
+#[test]
+fn erased_and_runtime_calls_with_the_same_source_signature_keep_distinct_abis() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/mem\n\
+         func main(): usize {\n\
+             let callback: any &func(): usize = () { 7 }\n\
+             let _ = mem.allocation_context_state_for_test()\n\
+             return callback()\n\
+         }\n",
+        &[&["mem"]],
+    );
+    let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
+    let mut ordinary = None;
+    let mut erased = None;
+    for (_, function) in program.functions() {
+        for (_, operation) in function.body().operations() {
+            let MachineOperationKind::Call(call) = operation.kind() else {
+                continue;
+            };
+            match call.target() {
+                crate::MachineCallTarget::Primitive(target)
+                    if target.role() == PrimitiveRole::CurrentAllocatorState =>
+                {
+                    ordinary = program.primitive_abi(target);
+                }
+                target @ crate::MachineCallTarget::Erased { .. } => {
+                    erased = program.erased_call_abi(target);
+                }
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(ordinary.expect("ordinary ABI").arguments().len(), 0);
+    assert_eq!(erased.expect("erased ABI").arguments().len(), 1);
 }
 
 #[test]

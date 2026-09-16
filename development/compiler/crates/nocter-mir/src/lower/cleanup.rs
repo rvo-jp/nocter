@@ -356,6 +356,9 @@ impl FunctionLowerer<'_> {
             ConcreteDestructionKind::Async => {
                 self.append_effect(MirOperationKind::ReleaseComputation { place })?;
             }
+            ConcreteDestructionKind::ErasedCallable => {
+                self.append_effect(MirOperationKind::ReleaseErasedCallable { place })?;
+            }
             ConcreteDestructionKind::Error => {
                 self.append_effect(MirOperationKind::ReleaseError { place })?;
             }

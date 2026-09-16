@@ -78,6 +78,12 @@ pub(crate) fn validate_destruction_plan(
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }
         }
+        MirDestructionKind::ErasedCallable => {
+            if !matches!(types.get(plan.ty()), Some(TypeKind::Callable(callable)) if callable.is_erased())
+            {
+                return Err(MirValidationError::InvalidDestruction(plan.ty()));
+            }
+        }
         MirDestructionKind::Error => {
             if types.get(plan.ty()) != Some(&TypeKind::Builtin(BuiltinType::Error)) {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));

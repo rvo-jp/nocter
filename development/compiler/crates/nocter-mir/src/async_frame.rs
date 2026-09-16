@@ -314,7 +314,8 @@ impl BlockFacts {
             | MirOperationKind::InvokeDrop { place, .. }
             | MirOperationKind::ReportError { place }
             | MirOperationKind::ReleaseError { place }
-            | MirOperationKind::ReleaseComputation { place } => self.use_place(body, *place),
+            | MirOperationKind::ReleaseComputation { place }
+            | MirOperationKind::ReleaseErasedCallable { place } => self.use_place(body, *place),
             MirOperationKind::DriveComputation {
                 computation,
                 destination,
@@ -365,7 +366,13 @@ impl BlockFacts {
                     }
                 }
             },
+            MirOperationKind::EraseCallable(erasure) => {
+                self.use_value(erasure.environment());
+            }
             MirOperationKind::Call(call) => {
+                if let crate::MirCallTarget::ErasedCallable { callable, .. } = call.target() {
+                    self.use_place(body, *callable);
+                }
                 for argument in call.arguments() {
                     self.use_value(*argument);
                 }

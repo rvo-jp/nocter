@@ -190,7 +190,8 @@ fn direct_calls(body: &crate::MirBody) -> Vec<nocter_model::ExecutableItemId> {
                 MirCallTarget::Direct(item) => Some(*item),
                 MirCallTarget::StandardPrimitive { .. }
                 | MirCallTarget::TargetService { .. }
-                | MirCallTarget::Structural(_) => None,
+                | MirCallTarget::Structural(_)
+                | MirCallTarget::ErasedCallable { .. } => None,
             },
             _ => None,
         })

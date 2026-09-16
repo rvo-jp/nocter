@@ -312,6 +312,9 @@ fn target_requires_context(
             Ok(primitive_uses_context(kind, primitive.role()))
         }
         MachineCallTarget::Imported(_) => Ok(false),
+        // Erased invocation can target any checked closure compatible with its source contract.
+        // Preserve both ambient contexts; the callee may ignore either one.
+        MachineCallTarget::Erased { .. } => Ok(true),
     }
 }
 

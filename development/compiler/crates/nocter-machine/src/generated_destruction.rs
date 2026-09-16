@@ -204,6 +204,9 @@ impl<'a> DestructionBuilder<'a> {
             MachineDestructionKind::Async => {
                 self.append_effect(MachineOperationKind::ReleaseComputation { place: subject })?;
             }
+            MachineDestructionKind::ErasedCallable => {
+                self.append_effect(MachineOperationKind::ReleaseErasedCallable { place: subject })?;
+            }
             MachineDestructionKind::Error => {
                 self.append_effect(MachineOperationKind::ReleaseError { place: subject })?;
             }

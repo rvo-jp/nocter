@@ -27,6 +27,7 @@ mod argument_pack;
 mod build;
 mod callable_invocation;
 mod closure_layout;
+mod erased_callable;
 mod pack_literal;
 mod primitive_dependency;
 mod semantic_environment;
@@ -61,6 +62,7 @@ pub(crate) use argument_pack::ExecutablePackIteration;
 pub use argument_pack::{ExecutableArgumentPackPlan, ExecutablePackSegment, ExecutablePackSpread};
 pub use callable_invocation::ExecutableCallableInvocation;
 pub use closure_layout::{ExecutableClosureCapture, ExecutableClosureLayout};
+pub use erased_callable::ExecutableErasedCallable;
 pub use pack_literal::ExecutablePackLiteralPlan;
 pub use primitive_dependency::ExecutablePrimitiveDependency;
 pub use signature::{
@@ -355,6 +357,7 @@ pub struct ExecutableBody {
     statics: Box<[StaticId]>,
     pack_literals: Box<[ExecutablePackLiteralPlan]>,
     argument_packs: Box<[ExecutableArgumentPackPlan]>,
+    erased_callables: Box<[ExecutableErasedCallable]>,
 }
 
 impl ExecutableBody {
@@ -492,6 +495,14 @@ impl ExecutableBody {
     #[must_use]
     pub const fn statics(&self) -> &[StaticId] {
         &self.statics
+    }
+
+    #[must_use]
+    pub fn erased_callable(&self, source: BodyNodeId) -> Option<&ExecutableErasedCallable> {
+        self.erased_callables
+            .binary_search_by_key(&source, ExecutableErasedCallable::source)
+            .ok()
+            .map(|index| &self.erased_callables[index])
     }
 
     #[must_use]
@@ -796,6 +807,7 @@ fn runtime_type_table(
                 }
             }
             TypeKind::Closure { .. } => RuntimeType::Closure,
+            TypeKind::Callable(callable) if callable.is_erased() => RuntimeType::ErasedCallable,
             TypeKind::Callable(_) => RuntimeType::Callable,
             TypeKind::Optional(payload) => RuntimeType::Optional(*payload),
             TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),

@@ -112,6 +112,40 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
             MirCallTarget::Structural(structural) => {
                 self.validate_structural(structural, arguments)?;
             }
+            MirCallTarget::ErasedCallable {
+                callable,
+                signature,
+                capability,
+            } => {
+                let place = self
+                    .function
+                    .places()
+                    .get(*callable)
+                    .ok_or(MirValidationError::UnknownPlace(*callable))?;
+                let Some(TypeKind::Callable(contract)) = self.environment.types().get(place.ty())
+                else {
+                    return Err(self.invalid());
+                };
+                for ty in signature.parameters() {
+                    self.require_type(*ty)?;
+                }
+                self.require_type(signature.result())?;
+                if !contract.is_erased()
+                    || contract.capability() != *capability
+                    || contract.pack().is_some()
+                    || contract.parameters() != signature.parameters()
+                    || contract.result() != signature.result()
+                    || arguments.len() != signature.parameters().len()
+                    || arguments
+                        .iter()
+                        .copied()
+                        .zip(signature.parameters().iter().copied())
+                        .any(|(argument, expected)| self.value_type(argument) != Ok(expected))
+                    || self.result != signature.result()
+                {
+                    return Err(self.invalid());
+                }
+            }
         }
         validate_call_pack(self.environment, self.function, self.operation, call)?;
         Ok(())

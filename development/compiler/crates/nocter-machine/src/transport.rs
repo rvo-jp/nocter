@@ -231,7 +231,7 @@ impl MachineCallableAbi {
 #[derive(Debug)]
 pub(crate) struct MachineAbiPlan {
     callables: Arena<ExecutableItemId, MachineCallableAbi>,
-    runtime_call_signatures: MachineRuntimeCallSignatureIndex,
+    runtime_call_signatures: MachineRuntimeCallSignatureIndexes,
     runtime_call_abis: Vec<MachineCallableAbi>,
 }
 
@@ -242,6 +242,33 @@ pub(crate) struct MachineAbiPlan {
 #[derive(Debug, Default)]
 struct MachineRuntimeCallSignatureIndex {
     by_parameters: BTreeMap<Box<[TypeId]>, BTreeMap<TypeId, MachineRuntimeCallAbiId>>,
+}
+
+/// Runtime targets and erased callables may have the same source signature but different physical
+/// inputs. Keeping their identity domains distinct prevents a hidden erased environment lane from
+/// contaminating an ordinary primitive or imported call ABI.
+#[derive(Debug, Default)]
+struct MachineRuntimeCallSignatureIndexes {
+    ordinary: MachineRuntimeCallSignatureIndex,
+    erased: MachineRuntimeCallSignatureIndex,
+}
+
+impl MachineRuntimeCallSignatureIndexes {
+    fn get(&self, signature: &MirCallSignature, erased: bool) -> Option<MachineRuntimeCallAbiId> {
+        if erased {
+            self.erased.get(signature)
+        } else {
+            self.ordinary.get(signature)
+        }
+    }
+
+    fn insert(&mut self, signature: &MirCallSignature, erased: bool, id: MachineRuntimeCallAbiId) {
+        if erased {
+            self.erased.insert(signature, id);
+        } else {
+            self.ordinary.insert(signature, id);
+        }
+    }
 }
 
 impl MachineRuntimeCallSignatureIndex {
@@ -290,7 +317,7 @@ impl MachineAbiPlan {
     ) -> Result<Self, MachineAbiError> {
         let types = program.types();
         let mut callables = ArenaBuilder::new();
-        let mut runtime_call_signatures = MachineRuntimeCallSignatureIndex::default();
+        let mut runtime_call_signatures = MachineRuntimeCallSignatureIndexes::default();
         let mut runtime_call_abis = Vec::new();
         for (expected, function) in program.functions().iter() {
             let actual = callables.insert(plan_function(function, types, layouts)?);
@@ -349,7 +376,14 @@ impl MachineAbiPlan {
         &self,
         signature: &MirCallSignature,
     ) -> Option<MachineRuntimeCallAbiId> {
-        self.runtime_call_signatures.get(signature)
+        self.runtime_call_signatures.get(signature, false)
+    }
+
+    pub(crate) fn erased_call_signature_id(
+        &self,
+        signature: &MirCallSignature,
+    ) -> Option<MachineRuntimeCallAbiId> {
+        self.runtime_call_signatures.get(signature, true)
     }
 
     pub(crate) fn finish(self) -> MachineRuntimeCallAbiTable {
@@ -363,30 +397,41 @@ fn collect_runtime_call_abis(
     body: &MirBody,
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
-    signatures: &mut MachineRuntimeCallSignatureIndex,
+    signatures: &mut MachineRuntimeCallSignatureIndexes,
     abis: &mut Vec<MachineCallableAbi>,
 ) -> Result<(), MachineAbiError> {
     for (_, operation) in body.operations().iter() {
         let MirOperationKind::Call(call) = operation.kind() else {
             continue;
         };
-        let signature = match call.target() {
+        let (signature, erased) = match call.target() {
             MirCallTarget::StandardPrimitive { signature, .. }
-            | MirCallTarget::TargetService { signature, .. } => signature,
+            | MirCallTarget::TargetService { signature, .. } => (signature, false),
+            MirCallTarget::ErasedCallable { signature, .. } => (signature, true),
             MirCallTarget::Direct(_) | MirCallTarget::Structural(_) => continue,
         };
-        if signatures.get(signature).is_some() {
+        if signatures.get(signature, erased).is_some() {
             continue;
         }
         let id = MachineRuntimeCallAbiId::new(abis.len());
-        let abi = plan_signature(
-            types,
-            layouts,
-            signature.parameters(),
-            signature.result(),
-            None,
-        )?;
-        signatures.insert(signature, id);
+        let abi = if erased {
+            let environment = types.primitive(RuntimePrimitive::Usize).ok_or(
+                MachineAbiError::MissingRuntimePrimitive(RuntimePrimitive::Usize),
+            )?;
+            let parameters = std::iter::once(environment)
+                .chain(signature.parameters().iter().copied())
+                .collect::<Vec<_>>();
+            plan_signature(types, layouts, &parameters, signature.result(), None)?
+        } else {
+            plan_signature(
+                types,
+                layouts,
+                signature.parameters(),
+                signature.result(),
+                None,
+            )?
+        };
+        signatures.insert(signature, erased, id);
         abis.push(abi);
     }
     Ok(())
@@ -610,6 +655,7 @@ fn align_up(value: u64, alignment: u64) -> Result<u64, MachineAbiError> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAbiError {
     UnknownType(TypeId),
+    MissingRuntimePrimitive(RuntimePrimitive),
     MissingLayout(TypeId),
     MissingParameterLocal(nocter_model::MirLocalId),
     CompletionArgument(TypeId),

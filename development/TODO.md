@@ -10,10 +10,10 @@ lives in [`development/history/milestones/v0.55.0.md`](history/milestones/v0.55.
 
 ## Next Work
 
-Complete Phase 0 by introducing a distinct `any func` semantic type, explicit checked erasure, and
-an erased invocation target without changing static `func` specialization. Then close the runtime
-descriptor through Target, MIR, Machine, and ARM64 before the HTTP router becomes its first
-standard-library consumer.
+Complete Phase 1 by finishing the consuming-call adapter and qualifying fallible and deferred
+results. Readonly and readwrite erased calls, owned captures, transitive destruction, compiler-owned
+environment mappings, and indirect ARM64 dispatch already cross the native pipeline. Then make the
+HTTP router the first standard-library consumer of the closed runtime model.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

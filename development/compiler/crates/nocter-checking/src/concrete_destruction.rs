@@ -54,6 +54,8 @@ pub enum ConcreteDestructionKind {
     },
     /// Cancels an unfinished computation or destroys its unconsumed completed output.
     Async,
+    /// Releases one compiler-owned erased closure environment through its stored runtime glue.
+    ErasedCallable,
     Error,
     Closure(Box<[ConcreteCaptureDestruction]>),
     Opaque {
@@ -346,6 +348,9 @@ impl ConcreteDispatchResolver<'_> {
                 ty,
                 ConcreteDestructionKind::Async,
             )),
+            TypeKind::Callable(callable) if callable.is_erased() => Some(
+                ConcreteDestructionPlan::new(ty, ConcreteDestructionKind::ErasedCallable),
+            ),
             TypeKind::Closure {
                 definition,
                 arguments,

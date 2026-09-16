@@ -40,6 +40,8 @@ pub enum RuntimeType {
     },
     Aggregate,
     Closure,
+    /// Owning erased callable: environment, invoke entry, destroy entry, and mapped byte count.
+    ErasedCallable,
     Callable,
     Optional(TypeId),
     Fallible(TypeId),
@@ -155,6 +157,7 @@ impl RuntimeTypeTableBuilder {
                 RuntimeType::Primitive(_)
                 | RuntimeType::Aggregate
                 | RuntimeType::Closure
+                | RuntimeType::ErasedCallable
                 | RuntimeType::Callable
                 | RuntimeType::Storage(_)
                 | RuntimeType::Opaque => None,

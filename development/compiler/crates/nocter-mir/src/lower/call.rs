@@ -68,8 +68,8 @@ impl FunctionLowerer<'_> {
             return match call.target() {
                 CallTarget::ClosureValue { .. } => self.lower_closure_call(node, ty, call),
                 CallTarget::CallableValue { .. } => self.lower_callable_value_call(node, ty, call),
-                CallTarget::ErasedCallableValue { .. } => {
-                    Err(MirLoweringError::UnsupportedOperation(node))
+                CallTarget::ErasedCallableValue { value, capability } => {
+                    self.lower_erased_callable_call(node, ty, call, *value, *capability)
                 }
                 CallTarget::Static(_) => unreachable!("matched above"),
             };
@@ -124,6 +124,58 @@ impl FunctionLowerer<'_> {
             return Err(MirLoweringError::InvalidDispatch(node));
         }
         self.emit_dispatch_step(node, ty, &step, arguments)
+    }
+
+    fn lower_erased_callable_call(
+        &mut self,
+        node: BodyNodeId,
+        ty: TypeId,
+        call: &CheckedCall,
+        value: BodyNodeId,
+        capability: nocter_model::CallableCapability,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let source = self
+            .body
+            .nodes()
+            .get(value)
+            .ok_or(MirLoweringError::UnknownNode(value))?;
+        let callable_ty = self.concrete_type(source.ty())?;
+        let Some(TypeKind::Callable(callable)) = self.executable.types().get(callable_ty) else {
+            return Err(MirLoweringError::InvalidCallable(node));
+        };
+        if !callable.is_erased()
+            || callable.capability() != capability
+            || callable.pack().is_some()
+            || callable.parameters().len() != call.arguments().len()
+            || callable.result() != ty
+        {
+            return Err(MirLoweringError::InvalidCallable(node));
+        }
+        let callable = self.lower_place_node(value)?;
+        let arguments = call
+            .arguments()
+            .iter()
+            .map(|argument| self.require_value(*argument))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.emit_call(
+            ty,
+            MirCallTarget::ErasedCallable {
+                callable,
+                signature: MirCallSignature::new(
+                    self.executable
+                        .types()
+                        .get(callable_ty)
+                        .and_then(|kind| match kind {
+                            TypeKind::Callable(callable) => Some(callable.parameters().to_vec()),
+                            _ => None,
+                        })
+                        .ok_or(MirLoweringError::InvalidCallable(node))?,
+                    ty,
+                ),
+                capability,
+            },
+            arguments,
+        )
     }
 
     pub(super) fn emit_dispatch_step(

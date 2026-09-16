@@ -100,6 +100,18 @@ pub(crate) fn emit_instruction(
             data_target(context.data, source)?,
             code,
         ),
+        Arm64SelectedInstruction::LoadFunctionAddress {
+            destination,
+            source,
+        } => {
+            let destination = write_target(function, destination)?;
+            code.load_function_address(
+                function_target(context.functions, source)?,
+                destination.register,
+            );
+            finish_write(destination, code);
+            Ok(())
+        }
         Arm64SelectedInstruction::LoadPackCallbackAddress {
             destination,
             pack,
@@ -351,6 +363,9 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinMemoryMap => {
             crate::darwin_memory_code::emit_map_result(code)
         }
+        Arm64SelectedInstruction::DarwinMemoryMapAbort => {
+            crate::darwin_memory_code::emit_map(code).map_err(Into::into)
+        }
         Arm64SelectedInstruction::DarwinMemoryUnmap => {
             crate::darwin_memory_code::emit_unmap_result(code)
         }
@@ -573,6 +588,9 @@ pub(crate) fn emit_instruction(
         }
         Arm64SelectedInstruction::ReleaseComputation { place } => {
             crate::async_release_code::emit(function, place, code)
+        }
+        Arm64SelectedInstruction::ReleaseErasedCallable { place, staging } => {
+            crate::erased_callable_code::emit_release(function, place, staging, code)
         }
         Arm64SelectedInstruction::DriveComputation {
             computation,
@@ -1333,6 +1351,7 @@ pub enum Arm64MaterializationError {
     InvalidRegionFrame(crate::Arm64FrameObjectId),
     InvalidErrorFrame(crate::Arm64FrameObjectId),
     InvalidProcessContextFrame(crate::Arm64FrameObjectId),
+    InvalidErasedCallableReleaseFrame(crate::Arm64FrameObjectId),
     FrameObjectBounds(crate::Arm64FrameObjectId),
     OutgoingBounds(u64),
     OffsetOverflow,

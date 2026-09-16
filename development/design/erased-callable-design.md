@@ -88,20 +88,23 @@ The descriptor joins the concrete environment representation, one monomorphized 
 one destruction plan. MIR receives only dense descriptor identities and already-selected indirect
 call operations.
 
-Machine layout owns the physical erased value. The initial representation is three machine words:
+Machine layout owns the physical erased value. The initial representation is four machine words:
 
 - opaque environment pointer;
 - invoke address;
-- destroy address.
+- optional environment-destruction address;
+- mapped environment byte count.
 
 This is a compiler ABI, not a public source layout. Machine lowering classifies arguments and
 results from the preserved callable contract and invokes the frozen target through the stored
 address. The ARM64 encoder receives an indirect-call machine operation; it does not understand
 closures, callable contracts, or environment layout.
 
-An owned consuming call transfers environment ownership to the invoke target. A readonly or
-readwrite call retains ownership in the erased value and passes the corresponding environment
-access. Normal destruction invokes the frozen destroy target only while ownership remains.
+An owned consuming call transfers environment ownership to a compiler-generated invoke adapter;
+the adapter invokes the concrete body with its exact environment ABI and completes destruction and
+unmapping after the result has been preserved. A readonly or readwrite call retains ownership in
+the erased value and passes the corresponding environment access. Normal destruction invokes the
+frozen environment-destruction target, when present, and then releases the compiler-owned mapping.
 
 ## Rejected Alternatives
 

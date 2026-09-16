@@ -100,6 +100,10 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedRegister,
         source: MachineDataId,
     },
+    LoadFunctionAddress {
+        destination: Arm64SelectedRegister,
+        source: MachineFunctionId,
+    },
     LoadPackCallbackAddress {
         destination: Arm64SelectedRegister,
         pack: nocter_machine::MachinePackId,
@@ -256,6 +260,8 @@ pub enum Arm64SelectedInstruction {
     },
     /// Performs a compiler-owned private anonymous mapping and returns `(value, errno)`.
     DarwinMemoryMap,
+    /// Performs a compiler-owned private anonymous mapping and traps on failure.
+    DarwinMemoryMapAbort,
     /// Releases a compiler-owned page mapping and returns `(value, errno)`.
     DarwinMemoryUnmap,
     /// Closes one target descriptor and returns `(value, errno)`.
@@ -350,6 +356,10 @@ pub enum Arm64SelectedInstruction {
     /// Cancels and releases one owning deferred-computation handle.
     ReleaseComputation {
         place: Arm64SelectedMemoryAddress,
+    },
+    ReleaseErasedCallable {
+        place: Arm64SelectedMemoryAddress,
+        staging: crate::Arm64FrameObjectId,
     },
     /// Drives the compiler-selected process-entry computation to completion.
     DriveComputation {
@@ -894,6 +904,15 @@ fn select_operation(
             frame,
             selected,
         ),
+        MachineOperationKind::EraseCallable(erased) => {
+            crate::erased_callable_selection::select_construct(
+                operation_id,
+                *erased,
+                operation.result(),
+                context,
+                selected,
+            )
+        }
         MachineOperationKind::InvokeDrop {
             target,
             place,
@@ -948,6 +967,18 @@ fn select_operation(
                 context,
                 selected,
             )
+        }
+        MachineOperationKind::ReleaseErasedCallable { place } => {
+            let place = context.addresses().use_address(*place, selected)?;
+            let staging = context
+                .frame()
+                .erased_callable_release_staging()
+                .ok_or(Arm64SelectionError::MissingErasedCallableReleaseStaging)?;
+            if operation.result().is_some() {
+                return Err(Arm64SelectionError::MissingResult(operation_id));
+            }
+            selected.push(Arm64SelectedInstruction::ReleaseErasedCallable { place, staging });
+            Ok(())
         }
         MachineOperationKind::DriveComputation {
             computation,

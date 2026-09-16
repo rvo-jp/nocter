@@ -80,6 +80,8 @@ mod darwin_tls_verify_callback;
 mod darwin_wall_clock_code;
 mod destruction_selection;
 mod encode;
+mod erased_callable_code;
+mod erased_callable_selection;
 mod error_code;
 mod error_selection;
 mod floating_code;

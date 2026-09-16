@@ -77,6 +77,7 @@ impl FunctionLowerer<'_> {
                 }
             }
             ConcreteDestructionKind::Async => MirDestructionKind::Async,
+            ConcreteDestructionKind::ErasedCallable => MirDestructionKind::ErasedCallable,
             ConcreteDestructionKind::Error => MirDestructionKind::Error,
             ConcreteDestructionKind::Closure(captures) => MirDestructionKind::Closure(
                 captures

@@ -156,6 +156,12 @@ pub enum MirCallTarget {
         signature: MirCallSignature,
     },
     Structural(MirStructuralCall),
+    /// Invokes the function pointer and environment stored in an erased callable value.
+    ErasedCallable {
+        callable: MirPlaceId,
+        signature: MirCallSignature,
+        capability: nocter_model::CallableCapability,
+    },
 }
 
 /// Allocation context visible only while one call executes.
@@ -278,6 +284,7 @@ pub enum MirOperationKind {
         operand: MirValueId,
     },
     Aggregate(MirAggregate),
+    EraseCallable(crate::MirErasedCallable),
     Call(MirCall),
     PackLength,
     PackNext,
@@ -298,6 +305,10 @@ pub enum MirOperationKind {
     },
     /// Cancels and releases one owning deferred-computation handle.
     ReleaseComputation {
+        place: MirPlaceId,
+    },
+    /// Releases one owning erased callable and its compiler-owned closure environment.
+    ReleaseErasedCallable {
         place: MirPlaceId,
     },
     /// Runs one compiler-selected process-entry computation to completion and moves its output
@@ -328,6 +339,7 @@ impl MirOperationKind {
                 | Self::Binary { .. }
                 | Self::NumericConversion { .. }
                 | Self::Aggregate(_)
+                | Self::EraseCallable(_)
                 | Self::Call(_)
                 | Self::PackLength
                 | Self::PackNext

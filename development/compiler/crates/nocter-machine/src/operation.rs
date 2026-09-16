@@ -115,6 +115,7 @@ pub enum MachineOperationKind {
         source: MachineValueId,
     },
     Aggregate(MachineAggregate),
+    EraseCallable(crate::MachineErasedCallable),
     InvokeDrop {
         target: MachineFunctionId,
         place: MachineAddressId,
@@ -127,6 +128,9 @@ pub enum MachineOperationKind {
         place: MachineAddressId,
     },
     ReleaseComputation {
+        place: MachineAddressId,
+    },
+    ReleaseErasedCallable {
         place: MachineAddressId,
     },
     /// Drives the process-entry computation through its opaque lifecycle and moves the completed
@@ -164,10 +168,12 @@ impl MachineOperationKind {
         matches!(
             self,
             Self::Call(_)
+                | Self::EraseCallable(_)
                 | Self::InvokeDrop { .. }
                 | Self::ReportError { .. }
                 | Self::ReleaseError { .. }
                 | Self::ReleaseComputation { .. }
+                | Self::ReleaseErasedCallable { .. }
                 | Self::DriveComputation { .. }
                 | Self::ReleaseRegion { .. }
                 | Self::PackNext

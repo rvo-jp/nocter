@@ -138,6 +138,20 @@ pub(super) fn lower_call_target(
                 import, abi,
             )))
         }
+        MirCallTarget::ErasedCallable {
+            callable,
+            signature,
+            ..
+        } => {
+            let abi = context
+                .abi
+                .erased_call_signature_id(signature)
+                .ok_or(MachineProgramError::MissingRuntimeCallAbi(operation))?;
+            Ok(MachineCallTarget::Erased {
+                callable: ids.address(*callable)?,
+                abi,
+            })
+        }
         MirCallTarget::Structural(_) => Err(MachineProgramError::InvalidPackTarget {
             owner: ids.owner(),
             operation,

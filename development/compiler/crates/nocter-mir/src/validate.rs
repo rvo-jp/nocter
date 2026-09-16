@@ -691,6 +691,35 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             MirOperationKind::Aggregate(aggregate) => {
                 self.validate_aggregate(id, aggregate, result.ok_or_else(mismatch)?)?;
             }
+            MirOperationKind::EraseCallable(erasure) => {
+                let result = result.ok_or_else(mismatch)?;
+                let Some(TypeKind::Callable(callable)) = self.types.get(result) else {
+                    return Err(mismatch());
+                };
+                if !callable.is_erased()
+                    || callable.capability() != erasure.capability()
+                    || self.value_type(erasure.environment())? != erasure.environment_ty()
+                    || !self.environment.contains_item(erasure.body())
+                    || self
+                        .environment
+                        .closure_layout(erasure.body())
+                        .is_none_or(|layout| {
+                            layout.ty() != erasure.environment_ty()
+                                || layout.capability() != erasure.capability()
+                        })
+                {
+                    return Err(mismatch());
+                }
+                if let Some(plan) = erasure.environment_destruction() {
+                    if plan.ty() != erasure.environment_ty() {
+                        return Err(mismatch());
+                    }
+                    crate::validation_destruction::validate_destruction_plan(
+                        self.environment,
+                        plan,
+                    )?;
+                }
+            }
             MirOperationKind::Call(call) => {
                 validate_call(
                     self.environment,
@@ -755,6 +784,16 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     || !matches!(
                         self.types.get(self.require_place(*place)?.ty()),
                         Some(TypeKind::Future(_))
+                    )
+                {
+                    return Err(mismatch());
+                }
+            }
+            MirOperationKind::ReleaseErasedCallable { place } => {
+                if result.is_some()
+                    || !matches!(
+                        self.types.get(self.require_place(*place)?.ty()),
+                        Some(TypeKind::Callable(callable)) if callable.is_erased()
                     )
                 {
                     return Err(mismatch());
@@ -1111,7 +1150,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::InvokeDrop { place, .. }
             | MirOperationKind::ReportError { place }
             | MirOperationKind::ReleaseError { place }
-            | MirOperationKind::ReleaseComputation { place } => {
+            | MirOperationKind::ReleaseComputation { place }
+            | MirOperationKind::ReleaseErasedCallable { place } => {
                 values.extend(place_values(self.require_place(*place)?));
             }
             MirOperationKind::DriveComputation {
@@ -1152,8 +1192,12 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     values.push(*value);
                 }
             },
+            MirOperationKind::EraseCallable(erasure) => values.push(erasure.environment()),
             MirOperationKind::Call(call) => {
                 values.extend(call.arguments().iter().copied());
+                if let crate::MirCallTarget::ErasedCallable { callable, .. } = call.target() {
+                    values.extend(place_values(self.require_place(*callable)?));
+                }
                 if let crate::MirCallAllocation::Explicit(place) = call.allocation() {
                     values.extend(place_values(self.require_place(place)?));
                 }

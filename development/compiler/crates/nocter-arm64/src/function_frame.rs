@@ -66,6 +66,7 @@ pub struct Arm64FunctionFrame {
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
     direct_aggregate_staging: Option<Arm64FrameObjectId>,
     memory_edge_staging: Option<Arm64FrameObjectId>,
+    erased_callable_release_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
     indirect_result_pointer: Option<Arm64FrameObjectId>,
@@ -118,6 +119,7 @@ impl Arm64FunctionFrame {
             memory_values: placed.memory_values,
             direct_aggregate_staging: placed.direct_aggregate_staging,
             memory_edge_staging: placed.memory_edge_staging,
+            erased_callable_release_staging: placed.erased_callable_release_staging,
             packs: placed.packs,
             spills: placed.spills,
             indirect_result_pointer: hidden.indirect_result_pointer,
@@ -164,6 +166,12 @@ impl Arm64FunctionFrame {
     #[must_use]
     pub const fn memory_edge_staging(&self) -> Option<Arm64FrameObjectId> {
         self.memory_edge_staging
+    }
+
+    /// Two words retained across an erased-environment destruction call before unmapping it.
+    #[must_use]
+    pub const fn erased_callable_release_staging(&self) -> Option<Arm64FrameObjectId> {
+        self.erased_callable_release_staging
     }
 
     #[must_use]
@@ -239,6 +247,7 @@ struct PlacedBodyObjects {
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
     direct_aggregate_staging: Option<Arm64FrameObjectId>,
     memory_edge_staging: Option<Arm64FrameObjectId>,
+    erased_callable_release_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
     async_output_staging: Option<Arm64FrameObjectId>,
@@ -308,6 +317,7 @@ fn place_body_objects(
     let memory_values = place_memory_values(body, values, builder)?;
     let direct_aggregate_staging = place_direct_aggregate_staging(body, values, builder)?;
     let memory_edge_staging = place_memory_edge_staging(body, values, builder)?;
+    let erased_callable_release_staging = place_erased_callable_release_staging(body, builder)?;
     let packs = place_packs(body, builder)?;
     let async_output_staging = place_async_output_staging(body, builder)?;
     let mut spills = Vec::with_capacity(values.registers().spill_count());
@@ -320,10 +330,27 @@ fn place_body_objects(
         memory_values,
         direct_aggregate_staging,
         memory_edge_staging,
+        erased_callable_release_staging,
         packs,
         spills: spills.into_boxed_slice(),
         async_output_staging,
     })
+}
+
+fn place_erased_callable_release_staging(
+    body: &nocter_machine::MachineBody,
+    builder: &mut Arm64FrameLayoutBuilder,
+) -> Result<Option<Arm64FrameObjectId>, Arm64FunctionFrameError> {
+    body.operations()
+        .any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MachineOperationKind::ReleaseErasedCallable { .. }
+            )
+        })
+        .then(|| builder.add_object(2 * Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size()))
+        .transpose()
+        .map_err(Arm64FunctionFrameError::from)
 }
 
 fn place_async_output_staging(
@@ -397,28 +424,51 @@ fn place_direct_aggregate_staging(
 ) -> Result<Option<Arm64FrameObjectId>, Arm64FunctionFrameError> {
     let mut requirement: Option<(u64, u64)> = None;
     for (operation_id, operation) in body.operations() {
-        let MachineOperationKind::Aggregate(aggregate) = operation.kind() else {
-            continue;
-        };
-        let result = operation
-            .result()
-            .ok_or(Arm64FunctionFrameError::MissingOperationResult(
-                operation_id,
-            ))?;
-        match values
-            .value(result)
-            .ok_or(Arm64FunctionFrameError::MissingValue(result))?
-        {
-            Arm64ValueStorage::Direct(_) => {
-                let (size, alignment) = requirement.unwrap_or((0, 1));
-                requirement = Some((
-                    size.max(aggregate.size()),
-                    alignment.max(aggregate.alignment()),
-                ));
+        match operation.kind() {
+            MachineOperationKind::Aggregate(aggregate) => {
+                let result =
+                    operation
+                        .result()
+                        .ok_or(Arm64FunctionFrameError::MissingOperationResult(
+                            operation_id,
+                        ))?;
+                if matches!(
+                    values
+                        .value(result)
+                        .ok_or(Arm64FunctionFrameError::MissingValue(result))?,
+                    Arm64ValueStorage::Direct(_)
+                ) {
+                    let (size, alignment) = requirement.unwrap_or((0, 1));
+                    requirement = Some((
+                        size.max(aggregate.size()),
+                        alignment.max(aggregate.alignment()),
+                    ));
+                }
             }
-            Arm64ValueStorage::Omitted
-            | Arm64ValueStorage::Floating { .. }
-            | Arm64ValueStorage::Memory { .. } => {}
+            MachineOperationKind::EraseCallable(erasure) => {
+                let environment = erasure.environment();
+                if matches!(
+                    values
+                        .value(environment)
+                        .ok_or(Arm64FunctionFrameError::MissingValue(environment))?,
+                    Arm64ValueStorage::Direct(_) | Arm64ValueStorage::Floating { .. }
+                ) {
+                    let value = body
+                        .value(environment)
+                        .ok_or(Arm64FunctionFrameError::MissingValue(environment))?;
+                    let (size, alignment) = match value.representation() {
+                        nocter_machine::MachineValueRepresentation::Stored {
+                            size,
+                            alignment,
+                            ..
+                        } => (size, alignment),
+                        _ => return Err(Arm64FunctionFrameError::MissingValue(environment)),
+                    };
+                    let (current_size, current_alignment) = requirement.unwrap_or((0, 1));
+                    requirement = Some((current_size.max(size), current_alignment.max(alignment)));
+                }
+            }
+            _ => {}
         }
     }
     requirement
@@ -647,6 +697,10 @@ fn call_stack_size(
             .ok_or(Arm64FunctionFrameError::MissingPrimitiveAbi),
         MachineCallTarget::Imported(target) => program
             .imported_abi(target)
+            .map(nocter_machine::MachineCallableAbi::stack_argument_size)
+            .ok_or(Arm64FunctionFrameError::MissingImportedAbi),
+        MachineCallTarget::Erased { .. } => program
+            .erased_call_abi(target)
             .map(nocter_machine::MachineCallableAbi::stack_argument_size)
             .ok_or(Arm64FunctionFrameError::MissingImportedAbi),
     }

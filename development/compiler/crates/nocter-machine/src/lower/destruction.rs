@@ -172,6 +172,9 @@ fn lower_kind(
         (MirDestructionKind::Async, MachineLayoutKind::Pointer) => {
             Ok(MachineDestructionKind::Async)
         }
+        (MirDestructionKind::ErasedCallable, MachineLayoutKind::ErasedCallable { .. }) => {
+            Ok(MachineDestructionKind::ErasedCallable)
+        }
         (MirDestructionKind::Closure(captures), MachineLayoutKind::Closure { .. }) => {
             lower_closure(plan.ty(), captures, context)
         }

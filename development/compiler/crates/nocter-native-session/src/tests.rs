@@ -506,6 +506,70 @@ fn byte_vector_source(bytes: &[u8]) -> String {
     format!("Vec [{elements}]")
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_readonly_callable_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "func main(): i32 {\n\
+         \x20   let factor: i32 = 3\n\
+         \x20   let callback: any &func(i32): i32 = (&factor; value) { value * factor }\n\
+         \x20   if callback(14) != 42 { return 1 }\n\
+         \x20   if callback(7) != 21 { return 2 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(&image, &package_root.0, "erased-readonly-callable", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_readwrite_callable_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "func main(): i32 {\n\
+         \x20   var total: i32 = 4\n\
+         \x20   var callback: any &+func(i32): i32 = (&+total; value) {\n\
+         \x20       total += value\n\
+         \x20       return total\n\
+         \x20   }\n\
+         \x20   if callback(3) != 7 { return 1 }\n\
+         \x20   if callback(5) != 12 { return 2 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(&image, &package_root.0, "erased-readwrite-callable", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_callable_releases_an_owned_capture_after_invocation() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "use std/string.String\n\
+         \n\
+         func main(): i32 {\n\
+         \x20   let text = String \"captured\"\n\
+         \x20   let callback: any &func(): usize = (move text;) { text.len() }\n\
+         \x20   if callback() != 8 { return 1 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(&image, &package_root.0, "erased-owned-capture", 0);
+}
+
 #[test]
 fn scalar_floating_values_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

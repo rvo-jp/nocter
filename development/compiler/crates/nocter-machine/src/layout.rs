@@ -157,6 +157,13 @@ pub enum MachineLayoutKind {
     Closure {
         captures: Box<[MachineCaptureLayout]>,
     },
+    /// Four target words: environment pointer, invocation entry, destruction entry, mapping size.
+    ErasedCallable {
+        environment_offset: u64,
+        invoke_offset: u64,
+        destroy_offset: u64,
+        allocation_size_offset: u64,
+    },
     PackEntry {
         key: MachineFieldLayout,
         value: MachineFieldLayout,
@@ -479,6 +486,16 @@ impl LayoutBuilder<'_> {
             }
             RuntimeType::Aggregate => self.nominal(ty),
             RuntimeType::Closure => self.closure(ty),
+            RuntimeType::ErasedCallable => Ok(MachineLayout {
+                size: self.target.pointer_size() * 4,
+                alignment: self.target.pointer_alignment(),
+                kind: MachineLayoutKind::ErasedCallable {
+                    environment_offset: 0,
+                    invoke_offset: self.target.pointer_size(),
+                    destroy_offset: self.target.pointer_size() * 2,
+                    allocation_size_offset: self.target.pointer_size() * 3,
+                },
+            }),
             RuntimeType::Optional(payload) => {
                 let payload_layout = self.layout(*payload)?.clone();
                 Self::outcome(
