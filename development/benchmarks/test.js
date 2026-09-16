@@ -7,7 +7,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 require("./run");
-require("./lib/lsp-client");
+require("../verification/lsp-client");
 require("./lib/lsp-scenario");
 const { sourceIdentity } = require("./lib/source-identity");
 const { installedHomeIdentity } = require("./lib/installed-home-identity");

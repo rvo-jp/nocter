@@ -3,7 +3,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { LspClient } = require("./lsp-client");
+const {
+  editorClientCapabilities,
+  LspClient,
+} = require("../../verification/lsp-client");
 
 function positionOf(source, needle) {
   const offset = source.indexOf(needle);
@@ -34,9 +37,13 @@ async function runLspSession(binary, repository, warmups, edits) {
 
   const initialization = await timedRequest(client, "initialize", {
     rootUri: pathToFileURL(project).href,
-    capabilities: {},
+    workspaceFolders: [
+      { uri: pathToFileURL(project).href, name: path.basename(project) },
+    ],
+    capabilities: editorClientCapabilities(),
   });
   client.notify("initialized", {});
+  await client.waitForServerRequest("client/registerCapability");
   client.notify("textDocument/didOpen", {
     textDocument: { uri, languageId: "nocter", version: 1, text: original },
   });

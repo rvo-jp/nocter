@@ -6,6 +6,11 @@ This directory owns repository-development verification entry points whose inter
 must not become persistent repository caches. Release assembly and artifact qualification remain
 under [`development/packaging/`](../packaging/).
 
+`lsp-client.js` is the single development-side JSON-RPC process client used by installed-artifact
+qualification and performance measurement. It owns framing, ordered requests, notifications,
+server-to-client requests, timeouts, and clean process shutdown; individual scenarios own only
+their observable editor workflow and assertions.
+
 ## Compiler Verification
 
 Run the complete compiler gate from any directory:
@@ -24,9 +29,13 @@ generation to `development/compiler/target/`.
 
 Compiler workspace crates use test-profile optimization level 1 because the integration suite
 executes the compiler itself as its dominant workload. Third-party dependencies remain
-unoptimized, bounding clean compilation cost. Public examples cross native compilation and actual
-process execution once at the command boundary; lower native-session tests retain focused ABI and
-runtime contracts instead of compiling the same complete example corpus again.
+unoptimized, bounding clean compilation cost. The language-server test binary runs separately and
+caps concurrency at four workers (or the available processor count when lower); its independent
+full semantic compilations otherwise contend for enough memory that eight workers increase both
+CPU work and elapsed time. Other workspace tests retain Cargo's normal concurrency. Public examples
+cross native compilation and actual process execution once at the command boundary; lower
+native-session tests retain focused ABI and runtime contracts instead of compiling the same complete
+example corpus again.
 
 Release packaging invokes the same repository-metadata verifier before building an archive. This
 keeps `development/packaging/RELEASE.json` authoritative for shipped license metadata instead of

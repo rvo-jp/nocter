@@ -1459,7 +1459,7 @@ mod tests {
     }
 
     #[test]
-    fn structured_task_hover_and_definition_use_public_contracts() {
+    fn structured_task_uses_one_checked_generation_across_editor_features() {
         let (_temporary, uri, mut server, text) = structured_task_server();
         let (join_line, join_character) = source_position(text, "join");
         let hover = server.receive(&format!(
@@ -1499,11 +1499,11 @@ mod tests {
             "{:?}",
             timeout_hover.issue()
         );
+
+        assert_structured_task_specializations(&mut server, &uri, text);
     }
 
-    #[test]
-    fn structured_task_specializations_drive_signature_help_and_inlay_hints() {
-        let (_temporary, uri, mut server, text) = structured_task_server();
+    fn assert_structured_task_specializations(server: &mut LanguageServer, uri: &str, text: &str) {
         let (argument_line, argument_character) = source_position(text, ", right())");
         let signature = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{argument_line},\"character\":{}}}}}}}",

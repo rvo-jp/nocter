@@ -4,7 +4,7 @@ use std::path::Path;
 use super::tests::semantic_server;
 
 #[test]
-fn network_loopback_public_contract_drives_navigation_and_calls() {
+fn network_loopback_uses_one_checked_contract_across_editor_features() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/network-loopback");
     let source = root.join("exchange.nct");
     let (mut server, text) = open_package_source(&root, &source);
@@ -88,16 +88,17 @@ fn network_loopback_public_contract_drives_navigation_and_calls() {
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+    assert_network_loopback_source_features(&mut server, &source, &text);
 }
 
-#[test]
-fn network_loopback_source_drives_local_editor_features() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/network-loopback");
-    let source = root.join("exchange.nct");
-    let (mut server, text) = open_package_source(&root, &source);
-
+fn assert_network_loopback_source_features(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
     let tokens = server.receive(&format!(
-        "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+        "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
         source.display()
     ));
     let response = tokens.response().unwrap();
@@ -105,10 +106,10 @@ fn network_loopback_source_drives_local_editor_features() {
     assert!(!response.contains("\"data\":[]"), "{response}");
     assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
 
-    let (receiver_line, receiver_source) = source_line(&text, "var receiver");
+    let (receiver_line, receiver_source) = source_line(text, "var receiver");
     let receiver_character = receiver_source.find("receiver").unwrap();
     let references = server.receive(&format!(
-        "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{receiver_line},\"character\":{receiver_character}}},\"context\":{{\"includeDeclaration\":true}}}}}}",
+        "{{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{receiver_line},\"character\":{receiver_character}}},\"context\":{{\"includeDeclaration\":true}}}}}}",
         source.display()
     ));
     let response = references.response().unwrap();
@@ -116,7 +117,7 @@ fn network_loopback_source_drives_local_editor_features() {
     assert!(references.issue().is_none(), "{:?}", references.issue());
 
     let rename = server.receive(&format!(
-        "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{receiver_line},\"character\":{receiver_character}}},\"newName\":\"destination\"}}}}",
+        "{{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{receiver_line},\"character\":{receiver_character}}},\"newName\":\"destination\"}}}}",
         source.display()
     ));
     let response = rename.response().unwrap();
@@ -125,7 +126,7 @@ fn network_loopback_source_drives_local_editor_features() {
 
     let end_line = text.lines().count();
     let hints = server.receive(&format!(
-        "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{end_line},\"character\":0}}}}}}}}",
+        "{{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{end_line},\"character\":0}}}}}}}}",
         source.display()
     ));
     let response = hints.response().unwrap();
@@ -699,7 +700,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
 }
 
 #[test]
-fn unicode_text_navigation_follows_public_contract_identity() {
+fn unicode_text_uses_one_checked_contract_across_editor_features() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples");
     let source = root.join("unicode-text.nct");
     let (mut server, text) = open_package_source(&root, &source);
@@ -759,20 +760,17 @@ fn unicode_text_navigation_follows_public_contract_identity() {
         assert!(response.contains(location), "{response}");
     }
     assert!(references.issue().is_none(), "{:?}", references.issue());
+
+    assert_unicode_text_assistance(&mut server, &source, &text);
 }
 
-#[test]
-fn unicode_text_assistance_uses_checked_standard_signatures() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples");
-    let source = root.join("unicode-text.nct");
-    let (mut server, text) = open_package_source(&root, &source);
-
-    let (truncate_line, truncate_source) = source_line(&text, "suffix.truncate");
+fn assert_unicode_text_assistance(server: &mut super::LanguageServer, source: &Path, text: &str) {
+    let (truncate_line, truncate_source) = source_line(text, "suffix.truncate");
     let truncate_argument = truncate_source.find("1)").unwrap() + 1;
     let signature = server.receive(&position_request(
         6,
         "textDocument/signatureHelp",
-        &source,
+        source,
         truncate_line,
         truncate_argument,
     ));
@@ -812,7 +810,7 @@ fn unicode_text_assistance_uses_checked_standard_signatures() {
     let completion = server.receive(&position_request(
         8,
         "textDocument/completion",
-        &source,
+        source,
         completion_line,
         completion_character,
     ));

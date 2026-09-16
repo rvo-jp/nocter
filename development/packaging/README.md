@@ -16,7 +16,11 @@ local release candidate.
 - `qualify-local-release.sh` requires a clean release-content commit, refuses to reuse a version
   already tagged at another commit, creates the archive twice, compares both compressed archives
   and extracted homes, and exercises the installed compiler.
-- `verify-lsp.js` owns the framed installed-LSP lifecycle check used by qualification.
+- `verify-lsp.js` owns the installed-LSP qualification scenario. It drives the packaged process
+  through the same ordered JSON-RPC boundary as an editor: initialization and dynamic capability
+  registration, installed and user-source analysis, semantic queries, document edits, diagnostic
+  recovery, and clean shutdown. Framing and bidirectional request handling are shared with the
+  performance runner through `development/verification/lsp-client.js`.
 
 From the repository root, create and qualify the candidate with:
 
@@ -33,8 +37,9 @@ captured-output behavior. It runs the structured subprocess pipeline against the
 standard library to qualify concurrent generic transfer and observation under one timeout. It also
 builds and runs the bounded asynchronous file report application, checks its exact recursively
 discovered file and byte counts, and proves that its recoverable missing-root path leaves neither
-final nor temporary output. The remaining gates include LSP analysis of installed standard-library contract and
-implementation sources, generated Unicode static tables, and Unicode casing bodies. It also proves
+final nor temporary output. The remaining gates include interactive LSP analysis of an initialized
+user package and installed standard-library contract, implementation, generated Unicode table, and
+Unicode casing sources. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.
 Only after every check passes does it replace the generated candidate outputs in `dist/`.
