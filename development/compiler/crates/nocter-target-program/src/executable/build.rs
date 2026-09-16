@@ -240,6 +240,11 @@ struct ExecutableClosureBuilder<'program> {
     items: BTreeMap<ExecutableItemKey, DraftItem>,
 }
 
+struct SpecializedClosures {
+    ordered: Vec<(nocter_model::ClosureId, ExecutableItemKey)>,
+    keys: BTreeMap<nocter_model::ClosureId, ExecutableItemKey>,
+}
+
 impl<'program> ExecutableClosureBuilder<'program> {
     fn new(target: &'program TargetProgram) -> Self {
         Self {
@@ -320,24 +325,13 @@ impl<'program> ExecutableClosureBuilder<'program> {
             });
         }
 
-        let mut closures = Vec::new();
-        let mut closure_keys = BTreeMap::new();
-        for closure in dependencies.closures().iter().copied() {
-            let key = ExecutableItemKey::Closure(ClosureInstanceKey::new_in(
-                self.specialization(),
-                closure,
-                item_generic_arguments(key),
-            )?);
-            self.enqueue(key.clone());
-            closure_keys.insert(closure, key.clone());
-            closures.push((closure, key));
-        }
+        let closures = self.specialize_reached_closures(key, dependencies.closures())?;
 
         let erased_callables = self.specialize_erased_callables(
             context.body,
             dependencies.nodes(),
             &substitution,
-            &closure_keys,
+            &closures.keys,
             &mut drops,
         )?;
 
@@ -389,7 +383,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             root: context.root,
             nodes: dependencies.nodes().to_vec(),
             dispatches,
-            closures,
+            closures: closures.ordered,
             drops: drops.into_iter().collect(),
             types,
             prepared_borrows,
@@ -400,6 +394,29 @@ impl<'program> ExecutableClosureBuilder<'program> {
             pack_literals,
             argument_packs,
             erased_callables,
+        })
+    }
+
+    fn specialize_reached_closures(
+        &mut self,
+        owner: &ExecutableItemKey,
+        reached: &[nocter_model::ClosureId],
+    ) -> Result<SpecializedClosures, ExecutableProgramError> {
+        let mut closures = Vec::new();
+        let mut keys = BTreeMap::new();
+        for closure in reached.iter().copied() {
+            let key = ExecutableItemKey::Closure(ClosureInstanceKey::new_in(
+                self.specialization(),
+                closure,
+                item_generic_arguments(owner),
+            )?);
+            self.enqueue(key.clone());
+            keys.insert(closure, key.clone());
+            closures.push((closure, key));
+        }
+        Ok(SpecializedClosures {
+            ordered: closures,
+            keys,
         })
     }
 
