@@ -1,0 +1,58 @@
+//! Application-facing response construction over the canonical server typestate.
+
+see ./index.nct
+see ./server.nct
+see ./server_values.nct
+see ./storage.nct
+
+use /time.Duration
+
+construct Status {
+    noalloc func bad_request(): Self {
+        return Status { code_value: 400 }
+    }
+
+    noalloc func not_found(): Self {
+        return Status { code_value: 404 }
+    }
+
+    noalloc func method_not_allowed(): Self {
+        return Status { code_value: 405 }
+    }
+
+    noalloc func internal_server_error(): Self {
+        return Status { code_value: 500 }
+    }
+}
+
+func text_response(status: Status, content_type: &str, text: &str): OutgoingResponse! {
+    var response = OutgoingResponse.new(status)?
+    response.append_header_text("content-type", content_type)?
+    response.set_text_body(text)
+    return move response
+}
+
+construct OutgoingResponse {
+    func text(status: Status, text: &str): Self! {
+        return text_response(status, "text/plain; charset=utf-8", text)?
+    }
+
+    func json(status: Status, document: &str): Self! {
+        return text_response(status, "application/json; charset=utf-8", document)?
+    }
+}
+
+instance IncomingRequest {
+    async method self.respond(response: OutgoingResponse): ServerConnection?! {
+        let responder = await self.finish_body()?
+        return await responder.respond(move response)?
+    }
+
+    async method self.respond_with_timeout(
+        response: OutgoingResponse,
+        timeout: Duration,
+    ): ServerConnection?! {
+        let responder = await self.finish_body_with_timeout(timeout)?
+        return await responder.respond_with_timeout(move response, timeout)?
+    }
+}

@@ -1,5 +1,6 @@
 //! Native qualification for HTTP values and the single framing codec.
 
+see ./application_response.nct
 see ./body.nct
 see ./codec.nct
 see ./connection_input.nct
@@ -546,6 +547,29 @@ test literal_routes_may_overlap_parameters_at_higher_precedence {
         || !route_pattern_matches(&parameter, &target)
         || !route_pattern_matches(&exact, &target) {
         return error.new("std.http.test", "route precedence changed")
+    }
+    return
+}
+
+test application_response_constructors_attach_one_canonical_content_type {
+    let plain = OutgoingResponse.text(Status.not_found(), "missing")?
+    let plain_type = plain.headers().first("content-type") otherwise {
+        return error.new("std.http.test", "plain response lost its content type")
+    }
+    if plain.status().code() != 404
+        || plain_type.bytes() != "text/plain; charset=utf-8".bytes()
+        || plain.body() != "missing".bytes() {
+        return error.new("std.http.test", "plain response construction changed")
+    }
+
+    let json = OutgoingResponse.json(Status.internal_server_error(), "{\"error\":true}")?
+    let json_type = json.headers().first("content-type") otherwise {
+        return error.new("std.http.test", "JSON response lost its content type")
+    }
+    if json.status().code() != 500
+        || json_type.bytes() != "application/json; charset=utf-8".bytes()
+        || json.body() != "{\"error\":true}".bytes() {
+        return error.new("std.http.test", "JSON response construction changed")
     }
     return
 }

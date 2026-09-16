@@ -133,6 +133,27 @@ future owns its request and route match until it is awaited or cancelled. `Route
 that computation directly. It creates no task, executor, responder, timeout, or connection
 registry, and it does not reinterpret HTTP framing or persistence.
 
+## Application Response Policy
+
+`OutgoingResponse.text` and `OutgoingResponse.json` construct complete UTF-8 bodies over the same
+owned response value used by `Responder.respond`. They add exactly one canonical `Content-Type`;
+the JSON constructor deliberately does not parse, normalize, or certify the supplied document.
+Named `Status` constructors cover the ordinary 400, 404, 405, and 500 application outcomes without
+creating a second status representation.
+
+`IncomingRequest.respond` is a composition boundary, not a second server transition. It drains the
+body with `finish_body` and passes the resulting unique `Responder` to `respond`.
+`respond_with_timeout` applies the supplied duration independently to those two already-defined
+consuming transitions; it does not silently widen the duration into an end-to-end deadline.
+
+Applications handle `RouteDispatch` explicitly. A `handled` value contains the selected handler's
+connection disposition. The `not_found` and `method_not_allowed` values retain the request so the
+application can select a body, headers, timeout, and keep-alive policy before calling `respond`.
+Once a handler owns a request, a failure cannot recover that request merely to synthesize a 500:
+the connection closes through ordinary linear destruction. Handlers that want an error response
+must catch application failures while they still own the appropriate request or responder state.
+This prevents a router-level error hook from guessing whether response bytes were already sent.
+
 ## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a

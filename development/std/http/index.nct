@@ -11,6 +11,7 @@ use /url.Url
 use /vec.Vec
 
 see ./async_client.nct
+see ./application_response.nct
 see ./body.nct
 see ./body_cursor.nct
 see ./body_cursor_tests.nct
@@ -75,6 +76,18 @@ pub copy struct Status
 construct Status {
     /// Accepts codes from 100 through 999.
     pub noalloc func new(code: u16): Self!
+
+    /// Returns the standard 400 Bad Request status.
+    pub noalloc func bad_request(): Self
+
+    /// Returns the standard 404 Not Found status.
+    pub noalloc func not_found(): Self
+
+    /// Returns the standard 405 Method Not Allowed status.
+    pub noalloc func method_not_allowed(): Self
+
+    /// Returns the standard 500 Internal Server Error status.
+    pub noalloc func internal_server_error(): Self
 }
 
 instance Status {
@@ -419,6 +432,15 @@ instance IncomingRequest {
     /// Drains the unread body before one fixed monotonic deadline.
     pub async method self.finish_body_with_timeout(timeout: Duration): Responder!
 
+    /// Drains the request body and sends one complete response through the canonical responder.
+    pub async method self.respond(response: OutgoingResponse): ServerConnection?!
+
+    /// Drains and responds while applying one timeout to each existing consuming transition.
+    pub async method self.respond_with_timeout(
+        response: OutgoingResponse,
+        timeout: Duration,
+    ): ServerConnection?!
+
     /// Closes the connection without draining the body or sending a response.
     pub method self.close(): void
 }
@@ -432,6 +454,12 @@ construct OutgoingResponse {
 
     /// Creates an empty successful response with status 200.
     pub noalloc func ok(): Self
+
+    /// Creates a UTF-8 plain-text response with one canonical content type.
+    pub func text(status: Status, text: &str): Self!
+
+    /// Creates a UTF-8 JSON response without interpreting or rewriting its document bytes.
+    pub func json(status: Status, document: &str): Self!
 }
 
 instance OutgoingResponse {
