@@ -167,7 +167,7 @@ async func handle_connection(
     loop {
         let request = await owner.read_request_with_timeout(timeout) catch failure {
             return failure.has_code("std.http.invalid_syntax")
-                || failure.has_code("std.http.timed_out")
+            || failure.has_code("std.http.timed_out")
         }
         let dispatched = await router.dispatch(move request) catch failure {
             return failure.has_code("http-service.handler_failed")
