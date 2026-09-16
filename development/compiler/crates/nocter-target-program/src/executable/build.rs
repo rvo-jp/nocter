@@ -440,6 +440,14 @@ impl<'program> ExecutableClosureBuilder<'program> {
                 return Err(ExecutableProgramError::InvalidCallableInvocation(ty));
             }
             let capability = callable.capability();
+            let definition = self
+                .target
+                .checked()
+                .closures()
+                .get(erasure.closure())
+                .ok_or(ExecutableProgramError::InvalidCallableInvocation(
+                    environment,
+                ))?;
             let body = closure_keys.get(&erasure.closure()).cloned().ok_or(
                 ExecutableProgramError::InvalidCallableInvocation(environment),
             )?;
@@ -459,6 +467,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
                 environment,
                 body,
                 capability,
+                source_capability: definition.signature().capability(),
                 environment_destruction,
             });
         }
@@ -1042,6 +1051,7 @@ struct DraftErasedCallable {
     environment: TypeId,
     body: ExecutableItemKey,
     capability: CallableCapability,
+    source_capability: CallableCapability,
     environment_destruction: Option<ConcreteDestructionPlan>,
 }
 
@@ -1221,6 +1231,7 @@ fn freeze_body(
                 descriptor.environment,
                 item_id(item_ids, &descriptor.body)?,
                 descriptor.capability,
+                descriptor.source_capability,
                 descriptor.environment_destruction,
             ))
         })

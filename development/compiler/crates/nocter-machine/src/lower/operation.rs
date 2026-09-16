@@ -78,10 +78,20 @@ fn lower_operation(
             lower_aggregate_operation(operation, value, aggregate, context)?,
         ),
         MirOperationKind::EraseCallable(erasure) => {
-            let invoke = program
-                .functions
-                .for_item(erasure.body())
-                .ok_or(MachineProgramError::MissingItemFunction(erasure.body()))?;
+            let invoke = if erasure.capability() == nocter_model::CallableCapability::Owned {
+                let adapter = program.erased_adapters.at(ids.owner(), operation).ok_or(
+                    MachineProgramError::InvalidErasedAdapter(ids.owner(), operation),
+                )?;
+                program
+                    .functions
+                    .for_erased_adapter(adapter)
+                    .ok_or(MachineProgramError::MissingErasedAdapter(adapter))?
+            } else {
+                program
+                    .functions
+                    .for_item(erasure.body())
+                    .ok_or(MachineProgramError::MissingItemFunction(erasure.body()))?
+            };
             let destroy = program
                 .destructions
                 .erased_environment(ids.owner(), operation)

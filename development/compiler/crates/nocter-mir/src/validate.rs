@@ -698,6 +698,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 };
                 if !callable.is_erased()
                     || callable.capability() != erasure.capability()
+                    || callable.parameters() != erasure.signature().parameters()
+                    || callable.result() != erasure.signature().result()
+                    || !erasure.capability().permits(erasure.source_capability())
                     || self.value_type(erasure.environment())? != erasure.environment_ty()
                     || !self.environment.contains_item(erasure.body())
                     || self
@@ -705,7 +708,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         .closure_layout(erasure.body())
                         .is_none_or(|layout| {
                             layout.ty() != erasure.environment_ty()
-                                || layout.capability() != erasure.capability()
+                                || layout.capability() != erasure.source_capability()
                         })
                 {
                     return Err(mismatch());

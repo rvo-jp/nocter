@@ -4,7 +4,9 @@ use std::fmt;
 use nocter_mir::{MirProgram, MirRoot};
 use nocter_model::{ExecutableItemId, PackageTargetId, TestId};
 
-use crate::identity::{MachineDestructionId, MachineId, MachineLinkageId, MachineTable};
+use crate::identity::{
+    MachineDestructionId, MachineErasedAdapterId, MachineId, MachineLinkageId, MachineTable,
+};
 
 /// Semantic owner of one emitted code symbol. Display spellings are not linkage identity.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -13,6 +15,7 @@ pub enum MachineLinkageKey {
     ProcessRoot(PackageTargetId),
     TestRoot(TestId),
     Destruction(MachineDestructionId),
+    ErasedAdapter(MachineErasedAdapterId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -135,6 +138,23 @@ impl MachineLinkagePlan {
         let mut entries = self.entries.values().to_vec();
         for (destruction, _) in destructions.iter() {
             let key = MachineLinkageKey::Destruction(destruction);
+            let id = MachineLinkageId::new(entries.len());
+            if self.ids.insert(key, id).is_some() {
+                return Err(MachineLinkageError::DuplicateKey(key));
+            }
+            entries.push(MachineLinkageEntry { key });
+        }
+        self.entries = MachineTable::from_values(entries);
+        Ok(self)
+    }
+
+    pub(crate) fn with_erased_adapters(
+        mut self,
+        adapters: &crate::erased_adapter::MachineErasedAdapterPlan,
+    ) -> Result<Self, MachineLinkageError> {
+        let mut entries = self.entries.values().to_vec();
+        for (adapter, _) in adapters.iter() {
+            let key = MachineLinkageKey::ErasedAdapter(adapter);
             let id = MachineLinkageId::new(entries.len());
             if self.ids.insert(key, id).is_some() {
                 return Err(MachineLinkageError::DuplicateKey(key));

@@ -11,9 +11,11 @@ mod data;
 mod dataflow;
 mod destruction;
 mod destruction_table;
+mod erased_adapter;
 mod erased_callable;
 mod function_domain;
 mod generated_destruction;
+mod generated_erased_adapter;
 mod identity;
 mod import;
 mod layout;
@@ -56,8 +58,8 @@ pub use destruction::{
 pub use erased_callable::MachineErasedCallable;
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
-    MachineFunctionId, MachineImportId, MachineLinkageId, MachineOperationId, MachinePackId,
-    MachineStackId, MachineTestId, MachineValueId,
+    MachineErasedAdapterId, MachineFunctionId, MachineImportId, MachineLinkageId,
+    MachineOperationId, MachinePackId, MachineStackId, MachineTestId, MachineValueId,
 };
 
 pub(crate) use layout::MachineLayoutPlan;

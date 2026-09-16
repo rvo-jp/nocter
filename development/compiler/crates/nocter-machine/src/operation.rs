@@ -133,6 +133,12 @@ pub enum MachineOperationKind {
     ReleaseErasedCallable {
         place: MachineAddressId,
     },
+    /// Releases one compiler-owned mapping after a consuming erased-call adapter has transferred
+    /// or destroyed every value stored in it.
+    ReleaseMappedStorage {
+        pointer: MachineValueId,
+        bytes: MachineValueId,
+    },
     /// Drives the process-entry computation through its opaque lifecycle and moves the completed
     /// output into caller-owned storage. Only a compiler-generated process root may contain this
     /// operation.
@@ -174,6 +180,7 @@ impl MachineOperationKind {
                 | Self::ReleaseError { .. }
                 | Self::ReleaseComputation { .. }
                 | Self::ReleaseErasedCallable { .. }
+                | Self::ReleaseMappedStorage { .. }
                 | Self::DriveComputation { .. }
                 | Self::ReleaseRegion { .. }
                 | Self::PackNext

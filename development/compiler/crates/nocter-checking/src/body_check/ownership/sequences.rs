@@ -4,8 +4,8 @@ use super::OwnershipAnalyzer;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::ownership::{OwnershipState, TemporaryIdentity};
 use crate::{
-    CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation, CheckedPackLiteral,
-    CleanupAction, ReceiverPreparation,
+    CheckedCall, CheckedIteratorAcquisition, CheckedOperation, CheckedPackLiteral, CleanupAction,
+    ReceiverPreparation,
 };
 
 impl OwnershipAnalyzer<'_> {
@@ -60,34 +60,26 @@ impl OwnershipAnalyzer<'_> {
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
         let mut staged = Vec::new();
-        if let CallTarget::CallableValue {
-            value, capability, ..
-        }
-        | CallTarget::ClosureValue {
-            value, capability, ..
-        } = call.target()
-        {
-            if !self.visit(*value, state)? {
+        if let Some((value, capability)) = call.target().callable_operand() {
+            if !self.visit(value, state)? {
                 return Ok(false);
             }
-            if *capability == CallableCapability::Owned {
+            if capability == CallableCapability::Owned {
                 let place = self
                     .body
                     .nodes()
-                    .get(*value)
+                    .get(value)
                     .and_then(|node| match node.operation() {
                         CheckedOperation::Place(place) => Some(*place),
                         _ => None,
                     })
-                    .ok_or(BodyCheckInternalError::UnsupportedOwnershipOperation(
-                        *value,
-                    ))?;
+                    .ok_or(BodyCheckInternalError::UnsupportedOwnershipOperation(value))?;
                 let path = self.move_path(place)?;
                 state
                     .move_out(&path)
                     .map_err(|_| BodyCheckInternalError::OwnershipState)?;
-                if self.activate_owned_temporary(*value, state)? {
-                    staged.push(*value);
+                if self.activate_owned_temporary(value, state)? {
+                    staged.push(value);
                 }
             }
         }

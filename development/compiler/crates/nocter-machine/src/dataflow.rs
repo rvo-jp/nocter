@@ -387,6 +387,10 @@ fn operation_inputs(
         MachineOperationKind::CreateRegion { parent, .. } => {
             insert_value(body, *parent, &mut inputs)?;
         }
+        MachineOperationKind::ReleaseMappedStorage { pointer, bytes } => {
+            insert_value(body, *pointer, &mut inputs)?;
+            insert_value(body, *bytes, &mut inputs)?;
+        }
         MachineOperationKind::Call(call) => add_call_inputs(body, call, &mut inputs)?,
     }
     Ok(boxed(inputs))

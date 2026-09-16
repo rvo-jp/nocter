@@ -12,6 +12,7 @@ pub struct ExecutableErasedCallable {
     environment: TypeId,
     body: ExecutableItemId,
     capability: CallableCapability,
+    source_capability: CallableCapability,
     environment_destruction: Option<ConcreteDestructionPlan>,
 }
 
@@ -22,6 +23,7 @@ impl ExecutableErasedCallable {
         environment: TypeId,
         body: ExecutableItemId,
         capability: CallableCapability,
+        source_capability: CallableCapability,
         environment_destruction: Option<ConcreteDestructionPlan>,
     ) -> Self {
         Self {
@@ -30,6 +32,7 @@ impl ExecutableErasedCallable {
             environment,
             body,
             capability,
+            source_capability,
             environment_destruction,
         }
     }
@@ -57,6 +60,11 @@ impl ExecutableErasedCallable {
     #[must_use]
     pub const fn capability(&self) -> CallableCapability {
         self.capability
+    }
+
+    #[must_use]
+    pub const fn source_capability(&self) -> CallableCapability {
+        self.source_capability
     }
 
     #[must_use]

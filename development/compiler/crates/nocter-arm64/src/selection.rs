@@ -264,6 +264,8 @@ pub enum Arm64SelectedInstruction {
     DarwinMemoryMapAbort,
     /// Releases a compiler-owned page mapping and returns `(value, errno)`.
     DarwinMemoryUnmap,
+    /// Releases compiler-owned mapped storage and traps if the target rejects the release.
+    DarwinMemoryUnmapAbort,
     /// Closes one target descriptor and returns `(value, errno)`.
     DarwinDescriptorClose,
     /// Creates one Darwin pipe and returns both descriptors plus errno.
@@ -978,6 +980,30 @@ fn select_operation(
                 return Err(Arm64SelectionError::MissingResult(operation_id));
             }
             selected.push(Arm64SelectedInstruction::ReleaseErasedCallable { place, staging });
+            Ok(())
+        }
+        MachineOperationKind::ReleaseMappedStorage { pointer, bytes } => {
+            let [pointer] = direct_value(values, *pointer)? else {
+                return Err(Arm64SelectionError::CallArguments(operation_id));
+            };
+            let [bytes] = direct_value(values, *bytes)? else {
+                return Err(Arm64SelectionError::CallArguments(operation_id));
+            };
+            let pointer_register = crate::Arm64NocterAbi::argument_register(0)
+                .ok_or(Arm64SelectionError::AddressOverflow)?;
+            let size_register = crate::Arm64NocterAbi::argument_register(1)
+                .ok_or(Arm64SelectionError::AddressOverflow)?;
+            selected.push(Arm64SelectedInstruction::Move {
+                size: Arm64DataSize::Bits64,
+                destination: Arm64SelectedRegister::Fixed(pointer_register),
+                source: Arm64SelectedRegister::Virtual(*pointer),
+            });
+            selected.push(Arm64SelectedInstruction::Move {
+                size: Arm64DataSize::Bits64,
+                destination: Arm64SelectedRegister::Fixed(size_register),
+                source: Arm64SelectedRegister::Virtual(*bytes),
+            });
+            selected.push(Arm64SelectedInstruction::DarwinMemoryUnmapAbort);
             Ok(())
         }
         MachineOperationKind::DriveComputation {

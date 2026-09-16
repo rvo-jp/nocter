@@ -1,6 +1,6 @@
 use nocter_model::{CallableCapability, ExecutableItemId, MirValueId, TypeId};
 
-use crate::MirDestructionPlan;
+use crate::{MirCallSignature, MirDestructionPlan};
 
 /// One closed runtime construction of an owning erased callable.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -9,6 +9,8 @@ pub struct MirErasedCallable {
     environment_ty: TypeId,
     body: ExecutableItemId,
     capability: CallableCapability,
+    source_capability: CallableCapability,
+    signature: MirCallSignature,
     environment_destruction: Option<MirDestructionPlan>,
 }
 
@@ -19,6 +21,8 @@ impl MirErasedCallable {
         environment_ty: TypeId,
         body: ExecutableItemId,
         capability: CallableCapability,
+        source_capability: CallableCapability,
+        signature: MirCallSignature,
         environment_destruction: Option<MirDestructionPlan>,
     ) -> Self {
         Self {
@@ -26,6 +30,8 @@ impl MirErasedCallable {
             environment_ty,
             body,
             capability,
+            source_capability,
+            signature,
             environment_destruction,
         }
     }
@@ -48,6 +54,16 @@ impl MirErasedCallable {
     #[must_use]
     pub const fn capability(&self) -> CallableCapability {
         self.capability
+    }
+
+    #[must_use]
+    pub const fn source_capability(&self) -> CallableCapability {
+        self.source_capability
+    }
+
+    #[must_use]
+    pub const fn signature(&self) -> &MirCallSignature {
+        &self.signature
     }
 
     #[must_use]

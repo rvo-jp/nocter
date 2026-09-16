@@ -616,6 +616,159 @@ fn erased_callable_fallible_result_crosses_a_persistent_async_frame() {
     execute_native_status(&image, &package_root.0, "erased-fallible-callable", 0);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_consuming_callable_moves_a_direct_environment() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "struct Token { value: i32 }\n\
+         func consume(token: Token): i32 { token.value }\n\
+         func main(): i32 {\n\
+         \x20   let token = Token { value: 42 }\n\
+         \x20   let callback: any func(): i32 = (move token;) { consume(move token) }\n\
+         \x20   if callback() != 42 { return 1 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(&image, &package_root.0, "erased-consuming-callable", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_consuming_callable_destroys_a_retained_environment_once() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "struct Counter { value: i32 }\n\
+         struct Token { value: i32\n    counter: &+Counter\n}\n\
+         drop Token(&+self) { self.counter.value += 1 }\n\
+         func main(): i32 {\n\
+         \x20   var counter = Counter { value: 0 }\n\
+         \x20   let token = Token { value: 42, counter: &+counter }\n\
+         \x20   let callback: any func(): i32 = (move token;) { token.value }\n\
+         \x20   if callback() != 42 { return 1 }\n\
+         \x20   if counter.value != 1 { return 2 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(
+        &image,
+        &package_root.0,
+        "erased-consuming-retained-environment",
+        0,
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_consuming_callable_does_not_redestroy_a_moved_environment() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "struct Counter { value: i32 }\n\
+         struct Token { value: i32\n    counter: &+Counter\n}\n\
+         drop Token(&+self) { self.counter.value += 1 }\n\
+         func consume(token: Token): i32 { token.value }\n\
+         func main(): i32 {\n\
+         \x20   var counter = Counter { value: 0 }\n\
+         \x20   let token = Token { value: 42, counter: &+counter }\n\
+         \x20   let callback: any func(): i32 = (move token;) { consume(move token) }\n\
+         \x20   if callback() != 42 { return 1 }\n\
+         \x20   if counter.value != 1 { return 2 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(
+        &image,
+        &package_root.0,
+        "erased-consuming-moved-environment",
+        0,
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_consuming_callable_preserves_fallible_results_during_cleanup() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "struct Counter { value: i32 }\n\
+         struct Token { value: i32\n    counter: &+Counter\n}\n\
+         drop Token(&+self) { self.counter.value += 1 }\n\
+         func main(): i32! {\n\
+         \x20   var counter = Counter { value: 0 }\n\
+         \x20   let token = Token { value: 42, counter: &+counter }\n\
+         \x20   let callback: any func(): i32! = (move token;) {\n\
+         \x20       return error.new(\"test.consuming\", \"expected failure\")\n\
+         \x20   }\n\
+         \x20   let _unexpected = callback() catch failure {\n\
+         \x20       if !failure.has_code(\"test.consuming\") { return 1 }\n\
+         \x20       if counter.value != 1 { return 2 }\n\
+         \x20       return 0\n\
+         \x20   }\n\
+         \x20   return 3\n\
+         }\n",
+    );
+    execute_native_status(
+        &image,
+        &package_root.0,
+        "erased-consuming-fallible-callable",
+        0,
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_consuming_callable_transfers_owned_state_into_future_results() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "struct Counter { value: i32 }\n\
+         struct Token { value: i32\n    counter: &+Counter\n}\n\
+         drop Token(&+self) { self.counter.value += 1 }\n\
+         async func finish(token: Token): i32 { token.value }\n\
+         async func main(): i32 {\n\
+         \x20   var counter = Counter { value: 0 }\n\
+         \x20   let first = Token { value: 42, counter: &+counter }\n\
+         \x20   let completed: any func(): future i32 = (move first;) {\n\
+         \x20       finish(move first)\n\
+         \x20   }\n\
+         \x20   if await completed() != 42 { return 1 }\n\
+         \x20   if counter.value != 1 { return 2 }\n\
+         \x20   let second = Token { value: 7, counter: &+counter }\n\
+         \x20   let cancelled: any func(): future i32 = (move second;) {\n\
+         \x20       finish(move second)\n\
+         \x20   }\n\
+         \x20   let pending = cancelled()\n\
+         \x20   drop pending\n\
+         \x20   if counter.value != 2 { return 3 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(
+        &image,
+        &package_root.0,
+        "erased-consuming-future-callable",
+        0,
+    );
+}
+
 #[test]
 fn scalar_floating_values_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

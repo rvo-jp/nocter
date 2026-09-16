@@ -3,7 +3,7 @@ use nocter_model::{BodyNodeId, TypeId};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
-use crate::{MirErasedCallable, MirOperationKind};
+use crate::{MirCallSignature, MirErasedCallable, MirOperationKind};
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_callable_erasure(
@@ -20,6 +20,10 @@ impl FunctionLowerer<'_> {
         if descriptor.ty() != ty {
             return Err(MirLoweringError::InvalidCallable(node));
         }
+        let Some(nocter_model::TypeKind::Callable(callable)) = self.executable.types().get(ty)
+        else {
+            return Err(MirLoweringError::InvalidCallable(node));
+        };
         let environment = self.require_value(erasure.value())?;
         let actual = self
             .body
@@ -40,6 +44,8 @@ impl FunctionLowerer<'_> {
                 descriptor.environment(),
                 descriptor.body(),
                 descriptor.capability(),
+                descriptor.source_capability(),
+                MirCallSignature::new(callable.parameters().to_vec(), callable.result()),
                 destruction,
             )),
         )

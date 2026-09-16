@@ -2021,6 +2021,76 @@ fn erased_and_runtime_calls_with_the_same_source_signature_keep_distinct_abis() 
 }
 
 #[test]
+fn consuming_erased_adapter_owns_destruction_before_mapping_release() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "struct Counter { value: i32 }\n\
+         struct Token { value: i32\n    counter: &+Counter\n}\n\
+         drop Token(&+self) { self.counter.value += 1 }\n\
+         func main(): i32 {\n\
+             var counter = Counter { value: 0 }\n\
+             let token = Token { value: 42, counter: &+counter }\n\
+             let callback: any func(): i32 = (move token;) { token.value }\n\
+             let result = callback()\n\
+             return result + counter.value\n\
+         }\n",
+    ))
+    .unwrap();
+
+    let adapters = program
+        .functions()
+        .filter_map(|(_, function)| {
+            let operations = function
+                .body()
+                .operations()
+                .map(|(_, operation)| operation.kind())
+                .collect::<Vec<_>>();
+            operations
+                .iter()
+                .any(|operation| {
+                    matches!(operation, MachineOperationKind::ReleaseMappedStorage { .. })
+                })
+                .then_some(operations)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(adapters.len(), 1);
+    let adapter = &adapters[0];
+    let calls = adapter
+        .iter()
+        .enumerate()
+        .filter_map(|(position, operation)| {
+            matches!(operation, MachineOperationKind::Call(_)).then_some(position)
+        })
+        .collect::<Vec<_>>();
+    let release = adapter
+        .iter()
+        .position(|operation| {
+            matches!(operation, MachineOperationKind::ReleaseMappedStorage { .. })
+        })
+        .expect("generated adapter must release its environment mapping");
+    assert_eq!(
+        calls.len(),
+        2,
+        "adapter must invoke the body and destruction"
+    );
+    assert!(calls[0] < calls[1] && calls[1] < release);
+
+    let ordinary_release_count = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .filter(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MachineOperationKind::ReleaseErasedCallable { .. }
+            )
+        })
+        .count();
+    assert_eq!(
+        ordinary_release_count, 0,
+        "a consuming call must transfer ownership instead of scheduling caller cleanup"
+    );
+}
+
+#[test]
 fn ambient_context_plans_separate_process_state_from_allocation_selection() {
     let mir = lower_selected_fixture(
         &CompilerFixture::with_app_standard_uses(

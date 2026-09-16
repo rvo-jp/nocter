@@ -208,6 +208,26 @@ pub enum CallTarget {
     },
 }
 
+impl CallTarget {
+    /// Returns the source operand and invocation authority for every runtime callable value.
+    ///
+    /// Analyses which only care about ownership or data flow must use this projection instead of
+    /// enumerating concrete, structural, and erased dispatch representations independently.
+    #[must_use]
+    pub const fn callable_operand(&self) -> Option<(BodyNodeId, CallableCapability)> {
+        match self {
+            Self::ClosureValue {
+                value, capability, ..
+            }
+            | Self::CallableValue {
+                value, capability, ..
+            }
+            | Self::ErasedCallableValue { value, capability } => Some((*value, *capability)),
+            Self::Static(_) => None,
+        }
+    }
+}
+
 /// How a source receiver is prepared for one selected method invocation.
 ///
 /// The receiver value and this preparation form a closed lowering contract. Lowering never has

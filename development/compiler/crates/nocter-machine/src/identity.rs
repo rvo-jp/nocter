@@ -50,6 +50,7 @@ machine_ids! {
     MachineLinkageId,
     MachineDataId,
     MachineDestructionId,
+    MachineErasedAdapterId,
     MachineTestId,
     MachineRuntimeCallAbiId,
     MachineImportId,

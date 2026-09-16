@@ -10,13 +10,14 @@ lives in [`development/history/milestones/v0.55.0.md`](history/milestones/v0.55.
 
 ## Next Work
 
-Complete the two active boundaries without coupling them: finish Phase 1's consuming-call adapter;
-build Phase 5's complete routed application and qualification. Readonly
-erasure covers owned captures plus direct, fallible, and deferred results even when the callable
-lives in a persistent asynchronous frame. Request targets retain their exact spelling and parsed
-segments, while the deterministic router validates ambiguity once and retains unmatched request
-ownership for explicit application policy. Application response conveniences compose the existing
-request/responder transitions; they add no framing, timeout, or connection-policy authority.
+Complete Phase 5's routed application and qualification without coupling application policy to
+the compiler runtime model. All three erased callable capabilities now cross native execution;
+consuming invocation transfers ownership into one compiler-generated adapter which preserves
+direct, fallible, and deferred results before destroying captures and releasing their mapping.
+Request targets retain their exact spelling and parsed segments, while the deterministic router
+validates ambiguity once and retains unmatched request ownership for explicit application policy.
+Application response conveniences compose the existing request/responder transitions; they add no
+framing, timeout, or connection-policy authority.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

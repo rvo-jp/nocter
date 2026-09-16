@@ -14,4 +14,5 @@ pub(super) struct ProgramLoweringContext<'a> {
     pub(super) data: &'a crate::data::MachineDataPlan,
     pub(super) functions: crate::function_domain::MachineFunctionDomain<'a>,
     pub(super) destructions: &'a crate::destruction_table::MachineDestructionPlanTable,
+    pub(super) erased_adapters: &'a crate::erased_adapter::MachineErasedAdapterPlan,
 }

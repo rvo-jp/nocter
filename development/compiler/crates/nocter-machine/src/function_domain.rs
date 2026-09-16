@@ -2,7 +2,10 @@ use nocter_model::ExecutableItemId;
 
 use crate::identity::MachineId;
 use crate::linkage::MachineLinkagePlan;
-use crate::{MachineDestructionId, MachineFunctionId, MachineLinkageId, MachineLinkageKey};
+use crate::{
+    MachineDestructionId, MachineErasedAdapterId, MachineFunctionId, MachineLinkageId,
+    MachineLinkageKey,
+};
 
 /// The structural one-to-one correspondence between linkage and machine-function identities.
 ///
@@ -33,6 +36,13 @@ impl<'a> MachineFunctionDomain<'a> {
         destruction: MachineDestructionId,
     ) -> Option<MachineFunctionId> {
         self.for_key(MachineLinkageKey::Destruction(destruction))
+    }
+
+    pub(crate) fn for_erased_adapter(
+        self,
+        adapter: MachineErasedAdapterId,
+    ) -> Option<MachineFunctionId> {
+        self.for_key(MachineLinkageKey::ErasedAdapter(adapter))
     }
 
     fn for_key(self, key: MachineLinkageKey) -> Option<MachineFunctionId> {

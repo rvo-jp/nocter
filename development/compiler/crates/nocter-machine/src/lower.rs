@@ -44,7 +44,16 @@ impl MachineProgram {
         let source_functions = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let destructions =
             MachineDestructionPlanTable::build(program, &layouts, &linkage, source_functions)?;
-        let linkage = linkage.with_destructions(&destructions)?;
+        let adapters = crate::erased_adapter::MachineErasedAdapterPlan::build(
+            program,
+            &layouts,
+            &abi,
+            &linkage,
+            &destructions,
+        )?;
+        let linkage = linkage
+            .with_destructions(&destructions)?
+            .with_erased_adapters(&adapters)?;
         let function_domain = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let linkage_entries = linkage.iter().collect::<Vec<_>>();
 
@@ -63,6 +72,19 @@ impl MachineProgram {
                         &layouts,
                     )
                 }
+                MachineLinkageKey::ErasedAdapter(adapter) => {
+                    let adapter = adapters
+                        .get(adapter)
+                        .ok_or(MachineProgramError::MissingErasedAdapter(adapter))?;
+                    crate::generated_erased_adapter::generate_erased_adapter(
+                        linkage_id,
+                        adapter,
+                        program.types(),
+                        &layouts,
+                        function_domain,
+                        &destructions,
+                    )
+                }
                 key => {
                     let source = function_source(program, &abi, key)?;
                     let (body, execution) = lower_body(
@@ -78,6 +100,7 @@ impl MachineProgram {
                             data: &data,
                             functions: function_domain,
                             destructions: &destructions,
+                            erased_adapters: &adapters,
                         },
                     )?;
                     MachineFunction::new(linkage_id, source.kind, execution, body).map_err(
@@ -175,6 +198,9 @@ fn function_source<'program>(
         MachineLinkageKey::Destruction(destruction) => {
             Err(MachineProgramError::MissingDestruction(destruction))
         }
+        MachineLinkageKey::ErasedAdapter(adapter) => {
+            Err(MachineProgramError::MissingErasedAdapter(adapter))
+        }
     }
 }
 
@@ -242,6 +268,7 @@ pub enum MachineProgramError {
         operation: MirOperationId,
         segment: usize,
     },
+    DuplicateErasedAdapter(MachineLinkageId, MirOperationId),
     MissingFunctionLinkage(MachineLinkageId),
     MissingItemFunction(ExecutableItemId),
     MissingItem(ExecutableItemId),
@@ -254,6 +281,8 @@ pub enum MachineProgramError {
     MissingTestRoot(TestId),
     MissingLinkageKey(MachineLinkageKey),
     MissingDestruction(crate::MachineDestructionId),
+    MissingErasedAdapter(crate::MachineErasedAdapterId),
+    InvalidErasedAdapter(MachineLinkageId, MirOperationId),
     MissingBytePointerType,
     MissingRuntimePrimitive(nocter_runtime_contract::RuntimePrimitive),
     MissingPackDestruction {
@@ -263,6 +292,7 @@ pub enum MachineProgramError {
     },
     InvalidDestructionAbi(MachineLinkageId),
     InvalidGeneratedDestruction(MachineLinkageId, crate::MachineBlockId),
+    InvalidGeneratedErasedAdapter(MachineLinkageId),
     MissingGeneratedDestruction(MachineLinkageId, MirOperationId),
     InvalidAsyncTupleResult(MirOperationId),
     MissingAsyncDestruction(MachineLinkageId),
@@ -331,6 +361,7 @@ impl std::error::Error for MachineProgramError {
             Self::Dataflow { error, .. } => Some(error),
             Self::DuplicateDestructionCall(_, _)
             | Self::DuplicatePackDestruction { .. }
+            | Self::DuplicateErasedAdapter(_, _)
             | Self::MissingFunctionLinkage(_)
             | Self::MissingItemFunction(_)
             | Self::MissingItem(_)
@@ -343,11 +374,14 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingTestRoot(_)
             | Self::MissingLinkageKey(_)
             | Self::MissingDestruction(_)
+            | Self::MissingErasedAdapter(_)
+            | Self::InvalidErasedAdapter(_, _)
             | Self::MissingBytePointerType
             | Self::MissingRuntimePrimitive(_)
             | Self::MissingPackDestruction { .. }
             | Self::InvalidDestructionAbi(_)
             | Self::InvalidGeneratedDestruction(_, _)
+            | Self::InvalidGeneratedErasedAdapter(_)
             | Self::MissingGeneratedDestruction(_, _)
             | Self::InvalidAsyncTupleResult(_)
             | Self::MissingAsyncDestruction(_)

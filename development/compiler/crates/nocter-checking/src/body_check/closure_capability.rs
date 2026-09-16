@@ -5,8 +5,8 @@ use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, PlaceId};
 use crate::body_check::error::BodyCheckInternalError;
 use crate::checked::CheckedBodyBuilder;
 use crate::{
-    AggregateConstruction, AllocationSelection, CallTarget, CheckedControl, CheckedOperation,
-    CheckedOutcome, LoopKind, PlaceRoot, PrimitiveOperation, ReceiverPreparation,
+    AggregateConstruction, AllocationSelection, CheckedControl, CheckedOperation, CheckedOutcome,
+    LoopKind, PlaceRoot, PrimitiveOperation, ReceiverPreparation,
 };
 
 /// Derives invocation authority from environment access in one closure execution root.
@@ -55,19 +55,10 @@ pub(super) fn infer(
                 )?;
             }
             CheckedOperation::Call(call) => {
-                if let CallTarget::CallableValue {
-                    value,
-                    capability: required,
-                    ..
-                }
-                | CallTarget::ClosureValue {
-                    value,
-                    capability: required,
-                    ..
-                } = call.target()
-                    && node_has_capture_root(builder, *value)?
+                if let Some((value, required)) = call.target().callable_operand()
+                    && node_has_capture_root(builder, value)?
                 {
-                    raise(&mut capability, *required);
+                    raise(&mut capability, required);
                 }
                 if let Some(receiver) = call.receiver()
                     && matches!(
@@ -209,11 +200,8 @@ fn append_operands(
             if let Some(receiver) = call.receiver() {
                 pending.push(receiver.value());
             }
-            if let CallTarget::CallableValue { value, .. }
-            | CallTarget::ClosureValue { value, .. }
-            | CallTarget::ErasedCallableValue { value, .. } = call.target()
-            {
-                pending.push(*value);
+            if let Some((value, _)) = call.target().callable_operand() {
+                pending.push(value);
             }
         }
         CheckedOperation::Aggregate(AggregateConstruction::Struct { fields, .. }) => {

@@ -369,6 +369,12 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinMemoryUnmap => {
             crate::darwin_memory_code::emit_unmap_result(code)
         }
+        Arm64SelectedInstruction::DarwinMemoryUnmapAbort => {
+            Ok(crate::darwin_memory_code::emit_unmap(
+                code,
+                crate::runtime_trap::Arm64RuntimeTrap::ErasedCallableReleaseFailure,
+            )?)
+        }
         Arm64SelectedInstruction::DarwinDescriptorClose => {
             crate::system_primitive_code::emit_descriptor_close(code)
         }
