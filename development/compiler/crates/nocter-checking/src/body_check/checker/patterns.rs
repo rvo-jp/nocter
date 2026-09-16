@@ -353,7 +353,7 @@ impl BodyChecker<'_, '_> {
                 let (ty, mode) =
                     self.pattern_binding_type(slot, payload, subject.checked.preparation())?;
                 transfers_move_only |= mode == PatternBindingMode::Move;
-                self.builder.define_local(local, ty)?;
+                self.builder.define_local(local, ty, None)?;
                 Some((local, mode))
             };
             slots.push(CheckedPatternSlot::new(parameter, binding));

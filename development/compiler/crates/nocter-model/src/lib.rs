@@ -35,7 +35,10 @@ pub use id::{
     TypeId, VariantId,
 };
 pub use numeric::{BuiltinNumericType, lossless_builtin_numeric_conversion};
-pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
+pub use origin::{
+    DuplicateOrigin, InputProvenance, InputProvenanceConstraint, InvalidInputProvenance,
+    ParameterOrigin, ProvenanceSet, provenance_is_bounded_by,
+};
 pub use package::PackageIdentity;
 pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};

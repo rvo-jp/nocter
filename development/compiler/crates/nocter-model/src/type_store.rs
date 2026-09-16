@@ -6,8 +6,8 @@ use nocter_persistent::{PersistentMap, PersistentVector};
 
 use crate::id::SemanticId;
 use crate::{
-    AssociatedTypeId, ClosureId, GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId,
-    ResultProvenance, TypeId,
+    AssociatedTypeId, ClosureId, GenericParameterId, InputProvenance, InterfaceId, NominalTypeId,
+    OpaqueTypeId, ProvenanceSet, TypeId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -263,8 +263,9 @@ pub struct CallableContract {
     guarantees: CallableGuarantees,
     parameters: Box<[TypeId]>,
     pack: Option<ArgumentPackType>,
+    input_provenance: InputProvenance,
     result: TypeId,
-    provenance: ResultProvenance,
+    provenance: ProvenanceSet,
 }
 
 /// One structural callable type, including its source-visible runtime representation choice.
@@ -330,18 +331,61 @@ impl CallableContract {
         parameters: impl Into<Box<[TypeId]>>,
         pack: Option<ArgumentPackType>,
         result: TypeId,
-        provenance: ResultProvenance,
+        provenance: ProvenanceSet,
+    ) -> Result<Self, InvalidParameterOrigin> {
+        Self::new_with_input_provenance(
+            capability,
+            guarantees,
+            parameters,
+            pack,
+            InputProvenance::empty(),
+            result,
+            provenance,
+        )
+    }
+
+    /// Creates a normalized structural callable contract with explicit input provenance bounds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidParameterOrigin`] when any input or result provenance edge refers to a
+    /// position outside the parameter list.
+    pub fn new_with_input_provenance(
+        capability: CallableCapability,
+        guarantees: CallableGuarantees,
+        parameters: impl Into<Box<[TypeId]>>,
+        pack: Option<ArgumentPackType>,
+        input_provenance: InputProvenance,
+        result: TypeId,
+        provenance: ProvenanceSet,
     ) -> Result<Self, InvalidParameterOrigin> {
         let parameters = parameters.into();
-        if let Some(origin) = provenance
-            .origins()
+        let parameter_count = parameters.len() + usize::from(pack.is_some());
+        let invalid_input_origin = input_provenance
+            .constraints()
             .iter()
-            .copied()
-            .find(|origin| origin.position() >= parameters.len() + usize::from(pack.is_some()))
-        {
+            .find_map(|constraint| {
+                (constraint.target().position() >= parameter_count)
+                    .then_some(constraint.target())
+                    .or_else(|| {
+                        constraint
+                            .sources()
+                            .origins()
+                            .iter()
+                            .copied()
+                            .find(|origin| origin.position() >= parameter_count)
+                    })
+            });
+        if let Some(origin) = invalid_input_origin.or_else(|| {
+            provenance
+                .origins()
+                .iter()
+                .copied()
+                .find(|origin| origin.position() >= parameter_count)
+        }) {
             return Err(InvalidParameterOrigin {
                 origin,
-                parameter_count: parameters.len() + usize::from(pack.is_some()),
+                parameter_count,
             });
         }
         Ok(Self {
@@ -349,6 +393,7 @@ impl CallableContract {
             guarantees,
             parameters,
             pack,
+            input_provenance,
             result,
             provenance,
         })
@@ -376,12 +421,17 @@ impl CallableContract {
     }
 
     #[must_use]
+    pub const fn input_provenance(&self) -> &InputProvenance {
+        &self.input_provenance
+    }
+
+    #[must_use]
     pub const fn result(&self) -> TypeId {
         self.result
     }
 
     #[must_use]
-    pub const fn provenance(&self) -> &ResultProvenance {
+    pub const fn provenance(&self) -> &ProvenanceSet {
         &self.provenance
     }
 
@@ -391,6 +441,7 @@ impl CallableContract {
         self.capability == expected.capability
             && self.parameters == expected.parameters
             && self.pack == expected.pack
+            && expected.input_provenance.implies(&self.input_provenance)
             && self.result == expected.result
             && self.provenance == expected.provenance
             && self.guarantees.can_weaken_to(expected.guarantees)
@@ -805,7 +856,9 @@ impl std::error::Error for InvalidParameterOrigin {}
 #[cfg(test)]
 mod tests {
     use crate::id::SemanticId;
-    use crate::{ParameterOrigin, ResultProvenance, TypeAuthority};
+    use crate::{
+        InputProvenance, InputProvenanceConstraint, ParameterOrigin, ProvenanceSet, TypeAuthority,
+    };
 
     use super::{
         ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
@@ -879,7 +932,7 @@ mod tests {
             [],
             None,
             result,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let noalloc = CallableContract::new(
@@ -888,7 +941,7 @@ mod tests {
             [],
             None,
             result,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let blocking = CallableContract::new(
@@ -897,7 +950,7 @@ mod tests {
             [],
             None,
             result,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let compile_time = CallableContract::new(
@@ -906,7 +959,7 @@ mod tests {
             [],
             None,
             result,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
 
@@ -952,7 +1005,7 @@ mod tests {
             [scalar],
             None,
             scalar,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let static_ty = types
@@ -1018,7 +1071,7 @@ mod tests {
             })
             .unwrap();
         let origin = ParameterOrigin::new(0);
-        let provenance = ResultProvenance::from_origins([origin]).unwrap();
+        let provenance = ProvenanceSet::from_origins([origin]).unwrap();
         let contract = CallableContract::new(
             CallableCapability::Readonly,
             CallableGuarantees::default(),
@@ -1043,6 +1096,38 @@ mod tests {
     }
 
     #[test]
+    fn callable_weakening_uses_input_constraint_implication() {
+        let types = TypeStore::new();
+        let value = types.builtin(BuiltinType::I32);
+        let first = ParameterOrigin::new(0);
+        let second = ParameterOrigin::new(1);
+        let requirement = |sources| {
+            InputProvenance::from_constraints([InputProvenanceConstraint::new(
+                first,
+                ProvenanceSet::from_origins(sources).unwrap(),
+            )])
+            .unwrap()
+        };
+        let contract = |inputs| {
+            CallableContract::new_with_input_provenance(
+                CallableCapability::Owned,
+                CallableGuarantees::default(),
+                [value, value],
+                None,
+                inputs,
+                value,
+                ProvenanceSet::empty(),
+            )
+            .unwrap()
+        };
+        let unconstrained = contract(InputProvenance::empty());
+        let constrained = contract(requirement([second]));
+
+        assert!(unconstrained.can_weaken_to(&constrained));
+        assert!(!constrained.can_weaken_to(&unconstrained));
+    }
+
+    #[test]
     fn callable_identity_distinguishes_a_final_pack_from_an_ordinary_parameter() {
         let base = TypeAuthority::new();
         let mut types = base.transaction();
@@ -1053,7 +1138,7 @@ mod tests {
             [value],
             None,
             value,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let packed = CallableContract::new(
@@ -1062,7 +1147,7 @@ mod tests {
             [],
             Some(ArgumentPackType::Values(value)),
             value,
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
 
@@ -1085,7 +1170,7 @@ mod tests {
         let types = TypeStore::new();
         let value = types.builtin(BuiltinType::I32);
         let origin = ParameterOrigin::new(1);
-        let provenance = ResultProvenance::from_origins([origin]).unwrap();
+        let provenance = ProvenanceSet::from_origins([origin]).unwrap();
 
         CallableContract::new(
             CallableCapability::Owned,
@@ -1115,7 +1200,7 @@ mod tests {
         let types = TypeStore::new();
         let result = types.builtin(BuiltinType::I32);
         let origin = ParameterOrigin::new(1);
-        let provenance = ResultProvenance::from_origins([origin]).unwrap();
+        let provenance = ProvenanceSet::from_origins([origin]).unwrap();
         let error = CallableContract::new(
             CallableCapability::Owned,
             CallableGuarantees::default(),

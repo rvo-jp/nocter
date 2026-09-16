@@ -432,7 +432,6 @@ impl<'a> FunctionLowerer<'a> {
             .body
             .locals()
             .get(binding)
-            .copied()
             .ok_or(MirLoweringError::UnknownLocal(binding))?;
         let kind = match checked.declaration().kind() {
             LocalBindingKind::Region => MirLocalKind::Region,

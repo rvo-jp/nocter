@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use nocter_declarations::{CallableProvenance, ProvenanceOrigin};
 use nocter_model::{
     Arena, BodyId, BodyNodeId, BodyScopeId, CallableId, CaptureId, ClosureId, FieldId,
-    LocalBindingId, ParameterId, ParameterOrigin, ResultProvenance, VariantId,
+    LocalBindingId, ParameterId, ParameterOrigin, ProvenanceSet, VariantId,
 };
 
 /// One storage authority carried by a checked value.
@@ -235,7 +235,7 @@ pub struct CallableProvenanceTable {
 /// The effective result-storage contract inferred for one generated closure body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedClosureProvenance {
-    parameters: ResultProvenance,
+    parameters: ProvenanceSet,
     captures: Box<[CaptureId]>,
     environment: bool,
     ambient: AmbientStorageDependence,
@@ -243,7 +243,7 @@ pub struct CheckedClosureProvenance {
 
 impl CheckedClosureProvenance {
     pub(crate) fn new(
-        parameters: ResultProvenance,
+        parameters: ProvenanceSet,
         captures: impl Into<Box<[CaptureId]>>,
         environment: bool,
         ambient: AmbientStorageDependence,
@@ -257,7 +257,7 @@ impl CheckedClosureProvenance {
     }
 
     #[must_use]
-    pub const fn parameters(&self) -> &ResultProvenance {
+    pub const fn parameters(&self) -> &ProvenanceSet {
         &self.parameters
     }
 

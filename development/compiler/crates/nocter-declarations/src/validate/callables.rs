@@ -64,6 +64,36 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 ProvenanceOrigin::Receiver | ProvenanceOrigin::Parameter(_) => {}
             }
         }
+        for constraint in callable.input_provenance().constraints() {
+            let target = constraint.target();
+            let target_origin = if callable.receiver() == Some(target) {
+                ProvenanceOrigin::Receiver
+            } else if callable.parameters().contains(&target) {
+                ProvenanceOrigin::Parameter(target)
+            } else {
+                return Err(ProgramIntegrityError::OwnerMismatch(
+                    DeclarationDomain::Parameter,
+                ));
+            };
+            if constraint.sources().origins().contains(&target_origin) {
+                return Err(ProgramIntegrityError::InvalidCallableShape);
+            }
+            for origin in constraint.sources().origins() {
+                match origin {
+                    ProvenanceOrigin::Receiver if callable.receiver().is_none() => {
+                        return Err(ProgramIntegrityError::InvalidCallableShape);
+                    }
+                    ProvenanceOrigin::Parameter(parameter)
+                        if !callable.parameters().contains(parameter) =>
+                    {
+                        return Err(ProgramIntegrityError::OwnerMismatch(
+                            DeclarationDomain::Parameter,
+                        ));
+                    }
+                    ProvenanceOrigin::Receiver | ProvenanceOrigin::Parameter(_) => {}
+                }
+            }
+        }
         validate_argument_pack_shape(program, callable)?;
         if let Some(body) = callable.body() {
             let body = require(

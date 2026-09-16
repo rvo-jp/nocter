@@ -2,15 +2,16 @@
 
 ## Current State
 
-Nocter v0.55.0 is published and externally audited. v0.56.0 is active and generalizes `from` into
-one value-provenance contract for lending and zero-copy APIs. The active scope and completion gates
-live in [`development/history/milestones/v0.56.0.md`](history/milestones/v0.56.0.md).
+Nocter v0.55.0 is published and externally audited. v0.56.0 Phases 0–2 are complete: `from` now
+uses one value-provenance contract across results, inputs, receivers, annotated locals, structural
+callables, calls, closures, and editor presentation. The active scope and completion gates live in
+[`development/history/milestones/v0.56.0.md`](history/milestones/v0.56.0.md).
 
 ## Next Work
 
-Complete Phase 0 by adopting the unified value-contract specification and proving that its
-declaration model can represent result, parameter, receiver, and local constraints without source
-order or source spellings. Then replace the result-only compiler path in Phase 1.
+Begin Phase 3 by defining lending iterator contracts and proving that a yielded item remains tied
+to the active receiver loan. Keep ordinary owning `Iterator` behavior intact; lending is a separate
+contract rather than a source-compatible reinterpretation.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

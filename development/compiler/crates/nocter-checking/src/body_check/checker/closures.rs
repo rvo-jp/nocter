@@ -354,7 +354,7 @@ impl BodyChecker<'_, '_> {
                 (None, Some(expected)) => expected,
                 (None, None) => return Err(self.rule(BodyRule::TypeMismatch, parameter_node)?),
             };
-            self.builder.define_local(parameter, ty)?;
+            self.builder.define_local(parameter, ty, None)?;
             parameters.push(ClosureParameter::new(parameter, ty));
         }
         Ok(CheckedClosureHead {

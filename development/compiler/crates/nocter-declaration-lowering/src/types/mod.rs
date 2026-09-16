@@ -21,8 +21,8 @@ use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{
     Arena, ArenaBuilder, ArgumentPack, AssociatedTypeId, BorrowCapability, BuiltinType,
     CallableCapability, CallableGuarantees, CallableRepresentation, ConstantExpressionId,
-    GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol,
-    TypeAliasId,
+    GenericParameterId, InputProvenance, InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin,
+    Symbol, TypeAliasId,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, direct_node};
@@ -49,6 +49,7 @@ pub struct BoundCallableType {
     guarantees: CallableGuarantees,
     parameters: Box<[BoundTypeId]>,
     pack: Option<ArgumentPack<BoundTypeId>>,
+    input_provenance: InputProvenance,
     result: BoundTypeId,
     named_parameters: Box<[bool]>,
     explicit_origins: Option<Box<[ParameterOrigin]>>,
@@ -78,6 +79,11 @@ impl BoundCallableType {
     #[must_use]
     pub const fn pack(&self) -> Option<ArgumentPack<BoundTypeId>> {
         self.pack
+    }
+
+    #[must_use]
+    pub const fn input_provenance(&self) -> &InputProvenance {
+        &self.input_provenance
     }
 
     #[must_use]

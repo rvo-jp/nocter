@@ -252,3 +252,127 @@ fn inferred_interface_implementation_result_cannot_exceed_the_interface_contract
 
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0395");
 }
+
+#[test]
+fn callable_input_contracts_are_order_independent_and_bound_calls() {
+    check(
+        "struct Owner { value: i32 }\n\
+         func inspect(value: &i32 from owner, owner: &Owner): void { return }\n\
+         func valid(owner: &Owner): void { inspect(&owner.value, owner) }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "struct Owner { value: i32 }\n\
+         func inspect(value: &i32 from owner, owner: &Owner): void { return }\n\
+         func invalid(owner: &Owner, unrelated: &i32): void {\n\
+             inspect(unrelated, owner)\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidValueProvenance));
+}
+
+#[test]
+fn input_constraints_prove_result_contracts_without_erasing_value_identity() {
+    check(
+        "struct Owner { value: i32 }\n\
+         func view(value: &i32 from owner, owner: &Owner): &i32 from owner { value }\n",
+    )
+    .unwrap();
+    check(
+        "func exchange(left: &i32 from right, right: &i32 from left): &i32 from left { right }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "struct Owner { value: i32 }\n\
+         func invalid(value: &i32 from owner, owner: &Owner): &i32 from owner {\n\
+             let unrelated = 1\n\
+             &unrelated\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidValueProvenance));
+
+    let error = check(
+        "struct Owner { value: i32 }\n\
+         func invalid(value: &i32 from owner | unrelated, owner: &Owner, unrelated: &i32): &i32 from owner {\n\
+             value\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidValueProvenance));
+}
+
+#[test]
+fn local_value_contracts_guard_initializers_and_assignments() {
+    check(
+        "struct Owner { value: i32 }\n\
+         func valid(owner: &Owner): void {\n\
+             var view: &i32 from owner = &owner.value\n\
+             view = &owner.value\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    for body in [
+        "let view: &i32 from owner = unrelated\nlet _ = view",
+        "var view: &i32 from owner = &owner.value\nview = unrelated",
+    ] {
+        let source = format!(
+            "struct Owner {{ value: i32 }}\n\
+             func invalid(owner: &Owner, unrelated: &i32): void {{\n{body}\nreturn\n}}\n"
+        );
+        let error = check(&source).unwrap_err();
+        assert_eq!(error.rule(), Some(crate::BodyRule::InvalidValueProvenance));
+    }
+}
+
+#[test]
+fn structural_callable_inputs_bind_indirect_calls_and_closure_results() {
+    check(
+        "struct Owner { value: i32 }\n\
+         func apply(callback: any &func(value: &i32 from owner, owner: &Owner): void, value: &i32 from owner, owner: &Owner): void {\n\
+             callback(value, owner)\n\
+         }\n\
+         func valid(owner: &Owner): void { apply((item, source) { return }, &owner.value, owner) }\n",
+    )
+    .unwrap();
+
+    check(
+        "struct Owner { value: i32 }\n\
+         func make(): void {\n\
+             let callback: func(value: &i32 from owner, owner: &Owner): &i32 from owner = (value, owner) { value }\n\
+             let _ = callback\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "struct Owner { value: i32 }\n\
+         func apply(callback: any &func(value: &i32 from owner, owner: &Owner): void, value: &i32, owner: &Owner): void {\n\
+             callback(value, owner)\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidValueProvenance));
+}
+
+#[test]
+fn interface_implementations_may_weaken_input_assumptions() {
+    check(
+        "struct Owner { value: i32 }\n\
+         pub interface Inspect {\n\
+             pub method &self.inspect(value: &i32 from owner, owner: &Owner): void\n\
+         }\n\
+         struct Handler { value: i32 }\n\
+         instance Handler {\n\
+             impl Inspect\n\
+             method &self.inspect(value: &i32, owner: &Owner): void { return }\n\
+         }\n",
+    )
+    .unwrap();
+}

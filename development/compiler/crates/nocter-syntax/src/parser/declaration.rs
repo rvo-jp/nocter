@@ -319,7 +319,7 @@ pub(super) fn optional_blocking(parser: &mut Parser<'_>) {
 pub(super) fn method_signature(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Method);
-    receiver(parser, true);
+    method_receiver(parser);
     parser.expect_punctuation(Punctuation::Dot);
     parser.expect_name();
     if parser.at_punctuation(Punctuation::Less) {
@@ -330,8 +330,30 @@ pub(super) fn method_signature(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::MethodSignature);
 }
 
+fn method_receiver(parser: &mut Parser<'_>) {
+    if !parser.at_punctuation(Punctuation::LeftParen) {
+        receiver(parser, true);
+        return;
+    }
+    let marker = parser.start();
+    parser.bump();
+    simple_receiver(parser, true);
+    if parser.at_contextual(ContextualSpelling::From) {
+        types::provenance_clause(parser);
+    } else {
+        parser.error_token(ExpectedSyntax::Name);
+    }
+    parser.expect_punctuation(Punctuation::RightParen);
+    parser.complete(marker, NodeKind::Receiver);
+}
+
 pub(super) fn receiver(parser: &mut Parser<'_>, allow_owned: bool) {
     let marker = parser.start();
+    simple_receiver(parser, allow_owned);
+    parser.complete(marker, NodeKind::Receiver);
+}
+
+fn simple_receiver(parser: &mut Parser<'_>, allow_owned: bool) {
     if parser.at_punctuation(Punctuation::Ampersand)
         || parser.at_punctuation(Punctuation::ReadWrite)
     {
@@ -342,7 +364,6 @@ pub(super) fn receiver(parser: &mut Parser<'_>, allow_owned: bool) {
     } else {
         parser.error_token(ExpectedSyntax::Receiver);
     }
-    parser.complete(marker, NodeKind::Receiver);
 }
 
 fn drop_declaration(parser: &mut Parser<'_>) {

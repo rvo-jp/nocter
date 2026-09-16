@@ -118,6 +118,92 @@ impl fmt::Display for DuplicateCallableOrigin {
 
 impl std::error::Error for DuplicateCallableOrigin {}
 
+/// One callable input whose value provenance is bounded by other callable inputs.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct CallableInputConstraint {
+    target: ParameterId,
+    sources: CallableProvenance,
+}
+
+impl CallableInputConstraint {
+    #[must_use]
+    pub const fn new(target: ParameterId, sources: CallableProvenance) -> Self {
+        Self { target, sources }
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> ParameterId {
+        self.target
+    }
+
+    #[must_use]
+    pub const fn sources(&self) -> &CallableProvenance {
+        &self.sources
+    }
+}
+
+/// Canonical input-provenance constraints for one callable declaration.
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct CallableInputProvenance(Box<[CallableInputConstraint]>);
+
+impl CallableInputProvenance {
+    #[must_use]
+    pub fn empty() -> Self {
+        Self(Box::new([]))
+    }
+
+    /// Creates a target-sorted constraint set.
+    ///
+    /// # Errors
+    ///
+    /// Each receiver or parameter may own at most one input constraint.
+    pub fn from_constraints(
+        constraints: impl IntoIterator<Item = CallableInputConstraint>,
+    ) -> Result<Self, DuplicateInputConstraint> {
+        let mut constraints: Vec<_> = constraints.into_iter().collect();
+        constraints.sort_unstable_by_key(CallableInputConstraint::target);
+        if let Some(target) = constraints
+            .windows(2)
+            .find(|pair| pair[0].target() == pair[1].target())
+            .map(|pair| pair[0].target())
+        {
+            return Err(DuplicateInputConstraint(target));
+        }
+        Ok(Self(constraints.into_boxed_slice()))
+    }
+
+    #[must_use]
+    pub const fn constraints(&self) -> &[CallableInputConstraint] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn sources(&self, target: ParameterId) -> Option<&CallableProvenance> {
+        self.0
+            .binary_search_by_key(&target, CallableInputConstraint::target)
+            .ok()
+            .map(|index| self.0[index].sources())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DuplicateInputConstraint(ParameterId);
+
+impl DuplicateInputConstraint {
+    #[must_use]
+    pub const fn target(self) -> ParameterId {
+        self.0
+    }
+}
+
+impl fmt::Display for DuplicateInputConstraint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("callable input has more than one provenance constraint")
+    }
+}
+
+impl std::error::Error for DuplicateInputConstraint {}
+
 /// The source-level provenance contract retained before body checking.
 ///
 /// A declared contract is already an exact caller-visible upper bound. An inferred contract must
@@ -174,6 +260,7 @@ pub struct CallableDeclaration {
     result: TypeId,
     execution: CallableExecution,
     guarantees: nocter_model::CallableGuarantees,
+    input_provenance: CallableInputProvenance,
     provenance: CallableProvenanceContract,
     provenance_annotation: ProvenanceAnnotation,
     requirements: Box<[RequirementId]>,
@@ -195,6 +282,7 @@ impl CallableDeclaration {
         result: TypeId,
         execution: CallableExecution,
         guarantees: nocter_model::CallableGuarantees,
+        input_provenance: CallableInputProvenance,
         provenance: CallableProvenanceContract,
         provenance_annotation: ProvenanceAnnotation,
         requirements: impl Into<Box<[RequirementId]>>,
@@ -212,6 +300,7 @@ impl CallableDeclaration {
             result,
             execution,
             guarantees,
+            input_provenance,
             provenance,
             provenance_annotation,
             requirements: requirements.into(),
@@ -281,6 +370,11 @@ impl CallableDeclaration {
     #[must_use]
     pub const fn guarantees(&self) -> nocter_model::CallableGuarantees {
         self.guarantees
+    }
+
+    #[must_use]
+    pub const fn input_provenance(&self) -> &CallableInputProvenance {
+        &self.input_provenance
     }
 
     #[must_use]

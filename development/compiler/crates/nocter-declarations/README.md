@@ -18,7 +18,8 @@ coordinates, or checking internals.
 - one sparse structural-constant table and one independently validated dense declaration-value
   table, both separate from constant and static metadata
 - module, import, and prelude namespaces
-- callable execution, guarantees, provenance, constant, and requirement contracts
+- callable execution, guarantees, canonical input/result provenance graphs, constant, and
+  requirement contracts
 - explicit block or expression body forms, with constant and static initializers represented by
   ordinary semantic body identities rather than embedded syntax
 - canonical interface dependency paths, `Self`-inheritance closure, and effective member identities
@@ -37,6 +38,8 @@ coordinates, or checking internals.
 - A declaration identity never contains a source range or rendered name.
 - Authored callable execution and guarantees are declaration data; consumers do not rediscover
   modifiers from syntax or result shapes.
+- Callable input provenance stores resolved receiver and parameter identities. Source spellings,
+  header walk order, and body inference cannot enter that graph.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.
 - `DeclarationProgram` contains graph/type metadata only. Declaration records never embed
   evaluated constant or static payloads. Accepted and recovery declaration branches carry only

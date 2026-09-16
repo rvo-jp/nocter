@@ -93,7 +93,8 @@ impl BodyChecker<'_, '_> {
         let [binding] = bindings.as_slice() else {
             return Err(self.rule(BodyRule::TypeMismatch, statement)?);
         };
-        self.builder.define_local(*binding, iteration.item())?;
+        self.builder
+            .define_local(*binding, iteration.item(), None)?;
         Ok(LoopKind::ForAwait {
             binding: *binding,
             iteration,
@@ -120,7 +121,7 @@ impl BodyChecker<'_, '_> {
             let bindings = self.loop_bindings(statement)?;
             return match (shape, bindings.as_slice()) {
                 (ArgumentPack::Values(item), [binding]) => {
-                    self.builder.define_local(*binding, item)?;
+                    self.builder.define_local(*binding, item, None)?;
                     Ok(LoopKind::ArgumentPack {
                         binding: *binding,
                         parameter,
@@ -128,8 +129,8 @@ impl BodyChecker<'_, '_> {
                     })
                 }
                 (ArgumentPack::Keyed { key, value }, [key_binding, value_binding]) => {
-                    self.builder.define_local(*key_binding, key)?;
-                    self.builder.define_local(*value_binding, value)?;
+                    self.builder.define_local(*key_binding, key, None)?;
+                    self.builder.define_local(*value_binding, value, None)?;
                     Ok(LoopKind::KeyedArgumentPack {
                         key_binding: *key_binding,
                         value_binding: *value_binding,
@@ -146,7 +147,8 @@ impl BodyChecker<'_, '_> {
         let [binding] = bindings.as_slice() else {
             return Err(self.rule(BodyRule::TypeMismatch, statement)?);
         };
-        self.builder.define_local(*binding, iteration.item())?;
+        self.builder
+            .define_local(*binding, iteration.item(), None)?;
         Ok(LoopKind::For {
             binding: *binding,
             iteration,
@@ -170,7 +172,7 @@ impl BodyChecker<'_, '_> {
         let [binding] = bindings.as_slice() else {
             return Err(self.rule(BodyRule::TypeMismatch, statement)?);
         };
-        self.builder.define_local(*binding, ty)?;
+        self.builder.define_local(*binding, ty, None)?;
         Ok(LoopKind::Range {
             binding: *binding,
             start,

@@ -179,11 +179,12 @@ fn project_kind(
             let result = project_type(source, target, projected, contract.result())?;
             TypeKind::Callable(crate::CallableType::new(
                 callable.representation(),
-                CallableContract::new(
+                CallableContract::new_with_input_provenance(
                     contract.capability(),
                     contract.guarantees(),
                     parameters,
                     pack,
+                    contract.input_provenance().clone(),
                     result,
                     contract.provenance().clone(),
                 )?,

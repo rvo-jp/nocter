@@ -1,7 +1,8 @@
 use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity};
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, CallableCapability, CallableContract, GenericParameterId,
-    NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TupleElements, TypeId, TypeKind,
+    InputProvenance, InputProvenanceConstraint, NominalTypeId, ParameterOrigin, ProvenanceSet,
+    Symbol, TupleElements, TypeId, TypeKind,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
@@ -403,30 +404,31 @@ impl BodyChecker<'_, '_> {
             parameters.push(self.resolve_type_use(ty)?);
             names.push(direct_identifier(self.tree(), parameter));
         }
+        let input_provenance = parameter_nodes
+            .iter()
+            .copied()
+            .enumerate()
+            .filter_map(|(position, parameter)| {
+                direct_node(self.tree(), parameter, NodeKind::ProvenanceClause)
+                    .map(|clause| (ParameterOrigin::new(position), clause))
+            })
+            .map(|(target, clause)| {
+                self.resolve_callable_provenance_clause(clause, &names)
+                    .map(|sources| InputProvenanceConstraint::new(target, sources))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let Ok(input_provenance) = InputProvenance::from_constraints(input_provenance) else {
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+        };
         let result = direct_node(self.tree(), node, NodeKind::Type)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let result = self.resolve_type_use(result)?;
-        let provenance = if let Some(clause) =
-            direct_node(self.tree(), node, NodeKind::ProvenanceClause)
-        {
-            let mut origins = Vec::new();
-            let tokens = descendant_identifiers(self.tree(), clause);
-            for token in tokens.into_iter().skip(1) {
-                let name = self.token_text(token)?;
-                let Some(position) = names.iter().position(|candidate| {
-                    candidate.is_some_and(|candidate| self.token_text(candidate).ok() == Some(name))
-                }) else {
-                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, clause)?);
-                };
-                origins.push(ParameterOrigin::new(position));
-            }
-            match ResultProvenance::from_origins(origins) {
-                Ok(provenance) => provenance,
-                Err(_) => return Err(self.rule(BodyRule::InvalidBodyTypeUse, clause)?),
-            }
-        } else {
-            self.infer_callable_type_provenance(node, &parameters, &names, result)?
-        };
+        let provenance =
+            if let Some(clause) = direct_node(self.tree(), node, NodeKind::ProvenanceClause) {
+                self.resolve_callable_provenance_clause(clause, &names)?
+            } else {
+                self.infer_callable_type_provenance(node, &parameters, &names, result)?
+            };
         let capability = if self.tree().children(node).iter().any(|element| {
             matches!(element, SyntaxElement::Token(token) if token.kind() == TokenKind::Punctuation(Punctuation::ReadWrite))
         }) {
@@ -446,11 +448,12 @@ impl BodyChecker<'_, '_> {
         let guarantees =
             nocter_declaration_lowering::project_callable_guarantees(self.tree(), node)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let contract = CallableContract::new(
+        let contract = CallableContract::new_with_input_provenance(
             capability,
             guarantees,
             parameters,
             pack.map(nocter_model::ArgumentPack::Values),
+            input_provenance,
             result,
             provenance,
         )
@@ -466,15 +469,37 @@ impl BodyChecker<'_, '_> {
             .map_err(|_| BodyCheckInternalError::UnknownType(result).into())
     }
 
+    fn resolve_callable_provenance_clause(
+        &self,
+        clause: NodeId,
+        names: &[Option<SyntaxToken>],
+    ) -> Result<ProvenanceSet, BodyCheckError> {
+        let mut origins = Vec::new();
+        let tokens = descendant_identifiers(self.tree(), clause);
+        for token in tokens.into_iter().skip(1) {
+            let name = self.token_text(token)?;
+            let Some(position) = names.iter().position(|candidate| {
+                candidate.is_some_and(|candidate| self.token_text(candidate).ok() == Some(name))
+            }) else {
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, clause)?);
+            };
+            origins.push(ParameterOrigin::new(position));
+        }
+        match ProvenanceSet::from_origins(origins) {
+            Ok(provenance) => Ok(provenance),
+            Err(_) => Err(self.rule(BodyRule::InvalidBodyTypeUse, clause)?),
+        }
+    }
+
     fn infer_callable_type_provenance(
         &self,
         node: NodeId,
         parameters: &[TypeId],
         names: &[Option<SyntaxToken>],
         result: TypeId,
-    ) -> Result<ResultProvenance, BodyCheckError> {
+    ) -> Result<ProvenanceSet, BodyCheckError> {
         if !self.types.may_carry_storage(result) {
-            return Ok(ResultProvenance::empty());
+            return Ok(ProvenanceSet::empty());
         }
         let eligible = parameters
             .iter()
@@ -489,8 +514,8 @@ impl BodyChecker<'_, '_> {
             .enumerate()
             .any(|(position, ty)| names[position].is_none() && self.types.may_carry_storage(*ty));
         match (eligible.as_slice(), unnamed) {
-            ([], false) => Ok(ResultProvenance::empty()),
-            ([origin], false) => match ResultProvenance::from_origins([*origin]) {
+            ([], false) => Ok(ProvenanceSet::empty()),
+            ([origin], false) => match ProvenanceSet::from_origins([*origin]) {
                 Ok(provenance) => Ok(provenance),
                 Err(_) => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
             },

@@ -20,10 +20,11 @@ pub enum TypeBindingRule {
     DuplicateCopyRequirement,
     DuplicateInterfaceRequirement,
     DuplicateBinderRefinement,
+    TautologicalProvenance,
 }
 
 impl TypeBindingRule {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::UnknownTypeContextName,
         Self::InvalidTypeEntity,
         Self::InvalidTypeArguments,
@@ -40,6 +41,7 @@ impl TypeBindingRule {
         Self::DuplicateCopyRequirement,
         Self::DuplicateInterfaceRequirement,
         Self::DuplicateBinderRefinement,
+        Self::TautologicalProvenance,
     ];
 
     #[must_use]
@@ -61,6 +63,7 @@ impl TypeBindingRule {
             Self::DuplicateCopyRequirement => DiagnosticCode::E0304,
             Self::DuplicateInterfaceRequirement => DiagnosticCode::E0305,
             Self::DuplicateBinderRefinement => DiagnosticCode::E0306,
+            Self::TautologicalProvenance => DiagnosticCode::E0308,
         }
     }
 
@@ -72,8 +75,8 @@ impl TypeBindingRule {
             Self::InvalidTypeArguments => "type application has invalid generic arguments",
             Self::InvalidSelfType => "Self is used outside a type-owning context",
             Self::DuplicateCallableParameter => "callable type repeats a parameter name",
-            Self::UnknownProvenanceOrigin => "result provenance names no callable parameter",
-            Self::DuplicateProvenanceOrigin => "result provenance repeats an origin",
+            Self::UnknownProvenanceOrigin => "value provenance names no callable parameter",
+            Self::DuplicateProvenanceOrigin => "value provenance repeats an origin",
             Self::UnknownOpaqueBinding => "opaque result names no associated type",
             Self::DuplicateOpaqueBinding => "opaque result repeats an associated binding",
             Self::OpaqueArgumentOrder => {
@@ -89,6 +92,7 @@ impl TypeBindingRule {
                 "generic requirement repeats an interface predicate"
             }
             Self::DuplicateBinderRefinement => "declaration pattern repeats a binder refinement",
+            Self::TautologicalProvenance => "value provenance names the qualified value itself",
         }
     }
 
@@ -124,6 +128,7 @@ impl TypeBindingRule {
             Self::DuplicateBinderRefinement => {
                 "keep exactly one concrete replacement for this pattern binder"
             }
+            Self::TautologicalProvenance => "remove the self-referential provenance origin",
         }
     }
 
@@ -149,7 +154,8 @@ impl TypeBindingRule {
             | Self::UnknownOpaqueBinding
             | Self::OpaqueArgumentOrder
             | Self::InvalidRequirement
-            | Self::RecursiveBinderRefinement => None,
+            | Self::RecursiveBinderRefinement
+            | Self::TautologicalProvenance => None,
         }
     }
 }

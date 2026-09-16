@@ -51,6 +51,14 @@ pub(super) fn declaration_type_pattern(parser: &mut Parser<'_>) {
 }
 
 pub(super) fn parameters(parser: &mut Parser<'_>) {
+    parameters_with_contracts(parser, true);
+}
+
+pub(super) fn plain_parameters(parser: &mut Parser<'_>) {
+    parameters_with_contracts(parser, false);
+}
+
+fn parameters_with_contracts(parser: &mut Parser<'_>, contracts: bool) {
     let marker = parser.start();
     parser.expect_punctuation(Punctuation::LeftParen);
     if !parser.enter_nesting() {
@@ -63,7 +71,11 @@ pub(super) fn parameters(parser: &mut Parser<'_>) {
         Punctuation::RightParen,
         true,
         ExpectedSyntax::Parameter,
-        parameter,
+        if contracts {
+            parameter
+        } else {
+            plain_parameter
+        },
     );
     parser.expect_punctuation(Punctuation::RightParen);
     parser.leave_nesting();
@@ -138,12 +150,23 @@ fn associated_type_binding(parser: &mut Parser<'_>) {
 }
 
 pub(super) fn parameter(parser: &mut Parser<'_>) {
+    parameter_with_contract(parser, true);
+}
+
+fn plain_parameter(parser: &mut Parser<'_>) {
+    parameter_with_contract(parser, false);
+}
+
+fn parameter_with_contract(parser: &mut Parser<'_>, contract: bool) {
     let marker = parser.start();
     let pack = argument_pack_modifier(parser);
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
     keyed_pack_value_type(parser, pack);
+    if contract && parser.at_contextual(ContextualSpelling::From) {
+        provenance_clause(parser);
+    }
     parser.complete(marker, NodeKind::Parameter);
 }
 
@@ -292,6 +315,9 @@ fn callable_parameter(parser: &mut Parser<'_>) {
     }
     type_(parser);
     keyed_pack_value_type(parser, pack);
+    if parser.at_contextual(ContextualSpelling::From) {
+        provenance_clause(parser);
+    }
     parser.complete(marker, NodeKind::CallableParameter);
 }
 

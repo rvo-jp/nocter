@@ -10,8 +10,9 @@ pub enum DefinitionRule {
     CompileTimeTypeMismatch,
     CompileTimeCycle,
     CompileTimeArithmeticFailure,
-    UnknownResultProvenanceOrigin,
-    DuplicateResultProvenanceOrigin,
+    UnknownValueProvenanceOrigin,
+    DuplicateValueProvenanceOrigin,
+    TautologicalValueProvenance,
     AmbiguousBodylessResultProvenance,
     UnknownAssociatedTypeBinding,
     DuplicateAssociatedTypeBinding,
@@ -19,14 +20,15 @@ pub enum DefinitionRule {
 }
 
 impl DefinitionRule {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::InvalidCompileTimeValueType,
         Self::NonConstantExpression,
         Self::CompileTimeTypeMismatch,
         Self::CompileTimeCycle,
         Self::CompileTimeArithmeticFailure,
-        Self::UnknownResultProvenanceOrigin,
-        Self::DuplicateResultProvenanceOrigin,
+        Self::UnknownValueProvenanceOrigin,
+        Self::DuplicateValueProvenanceOrigin,
+        Self::TautologicalValueProvenance,
         Self::AmbiguousBodylessResultProvenance,
         Self::UnknownAssociatedTypeBinding,
         Self::DuplicateAssociatedTypeBinding,
@@ -41,8 +43,9 @@ impl DefinitionRule {
             Self::CompileTimeTypeMismatch => ConstantExpressionRule::TypeMismatch.code(),
             Self::CompileTimeCycle => ConstantExpressionRule::DependencyCycle.code(),
             Self::CompileTimeArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.code(),
-            Self::UnknownResultProvenanceOrigin => DiagnosticCode::E0315,
-            Self::DuplicateResultProvenanceOrigin => DiagnosticCode::E0316,
+            Self::UnknownValueProvenanceOrigin => DiagnosticCode::E0315,
+            Self::DuplicateValueProvenanceOrigin => DiagnosticCode::E0316,
+            Self::TautologicalValueProvenance => DiagnosticCode::E0307,
             Self::AmbiguousBodylessResultProvenance => DiagnosticCode::E0317,
             Self::UnknownAssociatedTypeBinding => DiagnosticCode::E0318,
             Self::DuplicateAssociatedTypeBinding => DiagnosticCode::E0319,
@@ -62,10 +65,13 @@ impl DefinitionRule {
             Self::CompileTimeArithmeticFailure => {
                 ConstantExpressionRule::ArithmeticFailure.message()
             }
-            Self::UnknownResultProvenanceOrigin => {
-                "result provenance names no receiver or parameter of this callable"
+            Self::UnknownValueProvenanceOrigin => {
+                "value provenance names no receiver or parameter of this callable"
             }
-            Self::DuplicateResultProvenanceOrigin => "result provenance repeats an origin",
+            Self::DuplicateValueProvenanceOrigin => "value provenance repeats an origin",
+            Self::TautologicalValueProvenance => {
+                "value provenance names the qualified value itself"
+            }
             Self::AmbiguousBodylessResultProvenance => {
                 "bodyless callable result provenance cannot be inferred uniquely"
             }
@@ -91,10 +97,11 @@ impl DefinitionRule {
             Self::CompileTimeTypeMismatch => ConstantExpressionRule::TypeMismatch.help(),
             Self::CompileTimeCycle => ConstantExpressionRule::DependencyCycle.help(),
             Self::CompileTimeArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.help(),
-            Self::UnknownResultProvenanceOrigin => {
+            Self::UnknownValueProvenanceOrigin => {
                 "name self, a parameter of this callable, or static"
             }
-            Self::DuplicateResultProvenanceOrigin => "remove the repeated provenance origin",
+            Self::DuplicateValueProvenanceOrigin => "remove the repeated provenance origin",
+            Self::TautologicalValueProvenance => "remove the self-referential provenance origin",
             Self::AmbiguousBodylessResultProvenance => {
                 "add a from clause naming the inputs whose storage the result may retain"
             }
@@ -111,11 +118,12 @@ impl DefinitionRule {
     #[must_use]
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
-            Self::DuplicateResultProvenanceOrigin => Some("the first origin is named here"),
+            Self::DuplicateValueProvenanceOrigin => Some("the first origin is named here"),
             Self::DuplicateAssociatedTypeBinding => {
                 Some("the first associated type binding is declared here")
             }
-            Self::UnknownResultProvenanceOrigin
+            Self::UnknownValueProvenanceOrigin
+            | Self::TautologicalValueProvenance
             | Self::InvalidCompileTimeValueType
             | Self::NonConstantExpression
             | Self::CompileTimeTypeMismatch

@@ -734,6 +734,67 @@ fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
 }
 
 #[test]
+fn callable_hover_renders_resolved_input_provenance_contracts() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "struct Owner { value: i32 }\n",
+        "func inspect(value: &i32 from owner, owner: &Owner): void { return }\n",
+        "instance Owner {\n",
+        "    pub method (&self from owner).inspect_owner(owner: &Owner): void { return }\n",
+        "}\n",
+        "func main(owner: &Owner): void {\n",
+        "    let view: &i32 from owner = &owner.value\n",
+        "    inspect(view, owner)\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(61));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "provenance fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+
+    let call = source_text.rfind("inspect(").unwrap();
+    let function = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(call).unwrap()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        function.presentation().code(),
+        "func inspect(value: &i32 from owner, owner: &Owner): void"
+    );
+
+    let method_offset = source_text.find("inspect_owner").unwrap();
+    let method = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(method_offset).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        method.presentation().code(),
+        "pub method (&Owner from owner).inspect_owner(owner: &Owner): void"
+    );
+
+    let local_offset = source_text.find("view:").unwrap();
+    let local = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(local_offset).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(local.presentation().code(), "let view: &i32 from owner");
+}
+
+#[test]
 fn const_callable_hover_renders_the_authored_compile_time_capability() {
     let tree = TempTree::new();
     let source_text = concat!(

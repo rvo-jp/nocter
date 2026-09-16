@@ -5,27 +5,42 @@ use nocter_source::SourceId;
 
 use crate::{BodyScope, Capture, LocalBinding};
 
-use super::{CheckedLoop, CheckedNode, CheckedPlace, CleanupTable};
+use super::{CheckedLoop, CheckedNode, CheckedPlace, CleanupTable, PlaceRoot};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedLocal {
     declaration: LocalBinding,
     ty: TypeId,
+    provenance_sources: Option<Box<[PlaceRoot]>>,
 }
 
 impl CheckedLocal {
-    pub(super) const fn new(declaration: LocalBinding, ty: TypeId) -> Self {
-        Self { declaration, ty }
+    pub(super) fn new(
+        declaration: LocalBinding,
+        ty: TypeId,
+        provenance_sources: Option<Box<[PlaceRoot]>>,
+    ) -> Self {
+        Self {
+            declaration,
+            ty,
+            provenance_sources,
+        }
     }
 
     #[must_use]
-    pub const fn declaration(self) -> LocalBinding {
+    pub const fn declaration(&self) -> LocalBinding {
         self.declaration
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(&self) -> TypeId {
         self.ty
+    }
+
+    /// Resolved value roots that bound the storage carried by this local.
+    #[must_use]
+    pub fn provenance_sources(&self) -> Option<&[PlaceRoot]> {
+        self.provenance_sources.as_deref()
     }
 }
 
@@ -72,6 +87,7 @@ pub struct CheckedBody {
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedBodyRecipe {
     local_types: Arena<LocalBindingId, TypeId>,
+    local_provenance_sources: Arena<LocalBindingId, Option<Box<[PlaceRoot]>>>,
     capture_types: Arena<CaptureId, TypeId>,
     places: Arena<PlaceId, CheckedPlace>,
     loops: Arena<LoopId, CheckedLoop>,
@@ -104,6 +120,11 @@ impl CheckedBody {
             Ok::<_, super::CheckedSemanticRebindError>(CheckedLocal::new(
                 *declaration,
                 semantics.ty(ty)?,
+                recipe
+                    .local_provenance_sources
+                    .get(local)
+                    .cloned()
+                    .ok_or(super::CheckedSemanticRebindError::MissingLocal(local))?,
             ))
         })?;
         if recipe.local_types.len() != locals.len() {
@@ -219,9 +240,13 @@ impl CheckedBodyRecipe {
         root: BodyNodeId,
     ) -> Self {
         let local_types = domains.locals.map(|_, local| local.ty());
+        let local_provenance_sources = domains
+            .locals
+            .map(|_, local| local.provenance_sources().map(Into::into));
         let capture_types = domains.captures.map(|_, capture| capture.ty());
         Self {
             local_types,
+            local_provenance_sources,
             capture_types,
             places: domains.places,
             loops: domains.loops,

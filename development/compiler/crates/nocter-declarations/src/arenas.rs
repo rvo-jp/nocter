@@ -459,6 +459,7 @@ mod tests {
                 result,
                 crate::CallableExecution::Immediate,
                 nocter_model::CallableGuarantees::default(),
+                crate::CallableInputProvenance::empty(),
                 CallableProvenanceContract::declared(CallableProvenance::empty()),
                 crate::ProvenanceAnnotation::Elided,
                 [],

@@ -176,6 +176,10 @@ Source-backed declaration-header type diagnostics:
   arguments. The later interface name is primary and the first name is related.
 - `E0306`: a declaration pattern repeats a binder refinement for the same generic parameter. The
   later refinement is primary and the first refinement is related.
+- `E0307`: a value provenance clause names its own qualified receiver or parameter as an origin and
+  therefore adds no constraint.
+- `E0308`: a structural callable parameter provenance clause names that same parameter as an origin
+  and therefore adds no constraint.
 
 These diagnostics identify the exact name token, argument container, requirement, or duplicate pair
 that violates the rule.
@@ -315,10 +319,10 @@ Source-backed checked-body diagnostics:
 - `E0392`: an outcome operation is incompatible with its operand or enclosing callable result.
 - `E0393`: an enum pattern is incompatible with its subject or payload bindings.
 - `E0394`: match arms do not form one complete, unambiguous enum partition.
-- `E0395`: a returned storage-bearing value retains an origin outside the callable's effective
-  result-provenance contract. Local, owned-parameter, temporary, expired-region, and unknown
-  storage cannot escape; an interface implementation method also cannot exceed its interface method's
-  external-origin bound.
+- `E0395`: a storage-bearing result, argument, receiver, or annotated local retains an origin
+  outside its effective value-provenance bound. Callable assumptions are proved through the
+  complete input-constraint graph, and an interface implementation cannot require or return a
+  relation wider than its interface contract permits.
 - `E0396`: a new readonly or readwrite borrow overlaps an incompatible source-level live loan.
 - `E0397`: moving, dropping, assigning, or mutating a place conflicts with a source-level live
   loan, including a loan observed by a pending type-owned drop body.

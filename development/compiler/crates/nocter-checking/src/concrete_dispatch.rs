@@ -699,11 +699,12 @@ impl<'program> ConcreteDispatchResolver<'program> {
                     .map(|pack| pack.try_map(|component| self.specialize_type(component, &empty)))
                     .transpose()?;
                 let result = self.specialize_type(contract.result(), &empty)?;
-                let contract = CallableContract::new(
+                let contract = CallableContract::new_with_input_provenance(
                     contract.capability(),
                     contract.guarantees(),
                     parameters,
                     pack,
+                    contract.input_provenance().clone(),
                     result,
                     contract.provenance().clone(),
                 )

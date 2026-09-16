@@ -7,7 +7,7 @@ use nocter_declarations::{
 use nocter_frontend_bindings::AssociatedProjectionUse;
 use nocter_model::{
     AssociatedTypeId, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
-    ParameterOrigin, ResultProvenance, Symbol, TupleElements, TypeAliasId, TypeId, TypeKind,
+    ParameterOrigin, ProvenanceSet, Symbol, TupleElements, TypeAliasId, TypeId, TypeKind,
     TypeStore,
 };
 use nocter_syntax::NodeId;
@@ -490,7 +490,7 @@ impl Evaluator<'_> {
                     .transpose()?;
                 let result = self.result(&key, callable.result())?;
                 let provenance = match callable.explicit_origins() {
-                    Some(origins) => ResultProvenance::from_origins(origins.iter().copied())
+                    Some(origins) => ProvenanceSet::from_origins(origins.iter().copied())
                         .map_err(|_| TypeNormalizationError::InvalidBoundType(key.ty))?,
                     None => self.infer_callable_provenance(
                         key.ty,
@@ -502,11 +502,12 @@ impl Evaluator<'_> {
                 };
                 TypeKind::Callable(nocter_model::CallableType::new(
                     callable.representation(),
-                    CallableContract::new(
+                    CallableContract::new_with_input_provenance(
                         callable.capability(),
                         callable.guarantees(),
                         parameters,
                         pack,
+                        callable.input_provenance().clone(),
                         result,
                         provenance,
                     )
@@ -565,9 +566,9 @@ impl Evaluator<'_> {
         pack: Option<nocter_model::ArgumentPackType>,
         named: &[bool],
         result: TypeId,
-    ) -> Result<ResultProvenance, TypeNormalizationError> {
+    ) -> Result<ProvenanceSet, TypeNormalizationError> {
         if !self.store.may_carry_storage(result) {
-            return Ok(ResultProvenance::empty());
+            return Ok(ProvenanceSet::empty());
         }
         let mut storage_parameters = parameters
             .iter()
@@ -597,8 +598,8 @@ impl Evaluator<'_> {
             .enumerate()
             .any(|(position, carries)| carries && !named.get(position).copied().unwrap_or(false));
         match eligible.as_slice() {
-            [] if !unnamed_eligible => Ok(ResultProvenance::empty()),
-            [origin] if !unnamed_eligible => ResultProvenance::from_origins([*origin])
+            [] if !unnamed_eligible => Ok(ProvenanceSet::empty()),
+            [origin] if !unnamed_eligible => ProvenanceSet::from_origins([*origin])
                 .map_err(|_| TypeNormalizationError::InvalidBoundType(bound)),
             _ => Err(
                 self.authored_violation(TypeNormalizationRule::AmbiguousCallableProvenance, bound)?

@@ -59,6 +59,9 @@ fn binding(parser: &mut Parser<'_>) -> CompletedMarker {
         let annotation = parser.start();
         parser.bump();
         types::type_(parser);
+        if parser.at_contextual(crate::ContextualSpelling::From) {
+            types::provenance_clause(parser);
+        }
         parser.complete(annotation, NodeKind::TypeAnnotation);
     }
     parser.expect_punctuation(Punctuation::Equal);

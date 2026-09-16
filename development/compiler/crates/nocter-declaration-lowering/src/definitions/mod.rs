@@ -118,7 +118,7 @@ impl fmt::Display for HeaderDefinitionError {
             ),
             Self::InvalidProvenance(declaration) => write!(
                 formatter,
-                "callable {declaration:?} has an invalid result provenance contract"
+                "callable {declaration:?} has an invalid value-provenance contract"
             ),
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent declaration origin")

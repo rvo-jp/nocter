@@ -443,7 +443,7 @@ fn substitute_callable(
     substitution: &TypeSubstitution,
     contract: &CallableContract,
 ) -> Result<CallableContract, SubstitutionError> {
-    CallableContract::new(
+    CallableContract::new_with_input_provenance(
         contract.capability(),
         contract.guarantees(),
         contract
@@ -455,6 +455,7 @@ fn substitute_callable(
             .pack()
             .map(|pack| pack.try_map(|ty| substitution.apply_type(types, ty)))
             .transpose()?,
+        contract.input_provenance().clone(),
         substitution.apply_type(types, contract.result())?,
         contract.provenance().clone(),
     )

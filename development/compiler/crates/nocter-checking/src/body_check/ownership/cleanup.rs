@@ -365,7 +365,7 @@ impl<'program> CleanupPlanner<'program> {
                 .body
                 .locals()
                 .get(local)
-                .map(|local| local.ty())
+                .map(crate::CheckedLocal::ty)
                 .ok_or(BodyCheckInternalError::CleanupPlanning),
             PlaceRoot::Capture(capture) => self
                 .body

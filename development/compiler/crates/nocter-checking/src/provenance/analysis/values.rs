@@ -1,5 +1,5 @@
-use nocter_declarations::ProvenanceOrigin;
-use nocter_model::{BodyNodeId, CallableId, TypeId};
+use nocter_declarations::{BodyOwner, CallableProvenance, ProvenanceOrigin};
+use nocter_model::{BodyNodeId, CallableId, ProvenanceSet, TypeId};
 
 use super::Analyzer;
 use crate::provenance::invocation_place_can_reach_result;
@@ -328,6 +328,7 @@ impl Analyzer<'_> {
 
     pub(super) fn evaluate_call(
         &mut self,
+        node: BodyNodeId,
         call: &CheckedCall,
         state: &mut ProvenanceState,
         result_type: TypeId,
@@ -335,6 +336,7 @@ impl Analyzer<'_> {
         let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
+        self.validate_call_input_provenance(node, call, &evaluated)?;
         let mapped_type = call.execution().executed_result();
         let mut result = self.map_call_result(call, &evaluated, state, mapped_type)?;
         if call.execution().is_deferred() {
@@ -348,6 +350,236 @@ impl Analyzer<'_> {
             result = ValueProvenance::independent();
         }
         Ok((result, true))
+    }
+
+    fn validate_call_input_provenance(
+        &self,
+        node: BodyNodeId,
+        call: &CheckedCall,
+        evaluated: &EvaluatedCall,
+    ) -> Result<(), BodyRelationError> {
+        match call.target() {
+            CallTarget::Static(selection) => {
+                let callable = static_callable(selection.dispatch())
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                let declaration = self
+                    .graph
+                    .declarations()
+                    .callables()
+                    .get(callable)
+                    .ok_or(BodyCheckInternalError::MissingCallable(callable))?;
+                for constraint in declaration.input_provenance().constraints() {
+                    let target = if declaration.receiver() == Some(constraint.target()) {
+                        ProvenanceOrigin::Receiver
+                    } else {
+                        ProvenanceOrigin::Parameter(constraint.target())
+                    };
+                    let target = Self::declaration_input_value(declaration, target, evaluated)?;
+                    let mut sources = ValueProvenance::independent();
+                    for source in constraint.sources().origins() {
+                        sources.union_with(
+                            &Self::declaration_input_value(declaration, *source, evaluated)?
+                                .flattened(),
+                        );
+                    }
+                    self.require_contained_input(node, target, &sources)?;
+                }
+            }
+            CallTarget::CallableValue { dispatch, .. } => {
+                let contract = match dispatch.dispatch() {
+                    StaticDispatch::StructuralRequirement { evidence } => self
+                        .capability_evidence
+                        .get(evidence)
+                        .and_then(|evidence| match evidence.predicate() {
+                            crate::CheckedPredicate::Callable { contract, .. } => Some(contract),
+                            _ => None,
+                        })
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
+                    _ => return Err(BodyCheckInternalError::ProvenanceAnalysis.into()),
+                };
+                self.validate_structural_inputs(node, contract, evaluated)?;
+            }
+            CallTarget::ClosureValue { closure, .. } => {
+                let definition = self
+                    .closures
+                    .definitions()
+                    .get(*closure)
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                for contract in definition.callable_requirements() {
+                    self.validate_structural_inputs(node, contract, evaluated)?;
+                }
+            }
+            CallTarget::ErasedCallableValue { value, .. } => {
+                let checked = self
+                    .body
+                    .nodes()
+                    .get(*value)
+                    .ok_or(BodyCheckInternalError::MissingNode(*value))?;
+                let Some(nocter_model::TypeKind::Callable(callable)) = self.types.get(checked.ty())
+                else {
+                    return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                };
+                self.validate_structural_inputs(node, callable.contract(), evaluated)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn declaration_input_value<'call>(
+        declaration: &nocter_declarations::CallableDeclaration,
+        origin: ProvenanceOrigin,
+        evaluated: &'call EvaluatedCall,
+    ) -> Result<&'call ValueProvenance, BodyCheckInternalError> {
+        match origin {
+            ProvenanceOrigin::Receiver => evaluated
+                .receiver
+                .as_ref()
+                .map(ReceiverProvenance::retained)
+                .ok_or(BodyCheckInternalError::ProvenanceAnalysis),
+            ProvenanceOrigin::Parameter(parameter) => {
+                let position = declaration
+                    .parameters()
+                    .iter()
+                    .position(|candidate| *candidate == parameter)
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                evaluated
+                    .arguments
+                    .get(position)
+                    .map(|argument| argument.retained(true))
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)
+            }
+        }
+    }
+
+    fn validate_structural_inputs(
+        &self,
+        node: BodyNodeId,
+        contract: &nocter_model::CallableContract,
+        evaluated: &EvaluatedCall,
+    ) -> Result<(), BodyRelationError> {
+        for constraint in contract.input_provenance().constraints() {
+            let target = evaluated
+                .arguments
+                .get(constraint.target().position())
+                .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?
+                .retained(true);
+            let mut sources = ValueProvenance::independent();
+            for source in constraint.sources().origins() {
+                let value = evaluated
+                    .arguments
+                    .get(source.position())
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?
+                    .retained(true);
+                sources.union_with(&value.flattened());
+            }
+            self.require_contained_input(node, target, &sources)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn require_contained_input(
+        &self,
+        node: BodyNodeId,
+        target: &ValueProvenance,
+        sources: &ValueProvenance,
+    ) -> Result<(), BodyRelationError> {
+        let allowed = sources.all_sources();
+        let invalid = target
+            .all_sources()
+            .iter()
+            .copied()
+            .map(|origin| self.provenance_source_within(origin, &allowed))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .any(|within| !within);
+        if invalid {
+            return Err(BodyRelationError::rule(
+                self.body_id,
+                crate::BodyRule::InvalidValueProvenance,
+                node,
+                [],
+            ));
+        }
+        Ok(())
+    }
+
+    fn provenance_source_within(
+        &self,
+        source: ProvenanceSource,
+        allowed: &std::collections::BTreeSet<ProvenanceSource>,
+    ) -> Result<bool, BodyRelationError> {
+        if allowed.contains(&source) {
+            return Ok(true);
+        }
+        match source {
+            ProvenanceSource::Callable(origin) => {
+                let BodyOwner::Callable(callable) = self.owner else {
+                    return Ok(false);
+                };
+                let declaration = self
+                    .graph
+                    .declarations()
+                    .callables()
+                    .get(callable)
+                    .ok_or(BodyCheckInternalError::MissingCallable(callable))?;
+                let allowed = allowed
+                    .iter()
+                    .filter_map(|source| match source {
+                        ProvenanceSource::Callable(origin) => Some(*origin),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                Ok(nocter_model::provenance_is_bounded_by(
+                    origin,
+                    &allowed,
+                    |current| {
+                        let target = match current {
+                            ProvenanceOrigin::Receiver => declaration.receiver(),
+                            ProvenanceOrigin::Parameter(parameter) => Some(parameter),
+                        }?;
+                        declaration
+                            .input_provenance()
+                            .sources(target)
+                            .map(CallableProvenance::origins)
+                    },
+                ))
+            }
+            ProvenanceSource::ClosureParameter { closure, origin } => {
+                let Some((current, definition)) = self.closure else {
+                    return Ok(false);
+                };
+                if current != closure {
+                    return Ok(false);
+                }
+                let allowed = allowed
+                    .iter()
+                    .filter_map(|source| match source {
+                        ProvenanceSource::ClosureParameter {
+                            closure: actual,
+                            origin,
+                        } if *actual == closure => Some(*origin),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                Ok(definition.callable_requirements().iter().all(|contract| {
+                    nocter_model::provenance_is_bounded_by(origin, &allowed, |parameter| {
+                        contract
+                            .input_provenance()
+                            .sources(parameter)
+                            .map(ProvenanceSet::origins)
+                    })
+                }))
+            }
+            ProvenanceSource::CurrentAllocation
+            | ProvenanceSource::Local(_)
+            | ProvenanceSource::OwnedParameter(_)
+            | ProvenanceSource::Region(_)
+            | ProvenanceSource::StatementTemporary(_)
+            | ProvenanceSource::ScopedTemporary { .. }
+            | ProvenanceSource::ClosureCaptureValue { .. }
+            | ProvenanceSource::ClosureEnvironment(_)
+            | ProvenanceSource::Unknown => Ok(false),
+        }
     }
 
     fn map_deferred_captures(

@@ -29,8 +29,8 @@ use crate::syntax::{
 };
 use crate::{
     AggregateConstruction, BodySource, CheckedControl, CheckedOperation, ConstantValue, DropTable,
-    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames, TypePosition,
-    plan_expected_type,
+    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, PlaceRoot, ResolvedBodyNames,
+    TypePosition, plan_expected_type,
 };
 
 mod aggregates;
@@ -592,6 +592,10 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.resolve_data_type_use(ty)
             })
             .transpose()?;
+        let provenance_sources = annotation
+            .and_then(|annotation| direct_node(self.tree(), annotation, NodeKind::ProvenanceClause))
+            .map(|clause| self.resolve_local_provenance_sources(clause))
+            .transpose()?;
         let inferred_type = expected.is_none();
         let initializer = self.required_child(statement, NodeKind::Expression)?;
         let value = self.check_expression(initializer, expected)?;
@@ -606,7 +610,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         if inferred_type {
             self.validate_type_in_position(pattern, ty, TypePosition::Data)?;
         }
-        let pattern = self.check_binding_pattern(pattern, ty)?;
+        let pattern = self.check_binding_pattern(pattern, ty, provenance_sources.as_deref())?;
         self.add_node(
             statement,
             self.types.builtin(BuiltinType::Void),
@@ -621,6 +625,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         &mut self,
         syntax: NodeId,
         ty: TypeId,
+        provenance_sources: Option<&[PlaceRoot]>,
     ) -> Result<crate::CheckedBindingPattern, BodyCheckError> {
         let children = direct_nodes(self.tree(), syntax, NodeKind::BindingPattern);
         if children.is_empty() {
@@ -634,7 +639,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 .get(&SyntaxOrigin::Token(token))
                 .copied()
                 .ok_or(BodyCheckInternalError::MissingLocalDeclaration(syntax))?;
-            self.builder.define_local(local, ty)?;
+            self.builder
+                .define_local(local, ty, provenance_sources.map(Into::into))?;
             return Ok(crate::CheckedBindingPattern::Local { binding: local, ty });
         }
         let Some(TypeKind::Tuple(element_types)) = self.types.get(ty) else {
@@ -647,12 +653,43 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let elements = children
             .into_iter()
             .zip(element_types)
-            .map(|(child, element_ty)| self.check_binding_pattern(child, element_ty))
+            .map(|(child, element_ty)| {
+                self.check_binding_pattern(child, element_ty, provenance_sources)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(crate::CheckedBindingPattern::Tuple {
             ty,
             elements: elements.into_boxed_slice(),
         })
+    }
+
+    fn resolve_local_provenance_sources(
+        &mut self,
+        clause: NodeId,
+    ) -> Result<Vec<PlaceRoot>, BodyCheckError> {
+        let mut sources = descendant_identifiers(self.tree(), clause)
+            .into_iter()
+            .skip(1)
+            .map(|token| {
+                let target = self.consume_name_use(clause, token)?;
+                match target {
+                    NameTarget::Parameter(parameter) => Ok(PlaceRoot::Parameter(parameter)),
+                    NameTarget::Local(local) => Ok(PlaceRoot::Local(local)),
+                    NameTarget::Capture(capture) => Ok(PlaceRoot::Capture(capture)),
+                    NameTarget::Exported(nocter_declarations::ExportedEntity::Static(id)) => {
+                        Ok(PlaceRoot::Static(id))
+                    }
+                    NameTarget::Exported(_) => {
+                        Err(self.rule(BodyRule::InvalidValueProvenance, clause)?)
+                    }
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        sources.sort_unstable();
+        if sources.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(self.rule(BodyRule::InvalidValueProvenance, clause)?);
+        }
+        Ok(sources)
     }
 
     fn check_return(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {

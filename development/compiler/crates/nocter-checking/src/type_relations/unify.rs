@@ -347,6 +347,7 @@ fn decompose_callable(
     pending: &mut Vec<(TypeId, TypeId)>,
 ) -> bool {
     if left.capability() != right.capability()
+        || left.input_provenance() != right.input_provenance()
         || left.provenance() != right.provenance()
         || left.pack().is_some() != right.pack().is_some()
         || left.parameters().len() != right.parameters().len()

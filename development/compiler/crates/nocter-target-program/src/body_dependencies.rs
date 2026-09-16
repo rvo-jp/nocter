@@ -546,7 +546,7 @@ impl<'program> DependencyCollector<'program> {
             } => {
                 self.visit_node(*operand)?;
                 if let Some(binding) = binding {
-                    let local = self.body.locals().get(*binding).copied().ok_or(
+                    let local = self.body.locals().get(*binding).ok_or(
                         BodyDependencyError::UnknownLocal {
                             body: self.body_id,
                             local: *binding,
@@ -619,7 +619,7 @@ impl<'program> DependencyCollector<'program> {
                 for arm in arms {
                     for slot in arm.pattern().slots() {
                         if let Some(binding) = slot.binding() {
-                            let local = self.body.locals().get(binding).copied().ok_or(
+                            let local = self.body.locals().get(binding).ok_or(
                                 BodyDependencyError::UnknownLocal {
                                     body: self.body_id,
                                     local: binding,
@@ -643,12 +643,14 @@ impl<'program> DependencyCollector<'program> {
                 allocator,
                 body,
             } => {
-                let local = self.body.locals().get(*binding).copied().ok_or(
-                    BodyDependencyError::UnknownLocal {
-                        body: self.body_id,
-                        local: *binding,
-                    },
-                )?;
+                let local =
+                    self.body
+                        .locals()
+                        .get(*binding)
+                        .ok_or(BodyDependencyError::UnknownLocal {
+                            body: self.body_id,
+                            local: *binding,
+                        })?;
                 self.record_type(local.ty())?;
                 self.visit_node(*allocator)?;
                 self.visit_node(*body)?;
@@ -704,12 +706,14 @@ impl<'program> DependencyCollector<'program> {
         self.record_type(place.ty())?;
         match place.root() {
             nocter_checking::PlaceRoot::Local(local) => {
-                let ty = self.body.locals().get(local).copied().ok_or(
-                    BodyDependencyError::UnknownLocal {
-                        body: self.body_id,
-                        local,
-                    },
-                )?;
+                let ty =
+                    self.body
+                        .locals()
+                        .get(local)
+                        .ok_or(BodyDependencyError::UnknownLocal {
+                            body: self.body_id,
+                            local,
+                        })?;
                 self.record_type(ty.ty())?;
             }
             nocter_checking::PlaceRoot::Capture(capture) => {

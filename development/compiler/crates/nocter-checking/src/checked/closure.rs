@@ -205,8 +205,9 @@ struct BodyCallableContract {
     guarantees: nocter_model::CallableGuarantees,
     parameters: Box<[BodyTypeRef]>,
     pack: Option<nocter_model::ArgumentPack<BodyTypeRef>>,
+    input_provenance: nocter_model::InputProvenance,
     result: BodyTypeRef,
-    provenance: nocter_model::ResultProvenance,
+    provenance: nocter_model::ProvenanceSet,
 }
 
 /// Source-neutral closure definitions contributed by one checked body.
@@ -362,6 +363,7 @@ impl BodyCallableContract {
                 .pack()
                 .map(|pack| pack.try_map(|ty| types.reference(ty)))
                 .transpose()?,
+            input_provenance: contract.input_provenance().clone(),
             result: types.reference(contract.result())?,
             provenance: contract.provenance().clone(),
         })
@@ -371,7 +373,7 @@ impl BodyCallableContract {
         &self,
         types: &ReplayedBodyTypes,
     ) -> Result<CallableContract, BodyClosureRecipeError> {
-        Ok(CallableContract::new(
+        Ok(CallableContract::new_with_input_provenance(
             self.capability,
             self.guarantees,
             self.parameters
@@ -382,6 +384,7 @@ impl BodyCallableContract {
             self.pack
                 .map(|pack| pack.try_map(|ty| types.resolve(ty)))
                 .transpose()?,
+            self.input_provenance.clone(),
             types.resolve(self.result)?,
             self.provenance.clone(),
         )?)
@@ -754,7 +757,7 @@ impl std::error::Error for ClosureTableBuildError {}
 mod tests {
     use nocter_model::{
         ArenaBuilder, BodyId, BodyNodeId, BuiltinType, CallableCapability, CallableContract,
-        ResultProvenance, TypeAuthority, TypeKind,
+        ProvenanceSet, TypeAuthority, TypeKind,
     };
 
     use super::{ClosureAuthority, ClosureDefinition, ClosureSignature};
@@ -836,7 +839,7 @@ mod tests {
             [],
             None,
             types.builtin(BuiltinType::Void),
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let another_contract = CallableContract::new(
@@ -845,7 +848,7 @@ mod tests {
             [],
             None,
             types.builtin(BuiltinType::I32),
-            ResultProvenance::empty(),
+            ProvenanceSet::empty(),
         )
         .unwrap();
         let accepted = closures.commit(&base).unwrap();

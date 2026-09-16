@@ -1558,13 +1558,13 @@ mod tests {
         let cases = [
             (
                 "func choose<T>(left: &T, right: &T): &T from missing { return }\n",
-                DefinitionRule::UnknownResultProvenanceOrigin,
+                DefinitionRule::UnknownValueProvenanceOrigin,
                 "missing",
                 None,
             ),
             (
                 "func choose<T>(left: &T, right: &T): &T from left | left { return }\n",
-                DefinitionRule::DuplicateResultProvenanceOrigin,
+                DefinitionRule::DuplicateValueProvenanceOrigin,
                 "left {",
                 Some("left |"),
             ),

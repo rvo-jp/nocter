@@ -30,6 +30,8 @@ results. Protocol crates receive result values only.
 - Presentation renders authored callable execution and allocation/nonblocking guarantees from
   declaration or structural-type contracts; it never infers source modifiers from result shapes
   or checked execution facts.
+- Presentation renders value-provenance clauses from checked declaration, structural callable, or
+  local identities. It does not slice or reinterpret the authored clause text.
 - Every semantic/source join uses one sealed generation.
 - Diagnostics are read from the sealed discovery or analyzed state and are not cloned into a
   parallel snapshot authority.

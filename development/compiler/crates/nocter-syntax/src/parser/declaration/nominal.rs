@@ -64,7 +64,7 @@ fn enum_variant(parser: &mut Parser<'_>) {
     parser.expect_name();
     if parser.at_punctuation(Punctuation::LeftParen) {
         let payload = parser.start();
-        types::parameters(parser);
+        types::plain_parameters(parser);
         parser.complete(payload, NodeKind::EnumPayload);
     }
     parser.complete(marker, NodeKind::EnumVariant);

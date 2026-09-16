@@ -428,10 +428,14 @@ impl<'a> Renderer<'a> {
                 )
                 .ok()?;
                 self.parameter_shape(parameter)?;
+                if let nocter_declarations::ParameterOwner::Callable(owner) = parameter.owner() {
+                    let callable = declarations.callables().get(owner)?;
+                    self.input_provenance(callable, id)?;
+                }
             }
-            SemanticEntity::LocalBinding(body, id) => {
-                let _ = body;
-                let local = body_evidence?.locals().get(id)?;
+            SemanticEntity::LocalBinding(_body, id) => {
+                let checked_body = body_evidence?;
+                let local = checked_body.locals().get(id)?;
                 let introducer = match local.declaration().kind() {
                     LocalBindingKind::Mutable => Keyword::Var,
                     LocalBindingKind::Immutable
@@ -449,6 +453,9 @@ impl<'a> Renderer<'a> {
                 )
                 .ok()?;
                 self.ty(local.ty())?;
+                if let Some(sources) = local.provenance_sources() {
+                    self.local_provenance(checked_body, sources)?;
+                }
             }
             SemanticEntity::Capture(body, id) => {
                 let _ = body;
@@ -472,6 +479,47 @@ impl<'a> Renderer<'a> {
                 .ok()?;
             }
             _ => return None,
+        }
+        Some(())
+    }
+
+    fn local_provenance(
+        &mut self,
+        body: &nocter_checking::CheckedBody,
+        sources: &[nocter_checking::PlaceRoot],
+    ) -> Option<()> {
+        self.output.push(' ');
+        self.contextual(ContextualSpelling::From);
+        if sources.is_empty() {
+            self.output.push_str(ContextualSpelling::Static.as_str());
+            return Some(());
+        }
+        for (index, source) in sources.iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(" | ");
+            }
+            let name = match source {
+                nocter_checking::PlaceRoot::Parameter(parameter) => self
+                    .graph
+                    .declarations()
+                    .parameters()
+                    .get(*parameter)?
+                    .name(),
+                nocter_checking::PlaceRoot::Local(local) => {
+                    body.locals().get(*local)?.declaration().name()
+                }
+                nocter_checking::PlaceRoot::Capture(capture) => {
+                    body.captures().get(*capture)?.declaration().name()
+                }
+                nocter_checking::PlaceRoot::Static(static_value) => self
+                    .graph
+                    .declarations()
+                    .statics()
+                    .get(*static_value)?
+                    .name(),
+                nocter_checking::PlaceRoot::Value(_) => return None,
+            };
+            self.output.push_str(self.symbol(name)?);
         }
         Some(())
     }
@@ -560,8 +608,7 @@ impl<'a> Renderer<'a> {
             }
             CallableKind::Method => {
                 self.keyword(Keyword::Method);
-                let receiver = declarations.parameters().get(callable.receiver()?)?;
-                self.receiver(receiver.role(), callable.owner())?;
+                self.callable_receiver(callable)?;
                 self.output.push('.');
                 self.output.push_str(self.symbol(callable.name()?)?);
             }
@@ -580,8 +627,7 @@ impl<'a> Renderer<'a> {
             }
             CallableKind::Coercion => {
                 self.contextual(ContextualSpelling::Coerce);
-                let receiver = declarations.parameters().get(callable.receiver()?)?;
-                self.receiver(receiver.role(), callable.owner())?;
+                self.callable_receiver(callable)?;
                 self.output.push(' ');
                 self.keyword(Keyword::As);
                 self.ty(callable.result())?;
@@ -596,7 +642,7 @@ impl<'a> Renderer<'a> {
             }
         }
         self.generic_parameters(callable.generic_parameters())?;
-        self.parameters(callable.parameters())?;
+        self.callable_parameters(callable)?;
         self.output.push_str(": ");
         self.ty(callable.body_result())?;
         self.provenance(callable)?;
@@ -615,12 +661,21 @@ impl<'a> Renderer<'a> {
             self.keyword(Keyword::Async);
         }
         self.keyword(Keyword::Method);
+        let receiver = callable.receiver()?;
+        let constrained_receiver = callable.input_provenance().sources(receiver).is_some();
+        if constrained_receiver {
+            self.output.push('(');
+        }
         match required.receiver() {
             CallableCapability::Readonly => self.output.push('&'),
             CallableCapability::ReadWrite => self.output.push_str("&+"),
             CallableCapability::Owned => {}
         }
         self.output.push_str(ContextualSpelling::LowerSelf.as_str());
+        self.input_provenance(callable, receiver)?;
+        if constrained_receiver {
+            self.output.push(')');
+        }
         self.output.push('.');
         self.output.push_str(self.symbol(callable.name()?)?);
         self.generic_parameters(required.generic_parameters())?;
@@ -640,6 +695,7 @@ impl<'a> Renderer<'a> {
             } else {
                 self.ty(parameter.ty())?;
             }
+            self.input_provenance(callable, parameter.declaration())?;
         }
         self.output.push_str("): ");
         self.ty(required.result())?;
@@ -819,14 +875,12 @@ impl<'a> Renderer<'a> {
     }
 
     fn operator(&mut self, callable: &nocter_declarations::CallableDeclaration) -> Option<()> {
-        let declarations = self.graph.declarations();
-        let receiver = declarations.parameters().get(callable.receiver()?)?;
         self.keyword(Keyword::Operator);
         self.output.push('(');
         if callable.kind() == CallableKind::Expansion {
             self.output.push_str("...");
         }
-        self.receiver(receiver.role(), callable.owner())?;
+        self.callable_receiver(callable)?;
         match callable.kind() {
             CallableKind::Equality | CallableKind::Ordering => {
                 self.output
@@ -835,11 +889,15 @@ impl<'a> Renderer<'a> {
                     } else {
                         " < "
                     });
-                self.parameter(callable.parameters().first().copied()?)?;
+                let parameter = callable.parameters().first().copied()?;
+                self.parameter(parameter)?;
+                self.input_provenance(callable, parameter)?;
             }
             CallableKind::Index => {
                 self.output.push('[');
-                self.parameter(callable.parameters().first().copied()?)?;
+                let parameter = callable.parameters().first().copied()?;
+                self.parameter(parameter)?;
+                self.input_provenance(callable, parameter)?;
                 self.output.push(']');
             }
             CallableKind::Expansion => {}
@@ -896,6 +954,24 @@ impl<'a> Renderer<'a> {
         }
     }
 
+    fn callable_receiver(
+        &mut self,
+        callable: &nocter_declarations::CallableDeclaration,
+    ) -> Option<()> {
+        let receiver = callable.receiver()?;
+        let declaration = self.graph.declarations().parameters().get(receiver)?;
+        let constrained = callable.input_provenance().sources(receiver).is_some();
+        if constrained {
+            self.output.push('(');
+        }
+        self.receiver(declaration.role(), callable.owner())?;
+        self.input_provenance(callable, receiver)?;
+        if constrained {
+            self.output.push(')');
+        }
+        Some(())
+    }
+
     fn generic_parameters(
         &mut self,
         parameters: &[nocter_model::GenericParameterId],
@@ -927,6 +1003,24 @@ impl<'a> Renderer<'a> {
             }
             let start = self.output.len();
             self.parameter(id)?;
+            self.record_parameter(start);
+        }
+        self.output.push(')');
+        Some(())
+    }
+
+    fn callable_parameters(
+        &mut self,
+        callable: &nocter_declarations::CallableDeclaration,
+    ) -> Option<()> {
+        self.output.push('(');
+        for (index, id) in callable.parameters().iter().copied().enumerate() {
+            if index != 0 {
+                self.output.push_str(", ");
+            }
+            let start = self.output.len();
+            self.parameter(id)?;
+            self.input_provenance(callable, id)?;
             self.record_parameter(start);
         }
         self.output.push(')');
@@ -1023,6 +1117,37 @@ impl<'a> Renderer<'a> {
                 }
             }
             has_origin = true;
+        }
+        Some(())
+    }
+
+    fn input_provenance(
+        &mut self,
+        callable: &nocter_declarations::CallableDeclaration,
+        target: nocter_model::ParameterId,
+    ) -> Option<()> {
+        let Some(sources) = callable.input_provenance().sources(target) else {
+            return Some(());
+        };
+        self.output.push(' ');
+        self.contextual(ContextualSpelling::From);
+        if sources.origins().is_empty() {
+            self.output.push_str(ContextualSpelling::Static.as_str());
+            return Some(());
+        }
+        for (index, origin) in sources.origins().iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(" | ");
+            }
+            match origin {
+                nocter_declarations::ProvenanceOrigin::Receiver => {
+                    self.output.push_str(ContextualSpelling::LowerSelf.as_str());
+                }
+                nocter_declarations::ProvenanceOrigin::Parameter(parameter) => {
+                    let declaration = self.graph.declarations().parameters().get(*parameter)?;
+                    self.output.push_str(self.symbol(declaration.name())?);
+                }
+            }
         }
         Some(())
     }
@@ -1322,7 +1447,8 @@ impl<'a> Renderer<'a> {
         self.callable_guarantees(contract.guarantees());
         self.callable_capability(contract.capability());
         self.output.push('(');
-        let named = !contract.provenance().origins().is_empty();
+        let named = !contract.provenance().origins().is_empty()
+            || !contract.input_provenance().constraints().is_empty();
         for (index, parameter) in contract.parameters().iter().copied().enumerate() {
             if index != 0 {
                 self.output.push_str(", ");
@@ -1332,6 +1458,12 @@ impl<'a> Renderer<'a> {
                 write!(self.output, "p{index}: ").ok()?;
             }
             self.ty(parameter)?;
+            if let Some(sources) = contract
+                .input_provenance()
+                .sources(nocter_model::ParameterOrigin::new(index))
+            {
+                self.structural_input_provenance(sources)?;
+            }
             self.record_parameter(start);
         }
         if let Some(pack) = contract.pack() {
@@ -1348,6 +1480,15 @@ impl<'a> Renderer<'a> {
                 self.output.push_str(": ");
                 self.ty(value)?;
             }
+            if let Some(sources) =
+                contract
+                    .input_provenance()
+                    .sources(nocter_model::ParameterOrigin::new(
+                        contract.parameters().len(),
+                    ))
+            {
+                self.structural_input_provenance(sources)?;
+            }
             self.record_parameter(start);
         }
         self.output.push_str("): ");
@@ -1361,6 +1502,22 @@ impl<'a> Renderer<'a> {
                 }
                 write!(self.output, "p{}", origin.position()).ok()?;
             }
+        }
+        Some(())
+    }
+
+    fn structural_input_provenance(&mut self, sources: &nocter_model::ProvenanceSet) -> Option<()> {
+        self.output.push(' ');
+        self.contextual(ContextualSpelling::From);
+        if sources.origins().is_empty() {
+            self.output.push_str(ContextualSpelling::Static.as_str());
+            return Some(());
+        }
+        for (index, origin) in sources.origins().iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(" | ");
+            }
+            write!(self.output, "p{}", origin.position()).ok()?;
         }
         Some(())
     }

@@ -272,7 +272,7 @@ impl BodyChecker<'_, '_> {
             return Err(BodyCheckInternalError::MissingLocalDeclaration(clause).into());
         }
         self.builder
-            .define_local(local, self.types.builtin(BuiltinType::Error))?;
+            .define_local(local, self.types.builtin(BuiltinType::Error), None)?;
         Ok(Some(local))
     }
 }

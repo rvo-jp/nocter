@@ -110,6 +110,7 @@ impl Analyzer<'_> {
     ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let (value, reaches) = self.evaluate(initializer, state)?;
         if reaches {
+            self.validate_local_binding_provenance(node, pattern, &value, state)?;
             self.bind_pattern(node, pattern, &value, state)?;
         }
         Ok((ValueProvenance::independent(), reaches))
@@ -150,6 +151,7 @@ impl Analyzer<'_> {
             return Ok((ValueProvenance::independent(), false));
         }
         self.evaluate_place_indices(target, state)?;
+        self.validate_local_assignment_provenance(node, target, &value, state)?;
         self.validate_assignment_storage(node, target, &value)?;
         self.write_place(target, value, state)?;
         Ok((ValueProvenance::independent(), true))

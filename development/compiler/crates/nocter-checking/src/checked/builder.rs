@@ -48,6 +48,7 @@ impl CheckedBodyBuilder {
         &mut self,
         expected: LocalBindingId,
         ty: TypeId,
+        provenance_sources: Option<Box<[PlaceRoot]>>,
     ) -> Result<(), BuildCheckedBodyError> {
         let declaration = self
             .local_declarations
@@ -61,7 +62,7 @@ impl CheckedBodyBuilder {
         if slot.is_some() {
             return Err(BuildCheckedBodyError::DuplicateLocal(expected));
         }
-        *slot = Some(CheckedLocal::new(declaration, ty));
+        *slot = Some(CheckedLocal::new(declaration, ty, provenance_sources));
         Ok(())
     }
 
@@ -115,7 +116,7 @@ impl CheckedBodyBuilder {
         self.locals
             .get(local)
             .and_then(|local| local.as_ref())
-            .map(|local| local.ty())
+            .map(CheckedLocal::ty)
     }
 
     pub(crate) fn capture_type(&self, capture: CaptureId) -> Option<TypeId> {

@@ -33,8 +33,9 @@ pub use arenas::{
     DeclarationArenaBuilder, DeclarationArenas, DefinitionError, IncompleteDefinition,
 };
 pub use callable::{
-    Body, BodyForm, BodyOwner, CallableDeclaration, CallableExecution, CallableKind, CallableOwner,
-    CallableProvenance, CallableProvenanceContract, DuplicateCallableOrigin, LiteralShape,
+    Body, BodyForm, BodyOwner, CallableDeclaration, CallableExecution, CallableInputConstraint,
+    CallableInputProvenance, CallableKind, CallableOwner, CallableProvenance,
+    CallableProvenanceContract, DuplicateCallableOrigin, DuplicateInputConstraint, LiteralShape,
     Parameter, ParameterOwner, ParameterRole, ParameterValueTypeShape, ProvenanceAnnotation,
     ProvenanceOrigin,
 };

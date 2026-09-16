@@ -35,12 +35,14 @@ One callable header is resolved as a closed graph:
 2. resolve all parameter and receiver types;
 3. resolve every `from` source against the complete reserved input set;
 4. reject missing, duplicate, and directly tautological edges;
-5. normalize the complete graph, including strongly connected components; and
+5. canonicalize the complete graph and interpret strongly connected components simultaneously;
+   and
 6. freeze input constraints and the result contract with the callable declaration.
 
 No clause may observe whether another clause appeared earlier in source. A cycle is not rejected
 merely because it is cyclic: mutually contained inputs form one equality component. The normalized
-graph, not traversal order, decides containment.
+graph and its one all-branches implication operation, not traversal order or one successful path,
+decide containment.
 
 ## Precision
 

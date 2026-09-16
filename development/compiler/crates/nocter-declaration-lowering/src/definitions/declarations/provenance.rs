@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use nocter_declarations::{
-    CallableKind, CallableProvenance, CallableProvenanceContract, ProvenanceAnnotation,
-    ProvenanceOrigin,
+    CallableInputConstraint, CallableInputProvenance, CallableKind, CallableProvenance,
+    CallableProvenanceContract, ProvenanceAnnotation, ProvenanceOrigin,
 };
 use nocter_model::{BodyId, ParameterId, TypeId};
 use nocter_source_index::{SemanticEntity, SourceRole};
@@ -102,6 +102,56 @@ pub(super) fn contract(
     }
 }
 
+pub(super) fn inputs(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    kind: CallableKind,
+    receiver: Option<ParameterId>,
+    parameters: &[ParameterId],
+) -> Result<CallableInputProvenance, HeaderDefinitionError> {
+    let targets = {
+        let tree = projection::tree(types, declaration)?;
+        let root = surface_node(types, declaration)?;
+        let mut targets = Vec::new();
+        if let Some(receiver) = receiver {
+            let receiver_node = syntax::descendant(tree, root, NodeKind::Receiver)
+                .ok_or(HeaderDefinitionError::InvalidProvenance(declaration))?;
+            if let Some(clause) =
+                syntax::direct_node(tree, receiver_node, NodeKind::ProvenanceClause)
+            {
+                targets.push((receiver, ProvenanceOrigin::Receiver, clause));
+            }
+        }
+        if !matches!(kind, CallableKind::Equality | CallableKind::Ordering) {
+            let parameter_nodes = match kind {
+                CallableKind::Index => syntax::descendant(tree, root, NodeKind::Parameter)
+                    .into_iter()
+                    .collect::<Vec<_>>(),
+                _ => syntax::descendant(tree, root, NodeKind::Parameters)
+                    .map(|node| syntax::direct_nodes(tree, node, NodeKind::Parameter))
+                    .unwrap_or_default(),
+            };
+            if parameter_nodes.len() != parameters.len() {
+                return Err(HeaderDefinitionError::InvalidProvenance(declaration));
+            }
+            for (parameter, node) in parameters.iter().copied().zip(parameter_nodes) {
+                if let Some(clause) = syntax::direct_node(tree, node, NodeKind::ProvenanceClause) {
+                    targets.push((parameter, ProvenanceOrigin::Parameter(parameter), clause));
+                }
+            }
+        }
+        targets
+    };
+    let mut constraints = Vec::with_capacity(targets.len());
+    for (parameter, target, clause) in targets {
+        let (sources, _) = resolve_clause(types, declaration, clause, receiver, parameters)?;
+        reject_tautology(clause, target, &sources)?;
+        constraints.push(CallableInputConstraint::new(parameter, sources));
+    }
+    CallableInputProvenance::from_constraints(constraints)
+        .map_err(|_| HeaderDefinitionError::InvalidProvenance(declaration))
+}
+
 fn explicit(
     types: &mut PreparedTypes<'_>,
     declaration: SurfaceDeclarationId,
@@ -120,6 +170,17 @@ fn explicit(
     let Some(clause) = clause else {
         return Ok(None);
     };
+    resolve_clause(types, declaration, clause, receiver, parameters).map(Some)
+}
+
+fn resolve_clause(
+    types: &mut PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+    clause: nocter_syntax::NodeId,
+    receiver: Option<ParameterId>,
+    parameters: &[ParameterId],
+) -> Result<(CallableProvenance, bool), HeaderDefinitionError> {
+    let tree = projection::tree(types, declaration)?;
     let tokens: Vec<_> = tree
         .children(clause)
         .iter()
@@ -136,7 +197,7 @@ fn explicit(
         let symbol = projection::symbol(types, declaration, token)?;
         if let Some(first) = seen.insert(symbol, token) {
             return Err(DefinitionViolation::duplicate(
-                DefinitionRule::DuplicateResultProvenanceOrigin,
+                DefinitionRule::DuplicateValueProvenanceOrigin,
                 SyntaxOrigin::Token(first),
                 SyntaxOrigin::Token(token),
             )
@@ -150,7 +211,7 @@ fn explicit(
         if spelling == ContextualSpelling::LowerSelf.as_str() {
             let receiver = receiver.ok_or_else(|| {
                 HeaderDefinitionError::from(DefinitionViolation::new(
-                    DefinitionRule::UnknownResultProvenanceOrigin,
+                    DefinitionRule::UnknownValueProvenanceOrigin,
                     SyntaxOrigin::Token(token),
                 ))
             })?;
@@ -181,7 +242,7 @@ fn explicit(
             })
             .ok_or_else(|| {
                 HeaderDefinitionError::from(DefinitionViolation::new(
-                    DefinitionRule::UnknownResultProvenanceOrigin,
+                    DefinitionRule::UnknownValueProvenanceOrigin,
                     SyntaxOrigin::Token(token),
                 ))
             })?;
@@ -194,8 +255,23 @@ fn explicit(
         )?;
     }
     CallableProvenance::from_origins(origins)
-        .map(|origins| Some((origins, includes_static)))
+        .map(|origins| (origins, includes_static))
         .map_err(|_| HeaderDefinitionError::InvalidProvenance(declaration))
+}
+
+fn reject_tautology(
+    clause: nocter_syntax::NodeId,
+    target: ProvenanceOrigin,
+    sources: &CallableProvenance,
+) -> Result<(), HeaderDefinitionError> {
+    if !sources.origins().contains(&target) {
+        return Ok(());
+    }
+    Err(DefinitionViolation::new(
+        DefinitionRule::TautologicalValueProvenance,
+        SyntaxOrigin::Node(clause),
+    )
+    .into())
 }
 
 fn result_origin(

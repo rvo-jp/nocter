@@ -307,11 +307,12 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
         let Some(result) = reduce(contract.result())? else {
             return Ok(None);
         };
-        CallableContract::new(
+        CallableContract::new_with_input_provenance(
             contract.capability(),
             contract.guarantees(),
             parameters,
             pack,
+            contract.input_provenance().clone(),
             result,
             contract.provenance().clone(),
         )

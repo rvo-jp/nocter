@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use nocter_model::{
     ArgumentPack, BorrowCapability, CallableCapability, CallableContract, ClosureId,
-    GenericParameterId, InterfaceId, InvalidParameterOrigin, NominalTypeId, OpaqueTypeId,
-    ResultProvenance, TypeCursor, TypeId, TypeKind, TypeStore, TypeTransaction, UnknownTypeId,
+    GenericParameterId, InputProvenance, InterfaceId, InvalidParameterOrigin, NominalTypeId,
+    OpaqueTypeId, ProvenanceSet, TypeCursor, TypeId, TypeKind, TypeStore, TypeTransaction,
+    UnknownTypeId,
 };
 
 /// Reference from one body-local type extension to either its immutable program prefix or an
@@ -85,8 +86,9 @@ enum BodyTypeKind {
         guarantees: nocter_model::CallableGuarantees,
         parameters: Box<[BodyTypeRef]>,
         pack: Option<ArgumentPack<BodyTypeRef>>,
+        input_provenance: InputProvenance,
         result: BodyTypeRef,
-        provenance: ResultProvenance,
+        provenance: ProvenanceSet,
     },
     Optional(BodyTypeRef),
     Fallible(BodyTypeRef),
@@ -335,6 +337,7 @@ fn capture_kind(
                 .pack()
                 .map(|pack| pack.try_map(reference))
                 .transpose()?,
+            input_provenance: callable.input_provenance().clone(),
             result: reference(callable.result())?,
             provenance: callable.provenance().clone(),
         },
@@ -433,15 +436,17 @@ fn replay_kind(
             guarantees,
             parameters,
             pack,
+            input_provenance,
             result,
             provenance,
         } => TypeKind::Callable(nocter_model::CallableType::new(
             *representation,
-            CallableContract::new(
+            CallableContract::new_with_input_provenance(
                 *capability,
                 *guarantees,
                 replay_types(parameters, &resolve)?,
                 pack.map(|pack| pack.try_map(resolve)).transpose()?,
+                input_provenance.clone(),
                 resolve(*result)?,
                 provenance.clone(),
             )

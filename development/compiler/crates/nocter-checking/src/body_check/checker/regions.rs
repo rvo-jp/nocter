@@ -17,7 +17,7 @@ impl BodyChecker<'_, '_> {
             .copied()
             .ok_or(BodyCheckInternalError::MissingLocalDeclaration(statement))?;
         let context = self.allocation_context_type()?;
-        self.builder.define_local(binding, context)?;
+        self.builder.define_local(binding, context, None)?;
 
         let allocator = direct_node(self.tree(), statement, NodeKind::AllocatorPlace)
             .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;

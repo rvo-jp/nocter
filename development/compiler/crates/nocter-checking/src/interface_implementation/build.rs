@@ -698,6 +698,43 @@ fn compatible_provenance(
     actual_declaration: &CallableDeclaration,
     input_correspondence: &[(ProvenanceOrigin, ProvenanceOrigin)],
 ) -> bool {
+    let actual_inputs_are_admitted = actual_declaration
+        .input_provenance()
+        .constraints()
+        .iter()
+        .all(|actual| {
+            let actual_target = if actual_declaration.receiver() == Some(actual.target()) {
+                ProvenanceOrigin::Receiver
+            } else {
+                ProvenanceOrigin::Parameter(actual.target())
+            };
+            let map_to_expected = |actual: ProvenanceOrigin| {
+                input_correspondence
+                    .iter()
+                    .find_map(|(expected, implementation)| {
+                        (*implementation == actual).then_some(*expected)
+                    })
+            };
+            let Some(expected_target) = map_to_expected(actual_target) else {
+                return false;
+            };
+            let mapped_sources = actual
+                .sources()
+                .origins()
+                .iter()
+                .copied()
+                .map(map_to_expected)
+                .collect::<Option<Vec<_>>>();
+            let Some(mapped_sources) = mapped_sources else {
+                return false;
+            };
+            nocter_model::provenance_is_bounded_by(expected_target, &mapped_sources, |origin| {
+                callable_input_sources(expected_declaration, origin)
+            })
+        });
+    if !actual_inputs_are_admitted {
+        return false;
+    }
     let (
         CallableProvenanceContract::Declared(expected_contract),
         CallableProvenanceContract::Declared(actual_contract),
@@ -720,6 +757,20 @@ fn compatible_provenance(
                 implementation == actual && expected.contains(interface)
             })
     })
+}
+
+fn callable_input_sources(
+    declaration: &CallableDeclaration,
+    origin: ProvenanceOrigin,
+) -> Option<&[ProvenanceOrigin]> {
+    let parameter = match origin {
+        ProvenanceOrigin::Receiver => declaration.receiver(),
+        ProvenanceOrigin::Parameter(parameter) => Some(parameter),
+    }?;
+    declaration
+        .input_provenance()
+        .sources(parameter)
+        .map(nocter_declarations::CallableProvenance::origins)
 }
 
 fn input_correspondence(

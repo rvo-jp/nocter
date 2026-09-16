@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_declarations::ExportedEntity;
-use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin, Symbol};
+use nocter_model::{
+    BorrowCapability, CallableCapability, InputProvenance, InputProvenanceConstraint,
+    ParameterOrigin, ProvenanceSet, Symbol,
+};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree,
@@ -336,6 +339,7 @@ fn bind_callable(
     let mut named_parameters = Vec::new();
     let mut pack = None;
     let mut names = BTreeMap::new();
+    let mut input_clauses = Vec::new();
     let parameter_nodes = direct_nodes(tree, parameters_node, NodeKind::CallableParameter);
     for (position, parameter) in parameter_nodes.iter().copied().enumerate() {
         let ty = descendant_value(tree, parameter, values)
@@ -366,7 +370,31 @@ fn bind_callable(
                 SyntaxOrigin::Token(token),
             ));
         }
+        if let Some(clause) = direct_node(tree, parameter, NodeKind::ProvenanceClause) {
+            input_clauses.push((ParameterOrigin::new(logical_position), clause));
+        }
     }
+    let input_provenance = input_clauses
+        .iter()
+        .copied()
+        .map(|(target, clause)| {
+            let sources = callable_origins(namespaces, tree, clause, &names)?;
+            let sources = ProvenanceSet::from_origins(sources.iter().copied())
+                .map_err(|_| TypeBindingError::InvalidSyntax(clause))?;
+            Ok(InputProvenanceConstraint::new(target, sources))
+        })
+        .collect::<Result<Vec<_>, TypeBindingError>>()?;
+    let input_provenance =
+        InputProvenance::from_constraints(input_provenance).map_err(|error| {
+            let clause = input_clauses
+                .iter()
+                .find(|(target, _)| *target == error.target())
+                .map_or(node, |(_, clause)| *clause);
+            TypeBindingError::rule(
+                TypeBindingRule::TautologicalProvenance,
+                SyntaxOrigin::Node(clause),
+            )
+        })?;
     let result = direct_nodes(tree, node, NodeKind::Type)
         .into_iter()
         .find_map(|candidate| values.get(&candidate).copied())
@@ -382,6 +410,7 @@ fn bind_callable(
             guarantees,
             parameters: parameters.into_boxed_slice(),
             pack,
+            input_provenance,
             result,
             named_parameters: named_parameters.into_boxed_slice(),
             explicit_origins,

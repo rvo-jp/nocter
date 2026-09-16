@@ -27,6 +27,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - event-based parsing and flat tree construction
 - structural callable modifiers, including authored `noalloc`, `blocking`, and `async`, without
   effect or execution interpretation
+- one structural `ProvenanceClause` in callable-result, input, receiver, structural-callable, and
+  annotated-local positions without resolving its names
 - syntax diagnostics and missing/error elements
 - structural navigation and documentation extraction
 - value-free floating-literal decimal/suffix decomposition shared by semantic consumers

@@ -64,6 +64,13 @@ pub(super) fn define(
         body_result,
         allocated.bodies[declaration.index()],
     )?;
+    let input_provenance = provenance::inputs(
+        types,
+        declaration,
+        kind,
+        allocated.receivers[declaration.index()],
+        &allocated.parameters[declaration.index()],
+    )?;
     let definition = CallableDeclaration::new(
         site(types, declaration)?,
         owner,
@@ -75,6 +82,7 @@ pub(super) fn define(
         result,
         execution,
         callable_guarantees(types, declaration)?,
+        input_provenance,
         contract,
         provenance_annotation,
         allocated.requirements[declaration.index()].clone(),

@@ -297,6 +297,16 @@ fn parses_callable_declarations_and_nested_type_closers() {
 }
 
 #[test]
+fn parses_value_provenance_contracts_in_every_value_position() {
+    let tree = assert_syntax_ok(
+        "func inspect(owner: &Owner, value: &str from owner): void\ninstance View {\n    method (&self from owner).inspect(owner: &Owner): void {\n        let text: &str from self | owner = value\n        return\n    }\n}\ntype Inspector = &func(owner: &Owner, value: &str from owner): void\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(count_node_kind(&tree, NodeKind::ProvenanceClause), 4);
+}
+
+#[test]
 fn parses_opaque_and_layered_callable_results() {
     assert_syntax_ok(
         "func values<T>(): some Source<T> { .Item = &T }?\nfunc load<T>(): T?!\n",

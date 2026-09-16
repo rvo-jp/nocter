@@ -114,7 +114,7 @@ where
         },
         TypeKind::Callable(callable) => TypeKind::Callable(nocter_model::CallableType::new(
             callable.representation(),
-            CallableContract::new(
+            CallableContract::new_with_input_provenance(
                 callable.capability(),
                 callable.guarantees(),
                 callable
@@ -127,6 +127,7 @@ where
                     .pack()
                     .map(|pack| pack.try_map(&mut map))
                     .transpose()?,
+                callable.input_provenance().clone(),
                 map(callable.result())?,
                 callable.provenance().clone(),
             )

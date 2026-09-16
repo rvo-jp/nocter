@@ -579,7 +579,7 @@ func invalid(source: DirectIter): Vec<&i32> { Vec [...move source] }
     ))
     .unwrap_err();
 
-    assert_eq!(error.rule(), Some(BodyRule::InvalidResultProvenance));
+    assert_eq!(error.rule(), Some(BodyRule::InvalidValueProvenance));
     assert_eq!(error.source_diagnostic().unwrap().code(), "E0395");
 }
 

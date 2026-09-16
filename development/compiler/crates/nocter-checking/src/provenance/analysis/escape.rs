@@ -14,6 +14,66 @@ enum DestinationLifetime {
 }
 
 impl Analyzer<'_> {
+    pub(super) fn validate_local_binding_provenance(
+        &self,
+        node: BodyNodeId,
+        pattern: &crate::CheckedBindingPattern,
+        value: &ValueProvenance,
+        state: &ProvenanceState,
+    ) -> Result<(), BodyRelationError> {
+        let Some(binding) = first_pattern_local(pattern) else {
+            return Ok(());
+        };
+        self.validate_local_provenance(node, binding, value, state)
+    }
+
+    pub(super) fn validate_local_assignment_provenance(
+        &self,
+        node: BodyNodeId,
+        target: PlaceId,
+        value: &ValueProvenance,
+        state: &ProvenanceState,
+    ) -> Result<(), BodyRelationError> {
+        let place = self
+            .body
+            .places()
+            .get(target)
+            .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
+        if place
+            .projections()
+            .iter()
+            .any(|projection| matches!(projection, PlaceProjection::BorrowDeref { .. }))
+        {
+            return Ok(());
+        }
+        let PlaceRoot::Local(binding) = place.root() else {
+            return Ok(());
+        };
+        self.validate_local_provenance(node, binding, value, state)
+    }
+
+    fn validate_local_provenance(
+        &self,
+        node: BodyNodeId,
+        binding: LocalBindingId,
+        value: &ValueProvenance,
+        state: &ProvenanceState,
+    ) -> Result<(), BodyRelationError> {
+        let local = self
+            .body
+            .locals()
+            .get(binding)
+            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+        let Some(provenance_sources) = local.provenance_sources() else {
+            return Ok(());
+        };
+        let mut allowed = ValueProvenance::independent();
+        for source in provenance_sources {
+            allowed.union_with(&state.value(*source).flattened());
+        }
+        self.require_contained_input(node, value, &allowed)
+    }
+
     pub(super) fn validate_binding_storage(
         &self,
         node: BodyNodeId,
@@ -181,5 +241,15 @@ impl Analyzer<'_> {
         }
         let rule = BodyRule::InvalidStorageEscape;
         Err(BodyRelationError::rule(self.body_id, rule, node, []))
+    }
+}
+
+fn first_pattern_local(pattern: &crate::CheckedBindingPattern) -> Option<LocalBindingId> {
+    match pattern {
+        crate::CheckedBindingPattern::Local { binding, .. } => Some(*binding),
+        crate::CheckedBindingPattern::Discard { .. } => None,
+        crate::CheckedBindingPattern::Tuple { elements, .. } => {
+            elements.iter().find_map(first_pattern_local)
+        }
     }
 }

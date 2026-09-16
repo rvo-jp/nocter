@@ -49,6 +49,7 @@ construct Box<T> {
 
 instance Box<T> where copy T {
     pub method &self.view(): &T from self { return }
+    pub method (&self from owner).inspect_owner(owner: &Box<T>): void { return }
     pub coerce &self as &T from self { return }
     pub operator (&self == other: &Self): bool { return }
     pub operator (&self < other: &Self): bool { return }
@@ -63,6 +64,7 @@ instance Box<T> where copy T  {
 }
 
 func values<T>(value: &T): some Source<T> { .Item = &T } from value { return }
+func inspect<T>(value: &T from owner, owner: &Box<T>): void { return }
 drop Box<T>(&+self) { return }
 test headers { return }
 "#;
@@ -300,6 +302,12 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
             )
     }));
     assert_provenance_annotations(declarations);
+    assert!(
+        declarations
+            .callables()
+            .iter()
+            .any(|(_, callable)| { !callable.input_provenance().constraints().is_empty() })
+    );
     assert!(lowered.source_index().len() > declarations.callables().len());
     assert_exact_unnamed_origins(&sources, &lowered);
 }
@@ -543,6 +551,16 @@ fn rejects_ambiguous_bodyless_result_provenance() {
 }
 
 #[test]
+fn rejects_directly_tautological_value_provenance() {
+    let error = definition_error("func invalid(value: &i32 from value): void { return }\n");
+    assert!(matches!(
+        error,
+        super::HeaderDefinitionError::Rule(violation)
+            if violation.rule() == DefinitionRule::TautologicalValueProvenance
+    ));
+}
+
+#[test]
 fn rejects_argument_packs_outside_the_single_final_callable_position() {
     for source in [
         "func invalid(...items: i32, tail: i32): void { return }\n",
@@ -595,13 +613,13 @@ fn definition_rules_retain_exact_authored_subjects() {
     let cases = [
         (
             "func choose<T>(left: &T, right: &T): &T from missing { return }\n",
-            DefinitionRule::UnknownResultProvenanceOrigin,
+            DefinitionRule::UnknownValueProvenanceOrigin,
             "missing",
             None,
         ),
         (
             "func choose<T>(left: &T, right: &T): &T from left | left { return }\n",
-            DefinitionRule::DuplicateResultProvenanceOrigin,
+            DefinitionRule::DuplicateValueProvenanceOrigin,
             "left {",
             Some("left |"),
         ),

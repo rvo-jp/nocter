@@ -328,10 +328,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     fn visit_binding(
-        &self,
+        &mut self,
         node: NodeId,
         actions: &mut Vec<Action>,
-    ) -> Result<(), NameResolutionInternalError> {
+    ) -> Result<(), NameResolutionError> {
         let pattern = direct_node(self.tree(), node, NodeKind::BindingPattern)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         let kind = if self.tree().children(node).iter().any(|element| {
@@ -351,6 +351,14 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         // order after the initializer and annotation have been resolved.
         actions.extend(introductions.into_iter().rev().map(Action::Declare));
         if let Some(annotation) = direct_node(self.tree(), node, NodeKind::TypeAnnotation) {
+            if let Some(clause) = direct_node(self.tree(), annotation, NodeKind::ProvenanceClause) {
+                for token in descendant_identifiers(self.tree(), clause)
+                    .into_iter()
+                    .skip(1)
+                {
+                    self.resolve_value_name(token)?;
+                }
+            }
             actions.push(Action::Visit(annotation));
         }
         let expression = direct_node(self.tree(), node, NodeKind::Expression)
@@ -876,6 +884,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
             direct_identifier(self.tree(), node).or_else(|| identifiers.first().copied())
         }
         .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        self.resolve_value_name(token)
+    }
+
+    fn resolve_value_name(&mut self, token: SyntaxToken) -> Result<(), NameResolutionError> {
         let name = self.symbol(token)?;
         if let Some(binding) = self.lookup_current_callable(name) {
             self.record_use(token, binding.target)?;

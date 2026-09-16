@@ -30,6 +30,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
 - ownership, cleanup dependencies, execution facts, loans, provenance, regions, and destruction
+- checked local provenance contracts and call-site proofs over the declaration/model-owned
+  constraint graph
 - one exact-coverage body-relation catalog shared by provenance, execution, and loans
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
@@ -75,6 +77,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.
+- Provenance containment uses the model-owned all-branches graph proof for direct declarations,
+  structural callables, closures, interface implementations, results, local initialization, and
+  reassignment. A consumer cannot substitute a one-path reachability test or reconstruct edges
+  from source names.
 - Direct calls receive one explicit result context: a complete expected type, an outcome payload,
   or a propagation result. `?`, `catch`, and `otherwise` route through that same call-planning
   boundary, so result-only generic parameters are not inferred differently by elimination syntax.

@@ -27,6 +27,7 @@ does not check callable bodies.
 - canonical source-domain and body-import rebinding for reused declarations
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
+- simultaneous receiver/parameter reservation followed by value-provenance clause resolution
 - one exported projection of authored callable modifiers into declaration and structural-type
   contracts, reused by body checking for body-local callable types and kept separate from callable
   execution scheduling
@@ -72,6 +73,8 @@ does not check callable bodies.
   either occurrence reaches semantic declaration storage.
 - Callable execution is derived only from the syntax-owned `async` modifier. Result normalization,
   aliases, and generic substitution cannot classify or reclassify execution.
+- Callable input clauses resolve only after the complete header identity domain exists. Forward
+  references and mutually constrained inputs therefore cannot depend on source walk order.
 - A derived associated binding resolves through bound prerequisite identities to the original
   declaration; lowering never creates an alias declaration for inheritance. The accepted
   declaration graph then freezes the effective identity so later stages do not repeat this binding.

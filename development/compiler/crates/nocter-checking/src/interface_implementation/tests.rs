@@ -87,6 +87,10 @@ fn interface_implementation_method_failures_have_distinct_rules() {
             "pub interface Readable { pub async method &self.read(): i32 }\nasync func pending(): i32 { return 1 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(): future i32 { return pending() }\n}\n",
             "E0352",
         ),
+        (
+            "struct Owner { value: i32 }\npub interface Inspect { pub method &self.inspect(value: &i32, owner: &Owner): void }\nstruct Handler {}\ninstance Handler {\n    impl Inspect\n    method &self.inspect(value: &i32 from owner, owner: &Owner): void { return }\n}\n",
+            "E0352",
+        ),
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
