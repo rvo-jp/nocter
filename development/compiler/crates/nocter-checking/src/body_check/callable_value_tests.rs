@@ -60,6 +60,29 @@ fn callable_contract_is_an_ordinary_local_type_annotation() {
 }
 
 #[test]
+fn erased_callable_local_records_construction_and_indirect_invocation() {
+    let output = check(
+        "func main(): i32 {\n    let callback: any &func(i32): i32 = (value) { value * 2 }\n    callback(4)\n}\n",
+    )
+    .unwrap();
+
+    let mut erased = false;
+    let mut invoked = false;
+    for (_, body) in output.program().bodies().iter() {
+        for (_, node) in body.nodes().iter() {
+            erased |= matches!(node.operation(), CheckedOperation::CallableErasure(_));
+            invoked |= matches!(
+                node.operation(),
+                CheckedOperation::Call(call)
+                    if matches!(call.target(), CallTarget::ErasedCallableValue { .. })
+            );
+        }
+    }
+    assert!(erased);
+    assert!(invoked);
+}
+
+#[test]
 fn noalloc_callable_guarantees_can_only_be_erased() {
     let output = check(
         "func erase(callback: noalloc &func(i32): i32): &func(i32): i32 {\n    return move callback\n}\n",

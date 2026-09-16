@@ -36,6 +36,7 @@ contextual_spellings! {
     Copy => "copy",
     Where => "where",
     Some => "some",
+    Any => "any",
     From => "from",
     Default => "default",
     Coerce => "coerce",

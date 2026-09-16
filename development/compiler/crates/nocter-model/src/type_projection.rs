@@ -169,21 +169,25 @@ fn project_kind(
             definition,
             arguments: project_types(source, target, projected, &arguments)?,
         },
-        TypeKind::Callable(contract) => {
+        TypeKind::Callable(callable) => {
+            let contract = callable.contract();
             let parameters = project_types(source, target, projected, contract.parameters())?;
             let pack = contract
                 .pack()
                 .map(|pack| pack.try_map(|ty| project_type(source, target, projected, ty)))
                 .transpose()?;
             let result = project_type(source, target, projected, contract.result())?;
-            TypeKind::Callable(CallableContract::new(
-                contract.capability(),
-                contract.guarantees(),
-                parameters,
-                pack,
-                result,
-                contract.provenance().clone(),
-            )?)
+            TypeKind::Callable(crate::CallableType::new(
+                callable.representation(),
+                CallableContract::new(
+                    contract.capability(),
+                    contract.guarantees(),
+                    parameters,
+                    pack,
+                    result,
+                    contract.provenance().clone(),
+                )?,
+            ))
         }
         TypeKind::Optional(payload) => {
             TypeKind::Optional(project_type(source, target, projected, payload)?)

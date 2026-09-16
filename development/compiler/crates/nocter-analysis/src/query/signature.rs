@@ -118,6 +118,7 @@ impl AnalysisSnapshot {
                     closure_signature_presentation(authority.checked(), *closure, &spellings)
                 })
             }
+            CallTarget::ErasedCallableValue { .. } => None,
         };
         let Some(rendered) = rendered else {
             return Ok(None);

@@ -92,6 +92,7 @@ pub(super) fn infer(
             }
             | CheckedOperation::BorrowConversion(_)
             | CheckedOperation::CallableGuaranteeErasure(_)
+            | CheckedOperation::CallableErasure(_)
             | CheckedOperation::OpaqueWitness(_)
             | CheckedOperation::Comparison(_)
             | CheckedOperation::Primitive(_)
@@ -181,6 +182,7 @@ fn append_operands(
         CheckedOperation::BorrowConversion(conversion) => pending.push(conversion.value()),
         CheckedOperation::Await(await_) => pending.push(await_.computation()),
         CheckedOperation::CallableGuaranteeErasure(value) => pending.push(*value),
+        CheckedOperation::CallableErasure(erasure) => pending.push(erasure.value()),
         CheckedOperation::OpaqueWitness(witness) => pending.push(witness.value()),
         CheckedOperation::Primitive(
             PrimitiveOperation::Unary { operand, .. }
@@ -208,7 +210,8 @@ fn append_operands(
                 pending.push(receiver.value());
             }
             if let CallTarget::CallableValue { value, .. }
-            | CallTarget::ClosureValue { value, .. } = call.target()
+            | CallTarget::ClosureValue { value, .. }
+            | CallTarget::ErasedCallableValue { value, .. } = call.target()
             {
                 pending.push(*value);
             }

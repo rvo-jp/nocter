@@ -23,6 +23,18 @@ pub enum CallableCapability {
     Owned,
 }
 
+/// Whether a callable type retains one statically selected witness or owns an erased runtime
+/// environment.
+///
+/// This is part of type identity. Erasure is never inferred from storage position by downstream
+/// phases.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum CallableRepresentation {
+    #[default]
+    StaticWitness,
+    Erased,
+}
+
 /// The semantic shape of one compiler-owned final argument pack.
 ///
 /// A keyed pack retains each key/value pair as one entry. It is never represented as alternating
@@ -255,6 +267,56 @@ pub struct CallableContract {
     provenance: ResultProvenance,
 }
 
+/// One structural callable type, including its source-visible runtime representation choice.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct CallableType {
+    representation: CallableRepresentation,
+    contract: CallableContract,
+}
+
+impl CallableType {
+    #[must_use]
+    pub const fn new(representation: CallableRepresentation, contract: CallableContract) -> Self {
+        Self {
+            representation,
+            contract,
+        }
+    }
+
+    #[must_use]
+    pub const fn statically_witnessed(contract: CallableContract) -> Self {
+        Self::new(CallableRepresentation::StaticWitness, contract)
+    }
+
+    #[must_use]
+    pub const fn erased(contract: CallableContract) -> Self {
+        Self::new(CallableRepresentation::Erased, contract)
+    }
+
+    #[must_use]
+    pub const fn representation(&self) -> CallableRepresentation {
+        self.representation
+    }
+
+    #[must_use]
+    pub const fn contract(&self) -> &CallableContract {
+        &self.contract
+    }
+
+    #[must_use]
+    pub const fn is_erased(&self) -> bool {
+        matches!(self.representation, CallableRepresentation::Erased)
+    }
+}
+
+impl std::ops::Deref for CallableType {
+    type Target = CallableContract;
+
+    fn deref(&self) -> &Self::Target {
+        self.contract()
+    }
+}
+
 impl CallableContract {
     /// Creates a normalized structural callable contract.
     ///
@@ -379,7 +441,7 @@ pub enum TypeKind {
         definition: ClosureId,
         arguments: Box<[TypeId]>,
     },
-    Callable(CallableContract),
+    Callable(CallableType),
     Optional(TypeId),
     Fallible(TypeId),
 }
@@ -406,7 +468,8 @@ impl TypeKind {
                 visit(*key);
                 visit(*value);
             }
-            Self::Callable(contract) => {
+            Self::Callable(callable) => {
+                let contract = callable.contract();
                 contract.parameters().iter().copied().for_each(&mut *visit);
                 if let Some(pack) = contract.pack() {
                     pack.visit(visit);
@@ -746,7 +809,7 @@ mod tests {
 
     use super::{
         ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
-        CallableGuarantees, TupleElements, TypeKind, TypeStore,
+        CallableGuarantees, CallableType, TupleElements, TypeKind, TypeStore,
     };
 
     #[test]
@@ -847,11 +910,25 @@ mod tests {
         )
         .unwrap();
 
-        let ordinary_id = types.intern(TypeKind::Callable(ordinary.clone())).unwrap();
-        let noalloc_id = types.intern(TypeKind::Callable(noalloc.clone())).unwrap();
-        let blocking_id = types.intern(TypeKind::Callable(blocking.clone())).unwrap();
+        let ordinary_id = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                ordinary.clone(),
+            )))
+            .unwrap();
+        let noalloc_id = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                noalloc.clone(),
+            )))
+            .unwrap();
+        let blocking_id = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                blocking.clone(),
+            )))
+            .unwrap();
         let compile_time_id = types
-            .intern(TypeKind::Callable(compile_time.clone()))
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                compile_time.clone(),
+            )))
             .unwrap();
         assert_ne!(ordinary_id, noalloc_id);
         assert_ne!(ordinary_id, blocking_id);
@@ -862,6 +939,32 @@ mod tests {
         assert!(!ordinary.can_weaken_to(&noalloc));
         assert!(compile_time.can_weaken_to(&ordinary));
         assert!(!ordinary.can_weaken_to(&compile_time));
+    }
+
+    #[test]
+    fn callable_representation_participates_in_structural_identity() {
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let scalar = types.builtin(BuiltinType::I32);
+        let contract = CallableContract::new(
+            CallableCapability::Readonly,
+            CallableGuarantees::default(),
+            [scalar],
+            None,
+            scalar,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
+        let static_ty = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                contract.clone(),
+            )))
+            .unwrap();
+        let erased_ty = types
+            .intern(TypeKind::Callable(CallableType::erased(contract)))
+            .unwrap();
+
+        assert_ne!(static_ty, erased_ty);
     }
 
     #[test]
@@ -925,8 +1028,16 @@ mod tests {
             provenance,
         )
         .unwrap();
-        let first = types.intern(TypeKind::Callable(contract.clone())).unwrap();
-        let second = types.intern(TypeKind::Callable(contract)).unwrap();
+        let first = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                contract.clone(),
+            )))
+            .unwrap();
+        let second = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                contract,
+            )))
+            .unwrap();
 
         assert_eq!(first, second);
     }
@@ -956,8 +1067,16 @@ mod tests {
         .unwrap();
 
         assert_ne!(
-            types.intern(TypeKind::Callable(ordinary)).unwrap(),
-            types.intern(TypeKind::Callable(packed)).unwrap()
+            types
+                .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                    ordinary,
+                )))
+                .unwrap(),
+            types
+                .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                    packed,
+                )))
+                .unwrap()
         );
     }
 

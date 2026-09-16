@@ -132,6 +132,7 @@ impl Analyzer<'_> {
             }
             CheckedOperation::Await(await_) => self.operand(await_.computation(), live)?,
             CheckedOperation::CallableGuaranteeErasure(value) => self.operand(value, live)?,
+            CheckedOperation::CallableErasure(erasure) => self.operand(erasure.value(), live)?,
             CheckedOperation::OpaqueWitness(witness) => self.operand(witness.value(), live)?,
             CheckedOperation::Primitive(operation) => self.primitive(&operation, live)?,
             CheckedOperation::Comparison(comparison) => self.operands(
@@ -205,7 +206,8 @@ impl Analyzer<'_> {
         let mut operands = Vec::new();
         match call.target() {
             crate::CallTarget::CallableValue { value, .. }
-            | crate::CallTarget::ClosureValue { value, .. } => operands.push(*value),
+            | crate::CallTarget::ClosureValue { value, .. }
+            | crate::CallTarget::ErasedCallableValue { value, .. } => operands.push(*value),
             crate::CallTarget::Static(_) => {}
         }
         if let Some(receiver) = call.receiver() {

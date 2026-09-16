@@ -113,6 +113,9 @@ impl Analyzer<'_> {
             }
             | CallTarget::ClosureValue {
                 value, capability, ..
+            }
+            | CallTarget::ErasedCallableValue {
+                value, capability, ..
             } => {
                 let place = self.place_node(*value)?;
                 self.evaluate_place_indices(place, state, extra)?;
@@ -465,6 +468,36 @@ impl Analyzer<'_> {
                             .ok_or(BodyCheckInternalError::LoanAnalysis)?
                             .flattened(),
                     );
+                }
+                result
+            }
+            CallTarget::ErasedCallableValue { value, .. } => {
+                let checked = self
+                    .input
+                    .body()
+                    .nodes()
+                    .get(*value)
+                    .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                let Some(nocter_model::TypeKind::Callable(callable)) = self.types.get(checked.ty())
+                else {
+                    return Err(BodyCheckInternalError::LoanAnalysis.into());
+                };
+                let mut result = LoanValue::independent();
+                let retain_place =
+                    invocation_place_can_reach_result(self.graph, self.types, result_type);
+                for origin in callable.provenance().origins() {
+                    let argument = arguments
+                        .get(origin.position())
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                    result.union_with(&argument.retained(retain_place).flattened());
+                }
+                result.union_with(
+                    &callable_value
+                        .ok_or(BodyCheckInternalError::LoanAnalysis)?
+                        .flattened(),
+                );
+                if retain_place && let Some(environment) = callable_environment {
+                    result.union_with(&environment.flattened());
                 }
                 result
             }

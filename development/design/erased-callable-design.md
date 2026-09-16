@@ -56,10 +56,12 @@ construction of that value. Execution analysis sees an explicit erasure operatio
 inside an allocation-free body. Capture provenance and the allocation context remain attached to
 the resulting value, so erasure cannot make a captured borrow escape.
 
-Expected-type conversion may request erasure only where the source visibly names the erased type,
-such as an initialized annotation or explicit `as any ... func` conversion. A call argument whose
-source expression has a concrete callable type is not silently boxed merely because the parameter
-expects an erased callable. This keeps allocation visible at the call site.
+Expected-type conversion may request erasure where the destination contract is explicitly an
+erased callable, including an initialized annotation, an `as any ... func` conversion, or an erased
+call parameter. There is no untyped or representation-inferred boxing: the destination's semantic
+type is the authority. The erasure remains an allocation operation in the checked caller, so a
+`noalloc` body cannot hide it behind argument conversion. APIs should accept statically witnessed
+generic callables when they do not need to store heterogeneous values.
 
 ## Semantic Authority
 
@@ -128,4 +130,3 @@ Routing selects method and validated request-target structure synchronously. Inv
 future which remains owned by the application and may be inserted into its `TaskGroup`. The router
 does not spawn, detach, limit, cancel, or drain work. Existing responder, body cursor, timeout,
 persistent-connection, and graceful-shutdown authorities remain unchanged.
-

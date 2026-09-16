@@ -456,6 +456,29 @@ fn parses_noalloc_as_a_structural_callable_modifier() {
 }
 
 #[test]
+fn parses_any_as_an_erased_callable_type_modifier() {
+    let tree = assert_syntax_ok(
+        "type Handler = any &func(request: i32): future i32!\n\
+         type Stateful = any blocking &+func(event: i32): void\n\
+         type Once = any func(job: i32): i32\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::ErasedCallableModifier)
+            .count(),
+        3
+    );
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::CallableType)
+            .count(),
+        3
+    );
+}
+
+#[test]
 fn parses_const_as_a_callable_capability_without_conflating_constant_declarations() {
     let tree = assert_syntax_ok(
         "const LIMIT: usize = 4\n\

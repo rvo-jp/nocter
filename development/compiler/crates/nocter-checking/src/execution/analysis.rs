@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
     AllocationGuarantee, ArenaBuilder, BodyNodeId, CallableGuarantees, CallableId, ClosureId,
-    DropId, LoopId, NonblockingGuarantee, PlaceId,
+    DropId, LoopId, NonblockingGuarantee, PlaceId, TypeStore,
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
@@ -48,11 +48,12 @@ struct Summaries {
 
 pub(super) fn analyze_program(
     environment: &crate::program_environment::ProgramEnvironment,
+    types: &TypeStore,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_>,
 ) -> Result<ExecutionFactTable, BodyRelationError> {
     let graph = environment.graph();
-    let facts = collect_facts(environment, closures, inputs)?;
+    let facts = collect_facts(environment, types, closures, inputs)?;
     let mut summaries = initial_summaries(graph, closures);
     loop {
         let mut changed = false;
@@ -72,6 +73,7 @@ pub(super) fn analyze_program(
 
 fn collect_facts(
     environment: &crate::program_environment::ProgramEnvironment,
+    types: &TypeStore,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_>,
 ) -> Result<BTreeMap<Root, RootRelations>, BodyRelationError> {
@@ -89,7 +91,7 @@ fn collect_facts(
         };
         if let Some(root) = root {
             let mut root_facts =
-                Collector::new(environment, input.body()).collect(input.body().root())?;
+                Collector::new(environment, types, input.body()).collect(input.body().root())?;
             if matches!(root, Root::Callable(callable) if Some(callable) == allocation_request) {
                 root_facts
                     .direct
@@ -102,7 +104,7 @@ fn collect_facts(
         let input = inputs.get(definition.owner())?;
         facts.insert(
             Root::Closure(closure),
-            Collector::new(environment, input.body()).collect(definition.body())?,
+            Collector::new(environment, types, input.body()).collect(definition.body())?,
         );
     }
     Ok(facts)
@@ -389,6 +391,7 @@ const fn guaranteed_nonblocking(guarantees: CallableGuarantees) -> bool {
 
 struct Collector<'program> {
     graph: &'program DeclarationGraph,
+    types: &'program TypeStore,
     capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
     body: &'program CheckedBody,
     visited_nodes: HashSet<BodyNodeId>,
@@ -400,10 +403,12 @@ struct Collector<'program> {
 impl<'program> Collector<'program> {
     fn new(
         environment: &'program crate::program_environment::ProgramEnvironment,
+        types: &'program TypeStore,
         body: &'program CheckedBody,
     ) -> Self {
         Self {
             graph: environment.graph(),
+            types,
             capability_evidence: environment.capability_evidence(),
             body,
             visited_nodes: HashSet::new(),
@@ -484,6 +489,25 @@ impl<'program> Collector<'program> {
                             self.record_selection(node, dispatch)?;
                         }
                     }
+                    CallTarget::ErasedCallableValue { value, .. } => {
+                        self.visit_node(*value)?;
+                        if !deferred {
+                            let checked = self
+                                .body
+                                .nodes()
+                                .get(*value)
+                                .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+                            let Some(nocter_model::TypeKind::Callable(callable)) =
+                                self.types.get(checked.ty())
+                            else {
+                                return Err(BodyCheckInternalError::ExecutionAnalysis.into());
+                            };
+                            self.facts.executions.push((
+                                node,
+                                ExecutionTarget::ExternalContract(callable.contract().guarantees()),
+                            ));
+                        }
+                    }
                 }
                 if deferred {
                     self.record_direct_allocation(node);
@@ -508,6 +532,10 @@ impl<'program> Collector<'program> {
             }
             CheckedOperation::Await(await_) => self.visit_node(await_.computation())?,
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit_node(*value)?,
+            CheckedOperation::CallableErasure(erasure) => {
+                self.visit_node(erasure.value())?;
+                self.record_direct_allocation(node);
+            }
             CheckedOperation::Comparison(comparison) => {
                 self.visit_readonly_operand(node, comparison.left())?;
                 self.visit_readonly_operand(node, comparison.right())?;

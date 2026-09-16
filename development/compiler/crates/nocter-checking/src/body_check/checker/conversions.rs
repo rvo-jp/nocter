@@ -27,9 +27,15 @@ impl BodyChecker<'_, '_> {
         }
 
         let target = self.resolve_data_type_use(*target)?;
-        let operand = self.check_expression(*operand, None)?;
+        let erased_target = matches!(
+            self.types.get(target),
+            Some(TypeKind::Callable(callable)) if callable.is_erased()
+        );
+        let operand = self.check_expression(*operand, erased_target.then_some(target))?;
         let source = self.node_type(operand)?;
-        let value = if source == self.types.builtin(BuiltinType::Never) {
+        let value = if source == target {
+            operand
+        } else if source == self.types.builtin(BuiltinType::Never) {
             operand
         } else if lossless_numeric_conversion(self.types, source, target) {
             self.add_node(

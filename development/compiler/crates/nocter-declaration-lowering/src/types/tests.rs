@@ -150,6 +150,63 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
 }
 
 #[test]
+fn binds_any_as_erased_callable_representation() {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let std_manifest_id = add_source(&mut sources, "/std/index.nct", "");
+    let app_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "type Handler = any noalloc &func(value: i32): i32\n",
+    );
+    let std_root_id = add_source(
+        &mut sources,
+        "/std/index.nct",
+        crate::test_support::TEST_BUILTIN_SOURCE,
+    );
+    let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", "");
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let std_root = parse_source(&sources, std_root_id, ParseGoal::SourceFile);
+    let prelude = parse_source(&sources, prelude_id, ParseGoal::SourceFile);
+    let prelude_identity = ModuleIdentity::new(PackageIdentity::new("builtin:std"), ["prelude"]);
+    let bound = bind(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("builtin:std", "std", "/std/index.nct", &std_manifest),
+        ],
+        vec![
+            module("workspace:app", &[], "/app/index.nct", &app),
+            module("builtin:std", &[], "/std/index.nct", &std_root),
+            module(
+                "builtin:std",
+                &["prelude"],
+                "/std/prelude/index.nct",
+                &prelude,
+            ),
+        ],
+        vec![],
+        &prelude_identity,
+    )
+    .unwrap();
+    let root = bound.type_for(first_node(&app, NodeKind::Type)).unwrap();
+    let BoundTypeKind::Callable(callable) = bound.kind(root).unwrap() else {
+        panic!("expected callable type");
+    };
+
+    assert_eq!(
+        callable.representation(),
+        nocter_model::CallableRepresentation::Erased
+    );
+    assert_eq!(
+        callable.guarantees().allocation(),
+        nocter_model::AllocationGuarantee::NoAllocation
+    );
+}
+
+#[test]
 fn binds_instance_patterns_and_interface_applications_to_generic_identities() {
     let mut sources = SourceMap::new();
     let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");

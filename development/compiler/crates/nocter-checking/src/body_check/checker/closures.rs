@@ -44,7 +44,10 @@ impl BodyChecker<'_, '_> {
                     parameters: contract.parameters().into(),
                     result: Some(contract.result()),
                 });
-        self.check_closure_with_expectation(node, expected_contract.as_ref())
+        let value = self.check_closure_with_expectation(node, expected_contract.as_ref())?;
+        expected.map_or(Ok(value), |expected| {
+            self.apply_expected(node, value, expected)
+        })
     }
 
     pub(super) fn constrain_closure_annotations(
@@ -274,8 +277,8 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<Option<CallableContract>, BodyCheckInternalError> {
         match expected.map(|expected| self.types.get(expected)) {
-            Some(Some(TypeKind::Callable(contract))) if contract.pack().is_none() => {
-                Ok(Some(contract.clone()))
+            Some(Some(TypeKind::Callable(callable))) if callable.pack().is_none() => {
+                Ok(Some(callable.contract().clone()))
             }
             Some(None) => Err(BodyCheckInternalError::UnknownType(expected.unwrap())),
             Some(Some(_)) | None => Ok(None),

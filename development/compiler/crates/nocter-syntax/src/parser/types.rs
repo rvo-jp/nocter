@@ -221,7 +221,10 @@ fn at_readonly_borrow(parser: &Parser<'_>) -> bool {
 }
 
 fn at_callable_type(parser: &Parser<'_>) -> bool {
-    let mut offset = usize::from(parser.at_keyword(Keyword::Const));
+    let mut offset = usize::from(parser.at_contextual(ContextualSpelling::Any));
+    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Const) {
+        offset += 1;
+    }
     if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::NoAlloc) {
         offset += 1;
     }
@@ -237,6 +240,11 @@ fn at_callable_type(parser: &Parser<'_>) -> bool {
 
 fn callable_type(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    if parser.at_contextual(ContextualSpelling::Any) {
+        let erased = parser.start();
+        parser.bump();
+        parser.complete(erased, NodeKind::ErasedCallableModifier);
+    }
     super::declaration::optional_const(parser);
     super::declaration::optional_noalloc(parser);
     super::declaration::optional_blocking(parser);

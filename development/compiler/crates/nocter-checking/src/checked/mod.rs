@@ -4,6 +4,7 @@ mod body;
 mod builder;
 mod cleanup;
 mod closure;
+mod erased_callable;
 mod loan;
 mod node;
 mod opaque;
@@ -30,6 +31,7 @@ pub use closure::{
     ClosureDefinition, ClosureEnvironmentField, ClosureParameter, ClosureSignature, ClosureTable,
     ReplayedBodyClosures,
 };
+pub use erased_callable::CheckedCallableErasure;
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
     SuspensionStorage,

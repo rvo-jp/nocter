@@ -429,6 +429,9 @@ impl<'program> Analyzer<'program> {
             CheckedOperation::CallableGuaranteeErasure(value) => {
                 self.evaluate(value, state, extra_active)?
             }
+            CheckedOperation::CallableErasure(erasure) => {
+                self.evaluate(erasure.value(), state, extra_active)?
+            }
             CheckedOperation::OpaqueWitness(witness) => {
                 self.evaluate(witness.value(), state, extra_active)?
             }

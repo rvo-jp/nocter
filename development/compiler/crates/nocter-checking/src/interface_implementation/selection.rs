@@ -209,7 +209,8 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
                     || self.intrinsic_facts.contains(&normalized)
                     || matches!(
                         self.types.get(*subject),
-                        Some(TypeKind::Callable(actual)) if actual == &expected
+                        Some(TypeKind::Callable(actual))
+                            if !actual.is_erased() && actual.contract() == &expected
                     )
                     || self.concrete_closure_satisfies(*subject, &expected)?
             }

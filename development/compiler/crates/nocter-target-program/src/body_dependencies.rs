@@ -311,6 +311,9 @@ impl<'program> DependencyCollector<'program> {
                         self.visit_node(*value)?;
                         self.record_selection(dispatch);
                     }
+                    CallTarget::ErasedCallableValue { value, .. } => {
+                        self.visit_node(*value)?;
+                    }
                 }
                 if let Some(receiver) = call.receiver() {
                     self.visit_receiver(receiver)?;
@@ -333,6 +336,10 @@ impl<'program> DependencyCollector<'program> {
             }
             CheckedOperation::Await(await_) => self.visit_node(await_.computation())?,
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit_node(*value)?,
+            CheckedOperation::CallableErasure(erasure) => {
+                self.visit_node(erasure.value())?;
+                self.record_closure(erasure.closure())?;
+            }
             CheckedOperation::OpaqueWitness(witness) => {
                 self.visit_node(witness.value())?;
                 self.record_type(witness.witness())?;

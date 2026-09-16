@@ -295,6 +295,7 @@ impl OwnershipAnalyzer<'_> {
             CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
             CheckedOperation::Await(await_) => self.visit_await(node, await_.computation(), state),
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit(*value, state),
+            CheckedOperation::CallableErasure(erasure) => self.visit(erasure.value(), state),
             CheckedOperation::OpaqueWitness(witness) => self.visit(witness.value(), state),
             CheckedOperation::Aggregate(aggregate) => self.visit_aggregate(aggregate, state),
             CheckedOperation::Closure(closure) => self.visit_value_sequence(

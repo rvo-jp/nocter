@@ -6,8 +6,8 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::{
     BorrowConversionImplementation, BorrowConversionPreparation, CheckedBorrowConversion,
-    CheckedOperation, CheckedOutcome, ExpectedBase, ExpectedEvidence, ExpectedTypeError,
-    ExpectedTypePlan, OutcomeLayer, plan_expected_type,
+    CheckedCallableErasure, CheckedOperation, CheckedOutcome, ExpectedBase, ExpectedEvidence,
+    ExpectedTypeError, ExpectedTypePlan, OutcomeLayer, plan_expected_type,
 };
 
 impl BodyChecker<'_, '_> {
@@ -96,6 +96,9 @@ impl BodyChecker<'_, '_> {
         expected: TypeId,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let actual = self.node_type(value)?;
+        if let Some(erased) = self.callable_erasure_target(actual, expected)? {
+            return self.materialize_callable_erasure(node, value, erased);
+        }
         if let Some((target, outer)) = self.callable_guarantee_erasure_target(actual, expected)? {
             return self.materialize_callable_guarantee_erasure(node, value, target, outer);
         }
@@ -114,23 +117,74 @@ impl BodyChecker<'_, '_> {
         }
     }
 
+    fn callable_erasure_target(
+        &self,
+        actual: TypeId,
+        expected: TypeId,
+    ) -> Result<Option<(TypeId, nocter_model::ClosureId)>, BodyCheckError> {
+        let Some(TypeKind::Closure {
+            definition: closure,
+            ..
+        }) = self.types.get(actual)
+        else {
+            return Ok(None);
+        };
+        let Some(TypeKind::Callable(callable)) = self.types.get(expected) else {
+            return Ok(None);
+        };
+        if !callable.is_erased() || callable.pack().is_some() {
+            return Ok(None);
+        }
+        let signature = self
+            .closures
+            .signature(*closure)
+            .ok_or(BodyCheckInternalError::MissingClosure(*closure))?;
+        Ok(
+            super::closures::concrete_closure_satisfies(callable.contract(), signature)
+                .then_some((expected, *closure)),
+        )
+    }
+
+    fn materialize_callable_erasure(
+        &mut self,
+        node: NodeId,
+        value: BodyNodeId,
+        (target, closure): (TypeId, nocter_model::ClosureId),
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let Some(TypeKind::Callable(callable)) = self.types.get(target) else {
+            return Err(BodyCheckInternalError::UnknownType(target).into());
+        };
+        let contract = callable.contract().clone();
+        self.closures
+            .require_callable(self.source.body(), closure, contract)
+            .map_err(BodyCheckInternalError::from)?;
+        self.add_node(
+            node,
+            target,
+            CheckedOperation::CallableErasure(CheckedCallableErasure::new(value, closure)),
+        )
+    }
+
     fn callable_guarantee_erasure_target(
         &self,
         actual: TypeId,
         expected: TypeId,
     ) -> Result<Option<(TypeId, Vec<OutcomeLayer>)>, BodyCheckError> {
-        let Some(TypeKind::Callable(actual_contract)) = self.types.get(actual) else {
+        let Some(TypeKind::Callable(actual_callable)) = self.types.get(actual) else {
             return Ok(None);
         };
         let mut target = expected;
         let mut outer = Vec::new();
         loop {
             match self.types.get(target) {
-                Some(TypeKind::Callable(expected_contract)) => {
-                    return Ok(actual_contract
-                        .can_weaken_to(expected_contract)
-                        .then_some((target, outer))
-                        .filter(|_| actual != target));
+                Some(TypeKind::Callable(expected_callable)) => {
+                    return Ok((actual_callable.representation()
+                        == expected_callable.representation()
+                        && actual_callable
+                            .contract()
+                            .can_weaken_to(expected_callable.contract()))
+                    .then_some((target, outer))
+                    .filter(|_| actual != target));
                 }
                 Some(TypeKind::Optional(payload)) => {
                     outer.push(OutcomeLayer::Optional);

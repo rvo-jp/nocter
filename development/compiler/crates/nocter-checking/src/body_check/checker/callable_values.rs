@@ -49,6 +49,11 @@ impl BodyChecker<'_, '_> {
                 contract.parameters().to_vec(),
                 contract.result(),
             ),
+            CallableValueContract::Erased(contract) => (
+                contract.capability(),
+                contract.parameters().to_vec(),
+                contract.result(),
+            ),
         };
         let argument_syntax = child_nodes(self.tree(), suffix);
         if argument_syntax.len() != parameters.len() {
@@ -81,6 +86,9 @@ impl BodyChecker<'_, '_> {
                     GenericArguments::default(),
                 ),
             },
+            CallableValueContract::Erased(_) => {
+                CallTarget::ErasedCallableValue { value, capability }
+            }
         };
         let call = self.add_node(
             node,
@@ -114,6 +122,11 @@ impl BodyChecker<'_, '_> {
                 .ok_or(BodyCheckInternalError::MissingClosure(*closure))?;
             return Ok(CallableValueContract::Closure(*closure, signature.clone()));
         }
+        if let Some(TypeKind::Callable(callable)) = self.types.get(subject)
+            && callable.is_erased()
+        {
+            return Ok(CallableValueContract::Erased(callable.contract().clone()));
+        }
         let mut candidates = self.assumptions.iter().filter_map(|requirement| {
             let CheckedPredicate::Callable {
                 subject: required_subject,
@@ -140,4 +153,5 @@ enum CallableValueContract {
         nocter_model::CapabilityEvidenceId,
         nocter_model::CallableContract,
     ),
+    Erased(nocter_model::CallableContract),
 }

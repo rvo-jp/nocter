@@ -455,8 +455,14 @@ impl BodyChecker<'_, '_> {
             provenance,
         )
         .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        let callable = if direct_node(self.tree(), node, NodeKind::ErasedCallableModifier).is_some()
+        {
+            nocter_model::CallableType::erased(contract)
+        } else {
+            nocter_model::CallableType::statically_witnessed(contract)
+        };
         self.types
-            .intern(TypeKind::Callable(contract))
+            .intern(TypeKind::Callable(callable))
             .map_err(|_| BodyCheckInternalError::UnknownType(result).into())
     }
 

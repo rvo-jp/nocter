@@ -1280,8 +1280,11 @@ impl<'a> Renderer<'a> {
             }
             TypeKind::Tuple(elements) => self.tuple_type(elements)?,
             TypeKind::Closure { .. } => self.output.push_str("closure"),
-            TypeKind::Callable(contract) => {
-                self.callable_contract(contract)?;
+            TypeKind::Callable(callable) => {
+                if callable.is_erased() {
+                    self.contextual(ContextualSpelling::Any);
+                }
+                self.callable_contract(callable.contract())?;
             }
             // Pack entries are compiler-owned ABI elements and cannot be named in source.
             TypeKind::PackEntry { .. } => return None,

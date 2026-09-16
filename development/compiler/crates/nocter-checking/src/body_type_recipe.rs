@@ -80,6 +80,7 @@ enum BodyTypeKind {
         arguments: Box<[BodyTypeRef]>,
     },
     Callable {
+        representation: nocter_model::CallableRepresentation,
         capability: CallableCapability,
         guarantees: nocter_model::CallableGuarantees,
         parameters: Box<[BodyTypeRef]>,
@@ -325,16 +326,17 @@ fn capture_kind(
                 .ok_or(BodyTypeRecipeError::UnknownClosure(*definition))?,
             arguments: capture_types(arguments, reference)?,
         },
-        TypeKind::Callable(contract) => BodyTypeKind::Callable {
-            capability: contract.capability(),
-            guarantees: contract.guarantees(),
-            parameters: capture_types(contract.parameters(), reference)?,
-            pack: contract
+        TypeKind::Callable(callable) => BodyTypeKind::Callable {
+            representation: callable.representation(),
+            capability: callable.capability(),
+            guarantees: callable.guarantees(),
+            parameters: capture_types(callable.parameters(), reference)?,
+            pack: callable
                 .pack()
                 .map(|pack| pack.try_map(reference))
                 .transpose()?,
-            result: reference(contract.result())?,
-            provenance: contract.provenance().clone(),
+            result: reference(callable.result())?,
+            provenance: callable.provenance().clone(),
         },
         TypeKind::Optional(payload) => BodyTypeKind::Optional(reference(*payload)?),
         TypeKind::Fallible(payload) => BodyTypeKind::Fallible(reference(*payload)?),
@@ -426,13 +428,15 @@ fn replay_kind(
             arguments: replay_types(arguments, &resolve)?,
         },
         BodyTypeKind::Callable {
+            representation,
             capability,
             guarantees,
             parameters,
             pack,
             result,
             provenance,
-        } => TypeKind::Callable(
+        } => TypeKind::Callable(nocter_model::CallableType::new(
+            *representation,
             CallableContract::new(
                 *capability,
                 *guarantees,
@@ -442,7 +446,7 @@ fn replay_kind(
                 provenance.clone(),
             )
             .map_err(BodyTypeRecipeError::InvalidCallable)?,
-        ),
+        )),
         BodyTypeKind::Optional(payload) => TypeKind::Optional(resolve(*payload)?),
         BodyTypeKind::Fallible(payload) => TypeKind::Fallible(resolve(*payload)?),
     })

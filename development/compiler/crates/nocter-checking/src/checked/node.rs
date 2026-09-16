@@ -57,6 +57,7 @@ impl CheckedOperation {
                 *target = semantics.ty(*target)?;
             }
             Self::OpaqueWitness(witness) => witness.rebind(semantics)?,
+            Self::CallableErasure(erasure) => erasure.rebind(semantics)?,
             Self::Closure(closure) => closure.closure = semantics.closure(closure.closure)?,
             Self::IteratorAcquisition(acquisition) => acquisition.rebind(semantics)?,
             Self::PackLiteral(sequence) => sequence.rebind(semantics)?,
@@ -100,6 +101,8 @@ pub enum CheckedOperation {
     BorrowConversion(CheckedBorrowConversion),
     /// A checked, one-way view that forgets source-level callable guarantees.
     CallableGuaranteeErasure(BodyNodeId),
+    /// A checked owning conversion from one concrete closure to a sized runtime callable.
+    CallableErasure(super::CheckedCallableErasure),
     Comparison(CheckedComparison),
     Primitive(PrimitiveOperation),
     Aggregate(AggregateConstruction),
@@ -198,6 +201,10 @@ pub enum CallTarget {
         value: BodyNodeId,
         capability: CallableCapability,
         dispatch: StaticSelection,
+    },
+    ErasedCallableValue {
+        value: BodyNodeId,
+        capability: CallableCapability,
     },
 }
 
@@ -323,6 +330,7 @@ impl CheckedCall {
                 *closure = semantics.closure(*closure)?;
             }
             CallTarget::CallableValue { dispatch, .. } => dispatch.rebind(semantics)?,
+            CallTarget::ErasedCallableValue { .. } => {}
         }
         self.execution.rebind(semantics)?;
         if let Some(receiver) = &mut self.receiver {

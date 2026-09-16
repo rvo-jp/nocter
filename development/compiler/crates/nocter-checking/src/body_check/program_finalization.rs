@@ -364,7 +364,7 @@ fn analyze_checked_body_relations(
         closures,
         &relations,
     )?;
-    let execution_facts = analyze_program_execution(environment, closures, &relations)?;
+    let execution_facts = analyze_program_execution(environment, types, closures, &relations)?;
     let loans = analyze_program_loans(
         environment.graph(),
         types,

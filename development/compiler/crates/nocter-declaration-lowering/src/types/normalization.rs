@@ -500,7 +500,8 @@ impl Evaluator<'_> {
                         result,
                     )?,
                 };
-                TypeKind::Callable(
+                TypeKind::Callable(nocter_model::CallableType::new(
+                    callable.representation(),
                     CallableContract::new(
                         callable.capability(),
                         callable.guarantees(),
@@ -510,7 +511,7 @@ impl Evaluator<'_> {
                         provenance,
                     )
                     .map_err(|_| TypeNormalizationError::InvalidBoundType(key.ty))?,
-                )
+                ))
             }
             BoundTypeKind::Optional(payload) => TypeKind::Optional(self.result(&key, payload)?),
             BoundTypeKind::Fallible(success) => TypeKind::Fallible(self.result(&key, success)?),
@@ -1171,15 +1172,21 @@ fn normalize_requirement(
         },
         BoundRequirementKind::Callable { subject, contract } => {
             let ty = evaluator.normalize(*contract, declaration)?;
-            let Some(TypeKind::Callable(contract)) = evaluator.store.get(ty) else {
+            let Some(TypeKind::Callable(callable)) = evaluator.store.get(ty) else {
                 return Err(evaluator.authored_violation(
                     TypeNormalizationRule::InvalidCallableRequirement,
                     *contract,
                 )?);
             };
+            if callable.is_erased() {
+                return Err(evaluator.authored_violation(
+                    TypeNormalizationRule::InvalidCallableRequirement,
+                    *contract,
+                )?);
+            }
             RequirementKind::Callable {
                 subject: *subject,
-                contract: contract.clone(),
+                contract: callable.contract().clone(),
             }
         }
         BoundRequirementKind::Copy(parameter) => RequirementKind::Copy(*parameter),

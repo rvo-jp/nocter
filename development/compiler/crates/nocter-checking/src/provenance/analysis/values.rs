@@ -381,6 +381,9 @@ impl Analyzer<'_> {
             }
             | CallTarget::ClosureValue {
                 value, capability, ..
+            }
+            | CallTarget::ErasedCallableValue {
+                value, capability, ..
             } => {
                 let (provenance, reaches) = self.evaluate(*value, state)?;
                 if !reaches {
@@ -598,6 +601,37 @@ impl Analyzer<'_> {
                     AmbientStorageDependence::Unknown => {
                         mapped.union_with(&ValueProvenance::from_source(ProvenanceSource::Unknown));
                     }
+                }
+                mapped
+            }
+            CallTarget::ErasedCallableValue { value, .. } => {
+                let checked = self
+                    .body
+                    .nodes()
+                    .get(*value)
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                let Some(nocter_model::TypeKind::Callable(callable_type)) =
+                    self.types.get(checked.ty())
+                else {
+                    return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
+                };
+                let mut mapped = ValueProvenance::independent();
+                let retain_place =
+                    invocation_place_can_reach_result(self.graph, self.types, result_type);
+                for origin in callable_type.provenance().origins() {
+                    let argument = evaluated
+                        .arguments
+                        .get(origin.position())
+                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                    mapped.union_with(&argument.retained(retain_place).flattened());
+                }
+                let callable = evaluated
+                    .callable
+                    .as_ref()
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                mapped.union_with(&callable.value.flattened());
+                if retain_place && let Some(environment) = &callable.storage {
+                    mapped.union_with(&environment.flattened());
                 }
                 mapped
             }

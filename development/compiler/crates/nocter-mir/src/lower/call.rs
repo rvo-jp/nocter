@@ -68,6 +68,9 @@ impl FunctionLowerer<'_> {
             return match call.target() {
                 CallTarget::ClosureValue { .. } => self.lower_closure_call(node, ty, call),
                 CallTarget::CallableValue { .. } => self.lower_callable_value_call(node, ty, call),
+                CallTarget::ErasedCallableValue { .. } => {
+                    Err(MirLoweringError::UnsupportedOperation(node))
+                }
                 CallTarget::Static(_) => unreachable!("matched above"),
             };
         };

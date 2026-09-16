@@ -353,6 +353,7 @@ impl Projector<'_> {
             | CheckedOperation::Await(_)
             | CheckedOperation::BorrowConversion(_)
             | CheckedOperation::CallableGuaranteeErasure(_)
+            | CheckedOperation::CallableErasure(_)
             | CheckedOperation::Aggregate(_)
             | CheckedOperation::Outcome(_)
             | CheckedOperation::OpaqueWitness(_)

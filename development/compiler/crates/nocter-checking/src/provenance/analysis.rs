@@ -704,6 +704,11 @@ impl<'program> Analyzer<'program> {
                 )
             }
             CheckedOperation::CallableGuaranteeErasure(value) => self.evaluate(value, state)?,
+            CheckedOperation::CallableErasure(erasure) => {
+                let (mut value, reaches) = self.evaluate(erasure.value(), state)?;
+                value.union_with(state.current_allocation());
+                (value, reaches)
+            }
             CheckedOperation::OpaqueWitness(witness) => self.evaluate(witness.value(), state)?,
             CheckedOperation::Comparison(comparison) => {
                 let (_, left) = self.evaluate(comparison.left().value(), state)?;

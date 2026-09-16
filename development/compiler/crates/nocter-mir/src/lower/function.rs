@@ -217,6 +217,9 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::CallableGuaranteeErasure(value) => {
                 self.require_value(*value).map(Some)
             }
+            CheckedOperation::CallableErasure(_) => {
+                Err(MirLoweringError::UnsupportedOperation(node))
+            }
             CheckedOperation::OpaqueWitness(witness) => {
                 self.lower_opaque_witness(node, ty, *witness).map(Some)
             }

@@ -112,25 +112,26 @@ where
             key: map(key)?,
             value: map(value)?,
         },
-        TypeKind::Callable(contract) => TypeKind::Callable(
+        TypeKind::Callable(callable) => TypeKind::Callable(nocter_model::CallableType::new(
+            callable.representation(),
             CallableContract::new(
-                contract.capability(),
-                contract.guarantees(),
-                contract
+                callable.capability(),
+                callable.guarantees(),
+                callable
                     .parameters()
                     .iter()
                     .copied()
                     .map(&mut map)
                     .collect::<Result<Vec<_>, _>>()?,
-                contract
+                callable
                     .pack()
                     .map(|pack| pack.try_map(&mut map))
                     .transpose()?,
-                map(contract.result())?,
-                contract.provenance().clone(),
+                map(callable.result())?,
+                callable.provenance().clone(),
             )
             .map_err(|_| E::from(SubstitutionError::InvalidStore))?,
-        ),
+        )),
         TypeKind::Optional(payload) => TypeKind::Optional(map(payload)?),
         TypeKind::Fallible(payload) => TypeKind::Fallible(map(payload)?),
     })

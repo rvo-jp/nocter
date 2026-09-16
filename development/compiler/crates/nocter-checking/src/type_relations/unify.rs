@@ -199,7 +199,8 @@ fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, 
     }
     match (left, right) {
         (TypeKind::Callable(left), TypeKind::Callable(right)) => {
-            decompose_callable(left, right, pending)
+            left.representation() == right.representation()
+                && decompose_callable(left.contract(), right.contract(), pending)
         }
         (TypeKind::Builtin(left), TypeKind::Builtin(right)) => left == right,
         (TypeKind::GenericParameter(left), TypeKind::GenericParameter(right)) => left == right,

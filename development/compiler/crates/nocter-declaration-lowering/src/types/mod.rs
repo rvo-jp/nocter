@@ -20,8 +20,9 @@ use std::fmt;
 use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{
     Arena, ArenaBuilder, ArgumentPack, AssociatedTypeId, BorrowCapability, BuiltinType,
-    CallableCapability, CallableGuarantees, ConstantExpressionId, GenericParameterId, InterfaceId,
-    NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol, TypeAliasId,
+    CallableCapability, CallableGuarantees, CallableRepresentation, ConstantExpressionId,
+    GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol,
+    TypeAliasId,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, direct_node};
@@ -43,6 +44,7 @@ impl BoundTypeId {
 /// A callable type whose names are bound but whose component types are not yet interned.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BoundCallableType {
+    representation: CallableRepresentation,
     capability: CallableCapability,
     guarantees: CallableGuarantees,
     parameters: Box<[BoundTypeId]>,
@@ -53,6 +55,11 @@ pub struct BoundCallableType {
 }
 
 impl BoundCallableType {
+    #[must_use]
+    pub const fn representation(&self) -> CallableRepresentation {
+        self.representation
+    }
+
     #[must_use]
     pub const fn capability(&self) -> CallableCapability {
         self.capability

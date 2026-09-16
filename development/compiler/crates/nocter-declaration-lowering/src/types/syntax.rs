@@ -318,6 +318,11 @@ fn bind_callable(
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
+    let representation = if direct_node(tree, node, NodeKind::ErasedCallableModifier).is_some() {
+        nocter_model::CallableRepresentation::Erased
+    } else {
+        nocter_model::CallableRepresentation::StaticWitness
+    };
     let capability = match direct_punctuation(tree, node) {
         Some(Punctuation::Ampersand) => CallableCapability::Readonly,
         Some(Punctuation::ReadWrite) => CallableCapability::ReadWrite,
@@ -372,6 +377,7 @@ fn bind_callable(
     Ok(push(
         kinds,
         BoundTypeKind::Callable(BoundCallableType {
+            representation,
             capability,
             guarantees,
             parameters: parameters.into_boxed_slice(),
