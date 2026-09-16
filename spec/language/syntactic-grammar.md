@@ -1103,6 +1103,7 @@ special role only at the listed boundary:
 | --- | --- |
 | `copy` | immediately before `struct`, or immediately after `where` / a predicate comma |
 | `where` | the requirement-clause position of an eligible declaration |
+| `any` | immediately before a complete structural callable type |
 | `some` | the start of an opaque callable result |
 | `from` | immediately after a callable result type |
 | `default` | before an interface default `method` |
