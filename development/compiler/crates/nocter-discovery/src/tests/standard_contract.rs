@@ -89,6 +89,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("hash", "vec"),
     ("http", "hash"),
     ("http", "io"),
+    ("http", "iter"),
     ("http", "net"),
     ("http", "string"),
     ("http", "task"),
