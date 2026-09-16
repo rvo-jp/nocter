@@ -497,7 +497,7 @@ Type = PrefixType TypeOutcomeSuffix?
 
 TypeOutcomeSuffix = "?" "!"? | "!"
 
-PrefixType = CallableType | NonCallablePrefix
+PrefixType = ErasedCallableType | CallableType | NonCallablePrefix
 
 NonCallablePrefix = "*" PrefixType
                   | "&" NonCallablePrefix
@@ -536,6 +536,7 @@ TupleType = "(" Type "," Type ("," Type)* ","? ")"
 
 CallableType = NoAllocModifier? BlockingModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
+ErasedCallableType = "any" CallableType
 CallableCapability = ("&" | "&+")?
 CallableParameter = "..."? (Type | Name ":" Type)
 
@@ -565,8 +566,9 @@ structural callable type. One final callable parameter may carry `...`; its pack
 type are part of structural callable identity.
 
 Because `&func` and `&+func` begin callable annotations, they are not parsed as an ordinary borrow
-prefix followed by a separate `func` type. Their leading capability describes how the statically
-selected witness may be invoked; it is not storage for an erased function object.
+prefix followed by a separate `func` type. Their leading capability describes invocation access.
+An unprefixed callable type remains statically witnessed. Prefixing the complete callable type with
+`any` selects its distinct sized erased representation; `any` cannot prefix another type form.
 
 `NoAllocModifier` is accepted only on callable declarations, drop declarations, and callable
 types. Its canonical position follows visibility and precedes `primitive`, `default`, the callable

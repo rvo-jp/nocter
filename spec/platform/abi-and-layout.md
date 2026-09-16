@@ -110,6 +110,30 @@ The unsized data forms `str` and `[T]` do not have a standalone by-value ABI. Th
 
 Values larger than 16 bytes are classified as indirect values.
 
+### Erased Callable Layout
+
+Every `any func`, `any &func`, and `any &+func` value occupies four machine words:
+
+```text
+word 0: opaque environment pointer
+word 1: selected invocation address
+word 2: optional environment-destruction address
+word 3: mapped environment byte count
+```
+
+The environment pointer owns one compiler-managed mapping. A zero destruction address means that
+the environment has no source-level destruction work; releasing the erased value still releases
+the mapping. A repeated call retains this ownership in the erased value and passes readonly or
+readwrite environment access selected by the source capability. A consuming call transfers the
+ownership into the invocation and releases it after preserving the result. Source code cannot
+inspect, construct, decompose, or compare these words.
+
+The invocation address is selected during whole-program executable specialization. Runtime name
+lookup and witness-table search are not part of the ABI. The invoked callable otherwise uses the
+ordinary Nocter argument, result, allocation-context, and outcome ABI for its enclosed structural
+contract. Because the stored value is larger than 16 bytes, ordinary argument and result
+classification passes it indirectly under the existing large-value rules.
+
 ### Arguments
 
 Arguments are assigned left to right.

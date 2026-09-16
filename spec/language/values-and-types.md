@@ -43,6 +43,9 @@ Structural and contextual type syntax:
 &[T]
 &+[T]
 future T
+any func(T): U
+any &func(T): U
+any &+func(T): U
 T?
 T!
 T?!
@@ -69,6 +72,11 @@ Outcome construction at a callable return boundary is contextual, not a subtype 
 presence or success injection follows the complete declared result type; an expression that already
 has that complete type keeps its existing tags unchanged. The normative
 algorithm is [Recursive Outcome Injection](errors-and-optionals.md#recursive-outcome-injection).
+
+An `any` callable is a sized, move-only value that owns one erased callable environment. Unlike a
+statically witnessed callable annotation, it may occupy every ordinary sized data position. Its
+construction, invocation, and ownership rules are defined in
+[Callable Values](callables.md#erased-callable-types).
 
 Nocter supports one optional layer, one fallible layer, or one of each in either order. Repeated
 equal layers and deeper recursive outcome types are not supported.

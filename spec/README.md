@@ -26,9 +26,9 @@ public contract.
 
 ## Contract Status
 
-The working tree specifies the published v0.54.0 contract. The
-[release index](../releases/README.md) owns publication status, downloads, and version summaries;
-repository tags preserve the exact specification for earlier releases.
+The working tree specifies the active v0.55.0 contract. v0.54.0 remains the latest published
+release. The [release index](../releases/README.md) owns publication status, downloads, and version
+summaries; repository tags preserve the exact specification for earlier releases.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Milestones, implementation plans, reviews, and release qualification evidence are

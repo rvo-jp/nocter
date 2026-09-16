@@ -559,6 +559,13 @@ cannot infer copyability from the hidden witness. Explicit `move` transfers an e
 binding, and normal scope, return, optional, fallible, and path-sensitive cleanup destroys the
 hidden value exactly once.
 
+Every erased callable written with `any` is move-only even when its current hidden environment
+would otherwise be copyable. Moving transfers the complete erased value and its environment
+ownership. Normal scope, return, aggregate, optional, fallible, and path-sensitive cleanup destroys
+that environment exactly once. A consuming `any func` invocation transfers the environment into
+the call and leaves the source place uninitialized; repeated invocation remains available only for
+`any &func` and `any &+func`.
+
 ## Move Expressions
 
 `move` is a unary expression that explicitly transfers ownership from a binding or named struct

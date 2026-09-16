@@ -274,9 +274,9 @@ contract that its body does not satisfy.
 Callable annotations are statically witnessed. A local initializer or call argument selects one
 exact concrete closure or callable witness, and that identity remains part of the enclosing
 callable specialization. The annotation does not erase the environment, allocate a box, create a
-code-pointer pair, or introduce indirect dispatch. Different concrete witnesses cannot flow into
-one local binding or one control-flow merge. A future erased callable requires a separate explicit
-type and ABI.
+runtime callable value, or introduce indirect dispatch. Different concrete witnesses cannot flow
+into one binding or one control-flow merge unless the destination explicitly uses an erased
+callable type.
 
 Callable annotations are accepted for callable parameters and initialized local bindings. They are
 not sized data-bearing types and cannot appear as nominal fields, variant payloads, type aliases,
@@ -320,9 +320,50 @@ The invocation surface is identical for all three capabilities: `callback(argume
 no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized
 to their generated target.
 
-Callable annotations do not define a uniform stored layout or an erased parameter ABI. Hidden
-witness specialization preserves the concrete environment layout. The language does not define an
-erased callable object, heap-boxed closure, code-pointer ABI, vtable, or runtime interface dispatch.
+### Erased Callable Types
+
+Prefixing a complete callable type with `any` creates a distinct sized type with runtime callable
+erasure:
+
+```nct
+type Handler = any &func(Request): future Response!
+type Observer = any noalloc &func(Event): void
+type Mutator = any &+func(Event): void
+type Finalizer = any func(Job): Result
+```
+
+The enclosed callable contract is unchanged. Capability, parameter and result types, result
+provenance, `noalloc`, and `blocking` remain part of compatibility and invocation. `any &func`
+permits repeated readonly invocation, `any &+func` permits repeated invocation through a writable
+place, and `any func` permits one consuming invocation. All use the ordinary
+`callback(arguments)` surface.
+
+An erased callable is an owning, move-only value regardless of the hidden environment's structural
+copyability. It may be used in fields, variant payloads, aliases, generic arguments, parameters,
+locals, named results, and supported outcome layers. Its destruction destroys every still-live
+owned capture exactly once and releases the compiler-owned environment storage. Captured borrows
+retain their ordinary provenance and cannot escape their source merely because the environment is
+erased.
+
+Erasure occurs only at a contextual expected-type boundary that explicitly names `any`, including
+an annotated initializer, an erased-callable argument, a named erased result, or an `as any ...`
+conversion. The source must provide one concrete callable witness compatible with the complete
+destination contract. Erasure may weaken `noalloc` or nonblocking guarantees in the same direction
+as an ordinary callable conversion, but cannot strengthen them. No untyped closure, ordinary
+callable annotation, generic inference result, or control-flow merge silently selects erased
+representation.
+
+Constructing an erased callable allocates compiler-owned environment storage and moves the concrete
+environment into it. This construction is therefore rejected inside a `noalloc` body even when the
+finished erased callable's invocation contract is `noalloc`. Calling that finished value performs
+only the effects admitted by its enclosed contract; construction allocation is not an invocation
+effect. APIs that do not need heterogeneous storage should continue accepting statically witnessed
+generic callables so invocation remains directly specialized and construction does not allocate.
+
+The fixed target representation and indirect-call ABI are defined by
+[ABI and Layout](../platform/abi-and-layout.md#erased-callable-layout). Erasure is specific to
+callables and does not introduce `any Interface`, implicit nominal conformance, or general dynamic
+dispatch.
 
 A closure that consumes captured state may be called only through a consuming capability. Iterator
 adapters require a mutable repeated callback, so consuming a capture from their callback body is a
@@ -348,7 +389,7 @@ callable and interface rules in this chapter, not additional callable syntax.
 
 ## Unsupported Features
 
-The current language does not include implementation inheritance, erased callable types, dynamic
+The current language does not include implementation inheritance, general interface-object dynamic
 dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
 sorting, extension declarations, or implicit interface implementation. Interface prerequisite
 contracts are defined by [Generics and Interfaces](generics-and-interfaces.md#interface-prerequisites).
