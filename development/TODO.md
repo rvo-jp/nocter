@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.55.0 release preparation is active. The erased-callable and practical HTTP application
-milestone, whole-repository compiler gate, and architecture review are complete. Release identity
-now selects `0.55.0`; public notes and the release-preparation contract are authored. The completed
-implementation scope lives in
+Nocter v0.55.0 has a qualified retained release candidate. The erased-callable and practical HTTP
+application milestone, whole-repository compiler gate, deterministic two-build packaging, and
+installed-home qualification are complete. The completed implementation scope lives in
 [`development/history/milestones/v0.55.0.md`](history/milestones/v0.55.0.md).
 
 ## Next Work
 
-Commit the exact release content, run deterministic two-build packaging and installed-home
-qualification from that clean commit, then record the measured artifact identities. Publication
-must reuse the retained candidate archive without rebuilding it.
+Publish v0.55.0 from the retained `dist/nocter-v0.55.0-arm64-darwin.tar.gz` archive without
+rebuilding it. Update published-version surfaces, commit them, create the annotated tag at that
+publication commit, push `main` and the tag, create one non-draft non-prerelease GitHub Release,
+then audit the public asset, tag, latest-release endpoint, installed home, and Pages deployment.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
