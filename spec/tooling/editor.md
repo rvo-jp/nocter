@@ -109,7 +109,7 @@ ranges.
 
 Hover and signature help render normalized compiler declarations, not raw source excerpts. They
 preserve specialized generic arguments, every interface bound, callable capability, outcome layers,
-intrinsic `copy` requirements, callable `where` clauses, and source-visible result provenance
+intrinsic `copy` requirements, callable `where` clauses, and source-visible value provenance
 supplied by analysis. Compiler-owned execution allocation and
 fresh-result storage do not appear as signature prose.
 
@@ -285,6 +285,9 @@ syntax. The language server performs no second type or provenance inference pass
 Result positions follow the callable declaration's structural grammar. A nested closure result
 never receives the surrounding callable's provenance hint, while coercion, index, and expansion
 results participate when their inferred provenance has a source-visible external origin.
+Authored parameter, receiver, and local-binding provenance is rendered from resolved semantic
+identities in hover and signatures. Tooling does not attach inferred input clauses or recover an
+origin relationship by comparing source spellings.
 Inlay-hint requests use half-open ranges. A hint at the request's end position is excluded.
 
 ## Incomplete Source Recovery

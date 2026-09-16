@@ -41,6 +41,7 @@ under `development/history/`, not in current design documents.
 - [Owned Blocking-Job Boundary](blocking-job-design.md)
 - [Canonical File I/O Boundary](file-io-design.md)
 - [Execution Contract Boundary](execution-contract-design.md)
+- [Value Provenance Contract Boundary](value-provenance-design.md)
 - [Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md)
 - [Secure Transport Boundary](secure-transport-design.md)
 - [Streaming HTTP Service Boundary](streaming-http-service-design.md)

@@ -796,7 +796,8 @@ Rules:
 - Borrow-like values derived from temporary owned values cannot be returned.
 - Borrow-like values derived from owned parameters cannot be returned, because owned parameters are dropped at function scope end unless moved.
 - Borrow-like values derived from region-allocated storage cannot escape the region.
-- Nocter has no source-level lifetime parameters or lifetime annotations.
+- Nocter has no named lifetime parameters. A value-position `from` contract may bound the
+  provenance of a result, parameter, receiver, or annotated local value by existing value bindings.
 - If provenance cannot be proven by the compiler, returning the borrow-like value is a compile error.
 
 Examples:

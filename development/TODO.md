@@ -2,17 +2,15 @@
 
 ## Current State
 
-Nocter v0.55.0 is published and externally audited. Its annotated tag, single release asset,
-downloaded installed home, latest-release selection, and source-identified Pages deployment agree
-with the qualified candidate. The immutable evidence lives in
-[`development/history/release-audits/v0.55.0.md`](history/release-audits/v0.55.0.md).
+Nocter v0.55.0 is published and externally audited. v0.56.0 is active and generalizes `from` into
+one value-provenance contract for lending and zero-copy APIs. The active scope and completion gates
+live in [`development/history/milestones/v0.56.0.md`](history/milestones/v0.56.0.md).
 
 ## Next Work
 
-Define v0.56.0 around lending APIs whose result provenance is tied to each receiver call. Start from
-zero-copy iteration, parsing, mutable iteration, buffered windows, and protocol decoding use cases;
-then design one parameterized associated-result model that extends Nocter's existing `from`
-contracts without importing Rust lifetime syntax or exposing backend lifetime machinery.
+Complete Phase 0 by adopting the unified value-contract specification and proving that its
+declaration model can represent result, parameter, receiver, and local constraints without source
+order or source spellings. Then replace the result-only compiler path in Phase 1.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

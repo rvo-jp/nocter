@@ -189,8 +189,9 @@ Rules:
 - An intrinsic copy predicate is `where copy T`. `copy` never follows `impl`.
 - A requirement clause remains on the signature line after result provenance:
   `: Self! from allocator where copy T`. Requirements use comma-space separation.
-- A result provenance clause follows the return type on the same line with one space before
-  `from`. Union origins use one space around `|`.
+- A value provenance clause follows the complete parameter, result, or local annotation type on the
+  same line with one space before `from`. A qualified receiver is parenthesized. Union origins use
+  one space around `|`.
 - An associated type declaration is `pub type Name` or `pub type Name impl Bound + Bound` on its own
   interface-member line.
 - An associated type binding is `.Name = Type` inside braces following its interface
@@ -253,10 +254,16 @@ func read_all(
 
 pub method &self.get(index: usize): &T?
 func choose<T>(left: &T, right: &T): &T from left | right
+func inspect(owner: &Owner, value: &str from owner): void
+method (&self from owner).inspect(owner: &Owner): void
+let part: &str from left | right = choose(left, right)
 construct String {
     pub literal ""(text: &str): Self { ... }
 }
 ```
+
+`from` follows the complete type in every value-contract position. A qualified receiver uses the
+parenthesized form. Multiple origins retain source order and use one space around `|`.
 
 ## Expressions
 

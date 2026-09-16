@@ -278,6 +278,7 @@ Receiver spelling determines call capability:
 method &self.name(...): Return
 method &+self.name(...): Return
 method self.name(...): Return
+method (&self from owner).name(owner: &Owner): Return
 ```
 
 - `&self` borrows the receiver readonly.
@@ -285,6 +286,9 @@ method self.name(...): Return
 - `self` consumes the receiver or copies it when its type is `Copy`.
 - A newly created owned temporary may be a readwrite receiver for its single method call.
 - A borrow derived from a temporary receiver cannot escape the statement.
+- Parentheses are required only when a receiver carries a `from` value contract. The clause may
+  name any parameter in the complete method header and is resolved independently of declaration
+  order.
 
 Methods use `value.method(arguments)`. They are not callable through UFCS-like
 `Type.method(&value, arguments)` syntax. Associated functions use `Type.function(arguments)` and
@@ -482,13 +486,14 @@ Interface implementation rules are:
   supplies a default
 - every associated type declaration has exactly one binding and no undeclared binding is present
 - receiver capability, generic parameters, parameter and result types, outcome layers, packs, and
-  external result provenance participate in signature compatibility
+  external input and result provenance participate in signature compatibility
 - parameter names do not participate in compatibility
 - associated projections are compared after substituting the implementation's bindings
 - every normalized interface prerequisite is proven for every specialization admitted by the
   implementation; a prerequisite interface requires a separate explicit implementation fact
 - coercion and overload ranking never make a near match satisfy an interface
-- a result provenance implementation may promise a narrower, longer-lived origin set; a concrete
+- an implementation cannot assume an input-provenance relation absent from its interface contract;
+  a result implementation may promise a narrower, longer-lived origin set, and a concrete
   storage-independent result may omit an interface origin that cannot apply to that result, while
   a storage-carrying result cannot introduce an undeclared origin
 - matching inherent members without an explicit `impl Interface` member do not implement it

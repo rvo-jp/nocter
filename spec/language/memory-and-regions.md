@@ -56,7 +56,7 @@ Changing a helper body so that it allocates may change its compiler-owned execut
 The whole compile unit contains the source and summaries required to propagate that fact. Execution
 allocation and fresh storage retained by a result have no source-level annotation.
 
-## Result Storage Contracts
+## Value Storage Contracts
 
 Callers see only external storage relationships they must preserve:
 
@@ -67,11 +67,30 @@ func view(text: &String): &str
 func copy_with(allocator: &+Allocator, text: &str): String from allocator
 ```
 
-`from X` reports a receiver, parameter, allocator capability, or `static` origin retained by a
-storage-bearing successful result projection. The clause is normally omitted. When exactly one
-receiver, parameter, allocator capability, or argument pack can supply the result storage, that
-origin is inferred. Fresh storage and static storage require no caller-managed source place and
-therefore require no clause.
+`from X` reports a receiver, parameter, allocator capability, local value, or `static` origin that
+bounds a storage-bearing value. It may qualify a callable result, parameter, receiver, or annotated
+local binding:
+
+```nct
+func inspect(owner: &Owner, value: &str from owner): void
+method (&self from owner).inspect(owner: &Owner): void
+let part: &str from text = parser.next()?
+```
+
+The clause constrains the complete value, including storage-bearing fields and elements. It is not
+part of the value's data type, does not change layout or ABI, and does not declare a lifetime or
+origin name. Every origin must be an existing value binding in that contract's scope. `from owner`
+means that every caller-managed storage origin retained by the qualified value is contained by
+`owner`; storage-independent and static values satisfy the contract without borrowing `owner`.
+
+For callable headers, the receiver and all parameters are reserved before any clause is resolved.
+A receiver may therefore name a later parameter and parameters may name one another without making
+meaning depend on source order. Mutually contained values form one equality component. A direct
+self-bound such as `value: &str from value` is invalid because it adds no constraint.
+
+Result clauses are normally omitted. When exactly one receiver, parameter, allocator capability,
+or argument pack can supply the result storage, that origin is inferred. Fresh storage and static
+storage require no caller-managed source place and therefore require no clause.
 
 A callable with multiple eligible inputs may omit `from` only when its body proves that the result
 retains none of them. A bodyless declaration cannot supply that proof, so an ambiguous
@@ -79,11 +98,27 @@ storage-bearing result must explicitly name its retained upper bound. `copy_with
 allocator and text input, but its owned result retains only the allocator origin. Explicit clauses
 remain legal for unambiguous APIs, although canonical source omits them.
 
-For `T!`, the clause describes only the successful `T` value. Error storage remains part of
+For a result `T!`, the clause describes only the successful `T` value. Error storage remains part of
 compiler-owned escape analysis and does not force a `from` clause onto every fallible API. Omitting
 `from` does not promise allocation-free execution or storage independence from the active lexical
 region. The independent `noalloc` callable contract below provides the allocation guarantee;
 `realtime` is not part of the current language.
+
+At invocation, every constrained argument is checked against the actual source values named by its
+contract before the call can execute. Inside the body, each parameter retains its own exact
+symbolic origin; the declared containment graph is used only when proving a destination contract.
+This preserves precision when a result returns the constrained value itself.
+
+`from` constrains construction of a new value. It cannot add an unrelated origin to an existing
+mutable owner in place. A provenance-changing operation consumes the owner and returns its new
+state explicitly:
+
+```nct
+method self.push(value: &str): Self from self | value
+```
+
+Named origin parameters, abstract outlives predicates, variant-dependent public provenance, and
+movable direct self-references are not part of the language.
 
 Body-backed summaries infer fresh storage and exact path-sensitive origins from implementations.
 Bodyless abstract callables use their written clause or the shared zero/one-origin elision rule.
@@ -225,8 +260,8 @@ func count_bytes(allocator: &+Allocator): usize {
 
 ## Borrow Origins and Elision
 
-Nocter does not expose Rust-style lifetime parameters or annotations. The compiler tracks storage
-origins through values and callable summaries.
+Nocter does not expose Rust-style named lifetime parameters. The compiler tracks storage origins
+through values, value-position `from` contracts, and callable summaries.
 
 Elision and inference rules:
 
@@ -242,32 +277,31 @@ A borrow returned through a call remains a loan of the original caller place thr
 value's last source-level use. Return validation and ordinary NLL use the same callable provenance
 summary.
 
-Source-level lifetime syntax may be reconsidered only when public APIs need relationships that
-cannot be expressed by these rules, such as multiple independently named regions in bodyless APIs,
-higher-order functions, or separately compiled region-parameterized types.
+Named lifetime or origin parameters may be reconsidered only when public APIs require abstract
+relationships that cannot be expressed by constraints between existing values.
 
-### Explicit result provenance
+### Explicit value provenance
 
-An identity-based `from` clause expresses an otherwise ambiguous public result provenance without
-adding lifetime names:
+An identity-based `from` clause expresses a public value relationship without adding lifetime
+names:
 
 ```nct
 pub method &self.get(key: &K): &V? from self
 func choose<T>(left: &T, right: &T, first: bool): &T from left | right
 ```
 
-An identifier after `from` names a receiver, ordinary parameter, or typed argument pack
-whose semantic value can carry storage provenance. This includes borrows, owning values, generic
-values, and allocator capabilities. A pack origin represents the storage carried by its elements;
-the ephemeral pack container itself still cannot escape the callable body.
+An identifier after `from` names a receiver, ordinary parameter, typed argument pack, or visible
+local whose semantic value can carry storage provenance. This includes borrows, owning values,
+generic values, and allocator capabilities. A pack origin represents the storage carried by its
+elements; the ephemeral pack container itself still cannot escape the callable body.
 `static` denotes program-lifetime storage. Source-level `from current` is not valid; fresh ambient
 result storage is compiler-owned and therefore needs no public origin name. Concrete public bodies
 are checked against the explicit or elided origin set; bodyless interface methods use the same
-result-provenance rules. Origin identity follows resolved parameters and receivers rather than their
-formatted names. `static` remains accepted in explicit source, but canonical APIs omit it because
-callers preserve no source place for program-lifetime storage.
+value-provenance rules. Origin identity follows resolved values rather than their formatted names.
+`static` remains accepted in explicit source, but canonical APIs omit it because callers preserve
+no source place for program-lifetime storage.
 
-Result provenance applies both to source-level borrows and to pointer-backed owning aggregates.
+Value provenance applies both to source-level borrows and to pointer-backed owning aggregates.
 Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined
 buffer still carries the allocation context responsible for its storage.
 

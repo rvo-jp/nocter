@@ -219,12 +219,13 @@ The following productions are reused by declarations and member containers:
 ```text
 GenericParameters = "<" NonEmptyList(Name) ">"
 
-Parameters = "(" List(Parameter) ")"
-Parameter  = "..."? Name ":" Type
+Parameters = "(" List(ParameterContract) ")"
+ParameterContract = Parameter ProvenanceClause?
+Parameter = "..."? Name ":" Type
 
 CallableTail = ":" CallableResult ProvenanceClause? WhereClause?
 ProvenanceClause = "from" ProvenanceOrigin ("|" ProvenanceOrigin)*
-ProvenanceOrigin = Name
+ProvenanceOrigin = Name | "self" | "static"
 
 CallableBody = Block?
 ```
@@ -239,6 +240,13 @@ not affect value expressions named `some`.
 Semantic declaration validation permits at most one `...` parameter in final position on a
 supported callable. Sequence-literal definitions require exactly one such parameter and no fixed
 parameter. Other declaration forms reject the modifier.
+
+A `ProvenanceClause` following a parameter or type annotation qualifies that complete value. A
+receiver with a clause uses the parenthesized form so the clause cannot be confused with the method
+selection dot. Header origin names resolve against the complete receiver-and-parameter set rather
+than only earlier source positions. Local annotation origins resolve through ordinary lexical
+visibility. The semantic rules are defined by
+[Memory, Regions, and Allocators](memory-and-regions.md#value-storage-contracts).
 
 ## Functions, Primitive Types, and Aliases
 
@@ -350,8 +358,8 @@ LiteralDeclaration = "literal" LiteralShape LiteralParameters CallableTail Calla
 
 LiteralShape = "[" "]" | EmptyStringLiteral
 
-LiteralParameters = "(" "..." Name ":" Type ")"
-                  | "(" Parameter ")"
+LiteralParameters = "(" "..." Name ":" Type ProvenanceClause? ")"
+                  | "(" ParameterContract ")"
 ```
 
 `EmptyStringLiteral` is the joint single-line `string_start string_end` sequence whose source and
@@ -386,7 +394,8 @@ AssociatedBindings = "{" AssociatedTypeBinding
 AssociatedTypeBinding = "." Name "=" Type
 
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
-Receiver = "&" "self" | "&+" "self" | "self"
+Receiver = SimpleReceiver | "(" SimpleReceiver ProvenanceClause ")"
+SimpleReceiver = "&" "self" | "&+" "self" | "self"
 
 An inherent method follows the same `blocking`, `async`, and `noalloc` rules as a function.
 Literals, coercions, operators, expansion, and destruction have no `blocking` production and must
@@ -403,7 +412,7 @@ EqualityOperator = Visibility? NoAllocModifier? "operator" "(" "&" "self" "==" N
 OrderingOperator = Visibility? NoAllocModifier? "operator" "(" "&" "self" "<" Name ":" "&" "Self" ")"
                    ":" "bool" WhereClause? CallableBody
 
-IndexOperator = Visibility? NoAllocModifier? "operator" "(" IndexReceiver "[" Parameter "]" ")"
+IndexOperator = Visibility? NoAllocModifier? "operator" "(" IndexReceiver "[" ParameterContract "]" ")"
                 ":" BorrowType ProvenanceClause? WhereClause? CallableBody
 IndexReceiver = "&" "self" | "&+" "self"
 
@@ -538,7 +547,7 @@ CallableType = NoAllocModifier? BlockingModifier? CallableCapability "func" "(" 
                ":" Type ProvenanceClause?
 ErasedCallableType = "any" CallableType
 CallableCapability = ("&" | "&+")?
-CallableParameter = "..."? (Type | Name ":" Type)
+CallableParameter = "..."? (Type | Name ":" Type) ProvenanceClause?
 
 BorrowType = "&" NonCallablePrefix | "&+" NonCallablePrefix
 
@@ -702,7 +711,7 @@ Statement = BindingStatement
 
 BindingStatement = ("let" | "var") BindingPattern TypeAnnotation? "=" Expression
 BindingPattern = Name | "_" | "(" BindingPattern "," BindingPattern ("," BindingPattern)* ","? ")"
-TypeAnnotation = ":" Type
+TypeAnnotation = ":" Type ProvenanceClause?
 
 AssignmentStatement = AssignmentTarget AssignmentOperator Expression
 AssignmentOperator = "=" | "+=" | "-=" | "*=" | "/=" | "%="
