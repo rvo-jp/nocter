@@ -1236,20 +1236,7 @@ impl<'a> Renderer<'a> {
             TypeKind::Opaque {
                 definition,
                 arguments,
-            } => {
-                let declaration = self.graph.declarations().opaque_types().get(*definition)?;
-                self.output.push_str("some ");
-                let interface = self
-                    .graph
-                    .declarations()
-                    .interfaces()
-                    .get(declaration.interface().interface())?;
-                self.exported_name(
-                    ExportedEntity::Interface(declaration.interface().interface()),
-                    interface.name(),
-                )?;
-                self.type_arguments(arguments)?;
-            }
+            } => self.opaque_type(*definition, arguments)?,
             TypeKind::Pointer(pointee) => {
                 self.output.push('*');
                 self.prefix_type(*pointee)?;
@@ -1298,6 +1285,25 @@ impl<'a> Renderer<'a> {
             }
         }
         Some(())
+    }
+
+    fn opaque_type(
+        &mut self,
+        definition: nocter_model::OpaqueTypeId,
+        arguments: &[TypeId],
+    ) -> Option<()> {
+        let declaration = self.graph.declarations().opaque_types().get(definition)?;
+        self.output.push_str("some ");
+        let interface = self
+            .graph
+            .declarations()
+            .interfaces()
+            .get(declaration.interface().interface())?;
+        self.exported_name(
+            ExportedEntity::Interface(declaration.interface().interface()),
+            interface.name(),
+        )?;
+        self.type_arguments(arguments)
     }
 
     fn tuple_type(&mut self, elements: &nocter_model::TupleElements) -> Option<()> {

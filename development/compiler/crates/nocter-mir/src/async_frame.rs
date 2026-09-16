@@ -339,64 +339,11 @@ impl BlockFacts {
                 self.use_value(*left);
                 self.use_value(*right);
             }
-            MirOperationKind::Aggregate(aggregate) => match aggregate {
-                MirAggregate::Struct { fields, .. } => {
-                    for (_, value) in fields {
-                        self.use_value(*value);
-                    }
-                }
-                MirAggregate::Enum { payload, .. }
-                | MirAggregate::FixedArray(payload)
-                | MirAggregate::Tuple(payload) => {
-                    for value in payload {
-                        self.use_value(*value);
-                    }
-                }
-                MirAggregate::Optional(value) | MirAggregate::FallibleSuccess(value) => {
-                    if let Some(value) = value {
-                        self.use_value(*value);
-                    }
-                }
-                MirAggregate::FallibleFailure(value) | MirAggregate::Opaque { witness: value } => {
-                    self.use_value(*value);
-                }
-                MirAggregate::Closure { captures, .. } => {
-                    for capture in captures {
-                        self.use_value(capture.value());
-                    }
-                }
-            },
+            MirOperationKind::Aggregate(aggregate) => self.use_aggregate(aggregate),
             MirOperationKind::EraseCallable(erasure) => {
                 self.use_value(erasure.environment());
             }
-            MirOperationKind::Call(call) => {
-                if let crate::MirCallTarget::ErasedCallable { callable, .. } = call.target() {
-                    self.use_place(body, *callable);
-                }
-                for argument in call.arguments() {
-                    self.use_value(*argument);
-                }
-                if let MirCallAllocation::Explicit(place) = call.allocation() {
-                    self.use_place(body, place);
-                }
-                if let Some(pack) = call.pack().and_then(crate::MirCallPack::prepared) {
-                    self.use_value(pack.length());
-                    for segment in pack.segments() {
-                        match segment {
-                            crate::MirPackSegment::Value { value, .. } => self.use_value(*value),
-                            crate::MirPackSegment::KeyedValue { key, value, .. } => {
-                                self.use_value(*key);
-                                self.use_value(*value);
-                            }
-                            crate::MirPackSegment::Spread(spread) => {
-                                self.use_value(spread.remaining());
-                                self.use_value(spread.receiver());
-                                self.use_place(body, spread.iterator());
-                            }
-                        }
-                    }
-                }
-            }
+            MirOperationKind::Call(call) => self.use_call(body, call),
             MirOperationKind::CreateRegion { parent, region } => {
                 self.use_value(*parent);
                 self.use_field(MirFrameField::Local(*region));
@@ -407,6 +354,65 @@ impl BlockFacts {
         }
         if let Some(result) = operation.result() {
             self.definitions.insert(MirFrameField::Value(result));
+        }
+    }
+
+    fn use_aggregate(&mut self, aggregate: &MirAggregate) {
+        match aggregate {
+            MirAggregate::Struct { fields, .. } => {
+                for (_, value) in fields {
+                    self.use_value(*value);
+                }
+            }
+            MirAggregate::Enum { payload, .. }
+            | MirAggregate::FixedArray(payload)
+            | MirAggregate::Tuple(payload) => {
+                for value in payload {
+                    self.use_value(*value);
+                }
+            }
+            MirAggregate::Optional(value) | MirAggregate::FallibleSuccess(value) => {
+                if let Some(value) = value {
+                    self.use_value(*value);
+                }
+            }
+            MirAggregate::FallibleFailure(value) | MirAggregate::Opaque { witness: value } => {
+                self.use_value(*value);
+            }
+            MirAggregate::Closure { captures, .. } => {
+                for capture in captures {
+                    self.use_value(capture.value());
+                }
+            }
+        }
+    }
+
+    fn use_call(&mut self, body: &MirBody, call: &crate::MirCall) {
+        if let crate::MirCallTarget::ErasedCallable { callable, .. } = call.target() {
+            self.use_place(body, *callable);
+        }
+        for argument in call.arguments() {
+            self.use_value(*argument);
+        }
+        if let MirCallAllocation::Explicit(place) = call.allocation() {
+            self.use_place(body, place);
+        }
+        if let Some(pack) = call.pack().and_then(crate::MirCallPack::prepared) {
+            self.use_value(pack.length());
+            for segment in pack.segments() {
+                match segment {
+                    crate::MirPackSegment::Value { value, .. } => self.use_value(*value),
+                    crate::MirPackSegment::KeyedValue { key, value, .. } => {
+                        self.use_value(*key);
+                        self.use_value(*value);
+                    }
+                    crate::MirPackSegment::Spread(spread) => {
+                        self.use_value(spread.remaining());
+                        self.use_value(spread.receiver());
+                        self.use_place(body, spread.iterator());
+                    }
+                }
+            }
         }
     }
 

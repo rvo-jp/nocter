@@ -170,7 +170,26 @@ impl<'a> FunctionLowerer<'a> {
             .cloned()
             .ok_or(MirLoweringError::UnknownNode(node))?;
         let ty = self.concrete_type(checked.ty())?;
-        let lowered = match checked.operation() {
+        let lowered = self.lower_operation(node, ty, checked.operation())?;
+        if let Some(value) = lowered
+            && self.values.insert(node, value).is_some()
+        {
+            return Err(MirLoweringError::InvalidDispatch(node));
+        }
+        if self.current.is_some() {
+            self.lower_cleanup(node, nocter_checking::CleanupTiming::AtControlHeaderEnd)?;
+            self.lower_cleanup(node, nocter_checking::CleanupTiming::AtStatementEnd)?;
+        }
+        Ok(lowered)
+    }
+
+    fn lower_operation(
+        &mut self,
+        node: BodyNodeId,
+        ty: TypeId,
+        operation: &CheckedOperation,
+    ) -> Result<Option<MirValueId>, MirLoweringError> {
+        match operation {
             CheckedOperation::Complete => Ok(None),
             CheckedOperation::Literal(constant) => self.lower_constant(ty, constant).map(Some),
             CheckedOperation::DeclaredConstant(id) => self.lower_declared_constant(ty, *id),
@@ -247,17 +266,7 @@ impl<'a> FunctionLowerer<'a> {
             }
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::PackLiteral(_) => self.lower_pack_literal(node, ty).map(Some),
-        }?;
-        if let Some(value) = lowered
-            && self.values.insert(node, value).is_some()
-        {
-            return Err(MirLoweringError::InvalidDispatch(node));
         }
-        if self.current.is_some() {
-            self.lower_cleanup(node, nocter_checking::CleanupTiming::AtControlHeaderEnd)?;
-            self.lower_cleanup(node, nocter_checking::CleanupTiming::AtStatementEnd)?;
-        }
-        Ok(lowered)
     }
 
     fn lower_declared_constant(

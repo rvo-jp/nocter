@@ -1,10 +1,12 @@
-use nocter_model::{BorrowCapability, BuiltinType, MirOperationId, MirValueId, TypeId, TypeKind};
+use nocter_model::{
+    BorrowCapability, BuiltinType, MirOperationId, MirPlaceId, MirValueId, TypeId, TypeKind,
+};
 
 use crate::validation_pack::validate_call_pack;
 use crate::validation_region::validate_region_selection;
 use crate::{
-    MirBody, MirCall, MirCallAllocation, MirCallTarget, MirPrimitiveDependency, MirStructuralCall,
-    MirValidationEnvironment, MirValidationError,
+    MirBody, MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirPrimitiveDependency,
+    MirStructuralCall, MirValidationEnvironment, MirValidationError,
 };
 
 pub(crate) fn validate_call(
@@ -33,8 +35,16 @@ struct CallValidation<'a, E: ?Sized> {
 impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
     fn validate(&self, call: &MirCall) -> Result<(), MirValidationError> {
         self.validate_allocation(call)?;
-        let target = call.target();
-        let arguments = call.arguments();
+        self.validate_target(call.target(), call.arguments())?;
+        validate_call_pack(self.environment, self.function, self.operation, call)?;
+        Ok(())
+    }
+
+    fn validate_target(
+        &self,
+        target: &MirCallTarget,
+        arguments: &[MirValueId],
+    ) -> Result<(), MirValidationError> {
         match target {
             MirCallTarget::Direct(item) => {
                 if !self.environment.contains_item(*item) {
@@ -46,69 +56,17 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 type_arguments,
                 signature,
                 dependency,
-            } => {
-                for ty in type_arguments {
-                    self.require_type(*ty)?;
-                }
-                for ty in signature.parameters() {
-                    self.require_type(*ty)?;
-                }
-                self.require_type(signature.result())?;
-                if arguments.len() != signature.parameters().len()
-                    || arguments
-                        .iter()
-                        .copied()
-                        .zip(signature.parameters().iter().copied())
-                        .any(|(argument, expected)| self.value_type(argument) != Ok(expected))
-                    || self.result != signature.result()
-                {
-                    return Err(self.invalid());
-                }
-                self.validate_primitive_dependency(*role, type_arguments, dependency)?;
-            }
+            } => self.validate_standard_primitive(
+                *role,
+                type_arguments,
+                signature,
+                dependency,
+                arguments,
+            )?,
             MirCallTarget::TargetService {
                 descriptor,
                 signature,
-            } => {
-                for ty in signature.parameters() {
-                    self.require_type(*ty)?;
-                }
-                self.require_type(signature.result())?;
-                if arguments.len() != signature.parameters().len()
-                    || arguments
-                        .iter()
-                        .copied()
-                        .zip(signature.parameters().iter().copied())
-                        .any(|(argument, expected)| self.value_type(argument) != Ok(expected))
-                    || self.result != signature.result()
-                {
-                    return Err(self.invalid());
-                }
-                if descriptor.signature().parameters().len() != signature.parameters().len()
-                    || descriptor
-                        .signature()
-                        .parameters()
-                        .iter()
-                        .copied()
-                        .zip(signature.parameters().iter().copied())
-                        .any(|(expected, actual)| {
-                            !target_service_type(self.environment.types(), actual, expected)
-                        })
-                    || match descriptor.signature().result() {
-                        Some(expected) => !target_service_type(
-                            self.environment.types(),
-                            signature.result(),
-                            expected,
-                        ),
-                        None => {
-                            self.environment.types().get(signature.result())
-                                != Some(&TypeKind::Builtin(BuiltinType::Void))
-                        }
-                    }
-                {
-                    return Err(self.invalid());
-                }
-            }
+            } => self.validate_target_service(descriptor, signature, arguments)?,
             MirCallTarget::Structural(structural) => {
                 self.validate_structural(structural, arguments)?;
             }
@@ -116,38 +74,105 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 callable,
                 signature,
                 capability,
-            } => {
-                let place = self
-                    .function
-                    .places()
-                    .get(*callable)
-                    .ok_or(MirValidationError::UnknownPlace(*callable))?;
-                let Some(TypeKind::Callable(contract)) = self.environment.types().get(place.ty())
-                else {
-                    return Err(self.invalid());
-                };
-                for ty in signature.parameters() {
-                    self.require_type(*ty)?;
-                }
-                self.require_type(signature.result())?;
-                if !contract.is_erased()
-                    || contract.capability() != *capability
-                    || contract.pack().is_some()
-                    || contract.parameters() != signature.parameters()
-                    || contract.result() != signature.result()
-                    || arguments.len() != signature.parameters().len()
-                    || arguments
-                        .iter()
-                        .copied()
-                        .zip(signature.parameters().iter().copied())
-                        .any(|(argument, expected)| self.value_type(argument) != Ok(expected))
-                    || self.result != signature.result()
-                {
-                    return Err(self.invalid());
-                }
-            }
+            } => self.validate_erased_callable(*callable, signature, *capability, arguments)?,
         }
-        validate_call_pack(self.environment, self.function, self.operation, call)?;
+        Ok(())
+    }
+
+    fn validate_standard_primitive(
+        &self,
+        role: nocter_runtime_contract::PrimitiveRole,
+        type_arguments: &[TypeId],
+        signature: &MirCallSignature,
+        dependency: &MirPrimitiveDependency,
+        arguments: &[MirValueId],
+    ) -> Result<(), MirValidationError> {
+        for ty in type_arguments {
+            self.require_type(*ty)?;
+        }
+        self.validate_signature(signature, arguments)?;
+        self.validate_primitive_dependency(role, type_arguments, dependency)
+    }
+
+    fn validate_target_service(
+        &self,
+        descriptor: &nocter_runtime_contract::TargetServiceDescriptor,
+        signature: &MirCallSignature,
+        arguments: &[MirValueId],
+    ) -> Result<(), MirValidationError> {
+        self.validate_signature(signature, arguments)?;
+        let result_matches = match descriptor.signature().result() {
+            Some(expected) => {
+                target_service_type(self.environment.types(), signature.result(), expected)
+            }
+            None => {
+                self.environment.types().get(signature.result())
+                    == Some(&TypeKind::Builtin(BuiltinType::Void))
+            }
+        };
+        if descriptor.signature().parameters().len() != signature.parameters().len()
+            || descriptor
+                .signature()
+                .parameters()
+                .iter()
+                .copied()
+                .zip(signature.parameters().iter().copied())
+                .any(|(expected, actual)| {
+                    !target_service_type(self.environment.types(), actual, expected)
+                })
+            || !result_matches
+        {
+            return Err(self.invalid());
+        }
+        Ok(())
+    }
+
+    fn validate_erased_callable(
+        &self,
+        callable: MirPlaceId,
+        signature: &MirCallSignature,
+        capability: nocter_model::CallableCapability,
+        arguments: &[MirValueId],
+    ) -> Result<(), MirValidationError> {
+        let place = self
+            .function
+            .places()
+            .get(callable)
+            .ok_or(MirValidationError::UnknownPlace(callable))?;
+        let Some(TypeKind::Callable(contract)) = self.environment.types().get(place.ty()) else {
+            return Err(self.invalid());
+        };
+        self.validate_signature(signature, arguments)?;
+        if !contract.is_erased()
+            || contract.capability() != capability
+            || contract.pack().is_some()
+            || contract.parameters() != signature.parameters()
+            || contract.result() != signature.result()
+        {
+            return Err(self.invalid());
+        }
+        Ok(())
+    }
+
+    fn validate_signature(
+        &self,
+        signature: &MirCallSignature,
+        arguments: &[MirValueId],
+    ) -> Result<(), MirValidationError> {
+        for ty in signature.parameters() {
+            self.require_type(*ty)?;
+        }
+        self.require_type(signature.result())?;
+        if arguments.len() != signature.parameters().len()
+            || arguments
+                .iter()
+                .copied()
+                .zip(signature.parameters().iter().copied())
+                .any(|(argument, expected)| self.value_type(argument) != Ok(expected))
+            || self.result != signature.result()
+        {
+            return Err(self.invalid());
+        }
         Ok(())
     }
 
