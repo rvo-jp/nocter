@@ -8,6 +8,10 @@ see ./storage.nct
 use /time.Duration
 
 construct Status {
+    noalloc func ok(): Self {
+        return Status { code_value: 200 }
+    }
+
     noalloc func bad_request(): Self {
         return Status { code_value: 400 }
     }

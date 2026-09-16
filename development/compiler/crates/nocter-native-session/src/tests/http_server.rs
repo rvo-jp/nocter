@@ -85,7 +85,7 @@ fn public_http_server_streams_request_and_response_bodies_through_linear_authori
              var owner = move server\n\
              let connection = await owner.accept_with_timeout(timeout)?\n\
              var request = await connection.read_request_with_timeout(timeout)?\n\
-             if request.target() != \"/stream\" {\n\
+             if request.target().path() != \"/stream\" {\n\
                  return error.new(\"test.target\", \"request target changed\")\n\
              }\n\
              var prefix: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]\n\
@@ -160,7 +160,7 @@ fn public_http_server_reuses_one_connection_and_retains_pipelined_input() {
              var owner = move server\n\
              let first_connection = await owner.accept_with_timeout(timeout)?\n\
              let first_request = await first_connection.read_request_with_timeout(timeout)?\n\
-             if first_request.target() != \"/one\" {\n\
+             if first_request.target().path() != \"/one\" {\n\
                  return error.new(\"test.first\", \"first retained request changed\")\n\
              }\n\
              let first_responder = await first_request.finish_body_with_timeout(timeout)?\n\
@@ -174,7 +174,7 @@ fn public_http_server_reuses_one_connection_and_retains_pipelined_input() {
                  return error.new(\"test.reuse\", \"reusable connection was not returned\")\n\
              }\n\
              let second_request = await second_connection.read_request_with_timeout(timeout)?\n\
-             if second_request.target() != \"/two\" {\n\
+             if second_request.target().path() != \"/two\" {\n\
                  return error.new(\"test.second\", \"second retained request changed\")\n\
              }\n\
              let second_responder = await second_request.finish_body_with_timeout(timeout)?\n\

@@ -271,6 +271,7 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     let (mut server, text) = open_package_source(&root, &source);
 
     assert_http_connection_editor_features(&mut server, &source, &text);
+    assert_http_router_editor_features(&mut server, &source, &text);
     assert_http_request_and_shutdown_editor_features(&mut server, &source, &text);
 }
 
@@ -386,7 +387,7 @@ fn assert_http_request_and_shutdown_editor_features(
         implementation.issue()
     );
 
-    let (close_line, close_source) = source_line(text, "owner.close()");
+    let (close_line, close_source) = source_line(text, "    owner.close()");
     let close_character = close_source.find("close").unwrap();
     let hover = server.receive(&position_request(
         8,
@@ -431,6 +432,88 @@ fn assert_http_request_and_shutdown_editor_features(
         snapshot.diagnostics()
     );
     assert!(changed.issue().is_none(), "{:?}", changed.issue());
+}
+
+fn assert_http_router_editor_features(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (dispatch_line, dispatch_source) = source_line(text, "router.dispatch");
+    let dispatch_character = dispatch_source.find("router.dispatch").unwrap() + "router.".len();
+    let hover = server.receive(&position_request(
+        9,
+        "textDocument/hover",
+        source,
+        dispatch_line,
+        dispatch_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(concat!(
+            "pub async method &Router.dispatch(",
+            "request: IncomingRequest): RouteDispatch!"
+        )),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let implementation = server.receive(&position_request(
+        10,
+        "textDocument/implementation",
+        source,
+        dispatch_line,
+        dispatch_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/http/router.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let (handler_line, handler_source) = source_line(text, "let large: Handler");
+    let handler_character = handler_source.find("Handler").unwrap();
+    let hover = server.receive(&position_request(
+        11,
+        "textDocument/hover",
+        source,
+        handler_line,
+        handler_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(response.contains("type Handler = any &func("), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        12,
+        "textDocument/definition",
+        source,
+        handler_line,
+        handler_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/http/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let completion_character = dispatch_source.find("router.").unwrap() + "router.".len();
+    let completion = server.receive(&position_request(
+        13,
+        "textDocument/completion",
+        source,
+        dispatch_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    assert!(
+        response.contains("\"label\":\"dispatch\",\"kind\":2"),
+        "{response}"
+    );
+    for unavailable in ["add", "get", "post"] {
+        assert!(!response.contains(&format!("\"label\":\"{unavailable}\"")));
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
 }
 
 #[test]

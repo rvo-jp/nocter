@@ -552,6 +552,9 @@ test literal_routes_may_overlap_parameters_at_higher_precedence {
 }
 
 test application_response_constructors_attach_one_canonical_content_type {
+    if Status.ok().code() != 200 {
+        return error.new("std.http.test", "standard OK status changed")
+    }
     let plain = OutgoingResponse.text(Status.not_found(), "missing")?
     let plain_type = plain.headers().first("content-type") otherwise {
         return error.new("std.http.test", "plain response lost its content type")

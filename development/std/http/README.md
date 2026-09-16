@@ -138,8 +138,8 @@ registry, and it does not reinterpret HTTP framing or persistence.
 `OutgoingResponse.text` and `OutgoingResponse.json` construct complete UTF-8 bodies over the same
 owned response value used by `Responder.respond`. They add exactly one canonical `Content-Type`;
 the JSON constructor deliberately does not parse, normalize, or certify the supplied document.
-Named `Status` constructors cover the ordinary 400, 404, 405, and 500 application outcomes without
-creating a second status representation.
+Named `Status` constructors cover the ordinary 200, 400, 404, 405, and 500 application outcomes
+without creating a second status representation.
 
 `IncomingRequest.respond` is a composition boundary, not a second server transition. It drains the
 body with `finish_body` and passes the resulting unique `Responder` to `respond`.

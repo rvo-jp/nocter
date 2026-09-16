@@ -1,8 +1,9 @@
 see ./index.nct
 
-use std/http.{IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, Server, ServerConnection}
+use std/http.{Handler, IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, RouteDispatch, RouteMatch, Router, Server, ServerConnection, Status}
 use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpStream}
+use std/string.String
 use std/task
 use std/task.{TaskGroup, Timeout}
 use std/time.Duration
@@ -10,7 +11,7 @@ use std/vec.Vec
 
 const CONNECTION_LIMIT: usize = 2
 
-const REQUEST_COUNT: usize = 3
+const REQUEST_COUNT: usize = 7
 
 const LARGE_BODY_BYTES: usize = 32768
 
@@ -69,37 +70,128 @@ async func read_large_request(
     }
 }
 
-async func handle_connection(connection: ServerConnection, timeout: Duration): bool {
+async func handle_large_route(
+    request: IncomingRequest,
+    _route: RouteMatch,
+): ServerConnection?! {
+    var request_owner = move request
+    let timeout = Duration.from_seconds(1)
+    if !await read_large_request(&+request_owner, timeout) {
+        request_owner.close()
+        return error.new("http-service.large_body", "large request body changed")
+    }
+    let responder = await request_owner.finish_body_with_timeout(timeout)?
+    return await stream_large_response(move responder, timeout)?
+}
+
+async func handle_close_route(
+    request: IncomingRequest,
+    _route: RouteMatch,
+): ServerConnection?! {
+    let timeout = Duration.from_seconds(1)
+    var responder = await request.finish_body_with_timeout(timeout)?
+    responder.close_after_response()
+    let response = OutgoingResponse.text(Status.ok(), "done")?
+    return await responder.respond_with_timeout(move response, timeout)?
+}
+
+async func handle_user_route(
+    request: IncomingRequest,
+    route: RouteMatch,
+): ServerConnection?! {
+    let timeout = Duration.from_seconds(1)
+    let user = route.parameter("id") otherwise {
+        let response = OutgoingResponse.text(Status.bad_request(), "missing user")?
+        return await request.respond_with_timeout(
+            move response,
+            timeout,
+        )?
+    }
+    var query = request.target().query_pairs()
+    let item = query.next() otherwise {
+        let response = OutgoingResponse.text(Status.bad_request(), "missing query")?
+        return await request.respond_with_timeout(
+            move response,
+            timeout,
+        )?
+    }
+    let parameter = move item?
+    if user != "alice" || parameter.name() != "view" || parameter.value() != "full" {
+        let response = OutgoingResponse.text(Status.bad_request(), "invalid user query")?
+        return await request.respond_with_timeout(
+            move response,
+            timeout,
+        )?
+    }
+    let response = OutgoingResponse.json(Status.ok(), "{\"user\":\"alice\"}")?
+    return await request.respond_with_timeout(
+        move response,
+        timeout,
+    )?
+}
+
+async func handle_failure_route(
+    _request: IncomingRequest,
+    _route: RouteMatch,
+): ServerConnection?! {
+    return error.new("http-service.handler_failed", "intentional handler failure")
+}
+
+func build_router(): Router! {
+    var router = Router.empty()
+    let large: Handler = (request, route) {
+        handle_large_route(move request, move route)
+    }
+    router.post("/large", move large)?
+    let close: Handler = (request, route) {
+        handle_close_route(move request, move route)
+    }
+    router.get("/close", move close)?
+    let user: Handler = (request, route) {
+        handle_user_route(move request, move route)
+    }
+    router.get("/users/:id", move user)?
+    let failure: Handler = (request, route) {
+        handle_failure_route(move request, move route)
+    }
+    router.get("/fail", move failure)?
+    return move router
+}
+
+async func handle_connection(
+    router: &Router,
+    connection: ServerConnection,
+    timeout: Duration,
+): bool {
     var owner = move connection
-    var completed_large = false
     loop {
-        var request = await owner.read_request_with_timeout(timeout) catch failure {
-            return !completed_large
-            && (failure.has_code("std.http.invalid_syntax")
-                || failure.has_code("std.http.timed_out"))
+        let request = await owner.read_request_with_timeout(timeout) catch failure {
+            return failure.has_code("std.http.invalid_syntax")
+                || failure.has_code("std.http.timed_out")
         }
-        if request.target() == "/large" && !completed_large {
-            if !await read_large_request(&+request, timeout) { return false }
-            let responder = await request.finish_body_with_timeout(timeout)
-            catch _ { return false }
-            let next = await stream_large_response(move responder, timeout)
-            catch _ { return false }
-            owner = move next otherwise { return false }
-            completed_large = true
-        } else if request.target() == "/close" && completed_large {
-            var responder = await request.finish_body_with_timeout(timeout)
-            catch _ { return false }
-            responder.close_after_response()
-            var response = OutgoingResponse.ok()
-            response.set_text_body("done")
-            let next = await responder.respond_with_timeout(move response, timeout)
-            catch _ { return false }
-            let unexpected = move next otherwise { return true }
-            unexpected.close()
-            return false
-        } else {
-            request.close()
-            return false
+        let dispatched = await router.dispatch(move request) catch failure {
+            return failure.has_code("http-service.handler_failed")
+        }
+        match move dispatched {
+            RouteDispatch.handled(next) {
+                owner = move next otherwise { return true }
+            }
+            RouteDispatch.not_found(unmatched) {
+                let response = OutgoingResponse.text(Status.not_found(), "not found")
+                catch _ { return false }
+                let next = await unmatched.respond_with_timeout(move response, timeout)
+                catch _ { return false }
+                owner = move next otherwise { return true }
+            }
+            RouteDispatch.method_not_allowed(unmatched) {
+                let response = OutgoingResponse.text(
+                    Status.method_not_allowed(),
+                    "method not allowed",
+                ) catch _ { return false }
+                let next = await unmatched.respond_with_timeout(move response, timeout)
+                catch _ { return false }
+                owner = move next otherwise { return true }
+            }
         }
     }
 }
@@ -150,6 +242,7 @@ async func serve_bounded(
     shutdown_deadline: Duration,
 ): (usize, usize)! {
     var owner = move server
+    let router = build_router()?
     var handlers: TaskGroup<bool> = TaskGroup.empty()
     var accepted: usize = 0
     var succeeded: usize = 0
@@ -163,7 +256,7 @@ async func serve_bounded(
             }
         }
         let connection = await owner.accept_with_timeout(shutdown_deadline)?
-        handlers.add(handle_connection(move connection, request_timeout))
+        handlers.add(handle_connection(&router, move connection, request_timeout))
         accepted += 1
     }
     owner.close()
@@ -182,6 +275,35 @@ async func read_until_eof(
         if count == 0 { return received }
         received += count
     }
+}
+
+async func read_response_text(
+    stream: &+TcpStream,
+    timeout: Duration,
+): String! {
+    var scratch = byte_buffer(TRANSFER_BYTES)
+    var bytes: Vec<u8> = Vec.empty()
+    loop {
+        let received = await stream.read_with_timeout(&+scratch, timeout)?
+        if received == 0 { return String.from_utf8(&bytes)? }
+        var offset: usize = 0
+        while offset < received {
+            bytes.push(scratch[offset])
+            offset += 1
+        }
+    }
+}
+
+async func text_exchange(
+    address: SocketAddress,
+    timeout: Duration,
+    request: &str,
+    expected: &str,
+): bool {
+    var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
+    await stream.write_with_timeout(request.bytes(), timeout) catch _ { return false }
+    let response = await read_response_text(&+stream, timeout) catch _ { return false }
+    return (&response as &str).contains(expected)
 }
 
 async func large_reused_exchange(address: SocketAddress, timeout: Duration): bool {
@@ -220,11 +342,52 @@ async func timed_out_exchange(address: SocketAddress, timeout: Duration): bool {
     return received == 0
 }
 
+async func routed_parameter_exchange(address: SocketAddress, timeout: Duration): bool {
+    return await text_exchange(
+        address,
+        timeout,
+        "GET /users/alice?view=full HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        "{\"user\":\"alice\"}",
+    )
+}
+
+async func missing_route_exchange(address: SocketAddress, timeout: Duration): bool {
+    return await text_exchange(
+        address,
+        timeout,
+        "GET /missing HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        "404",
+    )
+}
+
+async func method_mismatch_exchange(address: SocketAddress, timeout: Duration): bool {
+    return await text_exchange(
+        address,
+        timeout,
+        "POST /users/alice HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+        "405",
+    )
+}
+
+async func handler_failure_exchange(address: SocketAddress, timeout: Duration): bool {
+    var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
+    await stream.write_with_timeout(
+        "GET /fail HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n".bytes(),
+        timeout,
+    ) catch _ { return false }
+    let received = await read_until_eof(&+stream, timeout) catch _ { return false }
+    return received == 0
+}
+
 async func run_clients(address: SocketAddress, timeout: Duration): usize! {
     var requests: TaskGroup<bool> = TaskGroup.empty()
     requests.add(large_reused_exchange(address, timeout))
+    requests.add(routed_parameter_exchange(address, timeout))
+    requests.add(missing_route_exchange(address, timeout))
+    requests.add(method_mismatch_exchange(address, timeout))
     requests.add(malformed_exchange(address, timeout))
     requests.add(timed_out_exchange(address, timeout))
+    requests.add(handler_failure_exchange(address, timeout))
     var passed: usize = 0
     while !requests.is_empty() {
         let result = await requests.next() otherwise {
@@ -247,7 +410,7 @@ async func run_service_example(): i32! {
     )
     let service = move completed.0?
     let clients = move completed.1?
-    if service.0 != 3 || service.1 != 0 || clients != 3 {
+    if service.0 != REQUEST_COUNT || service.1 != 0 || clients != REQUEST_COUNT {
         return error.new("http-service.result", "bounded service outcomes changed")
     }
     return 0

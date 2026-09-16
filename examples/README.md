@@ -159,18 +159,19 @@ nocter check
 nocter run
 ```
 
-[http-service/index.nct](http-service/index.nct) runs three loopback connections through a
-service-owned, two-slot `TaskGroup`. One connection pipelines two requests without concurrent
-execution: the first streams a 32 KiB request through a 1 KiB application buffer, streams a 32 KiB
-chunked response under transport backpressure, and returns its unique connection; only then does
-the handler decode the retained second request and force a terminal response. Separate connections
-prove malformed framing and idle request timeout close without publishing response authority. The
-accept loop observes one completed handler before exceeding its application-selected capacity.
-After its final acceptance it closes listener admission, then moves the remaining handler group
-into one drain operation under a fixed shutdown deadline. There is no complete-body allocation in
-the service handler, detached task, hidden server registry, concurrent pipeline executor, or second
-HTTP parser. Every accept, request read, response write, client operation, and complete shutdown
-drain has a finite deadline.
+[http-service/index.nct](http-service/index.nct) runs seven loopback connections through a
+service-owned, two-slot `TaskGroup` and a deterministic `Router` of heterogeneous `Handler` values.
+The application handles a decoded path parameter and query pair, explicit 404 and 405 policy, an
+intentional handler failure, malformed framing, and an idle request timeout. One connection
+pipelines two requests without concurrent execution: the first streams a 32 KiB request through a
+1 KiB application buffer and returns a 32 KiB chunked response under transport backpressure; only
+then does the handler decode the retained second request and force terminal response policy. The
+accept loop observes one completed handler before exceeding its selected capacity. After its final
+acceptance it closes listener admission, then moves the remaining handler group into one drain
+operation under a fixed shutdown deadline. There is no complete-body allocation in the streaming
+handler, detached task, hidden server registry, concurrent pipeline executor, or second HTTP
+parser. Every accept, request read, response write, client operation, and complete shutdown drain
+has a finite deadline.
 
 ```sh
 cd examples/http-service
