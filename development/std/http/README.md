@@ -111,6 +111,28 @@ linear HTTP typestate each child owns. HTTP keeps no parallel task registry or c
 The deadline covers the whole drain rather than restarting for each handler. A process signal is
 only one possible application trigger and is not required by the HTTP lifecycle contract.
 
+## Deterministic Routing
+
+`Router` stores validated method-and-path registrations in insertion order while route selection
+uses a construction-time precedence rule rather than that order. A pattern begins with `/`; each
+slash-delimited segment is either exact text or one named parameter such as `:user_id`. Parameter
+names use ASCII identifier spelling and may occur only once in a pattern. Patterns do not contain
+queries. Exact segments compare the retained percent-encoded path spelling; selected parameter
+values are percent-decoded and UTF-8-validated once into an owned `RouteMatch`.
+
+The number of exact segments defines precedence. Registration rejects two routes for the same
+method when they can match the same path at equal precedence. This makes every successful
+selection independent of insertion order while still allowing `/users/me` to take precedence over
+`/users/:id`. A path accepted by another method yields `RouteDispatch.method_not_allowed`; a path
+accepted by no pattern yields `RouteDispatch.not_found`. Both variants return the still-owned
+`IncomingRequest`, so application policy—not the router—decides how to finish or close it.
+
+`Handler` is one `any &func` contract. The router can retain heterogeneous closures and invoke the
+selected handler repeatedly through readonly erasure. Calling a handler creates a `future`; the
+future owns its request and route match until it is awaited or cancelled. `Router.dispatch` awaits
+that computation directly. It creates no task, executor, responder, timeout, or connection
+registry, and it does not reinterpret HTTP framing or persistence.
+
 ## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a
@@ -202,7 +224,8 @@ fields.
 `RequestHead` accepts only non-empty ASCII origin-form targets beginning with `/`; percent escapes
 must be complete hexadecimal triplets and characters outside the path/query grammar are rejected.
 The resulting `RequestTarget` retains that exact spelling and records the first path/query boundary
-once. `path` and `query` borrow ranges from the retained spelling; neither scans the request again.
+plus every slash-delimited path segment once. `path`, `query`, `path_segment_count`, and
+`path_segment` project borrowed ranges from that retained structure; none scans the request again.
 `query_pairs` splits a present non-empty query on `&`, splits each item at its first `=`, and yields
 owned UTF-8 names and values in source order. A missing `=` means an empty value. Percent triplets
 decode to bytes, `+` remains `+` rather than becoming a space, and invalid decoded UTF-8 is reported

@@ -55,6 +55,14 @@ noalloc func invalid_target_encoding(): error {
     return error.new("std.http.invalid_target_encoding", "decoded request-target component is not UTF-8")
 }
 
+noalloc func invalid_route_pattern(): error {
+    return error.new("std.http.invalid_route_pattern", "HTTP route pattern is invalid")
+}
+
+noalloc func ambiguous_route(): error {
+    return error.new("std.http.ambiguous_route", "HTTP route overlaps an equal-precedence route")
+}
+
 noalloc func invalid_host(): error {
     return error.new("std.http.invalid_host", "HTTP/1.1 request must contain exactly one non-empty Host field")
 }

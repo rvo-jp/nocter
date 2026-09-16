@@ -11,11 +11,11 @@ lives in [`development/history/milestones/v0.55.0.md`](history/milestones/v0.55.
 ## Next Work
 
 Complete the two active boundaries without coupling them: finish Phase 1's consuming-call adapter;
-build Phase 3's deterministic HTTP router over the native-qualified readonly erased-call path.
-Readonly erasure now covers owned captures plus direct, fallible, and deferred results even when
-the callable lives in a persistent asynchronous frame. Request targets retain their exact spelling,
-freeze the path/query boundary once, and expose decoded query iteration without a second target
-parser.
+build Phase 4's application-response policy over the existing responder transitions. Readonly
+erasure covers owned captures plus direct, fallible, and deferred results even when the callable
+lives in a persistent asynchronous frame. Request targets retain their exact spelling and parsed
+segments, while the deterministic router validates ambiguity once and retains unmatched request
+ownership for explicit application policy.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

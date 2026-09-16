@@ -28,6 +28,8 @@ see ./field_codec.nct
 see ./request.nct
 see ./request_head.nct
 see ./request_convenience.nct
+see ./router.nct
+see ./router_storage.nct
 see ./response_collection.nct
 see ./response_head.nct
 see ./response_plan.nct
@@ -197,6 +199,12 @@ instance RequestTarget {
 
     /// Borrows the percent-encoded query spelling when a `?` delimiter was present.
     pub noalloc method &self.query(): &str? from self
+
+    /// Returns the number of already separated path segments after the leading `/`.
+    pub noalloc method &self.path_segment_count(): usize
+
+    /// Borrows one percent-encoded path segment without rescanning the target.
+    pub noalloc method &self.path_segment(index: usize): &str? from self
 
     /// Iterates decoded query name/value pairs in source order.
     pub noalloc method &self.query_pairs(): QueryIter from self
@@ -491,6 +499,71 @@ instance ServerConnection {
 
     /// Closes this connection without reading a request.
     pub method self.close(): void
+}
+
+/// One heterogeneous readonly request handler retained by a router.
+pub type Handler = any &func(
+    request: IncomingRequest,
+    route: RouteMatch,
+): future ServerConnection?! from request | route
+
+/// One decoded named path parameter.
+pub struct RouteParameter
+
+instance RouteParameter {
+    /// Borrows the parameter name authored in the route pattern.
+    pub noalloc method &self.name(): &str from self
+
+    /// Borrows the percent-decoded UTF-8 value selected from the request path.
+    pub noalloc method &self.value(): &str from self
+}
+
+/// The owned named parameters selected for one request.
+pub struct RouteMatch
+
+instance RouteMatch {
+    /// Returns the number of named parameters.
+    pub noalloc method &self.len(): usize
+
+    /// Borrows the parameter at `index` in pattern order.
+    pub noalloc method &self.at(index: usize): &RouteParameter? from self
+
+    /// Borrows the first value whose parameter name equals `name`.
+    pub noalloc method &self.parameter(name: &str): &str? from self
+}
+
+/// The result of route selection and optional handler execution.
+pub enum RouteDispatch {
+    /// A selected handler completed and returned its connection disposition.
+    handled(connection: ServerConnection?)
+
+    /// No registered path pattern matched; the request remains available for policy handling.
+    not_found(request: IncomingRequest)
+
+    /// A path matched but no handler accepted the request method.
+    method_not_allowed(request: IncomingRequest)
+}
+
+/// An ordered set of validated, non-ambiguous method and path-pattern handlers.
+pub struct Router
+
+construct Router {
+    /// Creates a router without registered routes or allocation.
+    pub noalloc func empty(): Self
+}
+
+instance Router {
+    /// Adds one method and path pattern, rejecting duplicates and equal-precedence overlap.
+    pub method &+self.add(request_method: Method, pattern: &str, handler: Handler): void!
+
+    /// Adds one GET route.
+    pub method &+self.get(pattern: &str, handler: Handler): void!
+
+    /// Adds one POST route.
+    pub method &+self.post(pattern: &str, handler: Handler): void!
+
+    /// Selects and awaits one handler, retaining unmatched requests for application policy.
+    pub async method &self.dispatch(request: IncomingRequest): RouteDispatch!
 }
 
 /// The unique capability to send one response on one decoded request connection.

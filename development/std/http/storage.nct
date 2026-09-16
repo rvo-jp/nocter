@@ -48,7 +48,13 @@ struct RequestHead {
 
 struct RequestTarget {
     text_value: String
-    query_start: usize?
+    query_start: usize
+    path_segments: Vec<RequestTargetSegment>
+}
+
+copy struct RequestTargetSegment {
+    start: usize
+    end: usize
 }
 
 struct QueryParameter {

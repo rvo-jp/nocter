@@ -1,0 +1,35 @@
+//! Sole owned representations for deterministic HTTP routing.
+
+see ./index.nct
+
+use /string.String
+use /vec.Vec
+
+enum RoutePatternSegment {
+    exact(value: String)
+    parameter(name: String)
+}
+
+struct RoutePattern {
+    segments: Vec<RoutePatternSegment>
+    literal_count: usize
+}
+
+struct Route {
+    request_method: Method
+    pattern: RoutePattern
+    handler: Handler
+}
+
+struct RouteParameter {
+    name_value: String
+    value_value: String
+}
+
+struct RouteMatch {
+    parameters: Vec<RouteParameter>
+}
+
+struct Router {
+    routes: Vec<Route>
+}

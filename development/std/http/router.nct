@@ -1,0 +1,230 @@
+//! Deterministic method and path-pattern routing over erased readonly handlers.
+
+see ./errors.nct
+see ./index.nct
+see ./router_storage.nct
+see ./target.nct
+
+use /string.String
+use /vec.Vec
+
+noalloc func valid_route_parameter_name(name: &str): bool {
+    if name.len() == 0 { return false }
+    let first = name[0]
+    let valid_first = (first >= 65 && first <= 90)
+        || (first >= 97 && first <= 122)
+        || first == 95
+    if !valid_first { return false }
+    var offset: usize = 1
+    while offset < name.len() {
+        let value = name[offset]
+        let valid = (value >= 48 && value <= 57)
+            || (value >= 65 && value <= 90)
+            || (value >= 97 && value <= 122)
+            || value == 95
+        if !valid { return false }
+        offset += 1
+    }
+    return true
+}
+
+noalloc func route_pattern_has_parameter(segments: &Vec<RoutePatternSegment>, name: &str): bool {
+    var index: usize = 0
+    while index < segments.len() {
+        match &segments[index] {
+            RoutePatternSegment.parameter(existing) {
+                if (existing as &str) == name { return true }
+            }
+            _ {}
+        }
+        index += 1
+    }
+    return false
+}
+
+func parse_route_pattern(text: &str): RoutePattern! {
+    let target = RequestTarget.parse(text)?
+    if target.path() != text { return invalid_route_pattern() }
+    var segments: Vec<RoutePatternSegment> = Vec.with_capacity(target.path_segment_count())
+    var literal_count: usize = 0
+    var index: usize = 0
+    while index < target.path_segment_count() {
+        let segment = target.path_segment(index) otherwise { return invalid_route_pattern() }
+        if segment.len() > 0 && segment[0] == 58 {
+            let name = segment.get_range(1, segment.len()) otherwise { return invalid_route_pattern() }
+            if !valid_route_parameter_name(name) || route_pattern_has_parameter(&segments, name) {
+                return invalid_route_pattern()
+            }
+            segments.push(RoutePatternSegment.parameter(String.copy(name)))
+        } else {
+            literal_count += 1
+            segments.push(RoutePatternSegment.exact(String.copy(segment)))
+        }
+        index += 1
+    }
+    return RoutePattern {
+        segments: move segments,
+        literal_count: literal_count,
+    }
+}
+
+noalloc func route_patterns_overlap(left: &RoutePattern, right: &RoutePattern): bool {
+    if left.segments.len() != right.segments.len() { return false }
+    var index: usize = 0
+    while index < left.segments.len() {
+        match &left.segments[index] {
+            RoutePatternSegment.exact(left_value) {
+                match &right.segments[index] {
+                    RoutePatternSegment.exact(right_value) {
+                        if (left_value as &str) != (right_value as &str) { return false }
+                    }
+                    _ {}
+                }
+            }
+            _ {}
+        }
+        index += 1
+    }
+    return true
+}
+
+noalloc func route_pattern_matches(pattern: &RoutePattern, target: &RequestTarget): bool {
+    if pattern.segments.len() != target.path_segment_count() { return false }
+    var index: usize = 0
+    while index < pattern.segments.len() {
+        let actual = target.path_segment(index) otherwise { return false }
+        match &pattern.segments[index] {
+            RoutePatternSegment.exact(expected) {
+                if (expected as &str) != actual { return false }
+            }
+            _ {}
+        }
+        index += 1
+    }
+    return true
+}
+
+func match_route_pattern(pattern: &RoutePattern, target: &RequestTarget): RouteMatch! {
+    var parameters: Vec<RouteParameter> = Vec.with_capacity(
+        pattern.segments.len() - pattern.literal_count,
+    )
+    var index: usize = 0
+    while index < pattern.segments.len() {
+        match &pattern.segments[index] {
+            RoutePatternSegment.parameter(name) {
+                let encoded = target.path_segment(index) otherwise { return invalid_route_pattern() }
+                parameters.push(RouteParameter {
+                    name_value: String.copy(name),
+                    value_value: decode_target_component(encoded)?,
+                })
+            }
+            _ {}
+        }
+        index += 1
+    }
+    return RouteMatch { parameters: move parameters }
+}
+
+construct Router {
+    noalloc func empty(): Self {
+        return Router { routes: Vec.empty() }
+    }
+}
+
+instance RouteParameter {
+    noalloc method &self.name(): &str from self {
+        return &self.name_value as &str
+    }
+
+    noalloc method &self.value(): &str from self {
+        return &self.value_value as &str
+    }
+}
+
+instance RouteMatch {
+    noalloc method &self.len(): usize {
+        return self.parameters.len()
+    }
+
+    noalloc method &self.at(index: usize): &RouteParameter? from self {
+        if index >= self.parameters.len() { return none }
+        return &self.parameters[index]
+    }
+
+    noalloc method &self.parameter(name: &str): &str? from self {
+        var index: usize = 0
+        while index < self.parameters.len() {
+            let parameter = &self.parameters[index]
+            if parameter.name() == name { return parameter.value() }
+            index += 1
+        }
+        return none
+    }
+}
+
+instance Router {
+    method &+self.add(request_method: Method, pattern: &str, handler: Handler): void! {
+        let parsed = parse_route_pattern(pattern)?
+        var index: usize = 0
+        while index < self.routes.len() {
+            let existing = &self.routes[index]
+            if existing.request_method == request_method
+                && existing.pattern.literal_count == parsed.literal_count
+                && route_patterns_overlap(&existing.pattern, &parsed) {
+                return ambiguous_route()
+            }
+            index += 1
+        }
+        self.routes.push(Route {
+            request_method: move request_method,
+            pattern: move parsed,
+            handler: move handler,
+        })
+        return
+    }
+
+    method &+self.get(pattern: &str, handler: Handler): void! {
+        self.add(Method.get(), pattern, move handler)?
+        return
+    }
+
+    method &+self.post(pattern: &str, handler: Handler): void! {
+        self.add(Method.post(), pattern, move handler)?
+        return
+    }
+
+    async method &self.dispatch(request: IncomingRequest): RouteDispatch! {
+        var owner = move request
+        var selected: usize? = none
+        var selected_literals: usize = 0
+        var path_matched = false
+        var index: usize = 0
+        while index < self.routes.len() {
+            let route = &self.routes[index]
+            if route_pattern_matches(&route.pattern, owner.target()) {
+                path_matched = true
+                if route.request_method == owner.request_method() {
+                    let _previous = selected otherwise {
+                        selected = index
+                        selected_literals = route.pattern.literal_count
+                        index += 1
+                        continue
+                    }
+                    if route.pattern.literal_count > selected_literals {
+                        selected = index
+                        selected_literals = route.pattern.literal_count
+                    }
+                }
+            }
+            index += 1
+        }
+        let route_index = selected otherwise {
+            if path_matched { return RouteDispatch.method_not_allowed(move owner) }
+            return RouteDispatch.not_found(move owner)
+        }
+        let route = &self.routes[route_index]
+        let matched = match_route_pattern(&route.pattern, owner.target())?
+        let connection = await route.handler(move owner, move matched)?
+        return RouteDispatch.handled(move connection)
+    }
+}

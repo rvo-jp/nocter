@@ -8,13 +8,13 @@ use /iter.Iterator
 use /string.String
 use /vec.Vec
 
-noalloc func request_target_query_start(text: &str): usize? {
+noalloc func request_target_query_start(text: &str): usize {
     var offset: usize = 0
     while offset < text.len() {
         if text[offset] == 63 { return offset + 1 }
         offset += 1
     }
-    return none
+    return text.len() + 1
 }
 
 noalloc func valid_request_target(target: &str): bool {
@@ -62,11 +62,28 @@ noalloc func valid_request_target_range(bytes: &[u8], start: usize, end: usize):
     return true
 }
 
-noalloc func request_target_from_validated(text: String): RequestTarget {
+func request_target_path_segments(text: &str, path_end: usize): Vec<RequestTargetSegment> {
+    var segments: Vec<RequestTargetSegment> = Vec.empty()
+    if path_end == 1 { return move segments }
+    var start: usize = 1
+    loop {
+        var end = start
+        while end < path_end && text[end] != 47 { end += 1 }
+        segments.push(RequestTargetSegment { start: start, end: end })
+        if end == path_end { return move segments }
+        start = end + 1
+    }
+}
+
+func request_target_from_validated(text: String): RequestTarget {
     let view: &str = &text
+    let query_start = request_target_query_start(view)
+    let path_end = if query_start <= view.len() { query_start - 1 } else { view.len() }
+    let path_segments = request_target_path_segments(view, path_end)
     return RequestTarget {
-        query_start: request_target_query_start(view),
         text_value: move text,
+        query_start: query_start,
+        path_segments: move path_segments,
     }
 }
 
@@ -111,14 +128,24 @@ instance RequestTarget {
 
     noalloc method &self.path(): &str from self {
         let text: &str = &self.text_value
-        let query_start: usize = self.query_start otherwise { return text }
-        return text.get_range(0, query_start - 1) otherwise { return text }
+        if self.query_start > text.len() { return text }
+        return text.get_range(0, self.query_start - 1) otherwise { return text }
     }
 
     noalloc method &self.query(): &str? from self {
         let text: &str = &self.text_value
-        let start: usize = self.query_start?
-        return text.get_range(start, text.len())?
+        if self.query_start > text.len() { return none }
+        return text.get_range(self.query_start, text.len())?
+    }
+
+    noalloc method &self.path_segment_count(): usize {
+        return self.path_segments.len()
+    }
+
+    noalloc method &self.path_segment(index: usize): &str? from self {
+        if index >= self.path_segments.len() { return none }
+        let segment = self.path_segments[index]
+        return self.text().get_range(segment.start, segment.end)?
     }
 
     noalloc method &self.query_pairs(): QueryIter from self {
