@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.53.0 is published and externally audited. The v0.54.0 Streaming and Persistent HTTP
-Services candidate is complete and qualified, publication is authorized, and public metadata now
-selects v0.54.0. The retained archive and measured identities are recorded in the
-release-preparation record.
+Nocter v0.54.0 is published and externally audited. Its annotated tag, single release asset,
+downloaded installed home, latest-release selection, and source-identified Pages deployment agree
+with the qualified candidate. The immutable evidence lives in
+[`development/history/release-audits/v0.54.0.md`](history/release-audits/v0.54.0.md).
 
 ## Next Work
 
-Commit this publication metadata, create annotated tag `v0.54.0`, fast-forward `main`, and publish
-the retained archive as the release's single asset. Then audit the public tag, asset, latest-release
-endpoint, downloaded installed home, and source-identified Pages deployment. Do not rebuild or
-replace the qualified archive.
+Define v0.55.0 as the practical HTTP application layer. Start with one routing authority over
+validated request method and target, explicit path and query parameter values, and response
+construction conveniences that compose the existing streaming body, linear responder, persistent
+connection, deadline, and graceful-shutdown contracts without hiding ownership or task lifecycle.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
