@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.54.0 Phase 5 Application and Qualification Review](v0.54.0-phase-5.md)
 - [v0.54.0 Phase 4 Graceful Service-lifecycle Review](v0.54.0-phase-4.md)
 - [v0.54.0 Phase 3 Sequential Persistent-connection Review](v0.54.0-phase-3.md)
 - [v0.54.0 Phase 2 Streaming Response-output Review](v0.54.0-phase-2.md)

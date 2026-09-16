@@ -1,40 +1,107 @@
 see ./index.nct
 
-use std/http.{Client, Limits, OutgoingResponse, Request, Server, ServerConnection}
-use std/net.{IpAddress, Ipv4Address, SocketAddress}
-use std/string.String
+use std/http.{IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, Server, ServerConnection}
+use std/net
+use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpStream}
 use std/task
 use std/task.{TaskGroup, Timeout}
 use std/time.Duration
-use std/url.Url
+use std/vec.Vec
 
 const CONNECTION_LIMIT: usize = 2
 
 const REQUEST_COUNT: usize = 3
 
+const LARGE_BODY_BYTES: usize = 32768
+
+const TRANSFER_BYTES: usize = 1024
+
 func loopback(): SocketAddress {
     return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
 }
 
+func byte_buffer(length: usize): Vec<u8> {
+    var output: Vec<u8> = Vec.with_capacity(length)
+    while output.len() < length { output.push(u8.truncate(0)) }
+    return move output
+}
+
+func append_bytes(output: &+Vec<u8>, bytes: &[u8]): void {
+    var offset: usize = 0
+    while offset < bytes.len() {
+        output.push(bytes[offset])
+        offset += 1
+    }
+    return
+}
+
+async func stream_large_response(
+    responder: Responder,
+    timeout: Duration,
+): ServerConnection?! {
+    let head = ResponseHead.ok()
+    var writer = await responder.begin_chunked_with_timeout(move head, timeout)?
+    var chunk = byte_buffer(TRANSFER_BYTES)
+    var offset: usize = 0
+    while offset < chunk.len() {
+        chunk[offset] = u8.truncate(120)
+        offset += 1
+    }
+    var written: usize = 0
+    while written < LARGE_BODY_BYTES {
+        await writer.write_with_timeout(&chunk, timeout)?
+        written += chunk.len()
+    }
+    return await writer.finish_with_timeout(timeout)?
+}
+
+async func read_large_request(
+    request: &+IncomingRequest,
+    timeout: Duration,
+): bool {
+    var scratch = byte_buffer(TRANSFER_BYTES)
+    var received: usize = 0
+    loop {
+        let count = await request.read_with_timeout(&+scratch, timeout)
+        catch _ { return false }
+        if count == 0 { return received == LARGE_BODY_BYTES }
+        received += count
+    }
+}
+
 async func handle_connection(connection: ServerConnection, timeout: Duration): bool {
-    let request = await connection.read_request_with_timeout(timeout) catch _ { return false }
-    let target = String.copy(request.target())
-    var responder = await request.finish_body_with_timeout(timeout) catch _ { return false }
-    if target == "/drop" {
-        responder.close()
-        return false
+    var owner = move connection
+    var completed_large = false
+    loop {
+        var request = await owner.read_request_with_timeout(timeout) catch failure {
+            return !completed_large
+            && (failure.has_code("std.http.invalid_syntax")
+                || failure.has_code("std.http.timed_out"))
+        }
+        if request.target() == "/large" && !completed_large {
+            if !await read_large_request(&+request, timeout) { return false }
+            let responder = await request.finish_body_with_timeout(timeout)
+            catch _ { return false }
+            let next = await stream_large_response(move responder, timeout)
+            catch _ { return false }
+            owner = move next otherwise { return false }
+            completed_large = true
+        } else if request.target() == "/close" && completed_large {
+            var responder = await request.finish_body_with_timeout(timeout)
+            catch _ { return false }
+            responder.close_after_response()
+            var response = OutgoingResponse.ok()
+            response.set_text_body("done")
+            let next = await responder.respond_with_timeout(move response, timeout)
+            catch _ { return false }
+            let unexpected = move next otherwise { return true }
+            unexpected.close()
+            return false
+        } else {
+            request.close()
+            return false
+        }
     }
-    var response = OutgoingResponse.ok()
-    response.append_header_text("Content-Type", "text/plain; charset=utf-8") catch _ {
-        return false
-    }
-    response.set_text_body(&target)
-    responder.close_after_response()
-    let next = await responder.respond_with_timeout(move response, timeout)
-    catch _ { return false }
-    let unexpected = move next otherwise { return true }
-    unexpected.close()
-    return false
 }
 
 async func drain_handlers(
@@ -77,7 +144,11 @@ async func observe_handler(
     return completed
 }
 
-async func serve_bounded(server: Server, timeout: Duration): (usize, usize)! {
+async func serve_bounded(
+    server: Server,
+    request_timeout: Duration,
+    shutdown_deadline: Duration,
+): (usize, usize)! {
     var owner = move server
     var handlers: TaskGroup<bool> = TaskGroup.empty()
     var accepted: usize = 0
@@ -91,57 +162,69 @@ async func serve_bounded(server: Server, timeout: Duration): (usize, usize)! {
                 failed += 1
             }
         }
-        let connection = await owner.accept_with_timeout(timeout)?
-        handlers.add(handle_connection(move connection, timeout))
+        let connection = await owner.accept_with_timeout(shutdown_deadline)?
+        handlers.add(handle_connection(move connection, request_timeout))
         accepted += 1
     }
     owner.close()
-    let drained = await drain_handlers_before(move handlers, timeout)?
+    let drained = await drain_handlers_before(move handlers, shutdown_deadline)?
     return (succeeded + drained.0, failed + drained.1)
 }
 
-async func successful_request(client: &Client, url: String, expected: &str, timeout: Duration): bool {
-    let request = Request.get(Url.parse(&url) catch _ { return false }) catch _ { return false }
-    var response = await client.send_with_timeout(move request, timeout) catch _ { return false }
-    if response.status().code() != 200 { return false }
-    let body = await response.read_to_string_with_timeout(timeout) catch _ { return false }
-    return body == expected
-}
-
-async func expected_handler_failure(client: &Client, url: String, timeout: Duration): bool {
-    let request = Request.get(Url.parse(&url) catch _ { return false }) catch _ { return false }
-    let _response = await client.send_with_timeout(move request, timeout) catch failure {
-        return failure.has_code("std.http.premature_eof")
+async func read_until_eof(
+    stream: &+TcpStream,
+    timeout: Duration,
+): usize! {
+    var scratch = byte_buffer(TRANSFER_BYTES)
+    var received: usize = 0
+    loop {
+        let count = await stream.read_with_timeout(&+scratch, timeout)?
+        if count == 0 { return received }
+        received += count
     }
-    return false
 }
 
-async func run_clients(base: &str, timeout: Duration): usize! {
-    let client = Client.new()
+async func large_reused_exchange(address: SocketAddress, timeout: Duration): bool {
+    var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
+    var request: Vec<u8> = Vec.with_capacity(LARGE_BODY_BYTES + 256)
+    append_bytes(
+        &+request,
+        "POST /large HTTP/1.1\r\nHost: localhost\r\nContent-Length: 32768\r\n\r\n".bytes(),
+    )
+    let body_start = request.len()
+    while request.len() - body_start < LARGE_BODY_BYTES {
+        request.push(u8.truncate(97))
+    }
+    append_bytes(
+        &+request,
+        "GET /close HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n".bytes(),
+    )
+    await stream.write_with_timeout(&request, timeout) catch _ { return false }
+    let received = await read_until_eof(&+stream, timeout) catch _ { return false }
+    return received > LARGE_BODY_BYTES
+}
+
+async func malformed_exchange(address: SocketAddress, timeout: Duration): bool {
+    var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
+    await stream.write_with_timeout(
+        "GET /bad HTTP/1.1\r\nHost: localhost\r\nConnection: close,\r\n\r\n".bytes(),
+        timeout,
+    ) catch _ { return false }
+    let received = await read_until_eof(&+stream, timeout) catch _ { return false }
+    return received == 0
+}
+
+async func timed_out_exchange(address: SocketAddress, timeout: Duration): bool {
+    var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
+    let received = await read_until_eof(&+stream, timeout) catch _ { return false }
+    return received == 0
+}
+
+async func run_clients(address: SocketAddress, timeout: Duration): usize! {
     var requests: TaskGroup<bool> = TaskGroup.empty()
-    requests.add(
-        successful_request(
-            &client,
-            String.concat(base, "/one"),
-            "/one",
-            timeout,
-        ),
-    )
-    requests.add(
-        expected_handler_failure(
-            &client,
-            String.concat(base, "/drop"),
-            timeout,
-        ),
-    )
-    requests.add(
-        successful_request(
-            &client,
-            String.concat(base, "/two"),
-            "/two",
-            timeout,
-        ),
-    )
+    requests.add(large_reused_exchange(address, timeout))
+    requests.add(malformed_exchange(address, timeout))
+    requests.add(timed_out_exchange(address, timeout))
     var passed: usize = 0
     while !requests.is_empty() {
         let result = await requests.next() otherwise {
@@ -153,19 +236,18 @@ async func run_clients(base: &str, timeout: Duration): usize! {
 }
 
 async func run_service_example(): i32! {
-    let limits = Limits.new(1024, 8192, 32, 4, 1024, 128, 4096)?
-    let timeout = Duration.from_seconds(2)
+    let limits = Limits.new(1024, 8192, 32, 4, 1024, 128, 65536)?
+    let request_timeout = Duration.from_seconds(1)
+    let operation_timeout = Duration.from_seconds(3)
     let server = await Server.bind_with_limits(loopback(), limits)?
     let address = server.local_address()?
-    let port = address.port().to_string()
-    let base = String.concat("http://127.0.0.1:", &port)
     let completed = await task.join(
-        serve_bounded(move server, timeout),
-        run_clients(&base, timeout),
+        serve_bounded(move server, request_timeout, operation_timeout),
+        run_clients(address, operation_timeout),
     )
     let service = move completed.0?
     let clients = move completed.1?
-    if service.0 != 2 || service.1 != 1 || clients != 3 {
+    if service.0 != 3 || service.1 != 0 || clients != 3 {
         return error.new("http-service.result", "bounded service outcomes changed")
     }
     return 0

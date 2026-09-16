@@ -159,6 +159,13 @@ Process-signal observation is not part of this boundary. A signal, administrativ
 trigger, or parent computation may choose when to begin the same application-owned transition;
 none changes its ownership or draining semantics.
 
+The [HTTP service example](../../examples/http-service/index.nct) qualifies the complete boundary
+without another protocol implementation. Its raw loopback peers only emit fixed test bytes and
+count received bytes until EOF; the standard HTTP owners alone parse framing, select persistence,
+and decide response authority. A body and response larger than both the application transfer
+buffer and transport scratch storage prove that the example does not accidentally depend on
+whole-message allocation.
+
 ## Responsibility Matrix
 
 | Decision | Sole authority | Consumers |

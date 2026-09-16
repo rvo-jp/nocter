@@ -269,12 +269,21 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     let source = root.join("service.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (read_line, read_source) = source_line(&text, "connection.read_request_with_timeout");
+    assert_http_connection_editor_features(&mut server, &source, &text);
+    assert_http_request_and_shutdown_editor_features(&mut server, &source, &text);
+}
+
+fn assert_http_connection_editor_features(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (read_line, read_source) = source_line(text, "owner.read_request_with_timeout");
     let read_character = read_source.find("read_request_with_timeout").unwrap();
     let hover = server.receive(&position_request(
         2,
         "textDocument/hover",
-        &source,
+        source,
         read_line,
         read_character,
     ));
@@ -291,7 +300,7 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     let definition = server.receive(&position_request(
         3,
         "textDocument/definition",
-        &source,
+        source,
         read_line,
         read_character,
     ));
@@ -302,7 +311,7 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     let implementation = server.receive(&position_request(
         4,
         "textDocument/implementation",
-        &source,
+        source,
         read_line,
         read_character,
     ));
@@ -314,11 +323,11 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
         implementation.issue()
     );
 
-    let completion_character = read_source.find("connection.").unwrap() + "connection.".len();
+    let completion_character = read_source.find("owner.").unwrap() + "owner.".len();
     let completion = server.receive(&position_request(
         5,
         "textDocument/completion",
-        &source,
+        source,
         read_line,
         completion_character,
     ));
@@ -335,13 +344,19 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
 
-    let (finish_line, finish_source) = source_line(&text, "request.finish_body_with_timeout");
+fn assert_http_request_and_shutdown_editor_features(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (finish_line, finish_source) = source_line(text, "request.finish_body_with_timeout");
     let finish_character = finish_source.find("finish_body_with_timeout").unwrap();
     let hover = server.receive(&position_request(
         6,
         "textDocument/hover",
-        &source,
+        source,
         finish_line,
         finish_character,
     ));
@@ -358,7 +373,7 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     let implementation = server.receive(&position_request(
         7,
         "textDocument/implementation",
-        &source,
+        source,
         finish_line,
         finish_character,
     ));
@@ -370,12 +385,12 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
         implementation.issue()
     );
 
-    let (close_line, close_source) = source_line(&text, "owner.close()");
+    let (close_line, close_source) = source_line(text, "owner.close()");
     let close_character = close_source.find("close").unwrap();
     let hover = server.receive(&position_request(
         8,
         "textDocument/hover",
-        &source,
+        source,
         close_line,
         close_character,
     ));
@@ -385,6 +400,36 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let invalid = text.replace(
+        "    owner.close()\n    let drained",
+        concat!(
+            "    owner.close()\n",
+            "    let _late = await owner.accept_with_timeout(shutdown_deadline)?\n",
+            "    let drained",
+        ),
+    );
+    assert_ne!(invalid, text);
+    let mut invalid_json = String::new();
+    nocter_json::write_string(&mut invalid_json, &invalid);
+    let changed = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":2}},\"contentChanges\":[{{\"text\":{invalid_json}}}]}}}}",
+        source.display()
+    ));
+    let snapshot = changed.analysis().unwrap().snapshot().unwrap();
+    assert_eq!(
+        snapshot.status(),
+        nocter_analysis::AnalysisStatus::CompilationFailed
+    );
+    assert!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0378"),
+        "{:?}",
+        snapshot.diagnostics()
+    );
+    assert!(changed.issue().is_none(), "{:?}", changed.issue());
 }
 
 #[test]

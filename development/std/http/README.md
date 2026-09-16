@@ -96,7 +96,10 @@ together. Request transfer storage is fixed per active cursor rather than propor
 body length; `Limits` still bounds decoded bytes and syntax-controlled storage. Kernel backlog
 policy remains the TCP listener's responsibility. The
 [bounded HTTP service example](../../../examples/http-service/index.nct) demonstrates this complete
-composition with successful and explicit no-response paths.
+composition. It transfers a 32 KiB request and chunked response through 1 KiB application buffers,
+reuses one connection for a retained pipelined request only after the first response completes,
+forces terminal response policy, and rejects malformed framing plus an idle request under finite
+deadlines. Its two-slot handler group remains the sole connection-capacity authority.
 
 Graceful shutdown is the same application-owned composition. The application first consumes
 `Server.close`, which stops listener admission without touching accepted connection owners. It then
