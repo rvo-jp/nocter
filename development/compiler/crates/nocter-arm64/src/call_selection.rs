@@ -327,7 +327,7 @@ fn select_erased_target(
         .program()
         .layouts()
         .get(ty)
-        .map(|layout| layout.kind())
+        .map(nocter_machine::MachineLayout::kind)
     else {
         return Err(Arm64SelectionError::CallArguments(operation));
     };

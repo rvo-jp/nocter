@@ -456,13 +456,11 @@ fn place_direct_aggregate_staging(
                     let value = body
                         .value(environment)
                         .ok_or(Arm64FunctionFrameError::MissingValue(environment))?;
-                    let (size, alignment) = match value.representation() {
-                        nocter_machine::MachineValueRepresentation::Stored {
-                            size,
-                            alignment,
-                            ..
-                        } => (size, alignment),
-                        _ => return Err(Arm64FunctionFrameError::MissingValue(environment)),
+                    let nocter_machine::MachineValueRepresentation::Stored {
+                        size, alignment, ..
+                    } = value.representation()
+                    else {
+                        return Err(Arm64FunctionFrameError::MissingValue(environment));
                     };
                     let (current_size, current_alignment) = requirement.unwrap_or((0, 1));
                     requirement = Some((current_size.max(size), current_alignment.max(alignment)));

@@ -43,20 +43,7 @@ pub(crate) fn select_construct(
         .ok_or(Arm64SelectionError::MemoryShape(erased.environment()))?;
     let environment_size = environment_layout.size();
     let staged = stage_environment(erased.environment(), environment_size, context, selected)?;
-    let destination = match context
-        .values()
-        .value(result)
-        .ok_or(Arm64SelectionError::UnknownValue(result))?
-    {
-        Arm64ValueStorage::Memory { .. } => Arm64SelectedStackAddress::FrameObject {
-            object: context
-                .frame()
-                .memory_value(result)
-                .ok_or(Arm64SelectionError::MemoryValue(result))?,
-            offset: 0,
-        },
-        _ => return Err(Arm64SelectionError::MemoryShape(result)),
-    };
+    let destination = erased_destination(result, context)?;
 
     let mapped_size = environment_size.max(1);
     selected.push(Arm64SelectedInstruction::LoadImmediate {
@@ -121,6 +108,26 @@ pub(crate) fn select_construct(
         source: scratch,
     });
     Ok(())
+}
+
+fn erased_destination(
+    result: MachineValueId,
+    context: Arm64SelectionContext<'_>,
+) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {
+    match context
+        .values()
+        .value(result)
+        .ok_or(Arm64SelectionError::UnknownValue(result))?
+    {
+        Arm64ValueStorage::Memory { .. } => Ok(Arm64SelectedStackAddress::FrameObject {
+            object: context
+                .frame()
+                .memory_value(result)
+                .ok_or(Arm64SelectionError::MemoryValue(result))?,
+            offset: 0,
+        }),
+        _ => Err(Arm64SelectionError::MemoryShape(result)),
+    }
 }
 
 fn stage_environment(
