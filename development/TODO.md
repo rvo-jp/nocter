@@ -2,21 +2,17 @@
 
 ## Current State
 
-Nocter v0.53.0 is published and externally audited. v0.54.0 Phases 0–5 are complete. Incoming
-requests and client responses share one canonical body cursor. Server output freezes one validated
-fixed-length or chunked plan and streams through a linear `ResponseWriter`; successful completion
-returns the same connection only when the selected HTTP/1.1 policy permits reuse. Graceful shutdown
-stops listener admission before one deadline-bounded drain of the application-owned handler group.
-The complete public service streams 32 KiB input and output through 1 KiB transfer buffers, reuses
-one sequential connection, forces terminal policy, and covers malformed framing plus idle timeout.
+Nocter v0.54.0 release preparation is active. The streaming and persistent HTTP service milestone,
+whole-repository compiler gate, and installed LSP qualification improvements are complete. Release
+identity now selects `0.54.0`; public notes and the release-preparation contract are authored. The
+completed implementation scope lives in
+[`development/history/milestones/v0.54.0.md`](history/milestones/v0.54.0.md).
 
 ## Next Work
 
-Prepare v0.54.0 as a separate release change. Advance the sole release-version input, update the
-public release record and release selectors, run the clean-tree compiler and deterministic package
-qualification, retain exactly one candidate archive, and audit the published tag, asset, installed
-home, and documentation deployment. Do not alter the completed streaming or lifecycle contracts
-during release preparation unless qualification exposes a product defect.
+Commit the exact release content, run deterministic two-build packaging and installed-home
+qualification from that clean commit, then record the measured artifact identities. Publication
+must reuse the retained candidate archive without rebuilding it.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
