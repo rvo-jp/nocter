@@ -175,6 +175,36 @@ fn executable_closure_contains_only_reachable_bodies_and_recursive_drop_work() {
 }
 
 #[test]
+fn runtime_environment_excludes_unreachable_concrete_closure_types() {
+    let target = build_target_program(&Fixture::with_app(
+        "func dead(): i32 {\n\
+             let callback = (value: i32): i32 { value + 1 }\n\
+             callback(1)\n\
+         }\n\
+         func main(): i32 { 0 }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let unreachable = executable
+        .types()
+        .iter()
+        .find_map(|(ty, kind)| matches!(kind, nocter_model::TypeKind::Closure { .. }).then_some(ty))
+        .expect("checked closure type must remain available to the semantic environment");
+
+    assert!(executable.type_representations().get(unreachable).is_none());
+    let runtime = executable.into_runtime_environment();
+    assert!(runtime.types().get(unreachable).is_none());
+}
+
+#[test]
 fn executable_closure_retains_only_reachable_static_values() {
     let target = build_target_program(&Fixture::with_app(
         "static LIVE: [i32; 2] = [40, 2]\n\

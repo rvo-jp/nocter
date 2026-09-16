@@ -26,7 +26,6 @@ pub(crate) fn is_transparent_expression(kind: NodeKind) -> bool {
             | NodeKind::ShiftExpression
             | NodeKind::AdditiveExpression
             | NodeKind::MultiplicativeExpression
-            | NodeKind::ConversionExpression
             | NodeKind::GroupedExpression
     )
 }

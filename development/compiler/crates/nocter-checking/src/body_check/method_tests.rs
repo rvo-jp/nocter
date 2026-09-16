@@ -512,6 +512,20 @@ fn method_lookup_uses_one_selected_receiver_coercion() {
 }
 
 #[test]
+fn explicit_conversion_can_supply_a_method_receiver() {
+    check(
+        "struct Text { value: i32 }\n\
+         struct Wrapper { text: Text }\n\
+         instance Text { pub method &self.value(): i32 { self.value } }\n\
+         instance Wrapper {\n\
+             pub coerce &self as &Text { &self.text }\n\
+         }\n\
+         func value(wrapper: &Wrapper): i32 { (wrapper as &Text).value() }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn readwrite_receiver_coercion_preserves_mutation_authority() {
     let output = check(
         "struct Target { value: i32 }\n\

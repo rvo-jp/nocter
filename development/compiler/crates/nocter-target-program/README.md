@@ -40,6 +40,9 @@ does not inspect syntax or repeat checking decisions.
 - Executable specialization owns key construction; a consumer cannot pair a semantic identity with
   an unrelated specialization type store.
 - Reachability uses semantic identities, never runtime symbol spelling.
+- A concrete closure type enters the runtime type table only with the representation emitted by
+  its reachable executable item. Closure types from unselected bodies remain semantic facts and
+  cannot require runtime layout or body access.
 - Checked constant references remain identities until executable closure freezes exactly the
   reached values; MIR cannot reopen declaration storage.
 - MIR receives no unresolved requirement, interface implementation, or generic lookup.

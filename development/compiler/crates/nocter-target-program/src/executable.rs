@@ -733,13 +733,14 @@ fn build_runtime_environment(
     abi: nocter_runtime_contract::RuntimeAbiIdentity,
     runtime_storage: &nocter_runtime_contract::RuntimeStorageRegistry,
 ) -> Result<RuntimeEnvironment, ExecutableProgramError> {
-    let runtime_types = runtime_type_table(types, runtime_storage)?;
+    let runtime_types = runtime_type_table(types, &representations, runtime_storage)?;
     RuntimeEnvironment::new(runtime_types, representations, abi)
         .map_err(ExecutableProgramError::RuntimeEnvironment)
 }
 
 fn runtime_type_table(
     types: &TypeStore,
+    representations: &RuntimeTypeRepresentationTable,
     runtime_storage: &nocter_runtime_contract::RuntimeStorageRegistry,
 ) -> Result<nocter_runtime_contract::RuntimeTypeTable, ExecutableProgramError> {
     use nocter_model::{BuiltinType, TypeKind};
@@ -750,6 +751,12 @@ fn runtime_type_table(
         if !is_concrete_type(types, ty)
             .map_err(|_| ExecutableProgramError::InvalidTypeRepresentation(ty))?
         {
+            continue;
+        }
+        // A closure type can exist in the checked store without belonging to this executable
+        // closure. Its layout is admitted only by the reachable executable item that owns the
+        // matching representation; semantic existence alone is not runtime reachability.
+        if matches!(kind, TypeKind::Closure { .. }) && representations.get(ty).is_none() {
             continue;
         }
         let runtime = match kind {
