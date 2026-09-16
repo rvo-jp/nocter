@@ -42,6 +42,12 @@ owner, so a later `next` can resume the same computations. Destroying the group 
 its backing Vec and therefore cancels every retained future exactly once. A completed child remains
 in the group until `next` removes and consumes it.
 
+A bounded graceful drain moves the whole group into an application-defined future that repeatedly
+consumes `next`, then passes that one future to `task.with_timeout`. The timeout therefore covers
+the complete drain rather than one child wait. If it elapses, cancellation destroys the drain
+future, the group it owns, and every remaining child. Keeping the group outside and timing out a
+borrowed `next` has intentionally different behavior: the children remain available to their owner.
+
 `join` and `race` remain fixed-arity conveniences with distinct result policies. `TaskGroup` is the
 dynamic ownership primitive; it does not reinterpret child outputs, select a scheduler, or expose
 an independently copyable task handle.

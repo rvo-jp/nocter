@@ -236,3 +236,27 @@ fn public_http_server_reuses_one_connection_and_retains_pipelined_input() {
 
     execute_native_status(image.image(), &package_root.0, "http-server-reuse", 0);
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_http_server_gracefully_drains_and_cancels_every_owned_typestate() {
+    let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        include_str!("../../../../tests/fixtures/native/http_graceful_shutdown.nct"),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    execute_native_status(image.image(), &package_root.0, "http-server-shutdown", 0);
+}

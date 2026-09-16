@@ -369,6 +369,22 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
         "{:?}",
         implementation.issue()
     );
+
+    let (close_line, close_source) = source_line(&text, "owner.close()");
+    let close_character = close_source.find("close").unwrap();
+    let hover = server.receive(&position_request(
+        8,
+        "textDocument/hover",
+        &source,
+        close_line,
+        close_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub noalloc method Server.close(): void"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
 }
 
 #[test]

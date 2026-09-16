@@ -1,0 +1,319 @@
+use std/http.{IncomingRequest, OutgoingResponse, Responder, ResponseHead, ResponseWriter, Server, ServerConnection}
+use std/net
+use std/net.{IpAddress, Ipv4Address, SocketAddress}
+use std/task
+use std/task.{TaskGroup, Timeout}
+use std/time
+use std/time.Duration
+use std/vec.Vec
+
+func loopback(): SocketAddress {
+    return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
+}
+
+async func drain_handlers(handlers: TaskGroup<bool>): usize {
+    var owner = move handlers
+    var completed: usize = 0
+    while !owner.is_empty() {
+        let _result = await owner.next() otherwise { return completed }
+        completed += 1
+    }
+    return completed
+}
+
+async func cancel_handlers_before(
+    handlers: TaskGroup<bool>,
+    deadline: Duration,
+): bool {
+    match await task.with_timeout(drain_handlers(move handlers), deadline) {
+        Timeout.completed(_) { return false }
+        Timeout.elapsed { return true }
+    }
+}
+
+async func hold_request(request: IncomingRequest, duration: Duration): bool {
+    await time.sleep(duration)
+    request.close()
+    return false
+}
+
+async func hold_responder(responder: Responder, duration: Duration): bool {
+    await time.sleep(duration)
+    responder.close()
+    return false
+}
+
+async func hold_writer(writer: ResponseWriter, duration: Duration): bool {
+    await time.sleep(duration)
+    writer.close()
+    return false
+}
+
+async func hold_connection(connection: ServerConnection, duration: Duration): bool {
+    await time.sleep(duration)
+    connection.close()
+    return false
+}
+
+async func expect_eof(
+    address: SocketAddress,
+    request: &str,
+    require_response: bool,
+    timeout: Duration,
+): void! {
+    var stream = await net.connect_tcp_with_timeout(address, timeout)?
+    await stream.write_with_timeout(request.bytes(), timeout)?
+    var scratch: Vec<u8> = Vec.with_capacity(512)
+    while scratch.len() < 512 { scratch.push(u8.truncate(0)) }
+    var received: usize = 0
+    loop {
+        let count = await stream.read_with_timeout(&+scratch, timeout)?
+        if count == 0 {
+            if require_response && received == 0 {
+                return error.new("test.response", "shutdown produced no response bytes")
+            }
+            return
+        }
+        received += count
+    }
+}
+
+async func cancel_incoming_request(
+    server: Server,
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    var owner = move server
+    let connection = await owner.accept_with_timeout(operation_timeout)?
+    let request = await connection.read_request_with_timeout(operation_timeout)?
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    handlers.add(hold_request(move request, hold))
+    owner.close()
+    if !await cancel_handlers_before(move handlers, shutdown_deadline) {
+        return error.new("test.request", "incoming request completed before cancellation")
+    }
+    return
+}
+
+async func cancel_responder(
+    server: Server,
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    var owner = move server
+    let connection = await owner.accept_with_timeout(operation_timeout)?
+    let request = await connection.read_request_with_timeout(operation_timeout)?
+    let responder = await request.finish_body_with_timeout(operation_timeout)?
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    handlers.add(hold_responder(move responder, hold))
+    owner.close()
+    if !await cancel_handlers_before(move handlers, shutdown_deadline) {
+        return error.new("test.responder", "responder completed before cancellation")
+    }
+    return
+}
+
+async func cancel_response_writer(
+    server: Server,
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    var owner = move server
+    let connection = await owner.accept_with_timeout(operation_timeout)?
+    let request = await connection.read_request_with_timeout(operation_timeout)?
+    let responder = await request.finish_body_with_timeout(operation_timeout)?
+    let head = ResponseHead.ok()
+    let writer = await responder.begin_fixed_with_timeout(move head, 1, operation_timeout)?
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    handlers.add(hold_writer(move writer, hold))
+    owner.close()
+    if !await cancel_handlers_before(move handlers, shutdown_deadline) {
+        return error.new("test.writer", "response writer completed before cancellation")
+    }
+    return
+}
+
+async func cancel_reusable_connection(
+    server: Server,
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    var owner = move server
+    let connection = await owner.accept_with_timeout(operation_timeout)?
+    let request = await connection.read_request_with_timeout(operation_timeout)?
+    let responder = await request.finish_body_with_timeout(operation_timeout)?
+    var response = OutgoingResponse.ok()
+    response.set_text_body("ok")
+    let next = await responder.respond_with_timeout(move response, operation_timeout)?
+    let reusable = move next otherwise {
+        return error.new("test.reuse", "response did not return its reusable connection")
+    }
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    handlers.add(hold_connection(move reusable, hold))
+    owner.close()
+    if !await cancel_handlers_before(move handlers, shutdown_deadline) {
+        return error.new("test.connection", "reusable connection completed before cancellation")
+    }
+    return
+}
+
+async func complete_after_listener_close(
+    connection: ServerConnection,
+    operation_timeout: Duration,
+): bool {
+    let request = await connection.read_request_with_timeout(operation_timeout)
+    catch _ { return false }
+    var responder = await request.finish_body_with_timeout(operation_timeout)
+    catch _ { return false }
+    responder.close_after_response()
+    var response = OutgoingResponse.ok()
+    response.set_text_body("done")
+    let next = await responder.respond_with_timeout(move response, operation_timeout)
+    catch _ { return false }
+    let unexpected = move next otherwise { return true }
+    unexpected.close()
+    return false
+}
+
+async func drain_after_listener_close(
+    server: Server,
+    operation_timeout: Duration,
+): void! {
+    var owner = move server
+    let connection = await owner.accept_with_timeout(operation_timeout)?
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    handlers.add(complete_after_listener_close(move connection, operation_timeout))
+    owner.close()
+    match await task.with_timeout(drain_handlers(move handlers), operation_timeout) {
+        Timeout.completed(count) {
+            if count != 1 {
+                return error.new("test.drain", "graceful drain lost a handler result")
+            }
+            return
+        }
+        Timeout.elapsed {
+            return error.new("test.drain", "graceful drain exceeded its deadline")
+        }
+    }
+}
+
+async func run_incoming_request_case(
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    let server = await Server.bind(loopback())?
+    let address = server.local_address()?
+    let completed = await task.join(
+        cancel_incoming_request(move server, operation_timeout, shutdown_deadline, hold),
+        expect_eof(
+            address,
+            "GET /request HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            false,
+            operation_timeout,
+        ),
+    )
+    move completed.0?
+    move completed.1?
+    return
+}
+
+async func run_responder_case(
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    let server = await Server.bind(loopback())?
+    let address = server.local_address()?
+    let completed = await task.join(
+        cancel_responder(move server, operation_timeout, shutdown_deadline, hold),
+        expect_eof(
+            address,
+            "GET /responder HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            false,
+            operation_timeout,
+        ),
+    )
+    move completed.0?
+    move completed.1?
+    return
+}
+
+async func run_writer_case(
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    let server = await Server.bind(loopback())?
+    let address = server.local_address()?
+    let completed = await task.join(
+        cancel_response_writer(move server, operation_timeout, shutdown_deadline, hold),
+        expect_eof(
+            address,
+            "GET /writer HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            true,
+            operation_timeout,
+        ),
+    )
+    move completed.0?
+    move completed.1?
+    return
+}
+
+async func run_reusable_connection_case(
+    operation_timeout: Duration,
+    shutdown_deadline: Duration,
+    hold: Duration,
+): void! {
+    let server = await Server.bind(loopback())?
+    let address = server.local_address()?
+    let completed = await task.join(
+        cancel_reusable_connection(move server, operation_timeout, shutdown_deadline, hold),
+        expect_eof(
+            address,
+            "GET /connection HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            true,
+            operation_timeout,
+        ),
+    )
+    move completed.0?
+    move completed.1?
+    return
+}
+
+async func run_graceful_case(operation_timeout: Duration): void! {
+    let server = await Server.bind(loopback())?
+    let address = server.local_address()?
+    let completed = await task.join(
+        drain_after_listener_close(move server, operation_timeout),
+        expect_eof(
+            address,
+            "GET /graceful HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            true,
+            operation_timeout,
+        ),
+    )
+    move completed.0?
+    move completed.1?
+    return
+}
+
+async func main(): i32 {
+    let operation_timeout = Duration.from_seconds(2)
+    let shutdown_deadline = Duration.from_milliseconds(50)
+    let hold = Duration.from_seconds(1)
+    await run_incoming_request_case(operation_timeout, shutdown_deadline, hold)
+    catch _ { return 1 }
+    await run_responder_case(operation_timeout, shutdown_deadline, hold)
+    catch _ { return 2 }
+    await run_writer_case(operation_timeout, shutdown_deadline, hold)
+    catch _ { return 3 }
+    await run_reusable_connection_case(operation_timeout, shutdown_deadline, hold)
+    catch _ { return 4 }
+    await run_graceful_case(operation_timeout) catch _ { return 5 }
+    return 0
+}

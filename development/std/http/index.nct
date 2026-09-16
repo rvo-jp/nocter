@@ -428,8 +428,8 @@ instance Server {
     /// Accepts one connection before a fixed monotonic deadline.
     pub async method &+self.accept_with_timeout(timeout: Duration): ServerConnection!
 
-    /// Closes the listener; later accepts fail through the network contract.
-    pub noalloc method &+self.close(): void
+    /// Consumes this listener admission authority without affecting accepted connections.
+    pub noalloc method self.close(): void
 }
 
 /// One accepted stream that has not yet yielded its next request head.

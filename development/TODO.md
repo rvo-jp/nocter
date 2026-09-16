@@ -2,17 +2,20 @@
 
 ## Current State
 
-Nocter v0.53.0 is published and externally audited. v0.54.0 Phases 0–3 are complete. Incoming
+Nocter v0.53.0 is published and externally audited. v0.54.0 Phases 0–4 are complete. Incoming
 requests and client responses share one canonical body cursor. Server output freezes one validated
 fixed-length or chunked plan and streams through a linear `ResponseWriter`; successful completion
-now returns the same connection only when the selected HTTP/1.1 policy permits reuse.
+returns the same connection only when the selected HTTP/1.1 policy permits reuse. Graceful shutdown
+stops listener admission before one deadline-bounded drain of the application-owned handler group.
 
 ## Next Work
 
-Implement Phase 4 as one coherent graceful-lifecycle change. Keep admission closure separate from
-accepted connection ownership, drain application-owned `TaskGroup` handlers under an explicit
-deadline, and prove that cancellation or destruction retires every request, responder, writer,
-and reusable connection exactly once. Do not add a hidden HTTP task registry or connection pool.
+Implement Phase 5 as one coherent application and qualification change. Extend the public service
+example to transfer a body larger than every fixed transport buffer over a reused connection while
+retaining bounded admission, backpressure, forced close, malformed framing, and graceful shutdown.
+Then qualify compiler, editor, standard library, native execution, documentation, installation,
+and packaging together and perform the whole-repository review. Do not create parallel example-only
+protocol or lifecycle paths.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

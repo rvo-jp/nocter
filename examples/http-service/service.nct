@@ -4,7 +4,7 @@ use std/http.{Client, Limits, OutgoingResponse, Request, Server, ServerConnectio
 use std/net.{IpAddress, Ipv4Address, SocketAddress}
 use std/string.String
 use std/task
-use std/task.TaskGroup
+use std/task.{TaskGroup, Timeout}
 use std/time.Duration
 use std/url.Url
 
@@ -19,7 +19,7 @@ func loopback(): SocketAddress {
 async func handle_connection(connection: ServerConnection, timeout: Duration): bool {
     let request = await connection.read_request_with_timeout(timeout) catch _ { return false }
     let target = String.copy(request.target())
-    let responder = await request.finish_body_with_timeout(timeout) catch _ { return false }
+    var responder = await request.finish_body_with_timeout(timeout) catch _ { return false }
     if target == "/drop" {
         responder.close()
         return false
@@ -29,9 +29,43 @@ async func handle_connection(connection: ServerConnection, timeout: Duration): b
         return false
     }
     response.set_text_body(&target)
-    let _next = await responder.respond_with_timeout(move response, timeout)
+    responder.close_after_response()
+    let next = await responder.respond_with_timeout(move response, timeout)
     catch _ { return false }
-    return true
+    let unexpected = move next otherwise { return true }
+    unexpected.close()
+    return false
+}
+
+async func drain_handlers(
+    handlers: TaskGroup<bool>,
+): (usize, usize)! {
+    var owner = move handlers
+    var succeeded: usize = 0
+    var failed: usize = 0
+    while !owner.is_empty() {
+        if await observe_handler(&+owner)? {
+            succeeded += 1
+        } else {
+            failed += 1
+        }
+    }
+    return (succeeded, failed)
+}
+
+async func drain_handlers_before(
+    handlers: TaskGroup<bool>,
+    deadline: Duration,
+): (usize, usize)! {
+    match await task.with_timeout(drain_handlers(move handlers), deadline) {
+        Timeout.completed(result) { return move result? }
+        Timeout.elapsed {
+            return error.new(
+                "http-service.shutdown_timed_out",
+                "handler drain exceeded the shutdown deadline",
+            )
+        }
+    }
 }
 
 async func observe_handler(
@@ -61,15 +95,9 @@ async func serve_bounded(server: Server, timeout: Duration): (usize, usize)! {
         handlers.add(handle_connection(move connection, timeout))
         accepted += 1
     }
-    while !handlers.is_empty() {
-        if await observe_handler(&+handlers)? {
-            succeeded += 1
-        } else {
-            failed += 1
-        }
-    }
     owner.close()
-    return (succeeded, failed)
+    let drained = await drain_handlers_before(move handlers, timeout)?
+    return (succeeded + drained.0, failed + drained.1)
 }
 
 async func successful_request(client: &Client, url: String, expected: &str, timeout: Duration): bool {

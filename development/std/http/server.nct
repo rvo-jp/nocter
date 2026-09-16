@@ -245,8 +245,9 @@ instance Server {
         return await accept_server_with_timeout(self, timeout)?
     }
 
-    noalloc method &+self.close(): void {
-        self.listener.close()
+    noalloc method self.close(): void {
+        var owner = move self
+        owner.listener.close()
         return
     }
 }

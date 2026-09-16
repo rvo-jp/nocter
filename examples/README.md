@@ -163,9 +163,12 @@ nocter run
 service-owned, two-slot `TaskGroup`. The accept loop drains one completed handler before admitting
 more work, so the application-selected limit is the only connection-capacity authority. Two
 handlers send successful responses; one consumes its unique `Responder` by closing without a
-response, letting both the service and clients observe cleanup without a detached task or hidden
-server registry. Every accept, request-head decode, consuming body finalization, response write,
-and client request has a finite deadline.
+response. After its final acceptance the service closes listener admission first, then moves its
+remaining handler group into one drain operation under a fixed shutdown deadline. Successful
+handlers explicitly select terminal response policy; deadline expiry would cancel the group and
+close each child-owned HTTP typestate through ordinary destruction. There is no detached task or
+hidden server registry. Every accept, request-head decode, consuming body finalization, response
+write, client request, and complete shutdown drain has a finite deadline.
 
 ```sh
 cd examples/http-service

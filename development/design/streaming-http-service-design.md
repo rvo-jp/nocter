@@ -132,6 +132,33 @@ Transport buffers and protocol scratch buffers have fixed capacity independent o
 choose a larger validated body limit without creating a body-sized allocation in the streaming
 path.
 
+## Graceful Service Lifecycle
+
+Admission and accepted work have separate owners. Consuming `Server.close` retires only the TCP
+listener and its ability to accept another connection. Every `ServerConnection` already returned
+by that listener remains owned by the application, including when it has advanced to an incoming
+request, responder, response writer, or reusable connection.
+
+The application transfers each handler future into its own `TaskGroup`. Graceful shutdown follows
+one composition rather than an HTTP-owned manager:
+
+1. consume the server to stop admission;
+2. move the handler group into one drain future that repeatedly consumes `TaskGroup.next` results;
+3. place that complete drain future under one `task.with_timeout` deadline;
+4. publish collected handler outcomes when draining completes, or let timeout cancellation destroy
+   the drain future and therefore every child still owned by its group.
+
+The deadline encloses the complete drain, not each child wait independently. Cancellation has no
+separate HTTP cleanup path. Every server typestate contains the same unique stream owner, so
+ordinary future-frame and field destruction closes it exactly once whether cancellation finds a
+handler reading a request, holding a responder, writing a response, or waiting with a reusable
+connection. There is no task identifier, connection registry, semaphore permit, or second close
+authority for HTTP to reconcile.
+
+Process-signal observation is not part of this boundary. A signal, administrative request, test
+trigger, or parent computation may choose when to begin the same application-owned transition;
+none changes its ownership or draining semantics.
+
 ## Responsibility Matrix
 
 | Decision | Sole authority | Consumers |

@@ -98,6 +98,16 @@ policy remains the TCP listener's responsibility. The
 [bounded HTTP service example](../../../examples/http-service/index.nct) demonstrates this complete
 composition with successful and explicit no-response paths.
 
+Graceful shutdown is the same application-owned composition. The application first consumes
+`Server.close`, which stops listener admission without touching accepted connection owners. It then
+moves its complete handler `TaskGroup` into one drain future and bounds that future with a single
+`task.with_timeout` deadline. Completion exposes every handler result; expiry cancels the owned
+drain future, whose ordinary destruction cancels all remaining children and closes whichever
+linear HTTP typestate each child owns. HTTP keeps no parallel task registry or connection list.
+
+The deadline covers the whole drain rather than restarting for each handler. A process signal is
+only one possible application trigger and is not required by the HTTP lifecycle contract.
+
 ## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a
