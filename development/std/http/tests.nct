@@ -12,6 +12,7 @@ see ./response_head.nct
 see ./response_plan.nct
 see ./server_values.nct
 see ./storage.nct
+see ./target.nct
 see ./transport_buffer.nct
 see ./values.nct
 
@@ -136,7 +137,7 @@ test request_head_decoding_selects_one_bounded_body_framing {
     match move attempt {
         RequestHeadAttempt.ready(parsed) {
             if parsed.head.request_method().text() != "POST"
-                || parsed.head.target() != "/submit?q=1"
+                || parsed.head.target().text() != "/submit?q=1"
                 || parsed.head.headers().len() != 3
                 || parsed.consumed != input.len() - 4 {
                 return error.new("std.http.test", "decoded request head changed")
@@ -427,6 +428,61 @@ test request_targets_and_generated_fields_obey_their_exact_limits {
         return error.new("std.http.test", "backslash request target was accepted")
     }
     return error.new("std.http.test", "malformed percent escape was accepted")
+}
+
+test request_targets_split_once_and_decode_query_values {
+    let target = RequestTarget.parse("/users/alice%20smith?tag=one+two&empty=&encoded=%E2%9C%93")?
+    if target.text() != "/users/alice%20smith?tag=one+two&empty=&encoded=%E2%9C%93"
+        || target.path() != "/users/alice%20smith"
+        || (target.query() otherwise { return error.new("std.http.test", "query was lost") })
+            != "tag=one+two&empty=&encoded=%E2%9C%93" {
+        return error.new("std.http.test", "request-target projection changed")
+    }
+
+    var pairs = target.query_pairs()
+    let first_result = pairs.next() otherwise {
+        return error.new("std.http.test", "first query parameter was lost")
+    }
+    let first = move first_result?
+    if first.name() != "tag" || first.value() != "one+two" {
+        return error.new("std.http.test", "first query parameter changed")
+    }
+
+    let second_result = pairs.next() otherwise {
+        return error.new("std.http.test", "second query parameter was lost")
+    }
+    let second = move second_result?
+    if second.name() != "empty" || second.value() != "" {
+        return error.new("std.http.test", "empty query value changed")
+    }
+
+    let third_result = pairs.next() otherwise {
+        return error.new("std.http.test", "third query parameter was lost")
+    }
+    let third = move third_result?
+    if third.name() != "encoded" || third.value() != "✓" {
+        return error.new("std.http.test", "percent-decoded query value changed")
+    }
+    let _extra = pairs.next() otherwise { return }
+    return error.new("std.http.test", "query iterator did not stop")
+}
+
+test request_target_query_iteration_distinguishes_absence_and_invalid_utf8 {
+    let target = RequestTarget.parse("/plain")?
+    var no_pairs = target.query_pairs()
+    let _unexpected = no_pairs.next() otherwise {
+        let malformed = RequestTarget.parse("/?value=%FF")?
+        var malformed_pairs = malformed.query_pairs()
+        let malformed_result = malformed_pairs.next() otherwise {
+            return error.new("std.http.test", "malformed query parameter was lost")
+        }
+        let _decoded = move malformed_result catch failure {
+            if failure.has_code("std.http.invalid_target_encoding") { return }
+            return error.new("std.http.test", "malformed query used the wrong error")
+        }
+        return error.new("std.http.test", "invalid UTF-8 query was accepted")
+    }
+    return error.new("std.http.test", "query-less target yielded a parameter")
 }
 
 test response_head_selects_fixed_length_once_and_preserves_fields {

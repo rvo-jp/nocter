@@ -51,6 +51,10 @@ noalloc func invalid_target(): error {
     return error.new("std.http.invalid_target", "HTTP request target must use non-empty origin form")
 }
 
+noalloc func invalid_target_encoding(): error {
+    return error.new("std.http.invalid_target_encoding", "decoded request-target component is not UTF-8")
+}
+
 noalloc func invalid_host(): error {
     return error.new("std.http.invalid_host", "HTTP/1.1 request must contain exactly one non-empty Host field")
 }

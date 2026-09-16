@@ -10,7 +10,7 @@ use /vec.Vec
 func encode_request_head(head: &RequestHead, body_length: usize, limits: Limits): Vec<u8>! {
     if body_length > limits.body_bytes { return body_limit() }
     let method_bytes = head.request_method().text().len()
-    let target_bytes = head.target().len()
+    let target_bytes = head.target().text().len()
     if method_bytes > limits.start_line_bytes
         || limits.start_line_bytes - method_bytes < 10
         || target_bytes > limits.start_line_bytes - method_bytes - 10 {
@@ -29,7 +29,7 @@ func encode_request_head(head: &RequestHead, body_length: usize, limits: Limits)
     var output: Vec<u8> = Vec.with_capacity(estimate)
     append_text(&+output, head.request_method().text())
     output.push(32)
-    append_text(&+output, head.target())
+    append_text(&+output, head.target().text())
     append_text(&+output, " HTTP/1.1\r\n")
     append_fields(&+output, head.headers())?
     append_content_length(&+output, body_length)

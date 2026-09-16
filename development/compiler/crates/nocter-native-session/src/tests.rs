@@ -2933,9 +2933,12 @@ fn standard_http_framing_contract_crosses_native_tests() {
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard HTTP framing tests failed native compilation")
+        panic!(
+            "standard HTTP framing tests failed native compilation: {:?}",
+            compiled.targets()[0].outcome()
+        )
     };
-    assert_eq!(cases.len(), 41);
+    assert_eq!(cases.len(), 43);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

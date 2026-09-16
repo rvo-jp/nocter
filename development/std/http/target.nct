@@ -1,0 +1,183 @@
+//! Parsed request-target boundaries and decoded query iteration.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /iter.Iterator
+use /string.String
+use /vec.Vec
+
+noalloc func request_target_query_start(text: &str): usize? {
+    var offset: usize = 0
+    while offset < text.len() {
+        if text[offset] == 63 { return offset + 1 }
+        offset += 1
+    }
+    return none
+}
+
+noalloc func valid_request_target(target: &str): bool {
+    let bytes = target.bytes()
+    return valid_request_target_range(bytes, 0, bytes.len())
+}
+
+noalloc func valid_request_target_range(bytes: &[u8], start: usize, end: usize): bool {
+    if start >= end || end > bytes.len() || bytes[start] != 47 { return false }
+    var offset = start
+    while offset < end {
+        let value = bytes[offset]
+        if value == 37 {
+            if offset + 2 >= end { return false }
+            let high = bytes[offset + 1]
+            let low = bytes[offset + 2]
+            let high_hex = (high >= 48 && high <= 57)
+                || (high >= 65 && high <= 70)
+                || (high >= 97 && high <= 102)
+            let low_hex = (low >= 48 && low <= 57)
+                || (low >= 65 && low <= 70)
+                || (low >= 97 && low <= 102)
+            if !high_hex || !low_hex { return false }
+            offset += 3
+        } else {
+            let alpha = (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
+            let digit = value >= 48 && value <= 57
+            let unreserved = alpha || digit || value == 45 || value == 46 || value == 95 || value == 126
+            let sub_delimiter = value == 33
+                || value == 36
+                || value == 38
+                || value == 39
+                || value == 40
+                || value == 41
+                || value == 42
+                || value == 43
+                || value == 44
+                || value == 59
+                || value == 61
+            let path_or_query = value == 47 || value == 58 || value == 64 || value == 63
+            if !unreserved && !sub_delimiter && !path_or_query { return false }
+            offset += 1
+        }
+    }
+    return true
+}
+
+noalloc func request_target_from_validated(text: String): RequestTarget {
+    let view: &str = &text
+    return RequestTarget {
+        query_start: request_target_query_start(view),
+        text_value: move text,
+    }
+}
+
+noalloc func hex_value(value: u8): u8? {
+    if value >= 48 && value <= 57 { return value - 48 }
+    if value >= 65 && value <= 70 { return value - 65 + 10 }
+    if value >= 97 && value <= 102 { return value - 97 + 10 }
+    return none
+}
+
+func decode_target_component(text: &str): String! {
+    var bytes: Vec<u8> = Vec.with_capacity(text.len())
+    var offset: usize = 0
+    while offset < text.len() {
+        if text[offset] != 37 {
+            bytes.push(text[offset])
+            offset += 1
+        } else {
+            if offset + 2 >= text.len() { return invalid_target() }
+            let high: u8 = hex_value(text[offset + 1]) otherwise { return invalid_target() }
+            let low: u8 = hex_value(text[offset + 2]) otherwise { return invalid_target() }
+            bytes.push(high * 16 + low)
+            offset += 3
+        }
+    }
+    let byte_view: &[u8] = &bytes
+    let decoded = String.from_utf8(byte_view) catch _ { return invalid_target_encoding() }
+    return move decoded
+}
+
+construct RequestTarget {
+    func parse(text: &str): Self! {
+        if !valid_request_target(text) { return invalid_target() }
+        return request_target_from_validated(String.copy(text))
+    }
+}
+
+instance RequestTarget {
+    noalloc method &self.text(): &str from self {
+        return &self.text_value as &str
+    }
+
+    noalloc method &self.path(): &str from self {
+        let text: &str = &self.text_value
+        let query_start: usize = self.query_start otherwise { return text }
+        return text.get_range(0, query_start - 1) otherwise { return text }
+    }
+
+    noalloc method &self.query(): &str? from self {
+        let text: &str = &self.text_value
+        let start: usize = self.query_start?
+        return text.get_range(start, text.len())?
+    }
+
+    noalloc method &self.query_pairs(): QueryIter from self {
+        let query: &str = self.query() otherwise {
+            return QueryIter {
+                query: "",
+                next_start: 0,
+                finished: true,
+            }
+        }
+        return QueryIter {
+            query: query,
+            next_start: 0,
+            finished: query.len() == 0,
+        }
+    }
+}
+
+instance QueryParameter {
+    noalloc method &self.name(): &str from self {
+        return &self.name_value as &str
+    }
+
+    noalloc method &self.value(): &str from self {
+        return &self.value_value as &str
+    }
+}
+
+instance QueryIter {
+    method &+self.next(): (QueryParameter!)? {
+        if self.finished { return none }
+        var end = self.next_start
+        while end < self.query.len() && self.query[end] != 38 { end += 1 }
+        if end == self.query.len() { self.finished = true }
+        let item: &str = self.query.get_range(self.next_start, end) otherwise {
+            return invalid_target()
+        }
+        self.next_start = end + 1
+        var separator = item.len()
+        var offset: usize = 0
+        while offset < item.len() {
+            if item[offset] == 61 {
+                separator = offset
+                break
+            }
+            offset += 1
+        }
+        let name: &str = item.get_range(0, separator) otherwise {
+            return invalid_target()
+        }
+        let value_start = if separator < item.len() { separator + 1 } else { separator }
+        let value: &str = item.get_range(value_start, item.len()) otherwise {
+            return invalid_target()
+        }
+        let decoded_name = decode_target_component(name)?
+        let decoded_value = decode_target_component(value)?
+        return QueryParameter {
+            name_value: move decoded_name,
+            value_value: move decoded_value,
+        }
+    }
+}

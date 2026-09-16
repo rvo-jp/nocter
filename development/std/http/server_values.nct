@@ -12,7 +12,7 @@ instance IncomingRequest {
         return self.head_value.request_method()
     }
 
-    noalloc method &self.target(): &str from self {
+    noalloc method &self.target(): &RequestTarget from self {
         return self.head_value.target()
     }
 

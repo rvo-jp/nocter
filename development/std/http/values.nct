@@ -3,6 +3,7 @@
 see ./errors.nct
 see ./index.nct
 see ./storage.nct
+see ./target.nct
 
 use /hash.HashState
 use /string.String
@@ -279,51 +280,6 @@ construct Limits {
     }
 }
 
-noalloc func valid_request_target(target: &str): bool {
-    let bytes = target.bytes()
-    return valid_request_target_range(bytes, 0, bytes.len())
-}
-
-noalloc func valid_request_target_range(bytes: &[u8], start: usize, end: usize): bool {
-    if start >= end || end > bytes.len() || bytes[start] != 47 { return false }
-    var offset = start
-    while offset < end {
-        let value = bytes[offset]
-        if value == 37 {
-            if offset + 2 >= end { return false }
-            let high = bytes[offset + 1]
-            let low = bytes[offset + 2]
-            let high_hex = (high >= 48 && high <= 57)
-                || (high >= 65 && high <= 70)
-                || (high >= 97 && high <= 102)
-            let low_hex = (low >= 48 && low <= 57)
-                || (low >= 65 && low <= 70)
-                || (low >= 97 && low <= 102)
-            if !high_hex || !low_hex { return false }
-            offset += 3
-        } else {
-            let alpha = (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
-            let digit = value >= 48 && value <= 57
-            let unreserved = alpha || digit || value == 45 || value == 46 || value == 95 || value == 126
-            let sub_delimiter = value == 33
-                || value == 36
-                || value == 38
-                || value == 39
-                || value == 40
-                || value == 41
-                || value == 42
-                || value == 43
-                || value == 44
-                || value == 59
-                || value == 61
-            let path_or_query = value == 47 || value == 58 || value == 64 || value == 63
-            if !unreserved && !sub_delimiter && !path_or_query { return false }
-            offset += 1
-        }
-    }
-    return true
-}
-
 func method_from_range(bytes: &[u8], start: usize, end: usize): Method! {
     if start >= end || end > bytes.len() { return invalid_method() }
     var text = String.with_capacity(end - start)
@@ -346,12 +302,13 @@ func request_head_from_ranges(
 ): RequestHead! {
     if !valid_request_target_range(bytes, target_start, target_end) { return invalid_target() }
     let request_method = method_from_range(bytes, method_start, method_end)?
-    var target = String.with_capacity(target_end - target_start)
+    var target_text = String.with_capacity(target_end - target_start)
     var offset = target_start
     while offset < target_end {
-        target.push(ascii_char(bytes[offset]))
+        target_text.push(ascii_char(bytes[offset]))
         offset += 1
     }
+    let target = request_target_from_validated(move target_text)
     return RequestHead {
         method_value: move request_method,
         target_value: move target,
@@ -361,10 +318,9 @@ func request_head_from_ranges(
 
 construct RequestHead {
     func new(request_method: Method, target: &str): Self! {
-        if !valid_request_target(target) { return invalid_target() }
         return RequestHead {
             method_value: move request_method,
-            target_value: String.copy(target),
+            target_value: RequestTarget.parse(target)?,
             header_values: Headers.empty(),
         }
     }
@@ -375,9 +331,8 @@ instance RequestHead {
         return &self.method_value
     }
 
-    noalloc method &self.target(): &str from self {
-        let text: &str = &self.target_value
-        return text
+    noalloc method &self.target(): &RequestTarget from self {
+        return &self.target_value
     }
 
     method &+self.append_header(header: Header): void {

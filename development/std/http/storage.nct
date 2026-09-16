@@ -42,8 +42,24 @@ copy struct Limits {
 
 struct RequestHead {
     method_value: Method
-    target_value: String
+    target_value: RequestTarget
     header_values: Headers
+}
+
+struct RequestTarget {
+    text_value: String
+    query_start: usize?
+}
+
+struct QueryParameter {
+    name_value: String
+    value_value: String
+}
+
+struct QueryIter {
+    query: &str
+    next_start: usize
+    finished: bool
 }
 
 struct ResponseHead {

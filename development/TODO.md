@@ -10,10 +10,11 @@ lives in [`development/history/milestones/v0.55.0.md`](history/milestones/v0.55.
 
 ## Next Work
 
-Complete Phase 1 by finishing the consuming-call adapter and qualifying fallible and deferred
-results. Readonly and readwrite erased calls, owned captures, transitive destruction, compiler-owned
-environment mappings, and indirect ARM64 dispatch already cross the native pipeline. Then make the
-HTTP router the first standard-library consumer of the closed runtime model.
+Complete the two active boundaries without coupling them: finish Phase 1's consuming-call adapter
+and qualify fallible and deferred erased results; build Phase 3's deterministic HTTP router over
+the already native-qualified readonly erased-call path. Request targets now retain their exact
+spelling, freeze the path/query boundary once, and expose decoded query iteration without a second
+target parser.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

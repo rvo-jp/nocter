@@ -200,9 +200,17 @@ controls are rejected. `Headers` is ordered and preserves duplicates instead of 
 fields.
 
 `RequestHead` accepts only non-empty ASCII origin-form targets beginning with `/`; percent escapes
-must be complete hexadecimal triplets and characters outside the path/query grammar are rejected. The private wire
-encoder adds exactly one `Content-Length` selected from the bounded body and rejects caller fields
-that could introduce a second framing interpretation.
+must be complete hexadecimal triplets and characters outside the path/query grammar are rejected.
+The resulting `RequestTarget` retains that exact spelling and records the first path/query boundary
+once. `path` and `query` borrow ranges from the retained spelling; neither scans the request again.
+`query_pairs` splits a present non-empty query on `&`, splits each item at its first `=`, and yields
+owned UTF-8 names and values in source order. A missing `=` means an empty value. Percent triplets
+decode to bytes, `+` remains `+` rather than becoming a space, and invalid decoded UTF-8 is reported
+as `std.http.invalid_target_encoding`. An absent or explicitly empty query yields no pairs. Empty
+items inside a non-empty query remain observable rather than being silently discarded.
+
+The private wire encoder adds exactly one `Content-Length` selected from the bounded body and
+rejects caller fields that could introduce a second framing interpretation.
 
 The response-head decoder accepts only HTTP/1.1 status lines and strict CRLF field lines. It owns
 its scan cursor, completed fields, framing evidence, and informational-response count across

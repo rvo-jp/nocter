@@ -1,6 +1,7 @@
 //! Validated HTTP/1.1 message values and transport-independent framing.
 
 use /hash.{Hash, HashState}
+use /iter.Iterator
 use /io.{BlockingReader, Reader, TimedReader, TimedWriter, Writer}
 use /net.SocketAddress
 use /string.String
@@ -35,6 +36,7 @@ see ./server.nct
 see ./server_storage.nct
 see ./server_values.nct
 see ./storage.nct
+see ./target.nct
 see ./tests.nct
 see ./transport_buffer.nct
 see ./values.nct
@@ -178,6 +180,46 @@ construct Limits {
     ): Self!
 }
 
+/// One validated origin-form request target with its path/query boundary parsed once.
+pub struct RequestTarget
+
+construct RequestTarget {
+    /// Validates and copies one origin-form request target.
+    pub func parse(text: &str): Self!
+}
+
+instance RequestTarget {
+    /// Borrows the exact validated request-target spelling.
+    pub noalloc method &self.text(): &str from self
+
+    /// Borrows the percent-encoded path spelling without the query delimiter.
+    pub noalloc method &self.path(): &str from self
+
+    /// Borrows the percent-encoded query spelling when a `?` delimiter was present.
+    pub noalloc method &self.query(): &str? from self
+
+    /// Iterates decoded query name/value pairs in source order.
+    pub noalloc method &self.query_pairs(): QueryIter from self
+}
+
+/// One decoded query name/value pair.
+pub struct QueryParameter
+
+instance QueryParameter {
+    /// Borrows the decoded parameter name.
+    pub noalloc method &self.name(): &str from self
+
+    /// Borrows the decoded parameter value, or empty text when no `=` was present.
+    pub noalloc method &self.value(): &str from self
+}
+
+/// One borrowed iterator over a request target's query pairs.
+pub struct QueryIter
+
+instance QueryIter {
+    impl Iterator { .Item = QueryParameter! }
+}
+
 /// A validated outbound HTTP/1.1 request head.
 pub struct RequestHead
 
@@ -190,8 +232,8 @@ instance RequestHead {
     /// Borrows the method.
     pub noalloc method &self.request_method(): &Method from self
 
-    /// Borrows the exact origin-form request target.
-    pub noalloc method &self.target(): &str from self
+    /// Borrows the parsed origin-form request target.
+    pub noalloc method &self.target(): &RequestTarget from self
 
     /// Appends one ordered field.
     pub method &+self.append_header(header: Header): void
@@ -348,8 +390,8 @@ instance IncomingRequest {
     /// Borrows the request method.
     pub noalloc method &self.request_method(): &Method from self
 
-    /// Borrows the exact origin-form request target.
-    pub noalloc method &self.target(): &str from self
+    /// Borrows the parsed origin-form request target.
+    pub noalloc method &self.target(): &RequestTarget from self
 
     /// Borrows the ordered request fields.
     pub noalloc method &self.headers(): &Headers from self
