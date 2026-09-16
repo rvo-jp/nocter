@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Recent Milestones
 
 - [v0.55.0: Erased Callables and Practical HTTP Applications](v0.55.0.md)
+- [v0.55.0 Release Preparation](v0.55.0-release-preparation.md)
 - [v0.54.0: Streaming and Persistent HTTP Services](v0.54.0.md)
 - [v0.54.0 Release Preparation](v0.54.0-release-preparation.md)
 - [v0.53.0: Structured Services and Streaming Codecs](v0.53.0.md)
