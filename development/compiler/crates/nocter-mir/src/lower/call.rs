@@ -151,13 +151,20 @@ impl FunctionLowerer<'_> {
         {
             return Err(MirLoweringError::InvalidCallable(node));
         }
-        let callable = self.lower_place_node(value)?;
+        let (callable, staged) = if capability == nocter_model::CallableCapability::Owned {
+            let nocter_checking::CheckedOperation::Place(place) = source.operation() else {
+                return Err(MirLoweringError::InvalidCallable(node));
+            };
+            (self.stage_moved_place(value, *place, callable_ty)?, true)
+        } else {
+            (self.lower_place_node(value)?, false)
+        };
         let arguments = call
             .arguments()
             .iter()
             .map(|argument| self.require_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
-        self.emit_call(
+        let result = self.emit_call(
             ty,
             MirCallTarget::ErasedCallable {
                 callable,
@@ -175,7 +182,11 @@ impl FunctionLowerer<'_> {
                 capability,
             },
             arguments,
-        )
+        )?;
+        if staged && self.current.is_some() {
+            self.deactivate_value_storage(value)?;
+        }
+        Ok(result)
     }
 
     pub(super) fn emit_dispatch_step(

@@ -769,6 +769,47 @@ fn erased_consuming_callable_transfers_owned_state_into_future_results() {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_consuming_callable_cleans_staged_ownership_when_an_argument_fails() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "struct Counter { value: i32 }\n\
+         struct Token { value: i32\n    counter: &+Counter\n}\n\
+         drop Token(&+self) { self.counter.value += 1 }\n\
+         func missing(): i32! {\n\
+         \x20   return error.new(\"test.argument\", \"expected failure\")\n\
+         }\n\
+         func invoke(counter: &+Counter): void! {\n\
+         \x20   let token = Token { value: 42, counter: counter }\n\
+         \x20   let callback: any func(i32): i32 = (move token; value) {\n\
+         \x20       value + token.value\n\
+         \x20   }\n\
+         \x20   let _result = callback(missing()?)\n\
+         \x20   return\n\
+         }\n\
+         func main(): i32 {\n\
+         \x20   var counter = Counter { value: 0 }\n\
+         \x20   invoke(&+counter) catch failure {\n\
+         \x20       if !failure.has_code(\"test.argument\") { return 1 }\n\
+         \x20       if counter.value != 1 { return 2 }\n\
+         \x20       return 0\n\
+         \x20   }\n\
+         \x20   return 3\n\
+         }\n",
+    );
+    execute_native_status(
+        &image,
+        &package_root.0,
+        "erased-consuming-argument-failure",
+        0,
+    );
+}
+
 #[test]
 fn scalar_floating_values_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

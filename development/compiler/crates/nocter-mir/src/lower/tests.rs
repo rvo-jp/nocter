@@ -2492,6 +2492,52 @@ fn owned_callable_bound_preserves_the_same_argument_failure_cleanup() {
     }));
 }
 
+#[test]
+fn consuming_erased_callable_is_staged_until_propagating_arguments_succeed() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func invoke(input: i32?): i32? {\n\
+             let captured = Owned { value: 7 }\n\
+             let callback: any func(i32): i32 = (move captured; item) {\n\
+                 item + captured.value\n\
+             }\n\
+             callback(input?)\n\
+         }\n\
+         func main(): void {\n\
+             let _ = invoke(none)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let caller = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function
+                .operations()
+                .iter()
+                .any(|(_, operation)| {
+                    matches!(
+                        operation.kind(),
+                        MirOperationKind::Call(call)
+                            if matches!(call.target(), crate::MirCallTarget::ErasedCallable { .. })
+                    )
+                })
+                .then_some(function)
+        })
+        .unwrap();
+
+    assert!(caller.operations().iter().any(|(_, operation)| {
+        matches!(operation.kind(), MirOperationKind::Initialize { destination, .. }
+            if caller.places().get(*destination).is_some_and(|place| place.projections().is_empty()))
+    }));
+    assert!(caller.operations().iter().any(|(_, operation)| {
+        matches!(operation.kind(), MirOperationKind::ReleaseErasedCallable { place }
+            if caller.places().get(*place).is_some_and(|place| place.projections().is_empty()))
+    }));
+}
+
 fn only_closure_function(program: &crate::MirProgram) -> &crate::MirFunction {
     program
         .functions()
