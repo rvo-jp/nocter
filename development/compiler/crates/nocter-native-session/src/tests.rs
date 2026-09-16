@@ -570,6 +570,52 @@ fn erased_callable_releases_an_owned_capture_after_invocation() {
     execute_native_status(&image, &package_root.0, "erased-owned-capture", 0);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_callable_deferred_result_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "async func deferred_double(value: i32): i32 { value * 2 }\n\
+         \n\
+         async func main(): i32 {\n\
+         \x20   let callback: any &func(i32): future i32 = (value) { deferred_double(value) }\n\
+         \x20   if await callback(21) != 42 { return 1 }\n\
+         \x20   if await callback(7) != 14 { return 2 }\n\
+         \x20   return 0\n\
+         }\n",
+    );
+    execute_native_status(&image, &package_root.0, "erased-deferred-callable", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn erased_callable_fallible_result_crosses_a_persistent_async_frame() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        "async func main(): i32! {\n\
+         \x20   let callback: any &func(bool): i32! = (fail) {\n\
+         \x20       if fail { return error.new(\"test.erased\", \"expected failure\") }\n\
+         \x20       return 17\n\
+         \x20   }\n\
+         \x20   if callback(false)? != 17 { return 1 }\n\
+         \x20   let _unexpected = callback(true) catch failure {\n\
+         \x20       if failure.has_code(\"test.erased\") { return 0 }\n\
+         \x20       return 2\n\
+         \x20   }\n\
+         \x20   return 3\n\
+         }\n",
+    );
+    execute_native_status(&image, &package_root.0, "erased-fallible-callable", 0);
+}
+
 #[test]
 fn scalar_floating_values_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

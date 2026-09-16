@@ -332,18 +332,36 @@ fn select_erased_target(
         return Err(Arm64SelectionError::CallArguments(operation));
     };
     let callable = context.addresses().use_address(callable, selected)?;
-    selected.push(Arm64SelectedInstruction::LoadMemory {
-        bytes: word_bytes(),
-        extension: Arm64SelectedLoadExtension::Zero,
-        destination: Arm64SelectedRegister::Fixed(abi_register(registers.first())?),
-        source: offset_memory(callable, *environment_offset)?,
-    });
+    let callable = match callable {
+        Arm64SelectedMemoryAddress::Register { base, offset } => {
+            let stable = Arm64SelectedRegister::Fixed(
+                Arm64NocterAbi::compiler_scratch_register(0)
+                    .ok_or(Arm64SelectionError::AddressOverflow)?,
+            );
+            selected.push(Arm64SelectedInstruction::Move {
+                size: Arm64DataSize::Bits64,
+                destination: stable,
+                source: base,
+            });
+            Arm64SelectedMemoryAddress::Register {
+                base: stable,
+                offset,
+            }
+        }
+        Arm64SelectedMemoryAddress::Stack(address) => Arm64SelectedMemoryAddress::Stack(address),
+    };
     let target = Arm64SelectedRegister::Fixed(scratch_boundary());
     selected.push(Arm64SelectedInstruction::LoadMemory {
         bytes: word_bytes(),
         extension: Arm64SelectedLoadExtension::Zero,
         destination: target,
         source: offset_memory(callable, *invoke_offset)?,
+    });
+    selected.push(Arm64SelectedInstruction::LoadMemory {
+        bytes: word_bytes(),
+        extension: Arm64SelectedLoadExtension::Zero,
+        destination: Arm64SelectedRegister::Fixed(abi_register(registers.first())?),
+        source: offset_memory(callable, *environment_offset)?,
     });
     selected.push(Arm64SelectedInstruction::CallRegister(target));
     Ok(())

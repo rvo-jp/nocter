@@ -28,6 +28,9 @@ source, loader commands, or package state.
 - The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
+- A runtime-projected erased-callable address is stabilized before its environment and invoke
+  fields are loaded into ABI boundary registers; loading one field cannot invalidate the address
+  needed for another.
 - Every primitive expansion is selected by closed runtime role.
 - Darwin kernel syscall numbers, trap encoding, and compiler-owned native records and OS constants
   have one backend-local authority. Source-owned target adapters retain their own native records;
