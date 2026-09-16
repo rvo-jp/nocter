@@ -70,30 +70,18 @@ impl MachineDestructionPlanTable {
         linkage: &MachineLinkagePlan,
         functions: crate::function_domain::MachineFunctionDomain<'_>,
     ) -> Result<Self, MachineProgramError> {
-        let mut plans = BTreeSet::new();
-        let mut calls = BTreeMap::new();
-        let mut erased_environments = BTreeMap::new();
-        let mut pack_segments = BTreeMap::new();
+        let mut body_sites = BodyDestructionSites::default();
         let mut async_sites = BTreeMap::new();
         for (item, function) in program.functions().iter() {
             let owner = require_linkage(linkage, MachineLinkageKey::Item(item))?;
-            collect_body(
-                owner,
-                function.body(),
-                layouts,
-                functions,
-                &mut plans,
-                &mut calls,
-                &mut erased_environments,
-                &mut pack_segments,
-            )?;
+            collect_body(owner, function.body(), layouts, functions, &mut body_sites)?;
             if let Some(frame) = function.async_frame() {
                 collect_async_frame(
                     owner,
                     frame,
                     layouts,
                     functions,
-                    &mut plans,
+                    &mut body_sites.plans,
                     &mut async_sites,
                 )?;
             }
@@ -104,10 +92,7 @@ impl MachineDestructionPlanTable {
                 root.body(),
                 layouts,
                 functions,
-                &mut plans,
-                &mut calls,
-                &mut erased_environments,
-                &mut pack_segments,
+                &mut body_sites,
             )?,
             nocter_mir::MirRoot::Tests { cases, .. } => {
                 for case in cases {
@@ -116,15 +101,18 @@ impl MachineDestructionPlanTable {
                         case.body(),
                         layouts,
                         functions,
-                        &mut plans,
-                        &mut calls,
-                        &mut erased_environments,
-                        &mut pack_segments,
+                        &mut body_sites,
                     )?;
                 }
             }
         }
 
+        let BodyDestructionSites {
+            plans,
+            calls,
+            erased_environments,
+            pack_segments,
+        } = body_sites;
         let mut ids = BTreeMap::new();
         let entries = if plans.is_empty() {
             Vec::new()
@@ -302,25 +290,29 @@ fn insert_async_plan(
     Ok(())
 }
 
+#[derive(Default)]
+struct BodyDestructionSites {
+    plans: BTreeSet<MachineDestructionPlan>,
+    calls: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
+    erased_environments: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
+    pack_segments:
+        BTreeMap<(MachineLinkageId, MirOperationId, usize, PackComponent), MachineDestructionPlan>,
+}
+
 fn collect_body(
     owner: MachineLinkageId,
     body: &MirBody,
     layouts: &MachineLayoutPlan,
     functions: crate::function_domain::MachineFunctionDomain<'_>,
-    plans: &mut BTreeSet<MachineDestructionPlan>,
-    calls: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
-    erased_environments: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
-    pack_segments: &mut BTreeMap<
-        (MachineLinkageId, MirOperationId, usize, PackComponent),
-        MachineDestructionPlan,
-    >,
+    sites: &mut BodyDestructionSites,
 ) -> Result<(), MachineProgramError> {
     for (operation, value) in body.operations().iter() {
         if let MirOperationKind::EraseCallable(erasure) = value.kind()
             && let Some(source) = erasure.environment_destruction()
         {
             let plan = lower_plan(source, owner, operation, layouts, functions)?;
-            if erased_environments
+            if sites
+                .erased_environments
                 .insert((owner, operation), plan.clone())
                 .is_some()
             {
@@ -328,7 +320,7 @@ fn collect_body(
                     owner, operation,
                 ));
             }
-            plans.insert(plan);
+            sites.plans.insert(plan);
         }
         let MirOperationKind::Call(call) = value.kind() else {
             continue;
@@ -343,12 +335,16 @@ fn collect_body(
         } = call.target()
         {
             let plan = lower_plan(plan, owner, operation, layouts, functions)?;
-            if calls.insert((owner, operation), plan.clone()).is_some() {
+            if sites
+                .calls
+                .insert((owner, operation), plan.clone())
+                .is_some()
+            {
                 return Err(MachineProgramError::DuplicateDestructionCall(
                     owner, operation,
                 ));
             }
-            plans.insert(plan);
+            sites.plans.insert(plan);
         }
         if let Some(nocter_mir::MirCallPack::Prepared(pack)) = call.pack() {
             for (segment, source) in pack.segments().iter().enumerate() {
@@ -375,7 +371,8 @@ fn collect_body(
                         continue;
                     };
                     let plan = lower_plan(destruction, owner, operation, layouts, functions)?;
-                    if pack_segments
+                    if sites
+                        .pack_segments
                         .insert((owner, operation, segment, component), plan.clone())
                         .is_some()
                     {
@@ -385,7 +382,7 @@ fn collect_body(
                             segment,
                         });
                     }
-                    plans.insert(plan);
+                    sites.plans.insert(plan);
                 }
             }
         }

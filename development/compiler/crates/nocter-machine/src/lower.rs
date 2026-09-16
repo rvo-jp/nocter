@@ -47,7 +47,6 @@ impl MachineProgram {
         let adapters = crate::erased_adapter::MachineErasedAdapterPlan::build(
             program,
             &layouts,
-            &abi,
             &linkage,
             &destructions,
         )?;

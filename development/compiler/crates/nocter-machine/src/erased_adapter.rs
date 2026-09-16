@@ -61,7 +61,6 @@ impl MachineErasedAdapterPlan {
     pub(crate) fn build(
         program: &MirProgram,
         layouts: &MachineLayoutPlan,
-        abi: &crate::MachineAbiPlan,
         linkage: &crate::linkage::MachineLinkagePlan,
         destructions: &crate::destruction_table::MachineDestructionPlanTable,
     ) -> Result<Self, MachineProgramError> {
@@ -72,7 +71,6 @@ impl MachineErasedAdapterPlan {
                 function.body(),
                 program,
                 layouts,
-                abi,
                 destructions,
                 &mut drafts,
             )?;
@@ -83,7 +81,6 @@ impl MachineErasedAdapterPlan {
                 root.body(),
                 program,
                 layouts,
-                abi,
                 destructions,
                 &mut drafts,
             )?,
@@ -94,7 +91,6 @@ impl MachineErasedAdapterPlan {
                         case.body(),
                         program,
                         layouts,
-                        abi,
                         destructions,
                         &mut drafts,
                     )?;
@@ -137,13 +133,11 @@ impl MachineErasedAdapterPlan {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn collect_body(
     owner: MachineLinkageId,
     body: &MirBody,
     program: &MirProgram,
     layouts: &MachineLayoutPlan,
-    abi: &crate::MachineAbiPlan,
     destructions: &crate::destruction_table::MachineDestructionPlanTable,
     drafts: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineErasedAdapter>,
 ) -> Result<(), MachineProgramError> {
@@ -187,7 +181,11 @@ fn collect_body(
             source_capability: erasure.source_capability(),
             destruction,
             mapped_size: environment_layout.size().max(1),
-            abi: abi.plan_erased_signature(erasure.signature(), program.types(), layouts)?,
+            abi: crate::transport::plan_erased_signature(
+                erasure.signature(),
+                program.types(),
+                layouts,
+            )?,
         };
         if drafts.insert((owner, operation), adapter).is_some() {
             return Err(MachineProgramError::DuplicateErasedAdapter(

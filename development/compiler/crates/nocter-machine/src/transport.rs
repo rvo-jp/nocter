@@ -386,26 +386,25 @@ impl MachineAbiPlan {
         self.runtime_call_signatures.get(signature, true)
     }
 
-    pub(crate) fn plan_erased_signature(
-        &self,
-        signature: &MirCallSignature,
-        types: &RuntimeTypeTable,
-        layouts: &MachineLayoutStore,
-    ) -> Result<MachineCallableAbi, MachineAbiError> {
-        let environment = types.primitive(RuntimePrimitive::Usize).ok_or(
-            MachineAbiError::MissingRuntimePrimitive(RuntimePrimitive::Usize),
-        )?;
-        let parameters = std::iter::once(environment)
-            .chain(signature.parameters().iter().copied())
-            .collect::<Vec<_>>();
-        plan_signature(types, layouts, &parameters, signature.result(), None)
-    }
-
     pub(crate) fn finish(self) -> MachineRuntimeCallAbiTable {
         MachineRuntimeCallAbiTable {
             values: MachineTable::from_values(self.runtime_call_abis),
         }
     }
+}
+
+pub(crate) fn plan_erased_signature(
+    signature: &MirCallSignature,
+    types: &RuntimeTypeTable,
+    layouts: &MachineLayoutStore,
+) -> Result<MachineCallableAbi, MachineAbiError> {
+    let environment = types.primitive(RuntimePrimitive::Usize).ok_or(
+        MachineAbiError::MissingRuntimePrimitive(RuntimePrimitive::Usize),
+    )?;
+    let parameters = std::iter::once(environment)
+        .chain(signature.parameters().iter().copied())
+        .collect::<Vec<_>>();
+    plan_signature(types, layouts, &parameters, signature.result(), None)
 }
 
 fn collect_runtime_call_abis(

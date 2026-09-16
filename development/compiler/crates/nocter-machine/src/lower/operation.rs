@@ -78,57 +78,13 @@ fn lower_operation(
             lower_aggregate_operation(operation, value, aggregate, context)?,
         ),
         MirOperationKind::EraseCallable(erasure) => {
-            let invoke = if erasure.capability() == nocter_model::CallableCapability::Owned {
-                let adapter = program.erased_adapters.at(ids.owner(), operation).ok_or(
-                    MachineProgramError::InvalidErasedAdapter(ids.owner(), operation),
-                )?;
-                program
-                    .functions
-                    .for_erased_adapter(adapter)
-                    .ok_or(MachineProgramError::MissingErasedAdapter(adapter))?
-            } else {
-                program
-                    .functions
-                    .for_item(erasure.body())
-                    .ok_or(MachineProgramError::MissingItemFunction(erasure.body()))?
-            };
-            let destroy = program
-                .destructions
-                .erased_environment(ids.owner(), operation)
-                .map(|destruction| {
-                    program
-                        .functions
-                        .for_destruction(destruction)
-                        .ok_or(MachineProgramError::MissingDestruction(destruction))
-                })
-                .transpose()?;
-            MachineOperationKind::EraseCallable(crate::MachineErasedCallable::new(
-                ids.value(erasure.environment())?,
-                erasure.environment_ty(),
-                invoke,
-                destroy,
-            ))
+            lower_callable_erasure(operation, erasure, context)?
         }
         MirOperationKind::InvokeDrop {
             body,
             place,
             allocation,
-        } => MachineOperationKind::InvokeDrop {
-            target: program
-                .functions
-                .for_item(*body)
-                .ok_or(MachineProgramError::MissingItemFunction(*body))?,
-            place: ids.address(*place)?,
-            allocation: match allocation {
-                nocter_mir::MirCallAllocation::Inherit => crate::MachineCallAllocation::Inherit,
-                nocter_mir::MirCallAllocation::Region(region) => {
-                    crate::MachineCallAllocation::Lexical(ids.stack(*region)?)
-                }
-                nocter_mir::MirCallAllocation::Explicit(place) => {
-                    crate::MachineCallAllocation::Explicit(ids.address(*place)?)
-                }
-            },
-        },
+        } => lower_drop_invocation(*body, *place, *allocation, context)?,
         MirOperationKind::ReportError { place } => MachineOperationKind::ReportError {
             place: ids.address(*place)?,
         },
@@ -167,6 +123,73 @@ fn lower_operation(
         MirOperationKind::DestroyPack => MachineOperationKind::DestroyPack,
     };
     Ok(MachineOperation::new(kind, result))
+}
+
+fn lower_callable_erasure(
+    operation: MirOperationId,
+    erasure: &nocter_mir::MirErasedCallable,
+    context: OperationContext<'_>,
+) -> Result<MachineOperationKind, MachineProgramError> {
+    let program = context.program;
+    let ids = context.ids;
+    let invoke = if erasure.capability() == nocter_model::CallableCapability::Owned {
+        let adapter = program.erased_adapters.at(ids.owner(), operation).ok_or(
+            MachineProgramError::InvalidErasedAdapter(ids.owner(), operation),
+        )?;
+        program
+            .functions
+            .for_erased_adapter(adapter)
+            .ok_or(MachineProgramError::MissingErasedAdapter(adapter))?
+    } else {
+        program
+            .functions
+            .for_item(erasure.body())
+            .ok_or(MachineProgramError::MissingItemFunction(erasure.body()))?
+    };
+    let destroy = program
+        .destructions
+        .erased_environment(ids.owner(), operation)
+        .map(|destruction| {
+            program
+                .functions
+                .for_destruction(destruction)
+                .ok_or(MachineProgramError::MissingDestruction(destruction))
+        })
+        .transpose()?;
+    Ok(MachineOperationKind::EraseCallable(
+        crate::MachineErasedCallable::new(
+            ids.value(erasure.environment())?,
+            erasure.environment_ty(),
+            invoke,
+            destroy,
+        ),
+    ))
+}
+
+fn lower_drop_invocation(
+    body: nocter_model::ExecutableItemId,
+    place: nocter_model::MirPlaceId,
+    allocation: nocter_mir::MirCallAllocation,
+    context: OperationContext<'_>,
+) -> Result<MachineOperationKind, MachineProgramError> {
+    let ids = context.ids;
+    Ok(MachineOperationKind::InvokeDrop {
+        target: context
+            .program
+            .functions
+            .for_item(body)
+            .ok_or(MachineProgramError::MissingItemFunction(body))?,
+        place: ids.address(place)?,
+        allocation: match allocation {
+            nocter_mir::MirCallAllocation::Inherit => crate::MachineCallAllocation::Inherit,
+            nocter_mir::MirCallAllocation::Region(region) => {
+                crate::MachineCallAllocation::Lexical(ids.stack(region)?)
+            }
+            nocter_mir::MirCallAllocation::Explicit(place) => {
+                crate::MachineCallAllocation::Explicit(ids.address(place)?)
+            }
+        },
+    })
 }
 
 fn lower_aggregate_operation(

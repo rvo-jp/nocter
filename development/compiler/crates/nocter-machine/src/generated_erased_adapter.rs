@@ -54,10 +54,10 @@ pub(crate) fn generate_erased_adapter(
     let result = builder.call(target, arguments, adapter.abi().result())?;
     if let Some(destroy) = destroy {
         let zero = builder.usize_constant(0)?;
-        builder.call_effect(destroy, [pointer, zero])?;
+        builder.call_effect(destroy, [pointer, zero]);
     }
     let bytes = builder.usize_constant(adapter.mapped_size())?;
-    builder.append_effect(MachineOperationKind::ReleaseMappedStorage { pointer, bytes })?;
+    builder.append_effect(MachineOperationKind::ReleaseMappedStorage { pointer, bytes });
     builder.finish(adapter.abi().clone(), result)
 }
 
@@ -173,7 +173,7 @@ impl<'a> AdapterBuilder<'a> {
         ));
         match result {
             MachineResultAbi::Completion | MachineResultAbi::Diverging => {
-                self.append_effect(kind)?;
+                self.append_effect(kind);
                 Ok(None)
             }
             MachineResultAbi::Value(value) => self.append_value(value.ty(), kind).map(Some),
@@ -184,13 +184,13 @@ impl<'a> AdapterBuilder<'a> {
         &mut self,
         target: crate::MachineFunctionId,
         arguments: impl Into<Box<[MachineValueId]>>,
-    ) -> Result<(), crate::MachineProgramError> {
+    ) {
         self.append_effect(MachineOperationKind::Call(MachineCall::new(
             MachineCallTarget::Direct(target),
             arguments,
             MachineCallAllocation::Inherit,
             None,
-        )))
+        )));
     }
 
     fn usize_constant(&mut self, value: u64) -> Result<MachineValueId, crate::MachineProgramError> {
@@ -206,14 +206,8 @@ impl<'a> AdapterBuilder<'a> {
         id
     }
 
-    fn append_effect(
-        &mut self,
-        kind: MachineOperationKind,
-    ) -> Result<(), crate::MachineProgramError> {
-        let operation = MachineOperationId::new(self.operations.len());
+    fn append_effect(&mut self, kind: MachineOperationKind) {
         self.operations.push(MachineOperation::new(kind, None));
-        let _ = operation;
-        Ok(())
     }
 
     fn append_value(
