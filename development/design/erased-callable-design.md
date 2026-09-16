@@ -45,7 +45,7 @@ operation:
 
 1. validates the exact structural contract and one-way guarantee weakening;
 2. freezes the concrete environment layout and invocation body;
-3. allocates owned environment storage in the current allocation context;
+3. allocates compiler-owned environment storage;
 4. moves the environment into that storage;
 5. produces a fixed-size erased value containing opaque environment ownership and selected
    invocation/destruction identities.
@@ -53,8 +53,10 @@ operation:
 Erasure is therefore a possible allocation even when invocation carries `noalloc`. The two facts
 are intentionally independent: `noalloc` constrains calls through the finished erased value, not
 construction of that value. Execution analysis sees an explicit erasure operation and rejects it
-inside an allocation-free body. Capture provenance and the allocation context remain attached to
-the resulting value, so erasure cannot make a captured borrow escape.
+inside an allocation-free body. The compiler-owned storage follows the same self-contained mapped
+storage policy as a future frame and is released by the frozen destroy target; it does not pretend
+to be application allocator storage. Capture provenance remains attached to the resulting value,
+so erasure cannot make a captured borrow escape.
 
 Expected-type conversion may request erasure where the destination contract is explicitly an
 erased callable, including an initialized annotation, an `as any ... func` conversion, or an erased

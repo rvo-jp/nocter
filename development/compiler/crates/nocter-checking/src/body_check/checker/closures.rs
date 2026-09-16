@@ -45,9 +45,15 @@ impl BodyChecker<'_, '_> {
                     result: Some(contract.result()),
                 });
         let value = self.check_closure_with_expectation(node, expected_contract.as_ref())?;
-        expected.map_or(Ok(value), |expected| {
-            self.apply_expected(node, value, expected)
-        })
+        let Some(expected) = expected else {
+            return Ok(value);
+        };
+        match self.types.get(expected) {
+            Some(TypeKind::Callable(callable)) if callable.is_erased() => {
+                self.apply_expected(node, value, expected)
+            }
+            _ => Ok(value),
+        }
     }
 
     pub(super) fn constrain_closure_annotations(

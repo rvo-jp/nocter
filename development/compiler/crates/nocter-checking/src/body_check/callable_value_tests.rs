@@ -83,6 +83,35 @@ fn erased_callable_local_records_construction_and_indirect_invocation() {
 }
 
 #[test]
+fn erased_callable_construction_and_invocation_keep_distinct_allocation_contracts() {
+    let error = check(
+        "noalloc func invalid(): i32 {\n    let callback: any noalloc &func(i32): i32 = (value) { value * 2 }\n    callback(4)\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0411");
+
+    check(
+        "noalloc func invoke(callback: any noalloc &func(i32): i32): i32 {\n    callback(4)\n}\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn erased_callable_parameter_contextually_erases_a_closure_argument() {
+    let output = check(
+        "func apply(callback: any &func(i32): i32): i32 { callback(4) }\n\
+         func main(): i32 { apply((value) { value * 2 }) }\n",
+    )
+    .unwrap();
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes()
+            .iter()
+            .any(|(_, node)| matches!(node.operation(), CheckedOperation::CallableErasure(_)))
+    }));
+}
+
+#[test]
 fn noalloc_callable_guarantees_can_only_be_erased() {
     let output = check(
         "func erase(callback: noalloc &func(i32): i32): &func(i32): i32 {\n    return move callback\n}\n",
@@ -201,7 +230,9 @@ fn callable_calls(
                     capability,
                     dispatch,
                 } => Some((*value, *capability, dispatch)),
-                CallTarget::Static(_) | CallTarget::ClosureValue { .. } => None,
+                CallTarget::Static(_)
+                | CallTarget::ClosureValue { .. }
+                | CallTarget::ErasedCallableValue { .. } => None,
             },
             _ => None,
         })

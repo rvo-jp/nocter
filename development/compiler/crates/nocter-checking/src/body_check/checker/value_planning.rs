@@ -1,5 +1,5 @@
 use nocter_model::{
-    BodyNodeId, BorrowCapability, CallableContract, GenericParameterId, PlaceId, TypeId,
+    BodyNodeId, BorrowCapability, CallableContract, GenericParameterId, PlaceId, TypeId, TypeKind,
 };
 use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
 
@@ -141,7 +141,7 @@ impl BodyChecker<'_, '_> {
         failure_rule: BodyRule,
     ) -> Result<ValueDraft, BodyCheckError> {
         if let Some(closure_syntax) = closure_expression(self, syntax) {
-            let contract = contextual_callable_contract(requirements, destination)?;
+            let contract = contextual_callable_contract(self.types, requirements, destination)?;
             return Ok(ValueDraft::Closure {
                 syntax: closure_syntax,
                 destination,
@@ -293,7 +293,9 @@ impl BodyChecker<'_, '_> {
                 inference,
                 context.failure_rule,
             )?;
-            inference.constrain_exact(destination, self.node_type(value)?);
+            if !matches!(self.types.get(destination), Some(TypeKind::Callable(_))) {
+                inference.constrain_exact(destination, self.node_type(value)?);
+            }
             values[position] = ValueDraft::Checked { syntax, value };
         }
         Ok(())
@@ -378,9 +380,13 @@ impl BodyChecker<'_, '_> {
 }
 
 fn contextual_callable_contract(
+    types: &nocter_model::TypeStore,
     requirements: &[CheckedRequirement],
     destination: TypeId,
 ) -> Result<Option<CallableContract>, BodyCheckError> {
+    if let Some(TypeKind::Callable(callable)) = types.get(destination) {
+        return Ok(Some(callable.contract().clone()));
+    }
     let mut contracts = requirements.iter().filter_map(|requirement| {
         let CheckedPredicate::Callable { subject, contract } = requirement.predicate() else {
             return None;
