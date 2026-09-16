@@ -33,9 +33,7 @@ impl BodyChecker<'_, '_> {
         );
         let operand = self.check_expression(*operand, erased_target.then_some(target))?;
         let source = self.node_type(operand)?;
-        let value = if source == target {
-            operand
-        } else if source == self.types.builtin(BuiltinType::Never) {
+        let value = if source == target || source == self.types.builtin(BuiltinType::Never) {
             operand
         } else if lossless_numeric_conversion(self.types, source, target) {
             self.add_node(

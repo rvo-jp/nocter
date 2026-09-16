@@ -422,24 +422,13 @@ impl Analyzer<'_> {
                         _ => None,
                     })
                     .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                let mut result = LoanValue::independent();
-                let retain_place =
-                    invocation_place_can_reach_result(self.graph, self.types, result_type);
-                for origin in contract.provenance().origins() {
-                    let argument = arguments
-                        .get(origin.position())
-                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                    result.union_with(&argument.retained(retain_place).flattened());
-                }
-                result.union_with(
-                    &callable_value
-                        .ok_or(BodyCheckInternalError::LoanAnalysis)?
-                        .flattened(),
-                );
-                if retain_place && let Some(environment) = callable_environment {
-                    result.union_with(&environment.flattened());
-                }
-                result
+                self.map_contract_call_result(
+                    contract,
+                    callable_value,
+                    callable_environment,
+                    arguments,
+                    result_type,
+                )?
             }
             CallTarget::ClosureValue { closure, .. } => {
                 let summary = self
@@ -482,26 +471,42 @@ impl Analyzer<'_> {
                 else {
                     return Err(BodyCheckInternalError::LoanAnalysis.into());
                 };
-                let mut result = LoanValue::independent();
-                let retain_place =
-                    invocation_place_can_reach_result(self.graph, self.types, result_type);
-                for origin in callable.provenance().origins() {
-                    let argument = arguments
-                        .get(origin.position())
-                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                    result.union_with(&argument.retained(retain_place).flattened());
-                }
-                result.union_with(
-                    &callable_value
-                        .ok_or(BodyCheckInternalError::LoanAnalysis)?
-                        .flattened(),
-                );
-                if retain_place && let Some(environment) = callable_environment {
-                    result.union_with(&environment.flattened());
-                }
-                result
+                self.map_contract_call_result(
+                    callable.contract(),
+                    callable_value,
+                    callable_environment,
+                    arguments,
+                    result_type,
+                )?
             }
         })
+    }
+
+    fn map_contract_call_result(
+        &self,
+        contract: &nocter_model::CallableContract,
+        callable_value: Option<&LoanValue>,
+        callable_environment: Option<&LoanValue>,
+        arguments: &[InvocationLoan],
+        result_type: nocter_model::TypeId,
+    ) -> Result<LoanValue, BodyCheckInternalError> {
+        let mut result = LoanValue::independent();
+        let retain_place = invocation_place_can_reach_result(self.graph, self.types, result_type);
+        for origin in contract.provenance().origins() {
+            let argument = arguments
+                .get(origin.position())
+                .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+            result.union_with(&argument.retained(retain_place).flattened());
+        }
+        result.union_with(
+            &callable_value
+                .ok_or(BodyCheckInternalError::LoanAnalysis)?
+                .flattened(),
+        );
+        if retain_place && let Some(environment) = callable_environment {
+            result.union_with(&environment.flattened());
+        }
+        Ok(result)
     }
 
     pub(super) fn map_callable_result(

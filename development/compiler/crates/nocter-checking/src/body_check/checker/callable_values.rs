@@ -44,12 +44,8 @@ impl BodyChecker<'_, '_> {
                 signature.parameter_types().collect::<Vec<_>>(),
                 signature.result(),
             ),
-            CallableValueContract::Structural(_, contract) => (
-                contract.capability(),
-                contract.parameters().to_vec(),
-                contract.result(),
-            ),
-            CallableValueContract::Erased(contract) => (
+            CallableValueContract::Structural(_, contract)
+            | CallableValueContract::Erased(contract) => (
                 contract.capability(),
                 contract.parameters().to_vec(),
                 contract.result(),

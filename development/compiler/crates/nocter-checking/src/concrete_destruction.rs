@@ -294,6 +294,18 @@ impl ConcreteDispatchResolver<'_> {
             .get(ty)
             .cloned()
             .ok_or(ConcreteDestructionError::UnknownType(ty))?;
+        let plan = self.plan_noncopy_type(ty, kind, active)?;
+        active.remove(&ty);
+        self.destructions.insert(ty, plan.clone());
+        Ok(plan)
+    }
+
+    fn plan_noncopy_type(
+        &mut self,
+        ty: TypeId,
+        kind: TypeKind,
+        active: &mut BTreeSet<TypeId>,
+    ) -> Result<Option<ConcreteDestructionPlan>, ConcreteDestructionError> {
         let plan = match kind {
             TypeKind::Nominal {
                 definition,
@@ -374,8 +386,6 @@ impl ConcreteDispatchResolver<'_> {
                 return Err(ConcreteDestructionError::SymbolicType(ty));
             }
         };
-        active.remove(&ty);
-        self.destructions.insert(ty, plan.clone());
         Ok(plan)
     }
 

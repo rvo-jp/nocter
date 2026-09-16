@@ -539,27 +539,7 @@ impl Analyzer<'_> {
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?,
                     _ => return Err(BodyCheckInternalError::ProvenanceAnalysis.into()),
                 };
-                let mut mapped = ValueProvenance::independent();
-                let retain_place =
-                    invocation_place_can_reach_result(self.graph, self.types, result_type);
-                for origin in contract.provenance().origins() {
-                    let argument = evaluated
-                        .arguments
-                        .get(origin.position())
-                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    mapped.union_with(&argument.retained(retain_place).flattened());
-                }
-                let callable = evaluated
-                    .callable
-                    .as_ref()
-                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                mapped.union_with(&callable.value.flattened());
-                if invocation_place_can_reach_result(self.graph, self.types, result_type)
-                    && let Some(environment) = &callable.storage
-                {
-                    mapped.union_with(&environment.flattened());
-                }
-                mapped
+                self.map_contract_call_result(contract, evaluated, result_type)?
             }
             CallTarget::ClosureValue { closure, .. } => {
                 let summary = self
@@ -615,27 +595,35 @@ impl Analyzer<'_> {
                 else {
                     return Err(BodyCheckInternalError::ProvenanceAnalysis.into());
                 };
-                let mut mapped = ValueProvenance::independent();
-                let retain_place =
-                    invocation_place_can_reach_result(self.graph, self.types, result_type);
-                for origin in callable_type.provenance().origins() {
-                    let argument = evaluated
-                        .arguments
-                        .get(origin.position())
-                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    mapped.union_with(&argument.retained(retain_place).flattened());
-                }
-                let callable = evaluated
-                    .callable
-                    .as_ref()
-                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                mapped.union_with(&callable.value.flattened());
-                if retain_place && let Some(environment) = &callable.storage {
-                    mapped.union_with(&environment.flattened());
-                }
-                mapped
+                self.map_contract_call_result(callable_type.contract(), evaluated, result_type)?
             }
         })
+    }
+
+    fn map_contract_call_result(
+        &self,
+        contract: &nocter_model::CallableContract,
+        evaluated: &EvaluatedCall,
+        result_type: TypeId,
+    ) -> Result<ValueProvenance, BodyCheckInternalError> {
+        let mut mapped = ValueProvenance::independent();
+        let retain_place = invocation_place_can_reach_result(self.graph, self.types, result_type);
+        for origin in contract.provenance().origins() {
+            let argument = evaluated
+                .arguments
+                .get(origin.position())
+                .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+            mapped.union_with(&argument.retained(retain_place).flattened());
+        }
+        let callable = evaluated
+            .callable
+            .as_ref()
+            .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+        mapped.union_with(&callable.value.flattened());
+        if retain_place && let Some(environment) = &callable.storage {
+            mapped.union_with(&environment.flattened());
+        }
+        Ok(mapped)
     }
 
     fn evaluate_receiver(
