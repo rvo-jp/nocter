@@ -96,6 +96,7 @@ pub enum MirLoweringError {
     InvalidRegion(BodyNodeId),
     InvalidClosure(BodyNodeId),
     InvalidCallable(BodyNodeId),
+    InvalidAggregate(TypeId),
     InvalidInterpolation(BodyNodeId),
     InvalidStringLiteral(BodyNodeId),
     InvalidOpaqueWitness(BodyNodeId),

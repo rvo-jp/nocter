@@ -16,6 +16,7 @@ or assign a machine ABI.
 
 - CFG and dense local identity construction
 - concrete place and projection lowering
+- canonical physical aggregate assembly after source-ordered initializer evaluation
 - explicit cleanup, destruction, region, outcome, and switch edges
 - deferred execution, suspension edges, continuation liveness, and checked cancellation plans
 - the compiler-owned process operation that drives a selected deferred entry without changing
@@ -26,6 +27,8 @@ or assign a machine ABI.
 ## Invariants
 
 - Each block has one exact terminator and typed merge contract.
+- Struct initializer evaluation order remains checked-program order, while the finished MIR
+  aggregate is ordered once by the executable runtime representation.
 - Cleanup timing comes from checked plans, not operation-shape inference.
 - Deferred cleanup distinguishes runtime-owned opaque storage from source aggregates. It retains
   the selected storage role and drop item without inventing fields for target-owned bytes.

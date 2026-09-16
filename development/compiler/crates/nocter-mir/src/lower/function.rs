@@ -325,14 +325,35 @@ impl<'a> FunctionLowerer<'a> {
         aggregate: &AggregateConstruction,
     ) -> Result<MirValueId, MirLoweringError> {
         let aggregate = match aggregate {
-            AggregateConstruction::Struct { definition, fields } => MirAggregate::Struct {
-                definition: *definition,
-                fields: fields
+            AggregateConstruction::Struct { definition, fields } => {
+                let mut lowered = fields
                     .iter()
                     .map(|(field, value)| Ok((*field, self.require_value(*value)?)))
-                    .collect::<Result<Vec<_>, MirLoweringError>>()?
-                    .into_boxed_slice(),
-            },
+                    .collect::<Result<Vec<_>, MirLoweringError>>()?;
+                let Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct {
+                    fields: representation,
+                }) = self.executable.type_representations().get(ty)
+                else {
+                    return Err(MirLoweringError::InvalidAggregate(ty));
+                };
+                let fields = representation
+                    .iter()
+                    .map(|expected| {
+                        let position = lowered
+                            .iter()
+                            .position(|(field, _)| *field == expected.field())
+                            .ok_or(MirLoweringError::InvalidAggregate(ty))?;
+                        Ok(lowered.remove(position))
+                    })
+                    .collect::<Result<Vec<_>, MirLoweringError>>()?;
+                if !lowered.is_empty() {
+                    return Err(MirLoweringError::InvalidAggregate(ty));
+                }
+                MirAggregate::Struct {
+                    definition: *definition,
+                    fields: fields.into_boxed_slice(),
+                }
+            }
             AggregateConstruction::Enum { variant, payload } => MirAggregate::Enum {
                 variant: *variant,
                 payload: payload

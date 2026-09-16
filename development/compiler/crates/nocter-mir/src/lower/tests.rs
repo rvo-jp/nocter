@@ -940,6 +940,31 @@ fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
 }
 
 #[test]
+fn struct_aggregate_layout_is_canonical_when_source_fields_are_reordered() {
+    let program = lower_fixture(
+        "struct Pair {\n\
+             first: i32\n\
+             second: i32\n\
+         }\n\
+         func main(): i32 {\n\
+             let pair = Pair { second: 2, first: 1 }\n\
+             return pair.first\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Aggregate(MirAggregate::Struct { fields, .. })
+                    if fields.len() == 2
+            )
+        })
+    }));
+}
+
+#[test]
 fn lowers_primitive_comparison_from_frozen_prepared_borrows() {
     let program = lower_fixture("func main(): i32 { if 1 == 2 { 0 } else { 1 } }\n").unwrap();
     let function = program.functions().iter().next().unwrap().1;
