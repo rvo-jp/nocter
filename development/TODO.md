@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.54.0 is a qualified release candidate. The exact release-content commit passed the
-whole-repository compiler gate, deterministic two-build packaging, fresh installed-home
-qualification, interactive LSP verification, and complete HTTP service execution. The retained
-archive and measured identities are recorded in the release-preparation record.
+Nocter v0.53.0 is published and externally audited. The v0.54.0 Streaming and Persistent HTTP
+Services candidate is complete and qualified, publication is authorized, and public metadata now
+selects v0.54.0. The retained archive and measured identities are recorded in the
+release-preparation record.
 
 ## Next Work
 
-Commit the qualification evidence and public version selectors, create annotated tag `v0.54.0`,
-fast-forward `main`, and publish the retained archive as the release's single asset. Then audit the
-public tag, asset, latest-release endpoint, downloaded installed home, and source-identified Pages
-deployment. Do not rebuild or replace the qualified archive.
+Commit this publication metadata, create annotated tag `v0.54.0`, fast-forward `main`, and publish
+the retained archive as the release's single asset. Then audit the public tag, asset, latest-release
+endpoint, downloaded installed home, and source-identified Pages deployment. Do not rebuild or
+replace the qualified archive.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
