@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.54.0 is published and externally audited. Its annotated tag, single release asset,
-downloaded installed home, latest-release selection, and source-identified Pages deployment agree
-with the qualified candidate. The immutable evidence lives in
-[`development/history/release-audits/v0.54.0.md`](history/release-audits/v0.54.0.md).
+Nocter v0.54.0 is published and externally audited. v0.55.0 development is active and adds explicit
+owning callable erasure before using that single runtime-dispatch model for practical HTTP routing
+and complete applications. The adopted boundary lives in
+[`development/design/erased-callable-design.md`](design/erased-callable-design.md), and phase state
+lives in [`development/history/milestones/v0.55.0.md`](history/milestones/v0.55.0.md).
 
 ## Next Work
 
-Define v0.55.0 as the practical HTTP application layer. Start with one routing authority over
-validated request method and target, explicit path and query parameter values, and response
-construction conveniences that compose the existing streaming body, linear responder, persistent
-connection, deadline, and graceful-shutdown contracts without hiding ownership or task lifecycle.
+Complete Phase 0 by introducing a distinct `any func` semantic type, explicit checked erasure, and
+an erased invocation target without changing static `func` specialization. Then close the runtime
+descriptor through Target, MIR, Machine, and ARM64 before the HTTP router becomes its first
+standard-library consumer.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
