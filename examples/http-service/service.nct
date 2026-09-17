@@ -108,14 +108,13 @@ async func handle_user_route(
         )?
     }
     var query = request.target().query_pairs()
-    let item = query.next() otherwise {
+    let parameter = query.next() otherwise {
         let response = OutgoingResponse.text(Status.bad_request(), "missing query")?
         return await request.respond_with_timeout(
             move response,
             timeout,
         )?
     }
-    let parameter = move item
     if user != "alice" || parameter.name() != "view" || parameter.value() != "full" {
         let response = OutgoingResponse.text(Status.bad_request(), "invalid user query")?
         return await request.respond_with_timeout(

@@ -3820,6 +3820,163 @@ mod tests {
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
     }
 
+    #[test]
+    fn value_provenance_contracts_cross_editor_features_by_semantic_identity() {
+        let temporary = TemporaryDirectory::new();
+        let source_path = temporary.path().join("main.nct");
+        let source = concat!(
+            "struct Owner { value: i32 }\n",
+            "func select(value: &i32 from owner, owner: &Owner): &i32 from value { return value }\n",
+            "func inferred(value: &i32): &i32 { return value }\n",
+            "func main(owner: &Owner): void {\n",
+            "    let view: &i32 from owner = &owner.value\n",
+            "    let selected = select(view, owner)\n",
+            "    let _ = selected\n",
+            "    return\n",
+            "}\n",
+        );
+        std::fs::write(&source_path, source).unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(&mut server, &uri, source, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        assert_value_provenance_semantic_highlight(snapshot, source);
+        assert_value_provenance_protocol_features(&mut server, &uri, source);
+    }
+
+    fn assert_value_provenance_semantic_highlight(
+        snapshot: &nocter_analysis::AnalysisSnapshot,
+        source: &str,
+    ) {
+        let semantic_source = snapshot
+            .sources()
+            .iter()
+            .find(|candidate| candidate.name().as_str().ends_with("main.nct"))
+            .unwrap();
+        let origin_offset = source.find("from owner,").unwrap() + "from ".len();
+        let origin_start = nocter_source::ByteOffset::new(u32::try_from(origin_offset).unwrap());
+        let origin_end =
+            nocter_source::ByteOffset::new(u32::try_from(origin_offset + "owner".len()).unwrap());
+        let highlights = snapshot.semantic_highlights(semantic_source.id()).unwrap();
+        let origin_highlight = highlights
+            .iter()
+            .find(|highlight| {
+                highlight.range() == nocter_source::TextRange::new(origin_start, origin_end)
+            })
+            .expect("resolved provenance origin lost its semantic occurrence");
+        assert_eq!(
+            origin_highlight.kind(),
+            nocter_analysis::SemanticHighlightKind::Parameter
+        );
+        assert!(origin_highlight.is_readonly());
+    }
+
+    fn assert_value_provenance_protocol_features(
+        server: &mut LanguageServer,
+        uri: &str,
+        source: &str,
+    ) {
+        let (call_line, call_character) = source_position(source, "select(view, owner)");
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{call_line},\"character\":{call_character}}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "func select(value: &i32 from owner, owner: &Owner): ",
+                "&i32 from value"
+            )),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{call_line},\"character\":{}}}}}}}",
+            call_character + "select(view, owner".len()
+        ));
+        let response = signature.response().unwrap();
+        assert!(response.contains(concat!(
+            "func select(value: &i32 from owner, owner: &Owner): ",
+            "&i32 from value"
+        )));
+        assert!(response.contains("\"activeParameter\":1"), "{response}");
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let (origin_line, origin_character) = source_position(source, "from owner,");
+        let (declaration_line, declaration_character) = source_position(source, "owner: &Owner");
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{origin_line},\"character\":{}}}}}}}",
+            origin_character + "from ".len()
+        ));
+        let response = definition.response().unwrap();
+        assert!(
+            response.contains(&format!(
+                "\"start\":{{\"line\":{declaration_line},\"character\":{declaration_character}}}"
+            )),
+            "{response}"
+        );
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let (local_origin_line, local_origin_character) = source_position(source, "from owner =");
+        let (main_line, main_character) = source_position(source, "main(owner: &Owner)");
+        let local_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{local_origin_line},\"character\":{}}}}}}}",
+            local_origin_character + "from ".len()
+        ));
+        let response = local_definition.response().unwrap();
+        assert!(
+            response.contains(&format!(
+                "\"start\":{{\"line\":{main_line},\"character\":{}}}",
+                main_character + "main(".len()
+            )),
+            "{response}"
+        );
+        assert!(
+            local_definition.issue().is_none(),
+            "{:?}",
+            local_definition.issue()
+        );
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":5,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":8,\"character\":1}}}}}}}}"
+            ),
+            uri = uri
+        ));
+        let response = hints.response().unwrap();
+        assert_eq!(response.matches(" from value").count(), 1, "{response}");
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens.response().is_some_and(
+                |response| response.contains("\"data\":[") && !response.contains("\"data\":[]")
+            ),
+            "response={:?}, issue={:?}",
+            tokens.response(),
+            tokens.issue()
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+    }
+
     fn automatic_import_dependency_server(
         temporary: &TemporaryDirectory,
     ) -> (String, LanguageServer) {

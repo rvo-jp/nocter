@@ -272,6 +272,7 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
 
     assert_http_connection_editor_features(&mut server, &source, &text);
     assert_http_router_editor_features(&mut server, &source, &text);
+    assert_http_lending_query_editor_features(&mut server, &source, &text);
     assert_http_request_and_shutdown_editor_features(&mut server, &source, &text);
 }
 
@@ -346,6 +347,59 @@ fn assert_http_connection_editor_features(
         );
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+fn assert_http_lending_query_editor_features(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (query_line, query_source) = source_line(text, "request.target().query_pairs");
+    let query_character = query_source.find("query_pairs").unwrap();
+    let hover = server.receive(&position_request(
+        14,
+        "textDocument/hover",
+        source,
+        query_line,
+        query_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(concat!(
+            "pub noalloc method &RequestTarget.query_pairs(): ",
+            "QueryIter from self"
+        )),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        15,
+        "textDocument/definition",
+        source,
+        query_line,
+        query_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/http/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let (parameter_line, parameter_source) = source_line(text, "parameter.name()");
+    let parameter_character = parameter_source.find("parameter").unwrap();
+    let hover = server.receive(&position_request(
+        16,
+        "textDocument/hover",
+        source,
+        parameter_line,
+        parameter_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("let parameter: QueryParameter"),
+        "{response}"
+    );
+    assert!(!response.contains("from query"), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
 }
 
 fn assert_http_request_and_shutdown_editor_features(

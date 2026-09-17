@@ -161,8 +161,10 @@ nocter run
 
 [http-service/index.nct](http-service/index.nct) runs seven loopback connections through a
 service-owned, two-slot `TaskGroup` and a deterministic `Router` of heterogeneous `Handler` values.
-The application handles a decoded path parameter and query pair, explicit 404 and 405 policy, an
-intentional handler failure, malformed framing, and an idle request timeout. One connection
+The application handles a decoded path parameter and a query pair lent directly from the retained
+request target and decoder scratch; it compares that pair before the next decoder advance without
+creating an owned query copy. It also exercises explicit 404 and 405 policy, an intentional handler
+failure, malformed framing, and an idle request timeout. One connection
 pipelines two requests without concurrent execution: the first streams a 32 KiB request through a
 1 KiB application buffer and returns a 32 KiB chunked response under transport backpressure; only
 then does the handler decode the retained second request and force terminal response policy. The

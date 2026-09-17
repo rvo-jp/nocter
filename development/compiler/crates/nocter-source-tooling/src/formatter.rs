@@ -624,6 +624,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_value_provenance_in_every_authored_position() {
+        let formatted = format(
+            "func inspect(owner:&Owner,value:&str from owner):&str from value { let view:&str from owner=value\nreturn view\n}\ninstance Owner { pub method (&self from owner).view(owner:&Owner):&str from owner }\ntype Callback=&func(owner:&Owner,value:&str from owner):&str from value\n",
+        );
+        assert_eq!(
+            formatted,
+            "func inspect(owner: &Owner, value: &str from owner): &str from value { let view: &str from owner = value\n    return view\n}\n\ninstance Owner { pub method (&self from owner).view(owner: &Owner): &str from owner }\n\ntype Callback = &func(owner: &Owner, value: &str from owner): &str from value\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn formats_future_type_precedence_without_changing_structure() {
         let formatted = format(
             "type Deferred=future String!\ntype ImmediateFailure=(future String)!\ntype Borrowed=&future String\n",
