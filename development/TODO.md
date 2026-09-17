@@ -2,17 +2,19 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. v0.57.0 Phase 0 is active and establishes the
-single semantic authority for `usize` constant parameters and arguments before fixed-capacity
-standard APIs depend on them. The milestone contract lives in
+Nocter v0.56.0 is published and externally audited. v0.57.0 Phase 0 is complete: syntax preserves
+mixed generic arguments, declarations own one ordered type-or-`usize` parameter schema, and fixed
+array types retain closed values or symbolic parameter identities without downstream source
+interpretation. Phase 1 is active. The milestone contract lives in
 [`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
 
 ## Next Work
 
-Complete v0.57.0 Phase 0: freeze the grammar and replace type-only generic metadata with one ordered
-parameter schema whose constant arguments become normalized semantic terms or evaluated values.
-Then proceed through type construction, inference, layout, fixed-capacity APIs, and editor
-qualification without introducing a second evaluator or downstream source interpretation.
+Complete v0.57.0 Phase 1 by replacing type-only application payloads with one ordered mixed
+application, validating each source argument against its declaration parameter domain, evaluating
+closed constant arguments once, and substituting symbolic constant parameters. Then proceed through
+inference, layout, fixed-capacity APIs, and editor qualification without introducing a second
+evaluator or downstream source interpretation.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

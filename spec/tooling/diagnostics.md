@@ -145,6 +145,8 @@ Source-backed generic-binder diagnostics:
   binder is primary and the first declaration is related.
 - `E0282`: a nested declaration introduces an explicit generic binder with the same name as an
   inherited binder. The nested binder is primary and the inherited declaration is related.
+- `E0283`: a constant generic parameter declares an unsupported value domain. v0.57.0 accepts
+  `usize` constant parameters; the diagnostic focuses the authored parameter type.
 
 Repeated names in a declaration target pattern refer to the first binder and do not constitute
 duplicate declarations.
