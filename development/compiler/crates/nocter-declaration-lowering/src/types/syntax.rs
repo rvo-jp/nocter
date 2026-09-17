@@ -64,6 +64,10 @@ pub(super) fn bind(
             if kind == NodeKind::Type {
                 arena.roots.insert(node, id);
                 arena.root_declarations.insert(node, declaration);
+            } else if kind == NodeKind::FixedArrayType {
+                arena
+                    .array_expression_declarations
+                    .insert(array_length(tree, node)?, declaration);
             }
         }
     }

@@ -1,4 +1,4 @@
-use nocter_model::{BuiltinType, ParameterOrigin, TypeKind};
+use nocter_model::{BuiltinType, ParameterOrigin, TypeKind, UsizeTerm};
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeKind, ParseGoal};
 
@@ -104,6 +104,62 @@ fn expands_generic_aliases_without_creating_canonical_alias_types() {
             store.get(*element) == Some(&TypeKind::Builtin(BuiltinType::I32))
         });
     assert!(expanded.is_some());
+}
+
+#[test]
+fn preserves_constant_parameters_in_fixed_array_types() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        "pub struct Buffer<T, const N: usize> {\n    pub values: [T; N]\n}\n",
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+    let generics = &normalized.namespaces().imports.generics;
+    let constant_parameter = (0..generics.headers.reserved.declarations.len())
+        .find_map(|index| {
+            let parameters = generics.own(crate::SurfaceDeclarationId::from_index(index))?;
+            if parameters.len() == 2 {
+                Some(parameters[1])
+            } else {
+                None
+            }
+        })
+        .expect("Buffer declares its constant parameter second");
+    assert_eq!(
+        generics
+            .headers
+            .reserved
+            .program
+            .declarations()
+            .generic_parameter(constant_parameter)
+            .expect("constant parameter is declared")
+            .domain(),
+        nocter_declarations::GenericParameterDomain::UsizeConstant
+    );
+    let types = normalized
+        .namespaces()
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types();
+
+    assert!(types.iter().any(|(_, ty)| matches!(
+        ty,
+        TypeKind::FixedArray {
+            length: UsizeTerm::Parameter(parameter),
+            ..
+        } if *parameter == constant_parameter
+    )));
 }
 
 #[test]

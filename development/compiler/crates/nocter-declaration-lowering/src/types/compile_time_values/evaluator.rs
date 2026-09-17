@@ -95,6 +95,7 @@ pub fn evaluate(
         })
         .collect();
     project_references(&mut bindings, evaluated.reference_projections);
+    project_generic_references(&mut bindings, evaluated.generic_reference_projections);
     bindings.structural_constants = structural_constants;
     bindings.array_lengths = evaluated.array_lengths;
     Ok(bindings)
@@ -109,18 +110,21 @@ enum HeaderValueKey {
 #[derive(Clone, Debug)]
 enum HeaderValue {
     Constant(ConstantValue),
-    ArrayLength(u64),
+    ArrayLength(nocter_model::UsizeTerm),
 }
 
 struct EvaluatedHeaderValues {
     constants: HashMap<ConstantId, ConstantValue>,
-    array_lengths: HashMap<ConstantExpressionId, u64>,
+    array_lengths: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
     reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
+    generic_reference_projections:
+        HashMap<SyntaxToken, (nocter_model::GenericParameterId, SourceOrigin)>,
 }
 
 struct HeaderValueComputation {
     constant_plans: HashMap<ConstantId, ConstantExpressionPlan>,
     array_length_plans: HashMap<ConstantExpressionId, ConstantExpressionPlan>,
+    symbolic_array_lengths: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
 }
 
 fn evaluate_header_values(
@@ -156,10 +160,19 @@ fn evaluate_header_values(
 
     let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
     let mut array_length_plans = HashMap::new();
+    let mut symbolic_array_lengths = HashMap::new();
+    let mut generic_reference_projections = HashMap::new();
     let mut array_length_ids = Vec::new();
     for (id, expression) in bindings.array_expressions.iter() {
         array_length_ids.push(id);
         let expression = *expression;
+        if let Some((parameter, token, origin)) =
+            constant_parameter_reference(bindings, source_ids, expression)?
+        {
+            symbolic_array_lengths.insert(id, nocter_model::UsizeTerm::Parameter(parameter));
+            generic_reference_projections.insert(token, (parameter, origin));
+            continue;
+        }
         let (file, tree) = syntax_input(bindings, source_ids, expression)?;
         let syntax = nocter_syntax::BoundSyntax::new(file, tree)
             .ok_or_else(|| inconsistent_node(expression))?;
@@ -173,6 +186,7 @@ fn evaluate_header_values(
     let mut computation = HeaderValueComputation {
         constant_plans,
         array_length_plans,
+        symbolic_array_lengths,
     };
     let mut query = DependencyQuery::default();
     // Resolve array lengths first so correctness cannot depend on an eager constants-first pass.
@@ -214,7 +228,7 @@ fn evaluate_header_values(
         .into_iter()
         .map(
             |id| match query.completed(&HeaderValueKey::ArrayLength(id)) {
-                Some(HeaderValue::ArrayLength(value)) => Ok((id, *value)),
+                Some(HeaderValue::ArrayLength(value)) => Ok((id, value.clone())),
                 _ => Err(inconsistent_node(
                     *bindings
                         .array_expressions
@@ -228,6 +242,7 @@ fn evaluate_header_values(
         constants,
         array_lengths,
         reference_projections,
+        generic_reference_projections,
     })
 }
 
@@ -276,6 +291,9 @@ impl HeaderValueComputation {
         query: &mut DependencyQuery<HeaderValueKey, HeaderValue>,
         id: ConstantExpressionId,
     ) -> Result<HeaderValue, HeaderQueryError> {
+        if let Some(term) = self.symbolic_array_lengths.get(&id) {
+            return Ok(HeaderValue::ArrayLength(term.clone()));
+        }
         let plan = self
             .array_length_plans
             .get(&id)
@@ -302,7 +320,7 @@ impl HeaderValueComputation {
                 plan.origin(),
             ))
         })?;
-        Ok(HeaderValue::ArrayLength(length))
+        Ok(HeaderValue::ArrayLength(length.into()))
     }
 
     fn resolve_constant_dependencies(
@@ -664,6 +682,105 @@ fn syntax_input<'a>(
     Ok((file, tree))
 }
 
+fn constant_parameter_reference(
+    bindings: &PreparedTypeBindings<'_>,
+    source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
+    expression: NodeId,
+) -> Result<
+    Option<(nocter_model::GenericParameterId, SyntaxToken, SourceOrigin)>,
+    HeaderDefinitionError,
+> {
+    let (_, tree) = syntax_input(bindings, source_ids, expression)?;
+    let expression_range = tree
+        .node(expression)
+        .ok_or_else(|| inconsistent_node(expression))?
+        .range();
+    let mut references = Vec::new();
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        if tree
+            .node(node)
+            .is_some_and(|syntax| syntax.kind() == NodeKind::ReferenceExpression)
+        {
+            references.push(node);
+        }
+        pending.extend(child_nodes(tree, node));
+    }
+    let [reference] = references.as_slice() else {
+        return Ok(None);
+    };
+    if tree
+        .node(*reference)
+        .is_none_or(|syntax| syntax.range() != expression_range)
+    {
+        return Ok(None);
+    }
+    let token = first_direct_token(tree, *reference)
+        .filter(|token| token.kind() == TokenKind::Identifier)
+        .ok_or_else(|| inconsistent_node(*reference))?;
+    let spelling = bindings
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .source_map
+        .get(token.source())
+        .and_then(|source| source.text_at(token.range()))
+        .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))?;
+    let symbol = bindings
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .symbols()
+        .get(spelling)
+        .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))?;
+    let declaration = bindings
+        .array_expression_declarations
+        .get(&expression)
+        .copied()
+        .ok_or_else(|| inconsistent_node(expression))?;
+    let Some(parameter) = bindings
+        .namespaces
+        .imports
+        .generics
+        .lookup(declaration, symbol)
+    else {
+        return Ok(None);
+    };
+    let metadata = bindings
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .declarations()
+        .generic_parameter(parameter)
+        .ok_or_else(|| inconsistent_node(expression))?;
+    if metadata.domain() != nocter_declarations::GenericParameterDomain::UsizeConstant {
+        return Ok(None);
+    }
+    let source = source_ids
+        .get(&token.source())
+        .and_then(|source| {
+            bindings
+                .namespaces
+                .imports
+                .generics
+                .headers
+                .reserved
+                .sources
+                .get(source.index())
+        })
+        .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))?;
+    let origin = SourceOrigin::from_token(source.syntax(), token)
+        .map_err(|_| HeaderDefinitionError::InconsistentSource(token.source()))?;
+    Ok(Some((parameter, token, origin)))
+}
+
 fn contains_unbound_type(
     tree: &SyntaxTree,
     root: NodeId,
@@ -737,6 +854,30 @@ fn project_references(
             .reserved
             .source_index
             .insert(semantic_entity(entity), SourceRole::Reference, origin);
+    }
+}
+
+fn project_generic_references(
+    bindings: &mut PreparedTypeBindings<'_>,
+    references: HashMap<SyntaxToken, (nocter_model::GenericParameterId, SourceOrigin)>,
+) {
+    let mut references = references.into_iter().collect::<Vec<_>>();
+    references.sort_unstable_by_key(|(token, _)| {
+        (token.source(), token.range().start(), token.range().end())
+    });
+    for (_, (parameter, origin)) in references {
+        bindings
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .source_index
+            .insert(
+                SemanticEntity::GenericParameter(parameter),
+                SourceRole::Reference,
+                origin,
+            );
     }
 }
 

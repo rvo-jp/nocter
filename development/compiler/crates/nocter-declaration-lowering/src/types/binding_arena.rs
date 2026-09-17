@@ -12,5 +12,6 @@ pub(super) struct BindingArena {
     pub(super) kinds: Vec<BoundTypeKind>,
     pub(super) roots: HashMap<NodeId, BoundTypeId>,
     pub(super) root_declarations: HashMap<NodeId, SurfaceDeclarationId>,
+    pub(super) array_expression_declarations: HashMap<NodeId, SurfaceDeclarationId>,
     pub(super) origins: NormalizationOrigins,
 }

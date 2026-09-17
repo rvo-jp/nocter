@@ -250,7 +250,7 @@ struct Evaluator<'a> {
     active: HashSet<EvaluationKey>,
     alias_stack: Vec<TypeAliasId>,
     array_expression_ids: &'a HashMap<NodeId, nocter_model::ConstantExpressionId>,
-    array_lengths: &'a HashMap<nocter_model::ConstantExpressionId, u64>,
+    array_lengths: &'a HashMap<nocter_model::ConstantExpressionId, nocter_model::UsizeTerm>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
 }
 
@@ -464,13 +464,12 @@ impl Evaluator<'_> {
             BoundTypeKind::Slice(element) => TypeKind::Slice(self.result(&key, element)?),
             BoundTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
                 element: self.result(&key, element)?,
-                length: nocter_model::UsizeTerm::Value(
-                    self.array_expression_ids
-                        .get(&length)
-                        .and_then(|length| self.array_lengths.get(length))
-                        .copied()
-                        .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
-                ),
+                length: self
+                    .array_expression_ids
+                    .get(&length)
+                    .and_then(|length| self.array_lengths.get(length))
+                    .cloned()
+                    .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
             },
             BoundTypeKind::Tuple(elements) => {
                 let elements = self.results(&key, &elements)?;
@@ -948,6 +947,7 @@ pub fn normalize_header_types(
         structural_constants,
         array_expressions: _,
         array_expression_ids,
+        array_expression_declarations: _,
         array_lengths,
     } = bindings;
     let context = prepare_context(

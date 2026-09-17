@@ -294,7 +294,8 @@ pub struct PreparedTypeBindings<'syntax> {
     structural_constants: HashMap<nocter_model::ConstantId, PreparedStructuralConstant>,
     array_expressions: Arena<ConstantExpressionId, NodeId>,
     array_expression_ids: HashMap<NodeId, ConstantExpressionId>,
-    array_lengths: HashMap<ConstantExpressionId, u64>,
+    array_expression_declarations: HashMap<NodeId, SurfaceDeclarationId>,
+    array_lengths: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -489,6 +490,7 @@ pub fn bind_header_type_syntax(
         structural_constants: HashMap::new(),
         array_expressions: array_expressions.finish(),
         array_expression_ids,
+        array_expression_declarations: arena.array_expression_declarations,
         array_lengths: HashMap::new(),
     })
 }
