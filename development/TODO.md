@@ -2,19 +2,18 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. v0.57.0 Phase 0 is complete: syntax preserves
-mixed generic arguments, declarations own one ordered type-or-`usize` parameter schema, and fixed
-array types retain closed values or symbolic parameter identities without downstream source
-interpretation. Phase 1 is active. The milestone contract lives in
+Nocter v0.56.0 is published and externally audited. v0.57.0 Phases 0–2 are complete: declarations
+and checked operations preserve one ordered type-or-`usize` application, callable inference solves
+fixed-array lengths, and construction, interface selection, closures, destruction, copyability,
+compile-time plans, and executable specialization retain the same values without source
+reinterpretation. Phase 3 is active. The milestone contract lives in
 [`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
 
 ## Next Work
 
-Complete v0.57.0 Phase 1 by replacing type-only application payloads with one ordered mixed
-application, validating each source argument against its declaration parameter domain, evaluating
-closed constant arguments once, and substituting symbolic constant parameters. Then proceed through
-inference, layout, fixed-capacity APIs, and editor qualification without introducing a second
-evaluator or downstream source interpretation.
+Complete v0.57.0 Phase 3 by proving that evaluated capacities remain part of executable identity,
+layout, MIR, ABI, and native execution. Then implement the fixed-capacity standard APIs and editor
+qualification without introducing a second evaluator or downstream source interpretation.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

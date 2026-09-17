@@ -159,11 +159,11 @@ type First = Buffer<u8, WORD_BYTES>
 type Second = Buffer<u8, 2 + 2>
 ```
 
-`First` and `Second` denote the same specialization. A reference to a visible `usize` constant
-parameter is represented as a symbolic parameter term. Structural arithmetic containing such a
-term is retained as a normalized semantic expression and is evaluated when substitution closes all
-of its parameters. Evaluation failures are reported at the authored argument or length that owns
-the expression.
+`First` and `Second` denote the same specialization. A bare reference to a visible `usize` constant
+parameter is represented as a symbolic parameter term and substitution replaces that term with the
+caller's checked value. v0.57.0 does not accept arithmetic that remains symbolic, such as `N + 1`;
+introducing normalized symbolic expression identity is separate from the fixed-capacity model.
+Closed arithmetic is still evaluated at the authored argument or length that owns the expression.
 
 The evaluator remains the sole authority for literals, constant references, arithmetic,
 conversion, overflow, and target-width checks. Type construction does not copy those rules, and
