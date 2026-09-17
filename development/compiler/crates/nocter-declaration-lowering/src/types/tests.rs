@@ -94,7 +94,7 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "type Callback<T> = noalloc blocking &+func(left: &T from right, right: &T): &T from right | left\n",
+        "type Callback<T> = noalloc blocking &+func(left: &T from static | right, right: &T): &T from right | left\n",
     );
     let std_root_id = add_source(
         &mut sources,

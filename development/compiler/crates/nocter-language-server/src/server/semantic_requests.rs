@@ -433,6 +433,56 @@ mod tests {
         )
     }
 
+    fn object_member<'a>(
+        value: &'a nocter_json::Value,
+        name: &str,
+    ) -> Option<&'a nocter_json::Value> {
+        let nocter_json::Value::Object(members) = value else {
+            return None;
+        };
+        members
+            .iter()
+            .find(|member| member.name.as_ref() == name)
+            .map(|member| &member.value)
+    }
+
+    fn json_u32(value: &nocter_json::Value) -> Option<u32> {
+        let nocter_json::Value::Number(value) = value else {
+            return None;
+        };
+        value.parse().ok()
+    }
+
+    fn semantic_token_at(
+        response: &str,
+        target_line: u32,
+        target_start: u32,
+        target_length: u32,
+    ) -> Option<(u32, u32)> {
+        let response = nocter_json::parse(response).ok()?;
+        let result = object_member(&response, "result")?;
+        let nocter_json::Value::Array(data) = object_member(result, "data")? else {
+            return None;
+        };
+        let mut line = 0;
+        let mut start = 0;
+        for token in data.chunks_exact(5) {
+            let delta_line = json_u32(&token[0])?;
+            let delta_start = json_u32(&token[1])?;
+            if delta_line == 0 {
+                start += delta_start;
+            } else {
+                line += delta_line;
+                start = delta_start;
+            }
+            if line == target_line && start == target_start && json_u32(&token[2])? == target_length
+            {
+                return Some((json_u32(&token[3])?, json_u32(&token[4])?));
+            }
+        }
+        None
+    }
+
     #[test]
     fn async_iteration_keeps_binding_hover_and_semantic_tokens_available() {
         let temporary = TemporaryDirectory::new();
@@ -3966,13 +4016,21 @@ mod tests {
         let tokens = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
         ));
-        assert!(
-            tokens.response().is_some_and(
-                |response| response.contains("\"data\":[") && !response.contains("\"data\":[]")
+        let response = tokens.response().unwrap();
+        let parameter_type = nocter_lsp::SEMANTIC_TOKEN_TYPES
+            .iter()
+            .position(|name| *name == "parameter")
+            .and_then(|index| u32::try_from(index).ok())
+            .unwrap();
+        assert_eq!(
+            semantic_token_at(
+                response,
+                u32::try_from(origin_line).unwrap(),
+                u32::try_from(origin_character + "from ".len()).unwrap(),
+                u32::try_from("owner".len()).unwrap(),
             ),
-            "response={:?}, issue={:?}",
-            tokens.response(),
-            tokens.issue()
+            Some((parameter_type, 2)),
+            "{response}"
         );
         assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
     }

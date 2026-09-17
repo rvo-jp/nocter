@@ -1350,6 +1350,12 @@ mod tests {
                 "input",
                 Some("input"),
             ),
+            (
+                "pub func install(callback: &func(input: &str from static | static): void): void {}\n",
+                TypeBindingRule::DuplicateProvenanceOrigin,
+                "static",
+                Some("static"),
+            ),
         ];
         for (text, expected_rule, primary_name, related_name) in cases {
             let mut sources = SourceMap::new();

@@ -1447,14 +1447,15 @@ impl<'a> Renderer<'a> {
         self.callable_guarantees(contract.guarantees());
         self.callable_capability(contract.capability());
         self.output.push('(');
-        let named = !contract.provenance().origins().is_empty()
-            || !contract.input_provenance().constraints().is_empty();
+        let has_result_origins = !contract.provenance().origins().is_empty();
+        let needs_parameter_names =
+            has_result_origins || !contract.input_provenance().constraints().is_empty();
         for (index, parameter) in contract.parameters().iter().copied().enumerate() {
             if index != 0 {
                 self.output.push_str(", ");
             }
             let start = self.output.len();
-            if named {
+            if needs_parameter_names {
                 write!(self.output, "p{index}: ").ok()?;
             }
             self.ty(parameter)?;
@@ -1472,7 +1473,7 @@ impl<'a> Renderer<'a> {
             }
             let start = self.output.len();
             self.output.push_str("...");
-            if named {
+            if needs_parameter_names {
                 write!(self.output, "p{}: ", contract.parameters().len()).ok()?;
             }
             self.ty(pack.primary())?;
@@ -1493,7 +1494,7 @@ impl<'a> Renderer<'a> {
         }
         self.output.push_str("): ");
         self.ty(contract.result())?;
-        if named {
+        if has_result_origins {
             self.output.push(' ');
             self.contextual(ContextualSpelling::From);
             for (index, origin) in contract.provenance().origins().iter().enumerate() {

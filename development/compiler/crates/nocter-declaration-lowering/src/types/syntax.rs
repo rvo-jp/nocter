@@ -429,7 +429,18 @@ fn callable_origins(
         .next()
         .ok_or(TypeBindingError::InvalidSyntax(clause))?;
     let mut origins = BTreeMap::new();
+    let mut static_origin = None;
     for token in tokens {
+        if token_text(namespaces, tree, token)? == ContextualSpelling::Static.as_str() {
+            if let Some(first) = static_origin.replace(token) {
+                return Err(TypeBindingError::duplicate_rule(
+                    TypeBindingRule::DuplicateProvenanceOrigin,
+                    SyntaxOrigin::Token(first),
+                    SyntaxOrigin::Token(token),
+                ));
+            }
+            continue;
+        }
         let name = token_symbol(namespaces, tree, token)?;
         let position =
             names

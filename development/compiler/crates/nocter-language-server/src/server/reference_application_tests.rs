@@ -382,6 +382,20 @@ fn assert_http_lending_query_editor_features(
     ));
     let response = definition.response().unwrap();
     assert!(response.contains("/std/http/index.nct"), "{response}");
+    let standard_source = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/http/index.nct"),
+    )
+    .unwrap();
+    let (definition_line, definition_source) =
+        source_line(&standard_source, "method &self.query_pairs");
+    let definition_character = definition_source.find("query_pairs").unwrap();
+    assert!(
+        response.contains(&format!(
+            "\"start\":{{\"line\":{definition_line},\"character\":{definition_character}}},\"end\":{{\"line\":{definition_line},\"character\":{}}}",
+            definition_character + "query_pairs".len()
+        )),
+        "{response}"
+    );
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
     let (parameter_line, parameter_source) = source_line(text, "parameter.name()");

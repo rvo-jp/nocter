@@ -739,6 +739,11 @@ fn callable_hover_renders_resolved_input_provenance_contracts() {
     let source_text = concat!(
         "struct Owner { value: i32 }\n",
         "type Inspector = &func(value: &i32 from owner, owner: &Owner): &i32 from value\n",
+        "type InputOnly = &func(value: &i32 from owner, owner: &Owner): void\n",
+        "type ResultOnly = &func(value: &i32): &i32 from value\n",
+        "type Independent = &func(value: &i32): void\n",
+        "type StaticInput = &func(value: &i32 from static): void\n",
+        "type PackInput = &func(owner: &Owner, ...&i32 from owner): void\n",
         "func inspect(value: &i32 from owner, owner: &Owner): void { return }\n",
         "instance Owner {\n",
         "    pub method (&self from owner).inspect_owner(owner: &Owner): void { return }\n",
@@ -794,18 +799,36 @@ fn callable_hover_renders_resolved_input_provenance_contracts() {
         .unwrap();
     assert_eq!(local.presentation().code(), "let view: &i32 from owner");
 
-    let inspector_offset = source_text.find("Inspector").unwrap();
-    let inspector = snapshot
-        .semantic_subject(
-            source.id(),
-            ByteOffset::new(u32::try_from(inspector_offset).unwrap()),
-        )
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        inspector.presentation().code(),
-        "type Inspector = &func(p0: &i32 from p1, p1: &Owner): &i32 from p0"
-    );
+    for (alias, expected) in [
+        (
+            "Inspector",
+            "type Inspector = &func(p0: &i32 from p1, p1: &Owner): &i32 from p0",
+        ),
+        (
+            "InputOnly",
+            "type InputOnly = &func(p0: &i32 from p1, p1: &Owner): void",
+        ),
+        (
+            "ResultOnly",
+            "type ResultOnly = &func(p0: &i32): &i32 from p0",
+        ),
+        ("Independent", "type Independent = &func(&i32): void"),
+        (
+            "StaticInput",
+            "type StaticInput = &func(p0: &i32 from static): void",
+        ),
+        (
+            "PackInput",
+            "type PackInput = &func(p0: &Owner, ...p1: &i32 from p0): void",
+        ),
+    ] {
+        let offset = source_text.find(alias).unwrap();
+        let presentation = snapshot
+            .semantic_subject(source.id(), ByteOffset::new(u32::try_from(offset).unwrap()))
+            .unwrap()
+            .unwrap();
+        assert_eq!(presentation.presentation().code(), expected);
+    }
 }
 
 #[test]
