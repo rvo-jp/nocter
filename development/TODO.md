@@ -2,19 +2,17 @@
 
 ## Current State
 
-Nocter v0.55.0 is published and externally audited. v0.56.0 implementation is complete: `from` now
-uses one value-provenance contract across results, inputs, receivers, annotated locals, structural
-callables, calls, closures, and editor presentation. Separate synchronous and asynchronous lending
-iteration contracts retain the active receiver loan through generic associated items. Borrowed
-scan windows, reusable asynchronous byte/text windows, and HTTP query decoding now exercise that
-contract without hidden ownership copies. The completed scope and gates live in
+Nocter v0.56.0 release preparation is active. The unified value-provenance, lending API, and
+zero-copy standard-library milestone is complete, including its reopened presentation review and
+whole-repository compiler gate. Release identity now selects `0.56.0`; public notes and the
+release-preparation contract are authored. The completed scope lives in
 [`development/history/milestones/v0.56.0.md`](history/milestones/v0.56.0.md).
 
 ## Next Work
 
-Prepare v0.56.0 for release as a separate change. Update exact release identity, assemble and
-qualify the installed artifact, write public release notes, and publish only after the preparation
-commit is independently clean and the user explicitly requests publication.
+Commit the exact release content, run deterministic two-build packaging and installed-home
+qualification from that clean commit, then record the measured artifact identities. Publication
+must reuse the retained candidate archive without rebuilding it.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

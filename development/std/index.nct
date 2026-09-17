@@ -5,5 +5,5 @@
 
 #package: {
     name: "std",
-    version: "0.55.0",
+    version: "0.56.0",
 }
