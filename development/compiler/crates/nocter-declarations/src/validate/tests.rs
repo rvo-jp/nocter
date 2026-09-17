@@ -211,6 +211,7 @@ fn two_pass_definitions_support_recursive_header_identity() {
             GenericOwner::NominalType(nominal),
             parameter_name,
             0,
+            crate::GenericParameterDomain::Type,
         ));
     let generic_type = program
         .types_mut()
@@ -581,6 +582,7 @@ fn construction_uniqueness_uses_the_target_family_not_local_binder_identity() {
                 GenericOwner::NominalType(nominal),
                 t_name,
                 0,
+                crate::GenericParameterDomain::Type,
             ));
     program
         .declarations_mut()
@@ -640,6 +642,7 @@ fn define_nonempty_generic_construction(
             GenericOwner::Construction(construction),
             name,
             0,
+            crate::GenericParameterDomain::Type,
         ));
     let argument = program
         .types_mut()

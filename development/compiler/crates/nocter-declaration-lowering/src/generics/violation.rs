@@ -1,6 +1,5 @@
 use nocter_diagnostics::DiagnosticCode;
-use nocter_syntax::SyntaxOrigin;
-use nocter_syntax::SyntaxToken;
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 
 /// Stable source-level rule for generic binder declarations.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -8,6 +7,7 @@ pub enum GenericRule {
     ReservedBinder,
     DuplicateBinder,
     ShadowingBinder,
+    UnsupportedConstantParameterType,
 }
 
 impl GenericRule {
@@ -17,6 +17,7 @@ impl GenericRule {
             Self::ReservedBinder => DiagnosticCode::E0280,
             Self::DuplicateBinder => DiagnosticCode::E0281,
             Self::ShadowingBinder => DiagnosticCode::E0282,
+            Self::UnsupportedConstantParameterType => DiagnosticCode::E0283,
         }
     }
 
@@ -26,6 +27,9 @@ impl GenericRule {
             Self::ReservedBinder => "generic binder uses a reserved type name",
             Self::DuplicateBinder => "generic binder is declared more than once",
             Self::ShadowingBinder => "generic binder shadows an inherited binder",
+            Self::UnsupportedConstantParameterType => {
+                "constant generic parameter type is not supported"
+            }
         }
     }
 
@@ -35,6 +39,7 @@ impl GenericRule {
             Self::ReservedBinder => "choose a non-reserved binder name",
             Self::DuplicateBinder => "remove or rename one of the duplicate binders",
             Self::ShadowingBinder => "rename the nested binder or reuse the inherited binder",
+            Self::UnsupportedConstantParameterType => "use `usize` as the parameter type",
         }
     }
 
@@ -43,7 +48,7 @@ impl GenericRule {
         match self {
             Self::DuplicateBinder => Some("the first binder is declared here"),
             Self::ShadowingBinder => Some("the inherited binder is declared here"),
-            Self::ReservedBinder => None,
+            Self::ReservedBinder | Self::UnsupportedConstantParameterType => None,
         }
     }
 }
@@ -81,6 +86,15 @@ impl GenericViolation {
             rule: GenericRule::ShadowingBinder,
             primary: SyntaxOrigin::Token(nested),
             related: Some(SyntaxOrigin::Token(inherited)),
+        }
+    }
+
+    #[must_use]
+    pub const fn unsupported_constant_parameter_type(parameter: NodeId) -> Self {
+        Self {
+            rule: GenericRule::UnsupportedConstantParameterType,
+            primary: SyntaxOrigin::Node(parameter),
+            related: None,
         }
     }
 

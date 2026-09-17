@@ -133,6 +133,20 @@ fn count_node_kind(tree: &SyntaxTree, expected: NodeKind) -> usize {
 }
 
 #[test]
+fn generic_parameter_nodes_preserve_type_and_constant_domains() {
+    let tree = assert_syntax_ok(
+        "struct Buffer<T, const N: usize> { values: [T; N] }\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(count_node_kind(&tree, NodeKind::TypeGenericParameter), 1);
+    assert_eq!(
+        count_node_kind(&tree, NodeKind::ConstantGenericParameter),
+        1
+    );
+}
+
+#[test]
 fn parses_empty_and_nested_package_directive_values() {
     assert_syntax_ok("", ParseGoal::SourceFile);
     assert_syntax_ok(

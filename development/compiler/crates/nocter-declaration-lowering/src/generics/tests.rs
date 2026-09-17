@@ -99,6 +99,88 @@ fn creates_owner_scopes_and_inherits_them_into_members() {
 }
 
 #[test]
+fn preserves_mixed_parameter_order_and_domains() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "pub struct Matrix<Row, const WIDTH: usize, Cell, const HEIGHT: usize> {}\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+
+    let generics = prepare(
+        &sources,
+        &manifest,
+        vec![ModuleSourceInput::new(
+            "/app/index.nct",
+            ModuleSourceKind::Root,
+            &root,
+        )],
+        Vec::new(),
+    )
+    .unwrap();
+    let matrix = SurfaceDeclarationId::from_index(0);
+    let domains = generics
+        .own(matrix)
+        .unwrap()
+        .iter()
+        .map(|parameter| {
+            generics
+                .headers()
+                .reserved()
+                .program
+                .declarations()
+                .generic_parameter(*parameter)
+                .unwrap()
+                .domain()
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        domains,
+        [
+            nocter_declarations::GenericParameterDomain::Type,
+            nocter_declarations::GenericParameterDomain::UsizeConstant,
+            nocter_declarations::GenericParameterDomain::Type,
+            nocter_declarations::GenericParameterDomain::UsizeConstant,
+        ]
+    );
+}
+
+#[test]
+fn rejects_constant_parameter_domains_other_than_usize() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "pub struct Invalid<const ENABLED: bool> {}\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+
+    let error = prepare(
+        &sources,
+        &manifest,
+        vec![ModuleSourceInput::new(
+            "/app/index.nct",
+            ModuleSourceKind::Root,
+            &root,
+        )],
+        Vec::new(),
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        GenericError::Rule(violation)
+            if violation.rule() == crate::GenericRule::UnsupportedConstantParameterType
+    ));
+}
+
+#[test]
 fn repeated_pattern_names_reuse_one_identity_and_project_every_occurrence() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");

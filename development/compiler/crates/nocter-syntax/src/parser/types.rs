@@ -23,7 +23,18 @@ pub(super) fn generic_parameters(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
     type_delimited_list(parser, false, ExpectedSyntax::Name, |parser| {
-        expect_pattern_binder(parser);
+        let parameter = parser.start();
+        let kind = if parser.at_keyword(Keyword::Const) {
+            parser.bump();
+            expect_pattern_binder(parser);
+            parser.expect_punctuation(Punctuation::Colon);
+            type_(parser);
+            NodeKind::ConstantGenericParameter
+        } else {
+            expect_pattern_binder(parser);
+            NodeKind::TypeGenericParameter
+        };
+        parser.complete(parameter, kind);
     });
     parser.expect_type_greater();
     parser.complete(marker, NodeKind::GenericParameters);

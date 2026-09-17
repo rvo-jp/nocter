@@ -4,12 +4,12 @@ mod violation;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_declarations::{GenericOwner, GenericParameter};
+use nocter_declarations::{GenericOwner, GenericParameter, GenericParameterDomain};
 use nocter_model::{GenericParameterId, Symbol};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
     ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
-    direct_node_iter, direct_token,
+    direct_identifier, direct_node, direct_node_iter, direct_token,
 };
 
 use crate::{
@@ -24,6 +24,12 @@ struct GenericBinding {
     name: Symbol,
     parameter: GenericParameterId,
     origin: SyntaxToken,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BinderToken {
+    token: SyntaxToken,
+    domain: GenericParameterDomain,
 }
 
 type GenericScope = Box<[GenericBinding]>;
@@ -164,7 +170,8 @@ pub fn prepare_generic_binders(
             .collect();
         let mut local = BTreeMap::new();
         let mut ids = Vec::new();
-        for token in binders.tokens {
+        for binder in binders.tokens {
+            let token = binder.token;
             let name = binder_symbol(&headers, id, token)?;
             if let Some((parameter, first)) = local.get(&name).copied() {
                 if !binders.reuses_local_names {
@@ -183,7 +190,12 @@ pub fn prepare_generic_binders(
                 .reserved
                 .program
                 .declarations_mut()
-                .add_generic_parameter(GenericParameter::new(owner, name, ids.len()));
+                .add_generic_parameter(GenericParameter::new(
+                    owner,
+                    name,
+                    ids.len(),
+                    binder.domain,
+                ));
             scope.insert(
                 name,
                 GenericBinding {
@@ -251,7 +263,7 @@ fn generic_owner(
 
 #[derive(Debug)]
 struct BinderTokens {
-    tokens: Vec<SyntaxToken>,
+    tokens: Vec<BinderToken>,
     reuses_local_names: bool,
 }
 
@@ -275,18 +287,64 @@ fn binder_tokens(
         }),
         _ => Ok(BinderTokens {
             tokens: find_descendant(tree, declaration.node(), NodeKind::GenericParameters)
-                .map(|node| descendant_identifiers(tree, node))
+                .map(|node| explicit_binders(headers, id, tree, node))
+                .transpose()?
                 .unwrap_or_default(),
             reuses_local_names: false,
         }),
     }
 }
 
-fn pattern_binders(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> Vec<SyntaxToken> {
+fn explicit_binders(
+    headers: &PreparedHeaders<'_>,
+    id: SurfaceDeclarationId,
+    tree: &nocter_syntax::SyntaxTree,
+    parameters: NodeId,
+) -> Result<Vec<BinderToken>, GenericError> {
+    let mut binders = Vec::new();
+    for element in tree.children(parameters) {
+        let SyntaxElement::Node(parameter) = element else {
+            continue;
+        };
+        let kind = tree
+            .node(*parameter)
+            .ok_or(GenericError::InconsistentBinder(id))?
+            .kind();
+        let domain = match kind {
+            NodeKind::TypeGenericParameter => GenericParameterDomain::Type,
+            NodeKind::ConstantGenericParameter => {
+                let ty = direct_node(tree, *parameter, NodeKind::Type)
+                    .ok_or(GenericError::InconsistentBinder(id))?;
+                let identifiers = descendant_identifiers(tree, ty);
+                if identifiers.len() != 1 || token_spelling(headers, id, identifiers[0])? != "usize"
+                {
+                    return Err(
+                        GenericViolation::unsupported_constant_parameter_type(*parameter).into(),
+                    );
+                }
+                GenericParameterDomain::UsizeConstant
+            }
+            _ => continue,
+        };
+        let token =
+            direct_identifier(tree, *parameter).ok_or(GenericError::InconsistentBinder(id))?;
+        binders.push(BinderToken { token, domain });
+    }
+    Ok(binders)
+}
+
+fn pattern_binders(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> Vec<BinderToken> {
     let mut binders = Vec::new();
     for pattern in direct_node_iter(tree, declaration, NodeKind::DeclarationTypePattern) {
         if let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments) {
-            binders.extend(descendant_identifiers(tree, arguments));
+            binders.extend(
+                descendant_identifiers(tree, arguments)
+                    .into_iter()
+                    .map(|token| BinderToken {
+                        token,
+                        domain: GenericParameterDomain::Type,
+                    }),
+            );
         } else if direct_token(
             tree,
             pattern,
@@ -295,7 +353,10 @@ fn pattern_binders(tree: &nocter_syntax::SyntaxTree, declaration: NodeId) -> Vec
         .is_some()
             && let Some(token) = descendant_identifiers(tree, pattern).into_iter().next()
         {
-            binders.push(token);
+            binders.push(BinderToken {
+                token,
+                domain: GenericParameterDomain::Type,
+            });
         }
     }
     binders
@@ -306,14 +367,7 @@ fn binder_symbol(
     id: SurfaceDeclarationId,
     token: SyntaxToken,
 ) -> Result<Symbol, GenericError> {
-    let source = headers
-        .reserved
-        .source_map
-        .get(token.source())
-        .ok_or(GenericError::MissingSource(id))?;
-    let spelling = source
-        .text_at(token.range())
-        .ok_or(GenericError::MissingSource(id))?;
+    let spelling = token_spelling(headers, id, token)?;
     if spelling == ContextualSpelling::UpperSelf.as_str()
         || nocter_syntax::BuiltinType::from_spelling(spelling).is_some()
     {
@@ -325,6 +379,20 @@ fn binder_symbol(
         .symbols()
         .get(spelling)
         .ok_or(GenericError::InconsistentBinder(id))
+}
+
+fn token_spelling<'a>(
+    headers: &'a PreparedHeaders<'_>,
+    id: SurfaceDeclarationId,
+    token: SyntaxToken,
+) -> Result<&'a str, GenericError> {
+    headers
+        .reserved
+        .source_map
+        .get(token.source())
+        .ok_or(GenericError::MissingSource(id))?
+        .text_at(token.range())
+        .ok_or(GenericError::MissingSource(id))
 }
 
 fn project_binder(
@@ -383,18 +451,25 @@ fn project_implementation_binders(
     {
         return Err(GenericError::InconsistentContract(id));
     }
-    for ((parameter, token), representative_token) in parameters
+    for ((parameter, binder), representative_token) in parameters
         .iter()
         .copied()
         .zip(binders.tokens)
         .zip(representative_binders.tokens)
     {
-        if binder_symbol(headers, id, token)?
-            != binder_symbol(headers, representative, representative_token)?
+        if binder.domain != representative_token.domain
+            || binder_symbol(headers, id, binder.token)?
+                != binder_symbol(headers, representative, representative_token.token)?
         {
             return Err(GenericError::InconsistentContract(id));
         }
-        project_binder(headers, id, parameter, token, SourceRole::Implementation)?;
+        project_binder(
+            headers,
+            id,
+            parameter,
+            binder.token,
+            SourceRole::Implementation,
+        )?;
     }
     Ok(())
 }
@@ -403,14 +478,14 @@ fn project_implementation_pattern_binders(
     headers: &mut PreparedHeaders<'_>,
     id: SurfaceDeclarationId,
     representative: SurfaceDeclarationId,
-    binders: &[SyntaxToken],
-    representative_binders: &[SyntaxToken],
+    binders: &[BinderToken],
+    representative_binders: &[BinderToken],
     parameters: &[GenericParameterId],
 ) -> Result<(), GenericError> {
     let mut parameter_by_name = BTreeMap::new();
     let mut parameters = parameters.iter().copied();
-    for token in representative_binders {
-        let name = binder_symbol(headers, representative, *token)?;
+    for binder in representative_binders {
+        let name = binder_symbol(headers, representative, binder.token)?;
         if let std::collections::btree_map::Entry::Vacant(entry) = parameter_by_name.entry(name) {
             entry.insert(
                 parameters
@@ -424,8 +499,8 @@ fn project_implementation_pattern_binders(
     }
 
     let mut projected = BTreeSet::new();
-    for token in binders {
-        let name = binder_symbol(headers, id, *token)?;
+    for binder in binders {
+        let name = binder_symbol(headers, id, binder.token)?;
         let parameter = *parameter_by_name
             .get(&name)
             .ok_or(GenericError::InconsistentContract(id))?;
@@ -434,7 +509,7 @@ fn project_implementation_pattern_binders(
         } else {
             SourceRole::Reference
         };
-        project_binder(headers, id, parameter, *token, role)?;
+        project_binder(headers, id, parameter, binder.token, role)?;
     }
     if projected.len() != parameter_by_name.len() {
         return Err(GenericError::InconsistentContract(id));

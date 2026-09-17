@@ -16,19 +16,32 @@ pub enum GenericOwner {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GenericParameterDomain {
+    Type,
+    UsizeConstant,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GenericParameter {
     owner: GenericOwner,
     name: Symbol,
     position: usize,
+    domain: GenericParameterDomain,
 }
 
 impl GenericParameter {
     #[must_use]
-    pub const fn new(owner: GenericOwner, name: Symbol, position: usize) -> Self {
+    pub const fn new(
+        owner: GenericOwner,
+        name: Symbol,
+        position: usize,
+        domain: GenericParameterDomain,
+    ) -> Self {
         Self {
             owner,
             name,
             position,
+            domain,
         }
     }
 
@@ -45,6 +58,11 @@ impl GenericParameter {
     #[must_use]
     pub const fn position(self) -> usize {
         self.position
+    }
+
+    #[must_use]
+    pub const fn domain(self) -> GenericParameterDomain {
+        self.domain
     }
 }
 

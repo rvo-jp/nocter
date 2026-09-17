@@ -11,6 +11,7 @@ SourceFile
     FunctionDeclaration
       Visibility
       GenericParameters
+        TypeGenericParameter
       Parameters
         Parameter
           Type

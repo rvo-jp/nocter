@@ -43,9 +43,10 @@ pub use constant::ConstantDeclaration;
 pub use constant_lookup::ConstantValueLookup;
 pub use declaration::{
     AssociatedTypeBinding, AssociatedTypeDeclaration, ConstructionDeclaration, DropDeclaration,
-    FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration, InterfaceApplication,
-    InterfaceDeclaration, InterfaceImplementationDeclaration, NominalShape, NominalTypeDeclaration,
-    OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
+    FieldDeclaration, GenericOwner, GenericParameter, GenericParameterDomain, InstanceDeclaration,
+    InterfaceApplication, InterfaceDeclaration, InterfaceImplementationDeclaration, NominalShape,
+    NominalTypeDeclaration, OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration,
+    VariantDeclaration,
 };
 pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use interface_capability::{InterfaceCapability, InterfaceCapabilityGraph};

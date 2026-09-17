@@ -27,6 +27,8 @@ SourceFile
   Item
     FunctionDeclaration
       GenericParameters
+        TypeGenericParameter
+        TypeGenericParameter
       Parameters
       CallableTail
         Type

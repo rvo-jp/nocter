@@ -2,6 +2,7 @@ SourceFile
   Item
     FunctionDeclaration
       GenericParameters
+        TypeGenericParameter
       Parameters
         Parameter
           Type

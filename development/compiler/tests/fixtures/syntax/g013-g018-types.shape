@@ -2,6 +2,7 @@ SourceFile
   Item
     TypeAliasDeclaration
       GenericParameters
+        TypeGenericParameter
       Type
         BorrowType
           NamedType
@@ -11,6 +12,7 @@ SourceFile
   Item
     TypeAliasDeclaration
       GenericParameters
+        TypeGenericParameter
       Type
         SliceType
           Type
@@ -22,6 +24,10 @@ SourceFile
   Item
     FunctionDeclaration
       GenericParameters
+        TypeGenericParameter
+        TypeGenericParameter
+        TypeGenericParameter
+        TypeGenericParameter
       Parameters
         Parameter
           Type

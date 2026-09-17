@@ -366,6 +366,11 @@ impl DeclarationArenaBuilder {
         self.generic_parameters.insert(value)
     }
 
+    #[must_use]
+    pub fn generic_parameter(&self, id: GenericParameterId) -> Option<GenericParameter> {
+        self.generic_parameters.get(id).copied()
+    }
+
     pub fn add_parameter(&mut self, value: Parameter) -> ParameterId {
         self.parameters.insert(value)
     }

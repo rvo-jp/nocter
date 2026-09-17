@@ -2,6 +2,7 @@ SourceFile
   Item
     EnumDeclaration
       GenericParameters
+        TypeGenericParameter
       EnumVariant
         EnumPayload
           Parameters
