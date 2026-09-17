@@ -34,13 +34,13 @@ mod tests {
         let generic_array = types
             .intern(TypeKind::FixedArray {
                 element: generic,
-                length: 1,
+                length: 1.into(),
             })
             .unwrap();
         let concrete_array = types
             .intern(TypeKind::FixedArray {
                 element: types.builtin(BuiltinType::I32),
-                length: 1,
+                length: 1.into(),
             })
             .unwrap();
 

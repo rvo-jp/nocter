@@ -791,7 +791,9 @@ fn runtime_type_table(
             TypeKind::Slice(element) => RuntimeType::Slice(*element),
             TypeKind::FixedArray { element, length } => RuntimeType::FixedArray {
                 element: *element,
-                length: *length,
+                length: length
+                    .closed_value()
+                    .ok_or(ExecutableProgramError::InvalidTypeRepresentation(ty))?,
             },
             TypeKind::Tuple(elements) => {
                 RuntimeType::Tuple(elements.iter().collect::<Vec<_>>().into_boxed_slice())

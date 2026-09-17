@@ -293,7 +293,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             },
             MirProjectionKind::FixedIndex(index) => match self.types.get(source) {
                 Some(TypeKind::FixedArray { element, length })
-                    if index < *length && *element == result => {}
+                    if length.closed_value().is_some_and(|length| index < length)
+                        && *element == result => {}
                 Some(TypeKind::Slice(element)) if *element == result => {}
                 _ => return Err(MirValidationError::InvalidProjection { place }),
             },
@@ -896,7 +897,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 let Some(TypeKind::FixedArray { element, length }) = self.types.get(result) else {
                     return Err(invalid());
                 };
-                if usize::try_from(*length).ok() != Some(values.len())
+                if length
+                    .closed_value()
+                    .and_then(|length| usize::try_from(length).ok())
+                    != Some(values.len())
                     || values
                         .iter()
                         .copied()

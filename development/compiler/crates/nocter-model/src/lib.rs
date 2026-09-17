@@ -24,7 +24,7 @@ mod type_transaction;
 pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
-pub use constant::{ConstantValue, FrozenValue};
+pub use constant::{ConstantValue, FrozenValue, UsizeTerm};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId,
     ClosureId, ConstantExpressionId, ConstantId, ConstructionId, DeclarationSiteId, DropId,

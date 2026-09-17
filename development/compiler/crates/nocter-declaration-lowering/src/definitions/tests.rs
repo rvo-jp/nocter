@@ -384,12 +384,11 @@ fn assert_header_constants(
             nocter_model::ConstantValue::Float64(0x3fd3_3333_3333_3334),
         ]
     );
-    assert!(
-        program
-            .types()
-            .iter()
-            .any(|(_, ty)| matches!(ty, nocter_model::TypeKind::FixedArray { length: 42, .. }))
-    );
+    assert!(program.types().iter().any(|(_, ty)| matches!(
+        ty,
+        nocter_model::TypeKind::FixedArray { length, .. }
+            if length.closed_value() == Some(42)
+    )));
 }
 
 fn assert_exact_unnamed_origins(sources: &SourceMap, lowered: &crate::LoweredDeclarations) {

@@ -40,7 +40,10 @@ pub(crate) fn frozen_matches(types: &TypeStore, ty: TypeId, value: &FrozenValue)
                     .all(|(element, value)| frozen_matches(types, element, value))
         }
         (Some(TypeKind::FixedArray { element, length }), FrozenValue::FixedArray(values)) => {
-            usize::try_from(*length) == Ok(values.len())
+            length
+                .closed_value()
+                .and_then(|length| usize::try_from(length).ok())
+                == Some(values.len())
                 && values
                     .iter()
                     .all(|value| frozen_matches(types, *element, value))

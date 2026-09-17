@@ -208,7 +208,10 @@ impl BodyChecker<'_, '_> {
         };
         let ty = self
             .types
-            .intern(TypeKind::FixedArray { element, length })
+            .intern(TypeKind::FixedArray {
+                element,
+                length: length.into(),
+            })
             .map_err(|_| BodyCheckInternalError::UnknownType(element))?;
         let aggregate = self.add_node(
             node,
@@ -234,7 +237,7 @@ impl BodyChecker<'_, '_> {
                     element,
                     length: expected_length,
                 }) => {
-                    if *expected_length != length {
+                    if expected_length.closed_value() != Some(length) {
                         return Err(self.rule(BodyRule::InvalidConstruction, node)?);
                     }
                     return Ok(Some(*element));

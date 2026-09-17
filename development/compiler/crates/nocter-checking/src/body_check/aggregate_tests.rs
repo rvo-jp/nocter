@@ -152,8 +152,9 @@ fn fixed_arrays_use_context_or_infer_one_canonical_element_type() {
         *length == 3
             && matches!(
                 output.program().types().get(*ty),
-                Some(TypeKind::FixedArray { element, length: 3 })
-                    if output.program().types().get(*element)
+                Some(TypeKind::FixedArray { element, length })
+                    if length.closed_value() == Some(3)
+                        && output.program().types().get(*element)
                         == Some(&TypeKind::Builtin(BuiltinType::U8))
             )
     }));
@@ -161,8 +162,9 @@ fn fixed_arrays_use_context_or_infer_one_canonical_element_type() {
         *length == 2
             && matches!(
                 output.program().types().get(*ty),
-                Some(TypeKind::FixedArray { element, length: 2 })
-                    if output.program().types().get(*element)
+                Some(TypeKind::FixedArray { element, length })
+                    if length.closed_value() == Some(2)
+                        && output.program().types().get(*element)
                         == Some(&TypeKind::Builtin(BuiltinType::I32))
             )
     }));
@@ -189,8 +191,9 @@ fn empty_fixed_array_requires_and_consumes_element_context() {
                     if values.is_empty()
                         && matches!(
                             output.program().types().get(node.ty()),
-                            Some(TypeKind::FixedArray { element, length: 0 })
-                                if output.program().types().get(*element)
+                            Some(TypeKind::FixedArray { element, length })
+                                if length.closed_value() == Some(0)
+                                    && output.program().types().get(*element)
                                     == Some(&TypeKind::Builtin(BuiltinType::Bool))
                         )
             ))

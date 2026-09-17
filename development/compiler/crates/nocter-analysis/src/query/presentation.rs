@@ -412,12 +412,20 @@ impl<'a> Renderer<'a> {
             }
             SemanticEntity::GenericParameter(id) => {
                 let parameter = declarations.generic_parameters().get(id)?;
-                write!(
-                    self.output,
-                    "type parameter {}",
-                    self.symbol(parameter.name())?
-                )
-                .ok()?;
+                match parameter.domain() {
+                    nocter_declarations::GenericParameterDomain::Type => write!(
+                        self.output,
+                        "type parameter {}",
+                        self.symbol(parameter.name())?
+                    )
+                    .ok()?,
+                    nocter_declarations::GenericParameterDomain::UsizeConstant => write!(
+                        self.output,
+                        "const parameter {}: usize",
+                        self.symbol(parameter.name())?
+                    )
+                    .ok()?,
+                }
             }
             SemanticEntity::Parameter(id) => {
                 let parameter = declarations.parameters().get(id)?;
@@ -988,7 +996,15 @@ impl<'a> Renderer<'a> {
                 self.ty(argument)?;
             } else {
                 let parameter = self.graph.declarations().generic_parameters().get(id)?;
+                if parameter.domain() == nocter_declarations::GenericParameterDomain::UsizeConstant
+                {
+                    self.keyword(Keyword::Const);
+                }
                 self.output.push_str(self.symbol(parameter.name())?);
+                if parameter.domain() == nocter_declarations::GenericParameterDomain::UsizeConstant
+                {
+                    self.output.push_str(": usize");
+                }
             }
         }
         self.output.push('>');
@@ -1388,7 +1404,21 @@ impl<'a> Renderer<'a> {
             TypeKind::FixedArray { element, length } => {
                 self.output.push('[');
                 self.ty(*element)?;
-                write!(self.output, "; {length}]").ok()?;
+                self.output.push_str("; ");
+                match length {
+                    nocter_model::UsizeTerm::Value(length) => {
+                        write!(self.output, "{length}").ok()?
+                    }
+                    nocter_model::UsizeTerm::Parameter(parameter) => {
+                        let parameter = self
+                            .graph
+                            .declarations()
+                            .generic_parameters()
+                            .get(*parameter)?;
+                        self.output.push_str(self.symbol(parameter.name())?);
+                    }
+                }
+                self.output.push(']');
             }
             TypeKind::Tuple(elements) => self.tuple_type(elements)?,
             TypeKind::Closure { .. } => self.output.push_str("closure"),

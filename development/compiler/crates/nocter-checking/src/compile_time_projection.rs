@@ -704,7 +704,7 @@ impl Specializer<'_> {
                 .map(|elements| CompileTimeType::Tuple(elements.into_boxed_slice())),
             TypeKind::FixedArray { element, length } => Some(CompileTimeType::FixedArray {
                 element: Box::new(self.specialization_type(*element)?),
-                length: *length,
+                length: length.closed_value()?,
             }),
             _ => None,
         }

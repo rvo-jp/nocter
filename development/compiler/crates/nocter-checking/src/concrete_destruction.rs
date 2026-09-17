@@ -312,6 +312,9 @@ impl ConcreteDispatchResolver<'_> {
                 arguments,
             } => self.plan_nominal(ty, definition, &arguments, active)?,
             TypeKind::FixedArray { element, length } => {
+                let length = length
+                    .closed_value()
+                    .ok_or(ConcreteDestructionError::SymbolicType(ty))?;
                 self.plan_type(element, active)?.map(|element| {
                     ConcreteDestructionPlan::new(
                         ty,

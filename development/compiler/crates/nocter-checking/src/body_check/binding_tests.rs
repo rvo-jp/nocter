@@ -203,8 +203,9 @@ fn annotations_supply_context_for_absence_and_empty_aggregate_literals() {
     )));
     assert!(local_types.iter().any(|ty| matches!(
         output.program().types().get(*ty),
-        Some(TypeKind::FixedArray { element, length: 0 })
-            if *element == output.program().types().builtin(BuiltinType::I32)
+        Some(TypeKind::FixedArray { element, length })
+            if length.closed_value() == Some(0)
+                && *element == output.program().types().builtin(BuiltinType::I32)
     )));
 }
 
@@ -220,13 +221,10 @@ fn constant_values_type_array_annotations_while_body_references_keep_identity() 
     )
     .unwrap();
 
-    assert!(
-        output
-            .program()
-            .types()
-            .iter()
-            .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 4, .. }) })
-    );
+    assert!(output.program().types().iter().any(|(_, ty)| matches!(
+        ty,
+        TypeKind::FixedArray { length, .. } if length.closed_value() == Some(4)
+    )));
     let answer = output
         .program()
         .graph()
@@ -259,13 +257,11 @@ fn body_array_types_use_the_same_block_import_scope_as_value_expressions() {
             Fixture::with_child(&source, "pub const WIDTH: usize = 0\npub struct Value {}\n");
         for reverse in [false, true] {
             let output = check_fixture(&fixture, reverse).unwrap();
-            assert!(
-                output
-                    .program()
-                    .types()
-                    .iter()
-                    .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 0, .. }) })
-            );
+            assert!(output.program().types().iter().any(|(_, ty)| matches!(
+                ty,
+                TypeKind::FixedArray { length, .. }
+                    if length.closed_value() == Some(0)
+            )));
         }
     }
 }
@@ -312,13 +308,10 @@ fn body_array_length_conversions_share_normal_type_resolution() {
         check("func value(): void {\n    let values: [i32; 0 as usize] = []\n    return\n}\n")
             .unwrap();
 
-    assert!(
-        output
-            .program()
-            .types()
-            .iter()
-            .any(|(_, ty)| { matches!(ty, TypeKind::FixedArray { length: 0, .. }) })
-    );
+    assert!(output.program().types().iter().any(|(_, ty)| matches!(
+        ty,
+        TypeKind::FixedArray { length, .. } if length.closed_value() == Some(0)
+    )));
 }
 
 #[test]

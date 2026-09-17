@@ -475,7 +475,7 @@ pub enum TypeKind {
     Slice(TypeId),
     FixedArray {
         element: TypeId,
-        length: u64,
+        length: crate::UsizeTerm,
     },
     Tuple(TupleElements),
     /// One compiler-owned keyed-pack entry. Source syntax cannot name or construct this type.
@@ -747,9 +747,11 @@ impl TypeProperties {
             | TypeKind::Borrow { referent: base, .. }
             | TypeKind::Future(base)
             | TypeKind::Slice(base)
-            | TypeKind::FixedArray { element: base, .. }
             | TypeKind::Optional(base)
             | TypeKind::Fallible(base) => child(*base).concrete,
+            TypeKind::FixedArray { element, length } => {
+                child(*element).concrete && length.closed_value().is_some()
+            }
             TypeKind::PackEntry { key, value } => child(*key).concrete && child(*value).concrete,
             TypeKind::Callable(contract) => {
                 child(contract.result()).concrete
@@ -1261,6 +1263,29 @@ mod tests {
         assert_eq!(types.is_concrete(integer_optional), Some(true));
         assert!(types.may_carry_storage(generic_optional));
         assert!(!types.may_carry_storage(integer_optional));
+    }
+
+    #[test]
+    fn symbolic_array_length_keeps_an_otherwise_closed_type_open() {
+        let mut types = TypeAuthority::new().transaction();
+        let byte = types.builtin(BuiltinType::U8);
+        let parameter = crate::GenericParameterId::new(0);
+        let symbolic = types
+            .intern(TypeKind::FixedArray {
+                element: byte,
+                length: crate::UsizeTerm::Parameter(parameter),
+            })
+            .unwrap();
+        let concrete = types
+            .intern(TypeKind::FixedArray {
+                element: byte,
+                length: 4.into(),
+            })
+            .unwrap();
+
+        assert_eq!(types.is_concrete(symbolic), Some(false));
+        assert_eq!(types.is_concrete(concrete), Some(true));
+        assert_ne!(symbolic, concrete);
     }
 
     #[test]

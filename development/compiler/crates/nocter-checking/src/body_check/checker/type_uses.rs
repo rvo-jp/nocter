@@ -373,7 +373,7 @@ impl BodyChecker<'_, '_> {
                 let length = self.evaluate_array_length(expression)?;
                 TypeKind::FixedArray {
                     element: inner,
-                    length,
+                    length: length.into(),
                 }
             }
             NodeKind::GroupedType => return Ok(inner),
@@ -563,9 +563,11 @@ impl BodyChecker<'_, '_> {
                     };
                     segment.arguments = child_nodes(self.tree(), *child)
                         .into_iter()
-                        .filter(|argument| {
-                            self.kind(*argument)
-                                .is_ok_and(|kind| kind == NodeKind::Type)
+                        .filter_map(|argument| {
+                            self.kind(argument)
+                                .is_ok_and(|kind| kind == NodeKind::GenericArgument)
+                                .then(|| direct_node(self.tree(), argument, NodeKind::Type))
+                                .flatten()
                         })
                         .collect();
                 }

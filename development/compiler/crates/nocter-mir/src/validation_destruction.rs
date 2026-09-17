@@ -34,7 +34,7 @@ pub(crate) fn validate_destruction_plan(
                 Some(TypeKind::FixedArray {
                     element: actual,
                     length: actual_length,
-                }) if actual == &element.ty() && actual_length == length
+                }) if actual == &element.ty() && actual_length.closed_value() == Some(*length)
             ) {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }

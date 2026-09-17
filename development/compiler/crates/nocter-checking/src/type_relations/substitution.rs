@@ -9,6 +9,7 @@ use super::{map_type_children, visit_type_children};
 pub struct TypeSubstitution {
     interface_self: Option<(InterfaceId, TypeId)>,
     generics: HashMap<GenericParameterId, TypeId>,
+    constants: HashMap<GenericParameterId, u64>,
     associated: HashMap<nocter_model::AssociatedTypeId, TypeId>,
 }
 
@@ -19,6 +20,10 @@ impl TypeSubstitution {
 
     pub fn bind_generic(&mut self, source: GenericParameterId, target_type: TypeId) {
         self.generics.insert(source, target_type);
+    }
+
+    pub fn bind_constant(&mut self, source: GenericParameterId, value: u64) {
+        self.constants.insert(source, value);
     }
 
     pub fn bind_associated(&mut self, declaration: nocter_model::AssociatedTypeId, target: TypeId) {
@@ -34,6 +39,12 @@ impl TypeSubstitution {
                 .generics
                 .iter()
                 .map(|(parameter, ty)| (*parameter, *ty)),
+        );
+        self.constants.extend(
+            other
+                .constants
+                .iter()
+                .map(|(parameter, value)| (*parameter, *value)),
         );
         self.associated.extend(
             other
@@ -107,6 +118,7 @@ impl TypeSubstitution {
                             .copied()
                             .ok_or(SubstitutionError::InvalidStore)
                     })?;
+                    let rebuilt = self.apply_constant_terms(rebuilt);
                     let normalized = types
                         .intern(rebuilt)
                         .map_err(|_| SubstitutionError::InvalidStore)?;
@@ -137,6 +149,23 @@ impl TypeSubstitution {
                 self.associated.get(associated).copied()
             }
             _ => None,
+        }
+    }
+
+    fn apply_constant_terms(&self, kind: TypeKind) -> TypeKind {
+        match kind {
+            TypeKind::FixedArray {
+                element,
+                length: nocter_model::UsizeTerm::Parameter(parameter),
+            } => TypeKind::FixedArray {
+                element,
+                length: self
+                    .constants
+                    .get(&parameter)
+                    .copied()
+                    .map_or(nocter_model::UsizeTerm::Parameter(parameter), Into::into),
+            },
+            other => other,
         }
     }
 }
@@ -202,5 +231,29 @@ mod tests {
         substitution.bind_generic(parameter, generic);
 
         assert_eq!(substitution.apply_type(&mut types, generic), Ok(generic));
+    }
+
+    #[test]
+    fn constant_replacement_closes_symbolic_array_lengths() {
+        let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
+        let parameter = parameters.insert(());
+        let _ = parameters.finish();
+        let mut types = TypeAuthority::new().transaction();
+        let byte = types.builtin(nocter_model::BuiltinType::U8);
+        let symbolic = types
+            .intern(TypeKind::FixedArray {
+                element: byte,
+                length: nocter_model::UsizeTerm::Parameter(parameter),
+            })
+            .unwrap();
+        let mut substitution = TypeSubstitution::default();
+        substitution.bind_constant(parameter, 16);
+
+        let concrete = substitution.apply_type(&mut types, symbolic).unwrap();
+        assert!(matches!(
+            types.get(concrete),
+            Some(TypeKind::FixedArray { length, .. }) if length.closed_value() == Some(16)
+        ));
+        assert_eq!(types.is_concrete(concrete), Some(true));
     }
 }

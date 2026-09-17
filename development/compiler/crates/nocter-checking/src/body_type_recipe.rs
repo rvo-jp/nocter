@@ -4,7 +4,7 @@ use nocter_model::{
     ArgumentPack, BorrowCapability, CallableCapability, CallableContract, ClosureId,
     GenericParameterId, InputProvenance, InterfaceId, InvalidParameterOrigin, NominalTypeId,
     OpaqueTypeId, ProvenanceSet, TypeCursor, TypeId, TypeKind, TypeStore, TypeTransaction,
-    UnknownTypeId,
+    UnknownTypeId, UsizeTerm,
 };
 
 /// Reference from one body-local type extension to either its immutable program prefix or an
@@ -69,7 +69,7 @@ enum BodyTypeKind {
     Slice(BodyTypeRef),
     FixedArray {
         element: BodyTypeRef,
-        length: u64,
+        length: UsizeTerm,
     },
     Tuple(Box<[BodyTypeRef]>),
     PackEntry {
@@ -309,7 +309,7 @@ fn capture_kind(
         TypeKind::Slice(element) => BodyTypeKind::Slice(reference(*element)?),
         TypeKind::FixedArray { element, length } => BodyTypeKind::FixedArray {
             element: reference(*element)?,
-            length: *length,
+            length: length.clone(),
         },
         TypeKind::Tuple(elements) => {
             BodyTypeKind::Tuple(capture_types(elements.as_slice(), reference)?)
@@ -403,7 +403,7 @@ fn replay_kind(
         BodyTypeKind::Slice(element) => TypeKind::Slice(resolve(*element)?),
         BodyTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
             element: resolve(*element)?,
-            length: *length,
+            length: length.clone(),
         },
         BodyTypeKind::Tuple(elements) => {
             let elements = replay_types(elements, &resolve)?;

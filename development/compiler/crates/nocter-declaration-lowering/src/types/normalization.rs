@@ -464,12 +464,13 @@ impl Evaluator<'_> {
             BoundTypeKind::Slice(element) => TypeKind::Slice(self.result(&key, element)?),
             BoundTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
                 element: self.result(&key, element)?,
-                length: self
-                    .array_expression_ids
-                    .get(&length)
-                    .and_then(|length| self.array_lengths.get(length))
-                    .copied()
-                    .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
+                length: nocter_model::UsizeTerm::Value(
+                    self.array_expression_ids
+                        .get(&length)
+                        .and_then(|length| self.array_lengths.get(length))
+                        .copied()
+                        .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
+                ),
             },
             BoundTypeKind::Tuple(elements) => {
                 let elements = self.results(&key, &elements)?;
