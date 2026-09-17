@@ -176,7 +176,7 @@ func rendered(): Text { Text "line\nvalue" }
             panic!("typed sequence must produce its nominal owner")
         };
         assert_eq!(
-            arguments.as_ref(),
+            arguments.type_values().collect::<Vec<_>>().as_slice(),
             &[program.types().builtin(BuiltinType::I32)]
         );
         assert_eq!(

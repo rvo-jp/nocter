@@ -1362,7 +1362,7 @@ impl<'a> Renderer<'a> {
             } => {
                 let declaration = self.graph.declarations().nominal_types().get(*definition)?;
                 self.exported_name(ExportedEntity::NominalType(*definition), declaration.name())?;
-                self.type_arguments(arguments)?;
+                self.generic_application(arguments)?;
             }
             TypeKind::AssociatedProjection { base, associated } => {
                 self.ty(*base)?;
@@ -1405,19 +1405,7 @@ impl<'a> Renderer<'a> {
                 self.output.push('[');
                 self.ty(*element)?;
                 self.output.push_str("; ");
-                match length {
-                    nocter_model::UsizeTerm::Value(length) => {
-                        write!(self.output, "{length}").ok()?
-                    }
-                    nocter_model::UsizeTerm::Parameter(parameter) => {
-                        let parameter = self
-                            .graph
-                            .declarations()
-                            .generic_parameters()
-                            .get(*parameter)?;
-                        self.output.push_str(self.symbol(parameter.name())?);
-                    }
-                }
+                self.usize_term(*length)?;
                 self.output.push(']');
             }
             TypeKind::Tuple(elements) => self.tuple_type(elements)?,
@@ -1445,7 +1433,7 @@ impl<'a> Renderer<'a> {
     fn opaque_type(
         &mut self,
         definition: nocter_model::OpaqueTypeId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
     ) -> Option<()> {
         let declaration = self.graph.declarations().opaque_types().get(definition)?;
         self.output.push_str("some ");
@@ -1458,7 +1446,7 @@ impl<'a> Renderer<'a> {
             ExportedEntity::Interface(declaration.interface().interface()),
             interface.name(),
         )?;
-        self.type_arguments(arguments)
+        self.generic_application(arguments)
     }
 
     fn tuple_type(&mut self, elements: &nocter_model::TupleElements) -> Option<()> {
@@ -1610,6 +1598,24 @@ impl<'a> Renderer<'a> {
         Some(())
     }
 
+    fn generic_application(&mut self, arguments: &nocter_model::GenericApplication) -> Option<()> {
+        if arguments.is_empty() {
+            return Some(());
+        }
+        self.output.push('<');
+        for (index, argument) in arguments.iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(", ");
+            }
+            match argument {
+                nocter_model::GenericValue::Type(ty) => self.ty(*ty)?,
+                nocter_model::GenericValue::Usize(value) => self.usize_term(*value)?,
+            }
+        }
+        self.output.push('>');
+        Some(())
+    }
+
     fn type_arguments(&mut self, arguments: &[TypeId]) -> Option<()> {
         if arguments.is_empty() {
             return Some(());
@@ -1622,6 +1628,21 @@ impl<'a> Renderer<'a> {
             self.ty(argument)?;
         }
         self.output.push('>');
+        Some(())
+    }
+
+    fn usize_term(&mut self, value: nocter_model::UsizeTerm) -> Option<()> {
+        match value {
+            nocter_model::UsizeTerm::Value(value) => write!(self.output, "{value}").ok()?,
+            nocter_model::UsizeTerm::Parameter(parameter) => {
+                let parameter = self
+                    .graph
+                    .declarations()
+                    .generic_parameters()
+                    .get(parameter)?;
+                self.output.push_str(self.symbol(parameter.name())?);
+            }
+        }
         Some(())
     }
 

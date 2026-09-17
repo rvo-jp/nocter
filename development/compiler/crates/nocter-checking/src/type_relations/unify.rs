@@ -317,16 +317,27 @@ fn decompose_declared_application(
 
 fn decompose_application<T: Eq>(
     left_definition: &T,
-    left_arguments: &[TypeId],
+    left_arguments: &nocter_model::GenericApplication,
     right_definition: &T,
-    right_arguments: &[TypeId],
+    right_arguments: &nocter_model::GenericApplication,
     pending: &mut Vec<(TypeId, TypeId)>,
 ) -> bool {
     if left_definition != right_definition || left_arguments.len() != right_arguments.len() {
         return false;
     }
-    append_paired(left_arguments, right_arguments, pending);
-    true
+    left_arguments
+        .iter()
+        .zip(right_arguments.iter())
+        .all(|(left, right)| match (left, right) {
+            (nocter_model::GenericValue::Type(left), nocter_model::GenericValue::Type(right)) => {
+                pending.push((*left, *right));
+                true
+            }
+            (nocter_model::GenericValue::Usize(left), nocter_model::GenericValue::Usize(right)) => {
+                left == right
+            }
+            _ => false,
+        })
 }
 
 fn decompose_tuple(
@@ -391,7 +402,7 @@ fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
         TypeKind::Nominal { arguments, .. }
         | TypeKind::Opaque { arguments, .. }
         | TypeKind::Closure { arguments, .. } => {
-            output.extend(arguments.iter().copied());
+            output.extend(arguments.type_values());
         }
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)

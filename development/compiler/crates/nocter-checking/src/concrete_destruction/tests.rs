@@ -36,8 +36,8 @@ fn nominal_named(program: &CheckedProgram, expected: &str, arguments: &[TypeId])
                 .nominal_types()
                 .get(*definition)?;
             (program.graph().symbols().spelling(declaration.name()) == Some(expected)
-                && actual.as_ref() == arguments)
-                .then_some(ty)
+                && actual.type_values().eq(arguments.iter().copied()))
+            .then_some(ty)
         })
         .unwrap_or_else(|| panic!("missing fixture type {expected}"))
 }
@@ -326,7 +326,7 @@ fn opaque_glue_opens_the_specialized_checked_witness() {
         .types()
         .iter()
         .find_map(|(ty, kind)| match kind {
-            TypeKind::Opaque { arguments, .. } if arguments.as_ref() == [owned] => Some(ty),
+            TypeKind::Opaque { arguments, .. } if arguments.type_values().eq([owned]) => Some(ty),
             _ => None,
         })
         .expect("generic opaque result must be specialized at its call site");

@@ -19,7 +19,7 @@ use crate::{
 
 enum ConstructionOwnerArguments {
     Inferred,
-    Explicit(Box<[TypeId]>),
+    Explicit(nocter_model::GenericApplication),
 }
 
 enum VariantInvocation {
@@ -396,13 +396,18 @@ impl BodyChecker<'_, '_> {
                 if construction_declaration.generic_parameters().len() != arguments.len() {
                     return Err(self.rule(BodyRule::InvalidCall, node)?);
                 }
-                let fixed = construction_declaration
+                let mut fixed = Vec::with_capacity(arguments.len());
+                for (parameter, value) in construction_declaration
                     .generic_parameters()
                     .iter()
                     .copied()
-                    .zip(arguments)
-                    .map(|(parameter, ty)| GenericArgument::new(parameter, ty))
-                    .collect();
+                    .zip(arguments.iter())
+                {
+                    let Some(ty) = value.as_type() else {
+                        return Err(self.rule(BodyRule::InvalidCall, node)?);
+                    };
+                    fixed.push(GenericArgument::new(parameter, ty));
+                }
                 (callable.generic_parameters().to_vec(), fixed)
             }
         };
@@ -564,7 +569,7 @@ impl BodyChecker<'_, '_> {
             .copied()
             .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         self.requirements_hold(&requirements, &substitution)
     }

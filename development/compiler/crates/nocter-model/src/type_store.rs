@@ -6,8 +6,8 @@ use nocter_persistent::{PersistentMap, PersistentVector};
 
 use crate::id::SemanticId;
 use crate::{
-    AssociatedTypeId, ClosureId, GenericParameterId, InputProvenance, InterfaceId, NominalTypeId,
-    OpaqueTypeId, ProvenanceSet, TypeId,
+    AssociatedTypeId, ClosureId, GenericApplication, GenericParameterId, GenericValue,
+    InputProvenance, InterfaceId, NominalTypeId, OpaqueTypeId, ProvenanceSet, TypeId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -455,7 +455,7 @@ pub enum TypeKind {
     InterfaceSelf(InterfaceId),
     Nominal {
         definition: NominalTypeId,
-        arguments: Box<[TypeId]>,
+        arguments: GenericApplication,
     },
     AssociatedProjection {
         base: TypeId,
@@ -463,7 +463,7 @@ pub enum TypeKind {
     },
     Opaque {
         definition: OpaqueTypeId,
-        arguments: Box<[TypeId]>,
+        arguments: GenericApplication,
     },
     Pointer(TypeId),
     Borrow {
@@ -490,7 +490,7 @@ pub enum TypeKind {
     /// closure identity; callable annotations do not erase or replace its storage layout.
     Closure {
         definition: ClosureId,
-        arguments: Box<[TypeId]>,
+        arguments: GenericApplication,
     },
     Callable(CallableType),
     Optional(TypeId),
@@ -504,7 +504,7 @@ impl TypeKind {
             Self::Nominal { arguments, .. }
             | Self::Opaque { arguments, .. }
             | Self::Closure { arguments, .. } => {
-                arguments.iter().copied().for_each(visit);
+                arguments.type_values().for_each(visit);
             }
             Self::AssociatedProjection { base, .. }
             | Self::Pointer(base)
@@ -734,6 +734,12 @@ impl TypeProperties {
         };
         let children_concrete =
             |children: &[TypeId]| children.iter().copied().all(|ty| child(ty).concrete);
+        let application_concrete = |application: &GenericApplication| {
+            application.iter().all(|argument| match argument {
+                GenericValue::Type(ty) => child(*ty).concrete,
+                GenericValue::Usize(value) => value.closed_value().is_some(),
+            })
+        };
         let concrete = match kind {
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
@@ -741,7 +747,7 @@ impl TypeProperties {
             TypeKind::Builtin(_) => true,
             TypeKind::Nominal { arguments, .. }
             | TypeKind::Opaque { arguments, .. }
-            | TypeKind::Closure { arguments, .. } => children_concrete(arguments),
+            | TypeKind::Closure { arguments, .. } => application_concrete(arguments),
             TypeKind::Tuple(elements) => children_concrete(elements.as_slice()),
             TypeKind::Pointer(base)
             | TypeKind::Borrow { referent: base, .. }
@@ -1286,6 +1292,46 @@ mod tests {
         assert_eq!(types.is_concrete(symbolic), Some(false));
         assert_eq!(types.is_concrete(concrete), Some(true));
         assert_ne!(symbolic, concrete);
+    }
+
+    #[test]
+    fn constant_application_values_participate_in_identity_and_concreteness() {
+        let mut types = TypeAuthority::new().transaction();
+        let byte = types.builtin(BuiltinType::U8);
+        let definition = crate::NominalTypeId::new(0);
+        let parameter = crate::GenericParameterId::new(0);
+        let symbolic = types
+            .intern(TypeKind::Nominal {
+                definition,
+                arguments: crate::GenericApplication::new([
+                    crate::GenericValue::Type(byte),
+                    crate::GenericValue::Usize(crate::UsizeTerm::Parameter(parameter)),
+                ]),
+            })
+            .unwrap();
+        let four = types
+            .intern(TypeKind::Nominal {
+                definition,
+                arguments: crate::GenericApplication::new([
+                    crate::GenericValue::Type(byte),
+                    crate::GenericValue::Usize(4.into()),
+                ]),
+            })
+            .unwrap();
+        let eight = types
+            .intern(TypeKind::Nominal {
+                definition,
+                arguments: crate::GenericApplication::new([
+                    crate::GenericValue::Type(byte),
+                    crate::GenericValue::Usize(8.into()),
+                ]),
+            })
+            .unwrap();
+
+        assert_eq!(types.is_concrete(symbolic), Some(false));
+        assert_eq!(types.is_concrete(four), Some(true));
+        assert_eq!(types.is_concrete(eight), Some(true));
+        assert_ne!(four, eight);
     }
 
     #[test]

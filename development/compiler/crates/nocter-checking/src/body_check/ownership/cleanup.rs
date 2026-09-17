@@ -424,7 +424,7 @@ impl<'program> CleanupPlanner<'program> {
             .copied()
             .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         fields
             .iter()

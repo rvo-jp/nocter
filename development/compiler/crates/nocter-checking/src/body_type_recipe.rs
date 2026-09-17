@@ -18,6 +18,12 @@ enum BodyTypeReference {
     Local(u32),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BodyGenericValue {
+    Type(BodyTypeRef),
+    Usize(UsizeTerm),
+}
+
 impl BodyTypeRef {
     const fn program(ty: TypeId) -> Self {
         Self(BodyTypeReference::Program(ty))
@@ -50,7 +56,7 @@ enum BodyTypeKind {
     InterfaceSelf(InterfaceId),
     Nominal {
         definition: NominalTypeId,
-        arguments: Box<[BodyTypeRef]>,
+        arguments: Box<[BodyGenericValue]>,
     },
     AssociatedProjection {
         base: BodyTypeRef,
@@ -58,7 +64,7 @@ enum BodyTypeKind {
     },
     Opaque {
         definition: OpaqueTypeId,
-        arguments: Box<[BodyTypeRef]>,
+        arguments: Box<[BodyGenericValue]>,
     },
     Pointer(BodyTypeRef),
     Borrow {
@@ -78,7 +84,7 @@ enum BodyTypeKind {
     },
     Closure {
         definition: BodyClosureRef,
-        arguments: Box<[BodyTypeRef]>,
+        arguments: Box<[BodyGenericValue]>,
     },
     Callable {
         representation: nocter_model::CallableRepresentation,
@@ -284,7 +290,7 @@ fn capture_kind(
             arguments,
         } => BodyTypeKind::Nominal {
             definition: *definition,
-            arguments: capture_types(arguments, reference)?,
+            arguments: capture_application(arguments, reference)?,
         },
         TypeKind::AssociatedProjection { base, associated } => BodyTypeKind::AssociatedProjection {
             base: reference(*base)?,
@@ -295,7 +301,7 @@ fn capture_kind(
             arguments,
         } => BodyTypeKind::Opaque {
             definition: *definition,
-            arguments: capture_types(arguments, reference)?,
+            arguments: capture_application(arguments, reference)?,
         },
         TypeKind::Pointer(pointee) => BodyTypeKind::Pointer(reference(*pointee)?),
         TypeKind::Borrow {
@@ -326,7 +332,7 @@ fn capture_kind(
                 .get(definition)
                 .copied()
                 .ok_or(BodyTypeRecipeError::UnknownClosure(*definition))?,
-            arguments: capture_types(arguments, reference)?,
+            arguments: capture_application(arguments, reference)?,
         },
         TypeKind::Callable(callable) => BodyTypeKind::Callable {
             representation: callable.representation(),
@@ -358,6 +364,20 @@ fn capture_types(
         .map(Vec::into_boxed_slice)
 }
 
+fn capture_application(
+    application: &nocter_model::GenericApplication,
+    reference: &impl Fn(TypeId) -> Result<BodyTypeRef, BodyTypeRecipeError>,
+) -> Result<Box<[BodyGenericValue]>, BodyTypeRecipeError> {
+    application
+        .iter()
+        .map(|value| match value {
+            nocter_model::GenericValue::Type(ty) => reference(*ty).map(BodyGenericValue::Type),
+            nocter_model::GenericValue::Usize(value) => Ok(BodyGenericValue::Usize(*value)),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Vec::into_boxed_slice)
+}
+
 fn replay_kind(
     kind: &BodyTypeKind,
     locals: &[TypeId],
@@ -378,7 +398,7 @@ fn replay_kind(
             arguments,
         } => TypeKind::Nominal {
             definition: *definition,
-            arguments: replay_types(arguments, &resolve)?,
+            arguments: replay_application(arguments, &resolve)?,
         },
         BodyTypeKind::AssociatedProjection { base, associated } => TypeKind::AssociatedProjection {
             base: resolve(*base)?,
@@ -389,7 +409,7 @@ fn replay_kind(
             arguments,
         } => TypeKind::Opaque {
             definition: *definition,
-            arguments: replay_types(arguments, &resolve)?,
+            arguments: replay_application(arguments, &resolve)?,
         },
         BodyTypeKind::Pointer(pointee) => TypeKind::Pointer(resolve(*pointee)?),
         BodyTypeKind::Borrow {
@@ -428,7 +448,7 @@ fn replay_kind(
                 .get(definition.index() as usize)
                 .copied()
                 .ok_or(BodyTypeRecipeError::UnknownLocalClosure(definition.index()))?,
-            arguments: replay_types(arguments, &resolve)?,
+            arguments: replay_application(arguments, &resolve)?,
         },
         BodyTypeKind::Callable {
             representation,
@@ -467,6 +487,20 @@ fn replay_types(
         .map(resolve)
         .collect::<Result<Vec<_>, _>>()
         .map(Vec::into_boxed_slice)
+}
+
+fn replay_application(
+    application: &[BodyGenericValue],
+    resolve: &impl Fn(BodyTypeRef) -> Result<TypeId, BodyTypeRecipeError>,
+) -> Result<nocter_model::GenericApplication, BodyTypeRecipeError> {
+    application
+        .iter()
+        .map(|value| match value {
+            BodyGenericValue::Type(ty) => resolve(*ty).map(nocter_model::GenericValue::Type),
+            BodyGenericValue::Usize(value) => Ok(nocter_model::GenericValue::Usize(*value)),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(nocter_model::GenericApplication::new)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -527,7 +561,7 @@ mod tests {
         let _closure_type = source
             .intern(TypeKind::Closure {
                 definition: local,
-                arguments: Box::new([]),
+                arguments: nocter_model::GenericApplication::default(),
             })
             .unwrap();
         let recipe = BodyTypeRecipe::capture(

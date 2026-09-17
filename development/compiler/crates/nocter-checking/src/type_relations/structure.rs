@@ -8,7 +8,7 @@ pub(crate) fn visit_type_children(kind: &TypeKind, mut visit: impl FnMut(TypeId)
         TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
         TypeKind::Nominal { arguments, .. }
         | TypeKind::Opaque { arguments, .. }
-        | TypeKind::Closure { arguments, .. } => arguments.iter().copied().for_each(&mut visit),
+        | TypeKind::Closure { arguments, .. } => arguments.type_values().for_each(&mut visit),
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)
         | TypeKind::Borrow { referent: base, .. }
@@ -43,14 +43,6 @@ pub(crate) fn map_type_children<E>(
 where
     E: From<SubstitutionError>,
 {
-    let mapped = |types: &[TypeId], map: &mut dyn FnMut(TypeId) -> Result<TypeId, E>| {
-        types
-            .iter()
-            .copied()
-            .map(map)
-            .collect::<Result<Vec<_>, _>>()
-            .map(Vec::into_boxed_slice)
-    };
     Ok(match kind {
         TypeKind::Builtin(builtin) => TypeKind::Builtin(builtin),
         TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
@@ -60,14 +52,14 @@ where
             arguments,
         } => TypeKind::Closure {
             definition,
-            arguments: mapped(&arguments, &mut map)?,
+            arguments: arguments.try_map_types(&mut map)?,
         },
         TypeKind::Nominal {
             definition,
             arguments,
         } => TypeKind::Nominal {
             definition,
-            arguments: mapped(&arguments, &mut map)?,
+            arguments: arguments.try_map_types(&mut map)?,
         },
         TypeKind::AssociatedProjection { base, associated } => TypeKind::AssociatedProjection {
             base: map(base)?,
@@ -78,7 +70,7 @@ where
             arguments,
         } => TypeKind::Opaque {
             definition,
-            arguments: mapped(&arguments, &mut map)?,
+            arguments: arguments.try_map_types(&mut map)?,
         },
         TypeKind::Pointer(base) => TypeKind::Pointer(map(base)?),
         TypeKind::Borrow {

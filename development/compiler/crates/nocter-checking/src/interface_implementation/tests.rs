@@ -246,12 +246,15 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
             panic!("refined interface_implementation target must remain nominal");
         };
         assert!(matches!(
-            types.get(arguments[0]),
+            arguments.type_at(0).and_then(|ty| types.get(ty)),
             Some(nocter_model::TypeKind::Builtin(
                 nocter_model::BuiltinType::I32 | nocter_model::BuiltinType::U32
             ))
         ));
-        assert_eq!(interface_implementation.refinements()[0].ty(), arguments[0]);
+        assert_eq!(
+            interface_implementation.refinements()[0].ty(),
+            arguments.type_at(0).unwrap()
+        );
     }
 }
 

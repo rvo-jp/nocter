@@ -456,7 +456,10 @@ fn normalizes_opaque_result_identity_interface_bindings_and_outcomes() {
 
     assert_eq!(arguments.len(), 1);
     assert_eq!(contract.generic_parameters().len(), 1);
-    assert_eq!(contract.interface().arguments(), arguments.as_ref());
+    assert_eq!(
+        contract.interface().arguments(),
+        arguments.type_values().collect::<Vec<_>>().as_slice()
+    );
     assert_eq!(contract.associated_types().len(), 1);
     assert_eq!(contract.result(), result);
     assert!(matches!(

@@ -43,7 +43,9 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
     let i32_box = types
         .intern(TypeKind::Nominal {
             definition,
-            arguments: Box::new([types.builtin(BuiltinType::I32)]),
+            arguments: nocter_model::GenericApplication::from_types([
+                types.builtin(BuiltinType::I32)
+            ]),
         })
         .unwrap();
 
@@ -58,7 +60,7 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
         let TypeKind::Nominal { arguments, .. } = types.get(entry.target()).unwrap() else {
             panic!("refined instance target must remain nominal");
         };
-        assert_eq!(entry.refinements()[0].ty(), arguments[0]);
+        assert_eq!(entry.refinements()[0].ty(), arguments.type_at(0).unwrap());
     }
 }
 

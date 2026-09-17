@@ -232,8 +232,13 @@ impl InstanceOperationSelector<'_> {
             return Err(InstanceSelectionError::UnknownType(target));
         }
         let mut opaque_substitution = TypeSubstitution::default();
-        for (parameter, argument) in opaque.generic_parameters().iter().copied().zip(arguments) {
-            opaque_substitution.bind_generic(parameter, argument);
+        for (parameter, argument) in opaque
+            .generic_parameters()
+            .iter()
+            .copied()
+            .zip(arguments.iter().copied())
+        {
+            opaque_substitution.bind_value(parameter, argument);
         }
         let application = nocter_declarations::InterfaceApplication::new(
             opaque.interface().interface(),

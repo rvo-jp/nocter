@@ -123,7 +123,7 @@ fn close_nominal(
     resolver: &mut ConcreteDispatchResolver<'_>,
     ty: TypeId,
     definition: nocter_model::NominalTypeId,
-    arguments: &[TypeId],
+    arguments: &nocter_model::GenericApplication,
     pending: &mut BTreeSet<TypeId>,
 ) -> Result<RuntimeTypeRepresentation, ExecutableProgramError> {
     let declarations = target.checked().graph().declarations();
@@ -188,7 +188,7 @@ fn close_opaque(
     resolver: &mut ConcreteDispatchResolver<'_>,
     ty: TypeId,
     definition: OpaqueTypeId,
-    arguments: &[TypeId],
+    arguments: &nocter_model::GenericApplication,
     pending: &mut BTreeSet<TypeId>,
 ) -> Result<RuntimeTypeRepresentation, ExecutableProgramError> {
     let declaration = target
@@ -210,14 +210,14 @@ fn close_opaque(
 fn owner_substitution(
     ty: TypeId,
     parameters: &[nocter_model::GenericParameterId],
-    arguments: &[TypeId],
+    arguments: &nocter_model::GenericApplication,
 ) -> Result<TypeSubstitution, ExecutableProgramError> {
     if parameters.len() != arguments.len() {
         return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
     }
     let mut substitution = TypeSubstitution::default();
     for (parameter, argument) in parameters.iter().copied().zip(arguments.iter().copied()) {
-        substitution.bind_generic(parameter, argument);
+        substitution.bind_value(parameter, argument);
     }
     Ok(substitution)
 }
@@ -226,7 +226,7 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
     match kind {
         TypeKind::Nominal { arguments, .. }
         | TypeKind::Opaque { arguments, .. }
-        | TypeKind::Closure { arguments, .. } => pending.extend(arguments.iter().copied()),
+        | TypeKind::Closure { arguments, .. } => pending.extend(arguments.type_values()),
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)
         | TypeKind::Borrow { referent: base, .. }

@@ -105,7 +105,7 @@ pub(crate) fn select_field(
         .copied()
         .zip(arguments.iter().copied())
     {
-        substitution.bind_generic(parameter, argument);
+        substitution.bind_value(parameter, argument);
     }
     let ty = substitution
         .apply_type(types, declaration.ty())

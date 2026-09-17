@@ -66,12 +66,16 @@ fn generic_closure_identity_specializes_its_enclosing_generic_domain() {
     };
     assert_eq!(arguments.len(), 1);
     assert!(matches!(
-        program.types().get(arguments[0]),
+        arguments.type_at(0).and_then(|ty| program.types().get(ty)),
         Some(TypeKind::GenericParameter(_))
     ));
     assert!(!is_concrete_type(program.types(), definition.ty()).unwrap());
 
-    let parameter = match program.types().get(arguments[0]).unwrap() {
+    let parameter = match program
+        .types()
+        .get(arguments.type_at(0).expect("type closure argument"))
+        .unwrap()
+    {
         TypeKind::GenericParameter(parameter) => *parameter,
         _ => unreachable!(),
     };
@@ -89,7 +93,7 @@ fn generic_closure_identity_specializes_its_enclosing_generic_domain() {
         Some(TypeKind::Closure {
             definition: actual,
             arguments,
-        }) if actual == closure && arguments.as_ref() == [concrete]
+        }) if actual == closure && arguments.type_values().eq([concrete])
     ));
 }
 

@@ -1,8 +1,8 @@
 use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity};
 use nocter_model::{
-    AssociatedTypeId, BorrowCapability, CallableCapability, CallableContract, GenericParameterId,
-    InputProvenance, InputProvenanceConstraint, NominalTypeId, ParameterOrigin, ProvenanceSet,
-    Symbol, TupleElements, TypeId, TypeKind,
+    AssociatedTypeId, BorrowCapability, CallableCapability, CallableContract, GenericApplication,
+    GenericParameterId, InputProvenance, InputProvenanceConstraint, NominalTypeId, ParameterOrigin,
+    ProvenanceSet, Symbol, TupleElements, TypeId, TypeKind,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
@@ -25,7 +25,7 @@ use crate::{
 
 pub(super) struct ExplicitConstructionOwner {
     pub(super) definition: NominalTypeId,
-    pub(super) arguments: Box<[TypeId]>,
+    pub(super) arguments: GenericApplication,
     pub(super) member: SyntaxToken,
 }
 
@@ -36,7 +36,7 @@ pub(super) struct InferredConstructionOwner {
 
 pub(super) enum NominalOwnerArguments {
     Inferred(Box<[GenericParameterId]>),
-    Fixed(Box<[TypeId]>),
+    Fixed(GenericApplication),
 }
 
 pub(super) struct NominalConstructionOwner {
@@ -879,7 +879,7 @@ impl BodyChecker<'_, '_> {
                 self.types
                     .intern(TypeKind::Nominal {
                         definition,
-                        arguments: arguments.into_boxed_slice(),
+                        arguments: arguments.into(),
                     })
                     .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into())
             }

@@ -364,7 +364,7 @@ fn empty_construction_surfaces_cannot_enter_the_immutable_program() {
         .types_mut()
         .intern(TypeKind::Nominal {
             definition: nominal,
-            arguments: Box::new([]),
+            arguments: nocter_model::GenericApplication::default(),
         })
         .unwrap();
     program
@@ -425,7 +425,7 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
         .types_mut()
         .intern(TypeKind::Nominal {
             definition: nominal,
-            arguments: Box::new([]),
+            arguments: nocter_model::GenericApplication::default(),
         })
         .unwrap();
     let result = program.types_mut().builtin(BuiltinType::Usize);
@@ -652,7 +652,7 @@ fn define_nonempty_generic_construction(
         .types_mut()
         .intern(TypeKind::Nominal {
             definition: nominal,
-            arguments: Box::new([argument]),
+            arguments: nocter_model::GenericApplication::from_types([argument]),
         })
         .unwrap();
     let callable = program.declarations_mut().reserve_callable();
@@ -718,7 +718,7 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
             .types_mut()
             .intern(TypeKind::Nominal {
                 definition: nominal,
-                arguments: Box::new([]),
+                arguments: nocter_model::GenericApplication::default(),
             })
             .unwrap();
         let shape = if nominal_shape == 0 {

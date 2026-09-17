@@ -19,7 +19,7 @@ pub(super) struct OpaqueResultState {
 
 struct OpaquePayload {
     definition: OpaqueTypeId,
-    arguments: Box<[TypeId]>,
+    arguments: nocter_model::GenericApplication,
 }
 
 impl OpaqueResultState {
@@ -54,9 +54,9 @@ impl OpaqueResultState {
             .generic_parameters()
             .iter()
             .copied()
-            .zip(arguments)
+            .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let application = InterfaceApplication::new(
             declaration.interface().interface(),

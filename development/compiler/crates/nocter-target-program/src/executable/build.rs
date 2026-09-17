@@ -782,14 +782,15 @@ impl<'program> ExecutableClosureBuilder<'program> {
         if domain.len() != arguments.len() {
             return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
         }
-        let generic_arguments = GenericArguments::new(
-            domain
-                .iter()
-                .copied()
-                .zip(arguments.iter().copied())
-                .map(|(parameter, ty)| GenericArgument::new(parameter, ty)),
-        )
-        .map_err(|duplicate| ExecutableProgramError::DuplicateGeneric(duplicate.parameter()))?;
+        let mut type_arguments = Vec::with_capacity(arguments.len());
+        for (parameter, value) in domain.iter().copied().zip(arguments.iter()) {
+            let Some(ty) = value.as_type() else {
+                return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
+            };
+            type_arguments.push(GenericArgument::new(parameter, ty));
+        }
+        let generic_arguments = GenericArguments::new(type_arguments)
+            .map_err(|duplicate| ExecutableProgramError::DuplicateGeneric(duplicate.parameter()))?;
         let key = ClosureInstanceKey::new_in(self.specialization(), closure, generic_arguments)?;
         let substitution = key.substitution();
         let parameters = definition

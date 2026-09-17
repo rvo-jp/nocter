@@ -222,7 +222,7 @@ fn runtime_storage_destruction_cannot_be_reinterpreted_as_a_source_aggregate() {
     let owner_ty = types
         .intern(TypeKind::Nominal {
             definition: owner,
-            arguments: Box::new([]),
+            arguments: nocter_model::GenericApplication::default(),
         })
         .unwrap();
     let (mut environment, _) = TestEnvironment::with_types(types);
@@ -273,7 +273,7 @@ fn call_allocation_overrides_require_a_literal_item_and_selected_context_role() 
     let allocator_ty = types
         .intern(TypeKind::Nominal {
             definition: allocator,
-            arguments: Box::new([]),
+            arguments: nocter_model::GenericApplication::default(),
         })
         .unwrap();
     let (mut environment, item) = TestEnvironment::with_types(types);
@@ -472,13 +472,13 @@ fn region_test_context() -> RegionTestContext {
     let allocator_ty = types
         .intern(TypeKind::Nominal {
             definition: allocator,
-            arguments: Box::new([]),
+            arguments: nocter_model::GenericApplication::default(),
         })
         .unwrap();
     let context_ty = types
         .intern(TypeKind::Nominal {
             definition: context,
-            arguments: Box::new([]),
+            arguments: nocter_model::GenericApplication::default(),
         })
         .unwrap();
     let parent_ty = types

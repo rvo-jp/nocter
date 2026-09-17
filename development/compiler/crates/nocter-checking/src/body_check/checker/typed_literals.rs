@@ -323,7 +323,7 @@ impl BodyChecker<'_, '_> {
                     .copied()
                     .zip(arguments.iter().copied())
                 {
-                    substitution.bind_generic(parameter, argument);
+                    substitution.bind_value(parameter, argument);
                 }
                 (Vec::new(), substitution)
             }

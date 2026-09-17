@@ -28,7 +28,7 @@ use crate::{
 struct PatternSubjectPlan {
     checked: CheckedPatternSubject,
     ty: TypeId,
-    arguments: Box<[TypeId]>,
+    arguments: nocter_model::GenericApplication,
 }
 
 struct ResolvedPatternVariant {
@@ -296,7 +296,7 @@ impl BodyChecker<'_, '_> {
             .copied()
             .zip(subject.arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         Ok(ResolvedPatternVariant {
             nominal,

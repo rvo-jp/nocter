@@ -349,7 +349,7 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
         }
         let mut substitution = TypeSubstitution::default();
         for (parameter, argument) in domain.iter().copied().zip(arguments.iter().copied()) {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let parameters = definition
             .signature()

@@ -566,9 +566,9 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .generic_parameters()
             .iter()
             .copied()
-            .zip(arguments)
+            .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let witness = self
             .program

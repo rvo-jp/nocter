@@ -216,7 +216,7 @@ impl ConcreteDispatchResolver<'_> {
             .copied()
             .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let variant_declaration = self
             .program
@@ -396,7 +396,7 @@ impl ConcreteDispatchResolver<'_> {
         &mut self,
         ty: TypeId,
         definition: nocter_model::NominalTypeId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
         active: &mut BTreeSet<TypeId>,
     ) -> Result<Option<ConcreteDestructionPlan>, ConcreteDestructionError> {
         let declaration = self
@@ -417,7 +417,7 @@ impl ConcreteDispatchResolver<'_> {
             .copied()
             .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let drop = self.select_drop(definition, ty)?;
         let kind = match declaration.shape() {
@@ -525,7 +525,7 @@ impl ConcreteDispatchResolver<'_> {
         &mut self,
         ty: TypeId,
         definition: nocter_model::ClosureId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
         active: &mut BTreeSet<TypeId>,
     ) -> Result<Option<ConcreteDestructionPlan>, ConcreteDestructionError> {
         let closure = self
@@ -545,7 +545,7 @@ impl ConcreteDispatchResolver<'_> {
         }
         let mut substitution = TypeSubstitution::default();
         for (parameter, argument) in domain.iter().copied().zip(arguments.iter().copied()) {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let mut captures = Vec::new();
         for capture in closure.environment().iter().rev().copied() {
@@ -569,7 +569,7 @@ impl ConcreteDispatchResolver<'_> {
         &mut self,
         ty: TypeId,
         definition: OpaqueTypeId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
         active: &mut BTreeSet<TypeId>,
     ) -> Result<Option<ConcreteDestructionPlan>, ConcreteDestructionError> {
         let opaque = self
@@ -590,7 +590,7 @@ impl ConcreteDispatchResolver<'_> {
             .copied()
             .zip(arguments.iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         let witness = self
             .program

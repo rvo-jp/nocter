@@ -168,7 +168,7 @@ fn normalize_pattern(
                 store
                     .intern(TypeKind::Nominal {
                         definition: *definition,
-                        arguments,
+                        arguments: arguments.into(),
                     })
                     .map_err(|_| invalid_store())?,
             )

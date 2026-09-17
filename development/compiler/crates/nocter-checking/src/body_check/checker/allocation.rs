@@ -58,7 +58,7 @@ impl BodyChecker<'_, '_> {
         self.types
             .intern(TypeKind::Nominal {
                 definition,
-                arguments: Box::new([]),
+                arguments: nocter_model::GenericApplication::default(),
             })
             .map_err(|_| BodyCheckInternalError::MissingAllocationSemanticRoles)
     }

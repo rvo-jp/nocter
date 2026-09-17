@@ -436,14 +436,14 @@ impl Evaluator<'_> {
                 arguments,
             } => TypeKind::Nominal {
                 definition,
-                arguments: self.results(&key, &arguments)?,
+                arguments: self.results(&key, &arguments)?.into(),
             },
             BoundTypeKind::Opaque {
                 definition,
                 arguments,
             } => TypeKind::Opaque {
                 definition,
-                arguments: self.results(&key, &arguments)?,
+                arguments: self.results(&key, &arguments)?.into(),
             },
             BoundTypeKind::AssociatedSelection { base, name } => {
                 let bound_base = base;

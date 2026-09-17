@@ -777,7 +777,7 @@ mod tests {
         let ty = types
             .intern(TypeKind::Closure {
                 definition: closure,
-                arguments: Box::new([]),
+                arguments: nocter_model::GenericApplication::default(),
             })
             .unwrap();
         closures
@@ -814,7 +814,7 @@ mod tests {
         let ty = types
             .intern(TypeKind::Closure {
                 definition: closure,
-                arguments: Box::new([]),
+                arguments: nocter_model::GenericApplication::default(),
             })
             .unwrap();
         closures

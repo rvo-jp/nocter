@@ -87,7 +87,7 @@ impl BodyChecker<'_, '_> {
             .types
             .intern(TypeKind::Nominal {
                 definition: semantics.string,
-                arguments: Box::default(),
+                arguments: nocter_model::GenericApplication::default(),
             })
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         let never = self.types.builtin(BuiltinType::Never);

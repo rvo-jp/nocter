@@ -114,7 +114,7 @@ fn project_kind(
             arguments,
         } => TypeKind::Nominal {
             definition,
-            arguments: project_types(source, target, projected, &arguments)?,
+            arguments: project_application(source, target, projected, &arguments)?,
         },
         TypeKind::AssociatedProjection { base, associated } => TypeKind::AssociatedProjection {
             base: project_type(source, target, projected, base)?,
@@ -125,7 +125,7 @@ fn project_kind(
             arguments,
         } => TypeKind::Opaque {
             definition,
-            arguments: project_types(source, target, projected, &arguments)?,
+            arguments: project_application(source, target, projected, &arguments)?,
         },
         TypeKind::Pointer(pointee) => {
             TypeKind::Pointer(project_type(source, target, projected, pointee)?)
@@ -167,7 +167,7 @@ fn project_kind(
             arguments,
         } => TypeKind::Closure {
             definition,
-            arguments: project_types(source, target, projected, &arguments)?,
+            arguments: project_application(source, target, projected, &arguments)?,
         },
         TypeKind::Callable(callable) => {
             let contract = callable.contract();
@@ -213,8 +213,27 @@ fn project_types(
         .map(Vec::into_boxed_slice)
 }
 
+fn project_application(
+    source: &TypeStore,
+    target: &mut TypeTransaction,
+    projected: &mut HashMap<TypeId, TypeId>,
+    application: &crate::GenericApplication,
+) -> Result<crate::GenericApplication, TypeProjectionError> {
+    application
+        .iter()
+        .map(|argument| match argument {
+            crate::GenericValue::Type(ty) => {
+                project_type(source, target, projected, *ty).map(crate::GenericValue::Type)
+            }
+            crate::GenericValue::Usize(value) => Ok(crate::GenericValue::Usize(value.clone())),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(crate::GenericApplication::new)
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::id::SemanticId;
     use crate::{BuiltinType, TypeAuthority, TypeKind};
 
     #[test]
@@ -236,5 +255,34 @@ mod tests {
             Some(TypeKind::Optional(payload))
                 if *payload == projection.types().builtin(BuiltinType::I32)
         ));
+    }
+
+    #[test]
+    fn projection_remaps_type_arguments_and_preserves_constant_arguments() {
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let element = types.builtin(BuiltinType::U8);
+        let root = types
+            .intern(TypeKind::Nominal {
+                definition: crate::NominalTypeId::new(0),
+                arguments: crate::GenericApplication::new([
+                    crate::GenericValue::Type(element),
+                    crate::GenericValue::Usize(32.into()),
+                ]),
+            })
+            .unwrap();
+
+        let projection = types.project(root).unwrap();
+        let Some(TypeKind::Nominal { arguments, .. }) = projection.types().get(projection.root())
+        else {
+            panic!("projected root must remain nominal")
+        };
+        assert_eq!(
+            arguments.as_slice(),
+            [
+                crate::GenericValue::Type(projection.types().builtin(BuiltinType::U8)),
+                crate::GenericValue::Usize(32.into()),
+            ]
+        );
     }
 }

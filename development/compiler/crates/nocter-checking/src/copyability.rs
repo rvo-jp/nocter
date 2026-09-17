@@ -296,10 +296,12 @@ impl CopyabilityTransaction {
         let definition = *definition;
         let parameters = arguments
             .iter()
-            .map(|argument| match types.get(*argument) {
-                Some(TypeKind::GenericParameter(parameter)) => Ok(*parameter),
-                _ => Err(CopyabilityError::InvalidClosureRegistration(closure)),
-            })
+            .map(
+                |argument| match argument.as_type().and_then(|ty| types.get(ty)) {
+                    Some(TypeKind::GenericParameter(parameter)) => Ok(*parameter),
+                    _ => Err(CopyabilityError::InvalidClosureRegistration(closure)),
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?;
         if self.conditions.contains_key(&closure)
             || self.closures.contains_key(&definition)
@@ -500,7 +502,7 @@ impl CopyabilityTransaction {
         &self,
         ty: TypeId,
         definition: ClosureId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
     ) -> Result<Option<Vec<TypeId>>, CopyabilityError> {
         let closure = self
             .closures
@@ -520,7 +522,7 @@ impl CopyabilityTransaction {
                             .parameters
                             .iter()
                             .position(|parameter| parameter == required)
-                            .map(|index| arguments[index])
+                            .and_then(|index| arguments.as_slice()[index].as_type())
                             .ok_or(CopyabilityError::MissingClosureCondition(ty))
                     })
                     .collect::<Result<Vec<_>, _>>()?,
@@ -577,7 +579,7 @@ fn nominal_dependencies(
     graph: &DeclarationGraph,
     types: &mut nocter_model::TypeTransaction,
     definition: NominalTypeId,
-    arguments: &[TypeId],
+    arguments: &nocter_model::GenericApplication,
 ) -> Result<Option<Vec<TypeId>>, CopyabilityError> {
     let declaration = graph
         .declarations()
@@ -603,7 +605,7 @@ fn nominal_dependencies(
                 .copied()
                 .zip(arguments.iter().copied())
             {
-                substitution.bind_generic(parameter, argument);
+                substitution.bind_value(parameter, argument);
             }
             fields
                 .iter()

@@ -101,7 +101,7 @@ pub fn validate_type(
                     arguments
                         .iter()
                         .rev()
-                        .copied()
+                        .filter_map(nocter_model::GenericValue::as_type)
                         .map(|argument| (argument, TypePosition::Data)),
                 );
             }

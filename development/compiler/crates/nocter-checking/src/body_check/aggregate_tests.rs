@@ -69,7 +69,7 @@ fn struct_literals_infer_owner_arguments_and_retain_source_field_order() {
             definition: actual,
             arguments,
         }) if *actual == definition
-            && output.program().types().get(arguments[0])
+            && arguments.type_at(0).and_then(|ty| output.program().types().get(ty))
                 == Some(&TypeKind::Builtin(BuiltinType::I32))
     ));
     for (field, _) in fields {
@@ -243,7 +243,7 @@ fn enum_variants_share_nominal_owner_inference_and_surface_identity() {
             && matches!(
                 output.program().types().get(*ty),
                 Some(TypeKind::Nominal { arguments, .. })
-                    if output.program().types().get(arguments[0])
+                    if arguments.type_at(0).and_then(|ty| output.program().types().get(ty))
                         == Some(&TypeKind::Builtin(BuiltinType::I32))
             )
     }));

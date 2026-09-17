@@ -39,7 +39,11 @@ impl BodyChecker<'_, '_> {
                             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                (arguments, inference_parameters, TypeSubstitution::default())
+                (
+                    nocter_model::GenericApplication::from_types(arguments),
+                    inference_parameters,
+                    TypeSubstitution::default(),
+                )
             }
             NominalOwnerArguments::Fixed(arguments) => {
                 if parameters.len() != arguments.len() {
@@ -49,10 +53,10 @@ impl BodyChecker<'_, '_> {
                 for (parameter, argument) in
                     parameters.iter().copied().zip(arguments.iter().copied())
                 {
-                    substitution.bind_generic(parameter, argument);
+                    substitution.bind_value(parameter, argument);
                 }
                 (
-                    arguments.into_vec(),
+                    arguments,
                     Box::<[GenericParameterId]>::default(),
                     substitution,
                 )
@@ -65,7 +69,7 @@ impl BodyChecker<'_, '_> {
             .types
             .intern(TypeKind::Nominal {
                 definition: owner.definition,
-                arguments: arguments.into_boxed_slice(),
+                arguments,
             })
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         Ok(NominalConstructionPlan {

@@ -59,7 +59,10 @@ pub(crate) fn invocation_place_can_reach_result(
                         .generic_parameters()
                         .iter()
                         .copied()
-                        .zip(arguments.iter().copied()),
+                        .zip(arguments.iter().copied())
+                        .filter_map(|(parameter, argument)| {
+                            argument.as_type().map(|ty| (parameter, ty))
+                        }),
                 );
                 // A nominal may keep its generic values in opaque raw storage. Concrete borrow
                 // arguments therefore count even when no declaration-visible field names them.
@@ -67,8 +70,7 @@ pub(crate) fn invocation_place_can_reach_result(
                 // value and cannot be acquired from this invocation's implicit reborrow.
                 pending.extend(
                     arguments
-                        .iter()
-                        .copied()
+                        .type_values()
                         .map(|argument| (argument, bindings.clone())),
                 );
                 match declaration.shape() {
@@ -146,7 +148,7 @@ fn contains_associated_projection(types: &TypeStore, root: TypeId) -> bool {
         match types.get(ty) {
             Some(TypeKind::AssociatedProjection { .. }) => return true,
             Some(TypeKind::Nominal { arguments, .. }) => {
-                pending.extend(arguments.iter().copied());
+                pending.extend(arguments.type_values());
             }
             Some(TypeKind::Tuple(elements)) => pending.extend(elements.iter()),
             Some(
@@ -229,15 +231,17 @@ pub(crate) fn type_can_carry_loan(
                         .generic_parameters()
                         .iter()
                         .copied()
-                        .zip(arguments.iter().copied()),
+                        .zip(arguments.iter().copied())
+                        .filter_map(|(parameter, argument)| {
+                            argument.as_type().map(|ty| (parameter, ty))
+                        }),
                 );
                 // Generic arguments are conservatively representation-bearing. Types such as
                 // Vec<T> store T values behind raw storage rather than in a declaration-visible
                 // field, so field traversal alone cannot prove that a borrowed T is absent.
                 pending.extend(
                     arguments
-                        .iter()
-                        .copied()
+                        .type_values()
                         .map(|argument| (argument, bindings.clone())),
                 );
                 match declaration.shape() {

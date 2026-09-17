@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use nocter_model::{GenericParameterId, InterfaceId, TypeId, TypeKind, TypeStore};
+use nocter_model::{GenericParameterId, GenericValue, InterfaceId, TypeId, TypeKind, TypeStore};
 
 use super::{map_type_children, visit_type_children};
 
@@ -9,7 +9,7 @@ use super::{map_type_children, visit_type_children};
 pub struct TypeSubstitution {
     interface_self: Option<(InterfaceId, TypeId)>,
     generics: HashMap<GenericParameterId, TypeId>,
-    constants: HashMap<GenericParameterId, u64>,
+    constants: HashMap<GenericParameterId, nocter_model::UsizeTerm>,
     associated: HashMap<nocter_model::AssociatedTypeId, TypeId>,
 }
 
@@ -23,7 +23,22 @@ impl TypeSubstitution {
     }
 
     pub fn bind_constant(&mut self, source: GenericParameterId, value: u64) {
+        self.constants.insert(source, value.into());
+    }
+
+    pub fn bind_constant_term(
+        &mut self,
+        source: GenericParameterId,
+        value: nocter_model::UsizeTerm,
+    ) {
         self.constants.insert(source, value);
+    }
+
+    pub fn bind_value(&mut self, source: GenericParameterId, value: GenericValue) {
+        match value {
+            GenericValue::Type(ty) => self.bind_generic(source, ty),
+            GenericValue::Usize(value) => self.bind_constant_term(source, value),
+        }
     }
 
     pub fn bind_associated(&mut self, declaration: nocter_model::AssociatedTypeId, target: TypeId) {
@@ -159,14 +174,61 @@ impl TypeSubstitution {
                 length: nocter_model::UsizeTerm::Parameter(parameter),
             } => TypeKind::FixedArray {
                 element,
-                length: self
-                    .constants
-                    .get(&parameter)
-                    .copied()
-                    .map_or(nocter_model::UsizeTerm::Parameter(parameter), Into::into),
+                length: self.constant_term(nocter_model::UsizeTerm::Parameter(parameter)),
+            },
+            TypeKind::Nominal {
+                definition,
+                arguments,
+            } => TypeKind::Nominal {
+                definition,
+                arguments: self.apply_application_constants(arguments),
+            },
+            TypeKind::Opaque {
+                definition,
+                arguments,
+            } => TypeKind::Opaque {
+                definition,
+                arguments: self.apply_application_constants(arguments),
+            },
+            TypeKind::Closure {
+                definition,
+                arguments,
+            } => TypeKind::Closure {
+                definition,
+                arguments: self.apply_application_constants(arguments),
             },
             other => other,
         }
+    }
+
+    fn apply_application_constants(
+        &self,
+        application: nocter_model::GenericApplication,
+    ) -> nocter_model::GenericApplication {
+        nocter_model::GenericApplication::new(
+            application
+                .iter()
+                .map(|value| match value {
+                    GenericValue::Type(ty) => GenericValue::Type(*ty),
+                    GenericValue::Usize(value) => GenericValue::Usize(self.constant_term(*value)),
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn constant_term(&self, value: nocter_model::UsizeTerm) -> nocter_model::UsizeTerm {
+        let mut current = value;
+        let mut visited = HashSet::new();
+        while let nocter_model::UsizeTerm::Parameter(parameter) = current {
+            if !visited.insert(parameter) {
+                break;
+            }
+            let Some(replacement) = self.constants.get(&parameter).copied() else {
+                break;
+            };
+            current = replacement;
+        }
+        current
     }
 }
 
@@ -196,7 +258,7 @@ impl std::error::Error for SubstitutionError {}
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, GenericParameterId, TypeAuthority, TypeKind};
+    use nocter_model::{ArenaBuilder, GenericParameterId, NominalTypeId, TypeAuthority, TypeKind};
 
     use super::TypeSubstitution;
 
@@ -254,6 +316,43 @@ mod tests {
             types.get(concrete),
             Some(TypeKind::FixedArray { length, .. }) if length.closed_value() == Some(16)
         ));
+        assert_eq!(types.is_concrete(concrete), Some(true));
+    }
+
+    #[test]
+    fn constant_replacement_closes_nominal_application_values() {
+        let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
+        let parameter = parameters.insert(());
+        let _ = parameters.finish();
+        let mut types = TypeAuthority::new().transaction();
+        let byte = types.builtin(nocter_model::BuiltinType::U8);
+        let symbolic = types
+            .intern(TypeKind::Nominal {
+                definition: {
+                    let mut definitions = ArenaBuilder::<NominalTypeId, _>::new();
+                    let definition = definitions.insert(());
+                    let _ = definitions.finish();
+                    definition
+                },
+                arguments: nocter_model::GenericApplication::new([
+                    nocter_model::GenericValue::Type(byte),
+                    nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(
+                        parameter,
+                    )),
+                ]),
+            })
+            .unwrap();
+        let mut substitution = TypeSubstitution::default();
+        substitution.bind_constant(parameter, 16);
+
+        let concrete = substitution.apply_type(&mut types, symbolic).unwrap();
+        let Some(TypeKind::Nominal { arguments, .. }) = types.get(concrete) else {
+            panic!("substitution must preserve nominal identity")
+        };
+        assert_eq!(
+            arguments.as_slice()[1].as_usize().unwrap().closed_value(),
+            Some(16)
+        );
         assert_eq!(types.is_concrete(concrete), Some(true));
     }
 }

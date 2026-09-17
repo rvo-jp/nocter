@@ -195,7 +195,7 @@ impl<'program> DestructionDependencyResolver<'program> {
     fn visit_nominal(
         &mut self,
         definition: nocter_model::NominalTypeId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
         active: &mut HashSet<TypeId>,
         drops: &mut BTreeSet<DropId>,
         unknown: &mut bool,
@@ -255,7 +255,7 @@ impl<'program> DestructionDependencyResolver<'program> {
     fn visit_closure(
         &mut self,
         definition: ClosureId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
         active: &mut HashSet<TypeId>,
         drops: &mut BTreeSet<DropId>,
         unknown: &mut bool,
@@ -283,7 +283,7 @@ impl<'program> DestructionDependencyResolver<'program> {
     fn visit_opaque(
         &mut self,
         definition: OpaqueTypeId,
-        arguments: &[TypeId],
+        arguments: &nocter_model::GenericApplication,
         active: &mut HashSet<TypeId>,
         drops: &mut BTreeSet<DropId>,
         unknown: &mut bool,
@@ -309,14 +309,14 @@ impl<'program> DestructionDependencyResolver<'program> {
 
 fn bind(
     parameters: &[nocter_model::GenericParameterId],
-    arguments: &[TypeId],
+    arguments: &nocter_model::GenericApplication,
 ) -> Result<TypeSubstitution, BodyCheckInternalError> {
     if parameters.len() != arguments.len() {
         return Err(BodyCheckInternalError::CleanupPlanning);
     }
     let mut substitution = TypeSubstitution::default();
     for (parameter, argument) in parameters.iter().copied().zip(arguments.iter().copied()) {
-        substitution.bind_generic(parameter, argument);
+        substitution.bind_value(parameter, argument);
     }
     Ok(substitution)
 }
