@@ -409,7 +409,7 @@ fn primitive_target(
         .generic_arguments()
         .as_slice()
         .iter()
-        .map(|argument| argument.ty())
+        .map(|argument| argument.value().as_type())
         .collect::<Option<Vec<_>>>()?
         .into_boxed_slice();
     Some(MirCallTarget::StandardPrimitive {

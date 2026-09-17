@@ -79,10 +79,10 @@ pub struct InterfaceApplication {
 
 impl InterfaceApplication {
     #[must_use]
-    pub fn new(interface: InterfaceId, arguments: impl Into<GenericApplication>) -> Self {
+    pub const fn new(interface: InterfaceId, arguments: GenericApplication) -> Self {
         Self {
             interface,
-            arguments: arguments.into(),
+            arguments,
         }
     }
 

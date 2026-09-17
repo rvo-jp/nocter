@@ -339,18 +339,20 @@ impl<'program> ConcreteDispatchResolver<'program> {
         }
         let application = nocter_declarations::InterfaceApplication::new(
             interface,
-            declaration
-                .generic_parameters()
-                .iter()
-                .map(|parameter| {
-                    specialized_arguments.get(*parameter).ok_or(
-                        ConcreteDispatchError::MissingMethodArgument {
-                            method: surface,
-                            parameter: *parameter,
-                        },
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?,
+            nocter_model::GenericApplication::new(
+                declaration
+                    .generic_parameters()
+                    .iter()
+                    .map(|parameter| {
+                        specialized_arguments.get(*parameter).ok_or(
+                            ConcreteDispatchError::MissingMethodArgument {
+                                method: surface,
+                                parameter: *parameter,
+                            },
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
         );
         self.resolve_interface_application_method(
             subject,

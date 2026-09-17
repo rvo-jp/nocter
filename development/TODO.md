@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. v0.57.0 Phases 0–3 are complete: declarations,
+Nocter v0.56.0 is published and externally audited. v0.57.0 Phases 0–5 are complete: declarations,
 checked operations, compile-time plans, executable identities, MIR, layout, ABI lowering, native
-execution, and editor projection preserve one ordered type-or-`usize` application without source
-reinterpretation or hidden runtime parameters. Phase 4 is active. The milestone contract lives in
+execution, editor projection, repeat-array construction, and fixed-capacity standard APIs preserve
+one ordered type-or-`usize` application without source reinterpretation or hidden runtime
+parameters. The milestone contract lives in
 [`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
 
 ## Next Work
 
-Implement v0.57.0 Phase 4 as one fixed-capacity standard-library area: add an allocation-free byte
-buffer and generic stack-resident vector with bounded mutation, then add adapters that use existing
-iterator contracts. Keep their capacity in the canonical constant-generic identity and do not add
-a second evaluator or downstream source interpretation.
+Prepare v0.57.0 for release: perform the release audit from the completed milestone, freeze the
+public specification and standard-library surface, then build and verify the distributable without
+changing the implemented contract.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

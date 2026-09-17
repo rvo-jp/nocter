@@ -87,7 +87,10 @@ fn nominal_glue_preserves_drop_arguments_and_reverse_field_order() {
     };
 
     let drop = drop.as_ref().expect("Pair owns a drop body");
-    assert_eq!(drop.generic_arguments().as_slice()[0].ty(), Some(i32_));
+    assert_eq!(
+        drop.generic_arguments().as_slice()[0].value().as_type(),
+        Some(i32_)
+    );
     assert_eq!(
         fields
             .iter()
@@ -101,7 +104,9 @@ fn nominal_glue_preserves_drop_arguments_and_reverse_field_order() {
         };
         assert!(fields.is_empty());
         assert_eq!(
-            drop.as_ref().unwrap().generic_arguments().as_slice()[0].ty(),
+            drop.as_ref().unwrap().generic_arguments().as_slice()[0]
+                .value()
+                .as_type(),
             Some(i32_)
         );
     }

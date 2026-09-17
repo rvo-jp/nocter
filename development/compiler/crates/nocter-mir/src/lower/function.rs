@@ -389,6 +389,9 @@ impl<'a> FunctionLowerer<'a> {
                     .collect::<Result<Vec<_>, _>>()?
                     .into_boxed_slice(),
             ),
+            AggregateConstruction::FixedArrayRepeat(value) => {
+                MirAggregate::FixedArrayRepeat(self.require_value(*value)?)
+            }
             AggregateConstruction::Tuple(values) => MirAggregate::Tuple(
                 values
                     .iter()

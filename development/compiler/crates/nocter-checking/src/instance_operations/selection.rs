@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use nocter_declarations::{DeclarationArenas, DeclarationGraph, GenericParameterDomain};
+use nocter_declarations::{DeclarationArenas, DeclarationGraph};
 use nocter_model::{BorrowCapability, GenericValue, TypeId, TypeKind, TypeStore, UsizeTerm};
 
 use super::{CheckedInstanceMember, InstanceOperationTable};
@@ -679,22 +679,9 @@ fn specialized_parameter_value(
     parameter: nocter_model::GenericParameterId,
     substitution: &TypeSubstitution,
 ) -> Result<GenericValue, InstanceSelectionError> {
-    let declaration = declarations
-        .generic_parameters()
-        .get(parameter)
-        .copied()
-        .ok_or(InstanceSelectionError::IncompleteGeneric(parameter))?;
-    let value = match declaration.domain() {
-        GenericParameterDomain::Type => {
-            let ty = types
-                .intern(TypeKind::GenericParameter(parameter))
-                .map_err(|_| InstanceSelectionError::IncompleteGeneric(parameter))?;
-            GenericValue::Type(ty)
-        }
-        GenericParameterDomain::UsizeConstant => {
-            GenericValue::Usize(UsizeTerm::Parameter(parameter))
-        }
-    };
+    let value =
+        crate::symbolic_generic_value::symbolic_generic_value(declarations, types, parameter)
+            .ok_or(InstanceSelectionError::IncompleteGeneric(parameter))?;
     substitution.apply_value(types, value).map_err(Into::into)
 }
 

@@ -205,10 +205,12 @@ fn normalize_pattern(
             arguments,
         } => NormalizedDeclarationPattern::Interface(InterfaceApplication::new(
             *definition,
-            arguments
-                .iter()
-                .map(|parameter| generic_value(*parameter, generic_types, generic_domains))
-                .collect::<Result<Vec<_>, _>>()?,
+            nocter_model::GenericApplication::new(
+                arguments
+                    .iter()
+                    .map(|parameter| generic_value(*parameter, generic_types, generic_domains))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
         )),
     })
 }

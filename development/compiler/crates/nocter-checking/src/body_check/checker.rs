@@ -108,6 +108,11 @@ struct CheckedIfBranches {
     ty: TypeId,
 }
 
+struct DeclarationOrigins {
+    locals: HashMap<SyntaxOrigin, LocalBindingId>,
+    captures: HashMap<SyntaxOrigin, CaptureId>,
+}
+
 #[derive(Clone, Copy)]
 enum BlockExpectation {
     Callable,
@@ -238,53 +243,22 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let source_access = body_source_access(facts, source)?;
         let diagnostic_origins = facts.diagnostic_origins();
         let uses = collect_name_uses(names)?;
-        let mut local_declarations = HashMap::new();
-        for (local, _) in names.locals().iter() {
-            let origin = names
-                .local_origin(local)
-                .ok_or(BodyCheckInternalError::MissingSource(
-                    SemanticEntity::LocalBinding(source.body(), local),
-                ))?;
-            if local_declarations.insert(origin, local).is_some() {
-                return Err(BodyCheckInternalError::DuplicateLocalDeclaration(origin).into());
-            }
-        }
-        let mut capture_declarations = HashMap::new();
-        for (capture, _) in names.captures().iter() {
-            let origin =
-                names
-                    .capture_origin(capture)
-                    .ok_or(BodyCheckInternalError::MissingSource(
-                        SemanticEntity::Capture(source.body(), capture),
-                    ))?;
-            if capture_declarations.insert(origin, capture).is_some() {
-                return Err(BodyCheckInternalError::DuplicateCaptureDeclaration(origin).into());
-            }
-        }
+        let declaration_origins = collect_declaration_origins(source, names)?;
         let contract = body_contract(graph, types, source)?;
         let result_type = contract.result;
-        let closure_generic_arguments = body_generic_domain(graph, source)?
-            .iter()
-            .map(|parameter| {
-                let declaration = graph
-                    .declarations()
-                    .generic_parameters()
-                    .get(*parameter)
-                    .ok_or(BodyCheckInternalError::UnknownType(result_type))?;
-                match declaration.domain() {
-                    nocter_declarations::GenericParameterDomain::Type => types
-                        .intern(TypeKind::GenericParameter(*parameter))
-                        .map(nocter_model::GenericValue::Type)
-                        .map_err(|_| BodyCheckInternalError::UnknownType(result_type)),
-                    nocter_declarations::GenericParameterDomain::UsizeConstant => {
-                        Ok(nocter_model::GenericValue::Usize(
-                            nocter_model::UsizeTerm::Parameter(*parameter),
-                        ))
-                    }
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into();
+        let closure_generic_arguments = nocter_model::GenericApplication::new(
+            body_generic_domain(graph, source)?
+                .iter()
+                .map(|parameter| {
+                    crate::symbolic_generic_value::symbolic_generic_value(
+                        graph.declarations(),
+                        types,
+                        *parameter,
+                    )
+                    .ok_or(BodyCheckInternalError::UnknownType(result_type))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
         let assumptions = body_assumptions
             .get(source.body())
             .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?;
@@ -311,8 +285,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             uses,
             consumed_uses: HashSet::new(),
             argument_pack_uses: HashMap::new(),
-            local_declarations,
-            capture_declarations,
+            local_declarations: declaration_origins.locals,
+            capture_declarations: declaration_origins.captures,
             result_type,
             execution: contract.execution,
             projections: Vec::new(),
@@ -686,16 +660,13 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .map(|token| {
                 let target = self.consume_name_use(clause, token)?;
                 match target {
-                    NameTarget::GenericConstant(_) => {
-                        Err(self.rule(BodyRule::InvalidValueProvenance, clause)?)
-                    }
                     NameTarget::Parameter(parameter) => Ok(PlaceRoot::Parameter(parameter)),
                     NameTarget::Local(local) => Ok(PlaceRoot::Local(local)),
                     NameTarget::Capture(capture) => Ok(PlaceRoot::Capture(capture)),
                     NameTarget::Exported(nocter_declarations::ExportedEntity::Static(id)) => {
                         Ok(PlaceRoot::Static(id))
                     }
-                    NameTarget::Exported(_) => {
+                    NameTarget::GenericConstant(_) | NameTarget::Exported(_) => {
                         Err(self.rule(BodyRule::InvalidValueProvenance, clause)?)
                     }
                 }
@@ -809,6 +780,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
                 NodeKind::StructLiteral => return self.check_struct_literal(current, expected),
                 NodeKind::ArrayLiteral => return self.check_array_literal(current, expected),
+                NodeKind::ArrayRepeatLiteral => {
+                    return self.check_array_repeat_literal(current, expected);
+                }
                 NodeKind::TupleExpression => {
                     return self.check_tuple_expression(current, expected);
                 }
@@ -1365,4 +1339,33 @@ fn collect_name_uses(
         }
     }
     Ok(uses)
+}
+
+fn collect_declaration_origins(
+    source: BodySource<'_>,
+    names: &ResolvedBodyNames,
+) -> Result<DeclarationOrigins, BodyCheckError> {
+    let mut locals = HashMap::new();
+    for (local, _) in names.locals().iter() {
+        let origin = names
+            .local_origin(local)
+            .ok_or(BodyCheckInternalError::MissingSource(
+                SemanticEntity::LocalBinding(source.body(), local),
+            ))?;
+        if locals.insert(origin, local).is_some() {
+            return Err(BodyCheckInternalError::DuplicateLocalDeclaration(origin).into());
+        }
+    }
+    let mut captures = HashMap::new();
+    for (capture, _) in names.captures().iter() {
+        let origin = names
+            .capture_origin(capture)
+            .ok_or(BodyCheckInternalError::MissingSource(
+                SemanticEntity::Capture(source.body(), capture),
+            ))?;
+        if captures.insert(origin, capture).is_some() {
+            return Err(BodyCheckInternalError::DuplicateCaptureDeclaration(origin).into());
+        }
+    }
+    Ok(DeclarationOrigins { locals, captures })
 }

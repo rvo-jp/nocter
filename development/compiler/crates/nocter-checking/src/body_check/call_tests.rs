@@ -283,9 +283,11 @@ fn generic_calls_infer_arguments_and_rank_result_contexts() {
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
             CheckedOperation::Call(call) => match call.target() {
-                CallTarget::Static(selection) => {
-                    Some(selection.generic_arguments().as_slice()[0].ty())
-                }
+                CallTarget::Static(selection) => Some(
+                    selection.generic_arguments().as_slice()[0]
+                        .value()
+                        .as_type(),
+                ),
                 CallTarget::CallableValue { .. }
                 | CallTarget::ClosureValue { .. }
                 | CallTarget::ErasedCallableValue { .. } => None,
@@ -427,7 +429,7 @@ fn construction_owner_generics_may_be_inferred_only_from_the_result_context() {
                     .generic_arguments()
                     .as_slice()
                     .first()
-                    .map(|argument| argument.ty()),
+                    .map(|argument| argument.value().as_type()),
                 CallTarget::CallableValue { .. }
                 | CallTarget::ClosureValue { .. }
                 | CallTarget::ErasedCallableValue { .. } => None,
@@ -474,11 +476,17 @@ fn explicit_construction_owner_arguments_are_fixed_before_callable_inference() {
 
     assert_eq!(arguments.len(), 2);
     assert!(arguments.iter().any(|argument| {
-        output.program().types().get(argument.ty().unwrap())
+        output
+            .program()
+            .types()
+            .get(argument.value().as_type().unwrap())
             == Some(&TypeKind::Builtin(nocter_model::BuiltinType::I32))
     }));
     assert!(arguments.iter().any(|argument| {
-        output.program().types().get(argument.ty().unwrap())
+        output
+            .program()
+            .types()
+            .get(argument.value().as_type().unwrap())
             == Some(&TypeKind::Builtin(nocter_model::BuiltinType::Bool))
     }));
 }

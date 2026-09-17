@@ -225,7 +225,7 @@ fn project_application(
             crate::GenericValue::Type(ty) => {
                 project_type(source, target, projected, *ty).map(crate::GenericValue::Type)
             }
-            crate::GenericValue::Usize(value) => Ok(crate::GenericValue::Usize(value.clone())),
+            crate::GenericValue::Usize(value) => Ok(crate::GenericValue::Usize(*value)),
         })
         .collect::<Result<Vec<_>, _>>()
         .map(crate::GenericApplication::new)

@@ -295,7 +295,7 @@ fn callable_instance_key_requires_the_complete_concrete_generic_domain() {
     let key = CallableInstanceKey::new(
         &target,
         helper,
-        GenericArguments::new([GenericArgument::new(parameter, concrete)]).unwrap(),
+        GenericArguments::new([GenericArgument::from_type(parameter, concrete)]).unwrap(),
     )
     .unwrap();
     assert_eq!(key.callable(), helper);
@@ -320,7 +320,7 @@ fn callable_instance_key_requires_the_complete_concrete_generic_domain() {
         CallableInstanceKey::new(
             &target,
             helper,
-            GenericArguments::new([GenericArgument::new(parameter, symbolic)]).unwrap(),
+            GenericArguments::new([GenericArgument::from_type(parameter, symbolic)]).unwrap(),
         ),
         Err(CallableInstanceKeyError::SymbolicArgument { .. })
     ));
@@ -365,7 +365,7 @@ fn callable_instance_key_preserves_and_validates_constant_arguments() {
         CallableInstanceKey::new(
             &target,
             helper,
-            GenericArguments::new([GenericArgument::new(parameter, wrong)]).unwrap(),
+            GenericArguments::new([GenericArgument::from_type(parameter, wrong)]).unwrap(),
         ),
         Err(CallableInstanceKeyError::InvalidGenericApplication(_))
     ));

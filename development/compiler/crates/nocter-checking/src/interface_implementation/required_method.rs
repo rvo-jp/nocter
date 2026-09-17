@@ -3,7 +3,7 @@ use nocter_declarations::{
 };
 use nocter_model::{
     ArgumentPackType, CallableCapability, CallableId, GenericParameterId,
-    InterfaceImplementationId, ParameterId, TypeId, TypeKind,
+    InterfaceImplementationId, ParameterId, TypeId,
 };
 
 use super::build::InterfaceImplementationInternalError;
@@ -85,12 +85,15 @@ impl RequiredInterfaceImplementationMethod {
 
         let mut substitution = owner_substitution.clone();
         for parameter in expected.generic_parameters() {
-            let ty = types
-                .intern(TypeKind::GenericParameter(*parameter))
-                .map_err(|_| {
-                    InterfaceImplementationInternalError::InvalidGenericType(*parameter)
-                })?;
-            substitution.bind_generic(*parameter, ty);
+            let value = crate::symbolic_generic_value::symbolic_generic_value(
+                declarations,
+                types,
+                *parameter,
+            )
+            .ok_or(InterfaceImplementationInternalError::InvalidGenericType(
+                *parameter,
+            ))?;
+            substitution.bind_value(*parameter, value);
         }
 
         let parameters = expected

@@ -315,7 +315,7 @@ fn capture_kind(
         TypeKind::Slice(element) => BodyTypeKind::Slice(reference(*element)?),
         TypeKind::FixedArray { element, length } => BodyTypeKind::FixedArray {
             element: reference(*element)?,
-            length: length.clone(),
+            length: *length,
         },
         TypeKind::Tuple(elements) => {
             BodyTypeKind::Tuple(capture_types(elements.as_slice(), reference)?)
@@ -423,7 +423,7 @@ fn replay_kind(
         BodyTypeKind::Slice(element) => TypeKind::Slice(resolve(*element)?),
         BodyTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
             element: resolve(*element)?,
-            length: length.clone(),
+            length: *length,
         },
         BodyTypeKind::Tuple(elements) => {
             let elements = replay_types(elements, &resolve)?;

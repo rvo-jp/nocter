@@ -145,6 +145,9 @@ fn generic_enum_specializations_keep_independent_member_placements() {
                         };
                         (offset, size)
                     }
+                    crate::MachineAggregateWrite::RepeatedValue { .. } => {
+                        panic!("enum aggregate cannot contain an array repeat write")
+                    }
                 };
                 assert!(
                     offset

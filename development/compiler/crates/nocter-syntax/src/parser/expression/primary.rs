@@ -284,14 +284,44 @@ fn array_literal(parser: &mut Parser<'_>) -> CompletedMarker {
         parser.recover_balanced(Punctuation::LeftBracket, Punctuation::RightBracket);
         return parser.complete(marker, NodeKind::ArrayLiteral);
     }
-    parser.comma_list(
-        Punctuation::RightBracket,
-        true,
-        ExpectedSyntax::Expression,
-        |parser| {
-            expression(parser, ExpressionMode::Delimited);
-        },
-    );
+    parser.eat_newlines();
+    if parser.at_punctuation(Punctuation::RightBracket) || parser.at(TokenKind::Eof) {
+        parser.expect_punctuation(Punctuation::RightBracket);
+        parser.leave_nesting();
+        return parser.complete(marker, NodeKind::ArrayLiteral);
+    }
+    expression(parser, ExpressionMode::Delimited);
+    parser.eat_newlines();
+    if parser.eat_punctuation(Punctuation::Semicolon) {
+        newline::after_incomplete(parser, newline::Boundary::Delimited);
+        expression(parser, ExpressionMode::Delimited);
+        parser.eat_newlines();
+        parser.expect_punctuation(Punctuation::RightBracket);
+        parser.leave_nesting();
+        return parser.complete(marker, NodeKind::ArrayRepeatLiteral);
+    }
+    loop {
+        if parser.eat_punctuation(Punctuation::Comma) {
+            parser.eat_newlines();
+            if parser.at_punctuation(Punctuation::RightBracket) || parser.at(TokenKind::Eof) {
+                break;
+            }
+        } else {
+            parser.eat_newlines();
+            if parser.at_punctuation(Punctuation::RightBracket) || parser.at(TokenKind::Eof) {
+                break;
+            }
+            parser.missing(ExpectedSyntax::Punctuation(Punctuation::Comma));
+        }
+        let before = parser.cursor;
+        expression(parser, ExpressionMode::Delimited);
+        if parser.cursor == before {
+            parser.error_token(ExpectedSyntax::Expression);
+        }
+    }
+    if !parser.at_punctuation(Punctuation::RightBracket) && !parser.at(TokenKind::Eof) {
+        parser.missing(ExpectedSyntax::Punctuation(Punctuation::Comma));
+    }
     parser.expect_punctuation(Punctuation::RightBracket);
     parser.leave_nesting();
     parser.complete(marker, NodeKind::ArrayLiteral)

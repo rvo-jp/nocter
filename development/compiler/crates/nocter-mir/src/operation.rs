@@ -76,6 +76,8 @@ pub enum MirAggregate {
         payload: Box<[MirValueId]>,
     },
     FixedArray(Box<[MirValueId]>),
+    /// One already-proven repeatable value. The result type owns the repeat count.
+    FixedArrayRepeat(MirValueId),
     Tuple(Box<[MirValueId]>),
     Optional(Option<MirValueId>),
     /// A successful fallible payload. `None` is the canonical representation of `void!` success.

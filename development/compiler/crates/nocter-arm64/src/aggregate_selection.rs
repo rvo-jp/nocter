@@ -105,6 +105,21 @@ impl AggregateWriteSelection<'_> {
             MachineAggregateWrite::Value { offset, value } => {
                 self.select_value(offset, value, selected)
             }
+            MachineAggregateWrite::RepeatedValue {
+                offset,
+                stride,
+                count,
+                value,
+            } => {
+                for index in 0..count {
+                    let element_offset = index
+                        .checked_mul(stride)
+                        .and_then(|element| offset.checked_add(element))
+                        .ok_or(Arm64SelectionError::AggregateWriteBounds(self.result))?;
+                    self.select_value(element_offset, value, selected)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -233,11 +248,12 @@ fn validate_omitted_aggregate(
                 return Err(Arm64SelectionError::AggregateWriteBounds(result));
             }
             MachineAggregateWrite::Value { value, .. }
+            | MachineAggregateWrite::RepeatedValue { value, .. }
                 if stored_value_size(program, owner, value)? != 0 =>
             {
                 return Err(Arm64SelectionError::AggregateWriteBounds(result));
             }
-            MachineAggregateWrite::Value { .. } => {}
+            MachineAggregateWrite::Value { .. } | MachineAggregateWrite::RepeatedValue { .. } => {}
         }
     }
     Ok(())

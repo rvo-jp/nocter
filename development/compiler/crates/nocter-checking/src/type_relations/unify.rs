@@ -81,7 +81,7 @@ fn collect_constant_parameters(kind: &TypeKind, output: &mut HashSet<GenericPara
         TypeKind::Nominal { arguments, .. }
         | TypeKind::Opaque { arguments, .. }
         | TypeKind::Closure { arguments, .. } => {
-            for value in arguments.iter() {
+            for value in arguments {
                 if let GenericValue::Usize(value) = value {
                     collect(*value);
                 }

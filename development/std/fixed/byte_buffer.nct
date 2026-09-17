@@ -1,0 +1,104 @@
+//! Dense fixed-capacity byte staging.
+
+see ./index.nct
+see ./storage.nct
+
+use /internal/ptr
+use /internal/safety
+use /ptr as public_ptr
+
+construct ByteBuffer<N> {
+    noalloc func empty(): Self {
+        return ByteBuffer<N> { bytes: [0; N], len: 0 }
+    }
+
+    noalloc func from_slice(values: &[u8]): Self? {
+        if values.len() > N {
+            return none
+        }
+        var result: ByteBuffer<N> = ByteBuffer<N>.empty()
+        let appended = result.append(values)
+        if appended != values.len() {
+            return safety.invariant_abort()
+        }
+        return move result
+    }
+}
+
+instance ByteBuffer<N> {
+    noalloc coerce &self as &[u8] {
+        let address = public_ptr.addr(public_ptr.from_ref(&self.bytes))
+        let first: *u8 = ptr.from_addr(address)
+        let storage = ptr.slice_from_raw_parts_value(first, N)
+        return storage.get_range(0, self.len) otherwise { return safety.invariant_abort() }
+    }
+
+    noalloc method &self.len(): usize {
+        return self.len
+    }
+
+    noalloc method &self.capacity(): usize {
+        return N
+    }
+
+    noalloc method &self.remaining_capacity(): usize {
+        return N - self.len
+    }
+
+    noalloc method &self.is_empty(): bool {
+        return self.len == 0
+    }
+
+    noalloc method &self.is_full(): bool {
+        return self.len == N
+    }
+
+    noalloc method &+self.try_push(value: u8): bool {
+        if self.len == N {
+            return false
+        }
+        self.bytes[self.len] = value
+        self.len += 1
+        return true
+    }
+
+    noalloc method &+self.append(values: &[u8]): usize {
+        var appended: usize = 0
+        while appended < values.len() && self.len < N {
+            self.bytes[self.len] = values[appended]
+            self.len += 1
+            appended += 1
+        }
+        return appended
+    }
+
+    noalloc method &+self.pop(): u8? {
+        if self.len == 0 {
+            return none
+        }
+        self.len -= 1
+        return self.bytes[self.len]
+    }
+
+    noalloc method &+self.clear(): void {
+        self.len = 0
+        return
+    }
+
+    noalloc method &+self.spare_mut(): &+[u8] from self {
+        let address = public_ptr.addr(public_ptr.from_ref_mut(&+self.bytes))
+        let first: *u8 = ptr.from_addr(address)
+        let storage = ptr.slice_from_raw_parts_value_mut(first, N)
+        let start = public_ptr.addr(storage.ptr()) + self.len
+        let spare: *u8 = ptr.from_addr(start)
+        return ptr.slice_from_raw_parts_value_mut(spare, N - self.len)
+    }
+
+    noalloc method &+self.commit(count: usize): bool {
+        if count > N - self.len {
+            return false
+        }
+        self.len += count
+        return true
+    }
+}

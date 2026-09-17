@@ -680,6 +680,16 @@ mod tests {
     }
 
     #[test]
+    fn formats_array_repeat_literals() {
+        let formatted = format("func zeros<const N:usize>():[u8;N]{[0;N]}\n");
+        assert_eq!(
+            formatted,
+            "func zeros<const N: usize>(): [u8; N] { [0; N] }\n",
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn formats_static_declarations_without_reserving_the_contextual_keyword() {
         let formatted = format(
             "pub static VALUES:[u32;2]\nstatic LABELS:[&str;2]=[\"first\",\"second\"]\nfunc static():void { return }\n",

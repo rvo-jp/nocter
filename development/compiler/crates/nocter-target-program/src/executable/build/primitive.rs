@@ -21,7 +21,8 @@ impl ExecutableClosureBuilder<'_> {
             return Err(ExecutableProgramError::InvalidPrimitiveDependency(role));
         };
         let subject = argument
-            .ty()
+            .value()
+            .as_type()
             .ok_or(ExecutableProgramError::InvalidPrimitiveDependency(role))?;
         let plan = self
             .resolver

@@ -398,6 +398,9 @@ impl OwnershipAnalyzer<'_> {
             AggregateConstruction::Enum { payload, .. }
             | AggregateConstruction::FixedArray(payload)
             | AggregateConstruction::Tuple(payload) => payload,
+            AggregateConstruction::FixedArrayRepeat(value) => {
+                return self.visit_value_sequence([*value], state);
+            }
         };
         self.visit_value_sequence(values.iter().copied(), state)
     }

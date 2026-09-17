@@ -4,7 +4,8 @@ pub use errors::{PrimitiveContractError, PrimitiveContractRule};
 
 use nocter_declarations::{
     CallableKind, CallableOwner, CallableProvenanceContract, DeclarationGraph, GenericOwner,
-    NominalShape, ParameterOwner, ParameterRole, ProvenanceOrigin, Visibility,
+    GenericParameterDomain, NominalShape, ParameterOwner, ParameterRole, ProvenanceOrigin,
+    Visibility,
 };
 use nocter_model::{
     BorrowCapability, BuiltinType, CallableId, CompilationTarget, GenericParameterId,
@@ -299,6 +300,7 @@ fn validate_generics(
             .ok_or(())?;
         if declaration.owner() != GenericOwner::Callable(callable)
             || declaration.position() != position
+            || declaration.domain() != GenericParameterDomain::Type
         {
             return Err(());
         }

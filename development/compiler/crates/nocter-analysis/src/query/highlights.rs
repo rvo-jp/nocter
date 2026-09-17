@@ -200,14 +200,7 @@ fn classify(
                 .generic_parameters()
                 .get(id)
                 .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
-            match parameter.domain() {
-                nocter_declarations::GenericParameterDomain::Type => {
-                    SemanticHighlightKind::TypeParameter
-                }
-                nocter_declarations::GenericParameterDomain::UsizeConstant => {
-                    return Ok(Some((SemanticHighlightKind::Variable, true)));
-                }
-            }
+            return Ok(Some(generic_parameter_classification(parameter.domain())));
         }
         SemanticEntity::Constant(_) | SemanticEntity::Static(_) => {
             return Ok(Some((SemanticHighlightKind::Variable, true)));
@@ -217,10 +210,7 @@ fn classify(
                 .parameters()
                 .get(id)
                 .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
-            let readonly = match parameter.role() {
-                ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => true,
-                ParameterRole::Receiver(capability) => capability == CallableCapability::Readonly,
-            };
+            let readonly = parameter_readonly(parameter.role());
             return Ok(Some((SemanticHighlightKind::Parameter, readonly)));
         }
         SemanticEntity::LocalBinding(body, id) => {
@@ -247,18 +237,7 @@ fn classify(
                 .callables()
                 .get(id)
                 .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
-            match callable.kind() {
-                CallableKind::Function
-                | CallableKind::Primitive
-                | CallableKind::ConstructionFunction
-                | CallableKind::Literal(_) => SemanticHighlightKind::Function,
-                CallableKind::Method
-                | CallableKind::Coercion
-                | CallableKind::Equality
-                | CallableKind::Ordering
-                | CallableKind::Index
-                | CallableKind::Expansion => SemanticHighlightKind::Method,
-            }
+            callable_highlight_kind(callable.kind())
         }
         SemanticEntity::Test(_) => SemanticHighlightKind::Function,
         SemanticEntity::OpaqueType(_) => SemanticHighlightKind::Keyword,
@@ -277,4 +256,39 @@ fn classify(
         | SemanticEntity::BodyNode(..) => return Ok(None),
     };
     Ok(Some((kind, false)))
+}
+
+const fn generic_parameter_classification(
+    domain: nocter_declarations::GenericParameterDomain,
+) -> (SemanticHighlightKind, bool) {
+    match domain {
+        nocter_declarations::GenericParameterDomain::Type => {
+            (SemanticHighlightKind::TypeParameter, false)
+        }
+        nocter_declarations::GenericParameterDomain::UsizeConstant => {
+            (SemanticHighlightKind::Variable, true)
+        }
+    }
+}
+
+fn parameter_readonly(role: ParameterRole) -> bool {
+    match role {
+        ParameterRole::Ordinary { .. } | ParameterRole::ArgumentPack { .. } => true,
+        ParameterRole::Receiver(capability) => capability == CallableCapability::Readonly,
+    }
+}
+
+const fn callable_highlight_kind(kind: CallableKind) -> SemanticHighlightKind {
+    match kind {
+        CallableKind::Function
+        | CallableKind::Primitive
+        | CallableKind::ConstructionFunction
+        | CallableKind::Literal(_) => SemanticHighlightKind::Function,
+        CallableKind::Method
+        | CallableKind::Coercion
+        | CallableKind::Equality
+        | CallableKind::Ordering
+        | CallableKind::Index
+        | CallableKind::Expansion => SemanticHighlightKind::Method,
+    }
 }

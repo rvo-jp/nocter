@@ -690,6 +690,8 @@ pub enum AggregateConstruction {
         payload: Box<[BodyNodeId]>,
     },
     FixedArray(Box<[BodyNodeId]>),
+    /// One value evaluated once and repeated after body checking proved repetition is safe.
+    FixedArrayRepeat(BodyNodeId),
     Tuple(Box<[BodyNodeId]>),
 }
 

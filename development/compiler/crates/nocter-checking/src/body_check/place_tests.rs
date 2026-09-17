@@ -281,7 +281,7 @@ fn generic_index_selection_retains_the_complete_instance_substitution() {
 
     assert_eq!(generic_arguments.as_slice().len(), 1);
     assert_eq!(
-        generic_arguments.as_slice()[0].ty(),
+        generic_arguments.as_slice()[0].value().as_type(),
         Some(
             output
                 .program()

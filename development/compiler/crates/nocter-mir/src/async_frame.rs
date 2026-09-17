@@ -371,6 +371,7 @@ impl BlockFacts {
                     self.use_value(*value);
                 }
             }
+            MirAggregate::FixedArrayRepeat(value) => self.use_value(*value),
             MirAggregate::Optional(value) | MirAggregate::FallibleSuccess(value) => {
                 if let Some(value) = value {
                     self.use_value(*value);

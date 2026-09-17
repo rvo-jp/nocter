@@ -41,6 +41,8 @@ coordinates, or checking internals.
 - A declaration identity never contains a source range or rendered name.
 - Authored callable execution and guarantees are declaration data; consumers do not rediscover
   modifiers from syntax or result shapes.
+- Generic application validation compares one ordered parameter-domain schema with one ordered
+  value sequence. Callers cannot substitute a type-only arity rule.
 - Callable input provenance stores resolved receiver and parameter identities. Source spellings,
   header walk order, and body inference cannot enter that graph.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.

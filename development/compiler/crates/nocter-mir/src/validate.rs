@@ -909,6 +909,14 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(invalid());
                 }
             }
+            MirAggregate::FixedArrayRepeat(value) => {
+                let Some(TypeKind::FixedArray { element, length }) = self.types.get(result) else {
+                    return Err(invalid());
+                };
+                if length.closed_value().is_none() || self.value_type(*value)? != *element {
+                    return Err(invalid());
+                }
+            }
             MirAggregate::Tuple(values) => {
                 let Some(TypeKind::Tuple(elements)) = self.types.get(result) else {
                     return Err(invalid());
@@ -1189,6 +1197,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 | MirAggregate::Tuple(payload) => {
                     values.extend(payload.iter().copied());
                 }
+                MirAggregate::FixedArrayRepeat(value) => values.push(*value),
                 MirAggregate::Closure { captures, .. } => {
                     values.extend(captures.iter().map(|capture| capture.value()));
                 }

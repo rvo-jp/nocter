@@ -90,6 +90,10 @@ impl DeclarationArenas {
     /// Syntax lowering uses this entry point before type and constant arguments have canonical
     /// values. It shares exact arity, parameter lookup, and positional-domain rules with
     /// [`Self::validate_generic_application`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact arity, missing-parameter, or positional domain mismatch.
     pub fn validate_generic_domains(
         &self,
         parameters: &[GenericParameterId],
@@ -98,7 +102,8 @@ impl DeclarationArenas {
         validate_generic_domains(parameters, domains, |parameter| {
             self.generic_parameters()
                 .get(parameter)
-                .map(|value| value.domain())
+                .copied()
+                .map(crate::GenericParameter::domain)
         })
     }
 }
@@ -108,6 +113,10 @@ impl DeclarationArenaBuilder {
     ///
     /// This uses the same schema authority as the immutable declaration arenas; the builder does
     /// not maintain a second arity or domain rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns the exact arity, missing-parameter, or positional domain mismatch.
     pub fn validate_generic_domains(
         &self,
         parameters: &[GenericParameterId],
@@ -115,7 +124,7 @@ impl DeclarationArenaBuilder {
     ) -> Result<(), GenericApplicationError> {
         validate_generic_domains(parameters, domains, |parameter| {
             self.generic_parameter(parameter)
-                .map(|value| value.domain())
+                .map(crate::GenericParameter::domain)
         })
     }
 }

@@ -22,6 +22,11 @@ pub fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, Substit
 ///
 /// Type and constant arguments share the same ordered identity, so downstream stages must use
 /// this domain-aware predicate instead of assuming every argument is a type.
+///
+/// # Errors
+///
+/// Returns [`SubstitutionError::UnknownType`] when a type argument or one of its referenced types
+/// is absent from the supplied store.
 pub fn is_concrete_generic_value(
     types: &TypeStore,
     value: GenericValue,

@@ -143,6 +143,13 @@ impl Analyzer<'_> {
                 }
                 result.insert_projection(ProvenanceProjection::Element, values);
             }
+            AggregateConstruction::FixedArrayRepeat(value) => {
+                let (value, reaches) = self.evaluate(*value, state, extra)?;
+                if !reaches {
+                    return Ok((LoanValue::independent(), false));
+                }
+                result.insert_projection(ProvenanceProjection::Element, value);
+            }
             AggregateConstruction::Tuple(elements) => {
                 for (index, element) in elements.iter().enumerate() {
                     let (value, reaches) = self.evaluate(*element, state, extra)?;

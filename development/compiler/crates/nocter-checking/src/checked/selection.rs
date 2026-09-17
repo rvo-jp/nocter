@@ -41,7 +41,7 @@ pub struct GenericArgument {
 
 impl GenericArgument {
     #[must_use]
-    pub const fn new(parameter: GenericParameterId, ty: TypeId) -> Self {
+    pub const fn from_type(parameter: GenericParameterId, ty: TypeId) -> Self {
         Self {
             parameter,
             value: GenericValue::Type(ty),
@@ -61,11 +61,6 @@ impl GenericArgument {
     #[must_use]
     pub const fn value(self) -> GenericValue {
         self.value
-    }
-
-    #[must_use]
-    pub const fn ty(self) -> Option<TypeId> {
-        self.value.as_type()
     }
 }
 
@@ -245,8 +240,8 @@ mod tests {
         let first_type = types.builtin(BuiltinType::I32);
         let second_type = types.builtin(BuiltinType::U32);
         let arguments = GenericArguments::new([
-            GenericArgument::new(second, second_type),
-            GenericArgument::new(first, first_type),
+            GenericArgument::from_type(second, second_type),
+            GenericArgument::from_type(first, first_type),
         ])
         .unwrap();
 
@@ -254,8 +249,8 @@ mod tests {
         assert_eq!(arguments.get(second), Some(GenericValue::Type(second_type)));
         assert_eq!(
             GenericArguments::new([
-                GenericArgument::new(first, first_type),
-                GenericArgument::new(first, second_type),
+                GenericArgument::from_type(first, first_type),
+                GenericArgument::from_type(first, second_type),
             ])
             .unwrap_err()
             .parameter(),

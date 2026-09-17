@@ -652,7 +652,9 @@ fn define_nonempty_generic_construction(
         .types_mut()
         .intern(TypeKind::Nominal {
             definition: nominal,
-            arguments: nocter_model::GenericApplication::from_types([argument]),
+            arguments: nocter_model::GenericApplication::new([nocter_model::GenericValue::Type(
+                argument,
+            )]),
         })
         .unwrap();
     let callable = program.declarations_mut().reserve_callable();

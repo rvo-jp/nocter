@@ -569,6 +569,9 @@ impl<'program> Collector<'program> {
                         self.visit_node(*value)?;
                     }
                 }
+                AggregateConstruction::FixedArrayRepeat(value) => {
+                    self.visit_node(*value)?;
+                }
             },
             CheckedOperation::Outcome(outcome) => self.visit_outcome(outcome)?,
             CheckedOperation::OpaqueWitness(witness) => self.visit_node(witness.value())?,

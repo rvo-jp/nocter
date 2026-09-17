@@ -466,6 +466,16 @@ fn unresolved_annotation_has_its_own_body_type_use_rule() {
 }
 
 #[test]
+fn constant_generic_parameter_is_rejected_in_a_type_position() {
+    let error =
+        check("func invalid<const N: usize>(): void {\n    let value: N = 1\n    return\n}\n")
+            .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::InvalidBodyTypeUse));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0406");
+}
+
+#[test]
 fn annotation_reuses_normalized_data_position_validity() {
     for (annotation, rule) in [
         ("str", TypeValidityRule::UnsizedData),

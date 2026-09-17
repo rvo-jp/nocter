@@ -1,0 +1,87 @@
+//! FixedVec construction and bounded mutation.
+
+see ./index.nct
+see ./storage.nct
+
+use /internal/ptr
+use /internal/safety
+
+noalloc func initialize_empty_slot<T>(slot: &+(T?), value: T): void {
+    let initialized: T? = move value
+    let previous: T? = ptr.replace_value(slot, move initialized)
+    let _unexpected = move previous otherwise { return }
+    return safety.invariant_abort()
+}
+
+construct FixedVec<T, N> {
+    noalloc func empty(): Self {
+        return FixedVec<T, N> { slots: [none; N], len: 0 }
+    }
+
+    noalloc literal [](...items: T): Self {
+        if items.len() > N {
+            return safety.bounds_abort()
+        }
+        var result: FixedVec<T, N> = FixedVec<T, N>.empty()
+        var index: usize = 0
+        for item in items {
+            initialize_empty_slot(&+result.slots[index], move item)
+            index += 1
+        }
+        result.len = index
+        return move result
+    }
+}
+
+instance FixedVec<T, N> {
+    noalloc method &self.len(): usize {
+        return self.len
+    }
+
+    noalloc method &self.capacity(): usize {
+        return N
+    }
+
+    noalloc method &self.is_empty(): bool {
+        return self.len == 0
+    }
+
+    noalloc method &self.is_full(): bool {
+        return self.len == N
+    }
+
+    noalloc method &+self.try_push(value: T): T? {
+        if self.len == N {
+            return move value
+        }
+        initialize_empty_slot(&+self.slots[self.len], move value)
+        self.len += 1
+        return none
+    }
+
+    noalloc method &+self.pop(): T? {
+        if self.len == 0 {
+            return none
+        }
+        let index = self.len - 1
+        self.len = index
+        let previous: T? = ptr.replace_value(&+self.slots[index], none)
+        return move previous?
+    }
+
+    method &+self.clear(): void {
+        while self.len != 0 {
+            let index = self.len - 1
+            self.len = index
+            let _previous: T? = ptr.replace_value(&+self.slots[index], none)
+        }
+        return
+    }
+
+    noalloc method &self.get(index: usize): T? where copy T {
+        if index >= self.len {
+            return none
+        }
+        return self.slots[index]
+    }
+}

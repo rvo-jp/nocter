@@ -23,19 +23,22 @@ pub(super) fn patterns_overlap(
     {
         return Ok(false);
     }
-    let Some((equations, constant_equations)) =
+    let Some(equations) =
         application_equations(left_interface, left_target, right_interface, right_target)
     else {
         return Ok(false);
     };
     let mut variables = collect_generic_parameters(
         types,
-        equations.iter().flat_map(|(left, right)| [*left, *right]),
+        equations
+            .types
+            .iter()
+            .flat_map(|(left, right)| [*left, *right]),
     )
     .map_err(invalid_unification)?;
     extend_constant_parameters(&mut variables, left_interface);
     extend_constant_parameters(&mut variables, right_interface);
-    match unify_type_and_constant_pairs(types, variables, equations, constant_equations) {
+    match unify_type_and_constant_pairs(types, variables, equations.types, equations.constants) {
         Ok(_) => Ok(true),
         Err(
             TypeUnificationError::Conflict(_)
@@ -63,7 +66,7 @@ pub(super) fn match_pattern(
     {
         return Ok(None);
     }
-    let Some((equations, constant_equations)) = application_equations(
+    let Some(equations) = application_equations(
         pattern_interface,
         pattern_target,
         requested_interface,
@@ -78,7 +81,8 @@ pub(super) fn match_pattern(
     .map_err(invalid_unification)?;
     extend_constant_parameters(&mut variables, pattern_interface);
     let bindings =
-        match unify_type_and_constant_pairs(types, variables, equations, constant_equations) {
+        match unify_type_and_constant_pairs(types, variables, equations.types, equations.constants)
+        {
             Ok(bindings) => bindings,
             Err(
                 TypeUnificationError::Conflict(_)
@@ -96,15 +100,17 @@ pub(super) fn match_pattern(
     Ok(Some(substitution))
 }
 
+struct ApplicationEquations {
+    types: Vec<(TypeId, TypeId)>,
+    constants: Vec<(nocter_model::UsizeTerm, nocter_model::UsizeTerm)>,
+}
+
 fn application_equations(
     left_interface: &InterfaceApplication,
     left_target: TypeId,
     right_interface: &InterfaceApplication,
     right_target: TypeId,
-) -> Option<(
-    Vec<(TypeId, TypeId)>,
-    Vec<(nocter_model::UsizeTerm, nocter_model::UsizeTerm)>,
-)> {
+) -> Option<ApplicationEquations> {
     let mut types = vec![(left_target, right_target)];
     let mut constants = Vec::new();
     for (left, right) in left_interface
@@ -114,15 +120,15 @@ fn application_equations(
     {
         match (left, right) {
             (nocter_model::GenericValue::Type(left), nocter_model::GenericValue::Type(right)) => {
-                types.push((*left, *right))
+                types.push((*left, *right));
             }
             (nocter_model::GenericValue::Usize(left), nocter_model::GenericValue::Usize(right)) => {
-                constants.push((*left, *right))
+                constants.push((*left, *right));
             }
             _ => return None,
         }
     }
-    Some((types, constants))
+    Some(ApplicationEquations { types, constants })
 }
 
 fn extend_constant_parameters(

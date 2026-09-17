@@ -69,7 +69,11 @@ fn struct_literals_infer_owner_arguments_and_retain_source_field_order() {
             definition: actual,
             arguments,
         }) if *actual == definition
-            && arguments.type_at(0).and_then(|ty| output.program().types().get(ty))
+            && arguments
+                .as_slice()
+                .first()
+                .and_then(nocter_model::GenericValue::as_type)
+                .and_then(|ty| output.program().types().get(ty))
                 == Some(&TypeKind::Builtin(BuiltinType::I32))
     ));
     for (field, _) in fields {
@@ -81,6 +85,40 @@ fn struct_literals_infer_owner_arguments_and_retain_source_field_order() {
                 .any(|binding| binding.role() == SourceRole::Reference)
         );
     }
+}
+
+#[test]
+fn struct_literals_infer_type_and_constant_owner_arguments_from_one_schema() {
+    let output = check(
+        "struct Buffer<T, const N: usize> { values: [T; N] }\n\
+         func make(): Buffer<i32, 4> { Buffer { values: [1, 2, 3, 4] } }\n",
+    )
+    .unwrap();
+    let ty = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Aggregate(AggregateConstruction::Struct { .. }) => Some(node.ty()),
+            _ => None,
+        })
+        .expect("constant-generic struct aggregate");
+
+    assert!(matches!(
+        output.program().types().get(ty),
+        Some(TypeKind::Nominal { arguments, .. })
+            if arguments
+                .as_slice()
+                .first()
+                .and_then(nocter_model::GenericValue::as_type)
+                .and_then(|ty| output.program().types().get(ty))
+                == Some(&TypeKind::Builtin(BuiltinType::I32))
+                && arguments.as_slice().get(1)
+                    == Some(&nocter_model::GenericValue::Usize(
+                        nocter_model::UsizeTerm::Value(4),
+                    ))
+    ));
 }
 
 #[test]
@@ -204,6 +242,51 @@ fn empty_fixed_array_requires_and_consumes_element_context() {
 }
 
 #[test]
+fn array_repeat_uses_one_value_and_a_symbolic_constant_length() {
+    let output = check(
+        "func zeros<const N: usize>(): [u8; N] { [0; N] }\n\
+         func empty_slots<T, const N: usize>(): [T?; N] { [none; N] }\n",
+    )
+    .unwrap();
+    let repeats = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Aggregate(AggregateConstruction::FixedArrayRepeat(value)) => {
+                Some((node.ty(), *value))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(repeats.len(), 2);
+    assert!(repeats.iter().all(|(ty, _)| matches!(
+        output.program().types().get(*ty),
+        Some(TypeKind::FixedArray {
+            length: nocter_model::UsizeTerm::Parameter(_),
+            ..
+        })
+    )));
+}
+
+#[test]
+fn array_repeat_rejects_a_move_only_present_value() {
+    let error = check(
+        "struct Owned { value: i32 }\n\
+         func invalid(value: Owned): [Owned; 2] { [move value; 2] }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0391");
+}
+
+#[test]
+fn array_repeat_requires_its_contextual_length_to_match() {
+    let error = check("func invalid(): [i32; 3] { [0; 2] }\n").unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0391");
+}
+
+#[test]
 fn aggregate_ownership_visits_initializers_in_source_order() {
     let error = check(
         "struct Owned { value: i32 }\n\
@@ -243,7 +326,11 @@ fn enum_variants_share_nominal_owner_inference_and_surface_identity() {
             && matches!(
                 output.program().types().get(*ty),
                 Some(TypeKind::Nominal { arguments, .. })
-                    if arguments.type_at(0).and_then(|ty| output.program().types().get(ty))
+                    if arguments
+                        .as_slice()
+                        .first()
+                        .and_then(nocter_model::GenericValue::as_type)
+                        .and_then(|ty| output.program().types().get(ty))
                         == Some(&TypeKind::Builtin(BuiltinType::I32))
             )
     }));

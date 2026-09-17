@@ -57,6 +57,11 @@ impl ConcreteDispatchResolver<'_> {
     ///
     /// Type values additionally reduce associated projections; `usize` values must close to one
     /// concrete integer before they enter executable identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed invariant failure when substitution is incomplete, associated evidence is
+    /// unavailable, or the resulting value remains symbolic.
     pub fn specialize_generic_value(
         &mut self,
         value: GenericValue,

@@ -180,7 +180,9 @@ func rendered(): Text { Text "line\nvalue" }
             &[program.types().builtin(BuiltinType::I32)]
         );
         assert_eq!(
-            sequence.constructor().generic_arguments().as_slice()[0].ty(),
+            sequence.constructor().generic_arguments().as_slice()[0]
+                .value()
+                .as_type(),
             Some(program.types().builtin(BuiltinType::I32))
         );
     }

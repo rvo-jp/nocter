@@ -482,11 +482,10 @@ impl<'a> CompleteSemanticQuery<'a> {
                 for (capture_id, capture) in body.captures().iter() {
                     let capture_entity = SemanticEntity::Capture(body_id, capture_id);
                     let source_entity = match capture.declaration().source() {
-                        NameTarget::GenericConstant(_) => continue,
                         NameTarget::Parameter(parameter) => SemanticEntity::Parameter(parameter),
                         NameTarget::Local(local) => SemanticEntity::LocalBinding(body_id, local),
                         NameTarget::Capture(capture) => SemanticEntity::Capture(body_id, capture),
-                        NameTarget::Exported(_) => continue,
+                        NameTarget::GenericConstant(_) | NameTarget::Exported(_) => continue,
                     };
                     if entities.contains(&capture_entity) || entities.contains(&source_entity) {
                         changed |= entities.insert(capture_entity);

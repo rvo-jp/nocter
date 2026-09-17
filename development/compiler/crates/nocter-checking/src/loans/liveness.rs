@@ -149,6 +149,7 @@ impl Analyzer<'_> {
                     AggregateConstruction::Enum { payload, .. }
                     | AggregateConstruction::FixedArray(payload)
                     | AggregateConstruction::Tuple(payload) => payload.into_vec(),
+                    AggregateConstruction::FixedArrayRepeat(value) => vec![value],
                 };
                 self.operands(operands, live)?
             }

@@ -99,17 +99,6 @@ impl GenericApplication {
     }
 
     #[must_use]
-    pub fn from_types(types: impl IntoIterator<Item = crate::TypeId>) -> Self {
-        Self(
-            types
-                .into_iter()
-                .map(GenericValue::Type)
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
-        )
-    }
-
-    #[must_use]
     pub const fn as_slice(&self) -> &[GenericValue] {
         &self.0
     }
@@ -128,13 +117,12 @@ impl GenericApplication {
         self.0.iter()
     }
 
+    /// Visits type identities for recursive type-graph traversal.
+    ///
+    /// This deliberately omits constant values and therefore must not be used for application
+    /// arity, ordering, equality, or substitution.
     pub fn type_values(&self) -> impl Iterator<Item = crate::TypeId> + '_ {
         self.0.iter().filter_map(GenericValue::as_type)
-    }
-
-    #[must_use]
-    pub fn type_at(&self, index: usize) -> Option<crate::TypeId> {
-        self.0.get(index).and_then(GenericValue::as_type)
     }
 
     /// Maps only type values while preserving constant values and authored order.
@@ -163,30 +151,6 @@ impl<'a> IntoIterator for &'a GenericApplication {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
-    }
-}
-
-impl From<Box<[crate::TypeId]>> for GenericApplication {
-    fn from(types: Box<[crate::TypeId]>) -> Self {
-        Self::from_types(types)
-    }
-}
-
-impl From<Vec<crate::TypeId>> for GenericApplication {
-    fn from(types: Vec<crate::TypeId>) -> Self {
-        Self::from_types(types)
-    }
-}
-
-impl From<Vec<GenericValue>> for GenericApplication {
-    fn from(values: Vec<GenericValue>) -> Self {
-        Self::new(values)
-    }
-}
-
-impl std::iter::FromIterator<crate::TypeId> for GenericApplication {
-    fn from_iter<T: IntoIterator<Item = crate::TypeId>>(types: T) -> Self {
-        Self::from_types(types)
     }
 }
 

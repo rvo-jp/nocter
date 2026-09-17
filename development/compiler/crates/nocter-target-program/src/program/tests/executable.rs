@@ -345,8 +345,14 @@ fn closure_and_drop_keys_inherit_the_complete_concrete_owner_domain() {
         })
         .unwrap();
 
-    assert_eq!(closure.generic_arguments().as_slice()[0].ty(), Some(i32_));
-    assert_eq!(drop.generic_arguments().as_slice()[0].ty(), Some(i32_));
+    assert_eq!(
+        closure.generic_arguments().as_slice()[0].value().as_type(),
+        Some(i32_)
+    );
+    assert_eq!(
+        drop.generic_arguments().as_slice()[0].value().as_type(),
+        Some(i32_)
+    );
 }
 
 #[test]
@@ -472,7 +478,7 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
 
     assert_eq!(key.callable(), identity);
     assert_eq!(
-        key.generic_arguments().as_slice()[0].ty(),
+        key.generic_arguments().as_slice()[0].value().as_type(),
         Some(executable.types().builtin(BuiltinType::I32))
     );
 }

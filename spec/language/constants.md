@@ -211,7 +211,11 @@ The static-initializer domain contains:
 - the pure unary, binary, and conversion constant expressions defined for `const`;
 - direct calls to compatible `const` functions and methods;
 - tuple literals whose elements recursively belong to this domain;
-- fixed-array literals whose elements recursively belong to this domain.
+- enumerated fixed-array literals whose elements recursively belong to this domain.
+
+The runtime repeat form `[value; length]` is not part of the v0.57.0 compile-time initializer
+domain. Static data that repeats a value writes the elements explicitly until repeat evaluation is
+admitted by the compile-time value model itself.
 
 The declared static type must recursively contain only `bool`, integer types, `char`, readonly
 `&str`, tuples, and fixed arrays of those types. Owned values, nominal values, pointers, mutable

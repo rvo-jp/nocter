@@ -8,7 +8,7 @@ use nocter_declarations::{
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{
     ArenaBuilder, CallableId, GenericParameterId, InterfaceId, InterfaceImplementationId,
-    ParameterId, TypeKind,
+    ParameterId,
 };
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
@@ -614,10 +614,34 @@ fn compatible_signature(
         .iter()
         .zip(actual.generic_parameters())
     {
-        let ty = types
-            .intern(TypeKind::GenericParameter(*actual))
-            .map_err(|_| InterfaceImplementationInternalError::InvalidGenericType(*actual))?;
-        substitution.bind_generic(*expected, ty);
+        let expected_domain = graph
+            .declarations()
+            .generic_parameters()
+            .get(*expected)
+            .ok_or(InterfaceImplementationInternalError::InvalidGenericType(
+                *expected,
+            ))?
+            .domain();
+        let actual_domain = graph
+            .declarations()
+            .generic_parameters()
+            .get(*actual)
+            .ok_or(InterfaceImplementationInternalError::InvalidGenericType(
+                *actual,
+            ))?
+            .domain();
+        if expected_domain != actual_domain {
+            return Ok(None);
+        }
+        let value = crate::symbolic_generic_value::symbolic_generic_value(
+            graph.declarations(),
+            types,
+            *actual,
+        )
+        .ok_or(InterfaceImplementationInternalError::InvalidGenericType(
+            *actual,
+        ))?;
+        substitution.bind_value(*expected, value);
     }
     if receiver_capability(graph, expected.receiver())?
         != receiver_capability(graph, actual.receiver())?

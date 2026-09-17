@@ -23,6 +23,7 @@ comments.
 | borrowed UTF-8 text | [Borrowed Text](str/README.md) | `std/str` |
 | owned UTF-8 text | [Owned Strings](string/README.md) | `std/string` |
 | growable sequences | [Vectors](vec/README.md) | `std/vec` |
+| inline fixed-capacity sequences and byte staging | [Fixed-Capacity Collections](fixed/README.md) | `std/fixed` |
 | borrowed sequences | [Slices](slice/README.md) | `std/slice` |
 | borrowed parsing windows | [Borrowed Scanning](scan/README.md) | `std/scan` |
 | iteration and collection | [Iteration](iter/README.md) | `std/iter`, `std/iter/collect` |

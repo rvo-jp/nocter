@@ -210,21 +210,21 @@ impl TypeSubstitution {
                 arguments,
             } => TypeKind::Nominal {
                 definition,
-                arguments: self.apply_application_constants(arguments),
+                arguments: self.apply_application_constants(&arguments),
             },
             TypeKind::Opaque {
                 definition,
                 arguments,
             } => TypeKind::Opaque {
                 definition,
-                arguments: self.apply_application_constants(arguments),
+                arguments: self.apply_application_constants(&arguments),
             },
             TypeKind::Closure {
                 definition,
                 arguments,
             } => TypeKind::Closure {
                 definition,
-                arguments: self.apply_application_constants(arguments),
+                arguments: self.apply_application_constants(&arguments),
             },
             other => other,
         }
@@ -232,7 +232,7 @@ impl TypeSubstitution {
 
     fn apply_application_constants(
         &self,
-        application: nocter_model::GenericApplication,
+        application: &nocter_model::GenericApplication,
     ) -> nocter_model::GenericApplication {
         nocter_model::GenericApplication::new(
             application

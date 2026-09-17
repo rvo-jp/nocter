@@ -1,0 +1,118 @@
+//! Allocation-free collections whose capacity is part of their type.
+//!
+//! FixedVec stores optional element slots so every bit of storage is initialized even when T is
+//! move-only. ByteBuffer uses a dense byte array and exposes only its committed prefix.
+
+use /iter.{ExactSizeIterator, Iterator, ViewIter}
+see ./byte_buffer.nct
+see ./fixed_vec.nct
+see ./iteration.nct
+see ./storage.nct
+see ./tests.nct
+
+/// An owning vector with inline capacity N and no allocator dependency.
+pub struct FixedVec<T, const N: usize>
+
+/// An owning iterator over the initialized elements of a FixedVec.
+pub struct FixedVecIntoIter<T, const N: usize>
+
+construct FixedVec<T, N> {
+    /// Constructs an empty vector with N inline slots.
+    pub noalloc func empty(): Self
+
+    /// Constructs a vector from owned elements and aborts when their count exceeds N.
+    pub noalloc literal [](...items: T): Self
+}
+
+instance FixedVec<T, N> {
+    /// Transfers this vector into an allocation-free owning iterator.
+    pub noalloc operator (...self): FixedVecIntoIter<T, N>
+
+    /// Transfers this vector into an allocation-free owning iterator.
+    pub noalloc method self.into_iter(): FixedVecIntoIter<T, N>
+
+    /// Returns the number of initialized elements.
+    pub noalloc method &self.len(): usize
+
+    /// Returns the inline capacity encoded by this type.
+    pub noalloc method &self.capacity(): usize
+
+    /// Returns whether no initialized elements remain.
+    pub noalloc method &self.is_empty(): bool
+
+    /// Returns whether another element would exceed the fixed capacity.
+    pub noalloc method &self.is_full(): bool
+
+    /// Appends value, or returns the unchanged value when the vector is full.
+    pub noalloc method &+self.try_push(value: T): T?
+
+    /// Removes and returns the final element, or none when empty.
+    pub noalloc method &+self.pop(): T?
+
+    /// Removes every initialized element while retaining the inline storage.
+    pub method &+self.clear(): void
+
+    /// Copies one in-bounds element. Borrowing access is intentionally not simulated through the
+    /// optional-slot representation.
+    pub noalloc method &self.get(index: usize): T? where copy T
+}
+
+instance FixedVecIntoIter<T, N> {
+    impl ExactSizeIterator
+    impl Iterator { .Item = T }
+}
+
+/// An inline byte staging buffer with a committed prefix and capacity N.
+pub struct ByteBuffer<const N: usize>
+
+construct ByteBuffer<N> {
+    /// Constructs an empty buffer whose backing bytes are fully initialized.
+    pub noalloc func empty(): Self
+
+    /// Copies bytes into a new buffer, returning none when values do not fit.
+    pub noalloc func from_slice(values: &[u8]): Self?
+}
+
+instance ByteBuffer<N> {
+    /// Exposes the committed prefix as a readonly byte slice.
+    pub noalloc coerce &self as &[u8]
+
+    /// Creates an iterator over committed readonly bytes.
+    pub noalloc operator (...&self): ViewIter<u8>
+
+    /// Returns the number of committed bytes.
+    pub noalloc method &self.len(): usize
+
+    /// Returns the inline capacity encoded by this type.
+    pub noalloc method &self.capacity(): usize
+
+    /// Returns the number of uncommitted bytes.
+    pub noalloc method &self.remaining_capacity(): usize
+
+    /// Returns whether the committed prefix is empty.
+    pub noalloc method &self.is_empty(): bool
+
+    /// Returns whether the committed prefix occupies all storage.
+    pub noalloc method &self.is_full(): bool
+
+    /// Appends one byte and reports whether it fit.
+    pub noalloc method &+self.try_push(value: u8): bool
+
+    /// Appends as much of values as fits and returns the number appended.
+    pub noalloc method &+self.append(values: &[u8]): usize
+
+    /// Removes and returns the final committed byte, or none when empty.
+    pub noalloc method &+self.pop(): u8?
+
+    /// Forgets the committed prefix without reallocating or exposing uninitialized memory.
+    pub noalloc method &+self.clear(): void
+
+    /// Exposes uncommitted initialized bytes for direct input staging.
+    pub noalloc method &+self.spare_mut(): &+[u8] from self
+
+    /// Commits count bytes previously written through spare_mut and reports whether they fit.
+    pub noalloc method &+self.commit(count: usize): bool
+
+    /// Returns the readonly iterator explicitly.
+    pub noalloc method &self.iter(): ViewIter<u8>
+}

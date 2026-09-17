@@ -1,0 +1,18 @@
+//! Private inline collection representations.
+
+see ./index.nct
+
+struct FixedVec<T, const N: usize> {
+    slots: [T?; N]
+    len: usize
+}
+
+struct FixedVecIntoIter<T, const N: usize> {
+    values: FixedVec<T, N>
+    next_index: usize
+}
+
+struct ByteBuffer<const N: usize> {
+    bytes: [u8; N]
+    len: usize
+}

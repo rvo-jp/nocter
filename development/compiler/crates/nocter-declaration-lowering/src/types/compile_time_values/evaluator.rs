@@ -121,6 +121,11 @@ struct EvaluatedHeaderValues {
         HashMap<SyntaxToken, (nocter_model::GenericParameterId, SourceOrigin)>,
 }
 
+struct EvaluatedStructuralValues {
+    constants: HashMap<ConstantId, ConstantValue>,
+    usize_terms: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
+}
+
 struct HeaderValueComputation {
     constant_plans: HashMap<ConstantId, ConstantExpressionPlan>,
     usize_expression_plans: HashMap<ConstantExpressionId, ConstantExpressionPlan>,
@@ -217,6 +222,22 @@ fn evaluate_header_values(
         }
     }
 
+    let evaluated =
+        collect_evaluated_header_values(&query, constant_ids, usize_expression_ids, bindings)?;
+    Ok(EvaluatedHeaderValues {
+        constants: evaluated.constants,
+        usize_terms: evaluated.usize_terms,
+        reference_projections,
+        generic_reference_projections,
+    })
+}
+
+fn collect_evaluated_header_values(
+    query: &DependencyQuery<HeaderValueKey, HeaderValue>,
+    constant_ids: Vec<ConstantId>,
+    usize_expression_ids: Vec<ConstantExpressionId>,
+    bindings: &PreparedTypeBindings<'_>,
+) -> Result<EvaluatedStructuralValues, HeaderDefinitionError> {
     let constants = constant_ids
         .into_iter()
         .filter_map(|id| match query.completed(&HeaderValueKey::Constant(id)) {
@@ -228,7 +249,7 @@ fn evaluate_header_values(
         .into_iter()
         .map(
             |id| match query.completed(&HeaderValueKey::UsizeExpression(id)) {
-                Some(HeaderValue::UsizeTerm(value)) => Ok((id, value.clone())),
+                Some(HeaderValue::UsizeTerm(value)) => Ok((id, *value)),
                 _ => Err(inconsistent_node(
                     *bindings
                         .usize_expressions
@@ -238,11 +259,9 @@ fn evaluate_header_values(
             },
         )
         .collect::<Result<HashMap<_, _>, _>>()?;
-    Ok(EvaluatedHeaderValues {
+    Ok(EvaluatedStructuralValues {
         constants,
         usize_terms,
-        reference_projections,
-        generic_reference_projections,
     })
 }
 

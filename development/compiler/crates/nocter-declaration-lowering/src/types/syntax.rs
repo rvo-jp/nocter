@@ -52,10 +52,12 @@ pub(super) fn bind(
                 tree,
                 node,
                 kind,
-                &values,
-                &mut arena.kinds,
-                &mut arena.constant_argument_types,
-                &mut arena.origins,
+                &mut BindingState {
+                    values: &values,
+                    kinds: &mut arena.kinds,
+                    constant_argument_types: &mut arena.constant_argument_types,
+                    origins: &mut arena.origins,
+                },
             )?
         {
             arena
@@ -89,53 +91,47 @@ pub(super) fn bind(
         .ok_or(TypeBindingError::InvalidSyntax(root))
 }
 
-#[allow(clippy::too_many_arguments)]
+struct BindingState<'a> {
+    values: &'a HashMap<NodeId, BoundTypeId>,
+    kinds: &'a mut Vec<BoundTypeKind>,
+    constant_argument_types: &'a mut HashSet<BoundTypeId>,
+    origins: &'a mut NormalizationOrigins,
+}
+
 fn bind_node(
     namespaces: &mut PreparedNamespaces<'_>,
     declaration: SurfaceDeclarationId,
     tree: &SyntaxTree,
     node: NodeId,
     kind: NodeKind,
-    values: &HashMap<NodeId, BoundTypeId>,
-    kinds: &mut Vec<BoundTypeKind>,
-    constant_argument_types: &mut HashSet<BoundTypeId>,
-    origins: &mut NormalizationOrigins,
+    state: &mut BindingState<'_>,
 ) -> Result<Option<BoundTypeId>, TypeBindingError> {
     let result = match kind {
-        NodeKind::Type => bind_type_wrapper(tree, node, values, kinds)?,
-        NodeKind::NamedType => bind_named(
-            namespaces,
-            declaration,
-            tree,
-            node,
-            values,
-            kinds,
-            constant_argument_types,
-            origins,
-        )?,
+        NodeKind::Type => bind_type_wrapper(tree, node, state.values, state.kinds)?,
+        NodeKind::NamedType => bind_named(namespaces, declaration, tree, node, state)?,
         NodeKind::PointerType => push(
-            kinds,
-            BoundTypeKind::Pointer(child_value(tree, node, values)?),
+            state.kinds,
+            BoundTypeKind::Pointer(child_value(tree, node, state.values)?),
         ),
         NodeKind::BorrowType => push(
-            kinds,
+            state.kinds,
             BoundTypeKind::Borrow {
                 capability: borrow_capability(tree, node)?,
-                referent: child_value(tree, node, values)?,
+                referent: child_value(tree, node, state.values)?,
             },
         ),
         NodeKind::FutureType => push(
-            kinds,
-            BoundTypeKind::Future(child_value(tree, node, values)?),
+            state.kinds,
+            BoundTypeKind::Future(child_value(tree, node, state.values)?),
         ),
         NodeKind::SliceType => push(
-            kinds,
-            BoundTypeKind::Slice(child_value(tree, node, values)?),
+            state.kinds,
+            BoundTypeKind::Slice(child_value(tree, node, state.values)?),
         ),
         NodeKind::FixedArrayType => push(
-            kinds,
+            state.kinds,
             BoundTypeKind::FixedArray {
-                element: child_value(tree, node, values)?,
+                element: child_value(tree, node, state.values)?,
                 length: array_length(tree, node)?,
             },
         ),
@@ -143,7 +139,8 @@ fn bind_node(
             let elements = direct_nodes(tree, node, NodeKind::Type)
                 .into_iter()
                 .map(|element| {
-                    values
+                    state
+                        .values
                         .get(&element)
                         .copied()
                         .ok_or(TypeBindingError::InvalidSyntax(element))
@@ -152,10 +149,13 @@ fn bind_node(
             if elements.len() < 2 {
                 return Err(TypeBindingError::InvalidSyntax(node));
             }
-            push(kinds, BoundTypeKind::Tuple(elements.into_boxed_slice()))
+            push(
+                state.kinds,
+                BoundTypeKind::Tuple(elements.into_boxed_slice()),
+            )
         }
-        NodeKind::GroupedType => child_value(tree, node, values)?,
-        NodeKind::CallableType => bind_callable(namespaces, tree, node, values, kinds)?,
+        NodeKind::GroupedType => child_value(tree, node, state.values)?,
+        NodeKind::CallableType => bind_callable(namespaces, tree, node, state.values, state.kinds)?,
         _ => return Ok(None),
     };
     Ok(Some(result))
@@ -190,12 +190,9 @@ fn bind_named(
     declaration: SurfaceDeclarationId,
     tree: &SyntaxTree,
     node: NodeId,
-    values: &HashMap<NodeId, BoundTypeId>,
-    kinds: &mut Vec<BoundTypeKind>,
-    constant_argument_types: &mut HashSet<BoundTypeId>,
-    origins: &mut NormalizationOrigins,
+    state: &mut BindingState<'_>,
 ) -> Result<BoundTypeId, TypeBindingError> {
-    let segments = segments(tree, node, values)?;
+    let segments = segments(tree, node, state.values)?;
     let first = segments
         .first()
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
@@ -207,8 +204,15 @@ fn bind_named(
             TypeBindingRule::InvalidSelfType,
             SyntaxOrigin::Token(first.token),
         ))?;
-        let base = push(kinds, BoundTypeKind::SelfType(owner));
-        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds, origins);
+        let base = push(state.kinds, BoundTypeKind::SelfType(owner));
+        return bind_associated_tail(
+            namespaces,
+            tree,
+            base,
+            &segments[1..],
+            state.kinds,
+            state.origins,
+        );
     }
 
     let name = token_symbol(namespaces, tree, first.token)?;
@@ -217,8 +221,15 @@ fn bind_named(
             return Err(invalid_arguments(first));
         }
         projection::generic(namespaces, tree, parameter, first.token)?;
-        let base = push(kinds, BoundTypeKind::GenericParameter(parameter));
-        return bind_associated_tail(namespaces, tree, base, &segments[1..], kinds, origins);
+        let base = push(state.kinds, BoundTypeKind::GenericParameter(parameter));
+        return bind_associated_tail(
+            namespaces,
+            tree,
+            base,
+            &segments[1..],
+            state.kinds,
+            state.origins,
+        );
     }
 
     let path = resolve_exported(namespaces, declaration, tree, node, segments)?;
@@ -228,8 +239,8 @@ fn bind_named(
         path.arguments_origin,
         path.entity,
         path.arguments,
-        kinds,
-        constant_argument_types,
+        state.kinds,
+        state.constant_argument_types,
     )?;
     for selection in path.trailing {
         if !selection.arguments.is_empty() {
@@ -241,13 +252,15 @@ fn bind_named(
             ));
         }
         current = push(
-            kinds,
+            state.kinds,
             BoundTypeKind::AssociatedSelection {
                 base: current,
                 name: selection.name,
             },
         );
-        origins.record_bound(current, SyntaxOrigin::Token(selection.token));
+        state
+            .origins
+            .record_bound(current, SyntaxOrigin::Token(selection.token));
     }
     Ok(current)
 }

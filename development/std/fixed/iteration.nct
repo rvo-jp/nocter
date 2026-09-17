@@ -1,0 +1,45 @@
+//! Owning fixed-vector iteration and byte-buffer views.
+
+see ./index.nct
+see ./storage.nct
+
+use /internal/ptr
+use /iter.ViewIter
+
+instance FixedVec<T, N> {
+    noalloc operator (...self): FixedVecIntoIter<T, N> {
+        return FixedVecIntoIter<T, N> { values: move self, next_index: 0 }
+    }
+
+    noalloc method self.into_iter(): FixedVecIntoIter<T, N> {
+        return FixedVecIntoIter<T, N> { values: move self, next_index: 0 }
+    }
+}
+
+instance FixedVecIntoIter<T, N> {
+    noalloc method &self.remaining_len(): usize {
+        return self.values.len - self.next_index
+    }
+
+    noalloc method &+self.next(): T? {
+        if self.next_index >= self.values.len {
+            return none
+        }
+        let index = self.next_index
+        self.next_index += 1
+        let previous: T? = ptr.replace_value(&+self.values.slots[index], none)
+        return move previous?
+    }
+}
+
+instance ByteBuffer<N> {
+    noalloc operator (...&self): ViewIter<u8> {
+        let view: &[u8] = self as &[u8]
+        return ViewIter.from_view(view)
+    }
+
+    noalloc method &self.iter(): ViewIter<u8> {
+        let view: &[u8] = self as &[u8]
+        return ViewIter.from_view(view)
+    }
+}

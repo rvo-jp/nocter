@@ -1509,6 +1509,47 @@ mod tests {
     }
 
     #[test]
+    fn signature_help_projects_inferred_constant_arguments_canonically() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func length<const N: usize>(values: [i32; N]): usize { return N }\n",
+            "func main(): usize { return length([1, 2, 3, 4]) }\n",
+        );
+        let mut text_json = String::new();
+        nocter_json::write_string(&mut text_json, text);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{text_json}}}}}}}"
+        ));
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (line, character) = source_position(text, "2, 3");
+        let help = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}"
+        ));
+        let response = help.response().unwrap();
+        assert!(
+            response.contains("func length<4>(values: [i32; 4]): usize"),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":0"));
+        assert!(help.issue().is_none(), "{:?}", help.issue());
+    }
+
+    #[test]
     fn structured_task_uses_one_checked_generation_across_editor_features() {
         let (_temporary, uri, mut server, text) = structured_task_server();
         let (join_line, join_character) = source_position(text, "join");

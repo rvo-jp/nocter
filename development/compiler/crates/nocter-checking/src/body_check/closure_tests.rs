@@ -66,14 +66,24 @@ fn generic_closure_identity_specializes_its_enclosing_generic_domain() {
     };
     assert_eq!(arguments.len(), 1);
     assert!(matches!(
-        arguments.type_at(0).and_then(|ty| program.types().get(ty)),
+        arguments
+            .as_slice()
+            .first()
+            .and_then(nocter_model::GenericValue::as_type)
+            .and_then(|ty| program.types().get(ty)),
         Some(TypeKind::GenericParameter(_))
     ));
     assert!(!is_concrete_type(program.types(), definition.ty()).unwrap());
 
     let parameter = match program
         .types()
-        .get(arguments.type_at(0).expect("type closure argument"))
+        .get(
+            arguments
+                .as_slice()
+                .first()
+                .and_then(nocter_model::GenericValue::as_type)
+                .expect("type closure argument"),
+        )
         .unwrap()
     {
         TypeKind::GenericParameter(parameter) => *parameter,

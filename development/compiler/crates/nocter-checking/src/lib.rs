@@ -53,6 +53,7 @@ mod standard_semantics;
 #[cfg(test)]
 mod standard_semantics_tests;
 mod structural_field_completion;
+mod symbolic_generic_value;
 mod syntax;
 #[cfg(test)]
 mod target_tests;

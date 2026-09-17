@@ -428,6 +428,17 @@ fn interface_default_body_proves_its_exact_self_interface_implementation() {
 }
 
 #[test]
+fn interface_default_body_preserves_its_constant_generic_self_application() {
+    check(
+        "pub interface FixedSource<const N: usize> {\n\
+             pub method &self.values(): [u8; N]\n\
+             pub default method &self.copy_values(): [u8; N] { self.values() }\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn associated_method_results_specialize_for_concrete_and_generic_receivers() {
     check(
         "pub interface Source {\n\

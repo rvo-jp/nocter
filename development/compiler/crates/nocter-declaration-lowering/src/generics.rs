@@ -147,82 +147,12 @@ impl PreparedGenerics<'_> {
             ) {
                 continue;
             }
-            let tree = self
-                .headers
-                .reserved
-                .sources
-                .get(surface.source().index())
-                .ok_or(GenericError::MissingSource(declaration))?
-                .syntax();
-            for pattern in direct_node_iter(tree, surface.node(), NodeKind::DeclarationTypePattern)
-            {
-                let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments)
-                else {
-                    continue;
-                };
-                let identifiers = descendant_identifiers(tree, pattern);
-                let Some(head) = identifiers.first().copied() else {
-                    return Err(GenericError::InconsistentBinder(declaration));
-                };
-                let name = self
-                    .headers
-                    .reserved
-                    .source_map
-                    .get(head.source())
-                    .and_then(|source| source.text_at(head.range()))
-                    .and_then(|spelling| self.headers.reserved.symbols().get(spelling))
-                    .ok_or(GenericError::InconsistentBinder(declaration))?;
-                let Some(entity) = lookup(surface.source(), name) else {
-                    continue;
-                };
-                let Some(target) = self.headers.reserved.declaration_for_entity(match entity {
-                    ExportedEntity::NominalType(definition) => {
-                        ReservedEntity::NominalType(definition)
-                    }
-                    ExportedEntity::Interface(definition) => ReservedEntity::Interface(definition),
-                    _ => continue,
-                }) else {
-                    continue;
-                };
-                let target_parameters = self
-                    .own
-                    .get(target.index())
-                    .map(AsRef::as_ref)
-                    .unwrap_or(&[]);
-                let binder_tokens = descendant_identifiers(tree, arguments);
-                if target_parameters.len() != binder_tokens.len() {
-                    continue;
-                }
-                for (target_parameter, token) in
-                    target_parameters.iter().copied().zip(binder_tokens)
-                {
-                    let spelling = self
-                        .headers
-                        .reserved
-                        .source_map
-                        .get(token.source())
-                        .and_then(|source| source.text_at(token.range()))
-                        .ok_or(GenericError::InconsistentBinder(declaration))?;
-                    let symbol = self
-                        .headers
-                        .reserved
-                        .symbols()
-                        .get(spelling)
-                        .ok_or(GenericError::InconsistentBinder(declaration))?;
-                    let binder = self
-                        .lookup(declaration, symbol)
-                        .ok_or(GenericError::InconsistentBinder(declaration))?;
-                    let domain = self
-                        .headers
-                        .reserved
-                        .program
-                        .declarations()
-                        .generic_parameter(target_parameter)
-                        .ok_or(GenericError::InconsistentBinder(declaration))?
-                        .domain();
-                    inferred.entry(binder).or_insert(domain);
-                }
-            }
+            self.infer_declaration_pattern_domains(
+                declaration,
+                surface,
+                &mut lookup,
+                &mut inferred,
+            )?;
         }
         for (parameter, domain) in inferred {
             if !self
@@ -238,6 +168,82 @@ impl PreparedGenerics<'_> {
             }
         }
         Ok(())
+    }
+
+    fn infer_declaration_pattern_domains(
+        &self,
+        declaration: SurfaceDeclarationId,
+        surface: SurfaceDeclaration,
+        lookup: &mut impl FnMut(crate::SurfaceSourceId, Symbol) -> Option<ExportedEntity>,
+        inferred: &mut BTreeMap<GenericParameterId, GenericParameterDomain>,
+    ) -> Result<(), GenericError> {
+        let tree = self
+            .headers
+            .reserved
+            .sources
+            .get(surface.source().index())
+            .ok_or(GenericError::MissingSource(declaration))?
+            .syntax();
+        for pattern in direct_node_iter(tree, surface.node(), NodeKind::DeclarationTypePattern) {
+            let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments) else {
+                continue;
+            };
+            let identifiers = descendant_identifiers(tree, pattern);
+            let Some(head) = identifiers.first().copied() else {
+                return Err(GenericError::InconsistentBinder(declaration));
+            };
+            let name = self
+                .symbol_at(head)
+                .ok_or(GenericError::InconsistentBinder(declaration))?;
+            let Some(entity) = lookup(surface.source(), name) else {
+                continue;
+            };
+            let Some(target) = self.pattern_target(entity) else {
+                continue;
+            };
+            let target_parameters: &[GenericParameterId] =
+                self.own.get(target.index()).map_or(&[], AsRef::as_ref);
+            let binder_tokens = descendant_identifiers(tree, arguments);
+            if target_parameters.len() != binder_tokens.len() {
+                continue;
+            }
+            for (target_parameter, token) in target_parameters.iter().copied().zip(binder_tokens) {
+                let symbol = self
+                    .symbol_at(token)
+                    .ok_or(GenericError::InconsistentBinder(declaration))?;
+                let binder = self
+                    .lookup(declaration, symbol)
+                    .ok_or(GenericError::InconsistentBinder(declaration))?;
+                let domain = self
+                    .headers
+                    .reserved
+                    .program
+                    .declarations()
+                    .generic_parameter(target_parameter)
+                    .ok_or(GenericError::InconsistentBinder(declaration))?
+                    .domain();
+                inferred.entry(binder).or_insert(domain);
+            }
+        }
+        Ok(())
+    }
+
+    fn symbol_at(&self, token: SyntaxToken) -> Option<Symbol> {
+        self.headers
+            .reserved
+            .source_map
+            .get(token.source())
+            .and_then(|source| source.text_at(token.range()))
+            .and_then(|spelling| self.headers.reserved.symbols().get(spelling))
+    }
+
+    fn pattern_target(&self, entity: ExportedEntity) -> Option<SurfaceDeclarationId> {
+        let reserved = match entity {
+            ExportedEntity::NominalType(definition) => ReservedEntity::NominalType(definition),
+            ExportedEntity::Interface(definition) => ReservedEntity::Interface(definition),
+            _ => return None,
+        };
+        self.headers.reserved.declaration_for_entity(reserved)
     }
 }
 

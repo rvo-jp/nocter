@@ -39,8 +39,20 @@ pub enum MachineBinaryOperation {
 /// One initialized byte-range contribution to an aggregate value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAggregateWrite {
-    Tag { offset: u64, value: u8 },
-    Value { offset: u64, value: MachineValueId },
+    Tag {
+        offset: u64,
+        value: u8,
+    },
+    Value {
+        offset: u64,
+        value: MachineValueId,
+    },
+    RepeatedValue {
+        offset: u64,
+        stride: u64,
+        count: u64,
+        value: MachineValueId,
+    },
 }
 
 /// One aggregate assembled from exact layout-owned offsets.

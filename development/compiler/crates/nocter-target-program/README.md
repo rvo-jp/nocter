@@ -34,6 +34,8 @@ does not inspect syntax or repeat checking decisions.
   in the standard package; its physical layout remains outside semantic representation.
 - Runtime-storage bindings are validated before primitive signatures that refer to them. An invalid
   prerequisite therefore cannot be reported as a downstream primitive mismatch.
+- Runtime primitive generic slots are explicitly type-domain contracts. A constant-domain
+  parameter is rejected during target validation rather than being silently discarded by MIR.
 - Every primitive whose closed signature returns `future T` must carry runtime-contract evidence
   whose typed produced-computation classification certifies nonblocking drive and cancellation;
   certification on a non-future role is rejected as the same contract inconsistency.

@@ -161,6 +161,10 @@ fn append_operands(
     if let CheckedOperation::Control(control) = operation {
         return append_control_operands(builder, control, pending);
     }
+    if let CheckedOperation::Aggregate(aggregate) = operation {
+        append_aggregate_operands(aggregate, pending);
+        return Ok(());
+    }
     match operation {
         CheckedOperation::Complete
         | CheckedOperation::Literal(_)
@@ -206,14 +210,6 @@ fn append_operands(
                 pending.push(value);
             }
         }
-        CheckedOperation::Aggregate(AggregateConstruction::Struct { fields, .. }) => {
-            pending.extend(fields.iter().rev().map(|(_, value)| *value));
-        }
-        CheckedOperation::Aggregate(
-            AggregateConstruction::Enum { payload, .. }
-            | AggregateConstruction::FixedArray(payload)
-            | AggregateConstruction::Tuple(payload),
-        ) => pending.extend(payload.iter().rev().copied()),
         CheckedOperation::Outcome(
             CheckedOutcome::Inject { payload, .. }
             | CheckedOutcome::Failure(payload)
@@ -253,9 +249,25 @@ fn append_operands(
         CheckedOperation::Interpolation(interpolation) => {
             append_interpolation_operands(interpolation, pending);
         }
-        CheckedOperation::Control(_) => unreachable!("control operations return above"),
+        CheckedOperation::Aggregate(_) | CheckedOperation::Control(_) => {
+            unreachable!("aggregate and control operations return above")
+        }
     }
     Ok(())
+}
+
+fn append_aggregate_operands(aggregate: &AggregateConstruction, pending: &mut Vec<BodyNodeId>) {
+    match aggregate {
+        AggregateConstruction::Struct { fields, .. } => {
+            pending.extend(fields.iter().rev().map(|(_, value)| *value));
+        }
+        AggregateConstruction::Enum { payload, .. }
+        | AggregateConstruction::FixedArray(payload)
+        | AggregateConstruction::Tuple(payload) => {
+            pending.extend(payload.iter().rev().copied());
+        }
+        AggregateConstruction::FixedArrayRepeat(value) => pending.push(*value),
+    }
 }
 
 fn append_interpolation_operands(

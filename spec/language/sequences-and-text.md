@@ -89,9 +89,10 @@ Fixed-size arrays use `[T; N]`.
 ```nct
 let header: [u8; 4] = [0x7F, 0x45, 0x4C, 0x46]
 let numbers = [1, 2, 3] // [i32; 3]
+let cleared: [u8; 4096] = [0; 4096]
 ```
 
-Array literals use `[a, b, c]`.
+Array literals use the enumerated form `[a, b, c]` or the repeat form `[value; length]`.
 
 Rules:
 
@@ -109,6 +110,15 @@ Rules:
   used behind an indirection such as `&str` or `&[T]`.
 - Array literal elements are evaluated left to right.
 - Array literal elements are comma-delimited and may use one trailing comma on any layout.
+- A repeat literal evaluates `value` exactly once and copies that value into every element. Its
+  element type must therefore be copyable. The contextual `none` value is also accepted for an
+  optional element type: it has no payload to duplicate and permits initialized empty storage for
+  move-only payload types.
+- A repeat length uses the same structural `usize` constant domain as a fixed-array type length. A
+  bare constant parameter such as `N` remains symbolic while its generic body is checked and is
+  closed by specialization.
+- The repeat length determines the resulting array type and must equal an expected array length.
+  The element expression is still evaluated once when the length is zero.
 - If a later element expression fails through postfix `?`, already initialized
   owned elements are dropped in reverse index order before the failure propagates.
 - A fixed array is copyable only when its element type is copyable.
@@ -118,6 +128,10 @@ Owned growable memory is represented by standard-library types such as `Vec<T>`.
 compiler builtin. Declaration-driven typed literals provide forms such as `Vec [1, 2, 3]`, while
 bare `[1, 2, 3]` remains a fixed-size array literal. See
 [Argument Packs, Literal Definitions, and Sequence Spread](literals-and-packs.md).
+
+In v0.57.0 the repeat form is a body expression. Compile-time constants and immutable static data
+use enumerated fixed-array literals; expanding the compile-time value domain is separate from the
+runtime fixed-capacity model.
 
 ```nct
 var bytes = Vec<u8>.with_capacity(4096)

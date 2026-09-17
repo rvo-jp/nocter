@@ -933,7 +933,8 @@ StructLiteral = OwnerReference StructInitializer
 StructInitializer = "{" List(FieldInitializer) "}"
 FieldInitializer = Name ":" Expression
 
-ArrayLiteral = "[" List(Expression) "]"
+ArrayLiteral = "[" (ArrayRepeat | List(Expression)) "]"
+ArrayRepeat = Expression ";" Expression
 
 TypedLiteral = TypedSequenceLiteral | TypedStringLiteral
 TypedSequenceLiteral = OwnerReference gap SequenceBody AllocationOverride?
@@ -1010,7 +1011,8 @@ The formatter writes one space. This makes `Vec [1]` construction and `values[1]
 without consulting name resolution. A newline ends the preceding statement because `[` and a
 string opener are not continuation leaders.
 
-A fixed array contains only ordinary expressions. Spread is recognized in a typed sequence or a
+A fixed array contains only ordinary expressions. A semicolon after its first expression selects
+the repeat form; commas select the enumerated form. Spread is recognized in a typed sequence or a
 call argument list whose selected callable has a final argument pack.
 `SpreadExpression` has one additional recognition restriction: its first token cannot be `&+`.
 When its first token is `move`, it must form the ordinary place-only `MoveExpression`. The accepted

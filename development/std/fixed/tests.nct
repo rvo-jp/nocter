@@ -1,0 +1,62 @@
+//! Fixed-capacity collection behavior.
+
+see ./index.nct
+
+test fixed_vec_preserves_capacity_values_and_overflow_ownership {
+    var values: FixedVec<i32, 2> = FixedVec.empty()
+    let first_rejected = values.try_push(20)
+    if values.len() != 1 { return error.new("std.fixed.len", "first push did not advance length") }
+    let second_rejected = values.try_push(22)
+    if values.len() != 2 || !values.is_full() {
+        return error.new("std.fixed.full", "second push did not fill the vector")
+    }
+    let rejected = values.try_push(7) otherwise {
+        return error.new("std.fixed.overflow", "full vector consumed the rejected value")
+    }
+    let first = values.get(0) otherwise {
+        return error.new("std.fixed.values", "fixed vector lost its first value")
+    }
+    if rejected != 7 || first != 20 {
+        return error.new("std.fixed.values", "fixed vector changed an initialized value")
+    }
+    let last = values.pop() otherwise {
+        return error.new("std.fixed.pop", "full vector did not yield its final value")
+    }
+    if last != 22 || values.len() != 1 {
+        return error.new("std.fixed.pop", "pop did not update the initialized prefix")
+    }
+    return
+}
+
+test fixed_vec_owning_iteration_uses_source_order {
+    var values: FixedVec<i32, 3> = FixedVec [10, 12, 20]
+    var total: i32 = 0
+    for value in move values {
+        total += value
+    }
+    if total != 42 {
+        return error.new("std.fixed.iteration", "owning iteration changed source values")
+    }
+    return
+}
+
+test byte_buffer_stages_only_its_committed_prefix {
+    var buffer: ByteBuffer<4> = ByteBuffer.empty()
+    if !buffer.try_push(40) || !buffer.try_push(2) {
+        return error.new("std.fixed.byte_push", "bytes did not fit in an empty buffer")
+    }
+    let view: &[u8] = &buffer as &[u8]
+    if view.len() != 2 || view[0] + view[1] != 42 {
+        return error.new("std.fixed.byte_view", "committed byte view was incorrect")
+    }
+    let spare = buffer.spare_mut()
+    spare[0] = 1
+    spare[1] = 2
+    if !buffer.commit(2) || !buffer.is_full() {
+        return error.new("std.fixed.byte_commit", "written spare bytes were not committed")
+    }
+    if buffer.commit(1) {
+        return error.new("std.fixed.byte_overflow", "commit exceeded fixed capacity")
+    }
+    return
+}

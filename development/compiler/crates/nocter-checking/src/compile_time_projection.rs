@@ -734,8 +734,10 @@ impl Specializer<'_> {
     ) -> Result<u64, CompileTimeProjectionError> {
         let value = match self.substitution.get(&parameter) {
             Some(CompileTimeGenericValue::Usize(nocter_model::UsizeTerm::Value(value))) => *value,
-            Some(CompileTimeGenericValue::Usize(nocter_model::UsizeTerm::Parameter(_)))
-            | Some(CompileTimeGenericValue::Type(_))
+            Some(
+                CompileTimeGenericValue::Usize(nocter_model::UsizeTerm::Parameter(_))
+                | CompileTimeGenericValue::Type(_),
+            )
             | None => {
                 return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType));
             }

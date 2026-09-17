@@ -589,7 +589,7 @@ impl Evaluator<'_> {
                 self.usize_term(parent, expression).map(GenericValue::Usize)
             }
             super::BoundGenericValue::UsizeParameter(parameter) => Ok(GenericValue::Usize(
-                self.substitute_usize_parameter(parent, parameter)?,
+                Self::substitute_usize_parameter(parent, parameter)?,
             )),
             super::BoundGenericValue::UsizeConstant(constant) => self
                 .structural_constants
@@ -618,11 +618,10 @@ impl Evaluator<'_> {
         let UsizeTerm::Parameter(parameter) = term else {
             return Ok(term);
         };
-        self.substitute_usize_parameter(parent, parameter)
+        Self::substitute_usize_parameter(parent, parameter)
     }
 
     fn substitute_usize_parameter(
-        &self,
         parent: &EvaluationKey,
         parameter: GenericParameterId,
     ) -> Result<UsizeTerm, TypeNormalizationError> {

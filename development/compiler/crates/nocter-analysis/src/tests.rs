@@ -866,7 +866,10 @@ fn const_callable_hover_renders_the_authored_compile_time_capability() {
 fn constant_generic_value_uses_share_hover_navigation_and_readonly_highlighting() {
     let tree = TempTree::new();
     let source_text = concat!(
-        "func length<const N: usize>(values: [i32; N]): usize { N }\n",
+        "func length<const N: usize>(values: [i32; N]): usize {\n",
+        "    let cleared: [i32; N] = [0; N]\n",
+        "    N\n",
+        "}\n",
         "func main(): usize { length([1, 2, 3, 4]) }\n",
     );
     let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(73));
@@ -881,7 +884,7 @@ fn constant_generic_value_uses_share_hover_navigation_and_readonly_highlighting(
         .iter()
         .find(|source| source.name().as_str().ends_with("app.nct"))
         .unwrap();
-    let body_use = source_text.rfind("N }").unwrap();
+    let body_use = source_text.rfind("    N\n").unwrap() + 4;
     let offset = ByteOffset::new(u32::try_from(body_use).unwrap());
     let subject = snapshot
         .semantic_subject(source.id(), offset)
@@ -896,6 +899,23 @@ fn constant_generic_value_uses_share_hover_navigation_and_readonly_highlighting(
             .len(),
         1
     );
+    let declaration =
+        ByteOffset::new(u32::try_from(source_text.find("N: usize").unwrap()).unwrap());
+    let rename = snapshot
+        .semantic_rename(source.id(), declaration, "CAPACITY")
+        .unwrap()
+        .expect("constant generic rename plan");
+    assert_eq!(rename.edits().len(), 5);
+    assert!(rename.entities().iter().all(|entity| {
+        matches!(
+            entity,
+            nocter_source_index::SemanticEntity::GenericParameter(_)
+        )
+    }));
+    let completions = snapshot.semantic_completions(source.id(), offset).unwrap();
+    assert!(completions.values().iter().any(|completion| {
+        completion.label() == "N" && completion.kind() == crate::SemanticCompletionKind::Constant
+    }));
     let highlights = snapshot.semantic_highlights(source.id()).unwrap();
     assert_eq!(
         highlights
@@ -907,7 +927,7 @@ fn constant_generic_value_uses_share_hover_navigation_and_readonly_highlighting(
                     && source.text_at(highlight.range()) == Some("N")
             })
             .count(),
-        3
+        5
     );
 }
 

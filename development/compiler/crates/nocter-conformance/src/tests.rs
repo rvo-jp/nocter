@@ -1099,6 +1099,33 @@ fn constant_generic_layout_and_abi_cross_the_native_pipeline() {
 }
 
 #[test]
+fn array_repeat_crosses_generic_specialization_and_native_lowering() {
+    let machine = lower_machine(
+        "struct Counter { value: i32 }\n\
+         copy struct Chunk {\n\
+             first: i32\n\
+             second: i32\n\
+             third: i32\n\
+         }\n\
+         func next(counter: &+Counter): Chunk {\n\
+             counter.value += 1\n\
+             return Chunk { first: 20, second: 20, third: 2 }\n\
+         }\n\
+         func filled<const N: usize>(counter: &+Counter): [Chunk; N] { [next(counter); N] }\n\
+         func main(): i32 {\n\
+             var counter = Counter { value: 0 }\n\
+             let values: [Chunk; 3] = filled(&+counter)\n\
+             if counter.value != 1 { return 1 }\n\
+             return values[2].first + values[1].second + values[0].third\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn indirect_aggregate_arguments_cross_the_outgoing_stack_boundary() {
     let machine = lower_machine(
         "copy struct Large { first: i64\n    second: i64\n    third: i32 }\n\

@@ -141,6 +141,30 @@ fn interface_noalloc_requirements_are_directional() {
 }
 
 #[test]
+fn required_methods_preserve_constant_generic_parameter_domains() {
+    let fixture = Fixture::new(
+        "pub interface FixedSource {\n\
+             pub method &self.values<const N: usize>(): [u8; N]\n\
+         }\n\
+         struct Source {}\n\
+         instance Source {\n\
+             impl FixedSource\n\
+             method &self.values<const N: usize>(): [u8; N] { [0; N] }\n\
+         }\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
+    build_interface_implementation_table(
+        &graph,
+        &mut types.transaction(),
+        source_index.diagnostic_origins(),
+    )
+    .unwrap();
+}
+
+#[test]
 fn missing_method_failure_retains_every_specialized_required_signature() {
     let fixture = Fixture::new(concat!(
         "pub interface Readable {\n",
@@ -246,14 +270,21 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
             panic!("refined interface_implementation target must remain nominal");
         };
         assert!(matches!(
-            arguments.type_at(0).and_then(|ty| types.get(ty)),
+            arguments
+                .as_slice()
+                .first()
+                .and_then(nocter_model::GenericValue::as_type)
+                .and_then(|ty| types.get(ty)),
             Some(nocter_model::TypeKind::Builtin(
                 nocter_model::BuiltinType::I32 | nocter_model::BuiltinType::U32
             ))
         ));
         assert_eq!(
-            interface_implementation.refinements()[0].ty(),
-            Some(arguments.type_at(0).unwrap())
+            interface_implementation.refinements()[0].value().as_type(),
+            arguments
+                .as_slice()
+                .first()
+                .and_then(nocter_model::GenericValue::as_type)
         );
     }
 }

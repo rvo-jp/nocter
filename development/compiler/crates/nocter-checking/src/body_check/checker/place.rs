@@ -129,6 +129,7 @@ impl BodyChecker<'_, '_> {
                     | NodeKind::TypedMappingLiteral
                     | NodeKind::TypedStringLiteral
                     | NodeKind::ArrayLiteral
+                    | NodeKind::ArrayRepeatLiteral
                     | NodeKind::StringExpression
                     | NodeKind::ScalarLiteral
                     | NodeKind::ClosureExpression

@@ -35,6 +35,15 @@ pub(super) fn lower_aggregate(
             MirAggregate::FixedArray(values),
             MachineLayoutKind::FixedArray { length, stride, .. },
         ) => lower_fixed_array(values, *length, *stride, context)?,
+        (
+            MirAggregate::FixedArrayRepeat(value),
+            MachineLayoutKind::FixedArray { length, stride, .. },
+        ) => vec![MachineAggregateWrite::RepeatedValue {
+            offset: 0,
+            stride: *stride,
+            count: *length,
+            value: context.ids.value(*value)?,
+        }],
         (MirAggregate::Tuple(values), MachineLayoutKind::Tuple { elements }) => {
             lower_tuple(values, elements, context)?
         }

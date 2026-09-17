@@ -28,6 +28,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 ## Invariants
 
 - Type identity never depends on spelling, source order, or source location.
+- A generic application is one explicit authored-order sequence of type-or-constant values. The
+  model exposes no type-only conversion that could silently omit a constant argument.
 - Callable guarantee differences participate in type identity and survive every projection and
   transaction.
 - Callable provenance implication requires every union branch, treats cycles simultaneously, and

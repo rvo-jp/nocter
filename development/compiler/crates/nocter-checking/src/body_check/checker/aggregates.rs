@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use nocter_model::{BodyNodeId, TypeId, TypeKind};
+use nocter_model::{BodyNodeId, TypeId, TypeKind, UsizeTerm};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind};
 
@@ -12,8 +12,8 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_structural_field};
 use crate::syntax::{child_nodes, direct_identifier, direct_node, direct_nodes};
 use crate::{
-    AggregateConstruction, CheckedOperation, TypePosition, TypedBodyInterruption,
-    TypedBodyInterruptionKind, validate_type,
+    AggregateConstruction, CheckedOperation, CheckedOutcome, Copyability, TypePosition,
+    TypedBodyInterruption, TypedBodyInterruptionKind, validate_type,
 };
 
 struct StructFieldDraft {
@@ -225,19 +225,60 @@ impl BodyChecker<'_, '_> {
         })
     }
 
+    pub(super) fn check_array_repeat_literal(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let expressions = direct_nodes(self.tree(), node, NodeKind::Expression);
+        let [value_syntax, length_syntax] = expressions.as_slice() else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        };
+        let length = self.resolve_structural_usize(*length_syntax)?;
+        let contextual_element = match expected {
+            Some(expected) => self.expected_array_element(node, expected, length)?,
+            None => None,
+        };
+        let value = self.check_expression(*value_syntax, contextual_element)?;
+        let element = self.node_type(value)?;
+        if validate_type(self.types, element, TypePosition::Data).is_err() {
+            return Err(self.rule(BodyRule::InvalidConstruction, node)?);
+        }
+        let absent_optional = matches!(
+            self.builder.node(value).map(crate::CheckedNode::operation),
+            Some(CheckedOperation::Outcome(CheckedOutcome::Absent))
+        );
+        if !absent_optional && self.classify_copyability(element)? != Copyability::Copy {
+            return Err(self.rule(BodyRule::InvalidConstruction, node)?);
+        }
+        let ty = self
+            .types
+            .intern(TypeKind::FixedArray { element, length })
+            .map_err(|_| BodyCheckInternalError::UnknownType(element))?;
+        let aggregate = self.add_node(
+            node,
+            ty,
+            CheckedOperation::Aggregate(AggregateConstruction::FixedArrayRepeat(value)),
+        )?;
+        expected.map_or(Ok(aggregate), |expected| {
+            self.apply_expected(node, aggregate, expected)
+        })
+    }
+
     fn expected_array_element(
         &self,
         node: NodeId,
         mut expected: TypeId,
-        length: u64,
+        length: impl Into<UsizeTerm>,
     ) -> Result<Option<TypeId>, BodyCheckError> {
+        let length = length.into();
         loop {
             match self.types.get(expected) {
                 Some(TypeKind::FixedArray {
                     element,
                     length: expected_length,
                 }) => {
-                    if expected_length.closed_value() != Some(length) {
+                    if *expected_length != length {
                         return Err(self.rule(BodyRule::InvalidConstruction, node)?);
                     }
                     return Ok(Some(*element));

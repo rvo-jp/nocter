@@ -81,6 +81,18 @@ fn parses_precedence_conversion_and_outcome_layers() {
 }
 
 #[test]
+fn parses_array_repeat_literals_as_a_distinct_expression_shape() {
+    let tree = parse_module(
+        "func filled<const N: usize>(): [i32; N] { [0; N] }\n\
+         func absent<T>(): [T?; 4] { [none; 4] }\n",
+    );
+    assert!(tree.diagnostics().is_empty(), "{:?}", tree.diagnostics());
+    assert_eq!(count_nodes(&tree, NodeKind::ArrayRepeatLiteral), 2);
+    assert_eq!(count_nodes(&tree, NodeKind::ArrayLiteral), 0);
+    assert_token_projection(&tree);
+}
+
+#[test]
 fn parses_await_before_outer_outcome_propagation() {
     let tree = parse_module(
         "async func resolve(first: future i32!, nested: future future i32): i32! {\n    let value = await first?\n    await await nested\n}\n",

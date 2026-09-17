@@ -288,13 +288,13 @@ impl<'program> DependencyCollector<'program> {
         match operation {
             CheckedOperation::Complete
             | CheckedOperation::Literal(_)
+            | CheckedOperation::GenericConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => {}
             CheckedOperation::DeclaredConstant(id) => {
                 if self.constant_set.insert(*id) {
                     self.constants.push(*id);
                 }
             }
-            CheckedOperation::GenericConstant(_) => {}
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)
@@ -390,6 +390,9 @@ impl<'program> DependencyCollector<'program> {
                     for value in payload {
                         self.visit_node(*value)?;
                     }
+                }
+                AggregateConstruction::FixedArrayRepeat(value) => {
+                    self.visit_node(*value)?;
                 }
             },
             CheckedOperation::Outcome(outcome) => self.visit_outcome(outcome)?,
@@ -845,7 +848,7 @@ impl<'program> DependencyCollector<'program> {
             ));
         }
         for argument in selection.generic_arguments().as_slice() {
-            if let Some(ty) = argument.ty() {
+            if let Some(ty) = argument.value().as_type() {
                 self.record_type(ty)?;
             }
         }

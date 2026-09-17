@@ -76,7 +76,7 @@ impl PatternRequirements {
             let generic = types
                 .intern(TypeKind::GenericParameter(*parameter))
                 .map_err(|_| SubstitutionError::InvalidStore)?;
-            normalized.push(GenericArgument::new(
+            normalized.push(GenericArgument::from_type(
                 *parameter,
                 substitution.apply_type(types, generic)?,
             ));

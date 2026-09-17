@@ -370,7 +370,7 @@ impl BodyChecker<'_, '_> {
             NodeKind::FixedArrayType => {
                 let expression = direct_node(self.tree(), node, NodeKind::Expression)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-                let length = self.resolve_usize_generic_argument(expression)?;
+                let length = self.resolve_structural_usize(expression)?;
                 TypeKind::FixedArray {
                     element: inner,
                     length,
@@ -593,15 +593,29 @@ impl BodyChecker<'_, '_> {
         if segments[0].arguments.is_empty() {
             let name = self.segment_symbol(segments[0].token)?;
             let base = if let Some(parameter) = self.lexical_generic(name)? {
+                let declaration = self
+                    .graph
+                    .declarations()
+                    .generic_parameters()
+                    .get(parameter)
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+                if declaration.domain() != GenericParameterDomain::Type {
+                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+                }
                 self.project_type_entity(
                     segments[0].token,
                     SemanticEntity::GenericParameter(parameter),
                 )?;
-                Some(
-                    self.types
-                        .intern(TypeKind::GenericParameter(parameter))
-                        .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?,
-                )
+                let Some(GenericValue::Type(ty)) =
+                    crate::symbolic_generic_value::symbolic_generic_value(
+                        self.graph.declarations(),
+                        self.types,
+                        parameter,
+                    )
+                else {
+                    return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+                };
+                Some(ty)
             } else if self.token_text(segments[0].token)? == ContextualSpelling::UpperSelf.as_str()
             {
                 Some(self.lexical_self_type(node, segments[0].token)?)
@@ -935,7 +949,7 @@ impl BodyChecker<'_, '_> {
                     GenericValue::Type(self.resolve_type_use(argument)?)
                 }
                 GenericParameterDomain::UsizeConstant => {
-                    GenericValue::Usize(self.resolve_usize_generic_argument(argument)?)
+                    GenericValue::Usize(self.resolve_structural_usize(argument)?)
                 }
             });
         }
@@ -947,7 +961,7 @@ impl BodyChecker<'_, '_> {
         Ok(application)
     }
 
-    fn resolve_usize_generic_argument(
+    pub(super) fn resolve_structural_usize(
         &mut self,
         node: NodeId,
     ) -> Result<UsizeTerm, BodyCheckError> {

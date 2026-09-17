@@ -34,13 +34,16 @@ impl BodyChecker<'_, '_> {
                     .iter()
                     .copied()
                     .map(|parameter| {
-                        self.types
-                            .intern(TypeKind::GenericParameter(parameter))
-                            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))
+                        crate::symbolic_generic_value::symbolic_generic_value(
+                            self.graph.declarations(),
+                            self.types,
+                            parameter,
+                        )
+                        .ok_or(BodyCheckInternalError::InvalidSyntax(node))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 (
-                    nocter_model::GenericApplication::from_types(arguments),
+                    nocter_model::GenericApplication::new(arguments),
                     inference_parameters,
                     TypeSubstitution::default(),
                 )

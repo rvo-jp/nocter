@@ -360,7 +360,9 @@ fn operation_inputs(
         }
         MachineOperationKind::Aggregate(aggregate) => {
             for write in aggregate.writes() {
-                if let MachineAggregateWrite::Value { value, .. } = write {
+                if let MachineAggregateWrite::Value { value, .. }
+                | MachineAggregateWrite::RepeatedValue { value, .. } = write
+                {
                     insert_value(body, *value, &mut inputs)?;
                 }
             }

@@ -1437,15 +1437,7 @@ impl<'a> Renderer<'a> {
                 self.output.push_str(&value.to_string());
                 Some(())
             }
-            nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(parameter)) => {
-                let declaration = self
-                    .graph
-                    .declarations()
-                    .generic_parameters()
-                    .get(parameter)?;
-                self.output.push_str(self.symbol(declaration.name())?);
-                Some(())
-            }
+            nocter_model::GenericValue::Usize(value) => self.usize_term(value),
         }
     }
 
@@ -1639,6 +1631,15 @@ impl<'a> Renderer<'a> {
         match value {
             nocter_model::UsizeTerm::Value(value) => write!(self.output, "{value}").ok()?,
             nocter_model::UsizeTerm::Parameter(parameter) => {
+                if let Some(argument) = self.generics.and_then(|arguments| arguments.get(parameter))
+                {
+                    let nocter_model::GenericValue::Usize(argument) = argument else {
+                        return None;
+                    };
+                    if argument != value {
+                        return self.usize_term(argument);
+                    }
+                }
                 let parameter = self
                     .graph
                     .declarations()

@@ -188,14 +188,20 @@ fn normalize_body_assumptions(
                 .generic_parameters()
                 .iter()
                 .map(|parameter| {
-                    types
-                        .intern(TypeKind::GenericParameter(*parameter))
-                        .map_err(|_| SubstitutionError::InvalidStore)
+                    crate::symbolic_generic_value::symbolic_generic_value(
+                        graph.declarations(),
+                        types,
+                        *parameter,
+                    )
+                    .ok_or(SubstitutionError::InvalidStore)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             intrinsic.push(CheckedPredicate::Interface {
                 subject,
-                application: InterfaceApplication::new(interface_id, arguments),
+                application: InterfaceApplication::new(
+                    interface_id,
+                    nocter_model::GenericApplication::new(arguments),
+                ),
                 associated_types: Box::new([]),
             });
         }
