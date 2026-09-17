@@ -502,7 +502,13 @@ fn contains_generic(
                         .filter_map(|argument| argument.type_value()),
                 );
             }
-            BoundTypeKind::Opaque { arguments, .. } => pending.extend(arguments.iter().copied()),
+            BoundTypeKind::Opaque { arguments, .. } => {
+                pending.extend(
+                    arguments
+                        .iter()
+                        .filter_map(|argument| argument.type_value()),
+                );
+            }
             BoundTypeKind::Tuple(elements) => pending.extend(elements.iter().copied()),
             BoundTypeKind::AssociatedSelection { base, .. }
             | BoundTypeKind::Pointer(base)
@@ -522,6 +528,7 @@ fn contains_generic(
             }
             BoundTypeKind::Builtin(_)
             | BoundTypeKind::GenericParameter(_)
+            | BoundTypeKind::StructuralConstant(_)
             | BoundTypeKind::SelfType(_) => {}
         }
     }

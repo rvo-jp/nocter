@@ -148,6 +148,30 @@ impl TypeSubstitution {
             .ok_or(SubstitutionError::InvalidStore)
     }
 
+    pub(crate) fn apply_value(
+        &self,
+        types: &mut nocter_model::TypeTransaction,
+        value: GenericValue,
+    ) -> Result<GenericValue, SubstitutionError> {
+        match value {
+            GenericValue::Type(ty) => self.apply_type(types, ty).map(GenericValue::Type),
+            GenericValue::Usize(value) => Ok(GenericValue::Usize(self.constant_term(value))),
+        }
+    }
+
+    pub(crate) fn apply_application(
+        &self,
+        types: &mut nocter_model::TypeTransaction,
+        application: &nocter_model::GenericApplication,
+    ) -> Result<nocter_model::GenericApplication, SubstitutionError> {
+        application
+            .iter()
+            .copied()
+            .map(|value| self.apply_value(types, value))
+            .collect::<Result<Vec<_>, _>>()
+            .map(nocter_model::GenericApplication::new)
+    }
+
     fn direct_replacement(&self, types: &TypeStore, kind: &TypeKind) -> Option<TypeId> {
         match kind {
             TypeKind::GenericParameter(parameter) => self.generics.get(parameter).copied(),

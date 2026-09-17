@@ -1,10 +1,9 @@
 use nocter_model::Symbol;
-use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{SyntaxToken, SyntaxTree};
 
-use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
+use crate::{PreparedNamespaces, SurfaceDeclarationId};
 
-use super::{TypeBindingError, TypeBindingRule};
+use super::TypeBindingError;
 
 pub(super) fn declaration_module(
     namespaces: &PreparedNamespaces<'_>,
@@ -33,29 +32,6 @@ pub(super) fn declaration_source(
         .get(declaration.index())
         .map(|surface| surface.source())
         .ok_or(TypeBindingError::MissingSource(declaration))
-}
-
-pub(super) fn require_arity(
-    namespaces: &PreparedNamespaces<'_>,
-    origin: SyntaxOrigin,
-    entity: ReservedEntity,
-    actual: usize,
-) -> Result<(), TypeBindingError> {
-    let generics = &namespaces.imports.generics;
-    let expected = generics
-        .headers
-        .reserved
-        .declaration_for_entity(entity)
-        .and_then(|declaration| generics.own.get(declaration.index()))
-        .map_or(0, |parameters| parameters.len());
-    if expected == actual {
-        Ok(())
-    } else {
-        Err(TypeBindingError::rule(
-            TypeBindingRule::InvalidTypeArguments,
-            origin,
-        ))
-    }
 }
 
 pub(super) fn token_symbol(

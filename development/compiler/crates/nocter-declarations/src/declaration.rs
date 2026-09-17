@@ -1,7 +1,8 @@
 use nocter_model::{
     AssociatedTypeId, BodyId, CallableId, CompilationTarget, ConstructionId, DeclarationSiteId,
-    DropId, FieldId, GenericParameterId, InstanceId, InterfaceId, InterfaceImplementationId,
-    NominalTypeId, ParameterId, RequirementId, Symbol, TypeAliasId, TypeId, VariantId,
+    DropId, FieldId, GenericApplication, GenericParameterId, InstanceId, InterfaceId,
+    InterfaceImplementationId, NominalTypeId, ParameterId, RequirementId, Symbol, TypeAliasId,
+    TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -64,17 +65,21 @@ impl GenericParameter {
     pub const fn domain(self) -> GenericParameterDomain {
         self.domain
     }
+
+    pub(crate) fn set_domain(&mut self, domain: GenericParameterDomain) {
+        self.domain = domain;
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct InterfaceApplication {
     interface: InterfaceId,
-    arguments: Box<[TypeId]>,
+    arguments: GenericApplication,
 }
 
 impl InterfaceApplication {
     #[must_use]
-    pub fn new(interface: InterfaceId, arguments: impl Into<Box<[TypeId]>>) -> Self {
+    pub fn new(interface: InterfaceId, arguments: impl Into<GenericApplication>) -> Self {
         Self {
             interface,
             arguments: arguments.into(),
@@ -87,7 +92,7 @@ impl InterfaceApplication {
     }
 
     #[must_use]
-    pub const fn arguments(&self) -> &[TypeId] {
+    pub const fn arguments(&self) -> &GenericApplication {
         &self.arguments
     }
 }

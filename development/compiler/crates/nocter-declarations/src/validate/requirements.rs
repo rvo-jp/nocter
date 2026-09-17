@@ -212,11 +212,17 @@ pub(super) fn validate_interface_application(
         owner,
         DeclarationDomain::Interface,
     )?;
-    if application.arguments().len() != declaration.generic_parameters().len() {
+    if program
+        .declarations()
+        .validate_generic_application(declaration.generic_parameters(), application.arguments())
+        .is_err()
+    {
         return Err(ProgramIntegrityError::InvalidPosition(owner));
     }
     for argument in application.arguments() {
-        require_type(program, *argument, owner)?;
+        if let nocter_model::GenericValue::Type(ty) = argument {
+            require_type(program, *ty, owner)?;
+        }
     }
     Ok(())
 }

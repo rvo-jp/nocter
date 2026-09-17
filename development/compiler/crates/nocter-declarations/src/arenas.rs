@@ -371,6 +371,23 @@ impl DeclarationArenaBuilder {
         self.generic_parameters.get(id).copied()
     }
 
+    /// Finalizes the value domain of a declaration-pattern binder after its target name resolves.
+    ///
+    /// Generic identities are reserved before authored imports are resolved, while an
+    /// `instance Target<T, N>` binder inherits its domain from `Target`. This is the only mutation
+    /// permitted after reservation and before the declaration arenas are frozen.
+    pub fn set_generic_parameter_domain(
+        &mut self,
+        id: GenericParameterId,
+        domain: crate::GenericParameterDomain,
+    ) -> bool {
+        let Some(parameter) = self.generic_parameters.get_mut(id) else {
+            return false;
+        };
+        parameter.set_domain(domain);
+        true
+    }
+
     pub fn add_parameter(&mut self, value: Parameter) -> ParameterId {
         self.parameters.insert(value)
     }

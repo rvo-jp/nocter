@@ -242,12 +242,7 @@ impl InstanceOperationSelector<'_> {
         }
         let application = nocter_declarations::InterfaceApplication::new(
             opaque.interface().interface(),
-            opaque
-                .interface()
-                .arguments()
-                .iter()
-                .map(|argument| opaque_substitution.apply_type(self.types, *argument))
-                .collect::<Result<Vec<_>, _>>()?,
+            opaque_substitution.apply_application(self.types, opaque.interface().arguments())?,
         );
         let interface = self
             .graph
@@ -749,7 +744,7 @@ impl InstanceOperationSelector<'_> {
             .copied()
             .zip(application.arguments().iter().copied())
         {
-            substitution.bind_generic(parameter, argument);
+            substitution.bind_value(parameter, argument);
         }
         Ok(substitution)
     }
@@ -903,7 +898,11 @@ fn interface_generic_arguments(
             .iter()
             .copied()
             .zip(application.arguments().iter().copied())
-            .map(|(parameter, ty)| GenericArgument::new(parameter, ty)),
+            .filter_map(|(parameter, value)| {
+                value
+                    .as_type()
+                    .map(|ty| GenericArgument::new(parameter, ty))
+            }),
     )
     .map_err(|duplicate| InstanceSelectionError::DuplicateGeneric(duplicate.parameter()))
 }
@@ -915,10 +914,6 @@ fn specialized_application(
 ) -> Result<nocter_declarations::InterfaceApplication, InstanceSelectionError> {
     Ok(nocter_declarations::InterfaceApplication::new(
         application.interface(),
-        application
-            .arguments()
-            .iter()
-            .map(|argument| substitution.apply_type(types, *argument))
-            .collect::<Result<Vec<_>, _>>()?,
+        substitution.apply_application(types, application.arguments())?,
     ))
 }

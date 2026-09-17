@@ -28,6 +28,7 @@ pub use violation::{ImportRule, ImportViolation};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImportError {
     Rule(ImportViolation),
+    Generic(crate::GenericError),
     Namespace(NamespaceViolation),
     Program(ProgramBuildError),
     MissingSource(SurfaceSourceId),
@@ -47,6 +48,7 @@ impl fmt::Display for ImportError {
                 violation.rule().code(),
                 violation.rule().message()
             ),
+            Self::Generic(error) => error.fmt(formatter),
             Self::Namespace(violation) => write!(
                 formatter,
                 "{}: {}",
@@ -90,6 +92,12 @@ impl From<ProgramBuildError> for ImportError {
 impl From<ImportViolation> for ImportError {
     fn from(violation: ImportViolation) -> Self {
         Self::Rule(violation)
+    }
+}
+
+impl From<crate::GenericError> for ImportError {
+    fn from(error: crate::GenericError) -> Self {
+        Self::Generic(error)
     }
 }
 
@@ -186,6 +194,12 @@ pub fn prepare_authored_imports(
         &mut import_ids,
         &mut import_paths,
     )?;
+    generics.finalize_pattern_domains(|source, name| {
+        source_namespaces
+            .get(source.index())?
+            .get(&name)
+            .map(|binding| binding.entity)
+    })?;
 
     Ok(PreparedImports {
         generics,

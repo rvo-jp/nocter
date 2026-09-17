@@ -5,8 +5,8 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxElement, SyntaxTree};
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
 use super::binding_arena::BindingArena;
-use super::context::require_arity;
 use super::names::{resolve_exported, segments};
+use super::syntax::resolve_argument_domains;
 use super::{BoundInterfaceApplication, TypeBindingError, TypeBindingRule};
 
 pub(super) fn bind(
@@ -32,7 +32,7 @@ pub(super) fn bind(
         .ok_or(TypeBindingError::InvalidSyntax(application))?;
     match tree.node(child).map(nocter_syntax::SyntaxNode::kind) {
         Some(NodeKind::NamedType) => {
-            let path = resolve_exported(
+            let mut path = resolve_exported(
                 namespaces,
                 declaration,
                 tree,
@@ -51,30 +51,19 @@ pub(super) fn bind(
                     SyntaxOrigin::Token(selection.token),
                 ));
             }
-            require_arity(
+            resolve_argument_domains(
                 namespaces,
+                ReservedEntity::Interface(definition),
+                &mut path.arguments,
+                &arena.kinds,
+                &mut arena.constant_argument_types,
                 path.arguments_origin
                     .map_or(SyntaxOrigin::Token(path.entity_token), SyntaxOrigin::Node),
-                ReservedEntity::Interface(definition),
-                path.arguments.len(),
             )?;
-            let arguments = path
-                .arguments
-                .iter()
-                .copied()
-                .map(|argument| {
-                    argument.type_value().ok_or_else(|| {
-                        TypeBindingError::rule(
-                            TypeBindingRule::InvalidTypeArguments,
-                            path.arguments_origin
-                                .map_or(SyntaxOrigin::Token(path.entity_token), SyntaxOrigin::Node),
-                        )
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            arena.record_usize_expressions(&path.arguments, declaration);
             Ok(BoundInterfaceApplication {
                 definition,
-                arguments: arguments.into_boxed_slice(),
+                arguments: path.arguments.into_boxed_slice(),
             })
         }
         _ => Err(TypeBindingError::InvalidSyntax(application)),

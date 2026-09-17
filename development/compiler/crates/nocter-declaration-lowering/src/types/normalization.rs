@@ -204,6 +204,7 @@ struct NormalizationContext {
     patterns: Box<[Box<[NormalizedDeclarationPattern]>]>,
     implementation_interfaces: HashMap<SurfaceDeclarationId, InterfaceId>,
     bound_requirements: Box<[Box<[BoundRequirementKind]>]>,
+    generic_domains: HashMap<GenericParameterId, nocter_declarations::GenericParameterDomain>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -251,6 +252,7 @@ struct Evaluator<'a> {
     alias_stack: Vec<TypeAliasId>,
     usize_expression_ids: &'a HashMap<NodeId, nocter_model::ConstantExpressionId>,
     usize_terms: &'a HashMap<nocter_model::ConstantExpressionId, nocter_model::UsizeTerm>,
+    structural_constants: &'a HashMap<nocter_model::ConstantId, super::PreparedStructuralConstant>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
 }
 
@@ -331,6 +333,16 @@ impl Evaluator<'_> {
                 self.complete(key, normalized);
             }
             BoundTypeKind::GenericParameter(parameter) => {
+                if self
+                    .context
+                    .generic_domains
+                    .get(&parameter)
+                    .is_some_and(|domain| {
+                        *domain == nocter_declarations::GenericParameterDomain::UsizeConstant
+                    })
+                {
+                    return Err(TypeNormalizationError::InvalidBoundType(key.ty));
+                }
                 let normalized = if let Some(substitution) = key
                     .substitutions
                     .iter()
@@ -345,6 +357,9 @@ impl Evaluator<'_> {
                         .map_err(|_| TypeNormalizationError::InconsistentTypeStore)?
                 };
                 self.complete(key, normalized);
+            }
+            BoundTypeKind::StructuralConstant(_) => {
+                return Err(TypeNormalizationError::InvalidBoundType(key.ty));
             }
             BoundTypeKind::SelfType(owner) => {
                 let normalized = self
@@ -443,7 +458,7 @@ impl Evaluator<'_> {
                 arguments,
             } => TypeKind::Opaque {
                 definition,
-                arguments: self.results(&key, &arguments)?.into(),
+                arguments: self.generic_results(&key, &arguments)?,
             },
             BoundTypeKind::AssociatedSelection { base, name } => {
                 let bound_base = base;
@@ -513,6 +528,7 @@ impl Evaluator<'_> {
             BoundTypeKind::Fallible(success) => TypeKind::Fallible(self.result(&key, success)?),
             BoundTypeKind::Builtin(_)
             | BoundTypeKind::GenericParameter(_)
+            | BoundTypeKind::StructuralConstant(_)
             | BoundTypeKind::SelfType(_)
             | BoundTypeKind::Alias { .. } => {
                 return Err(TypeNormalizationError::InvalidBoundType(key.ty));
@@ -572,6 +588,19 @@ impl Evaluator<'_> {
             super::BoundGenericValue::UsizeExpression(expression) => {
                 self.usize_term(parent, expression).map(GenericValue::Usize)
             }
+            super::BoundGenericValue::UsizeParameter(parameter) => Ok(GenericValue::Usize(
+                self.substitute_usize_parameter(parent, parameter)?,
+            )),
+            super::BoundGenericValue::UsizeConstant(constant) => self
+                .structural_constants
+                .get(&constant)
+                .and_then(|constant| match constant.value {
+                    nocter_model::ConstantValue::Integer(value) => u64::try_from(value).ok(),
+                    _ => None,
+                })
+                .map(UsizeTerm::Value)
+                .map(GenericValue::Usize)
+                .ok_or(TypeNormalizationError::InvalidBoundType(parent.ty)),
         }
     }
 
@@ -589,6 +618,14 @@ impl Evaluator<'_> {
         let UsizeTerm::Parameter(parameter) = term else {
             return Ok(term);
         };
+        self.substitute_usize_parameter(parent, parameter)
+    }
+
+    fn substitute_usize_parameter(
+        &self,
+        parent: &EvaluationKey,
+        parameter: GenericParameterId,
+    ) -> Result<UsizeTerm, TypeNormalizationError> {
         match parent
             .substitutions
             .iter()
@@ -596,7 +633,7 @@ impl Evaluator<'_> {
         {
             Some(GenericValue::Usize(value)) => Ok(value),
             Some(GenericValue::Type(_)) => Err(TypeNormalizationError::InvalidBoundType(parent.ty)),
-            None => Ok(term),
+            None => Ok(UsizeTerm::Parameter(parameter)),
         }
     }
 
@@ -906,7 +943,10 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
             .iter()
             .filter_map(|argument| argument.type_value())
             .collect(),
-        BoundTypeKind::Opaque { arguments, .. } => arguments.to_vec(),
+        BoundTypeKind::Opaque { arguments, .. } => arguments
+            .iter()
+            .filter_map(|argument| argument.type_value())
+            .collect(),
         BoundTypeKind::Tuple(elements) => elements.to_vec(),
         BoundTypeKind::AssociatedSelection { base, .. }
         | BoundTypeKind::Pointer(base)
@@ -930,6 +970,7 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
             .collect(),
         BoundTypeKind::Builtin(_)
         | BoundTypeKind::GenericParameter(_)
+        | BoundTypeKind::StructuralConstant(_)
         | BoundTypeKind::SelfType(_)
         | BoundTypeKind::Alias { .. } => Vec::new(),
     };
@@ -1023,6 +1064,7 @@ pub fn normalize_header_types(
         alias_stack: Vec::new(),
         usize_expression_ids: &usize_expression_ids,
         usize_terms: &usize_terms,
+        structural_constants: &structural_constants,
         associated_projection_uses: Vec::new(),
     };
 
@@ -1147,11 +1189,7 @@ fn normalize_opaque_results(
     ordered.sort_unstable_by_key(|(declaration, _, _)| *declaration);
     let mut normalized = HashMap::with_capacity(ordered.len());
     for (declaration, opaque, result) in ordered {
-        let arguments = result
-            .arguments
-            .iter()
-            .map(|argument| evaluator.normalize(*argument, declaration))
-            .collect::<Result<Vec<_>, _>>()?;
+        let arguments = normalize_generic_application(evaluator, declaration, &result.arguments)?;
         let associated_types = result
             .associated_types
             .iter()
@@ -1181,12 +1219,45 @@ fn normalize_interface_application(
 ) -> Result<InterfaceApplication, TypeNormalizationError> {
     Ok(InterfaceApplication::new(
         application.definition,
-        application
-            .arguments
-            .iter()
-            .map(|argument| evaluator.normalize(*argument, declaration))
-            .collect::<Result<Vec<_>, _>>()?,
+        normalize_generic_application(evaluator, declaration, &application.arguments)?,
     ))
+}
+
+fn normalize_generic_application(
+    evaluator: &mut Evaluator<'_>,
+    declaration: SurfaceDeclarationId,
+    arguments: &[super::BoundGenericValue],
+) -> Result<nocter_model::GenericApplication, TypeNormalizationError> {
+    arguments
+        .iter()
+        .copied()
+        .map(|argument| match argument {
+            super::BoundGenericValue::Type(ty) => {
+                evaluator.normalize(ty, declaration).map(GenericValue::Type)
+            }
+            super::BoundGenericValue::UsizeExpression(expression) => evaluator
+                .usize_expression_ids
+                .get(&expression)
+                .and_then(|id| evaluator.usize_terms.get(id))
+                .copied()
+                .map(GenericValue::Usize)
+                .ok_or(TypeNormalizationError::InconsistentTypeStore),
+            super::BoundGenericValue::UsizeParameter(parameter) => {
+                Ok(GenericValue::Usize(UsizeTerm::Parameter(parameter)))
+            }
+            super::BoundGenericValue::UsizeConstant(constant) => evaluator
+                .structural_constants
+                .get(&constant)
+                .and_then(|constant| match constant.value {
+                    nocter_model::ConstantValue::Integer(value) => u64::try_from(value).ok(),
+                    _ => None,
+                })
+                .map(UsizeTerm::Value)
+                .map(GenericValue::Usize)
+                .ok_or(TypeNormalizationError::InconsistentTypeStore),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(nocter_model::GenericApplication::new)
 }
 
 fn normalize_requirement(

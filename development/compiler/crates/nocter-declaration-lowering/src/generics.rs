@@ -4,7 +4,7 @@ mod violation;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_declarations::{GenericOwner, GenericParameter, GenericParameterDomain};
+use nocter_declarations::{ExportedEntity, GenericOwner, GenericParameter, GenericParameterDomain};
 use nocter_model::{GenericParameterId, Symbol};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
@@ -129,6 +129,115 @@ impl PreparedGenerics<'_> {
                 .map(|binding| binding.parameter)
                 .collect(),
         )
+    }
+
+    pub(crate) fn finalize_pattern_domains(
+        &mut self,
+        mut lookup: impl FnMut(crate::SurfaceSourceId, Symbol) -> Option<ExportedEntity>,
+    ) -> Result<(), GenericError> {
+        let mut inferred = BTreeMap::new();
+        for index in 0..self.headers.reserved.declarations.len() {
+            let declaration = SurfaceDeclarationId::from_index(index);
+            let surface = self.headers.reserved.declarations[index];
+            if !matches!(
+                surface.kind(),
+                SurfaceDeclarationKind::Construction
+                    | SurfaceDeclarationKind::Instance
+                    | SurfaceDeclarationKind::Drop
+            ) {
+                continue;
+            }
+            let tree = self
+                .headers
+                .reserved
+                .sources
+                .get(surface.source().index())
+                .ok_or(GenericError::MissingSource(declaration))?
+                .syntax();
+            for pattern in direct_node_iter(tree, surface.node(), NodeKind::DeclarationTypePattern)
+            {
+                let Some(arguments) = find_descendant(tree, pattern, NodeKind::PatternArguments)
+                else {
+                    continue;
+                };
+                let identifiers = descendant_identifiers(tree, pattern);
+                let Some(head) = identifiers.first().copied() else {
+                    return Err(GenericError::InconsistentBinder(declaration));
+                };
+                let name = self
+                    .headers
+                    .reserved
+                    .source_map
+                    .get(head.source())
+                    .and_then(|source| source.text_at(head.range()))
+                    .and_then(|spelling| self.headers.reserved.symbols().get(spelling))
+                    .ok_or(GenericError::InconsistentBinder(declaration))?;
+                let Some(entity) = lookup(surface.source(), name) else {
+                    continue;
+                };
+                let Some(target) = self.headers.reserved.declaration_for_entity(match entity {
+                    ExportedEntity::NominalType(definition) => {
+                        ReservedEntity::NominalType(definition)
+                    }
+                    ExportedEntity::Interface(definition) => ReservedEntity::Interface(definition),
+                    _ => continue,
+                }) else {
+                    continue;
+                };
+                let target_parameters = self
+                    .own
+                    .get(target.index())
+                    .map(AsRef::as_ref)
+                    .unwrap_or(&[]);
+                let binder_tokens = descendant_identifiers(tree, arguments);
+                if target_parameters.len() != binder_tokens.len() {
+                    continue;
+                }
+                for (target_parameter, token) in
+                    target_parameters.iter().copied().zip(binder_tokens)
+                {
+                    let spelling = self
+                        .headers
+                        .reserved
+                        .source_map
+                        .get(token.source())
+                        .and_then(|source| source.text_at(token.range()))
+                        .ok_or(GenericError::InconsistentBinder(declaration))?;
+                    let symbol = self
+                        .headers
+                        .reserved
+                        .symbols()
+                        .get(spelling)
+                        .ok_or(GenericError::InconsistentBinder(declaration))?;
+                    let binder = self
+                        .lookup(declaration, symbol)
+                        .ok_or(GenericError::InconsistentBinder(declaration))?;
+                    let domain = self
+                        .headers
+                        .reserved
+                        .program
+                        .declarations()
+                        .generic_parameter(target_parameter)
+                        .ok_or(GenericError::InconsistentBinder(declaration))?
+                        .domain();
+                    inferred.entry(binder).or_insert(domain);
+                }
+            }
+        }
+        for (parameter, domain) in inferred {
+            if !self
+                .headers
+                .reserved
+                .program
+                .declarations_mut()
+                .set_generic_parameter_domain(parameter, domain)
+            {
+                return Err(GenericError::InconsistentBinder(
+                    SurfaceDeclarationId::from_index(0),
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

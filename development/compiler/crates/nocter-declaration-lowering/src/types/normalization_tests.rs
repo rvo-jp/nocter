@@ -209,6 +209,53 @@ fn normalizes_constant_arguments_in_nominal_applications() {
 }
 
 #[test]
+fn normalizes_named_constants_in_generic_applications() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "pub struct Buffer<T, const N: usize> {\n",
+            "    pub values: [T; N]\n",
+            "}\n",
+            "const PAGE_SIZE: usize = 4\n",
+            "type Page = Buffer<u8, PAGE_SIZE>\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+    let store = normalized
+        .namespaces()
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types();
+    let u8_ty = store.builtin(BuiltinType::U8);
+
+    assert!(
+        all_nodes(&app, NodeKind::Type)
+            .into_iter()
+            .filter_map(|node| normalized.type_for(node))
+            .any(|ty| matches!(
+                store.get(ty),
+                Some(TypeKind::Nominal { arguments, .. })
+                    if arguments.as_slice() == [
+                        nocter_model::GenericValue::Type(u8_ty),
+                        nocter_model::GenericValue::Usize(UsizeTerm::Value(4)),
+                    ]
+            ))
+    );
+}
+
+#[test]
 fn substitutes_constant_arguments_while_expanding_aliases() {
     let mut sources = SourceMap::new();
     let (manifest, app, std_manifest, std_root, prelude) = fixture(
@@ -247,6 +294,121 @@ fn substitutes_constant_arguments_while_expanding_aliases() {
                     element,
                     length: UsizeTerm::Value(4),
                 }) if *element == u8_ty
+            ))
+    );
+}
+
+#[test]
+fn preserves_constant_binders_in_nominal_declaration_patterns() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "pub struct Buffer<T, const N: usize> {\n",
+            "    pub values: [T; N]\n",
+            "}\n",
+            "instance Buffer<T, N> {}\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+
+    assert!(normalized.patterns.iter().flatten().any(|pattern| matches!(
+        pattern,
+        super::NormalizedDeclarationPattern::Type(ty)
+            if matches!(
+                normalized
+                    .namespaces()
+                    .imports
+                    .generics
+                    .headers
+                    .reserved
+                    .program
+                    .types()
+                    .get(*ty),
+                Some(TypeKind::Nominal { arguments, .. })
+                    if matches!(arguments.as_slice(), [
+                        nocter_model::GenericValue::Type(_),
+                        nocter_model::GenericValue::Usize(UsizeTerm::Parameter(_)),
+                    ])
+            )
+    )));
+}
+
+#[test]
+fn normalizes_constant_arguments_in_interface_requirements() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "pub interface Window<const N: usize> {}\n",
+            "func inspect<T>(): void where T impl Window<2 + 2> { return }\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+
+    assert!(
+        normalized
+            .requirements
+            .iter()
+            .flatten()
+            .any(|requirement| matches!(
+                requirement,
+                nocter_declarations::RequirementKind::Interface { application, .. }
+                    if application.arguments().as_slice() == [
+                        nocter_model::GenericValue::Usize(UsizeTerm::Value(4)),
+                    ]
+            ))
+    );
+}
+
+#[test]
+fn preserves_constant_parameters_in_interface_implementation_patterns() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "pub interface Window<const N: usize> {}\n",
+            "pub struct Buffer<T, const N: usize> {\n",
+            "    pub values: [T; N]\n",
+            "}\n",
+            "instance Buffer<T, N> {\n",
+            "    impl Window<N>\n",
+            "}\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+
+    assert!(
+        normalized
+            .interface_applications
+            .values()
+            .any(|application| matches!(
+                application.arguments().as_slice(),
+                [nocter_model::GenericValue::Usize(UsizeTerm::Parameter(_))]
             ))
     );
 }
@@ -546,7 +708,11 @@ fn normalizes_opaque_result_identity_interface_bindings_and_outcomes() {
     assert_eq!(arguments.len(), 1);
     assert_eq!(contract.generic_parameters().len(), 1);
     assert_eq!(
-        contract.interface().arguments(),
+        contract
+            .interface()
+            .arguments()
+            .type_values()
+            .collect::<Vec<_>>(),
         arguments.type_values().collect::<Vec<_>>().as_slice()
     );
     assert_eq!(contract.associated_types().len(), 1);

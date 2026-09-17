@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use nocter_declarations::ExportedEntity;
 use nocter_model::{
@@ -14,7 +14,7 @@ use nocter_syntax::{
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
 use super::binding_arena::BindingArena;
-use super::context::{require_arity, token_symbol, token_text};
+use super::context::{token_symbol, token_text};
 use super::names::{resolve_exported, segments};
 use super::normalization_origins::NormalizationOrigins;
 use super::{
@@ -54,6 +54,7 @@ pub(super) fn bind(
                 kind,
                 &values,
                 &mut arena.kinds,
+                &mut arena.constant_argument_types,
                 &mut arena.origins,
             )?
         {
@@ -74,11 +75,11 @@ pub(super) fn bind(
                         .collect(),
                     _ => Vec::new(),
                 };
-                for expression in expressions {
-                    arena
-                        .usize_expression_declarations
-                        .insert(expression, declaration);
-                }
+                arena.usize_expression_declarations.extend(
+                    expressions
+                        .into_iter()
+                        .map(|expression| (expression, declaration)),
+                );
             }
         }
     }
@@ -97,13 +98,21 @@ fn bind_node(
     kind: NodeKind,
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
+    constant_argument_types: &mut HashSet<BoundTypeId>,
     origins: &mut NormalizationOrigins,
 ) -> Result<Option<BoundTypeId>, TypeBindingError> {
     let result = match kind {
         NodeKind::Type => bind_type_wrapper(tree, node, values, kinds)?,
-        NodeKind::NamedType => {
-            bind_named(namespaces, declaration, tree, node, values, kinds, origins)?
-        }
+        NodeKind::NamedType => bind_named(
+            namespaces,
+            declaration,
+            tree,
+            node,
+            values,
+            kinds,
+            constant_argument_types,
+            origins,
+        )?,
         NodeKind::PointerType => push(
             kinds,
             BoundTypeKind::Pointer(child_value(tree, node, values)?),
@@ -183,6 +192,7 @@ fn bind_named(
     node: NodeId,
     values: &HashMap<NodeId, BoundTypeId>,
     kinds: &mut Vec<BoundTypeKind>,
+    constant_argument_types: &mut HashSet<BoundTypeId>,
     origins: &mut NormalizationOrigins,
 ) -> Result<BoundTypeId, TypeBindingError> {
     let segments = segments(tree, node, values)?;
@@ -217,8 +227,9 @@ fn bind_named(
         path.entity_token,
         path.arguments_origin,
         path.entity,
-        &path.arguments,
+        path.arguments,
         kinds,
+        constant_argument_types,
     )?;
     for selection in path.trailing {
         if !selection.arguments.is_empty() {
@@ -246,8 +257,9 @@ fn bind_entity(
     token: SyntaxToken,
     arguments_origin: Option<NodeId>,
     entity: ExportedEntity,
-    arguments: &[super::BoundGenericValue],
+    mut arguments: Vec<super::BoundGenericValue>,
     kinds: &mut Vec<BoundTypeKind>,
+    constant_argument_types: &mut HashSet<BoundTypeId>,
 ) -> Result<BoundTypeId, TypeBindingError> {
     match entity {
         ExportedEntity::BuiltinType(builtin) => {
@@ -260,16 +272,12 @@ fn bind_entity(
             Ok(push(kinds, BoundTypeKind::Builtin(builtin)))
         }
         ExportedEntity::NominalType(definition) => {
-            require_arity(
-                namespaces,
-                arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
-                ReservedEntity::NominalType(definition),
-                arguments.len(),
-            )?;
-            validate_argument_domains(
+            resolve_argument_domains(
                 namespaces,
                 ReservedEntity::NominalType(definition),
-                arguments,
+                &mut arguments,
+                kinds,
+                constant_argument_types,
                 arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
             )?;
             Ok(push(
@@ -281,16 +289,12 @@ fn bind_entity(
             ))
         }
         ExportedEntity::TypeAlias(definition) => {
-            require_arity(
-                namespaces,
-                arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
-                ReservedEntity::TypeAlias(definition),
-                arguments.len(),
-            )?;
-            validate_argument_domains(
+            resolve_argument_domains(
                 namespaces,
                 ReservedEntity::TypeAlias(definition),
-                arguments,
+                &mut arguments,
+                kinds,
+                constant_argument_types,
                 arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
             )?;
             Ok(push(
@@ -301,9 +305,17 @@ fn bind_entity(
                 },
             ))
         }
+        ExportedEntity::Constant(constant) => {
+            if !arguments.is_empty() {
+                return Err(TypeBindingError::rule(
+                    TypeBindingRule::InvalidTypeArguments,
+                    arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
+                ));
+            }
+            Ok(push(kinds, BoundTypeKind::StructuralConstant(constant)))
+        }
         ExportedEntity::Module(_)
         | ExportedEntity::Interface(_)
-        | ExportedEntity::Constant(_)
         | ExportedEntity::Static(_)
         | ExportedEntity::Callable(_) => Err(TypeBindingError::rule(
             TypeBindingRule::InvalidTypeEntity,
@@ -312,10 +324,12 @@ fn bind_entity(
     }
 }
 
-fn validate_argument_domains(
+pub(super) fn resolve_argument_domains(
     namespaces: &PreparedNamespaces<'_>,
     entity: ReservedEntity,
-    arguments: &[super::BoundGenericValue],
+    arguments: &mut [super::BoundGenericValue],
+    kinds: &[BoundTypeKind],
+    constant_argument_types: &mut HashSet<BoundTypeId>,
     origin: SyntaxOrigin,
 ) -> Result<(), TypeBindingError> {
     let generics = &namespaces.imports.generics;
@@ -325,33 +339,62 @@ fn validate_argument_domains(
         .declaration_for_entity(entity)
         .and_then(|declaration| generics.own(declaration))
         .ok_or_else(|| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))?;
-    for (parameter, argument) in parameters.iter().copied().zip(arguments) {
-        let domain = generics
-            .headers
-            .reserved
-            .program
-            .declarations()
+    let declarations = generics.headers.reserved.program.declarations();
+    if parameters.len() != arguments.len() {
+        return Err(TypeBindingError::rule(
+            TypeBindingRule::InvalidTypeArguments,
+            origin,
+        ));
+    }
+    for (parameter, argument) in parameters.iter().copied().zip(arguments.iter_mut()) {
+        let expected = declarations
             .generic_parameter(parameter)
             .ok_or_else(|| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))?
             .domain();
-        let valid = matches!(
-            (domain, argument),
-            (
-                nocter_declarations::GenericParameterDomain::Type,
-                super::BoundGenericValue::Type(_)
-            ) | (
-                nocter_declarations::GenericParameterDomain::UsizeConstant,
-                super::BoundGenericValue::UsizeExpression(_)
-            )
-        );
-        if !valid {
-            return Err(TypeBindingError::rule(
-                TypeBindingRule::InvalidTypeArguments,
-                origin,
-            ));
+        if expected == nocter_declarations::GenericParameterDomain::UsizeConstant
+            && let super::BoundGenericValue::Type(bound) = *argument
+        {
+            let resolved = match kinds.get(bound.index()) {
+                Some(BoundTypeKind::GenericParameter(argument_parameter))
+                    if declarations
+                        .generic_parameter(*argument_parameter)
+                        .is_some_and(|declaration| {
+                            declaration.domain()
+                                == nocter_declarations::GenericParameterDomain::UsizeConstant
+                        }) =>
+                {
+                    Some(super::BoundGenericValue::UsizeParameter(
+                        *argument_parameter,
+                    ))
+                }
+                Some(BoundTypeKind::StructuralConstant(constant)) => {
+                    Some(super::BoundGenericValue::UsizeConstant(*constant))
+                }
+                _ => None,
+            };
+            if let Some(resolved) = resolved {
+                constant_argument_types.insert(bound);
+                *argument = resolved;
+            }
         }
     }
-    Ok(())
+    let domains = arguments.iter().map(argument_domain).collect::<Vec<_>>();
+    declarations
+        .validate_generic_domains(parameters, &domains)
+        .map_err(|_| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))
+}
+
+const fn argument_domain(
+    argument: &super::BoundGenericValue,
+) -> nocter_declarations::GenericParameterDomain {
+    match argument {
+        super::BoundGenericValue::Type(_) => nocter_declarations::GenericParameterDomain::Type,
+        super::BoundGenericValue::UsizeExpression(_)
+        | super::BoundGenericValue::UsizeParameter(_)
+        | super::BoundGenericValue::UsizeConstant(_) => {
+            nocter_declarations::GenericParameterDomain::UsizeConstant
+        }
+    }
 }
 
 fn bind_associated_tail(

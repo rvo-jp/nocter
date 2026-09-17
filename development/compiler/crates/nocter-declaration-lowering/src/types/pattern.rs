@@ -7,7 +7,7 @@ use nocter_syntax::{
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId};
 
-use super::context::{declaration_source, require_arity, token_symbol};
+use super::context::{declaration_source, token_symbol};
 use super::{BoundDeclarationPattern, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) fn bind_all(
@@ -75,11 +75,11 @@ fn bind(
             Ok(BoundDeclarationPattern::Builtin(builtin))
         }
         ExportedEntity::NominalType(definition) => {
-            require_arity(
+            validate_argument_domains(
                 namespaces,
                 arguments_node.map_or(SyntaxOrigin::Token(head), SyntaxOrigin::Node),
                 ReservedEntity::NominalType(definition),
-                arguments.len(),
+                &arguments,
             )?;
             Ok(BoundDeclarationPattern::Nominal {
                 definition,
@@ -87,11 +87,11 @@ fn bind(
             })
         }
         ExportedEntity::Interface(definition) => {
-            require_arity(
+            validate_argument_domains(
                 namespaces,
                 arguments_node.map_or(SyntaxOrigin::Token(head), SyntaxOrigin::Node),
                 ReservedEntity::Interface(definition),
-                arguments.len(),
+                &arguments,
             )?;
             Ok(BoundDeclarationPattern::Interface {
                 definition,
@@ -107,6 +107,37 @@ fn bind(
             SyntaxOrigin::Token(head),
         )),
     }
+}
+
+fn validate_argument_domains(
+    namespaces: &PreparedNamespaces<'_>,
+    origin: SyntaxOrigin,
+    entity: ReservedEntity,
+    arguments: &[nocter_model::GenericParameterId],
+) -> Result<(), TypeBindingError> {
+    let generics = &namespaces.imports.generics;
+    let parameters = generics
+        .headers
+        .reserved
+        .declaration_for_entity(entity)
+        .and_then(|declaration| generics.own(declaration))
+        .ok_or_else(|| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))?;
+    let declarations = generics.headers.reserved.program.declarations();
+    let domains = arguments
+        .iter()
+        .copied()
+        .map(|parameter| {
+            declarations
+                .generic_parameter(parameter)
+                .map(nocter_declarations::GenericParameter::domain)
+                .ok_or_else(|| {
+                    TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin)
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    declarations
+        .validate_generic_domains(parameters, &domains)
+        .map_err(|_| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))
 }
 
 fn bind_arguments(

@@ -356,7 +356,9 @@ fn validate_interface(
     entity: SemanticEntity,
 ) -> Result<(), DeclarationTypeValidityError> {
     for argument in application.arguments() {
-        validate_position(types, source_index, *argument, TypePosition::Data, entity)?;
+        if let nocter_model::GenericValue::Type(ty) = argument {
+            validate_position(types, source_index, *ty, TypePosition::Data, entity)?;
+        }
     }
     Ok(())
 }

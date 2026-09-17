@@ -111,26 +111,28 @@ pub use normalization::{
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BoundInterfaceApplication {
     definition: InterfaceId,
-    arguments: Box<[BoundTypeId]>,
+    arguments: Box<[BoundGenericValue]>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum BoundGenericValue {
     Type(BoundTypeId),
     UsizeExpression(NodeId),
+    UsizeParameter(GenericParameterId),
+    UsizeConstant(nocter_model::ConstantId),
 }
 
 impl BoundGenericValue {
     fn type_value(self) -> Option<BoundTypeId> {
         match self {
             Self::Type(ty) => Some(ty),
-            Self::UsizeExpression(_) => None,
+            Self::UsizeExpression(_) | Self::UsizeParameter(_) | Self::UsizeConstant(_) => None,
         }
     }
 
     fn usize_expression(self) -> Option<NodeId> {
         match self {
-            Self::Type(_) => None,
+            Self::Type(_) | Self::UsizeParameter(_) | Self::UsizeConstant(_) => None,
             Self::UsizeExpression(expression) => Some(expression),
         }
     }
@@ -147,6 +149,7 @@ pub struct BoundAssociatedTypeBinding {
 pub enum BoundTypeKind {
     Builtin(nocter_model::BuiltinType),
     GenericParameter(GenericParameterId),
+    StructuralConstant(nocter_model::ConstantId),
     SelfType(ReservedEntity),
     Nominal {
         definition: NominalTypeId,
@@ -154,7 +157,7 @@ pub enum BoundTypeKind {
     },
     Opaque {
         definition: OpaqueTypeId,
-        arguments: Box<[BoundTypeId]>,
+        arguments: Box<[BoundGenericValue]>,
     },
     Alias {
         definition: TypeAliasId,
@@ -187,7 +190,7 @@ pub enum BoundTypeKind {
 struct BoundOpaqueResult {
     generic_parameters: Box<[GenericParameterId]>,
     interface: InterfaceId,
-    arguments: Box<[BoundTypeId]>,
+    arguments: Box<[BoundGenericValue]>,
     associated_types: Box<[(AssociatedTypeId, BoundTypeId)]>,
     result: BoundTypeId,
 }
@@ -481,18 +484,9 @@ pub fn bind_header_type_syntax(
         results::bind_all(&mut namespaces, &interface_applications, &mut arena)?;
 
     let mut usize_expression_nodes = arena
-        .kinds
-        .iter()
-        .flat_map(|kind| match kind {
-            BoundTypeKind::FixedArray { length, .. } => vec![*length],
-            BoundTypeKind::Nominal { arguments, .. } | BoundTypeKind::Alias { arguments, .. } => {
-                arguments
-                    .iter()
-                    .filter_map(|argument| argument.usize_expression())
-                    .collect()
-            }
-            _ => Vec::new(),
-        })
+        .usize_expression_declarations
+        .keys()
+        .copied()
         .collect::<Vec<_>>();
     usize_expression_nodes.sort_unstable_by_key(|node| (node.source(), node.index()));
     usize_expression_nodes.dedup();
@@ -501,6 +495,21 @@ pub fn bind_header_type_syntax(
         .into_iter()
         .map(|node| (node, usize_expressions.insert(node)))
         .collect();
+    arena.roots.retain(|node, ty| {
+        let retained = !arena.constant_argument_types.contains(ty);
+        if !retained {
+            arena.root_declarations.remove(node);
+        }
+        retained
+    });
+    for (node, ty) in &arena.roots {
+        if contains_value_only_type(&namespaces, &arena.kinds, *ty) {
+            return Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeEntity,
+                nocter_syntax::SyntaxOrigin::Node(*node),
+            ));
+        }
+    }
 
     Ok(PreparedTypeBindings {
         namespaces,
@@ -521,6 +530,68 @@ pub fn bind_header_type_syntax(
         usize_expression_declarations: arena.usize_expression_declarations,
         usize_terms: HashMap::new(),
     })
+}
+
+fn contains_value_only_type(
+    namespaces: &PreparedNamespaces<'_>,
+    kinds: &[BoundTypeKind],
+    root: BoundTypeId,
+) -> bool {
+    let declarations = namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .declarations();
+    let mut pending = vec![root];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(ty) = pending.pop() {
+        if !visited.insert(ty) {
+            continue;
+        }
+        match &kinds[ty.index()] {
+            BoundTypeKind::StructuralConstant(_) => return true,
+            BoundTypeKind::GenericParameter(parameter)
+                if declarations
+                    .generic_parameter(*parameter)
+                    .is_some_and(|parameter| {
+                        parameter.domain()
+                            == nocter_declarations::GenericParameterDomain::UsizeConstant
+                    }) =>
+            {
+                return true;
+            }
+            BoundTypeKind::Nominal { arguments, .. }
+            | BoundTypeKind::Opaque { arguments, .. }
+            | BoundTypeKind::Alias { arguments, .. } => pending.extend(
+                arguments
+                    .iter()
+                    .filter_map(|argument| argument.type_value()),
+            ),
+            BoundTypeKind::AssociatedSelection { base, .. }
+            | BoundTypeKind::Pointer(base)
+            | BoundTypeKind::Borrow { referent: base, .. }
+            | BoundTypeKind::Future(base)
+            | BoundTypeKind::Slice(base)
+            | BoundTypeKind::FixedArray { element: base, .. }
+            | BoundTypeKind::Optional(base)
+            | BoundTypeKind::Fallible(base) => pending.push(*base),
+            BoundTypeKind::Tuple(elements) => pending.extend(elements.iter().copied()),
+            BoundTypeKind::Callable(callable) => {
+                pending.push(callable.result());
+                pending.extend(callable.parameters().iter().copied());
+                if let Some(pack) = callable.pack() {
+                    pending.push(pack.primary());
+                    pending.extend(pack.value());
+                }
+            }
+            BoundTypeKind::Builtin(_)
+            | BoundTypeKind::GenericParameter(_)
+            | BoundTypeKind::SelfType(_) => {}
+        }
+    }
+    false
 }
 
 fn declaration_node_set(namespaces: &PreparedNamespaces<'_>) -> HashSet<NodeId> {

@@ -669,7 +669,7 @@ fn interface_implementation_substitution(
         .iter()
         .zip(normalized_interface.arguments())
     {
-        substitution.bind_generic(*parameter, *argument);
+        substitution.bind_value(*parameter, *argument);
     }
     for binding in associated_types {
         substitution.bind_associated(binding.declaration(), binding.ty());

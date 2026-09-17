@@ -11,8 +11,8 @@ use crate::{PreparedNamespaces, SurfaceDeclarationId};
 
 use super::context::token_symbol;
 use super::{
-    BoundInterfaceApplication, BoundOpaqueResult, BoundTypeId, BoundTypeKind, TypeBindingError,
-    TypeBindingRule, binding_arena::BindingArena, projection, push,
+    BoundGenericValue, BoundInterfaceApplication, BoundOpaqueResult, BoundTypeId, BoundTypeKind,
+    TypeBindingError, TypeBindingRule, binding_arena::BindingArena, projection, push,
 };
 
 #[derive(Clone, Copy)]
@@ -24,7 +24,7 @@ pub(super) struct OpaqueSyntax {
 }
 
 struct BoundOpaqueArguments {
-    positional: Vec<BoundTypeId>,
+    positional: Vec<BoundGenericValue>,
     associated: Vec<(AssociatedTypeId, BoundTypeId)>,
 }
 
@@ -62,8 +62,27 @@ pub(super) fn bind(
     let generic_arguments: Box<_> = generic_parameters
         .iter()
         .copied()
-        .map(|parameter| push(&mut arena.kinds, BoundTypeKind::GenericParameter(parameter)))
-        .collect();
+        .map(|parameter| {
+            let declaration = namespaces
+                .imports
+                .generics
+                .headers
+                .reserved
+                .program
+                .declarations()
+                .generic_parameter(parameter)
+                .ok_or(TypeBindingError::InvalidSyntax(node))?;
+            Ok::<_, TypeBindingError>(match declaration.domain() {
+                nocter_declarations::GenericParameterDomain::Type => BoundGenericValue::Type(push(
+                    &mut arena.kinds,
+                    BoundTypeKind::GenericParameter(parameter),
+                )),
+                nocter_declarations::GenericParameterDomain::UsizeConstant => {
+                    BoundGenericValue::UsizeParameter(parameter)
+                }
+            })
+        })
+        .collect::<Result<_, _>>()?;
     let mut result = push(
         &mut arena.kinds,
         BoundTypeKind::Opaque {
@@ -99,7 +118,7 @@ fn bind_opaque_arguments(
     tree: &SyntaxTree,
     application: NodeId,
     interface: nocter_model::InterfaceId,
-    positional: Vec<BoundTypeId>,
+    positional: Vec<BoundGenericValue>,
     roots: &HashMap<NodeId, BoundTypeId>,
 ) -> Result<BoundOpaqueArguments, TypeBindingError> {
     let mut associated = Vec::new();

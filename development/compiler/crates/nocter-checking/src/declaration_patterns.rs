@@ -127,12 +127,7 @@ impl DeclarationPatternTable {
             let substitution = owner.substitution().clone();
             let interface = InterfaceApplication::new(
                 declaration.interface().interface(),
-                declaration
-                    .interface()
-                    .arguments()
-                    .iter()
-                    .map(|argument| substitution.apply_type(types, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                substitution.apply_application(types, declaration.interface().arguments())?,
             );
             let target = owner.target();
             let mut associated_types = declaration

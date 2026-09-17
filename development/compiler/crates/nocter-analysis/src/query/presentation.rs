@@ -1278,7 +1278,7 @@ impl<'a> Renderer<'a> {
             ExportedEntity::Interface(application.interface()),
             declaration.name(),
         )?;
-        self.type_arguments(application.arguments())?;
+        self.generic_application(application.arguments())?;
         Some(())
     }
 
@@ -1611,21 +1611,6 @@ impl<'a> Renderer<'a> {
                 nocter_model::GenericValue::Type(ty) => self.ty(*ty)?,
                 nocter_model::GenericValue::Usize(value) => self.usize_term(*value)?,
             }
-        }
-        self.output.push('>');
-        Some(())
-    }
-
-    fn type_arguments(&mut self, arguments: &[TypeId]) -> Option<()> {
-        if arguments.is_empty() {
-            return Some(());
-        }
-        self.output.push('<');
-        for (index, argument) in arguments.iter().copied().enumerate() {
-            if index != 0 {
-                self.output.push_str(", ");
-            }
-            self.ty(argument)?;
         }
         self.output.push('>');
         Some(())

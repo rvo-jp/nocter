@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use nocter_declarations::InterfaceApplication;
-use nocter_model::{GenericParameterId, TypeAliasId, TypeId, TypeKind};
+use nocter_declarations::{GenericParameterDomain, InterfaceApplication};
+use nocter_model::{GenericParameterId, GenericValue, TypeAliasId, TypeId, TypeKind, UsizeTerm};
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDeclarationId};
 
@@ -38,6 +38,24 @@ pub(super) fn prepare_context(
         .headers
         .associated_type_declarations()
         .clone();
+    let declaration_arenas = namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .declarations();
+    let generic_domains = own_generics
+        .iter()
+        .flatten()
+        .copied()
+        .map(|parameter| {
+            declaration_arenas
+                .generic_parameter(parameter)
+                .map(|declaration| (parameter, declaration.domain()))
+                .ok_or(TypeNormalizationError::InconsistentTypeStore)
+        })
+        .collect::<Result<HashMap<_, _>, _>>()?;
     let store = namespaces
         .imports
         .generics
@@ -45,8 +63,8 @@ pub(super) fn prepare_context(
         .reserved
         .program
         .types_mut();
-    let generic_types = intern_generic_types(store, &own_generics)?;
-    let patterns = normalize_patterns(store, bound_patterns, &generic_types)?;
+    let generic_types = intern_generic_types(store, &own_generics, &generic_domains)?;
+    let patterns = normalize_patterns(store, bound_patterns, &generic_types, &generic_domains)?;
     let implementation_interfaces = bound_interface_applications
         .iter()
         .filter_map(|(node, application)| {
@@ -62,6 +80,7 @@ pub(super) fn prepare_context(
         &entities,
         &own_generics,
         &generic_types,
+        &generic_domains,
         &patterns,
     )?;
     Ok(NormalizationContext {
@@ -74,6 +93,7 @@ pub(super) fn prepare_context(
         patterns,
         implementation_interfaces,
         bound_requirements,
+        generic_domains,
     })
 }
 
@@ -105,10 +125,14 @@ fn collect_aliases(
 fn intern_generic_types(
     store: &mut nocter_model::TypeTransaction,
     own_generics: &[Box<[GenericParameterId]>],
+    generic_domains: &HashMap<GenericParameterId, GenericParameterDomain>,
 ) -> Result<HashMap<GenericParameterId, TypeId>, TypeNormalizationError> {
     let mut types = HashMap::new();
     for parameters in own_generics {
         for parameter in parameters {
+            if generic_domains.get(parameter) != Some(&GenericParameterDomain::Type) {
+                continue;
+            }
             if types.contains_key(parameter) {
                 continue;
             }
@@ -125,13 +149,14 @@ fn normalize_patterns(
     store: &mut nocter_model::TypeTransaction,
     patterns: &[Box<[BoundDeclarationPattern]>],
     generic_types: &HashMap<GenericParameterId, TypeId>,
+    generic_domains: &HashMap<GenericParameterId, GenericParameterDomain>,
 ) -> Result<Box<[Box<[NormalizedDeclarationPattern]>]>, TypeNormalizationError> {
     let normalized = patterns
         .iter()
         .map(|declaration| {
             declaration
                 .iter()
-                .map(|pattern| normalize_pattern(store, pattern, generic_types))
+                .map(|pattern| normalize_pattern(store, pattern, generic_types, generic_domains))
                 .collect::<Result<Vec<_>, _>>()
                 .map(Vec::into_boxed_slice)
         })
@@ -143,6 +168,7 @@ fn normalize_pattern(
     store: &mut nocter_model::TypeTransaction,
     pattern: &BoundDeclarationPattern,
     generic_types: &HashMap<GenericParameterId, TypeId>,
+    generic_domains: &HashMap<GenericParameterId, GenericParameterDomain>,
 ) -> Result<NormalizedDeclarationPattern, TypeNormalizationError> {
     Ok(match pattern {
         BoundDeclarationPattern::Builtin(builtin) => {
@@ -162,13 +188,14 @@ fn normalize_pattern(
         } => {
             let arguments: Box<_> = arguments
                 .iter()
-                .map(|parameter| generic_types[parameter])
-                .collect();
+                .map(|parameter| generic_value(*parameter, generic_types, generic_domains))
+                .collect::<Result<Vec<_>, _>>()
+                .map(Vec::into_boxed_slice)?;
             NormalizedDeclarationPattern::Type(
                 store
                     .intern(TypeKind::Nominal {
                         definition: *definition,
-                        arguments: arguments.into(),
+                        arguments: nocter_model::GenericApplication::new(arguments),
                     })
                     .map_err(|_| invalid_store())?,
             )
@@ -180,10 +207,28 @@ fn normalize_pattern(
             *definition,
             arguments
                 .iter()
-                .map(|parameter| generic_types[parameter])
-                .collect::<Vec<_>>(),
+                .map(|parameter| generic_value(*parameter, generic_types, generic_domains))
+                .collect::<Result<Vec<_>, _>>()?,
         )),
     })
+}
+
+fn generic_value(
+    parameter: GenericParameterId,
+    generic_types: &HashMap<GenericParameterId, TypeId>,
+    generic_domains: &HashMap<GenericParameterId, GenericParameterDomain>,
+) -> Result<GenericValue, TypeNormalizationError> {
+    match generic_domains.get(&parameter) {
+        Some(GenericParameterDomain::Type) => generic_types
+            .get(&parameter)
+            .copied()
+            .map(GenericValue::Type)
+            .ok_or_else(invalid_store),
+        Some(GenericParameterDomain::UsizeConstant) => {
+            Ok(GenericValue::Usize(UsizeTerm::Parameter(parameter)))
+        }
+        None => Err(invalid_store()),
+    }
 }
 
 fn normalize_self_types(
@@ -192,6 +237,7 @@ fn normalize_self_types(
     entities: &[Option<ReservedEntity>],
     own_generics: &[Box<[GenericParameterId]>],
     generic_types: &HashMap<GenericParameterId, TypeId>,
+    generic_domains: &HashMap<GenericParameterId, GenericParameterDomain>,
     patterns: &[Box<[NormalizedDeclarationPattern]>],
 ) -> Result<HashMap<ReservedEntity, TypeId>, TypeNormalizationError> {
     let mut result = HashMap::new();
@@ -202,10 +248,14 @@ fn normalize_self_types(
                 store
                     .intern(TypeKind::Nominal {
                         definition,
-                        arguments: own_generics[index]
-                            .iter()
-                            .map(|parameter| generic_types[parameter])
-                            .collect(),
+                        arguments: nocter_model::GenericApplication::new(
+                            own_generics[index]
+                                .iter()
+                                .map(|parameter| {
+                                    generic_value(*parameter, generic_types, generic_domains)
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        ),
                     })
                     .map_err(|_| invalid_store())?,
             ),

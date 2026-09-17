@@ -190,7 +190,7 @@ fn interface_implementation_substitution(
         .iter()
         .zip(interface_implementation.interface().arguments())
     {
-        substitution.bind_generic(*parameter, *argument);
+        substitution.bind_value(*parameter, *argument);
     }
     for binding in interface_implementation.associated_types() {
         substitution.bind_associated(binding.declaration(), binding.ty());

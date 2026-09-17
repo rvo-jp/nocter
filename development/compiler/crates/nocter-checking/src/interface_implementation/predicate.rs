@@ -185,7 +185,7 @@ fn specialize_prerequisite(
         .iter()
         .zip(application.arguments())
     {
-        substitution.bind_generic(*parameter, *argument);
+        substitution.bind_value(*parameter, *argument);
     }
     for binding in associated_types {
         substitution.bind_associated(binding.declaration(), binding.ty());
@@ -256,11 +256,7 @@ pub(crate) fn substitute_predicate(
             subject: substitution.apply_type(types, *subject)?,
             application: InterfaceApplication::new(
                 application.interface(),
-                application
-                    .arguments()
-                    .iter()
-                    .map(|argument| substitution.apply_type(types, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                substitution.apply_application(types, application.arguments())?,
             ),
             associated_types: associated_types
                 .iter()
@@ -333,11 +329,7 @@ fn normalize_predicate(
             subject: subject_type(graph, types, substitution, *subject)?,
             application: InterfaceApplication::new(
                 application.interface(),
-                application
-                    .arguments()
-                    .iter()
-                    .map(|argument| substitution.apply_type(types, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                substitution.apply_application(types, application.arguments())?,
             ),
             associated_types: associated_types
                 .iter()

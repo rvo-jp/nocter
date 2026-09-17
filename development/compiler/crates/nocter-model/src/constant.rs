@@ -157,6 +157,15 @@ impl GenericApplication {
     }
 }
 
+impl<'a> IntoIterator for &'a GenericApplication {
+    type Item = &'a GenericValue;
+    type IntoIter = std::slice::Iter<'a, GenericValue>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl From<Box<[crate::TypeId]>> for GenericApplication {
     fn from(types: Box<[crate::TypeId]>) -> Self {
         Self::from_types(types)
@@ -166,6 +175,12 @@ impl From<Box<[crate::TypeId]>> for GenericApplication {
 impl From<Vec<crate::TypeId>> for GenericApplication {
     fn from(types: Vec<crate::TypeId>) -> Self {
         Self::from_types(types)
+    }
+}
+
+impl From<Vec<GenericValue>> for GenericApplication {
+    fn from(values: Vec<GenericValue>) -> Self {
+        Self::new(values)
     }
 }
 

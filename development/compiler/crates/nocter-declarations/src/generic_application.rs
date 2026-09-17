@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_model::{GenericApplication, GenericParameterId, GenericValue};
 
-use crate::{DeclarationArenas, GenericParameterDomain};
+use crate::{DeclarationArenaBuilder, DeclarationArenas, GenericParameterDomain};
 
 /// A schema mismatch in one ordered generic application.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,38 +73,82 @@ impl DeclarationArenas {
         parameters: &[GenericParameterId],
         application: &GenericApplication,
     ) -> Result<(), GenericApplicationError> {
-        if parameters.len() != application.len() {
-            return Err(GenericApplicationError::Arity {
-                expected: parameters.len(),
-                actual: application.len(),
+        self.validate_generic_domains(
+            parameters,
+            &application
+                .iter()
+                .map(|value| match value {
+                    GenericValue::Type(_) => GenericParameterDomain::Type,
+                    GenericValue::Usize(_) => GenericParameterDomain::UsizeConstant,
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// Validates a pre-normalization argument-domain sequence against one parameter schema.
+    ///
+    /// Syntax lowering uses this entry point before type and constant arguments have canonical
+    /// values. It shares exact arity, parameter lookup, and positional-domain rules with
+    /// [`Self::validate_generic_application`].
+    pub fn validate_generic_domains(
+        &self,
+        parameters: &[GenericParameterId],
+        domains: &[GenericParameterDomain],
+    ) -> Result<(), GenericApplicationError> {
+        validate_generic_domains(parameters, domains, |parameter| {
+            self.generic_parameters()
+                .get(parameter)
+                .map(|value| value.domain())
+        })
+    }
+}
+
+impl DeclarationArenaBuilder {
+    /// Validates domains while declaration identities are still being lowered.
+    ///
+    /// This uses the same schema authority as the immutable declaration arenas; the builder does
+    /// not maintain a second arity or domain rule.
+    pub fn validate_generic_domains(
+        &self,
+        parameters: &[GenericParameterId],
+        domains: &[GenericParameterDomain],
+    ) -> Result<(), GenericApplicationError> {
+        validate_generic_domains(parameters, domains, |parameter| {
+            self.generic_parameter(parameter)
+                .map(|value| value.domain())
+        })
+    }
+}
+
+fn validate_generic_domains(
+    parameters: &[GenericParameterId],
+    domains: &[GenericParameterDomain],
+    mut domain_for: impl FnMut(GenericParameterId) -> Option<GenericParameterDomain>,
+) -> Result<(), GenericApplicationError> {
+    if parameters.len() != domains.len() {
+        return Err(GenericApplicationError::Arity {
+            expected: parameters.len(),
+            actual: domains.len(),
+        });
+    }
+    for (position, (parameter, actual)) in parameters
+        .iter()
+        .copied()
+        .zip(domains.iter().copied())
+        .enumerate()
+    {
+        let expected =
+            domain_for(parameter).ok_or(GenericApplicationError::UnknownParameter(parameter))?;
+        if expected != actual {
+            return Err(GenericApplicationError::Domain {
+                parameter,
+                position,
+                expected,
+                actual,
             });
         }
-        for (position, (parameter, value)) in parameters
-            .iter()
-            .copied()
-            .zip(application.iter())
-            .enumerate()
-        {
-            let expected = self
-                .generic_parameters()
-                .get(parameter)
-                .ok_or(GenericApplicationError::UnknownParameter(parameter))?
-                .domain();
-            let actual = match value {
-                GenericValue::Type(_) => GenericParameterDomain::Type,
-                GenericValue::Usize(_) => GenericParameterDomain::UsizeConstant,
-            };
-            if expected != actual {
-                return Err(GenericApplicationError::Domain {
-                    parameter,
-                    position,
-                    expected,
-                    actual,
-                });
-            }
-        }
-        Ok(())
     }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -581,12 +581,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
         }
         let application = nocter_declarations::InterfaceApplication::new(
             declaration.interface().interface(),
-            declaration
-                .interface()
-                .arguments()
-                .iter()
-                .map(|argument| substitution.apply_type(self.semantics.types_mut(), *argument))
-                .collect::<Result<Vec<_>, _>>()?,
+            substitution.apply_application(
+                self.semantics.types_mut(),
+                declaration.interface().arguments(),
+            )?,
         );
         Ok(SpecializedOpaqueWitness {
             definition,
@@ -671,12 +669,7 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 subject: self.specialize_type(subject, &empty)?,
                 application: InterfaceApplication::new(
                     application.interface(),
-                    application
-                        .arguments()
-                        .iter()
-                        .copied()
-                        .map(|argument| self.specialize_type(argument, &empty))
-                        .collect::<Result<Vec<_>, _>>()?,
+                    empty.apply_application(self.semantics.types_mut(), application.arguments())?,
                 ),
                 associated_types: associated_types
                     .iter()
