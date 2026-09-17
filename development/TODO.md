@@ -2,18 +2,17 @@
 
 ## Current State
 
-Nocter v0.56.0 has a qualified retained release candidate. The unified value-provenance, lending
-API, and zero-copy standard-library milestone, reopened presentation review, whole-repository
-compiler gate, deterministic two-build packaging, and installed-home qualification are complete.
-The completed scope lives in
-[`development/history/milestones/v0.56.0.md`](history/milestones/v0.56.0.md).
+Nocter v0.55.0 is published and externally audited. The v0.56.0 Lending APIs and Zero-Copy
+Foundations candidate is complete and qualified, publication is authorized, and public metadata
+now selects v0.56.0. The retained archive and measured identities are recorded in the
+release-preparation record.
 
 ## Next Work
 
-Publish v0.56.0 from the retained `dist/nocter-v0.56.0-arm64-darwin.tar.gz` archive without
-rebuilding it. Update published-version surfaces, commit them, create the annotated tag at that
-publication commit, push `main` and the tag, create one non-draft non-prerelease GitHub Release,
-then audit the public asset, tag, latest-release endpoint, installed home, and Pages deployment.
+Commit this publication metadata, create annotated tag `v0.56.0`, fast-forward `main`, and publish
+the retained archive as the release's single asset. Then audit the public tag, asset, latest-release
+endpoint, downloaded installed home, and source-identified Pages deployment. Do not rebuild or
+replace the qualified archive.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
