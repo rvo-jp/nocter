@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. v0.57.0 release preparation is active after
-completion of its constant-generic model, repeat-array construction, fixed-capacity standard APIs,
-native execution, and editor qualification. Release identity now selects `0.57.0`; public notes
-and the release-preparation contract are authored. The completed implementation scope lives in
+Nocter v0.56.0 is published and externally audited. v0.57.0 is locally qualified from exact
+release-content commit `180bac07b66fd031eade3a1fd40fd0fcdc219245`: two independent optimized
+builds produced one deterministic archive, and the complete compiler, installed-home, native,
+example, and LSP gates pass. The completed implementation scope lives in
 [`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
 
 ## Next Work
 
-Commit the exact release content, run deterministic two-build packaging and installed-home
-qualification from that clean commit, then record the measured artifact identities. Publication
-must reuse the retained candidate archive without rebuilding it.
+Publish v0.57.0 from the retained qualified archive without rebuilding it, then audit the public
+tag, release asset, latest-release endpoint, downloaded installed home, remote `main`, and Pages
+deployment before marking the release complete.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
