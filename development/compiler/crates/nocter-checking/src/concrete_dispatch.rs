@@ -250,15 +250,15 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .iter()
             .map(|argument| {
                 enclosing
-                    .apply_type(self.semantics.types_mut(), argument.ty())
-                    .map(|ty| GenericArgument::new(argument.parameter(), ty))
+                    .apply_value(self.semantics.types_mut(), argument.value())
+                    .map(|value| GenericArgument::from_value(argument.parameter(), value))
             })
             .collect::<Result<Vec<_>, _>>()?;
         for argument in &specialized {
-            if !is_concrete_type(self.semantics.types(), argument.ty())? {
+            if !is_concrete_generic_value(self.semantics.types(), argument.value())? {
                 return Err(ConcreteDispatchError::SymbolicArgument {
                     parameter: argument.parameter(),
-                    ty: argument.ty(),
+                    value: argument.value(),
                 });
             }
         }
@@ -417,13 +417,13 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .copied()
             .zip(target_declaration.generic_parameters().iter().copied())
         {
-            let ty = specialized_arguments.get(source).ok_or(
+            let value = specialized_arguments.get(source).ok_or(
                 ConcreteDispatchError::MissingMethodArgument {
                     method: surface,
                     parameter: source,
                 },
             )?;
-            target_arguments.push(GenericArgument::new(target_parameter, ty));
+            target_arguments.push(GenericArgument::from_value(target_parameter, value));
         }
         let generic_arguments = GenericArguments::new(target_arguments)
             .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))?;
@@ -492,13 +492,13 @@ impl<'program> ConcreteDispatchResolver<'program> {
             .copied()
             .zip(target_declaration.generic_parameters().iter().copied())
         {
-            let ty = specialized_arguments.get(source).ok_or(
+            let value = specialized_arguments.get(source).ok_or(
                 ConcreteDispatchError::MissingMethodArgument {
                     method: surface,
                     parameter: source,
                 },
             )?;
-            target_arguments.push(GenericArgument::new(target_parameter, ty));
+            target_arguments.push(GenericArgument::from_value(target_parameter, value));
         }
         let generic_arguments = GenericArguments::new(target_arguments)
             .map_err(|duplicate| ConcreteDispatchError::DuplicateGeneric(duplicate.parameter()))?;
@@ -1007,6 +1007,16 @@ fn builtin_index_result(
     }
 }
 
+fn is_concrete_generic_value(
+    types: &TypeStore,
+    value: nocter_model::GenericValue,
+) -> Result<bool, SubstitutionError> {
+    match value {
+        nocter_model::GenericValue::Type(ty) => is_concrete_type(types, ty),
+        nocter_model::GenericValue::Usize(value) => Ok(value.closed_value().is_some()),
+    }
+}
+
 /// Failure to convert checked generic dispatch into one exact executable plan.
 #[derive(Debug)]
 pub enum ConcreteDispatchError {
@@ -1045,7 +1055,7 @@ pub enum ConcreteDispatchError {
     NonConcreteCandidate,
     SymbolicArgument {
         parameter: GenericParameterId,
-        ty: TypeId,
+        value: nocter_model::GenericValue,
     },
     DuplicateGeneric(GenericParameterId),
     ConcreteType(crate::ConcreteDestructionError),

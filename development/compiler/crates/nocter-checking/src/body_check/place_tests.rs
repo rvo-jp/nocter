@@ -282,10 +282,12 @@ fn generic_index_selection_retains_the_complete_instance_substitution() {
     assert_eq!(generic_arguments.as_slice().len(), 1);
     assert_eq!(
         generic_arguments.as_slice()[0].ty(),
-        output
-            .program()
-            .types()
-            .builtin(nocter_model::BuiltinType::I32)
+        Some(
+            output
+                .program()
+                .types()
+                .builtin(nocter_model::BuiltinType::I32)
+        )
     );
 }
 

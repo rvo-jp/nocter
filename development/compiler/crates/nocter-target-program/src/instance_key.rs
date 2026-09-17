@@ -1,8 +1,11 @@
 use std::fmt;
 
-use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
+use nocter_checking::{
+    GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_generic_value,
+    is_concrete_type,
+};
 use nocter_declarations::CallableOwner;
-use nocter_model::{CallableId, GenericParameterId, InterfaceId, TypeId, TypeStore};
+use nocter_model::{CallableId, GenericParameterId, GenericValue, InterfaceId, TypeId, TypeStore};
 
 use crate::{ExecutableEntry, TargetProgram};
 
@@ -89,14 +92,25 @@ impl CallableInstanceKey {
                 actual: actual.into_boxed_slice(),
             });
         }
+        let application = nocter_model::GenericApplication::new(
+            generic_arguments
+                .as_slice()
+                .iter()
+                .map(|argument| argument.value())
+                .collect::<Vec<_>>(),
+        );
+        graph
+            .declarations()
+            .validate_generic_application(&expected, &application)
+            .map_err(CallableInstanceKeyError::InvalidGenericApplication)?;
         for argument in generic_arguments.as_slice() {
-            let concrete = is_concrete_type(types, argument.ty())
+            let concrete = is_concrete_generic_value(types, argument.value())
                 .map_err(CallableInstanceKeyError::InvalidTypeStore)?;
             if !concrete {
                 return Err(CallableInstanceKeyError::SymbolicArgument {
                     callable,
                     parameter: argument.parameter(),
-                    ty: argument.ty(),
+                    value: argument.value(),
                 });
             }
         }
@@ -165,7 +179,7 @@ impl CallableInstanceKey {
     pub fn substitution(&self) -> TypeSubstitution {
         let mut substitution = TypeSubstitution::default();
         for argument in self.generic_arguments.as_slice() {
-            substitution.bind_generic(argument.parameter(), argument.ty());
+            substitution.bind_value(argument.parameter(), argument.value());
         }
         if let Some((interface, receiver)) = self.interface_self {
             substitution.set_interface_self(interface, receiver);
@@ -187,10 +201,11 @@ pub enum CallableInstanceKeyError {
         expected: Box<[GenericParameterId]>,
         actual: Box<[GenericParameterId]>,
     },
+    InvalidGenericApplication(nocter_declarations::GenericApplicationError),
     SymbolicArgument {
         callable: CallableId,
         parameter: GenericParameterId,
-        ty: TypeId,
+        value: GenericValue,
     },
     InterfaceSelfMismatch {
         callable: CallableId,
@@ -220,6 +235,7 @@ impl fmt::Display for CallableInstanceKeyError {
             }
             Self::GenericDomainMismatch { .. } => formatter
                 .write_str("callable instance arguments do not match its complete generic domain"),
+            Self::InvalidGenericApplication(error) => error.fmt(formatter),
             Self::SymbolicArgument { .. } => {
                 formatter.write_str("callable instance contains a symbolic generic argument")
             }
@@ -238,6 +254,7 @@ impl fmt::Display for CallableInstanceKeyError {
 impl std::error::Error for CallableInstanceKeyError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidGenericApplication(error) => Some(error),
             Self::InvalidTypeStore(error) => Some(error),
             Self::UnknownCallable(_)
             | Self::UnknownOwner { .. }

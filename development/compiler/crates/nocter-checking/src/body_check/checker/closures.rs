@@ -202,7 +202,7 @@ impl BodyChecker<'_, '_> {
             .types
             .intern(TypeKind::Closure {
                 definition: closure,
-                arguments: self.closure_type_arguments.clone().into(),
+                arguments: self.closure_generic_arguments.clone(),
             })
             .map_err(|_| {
                 BodyCheckInternalError::UnknownType(

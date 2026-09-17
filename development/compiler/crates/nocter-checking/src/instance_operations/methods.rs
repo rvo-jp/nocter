@@ -549,15 +549,15 @@ impl InstanceOperationSelector<'_> {
                 ))?;
             let mut pattern_substitution = TypeSubstitution::default();
             for refinement in interface_implementation.refinements() {
-                pattern_substitution.bind_generic(refinement.parameter(), refinement.ty());
+                pattern_substitution.bind_value(refinement.parameter(), refinement.value());
             }
             let Some(bindings) =
                 match_type_pattern(self.types, interface_implementation.target(), target)?
             else {
                 continue;
             };
-            for (parameter, ty) in bindings.iter() {
-                pattern_substitution.bind_generic(parameter, ty);
+            for (parameter, value) in bindings.values() {
+                pattern_substitution.bind_value(parameter, value);
             }
             if !self.requirements_hold(
                 interface_implementation.requirements(),
@@ -572,6 +572,7 @@ impl InstanceOperationSelector<'_> {
                 MethodSelection::Implementation(callable) => {
                     let arguments = selected_generic_arguments(
                         self.types,
+                        self.graph.declarations(),
                         interface_implementation.generic_parameters(),
                         &pattern_substitution,
                     )?;
@@ -674,6 +675,7 @@ impl InstanceOperationSelector<'_> {
             MethodSelection::Implementation(callable) => {
                 let arguments = selected_generic_arguments(
                     self.types,
+                    self.graph.declarations(),
                     interface_implementation.generic_parameters(),
                     &pattern_substitution,
                 )?;
@@ -898,11 +900,7 @@ fn interface_generic_arguments(
             .iter()
             .copied()
             .zip(application.arguments().iter().copied())
-            .filter_map(|(parameter, value)| {
-                value
-                    .as_type()
-                    .map(|ty| GenericArgument::new(parameter, ty))
-            }),
+            .map(|(parameter, value)| GenericArgument::from_value(parameter, value)),
     )
     .map_err(|duplicate| InstanceSelectionError::DuplicateGeneric(duplicate.parameter()))
 }

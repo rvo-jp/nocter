@@ -1,8 +1,8 @@
-use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity};
+use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity, GenericParameterDomain};
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, CallableCapability, CallableContract, GenericApplication,
-    GenericParameterId, InputProvenance, InputProvenanceConstraint, NominalTypeId, ParameterOrigin,
-    ProvenanceSet, Symbol, TupleElements, TypeId, TypeKind,
+    GenericParameterId, GenericValue, InputProvenance, InputProvenanceConstraint, NominalTypeId,
+    ParameterOrigin, ProvenanceSet, Symbol, TupleElements, TypeId, TypeKind, UsizeTerm,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
@@ -564,10 +564,14 @@ impl BodyChecker<'_, '_> {
                     segment.arguments = child_nodes(self.tree(), *child)
                         .into_iter()
                         .filter_map(|argument| {
-                            self.kind(argument)
+                            if !self
+                                .kind(argument)
                                 .is_ok_and(|kind| kind == NodeKind::GenericArgument)
-                                .then(|| direct_node(self.tree(), argument, NodeKind::Type))
-                                .flatten()
+                            {
+                                return None;
+                            }
+                            let children = child_nodes(self.tree(), argument);
+                            (children.len() == 1).then_some(children[0])
                         })
                         .collect();
                 }
@@ -843,10 +847,6 @@ impl BodyChecker<'_, '_> {
         entity: ExportedEntity,
         arguments: Vec<NodeId>,
     ) -> Result<TypeId, BodyCheckError> {
-        let arguments = arguments
-            .into_iter()
-            .map(|argument| self.resolve_type_use(argument))
-            .collect::<Result<Vec<_>, _>>()?;
         match entity {
             ExportedEntity::BuiltinType(builtin) => {
                 if arguments.is_empty() {
@@ -862,16 +862,14 @@ impl BodyChecker<'_, '_> {
                     .nominal_types()
                     .get(definition)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-                if nominal.generic_parameters().len() != arguments.len() {
-                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-                }
                 let parameters = nominal.generic_parameters().to_vec();
                 let requirements = nominal.requirements().to_vec();
+                let arguments = self.resolve_generic_application(node, &parameters, arguments)?;
                 let mut substitution = TypeSubstitution::default();
                 for (parameter, argument) in
                     parameters.iter().copied().zip(arguments.iter().copied())
                 {
-                    substitution.bind_generic(parameter, argument);
+                    substitution.bind_value(parameter, argument);
                 }
                 if !self.requirements_hold(&requirements, &substitution)? {
                     return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -879,7 +877,7 @@ impl BodyChecker<'_, '_> {
                 self.types
                     .intern(TypeKind::Nominal {
                         definition,
-                        arguments: arguments.into(),
+                        arguments,
                     })
                     .map_err(|_| BodyCheckInternalError::InvalidSyntax(node).into())
             }
@@ -890,15 +888,15 @@ impl BodyChecker<'_, '_> {
                     .type_aliases()
                     .get(alias)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-                if alias.generic_parameters().len() != arguments.len() {
-                    return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
-                }
                 let parameters = alias.generic_parameters().to_vec();
                 let requirements = alias.requirements().to_vec();
                 let target = alias.target();
+                let arguments = self.resolve_generic_application(node, &parameters, arguments)?;
                 let mut substitution = TypeSubstitution::default();
-                for (parameter, argument) in parameters.iter().copied().zip(arguments) {
-                    substitution.bind_generic(parameter, argument);
+                for (parameter, argument) in
+                    parameters.iter().copied().zip(arguments.iter().copied())
+                {
+                    substitution.bind_value(parameter, argument);
                 }
                 if !self.requirements_hold(&requirements, &substitution)? {
                     return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -908,6 +906,101 @@ impl BodyChecker<'_, '_> {
             }
             _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
+    }
+
+    fn resolve_generic_application(
+        &mut self,
+        owner: NodeId,
+        parameters: &[GenericParameterId],
+        arguments: Vec<NodeId>,
+    ) -> Result<GenericApplication, BodyCheckError> {
+        if parameters.len() != arguments.len() {
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, owner)?);
+        }
+        let declarations = self.graph.declarations();
+        let domains = parameters
+            .iter()
+            .map(|parameter| {
+                declarations
+                    .generic_parameters()
+                    .get(*parameter)
+                    .map(|declaration| declaration.domain())
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(owner))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut values = Vec::with_capacity(arguments.len());
+        for (argument, domain) in arguments.into_iter().zip(domains) {
+            values.push(match domain {
+                GenericParameterDomain::Type => {
+                    GenericValue::Type(self.resolve_type_use(argument)?)
+                }
+                GenericParameterDomain::UsizeConstant => {
+                    GenericValue::Usize(self.resolve_usize_generic_argument(argument)?)
+                }
+            });
+        }
+        let application = GenericApplication::new(values);
+        self.graph
+            .declarations()
+            .validate_generic_application(parameters, &application)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(owner))?;
+        Ok(application)
+    }
+
+    fn resolve_usize_generic_argument(
+        &mut self,
+        node: NodeId,
+    ) -> Result<UsizeTerm, BodyCheckError> {
+        if self.kind(node)? == NodeKind::Type {
+            let Some(named) = direct_node(self.tree(), node, NodeKind::NamedType) else {
+                return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+            };
+            let mut segments = self.named_segments(named)?;
+            if segments.len() == 1 && segments[0].arguments.is_empty() {
+                let token = segments[0].token;
+                let name = self.segment_symbol(token)?;
+                if let Some(parameter) = self.lexical_generic(name)? {
+                    let declaration = self
+                        .graph
+                        .declarations()
+                        .generic_parameters()
+                        .get(parameter)
+                        .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+                    if declaration.domain() == GenericParameterDomain::UsizeConstant {
+                        self.project_type_entity(
+                            token,
+                            SemanticEntity::GenericParameter(parameter),
+                        )?;
+                        return Ok(UsizeTerm::Parameter(parameter));
+                    }
+                }
+            }
+            if segments.iter().all(|segment| segment.arguments.is_empty()) {
+                let first = segments.remove(0);
+                let name = self.segment_symbol(first.token)?;
+                let mut entity = self.resolve_type_base(node, first.token, name)?;
+                for segment in segments {
+                    let ExportedEntity::Module(_) = entity else {
+                        return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+                    };
+                    let NameTarget::Exported(selected) =
+                        self.consume_name_use(node, segment.token)?
+                    else {
+                        return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+                    };
+                    entity = selected;
+                }
+                if let ExportedEntity::Constant(constant) = entity
+                    && let Some(nocter_model::ConstantValue::Integer(value)) =
+                        self.constants.constant(constant)
+                    && let Ok(value) = u64::try_from(*value)
+                {
+                    return Ok(UsizeTerm::Value(value));
+                }
+            }
+            return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
+        }
+        self.evaluate_array_length(node).map(UsizeTerm::Value)
     }
 
     fn lexical_generic(

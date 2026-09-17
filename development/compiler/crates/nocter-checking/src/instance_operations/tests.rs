@@ -60,7 +60,10 @@ fn distinct_refined_instance_patterns_share_one_family_index() {
         let TypeKind::Nominal { arguments, .. } = types.get(entry.target()).unwrap() else {
             panic!("refined instance target must remain nominal");
         };
-        assert_eq!(entry.refinements()[0].ty(), arguments.type_at(0).unwrap());
+        assert_eq!(
+            entry.refinements()[0].ty(),
+            Some(arguments.type_at(0).unwrap())
+        );
     }
 }
 

@@ -15,9 +15,11 @@ pub(crate) fn type_patterns_overlap(
         collect_generic_parameters(types, [left, right]).map_err(invalid_unification)?;
     match unify_type_pairs(types, variables, [(left, right)]) {
         Ok(_) => Ok(true),
-        Err(TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. }) => {
-            Ok(false)
-        }
+        Err(
+            TypeUnificationError::Conflict(_)
+            | TypeUnificationError::ConstantConflict { .. }
+            | TypeUnificationError::RecursiveBinding { .. },
+        ) => Ok(false),
         Err(error) => Err(invalid_unification(error)),
     }
 }
@@ -34,9 +36,11 @@ pub(crate) fn match_type_pattern(
     let variables = collect_generic_parameters(types, [pattern]).map_err(invalid_unification)?;
     match unify_type_pairs(types, variables, [(pattern, requested)]) {
         Ok(bindings) => Ok(Some(bindings)),
-        Err(TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. }) => {
-            Ok(None)
-        }
+        Err(
+            TypeUnificationError::Conflict(_)
+            | TypeUnificationError::ConstantConflict { .. }
+            | TypeUnificationError::RecursiveBinding { .. },
+        ) => Ok(None),
         Err(error) => Err(invalid_unification(error)),
     }
 }
@@ -44,9 +48,9 @@ pub(crate) fn match_type_pattern(
 fn invalid_unification(error: TypeUnificationError) -> SubstitutionError {
     match error {
         TypeUnificationError::UnknownType(ty) => SubstitutionError::UnknownType(ty),
-        TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. } => {
-            SubstitutionError::InvalidStore
-        }
+        TypeUnificationError::Conflict(_)
+        | TypeUnificationError::ConstantConflict { .. }
+        | TypeUnificationError::RecursiveBinding { .. } => SubstitutionError::InvalidStore,
     }
 }
 

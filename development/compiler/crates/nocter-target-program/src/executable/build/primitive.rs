@@ -20,7 +20,9 @@ impl ExecutableClosureBuilder<'_> {
         let [argument] = arguments.as_slice() else {
             return Err(ExecutableProgramError::InvalidPrimitiveDependency(role));
         };
-        let subject = argument.ty();
+        let subject = argument
+            .ty()
+            .ok_or(ExecutableProgramError::InvalidPrimitiveDependency(role))?;
         let plan = self
             .resolver
             .resolve_destruction(subject, &TypeSubstitution::default())?;

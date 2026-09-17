@@ -844,7 +844,9 @@ impl<'program> DependencyCollector<'program> {
             ));
         }
         for argument in selection.generic_arguments().as_slice() {
-            self.record_type(argument.ty())?;
+            if let Some(ty) = argument.ty() {
+                self.record_type(ty)?;
+            }
         }
         if self.drop_set.insert(selection.clone()) {
             self.drop_selections.push(selection.clone());

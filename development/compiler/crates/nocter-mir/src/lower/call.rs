@@ -332,7 +332,8 @@ impl FunctionLowerer<'_> {
             ExecutableDispatchStep::StandardPrimitive(call)
                 if matches!(call.dependency(), ExecutablePrimitiveDependency::None) =>
             {
-                Ok(primitive_target(call, crate::MirPrimitiveDependency::None))
+                primitive_target(call, crate::MirPrimitiveDependency::None)
+                    .ok_or(MirLoweringError::InvalidPlaceDispatch(place))
             }
             ExecutableDispatchStep::StructuralPrimitive(primitive) => {
                 Ok(MirCallTarget::Structural(structural_target(primitive)))
@@ -363,7 +364,7 @@ impl FunctionLowerer<'_> {
                 }
             }
         };
-        Ok(primitive_target(call, dependency))
+        primitive_target(call, dependency).ok_or(MirLoweringError::InvalidDispatch(owner))
     }
 }
 
@@ -403,19 +404,20 @@ fn structural_signature(
 fn primitive_target(
     call: &ExecutablePrimitiveCall,
     dependency: crate::MirPrimitiveDependency,
-) -> MirCallTarget {
-    MirCallTarget::StandardPrimitive {
+) -> Option<MirCallTarget> {
+    let type_arguments = call
+        .generic_arguments()
+        .as_slice()
+        .iter()
+        .map(|argument| argument.ty())
+        .collect::<Option<Vec<_>>>()?
+        .into_boxed_slice();
+    Some(MirCallTarget::StandardPrimitive {
         role: call.role(),
-        type_arguments: call
-            .generic_arguments()
-            .as_slice()
-            .iter()
-            .map(|argument| argument.ty())
-            .collect::<Vec<_>>()
-            .into_boxed_slice(),
+        type_arguments,
         signature: executable_signature(call.signature()),
         dependency,
-    }
+    })
 }
 
 const fn structural_target(primitive: &ResolvedPrimitiveDispatch) -> MirStructuralCall {

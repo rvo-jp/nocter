@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use nocter_declarations::DeclarationGraph;
-use nocter_model::{BorrowCapability, TypeId, TypeKind, TypeStore};
+use nocter_declarations::{DeclarationArenas, DeclarationGraph, GenericParameterDomain};
+use nocter_model::{BorrowCapability, GenericValue, TypeId, TypeKind, TypeStore, UsizeTerm};
 
 use super::{CheckedInstanceMember, InstanceOperationTable};
 use crate::body_check::BodyRequirement;
@@ -597,13 +597,14 @@ impl<'program> InstanceOperationSelector<'program> {
             };
             let mut substitution = TypeSubstitution::default();
             for refinement in refinements {
-                substitution.bind_generic(refinement.parameter(), refinement.ty());
+                substitution.bind_value(refinement.parameter(), refinement.value());
             }
-            for (parameter, ty) in bindings.iter() {
-                substitution.bind_generic(parameter, ty);
+            for (parameter, value) in bindings.values() {
+                substitution.bind_value(parameter, value);
             }
             let Some(generic_arguments) = selected_instance_generic_arguments(
                 self.types,
+                self.graph.declarations(),
                 target,
                 &generic_parameters,
                 &substitution,
@@ -625,6 +626,7 @@ impl<'program> InstanceOperationSelector<'program> {
 
 fn selected_instance_generic_arguments(
     types: &mut nocter_model::TypeTransaction,
+    declarations: &DeclarationArenas,
     target: TypeId,
     generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,
@@ -632,22 +634,21 @@ fn selected_instance_generic_arguments(
     let receiver_parameters =
         collect_generic_parameters(types, [target]).map_err(|error| match error {
             TypeUnificationError::UnknownType(ty) => InstanceSelectionError::UnknownType(ty),
-            TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. } => {
+            TypeUnificationError::Conflict(_)
+            | TypeUnificationError::ConstantConflict { .. }
+            | TypeUnificationError::RecursiveBinding { .. } => {
                 InstanceSelectionError::Substitution(SubstitutionError::InvalidStore)
             }
         })?;
     let mut arguments = Vec::with_capacity(generic_parameters.len());
     for parameter in generic_parameters {
-        let generic = types
-            .intern(TypeKind::GenericParameter(*parameter))
-            .map_err(|_| InstanceSelectionError::IncompleteGeneric(*parameter))?;
-        let ty = substitution.apply_type(types, generic)?;
-        if matches!(types.get(ty), Some(TypeKind::GenericParameter(actual)) if actual == parameter)
+        let value = specialized_parameter_value(types, declarations, *parameter, substitution)?;
+        if generic_value_is_parameter(types, value, *parameter)
             && !receiver_parameters.contains(parameter)
         {
             return Ok(None);
         }
-        arguments.push(GenericArgument::new(*parameter, ty));
+        arguments.push(GenericArgument::from_value(*parameter, value));
     }
     GenericArguments::new(arguments)
         .map(Some)
@@ -656,23 +657,59 @@ fn selected_instance_generic_arguments(
 
 pub(crate) fn selected_generic_arguments(
     types: &mut nocter_model::TypeTransaction,
+    declarations: &DeclarationArenas,
     generic_parameters: &[nocter_model::GenericParameterId],
     substitution: &TypeSubstitution,
 ) -> Result<GenericArguments, InstanceSelectionError> {
     let mut arguments = Vec::with_capacity(generic_parameters.len());
     for parameter in generic_parameters {
-        let generic = types
-            .intern(TypeKind::GenericParameter(*parameter))
-            .map_err(|_| InstanceSelectionError::IncompleteGeneric(*parameter))?;
-        let ty = substitution.apply_type(types, generic)?;
-        if matches!(types.get(ty), Some(TypeKind::GenericParameter(actual)) if actual == parameter)
-        {
+        let value = specialized_parameter_value(types, declarations, *parameter, substitution)?;
+        if generic_value_is_parameter(types, value, *parameter) {
             return Err(InstanceSelectionError::IncompleteGeneric(*parameter));
         }
-        arguments.push(GenericArgument::new(*parameter, ty));
+        arguments.push(GenericArgument::from_value(*parameter, value));
     }
     GenericArguments::new(arguments)
         .map_err(|duplicate| InstanceSelectionError::DuplicateGeneric(duplicate.parameter()))
+}
+
+fn specialized_parameter_value(
+    types: &mut nocter_model::TypeTransaction,
+    declarations: &DeclarationArenas,
+    parameter: nocter_model::GenericParameterId,
+    substitution: &TypeSubstitution,
+) -> Result<GenericValue, InstanceSelectionError> {
+    let declaration = declarations
+        .generic_parameters()
+        .get(parameter)
+        .copied()
+        .ok_or(InstanceSelectionError::IncompleteGeneric(parameter))?;
+    let value = match declaration.domain() {
+        GenericParameterDomain::Type => {
+            let ty = types
+                .intern(TypeKind::GenericParameter(parameter))
+                .map_err(|_| InstanceSelectionError::IncompleteGeneric(parameter))?;
+            GenericValue::Type(ty)
+        }
+        GenericParameterDomain::UsizeConstant => {
+            GenericValue::Usize(UsizeTerm::Parameter(parameter))
+        }
+    };
+    substitution.apply_value(types, value).map_err(Into::into)
+}
+
+fn generic_value_is_parameter(
+    types: &TypeStore,
+    value: GenericValue,
+    parameter: nocter_model::GenericParameterId,
+) -> bool {
+    match value {
+        GenericValue::Type(ty) => {
+            matches!(types.get(ty), Some(TypeKind::GenericParameter(actual)) if *actual == parameter)
+        }
+        GenericValue::Usize(UsizeTerm::Parameter(actual)) => actual == parameter,
+        GenericValue::Usize(UsizeTerm::Value(_)) => false,
+    }
 }
 
 pub(crate) fn retain_direct_candidates(candidates: &mut Vec<IndexOperationCandidate>) {

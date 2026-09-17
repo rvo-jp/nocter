@@ -1,4 +1,4 @@
-use nocter_model::{TypeId, TypeStore};
+use nocter_model::{GenericValue, TypeId, TypeStore};
 
 use super::SubstitutionError;
 
@@ -16,6 +16,20 @@ pub fn is_concrete_type(types: &TypeStore, root: TypeId) -> Result<bool, Substit
     types
         .is_concrete(root)
         .ok_or(SubstitutionError::UnknownType(root))
+}
+
+/// Returns whether one normalized generic value is closed for executable specialization.
+///
+/// Type and constant arguments share the same ordered identity, so downstream stages must use
+/// this domain-aware predicate instead of assuming every argument is a type.
+pub fn is_concrete_generic_value(
+    types: &TypeStore,
+    value: GenericValue,
+) -> Result<bool, SubstitutionError> {
+    match value {
+        GenericValue::Type(ty) => is_concrete_type(types, ty),
+        GenericValue::Usize(value) => Ok(value.closed_value().is_some()),
+    }
 }
 
 #[cfg(test)]

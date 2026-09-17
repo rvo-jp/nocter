@@ -782,14 +782,11 @@ impl<'program> ExecutableClosureBuilder<'program> {
         if domain.len() != arguments.len() {
             return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
         }
-        let mut type_arguments = Vec::with_capacity(arguments.len());
+        let mut generic_arguments = Vec::with_capacity(arguments.len());
         for (parameter, value) in domain.iter().copied().zip(arguments.iter()) {
-            let Some(ty) = value.as_type() else {
-                return Err(ExecutableProgramError::InvalidCallableInvocation(subject));
-            };
-            type_arguments.push(GenericArgument::new(parameter, ty));
+            generic_arguments.push(GenericArgument::from_value(parameter, *value));
         }
-        let generic_arguments = GenericArguments::new(type_arguments)
+        let generic_arguments = GenericArguments::new(generic_arguments)
             .map_err(|duplicate| ExecutableProgramError::DuplicateGeneric(duplicate.parameter()))?;
         let key = ClosureInstanceKey::new_in(self.specialization(), closure, generic_arguments)?;
         let substitution = key.substitution();
@@ -848,8 +845,8 @@ impl<'program> ExecutableClosureBuilder<'program> {
             .iter()
             .map(|argument| {
                 self.resolver
-                    .specialize_type(argument.ty(), substitution)
-                    .map(|ty| GenericArgument::new(argument.parameter(), ty))
+                    .specialize_generic_value(argument.value(), substitution)
+                    .map(|value| GenericArgument::from_value(argument.parameter(), value))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let arguments = GenericArguments::new(arguments)

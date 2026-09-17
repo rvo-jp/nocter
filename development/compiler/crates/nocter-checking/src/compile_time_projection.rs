@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use nocter_constant_evaluation::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallablePlan,
     CompileTimeCallableRecipe, CompileTimeComparisonOperation, CompileTimeGenericArgument,
-    CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation, CompileTimeParameter,
-    CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType,
-    ConstantScalarType, FloatFormat, InvalidCompileTimeCallable,
+    CompileTimeGenericValue, CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation,
+    CompileTimeParameter, CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation,
+    CompileTimeValueType, ConstantScalarType, FloatFormat, InvalidCompileTimeCallable,
 };
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
@@ -249,7 +249,7 @@ fn specialize_compile_time_callable_recipe(
         target
             .generic_arguments()
             .iter()
-            .map(|argument| (argument.parameter(), argument.ty().clone()))
+            .map(|argument| (argument.parameter(), argument.value().clone()))
             .collect(),
         recipe,
     )
@@ -259,7 +259,10 @@ fn specialize_compile_time_recipe(
     types: &TypeStore,
     owner: BodyOwner,
     body: Option<nocter_model::BodyId>,
-    substitution: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
+    substitution: HashMap<
+        nocter_model::GenericParameterId,
+        CompileTimeGenericValue<CompileTimeType>,
+    >,
     recipe: &CompileTimeCallableRecipe,
 ) -> Result<CompileTimeCallablePlan, CompileTimeProjectionError> {
     let specializer = Specializer {
@@ -316,7 +319,8 @@ struct Specializer<'a> {
     types: &'a TypeStore,
     owner: BodyOwner,
     body: Option<nocter_model::BodyId>,
-    substitution: HashMap<nocter_model::GenericParameterId, CompileTimeType>,
+    substitution:
+        HashMap<nocter_model::GenericParameterId, CompileTimeGenericValue<CompileTimeType>>,
 }
 
 impl Projector<'_> {
@@ -538,7 +542,15 @@ impl Projector<'_> {
             .generic_arguments()
             .as_slice()
             .iter()
-            .map(|argument| CompileTimeGenericArgument::new(argument.parameter(), argument.ty()))
+            .map(|argument| {
+                let value = match argument.value() {
+                    nocter_model::GenericValue::Type(ty) => CompileTimeGenericValue::Type(ty),
+                    nocter_model::GenericValue::Usize(value) => {
+                        CompileTimeGenericValue::Usize(value)
+                    }
+                };
+                CompileTimeGenericArgument::from_value(argument.parameter(), value)
+            })
             .collect::<Vec<_>>();
         let target = CompileTimeRecipeCallTarget::new(callee, generic_arguments)
             .map_err(|_| self.error(Some(node), CompileTimeProjectionRule::InvalidPlan))?;
@@ -671,8 +683,18 @@ impl Specializer<'_> {
             .generic_arguments()
             .iter()
             .map(|argument| {
-                self.specialization_type(*argument.ty())
-                    .map(|ty| CompileTimeGenericArgument::new(argument.parameter(), ty))
+                let value = match argument.value() {
+                    CompileTimeGenericValue::Type(ty) => {
+                        CompileTimeGenericValue::Type(self.specialization_type(*ty)?)
+                    }
+                    CompileTimeGenericValue::Usize(value) => {
+                        CompileTimeGenericValue::Usize(self.specialization_usize(*value)?.into())
+                    }
+                };
+                Some(CompileTimeGenericArgument::from_value(
+                    argument.parameter(),
+                    value,
+                ))
             })
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| {
@@ -689,7 +711,10 @@ impl Specializer<'_> {
     fn specialization_type(&self, ty: TypeId) -> Option<CompileTimeType> {
         match self.types.get(ty)? {
             TypeKind::Builtin(builtin) => Some(CompileTimeType::Builtin(*builtin)),
-            TypeKind::GenericParameter(parameter) => self.substitution.get(parameter).cloned(),
+            TypeKind::GenericParameter(parameter) => match self.substitution.get(parameter)? {
+                CompileTimeGenericValue::Type(ty) => Some(ty.clone()),
+                CompileTimeGenericValue::Usize(_) => None,
+            },
             TypeKind::Borrow {
                 capability,
                 referent,
@@ -704,9 +729,21 @@ impl Specializer<'_> {
                 .map(|elements| CompileTimeType::Tuple(elements.into_boxed_slice())),
             TypeKind::FixedArray { element, length } => Some(CompileTimeType::FixedArray {
                 element: Box::new(self.specialization_type(*element)?),
-                length: length.closed_value()?,
+                length: self.specialization_usize(*length)?,
             }),
             _ => None,
+        }
+    }
+
+    fn specialization_usize(&self, value: nocter_model::UsizeTerm) -> Option<u64> {
+        match value {
+            nocter_model::UsizeTerm::Value(value) => Some(value),
+            nocter_model::UsizeTerm::Parameter(parameter) => {
+                match self.substitution.get(&parameter)? {
+                    CompileTimeGenericValue::Usize(value) => value.closed_value(),
+                    CompileTimeGenericValue::Type(_) => None,
+                }
+            }
         }
     }
 

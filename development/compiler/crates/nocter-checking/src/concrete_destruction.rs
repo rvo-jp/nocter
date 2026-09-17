@@ -629,17 +629,25 @@ impl ConcreteDispatchResolver<'_> {
         let bindings = match_type_pattern(self.types(), declaration.target(), ty)?
             .ok_or(ConcreteDestructionError::InvalidDropTarget(drop))?;
         let mut substitution = TypeSubstitution::default();
-        for (parameter, ty) in bindings.iter() {
-            substitution.bind_generic(parameter, ty);
+        for (parameter, value) in bindings.values() {
+            substitution.bind_value(parameter, value);
         }
+        let program = self.program;
         let arguments = selected_generic_arguments(
             self.types_mut(),
+            program.graph().declarations(),
             declaration.generic_parameters(),
             &substitution,
         )?;
         for argument in arguments.as_slice() {
-            if !is_concrete_type(self.types(), argument.ty())? {
-                return Err(ConcreteDestructionError::SymbolicType(argument.ty()));
+            let concrete = match argument.value() {
+                nocter_model::GenericValue::Type(ty) => is_concrete_type(self.types(), ty)?,
+                nocter_model::GenericValue::Usize(value) => value.closed_value().is_some(),
+            };
+            if !concrete {
+                return Err(ConcreteDestructionError::SymbolicGenericArgument(
+                    argument.value(),
+                ));
             }
         }
         Ok(Some(DropSelection::new(drop, arguments)))
@@ -650,6 +658,7 @@ impl ConcreteDispatchResolver<'_> {
 pub enum ConcreteDestructionError {
     UnknownType(TypeId),
     SymbolicType(TypeId),
+    SymbolicGenericArgument(nocter_model::GenericValue),
     RecursiveType(TypeId),
     RecursiveAssociatedProjection(TypeId),
     MissingAssociatedType(nocter_model::AssociatedTypeId),

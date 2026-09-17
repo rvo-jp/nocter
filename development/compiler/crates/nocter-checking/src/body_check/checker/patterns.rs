@@ -405,12 +405,16 @@ impl BodyChecker<'_, '_> {
             .map_err(BodyCheckInternalError::BodyAssumptions)?
             .ok_or(BodyCheckInternalError::CleanupPlanning)?;
         let mut substitution = TypeSubstitution::default();
-        for (parameter, ty) in bindings.iter() {
-            substitution.bind_generic(parameter, ty);
+        for (parameter, value) in bindings.values() {
+            substitution.bind_value(parameter, value);
         }
-        let arguments =
-            selected_generic_arguments(self.types, declaration.generic_parameters(), &substitution)
-                .map_err(BodyCheckInternalError::from)?;
+        let arguments = selected_generic_arguments(
+            self.types,
+            self.graph.declarations(),
+            declaration.generic_parameters(),
+            &substitution,
+        )
+        .map_err(BodyCheckInternalError::from)?;
         Ok(DropSelection::new(drop, arguments))
     }
 

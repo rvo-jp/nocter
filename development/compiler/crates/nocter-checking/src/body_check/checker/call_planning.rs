@@ -108,7 +108,7 @@ impl BodyChecker<'_, '_> {
         let argument_syntax = child_nodes(self.tree(), suffix);
         let mut substitution = generics.owner_substitution.cloned().unwrap_or_default();
         for argument in generics.fixed_arguments {
-            substitution.bind_generic(argument.parameter(), argument.ty());
+            substitution.bind_value(argument.parameter(), argument.value());
         }
         let parameters = self.declared_parameter_shape(callable_id, callable)?;
         if argument_syntax.len() < parameters.fixed.len()
@@ -169,7 +169,7 @@ impl BodyChecker<'_, '_> {
         let inferred_arguments =
             self.finish_positional_inference(&mut values, &context, inference)?;
         for argument in inferred_arguments.as_slice() {
-            substitution.bind_generic(argument.parameter(), argument.ty());
+            substitution.bind_value(argument.parameter(), argument.value());
         }
         let generic_arguments = GenericArguments::new(
             generics

@@ -25,9 +25,10 @@ pub use budget::CompileTimeEvaluationLimits;
 pub use callable::{
     CompileTimeBinaryOperation, CompileTimeCallTarget, CompileTimeCallable,
     CompileTimeCallablePlan, CompileTimeCallableRecipe, CompileTimeComparisonOperation,
-    CompileTimeGenericArgument, CompileTimeLogicalOperation, CompileTimeNode, CompileTimeOperation,
-    CompileTimeParameter, CompileTimeRecipeCallTarget, CompileTimeType, CompileTimeUnaryOperation,
-    CompileTimeValueType, InvalidCompileTimeCallTarget, InvalidCompileTimeCallable,
+    CompileTimeGenericArgument, CompileTimeGenericValue, CompileTimeLogicalOperation,
+    CompileTimeNode, CompileTimeOperation, CompileTimeParameter, CompileTimeRecipeCallTarget,
+    CompileTimeType, CompileTimeUnaryOperation, CompileTimeValueType, InvalidCompileTimeCallTarget,
+    InvalidCompileTimeCallable,
 };
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_expression_plan,

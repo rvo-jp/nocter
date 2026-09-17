@@ -166,7 +166,7 @@ fn normalize_body_assumptions(
                 .ok_or(SubstitutionError::InvalidStore)?;
             declared.extend_from_slice(entry.requirements());
             for refinement in entry.refinements() {
-                substitution.bind_generic(refinement.parameter(), refinement.ty());
+                substitution.bind_value(refinement.parameter(), refinement.value());
             }
         }
         CallableOwner::Interface(interface_id) => {

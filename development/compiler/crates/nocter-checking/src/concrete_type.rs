@@ -1,4 +1,4 @@
-use nocter_model::{TypeId, TypeKind};
+use nocter_model::{GenericValue, TypeId, TypeKind};
 
 use crate::associated_type_resolution::{AssociatedTypeResolutionError, AssociatedTypeResolver};
 use crate::concrete_dispatch::ConcreteDispatchResolver;
@@ -51,6 +51,27 @@ impl ConcreteDispatchResolver<'_> {
             return Err(ConcreteDestructionError::SymbolicType(reduced));
         }
         Ok(reduced)
+    }
+
+    /// Applies one enclosing specialization to an ordered type-or-constant argument.
+    ///
+    /// Type values additionally reduce associated projections; `usize` values must close to one
+    /// concrete integer before they enter executable identity.
+    pub fn specialize_generic_value(
+        &mut self,
+        value: GenericValue,
+        enclosing: &TypeSubstitution,
+    ) -> Result<GenericValue, ConcreteDestructionError> {
+        match value {
+            GenericValue::Type(ty) => self.specialize_type(ty, enclosing).map(GenericValue::Type),
+            GenericValue::Usize(value) => {
+                let value = enclosing.apply_value(self.types_mut(), GenericValue::Usize(value))?;
+                if !crate::is_concrete_generic_value(self.types(), value)? {
+                    return Err(ConcreteDestructionError::SymbolicGenericArgument(value));
+                }
+                Ok(value)
+            }
+        }
     }
 }
 

@@ -253,7 +253,7 @@ fn distinct_refinements_produce_disjoint_canonical_patterns() {
         ));
         assert_eq!(
             interface_implementation.refinements()[0].ty(),
-            arguments.type_at(0).unwrap()
+            Some(arguments.type_at(0).unwrap())
         );
     }
 }

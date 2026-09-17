@@ -296,12 +296,18 @@ impl CopyabilityTransaction {
         let definition = *definition;
         let parameters = arguments
             .iter()
-            .map(
-                |argument| match argument.as_type().and_then(|ty| types.get(ty)) {
+            .map(|argument| match argument {
+                nocter_model::GenericValue::Type(ty) => match types.get(*ty) {
                     Some(TypeKind::GenericParameter(parameter)) => Ok(*parameter),
                     _ => Err(CopyabilityError::InvalidClosureRegistration(closure)),
                 },
-            )
+                nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(
+                    parameter,
+                )) => Ok(*parameter),
+                nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(_)) => {
+                    Err(CopyabilityError::InvalidClosureRegistration(closure))
+                }
+            })
             .collect::<Result<Vec<_>, _>>()?;
         if self.conditions.contains_key(&closure)
             || self.closures.contains_key(&definition)

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use nocter_model::{
-    CallableId, CapabilityEvidenceId, DropId, GenericParameterId, InterfaceId, TypeId,
+    CallableId, CapabilityEvidenceId, DropId, GenericParameterId, GenericValue, InterfaceId, TypeId,
 };
 
 /// Static operation selected during body checking.
@@ -36,13 +36,21 @@ pub enum StaticDispatch {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GenericArgument {
     parameter: GenericParameterId,
-    ty: TypeId,
+    value: GenericValue,
 }
 
 impl GenericArgument {
     #[must_use]
     pub const fn new(parameter: GenericParameterId, ty: TypeId) -> Self {
-        Self { parameter, ty }
+        Self {
+            parameter,
+            value: GenericValue::Type(ty),
+        }
+    }
+
+    #[must_use]
+    pub const fn from_value(parameter: GenericParameterId, value: GenericValue) -> Self {
+        Self { parameter, value }
     }
 
     #[must_use]
@@ -51,8 +59,13 @@ impl GenericArgument {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
-        self.ty
+    pub const fn value(self) -> GenericValue {
+        self.value
+    }
+
+    #[must_use]
+    pub const fn ty(self) -> Option<TypeId> {
+        self.value.as_type()
     }
 }
 
@@ -87,11 +100,11 @@ impl GenericArguments {
     }
 
     #[must_use]
-    pub fn get(&self, parameter: GenericParameterId) -> Option<TypeId> {
+    pub fn get(&self, parameter: GenericParameterId) -> Option<GenericValue> {
         self.0
             .binary_search_by_key(&parameter, |argument| argument.parameter())
             .ok()
-            .map(|index| self.0[index].ty())
+            .map(|index| self.0[index].value())
     }
 }
 
@@ -147,7 +160,9 @@ impl GenericArguments {
         semantics: &super::CheckedSemanticRebinder<'_>,
     ) -> Result<(), super::CheckedSemanticRebindError> {
         for argument in &mut self.0 {
-            argument.ty = semantics.ty(argument.ty)?;
+            if let GenericValue::Type(ty) = argument.value {
+                argument.value = GenericValue::Type(semantics.ty(ty)?);
+            }
         }
         Ok(())
     }
@@ -216,7 +231,7 @@ impl std::error::Error for DuplicateGenericArgument {}
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, BuiltinType, GenericParameterId, TypeStore};
+    use nocter_model::{ArenaBuilder, BuiltinType, GenericParameterId, GenericValue, TypeStore};
 
     use super::{GenericArgument, GenericArguments};
 
@@ -236,7 +251,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(arguments.as_slice()[0].parameter(), first);
-        assert_eq!(arguments.get(second), Some(second_type));
+        assert_eq!(arguments.get(second), Some(GenericValue::Type(second_type)));
         assert_eq!(
             GenericArguments::new([
                 GenericArgument::new(first, first_type),

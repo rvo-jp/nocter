@@ -1,7 +1,9 @@
 use std::fmt;
 
-use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
-use nocter_model::{DropId, GenericParameterId, TypeId};
+use nocter_checking::{
+    GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_generic_value,
+};
+use nocter_model::{DropId, GenericParameterId, GenericValue};
 
 /// The canonical identity of one specialized user-authored drop body.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -44,14 +46,27 @@ impl DropInstanceKey {
                 actual: actual.into_boxed_slice(),
             });
         }
+        let application = nocter_model::GenericApplication::new(
+            generic_arguments
+                .as_slice()
+                .iter()
+                .map(|argument| argument.value())
+                .collect::<Vec<_>>(),
+        );
+        program
+            .checked()
+            .graph()
+            .declarations()
+            .validate_generic_application(expected, &application)
+            .map_err(DropInstanceKeyError::InvalidGenericApplication)?;
         for argument in generic_arguments.as_slice() {
-            if !is_concrete_type(types, argument.ty())
+            if !is_concrete_generic_value(types, argument.value())
                 .map_err(DropInstanceKeyError::InvalidTypeStore)?
             {
                 return Err(DropInstanceKeyError::SymbolicArgument {
                     drop,
                     parameter: argument.parameter(),
-                    ty: argument.ty(),
+                    value: argument.value(),
                 });
             }
         }
@@ -75,7 +90,7 @@ impl DropInstanceKey {
     pub fn substitution(&self) -> TypeSubstitution {
         let mut substitution = TypeSubstitution::default();
         for argument in self.generic_arguments.as_slice() {
-            substitution.bind_generic(argument.parameter(), argument.ty());
+            substitution.bind_value(argument.parameter(), argument.value());
         }
         substitution
     }
@@ -89,10 +104,11 @@ pub enum DropInstanceKeyError {
         expected: Box<[GenericParameterId]>,
         actual: Box<[GenericParameterId]>,
     },
+    InvalidGenericApplication(nocter_declarations::GenericApplicationError),
     SymbolicArgument {
         drop: DropId,
         parameter: GenericParameterId,
-        ty: TypeId,
+        value: GenericValue,
     },
     InvalidTypeStore(SubstitutionError),
 }
@@ -106,6 +122,7 @@ impl fmt::Display for DropInstanceKeyError {
 impl std::error::Error for DropInstanceKeyError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidGenericApplication(error) => Some(error),
             Self::InvalidTypeStore(error) => Some(error),
             _ => None,
         }

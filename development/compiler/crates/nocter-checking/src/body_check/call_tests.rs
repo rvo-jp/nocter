@@ -296,7 +296,7 @@ fn generic_calls_infer_arguments_and_rank_result_contexts() {
 
     assert_eq!(generic_arguments.len(), 3);
     assert!(matches!(
-        output.program().types().get(generic_arguments[2]),
+        output.program().types().get(generic_arguments[2].unwrap()),
         Some(TypeKind::Optional(_))
     ));
 }
@@ -437,7 +437,7 @@ fn construction_owner_generics_may_be_inferred_only_from_the_result_context() {
         .expect("inferred owner argument");
 
     assert_eq!(
-        output.program().types().get(inferred),
+        output.program().types().get(inferred.unwrap()),
         Some(&TypeKind::Builtin(nocter_model::BuiltinType::I64))
     );
 }
@@ -474,12 +474,114 @@ fn explicit_construction_owner_arguments_are_fixed_before_callable_inference() {
 
     assert_eq!(arguments.len(), 2);
     assert!(arguments.iter().any(|argument| {
-        output.program().types().get(argument.ty())
+        output.program().types().get(argument.ty().unwrap())
             == Some(&TypeKind::Builtin(nocter_model::BuiltinType::I32))
     }));
     assert!(arguments.iter().any(|argument| {
-        output.program().types().get(argument.ty())
+        output.program().types().get(argument.ty().unwrap())
             == Some(&TypeKind::Builtin(nocter_model::BuiltinType::Bool))
+    }));
+}
+
+#[test]
+fn callable_inference_preserves_constant_arguments_in_static_selection() {
+    let output = check(
+        "func length_of<T, const N: usize>(values: [T; N]): usize { loop {} }\n\
+         func four(values: [i32; 4]): usize { length_of(values) }\n",
+    )
+    .unwrap();
+    let arguments = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => match call.target() {
+                CallTarget::Static(selection)
+                    if selection.generic_arguments().as_slice().len() == 2 =>
+                {
+                    Some(selection.generic_arguments())
+                }
+                CallTarget::Static(_)
+                | CallTarget::CallableValue { .. }
+                | CallTarget::ClosureValue { .. }
+                | CallTarget::ErasedCallableValue { .. } => None,
+            },
+            _ => None,
+        })
+        .expect("generic call selection");
+
+    assert!(arguments.as_slice().iter().any(|argument| {
+        argument.value() == nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4))
+    }));
+}
+
+#[test]
+fn explicit_construction_preserves_constant_owner_arguments() {
+    let output = check(
+        "struct Buffer<T, const N: usize> { values: [T; N] }\n\
+         construct Buffer<T, N> {\n\
+             pub func empty(): Self { loop {} }\n\
+         }\n\
+         func four(): Buffer<i32, 4> { Buffer<i32, 4>.empty() }\n",
+    )
+    .unwrap();
+    let arguments = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => match call.target() {
+                CallTarget::Static(selection)
+                    if selection.generic_arguments().as_slice().len() == 2 =>
+                {
+                    Some(selection.generic_arguments())
+                }
+                CallTarget::Static(_)
+                | CallTarget::CallableValue { .. }
+                | CallTarget::ClosureValue { .. }
+                | CallTarget::ErasedCallableValue { .. } => None,
+            },
+            _ => None,
+        })
+        .expect("construction call selection");
+
+    assert!(arguments.as_slice().iter().any(|argument| {
+        argument.value() == nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4))
+    }));
+}
+
+#[test]
+fn body_generic_applications_accept_evaluated_named_constants() {
+    let output = check(
+        "const WIDTH: usize = 3\n\
+         struct Buffer<T, const N: usize> { values: [T; N] }\n\
+         construct Buffer<T, N> {\n\
+             pub func empty(): Self { loop {} }\n\
+         }\n\
+         func four(): Buffer<i32, WIDTH + 1> { Buffer<i32, WIDTH + 1>.empty() }\n",
+    )
+    .unwrap();
+    let arguments = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => match call.target() {
+                CallTarget::Static(selection)
+                    if selection.generic_arguments().as_slice().len() == 2 =>
+                {
+                    Some(selection.generic_arguments())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("construction selection");
+    assert!(arguments.as_slice().iter().any(|argument| {
+        argument.value() == nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4))
     }));
 }
 

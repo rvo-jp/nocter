@@ -64,8 +64,8 @@ impl CallableInference {
             match unify_type_pairs(types, self.parameters.iter().copied(), equations) {
                 Ok(bindings) => {
                     let mut substitution = TypeSubstitution::default();
-                    for (parameter, ty) in bindings.iter() {
-                        substitution.bind_generic(parameter, ty);
+                    for (parameter, value) in bindings.values() {
+                        substitution.bind_value(parameter, value);
                     }
                     return Ok(substitution);
                 }
@@ -327,18 +327,26 @@ impl CallableInference {
         self.append_result_equation(types, result_candidate, &mut equations);
         let bindings = unify_type_pairs(types, self.parameters.iter().copied(), equations)?;
         let mut substitution = TypeSubstitution::default();
-        for (parameter, ty) in bindings.iter() {
-            substitution.bind_generic(parameter, ty);
+        for (parameter, value) in bindings.values() {
+            substitution.bind_value(parameter, value);
         }
 
         let mut arguments = Vec::with_capacity(self.parameters.len());
         for parameter in self.parameters.iter().copied() {
             let bound = bindings
-                .get(parameter)
+                .get_value(parameter)
                 .ok_or(InferenceFailure::UnknownParameter(parameter))?;
-            let ty = substitution.apply_type(types, bound)?;
-            validate_type(types, ty, TypePosition::Data)?;
-            arguments.push(GenericArgument::new(parameter, ty));
+            let value = substitution.apply_value(types, bound)?;
+            match value {
+                nocter_model::GenericValue::Type(ty) => {
+                    validate_type(types, ty, TypePosition::Data)?;
+                }
+                nocter_model::GenericValue::Usize(term) if term.closed_value().is_some() => {}
+                nocter_model::GenericValue::Usize(_) => {
+                    return Err(InferenceFailure::UnknownParameter(parameter));
+                }
+            }
+            arguments.push(GenericArgument::from_value(parameter, value));
         }
         for deferred in self.deferred.iter().copied() {
             let expected = substitution.apply_type(types, deferred.expected)?;
@@ -671,6 +679,10 @@ pub enum InferenceFailure {
         left: TypeId,
         right: TypeId,
     },
+    ConstantConflict {
+        left: nocter_model::UsizeTerm,
+        right: nocter_model::UsizeTerm,
+    },
     RecursiveBinding {
         parameter: GenericParameterId,
         replacement: TypeId,
@@ -694,6 +706,9 @@ impl From<TypeUnificationError> for InferenceFailure {
                 left: conflict.left(),
                 right: conflict.right(),
             },
+            TypeUnificationError::ConstantConflict { left, right } => {
+                Self::ConstantConflict { left, right }
+            }
             TypeUnificationError::RecursiveBinding {
                 parameter,
                 replacement,
@@ -723,6 +738,12 @@ impl fmt::Display for InferenceFailure {
             Self::UnknownType(ty) => write!(formatter, "unknown type {ty:?} during inference"),
             Self::Conflict { left, right } => {
                 write!(formatter, "inference types {left:?} and {right:?} conflict")
+            }
+            Self::ConstantConflict { left, right } => {
+                write!(
+                    formatter,
+                    "inference constants {left:?} and {right:?} conflict"
+                )
             }
             Self::RecursiveBinding {
                 parameter,
@@ -758,7 +779,8 @@ impl std::error::Error for InferenceFailure {}
 #[cfg(test)]
 mod tests {
     use nocter_model::{
-        ArenaBuilder, BuiltinType, GenericParameterId, TypeAuthority, TypeKind, TypeStore,
+        ArenaBuilder, BuiltinType, GenericParameterId, GenericValue, TypeAuthority, TypeKind,
+        TypeStore,
     };
 
     use super::{CallableInference, InferenceEvidence, InferenceFailure};
@@ -785,7 +807,44 @@ mod tests {
             .unwrap();
 
         let arguments = inference.finish(&mut types).unwrap();
-        assert_eq!(arguments.get(parameter), Some(i32_type));
+        assert_eq!(arguments.get(parameter), Some(GenericValue::Type(i32_type)));
+    }
+
+    #[test]
+    fn fixed_array_shape_infers_type_and_constant_parameters_together() {
+        let mut types = TypeAuthority::new().transaction();
+        let mut parameters = ArenaBuilder::<GenericParameterId, _>::new();
+        let element_parameter = parameters.insert(());
+        let length_parameter = parameters.insert(());
+        let _ = parameters.finish();
+        let element = types
+            .intern(TypeKind::GenericParameter(element_parameter))
+            .unwrap();
+        let pattern = types
+            .intern(TypeKind::FixedArray {
+                element,
+                length: nocter_model::UsizeTerm::Parameter(length_parameter),
+            })
+            .unwrap();
+        let i32_type = types.builtin(BuiltinType::I32);
+        let actual = types
+            .intern(TypeKind::FixedArray {
+                element: i32_type,
+                length: nocter_model::UsizeTerm::Value(4),
+            })
+            .unwrap();
+        let mut inference = CallableInference::new([element_parameter, length_parameter]);
+        inference.constrain_exact(pattern, actual);
+
+        let arguments = inference.finish(&mut types).unwrap();
+        assert_eq!(
+            arguments.get(element_parameter),
+            Some(GenericValue::Type(i32_type))
+        );
+        assert_eq!(
+            arguments.get(length_parameter),
+            Some(GenericValue::Usize(nocter_model::UsizeTerm::Value(4)))
+        );
     }
 
     #[test]
@@ -802,7 +861,7 @@ mod tests {
 
         assert_eq!(
             inference.finish(&mut types).unwrap().get(parameter),
-            Some(i32_type)
+            Some(GenericValue::Type(i32_type))
         );
     }
 
@@ -843,7 +902,7 @@ mod tests {
 
         assert_eq!(
             inference.finish(&mut types).unwrap().get(parameter),
-            Some(i32_type)
+            Some(GenericValue::Type(i32_type))
         );
     }
 
@@ -893,7 +952,7 @@ mod tests {
 
         assert_eq!(
             inference.finish(&mut types).unwrap().get(parameter),
-            Some(expected)
+            Some(GenericValue::Type(expected))
         );
     }
 
@@ -910,7 +969,7 @@ mod tests {
 
         assert_eq!(
             inference.finish(&mut types).unwrap().get(parameter),
-            Some(i32_type)
+            Some(GenericValue::Type(i32_type))
         );
     }
 
@@ -942,7 +1001,7 @@ mod tests {
 
         assert_eq!(
             inference.finish(&mut types).unwrap().get(parameter),
-            Some(i32_type)
+            Some(GenericValue::Type(i32_type))
         );
     }
 

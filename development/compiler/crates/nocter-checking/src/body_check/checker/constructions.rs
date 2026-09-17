@@ -403,10 +403,7 @@ impl BodyChecker<'_, '_> {
                     .copied()
                     .zip(arguments.iter())
                 {
-                    let Some(ty) = value.as_type() else {
-                        return Err(self.rule(BodyRule::InvalidCall, node)?);
-                    };
-                    fixed.push(GenericArgument::new(parameter, ty));
+                    fixed.push(GenericArgument::from_value(parameter, *value));
                 }
                 (callable.generic_parameters().to_vec(), fixed)
             }
@@ -542,7 +539,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<bool, BodyCheckError> {
         let mut construction_substitution = TypeSubstitution::default();
         for argument in arguments.as_slice() {
-            construction_substitution.bind_generic(argument.parameter(), argument.ty());
+            construction_substitution.bind_value(argument.parameter(), argument.value());
         }
         let target = self.apply_type_substitution(&construction_substitution, target)?;
         let Some(TypeKind::Nominal {

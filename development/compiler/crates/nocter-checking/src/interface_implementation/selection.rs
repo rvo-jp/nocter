@@ -389,7 +389,7 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
             };
             let mut substitution = TypeSubstitution::default();
             for refinement in interface_implementation.refinements() {
-                substitution.bind_generic(refinement.parameter(), refinement.ty());
+                substitution.bind_value(refinement.parameter(), refinement.value());
             }
             substitution.extend(&matched);
             let requirements = interface_implementation.requirements().to_vec();
@@ -432,7 +432,7 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
             };
             let mut substitution = TypeSubstitution::default();
             for refinement in refinements {
-                substitution.bind_generic(refinement.parameter(), refinement.ty());
+                substitution.bind_value(refinement.parameter(), refinement.value());
             }
             substitution.extend(&matched);
             let mut applicable = true;

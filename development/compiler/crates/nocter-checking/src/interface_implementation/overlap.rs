@@ -3,7 +3,7 @@ use nocter_model::{TypeId, TypeStore};
 
 use crate::type_relations::{
     SubstitutionError, TypeSubstitution, TypeUnificationError, collect_generic_parameters,
-    unify_type_pairs,
+    unify_type_and_constant_pairs,
 };
 
 /// Reports whether two normalized interface implementation patterns can denote one concrete application.
@@ -23,21 +23,25 @@ pub(super) fn patterns_overlap(
     {
         return Ok(false);
     }
-    if !constant_arguments_may_match(left_interface, right_interface) {
+    let Some((equations, constant_equations)) =
+        application_equations(left_interface, left_target, right_interface, right_target)
+    else {
         return Ok(false);
-    }
-    let equations =
-        application_equations(left_interface, left_target, right_interface, right_target);
-    let variables = collect_generic_parameters(
+    };
+    let mut variables = collect_generic_parameters(
         types,
         equations.iter().flat_map(|(left, right)| [*left, *right]),
     )
     .map_err(invalid_unification)?;
-    match unify_type_pairs(types, variables, equations) {
+    extend_constant_parameters(&mut variables, left_interface);
+    extend_constant_parameters(&mut variables, right_interface);
+    match unify_type_and_constant_pairs(types, variables, equations, constant_equations) {
         Ok(_) => Ok(true),
-        Err(TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. }) => {
-            Ok(false)
-        }
+        Err(
+            TypeUnificationError::Conflict(_)
+            | TypeUnificationError::ConstantConflict { .. }
+            | TypeUnificationError::RecursiveBinding { .. },
+        ) => Ok(false),
         Err(error) => Err(invalid_unification(error)),
     }
 }
@@ -59,30 +63,35 @@ pub(super) fn match_pattern(
     {
         return Ok(None);
     }
-    let equations = application_equations(
+    let Some((equations, constant_equations)) = application_equations(
         pattern_interface,
         pattern_target,
         requested_interface,
         requested_target,
-    );
-    let variables = collect_generic_parameters(
+    ) else {
+        return Ok(None);
+    };
+    let mut variables = collect_generic_parameters(
         types,
         std::iter::once(pattern_target).chain(pattern_interface.arguments().type_values()),
     )
     .map_err(invalid_unification)?;
-    let bindings = match unify_type_pairs(types, variables, equations) {
-        Ok(bindings) => bindings,
-        Err(TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. }) => {
-            return Ok(None);
-        }
-        Err(error) => return Err(invalid_unification(error)),
-    };
+    extend_constant_parameters(&mut variables, pattern_interface);
+    let bindings =
+        match unify_type_and_constant_pairs(types, variables, equations, constant_equations) {
+            Ok(bindings) => bindings,
+            Err(
+                TypeUnificationError::Conflict(_)
+                | TypeUnificationError::ConstantConflict { .. }
+                | TypeUnificationError::RecursiveBinding { .. },
+            ) => {
+                return Ok(None);
+            }
+            Err(error) => return Err(invalid_unification(error)),
+        };
     let mut substitution = TypeSubstitution::default();
-    for (parameter, ty) in bindings.iter() {
-        substitution.bind_generic(parameter, ty);
-    }
-    if !bind_pattern_constants(&mut substitution, pattern_interface, requested_interface) {
-        return Ok(None);
+    for (parameter, value) in bindings.values() {
+        substitution.bind_value(parameter, value);
     }
     Ok(Some(substitution))
 }
@@ -92,124 +101,53 @@ fn application_equations(
     left_target: TypeId,
     right_interface: &InterfaceApplication,
     right_target: TypeId,
-) -> Vec<(TypeId, TypeId)> {
-    std::iter::once((left_target, right_target))
-        .chain(
-            left_interface
-                .arguments()
-                .iter()
-                .zip(right_interface.arguments())
-                .filter_map(|(left, right)| match (left, right) {
-                    (
-                        nocter_model::GenericValue::Type(left),
-                        nocter_model::GenericValue::Type(right),
-                    ) => Some((*left, *right)),
-                    _ => None,
-                }),
-        )
-        .collect()
-}
-
-fn constant_arguments_may_match(left: &InterfaceApplication, right: &InterfaceApplication) -> bool {
-    let mut bindings = std::collections::HashMap::new();
-    left.arguments()
+) -> Option<(
+    Vec<(TypeId, TypeId)>,
+    Vec<(nocter_model::UsizeTerm, nocter_model::UsizeTerm)>,
+)> {
+    let mut types = vec![(left_target, right_target)];
+    let mut constants = Vec::new();
+    for (left, right) in left_interface
+        .arguments()
         .iter()
-        .zip(right.arguments())
-        .all(|(left, right)| match (left, right) {
+        .zip(right_interface.arguments())
+    {
+        match (left, right) {
+            (nocter_model::GenericValue::Type(left), nocter_model::GenericValue::Type(right)) => {
+                types.push((*left, *right))
+            }
             (nocter_model::GenericValue::Usize(left), nocter_model::GenericValue::Usize(right)) => {
-                unify_usize_terms(*left, *right, &mut bindings)
+                constants.push((*left, *right))
             }
-            (nocter_model::GenericValue::Type(_), nocter_model::GenericValue::Type(_)) => true,
-            _ => false,
-        })
+            _ => return None,
+        }
+    }
+    Some((types, constants))
 }
 
-fn unify_usize_terms(
-    left: nocter_model::UsizeTerm,
-    right: nocter_model::UsizeTerm,
-    bindings: &mut std::collections::HashMap<
-        nocter_model::GenericParameterId,
-        nocter_model::UsizeTerm,
-    >,
-) -> bool {
-    let left = resolve_usize_term(left, bindings);
-    let right = resolve_usize_term(right, bindings);
-    match (left, right) {
-        (nocter_model::UsizeTerm::Value(left), nocter_model::UsizeTerm::Value(right)) => {
-            left == right
-        }
-        (nocter_model::UsizeTerm::Parameter(left), nocter_model::UsizeTerm::Parameter(right))
-            if left == right =>
-        {
-            true
-        }
-        (nocter_model::UsizeTerm::Parameter(parameter), value)
-        | (value, nocter_model::UsizeTerm::Parameter(parameter)) => {
-            bindings.insert(parameter, value);
-            true
-        }
-    }
-}
-
-fn resolve_usize_term(
-    mut term: nocter_model::UsizeTerm,
-    bindings: &std::collections::HashMap<nocter_model::GenericParameterId, nocter_model::UsizeTerm>,
-) -> nocter_model::UsizeTerm {
-    let mut visited = std::collections::HashSet::new();
-    while let nocter_model::UsizeTerm::Parameter(parameter) = term {
-        if !visited.insert(parameter) {
-            break;
-        }
-        let Some(next) = bindings.get(&parameter).copied() else {
-            break;
-        };
-        term = next;
-    }
-    term
-}
-
-fn bind_pattern_constants(
-    substitution: &mut TypeSubstitution,
-    pattern: &InterfaceApplication,
-    requested: &InterfaceApplication,
-) -> bool {
-    let mut bindings = std::collections::HashMap::new();
-    for (pattern, requested) in pattern.arguments().iter().zip(requested.arguments()) {
-        match (pattern, requested) {
-            (
-                nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(parameter)),
-                nocter_model::GenericValue::Usize(requested),
-            ) => {
-                if bindings
-                    .insert(*parameter, *requested)
-                    .is_some_and(|value| value != *requested)
-                {
-                    return false;
-                }
-            }
-            (
-                nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(pattern)),
-                nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(requested)),
-            ) if pattern == requested => {}
-            (nocter_model::GenericValue::Type(_), nocter_model::GenericValue::Type(_)) => {}
-            (nocter_model::GenericValue::Usize(_), nocter_model::GenericValue::Usize(_)) => {
-                return false;
-            }
-            _ => return false,
-        }
-    }
-    for (parameter, value) in bindings {
-        substitution.bind_constant_term(parameter, value);
-    }
-    true
+fn extend_constant_parameters(
+    output: &mut std::collections::HashSet<nocter_model::GenericParameterId>,
+    application: &InterfaceApplication,
+) {
+    output.extend(
+        application
+            .arguments()
+            .iter()
+            .filter_map(|value| match value {
+                nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(
+                    parameter,
+                )) => Some(*parameter),
+                _ => None,
+            }),
+    );
 }
 
 fn invalid_unification(error: TypeUnificationError) -> SubstitutionError {
     match error {
         TypeUnificationError::UnknownType(ty) => SubstitutionError::UnknownType(ty),
-        TypeUnificationError::Conflict(_) | TypeUnificationError::RecursiveBinding { .. } => {
-            SubstitutionError::InvalidStore
-        }
+        TypeUnificationError::Conflict(_)
+        | TypeUnificationError::ConstantConflict { .. }
+        | TypeUnificationError::RecursiveBinding { .. } => SubstitutionError::InvalidStore,
     }
 }
 

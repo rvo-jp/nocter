@@ -181,7 +181,7 @@ func rendered(): Text { Text "line\nvalue" }
         );
         assert_eq!(
             sequence.constructor().generic_arguments().as_slice()[0].ty(),
-            program.types().builtin(BuiltinType::I32)
+            Some(program.types().builtin(BuiltinType::I32))
         );
     }
     let string = program

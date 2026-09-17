@@ -73,15 +73,32 @@ pub enum CompileTimeComparisonOperation {
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum CompileTimeGenericValue<T = CompileTimeType> {
+    Type(T),
+    Usize(nocter_model::UsizeTerm),
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CompileTimeGenericArgument<T = CompileTimeType> {
     parameter: GenericParameterId,
-    ty: T,
+    value: CompileTimeGenericValue<T>,
 }
 
 impl<T> CompileTimeGenericArgument<T> {
     #[must_use]
     pub const fn new(parameter: GenericParameterId, ty: T) -> Self {
-        Self { parameter, ty }
+        Self {
+            parameter,
+            value: CompileTimeGenericValue::Type(ty),
+        }
+    }
+
+    #[must_use]
+    pub const fn from_value(
+        parameter: GenericParameterId,
+        value: CompileTimeGenericValue<T>,
+    ) -> Self {
+        Self { parameter, value }
     }
 
     #[must_use]
@@ -90,8 +107,16 @@ impl<T> CompileTimeGenericArgument<T> {
     }
 
     #[must_use]
-    pub const fn ty(&self) -> &T {
-        &self.ty
+    pub const fn value(&self) -> &CompileTimeGenericValue<T> {
+        &self.value
+    }
+
+    #[must_use]
+    pub const fn ty(&self) -> Option<&T> {
+        match &self.value {
+            CompileTimeGenericValue::Type(ty) => Some(ty),
+            CompileTimeGenericValue::Usize(_) => None,
+        }
     }
 }
 

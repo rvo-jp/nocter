@@ -193,7 +193,7 @@ pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};
 pub use structural_field_completion::{
     StructuralFieldCompletionCandidate, StructuralFieldCompletionError,
 };
-pub use type_relations::{TypeSubstitution, is_concrete_type};
+pub use type_relations::{TypeSubstitution, is_concrete_generic_value, is_concrete_type};
 pub use type_validity::{
     DeclarationTypeValidityError, TypePosition, TypeValidityFailure, TypeValidityInternalError,
     TypeValidityRule, TypeValidityViolation, validate_declaration_types, validate_type,

@@ -148,7 +148,12 @@ impl TypeSubstitution {
             .ok_or(SubstitutionError::InvalidStore)
     }
 
-    pub(crate) fn apply_value(
+    /// Applies this specialization to one ordered generic value.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same structural substitution failures as [`Self::apply_type`].
+    pub fn apply_value(
         &self,
         types: &mut nocter_model::TypeTransaction,
         value: GenericValue,

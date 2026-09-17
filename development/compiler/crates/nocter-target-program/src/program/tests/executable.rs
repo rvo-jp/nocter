@@ -345,8 +345,86 @@ fn closure_and_drop_keys_inherit_the_complete_concrete_owner_domain() {
         })
         .unwrap();
 
-    assert_eq!(closure.generic_arguments().as_slice()[0].ty(), i32_);
-    assert_eq!(drop.generic_arguments().as_slice()[0].ty(), i32_);
+    assert_eq!(closure.generic_arguments().as_slice()[0].ty(), Some(i32_));
+    assert_eq!(drop.generic_arguments().as_slice()[0].ty(), Some(i32_));
+}
+
+#[test]
+fn closure_keys_preserve_constant_owner_arguments() {
+    let target = build_target_program(&Fixture::with_app(
+        "func run<const N: usize>(values: [i32; N]): void {\n\
+             let callback = (&values;): void { return }\n\
+             callback()\n\
+             return\n\
+         }\n\
+         func source(): [i32; 4] { loop {} }\n\
+         func main(): void {\n\
+             run(source())\n\
+             return\n\
+         }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let closure = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| match item.key() {
+            ExecutableItemKey::Closure(key) => Some(key),
+            _ => None,
+        })
+        .expect("closure specialization");
+    assert!(
+        closure
+            .generic_arguments()
+            .as_slice()
+            .iter()
+            .any(|argument| {
+                argument.value()
+                    == nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4))
+            })
+    );
+}
+
+#[test]
+fn drop_keys_preserve_constant_owner_arguments() {
+    let target = build_target_program(&Fixture::with_app(
+        "struct Buffer<T, const N: usize> { values: [T; N] }\n\
+         drop Buffer<T, N>(&+self) { return }\n\
+         func source(): Buffer<i32, 4> { loop {} }\n\
+         func main(): void {\n\
+             let value = source()\n\
+             return\n\
+         }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let drop = executable
+        .items()
+        .iter()
+        .find_map(|(_, item)| match item.key() {
+            ExecutableItemKey::Drop(key) => Some(key),
+            _ => None,
+        })
+        .expect("drop specialization");
+    assert!(drop.generic_arguments().as_slice().iter().any(|argument| {
+        argument.value() == nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4))
+    }));
 }
 
 #[test]
@@ -395,7 +473,49 @@ fn generic_direct_dispatch_names_the_dense_specialized_item() {
     assert_eq!(key.callable(), identity);
     assert_eq!(
         key.generic_arguments().as_slice()[0].ty(),
-        executable.types().builtin(BuiltinType::I32)
+        Some(executable.types().builtin(BuiltinType::I32))
+    );
+}
+
+#[test]
+fn constant_generic_dispatch_names_one_closed_executable_item() {
+    let target = build_target_program(&Fixture::with_app(
+        "func marker<const N: usize>(): [i32; N] { loop {} }\n\
+         func make(): [i32; 4] { marker() }\n\
+         func main(): void {\n\
+             let value = make()\n\
+             return\n\
+         }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let marker = executable.items().iter().find_map(|(_, item)| {
+        let ExecutableItemKey::Callable(key) = item.key() else {
+            return None;
+        };
+        let name = target
+            .checked()
+            .graph()
+            .declarations()
+            .callables()
+            .get(key.callable())?
+            .name()
+            .and_then(|symbol| target.checked().graph().symbols().spelling(symbol));
+        (name == Some("marker")).then_some(key)
+    });
+    let marker = marker.expect("constant generic specialization");
+    assert_eq!(marker.generic_arguments().as_slice().len(), 1);
+    assert_eq!(
+        marker.generic_arguments().as_slice()[0].value(),
+        nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4))
     );
 }
 

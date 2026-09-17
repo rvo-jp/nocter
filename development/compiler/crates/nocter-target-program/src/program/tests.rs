@@ -299,7 +299,10 @@ fn callable_instance_key_requires_the_complete_concrete_generic_domain() {
     )
     .unwrap();
     assert_eq!(key.callable(), helper);
-    assert_eq!(key.generic_arguments().get(parameter), Some(concrete));
+    assert_eq!(
+        key.generic_arguments().get(parameter),
+        Some(nocter_model::GenericValue::Type(concrete))
+    );
 
     assert!(matches!(
         CallableInstanceKey::new(&target, helper, GenericArguments::default()),
@@ -320,6 +323,51 @@ fn callable_instance_key_requires_the_complete_concrete_generic_domain() {
             GenericArguments::new([GenericArgument::new(parameter, symbolic)]).unwrap(),
         ),
         Err(CallableInstanceKeyError::SymbolicArgument { .. })
+    ));
+}
+
+#[test]
+fn callable_instance_key_preserves_and_validates_constant_arguments() {
+    let target = build_target_program(&Fixture::with_app(
+        "func helper<const N: usize>(value: [i32; N]): usize { loop {} }\n\
+         func main(): void { return }\n",
+    ));
+    let graph = target.checked().graph();
+    let helper = graph
+        .declarations()
+        .callables()
+        .iter()
+        .find_map(|(id, declaration)| {
+            (declaration
+                .name()
+                .and_then(|name| graph.symbols().spelling(name))
+                == Some("helper"))
+            .then_some(id)
+        })
+        .unwrap();
+    let parameter = graph
+        .declarations()
+        .callables()
+        .get(helper)
+        .unwrap()
+        .generic_parameters()[0];
+    let value = nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(4));
+    let key = CallableInstanceKey::new(
+        &target,
+        helper,
+        GenericArguments::new([GenericArgument::from_value(parameter, value)]).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(key.generic_arguments().get(parameter), Some(value));
+
+    let wrong = target.checked().types().builtin(BuiltinType::I32);
+    assert!(matches!(
+        CallableInstanceKey::new(
+            &target,
+            helper,
+            GenericArguments::new([GenericArgument::new(parameter, wrong)]).unwrap(),
+        ),
+        Err(CallableInstanceKeyError::InvalidGenericApplication(_))
     ));
 }
 

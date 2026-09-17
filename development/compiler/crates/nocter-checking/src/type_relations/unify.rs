@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use nocter_model::{GenericParameterId, TypeId, TypeKind, TypeStore};
+use nocter_model::{GenericParameterId, GenericValue, TypeId, TypeKind, TypeStore, UsizeTerm};
 
 /// Generic bindings produced by first-order structural type unification.
 ///
@@ -10,6 +10,7 @@ use nocter_model::{GenericParameterId, TypeId, TypeKind, TypeStore};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct GenericBindings {
     bindings: HashMap<GenericParameterId, TypeId>,
+    constants: HashMap<GenericParameterId, UsizeTerm>,
 }
 
 impl GenericBindings {
@@ -22,6 +23,26 @@ impl GenericBindings {
         self.bindings
             .iter()
             .map(|(parameter, ty)| (*parameter, *ty))
+    }
+
+    #[must_use]
+    pub(crate) fn get_value(&self, parameter: GenericParameterId) -> Option<GenericValue> {
+        self.get(parameter).map(GenericValue::Type).or_else(|| {
+            self.constants
+                .get(&parameter)
+                .copied()
+                .map(GenericValue::Usize)
+        })
+    }
+
+    pub(crate) fn values(&self) -> impl Iterator<Item = (GenericParameterId, GenericValue)> + '_ {
+        self.iter()
+            .map(|(parameter, ty)| (parameter, GenericValue::Type(ty)))
+            .chain(
+                self.constants
+                    .iter()
+                    .map(|(parameter, value)| (*parameter, GenericValue::Usize(*value))),
+            )
     }
 }
 
@@ -44,9 +65,31 @@ pub(crate) fn collect_generic_parameters(
         if let TypeKind::GenericParameter(parameter) = kind {
             parameters.insert(*parameter);
         }
+        collect_constant_parameters(kind, &mut parameters);
         append_references(kind, &mut pending);
     }
     Ok(parameters)
+}
+
+fn collect_constant_parameters(kind: &TypeKind, output: &mut HashSet<GenericParameterId>) {
+    let mut collect = |value: UsizeTerm| {
+        if let UsizeTerm::Parameter(parameter) = value {
+            output.insert(parameter);
+        }
+    };
+    match kind {
+        TypeKind::Nominal { arguments, .. }
+        | TypeKind::Opaque { arguments, .. }
+        | TypeKind::Closure { arguments, .. } => {
+            for value in arguments.iter() {
+                if let GenericValue::Usize(value) = value {
+                    collect(*value);
+                }
+            }
+        }
+        TypeKind::FixedArray { length, .. } => collect(*length),
+        _ => {}
+    }
 }
 
 /// Unifies structural type equations while allowing only `variables` to receive bindings.
@@ -59,11 +102,27 @@ pub(crate) fn unify_type_pairs(
     variables: impl IntoIterator<Item = GenericParameterId>,
     equations: impl IntoIterator<Item = (TypeId, TypeId)>,
 ) -> Result<GenericBindings, TypeUnificationError> {
+    unify_type_and_constant_pairs(types, variables, equations, [])
+}
+
+/// Unifies type structure and sibling constant arguments in one solver invocation.
+///
+/// Callers that own a generic application split its already-normalized values by domain, then
+/// submit both equation sets here. This keeps repeated constant parameters and type structure
+/// under one binding authority instead of reimplementing constant matching beside the type solver.
+pub(crate) fn unify_type_and_constant_pairs(
+    types: &TypeStore,
+    variables: impl IntoIterator<Item = GenericParameterId>,
+    equations: impl IntoIterator<Item = (TypeId, TypeId)>,
+    constant_equations: impl IntoIterator<Item = (UsizeTerm, UsizeTerm)>,
+) -> Result<GenericBindings, TypeUnificationError> {
     TypeUnifier {
         types,
         variables: variables.into_iter().collect(),
         bindings: HashMap::new(),
         pending: equations.into_iter().collect(),
+        constant_bindings: HashMap::new(),
+        pending_constants: constant_equations.into_iter().collect(),
     }
     .solve()
 }
@@ -73,6 +132,8 @@ struct TypeUnifier<'types> {
     variables: HashSet<GenericParameterId>,
     bindings: HashMap<GenericParameterId, TypeId>,
     pending: Vec<(TypeId, TypeId)>,
+    constant_bindings: HashMap<GenericParameterId, UsizeTerm>,
+    pending_constants: Vec<(UsizeTerm, UsizeTerm)>,
 }
 
 impl TypeUnifier<'_> {
@@ -94,13 +155,56 @@ impl TypeUnifier<'_> {
                 self.bind(variable, left)?;
                 continue;
             }
-            if !decompose_pair(&left_kind, &right_kind, &mut self.pending) {
+            if !decompose_pair(
+                &left_kind,
+                &right_kind,
+                &mut self.pending,
+                &mut self.pending_constants,
+            ) {
                 return Err(TypeUnificationConflict { left, right }.into());
+            }
+        }
+        while let Some((left, right)) = self.pending_constants.pop() {
+            if !self.unify_constant(left, right) {
+                return Err(TypeUnificationError::ConstantConflict { left, right });
             }
         }
         Ok(GenericBindings {
             bindings: self.bindings,
+            constants: self.constant_bindings,
         })
+    }
+
+    fn unify_constant(&mut self, left: UsizeTerm, right: UsizeTerm) -> bool {
+        let left = self.resolve_constant(left);
+        let right = self.resolve_constant(right);
+        match (left, right) {
+            (UsizeTerm::Value(left), UsizeTerm::Value(right)) => left == right,
+            (UsizeTerm::Parameter(left), UsizeTerm::Parameter(right)) if left == right => true,
+            (UsizeTerm::Parameter(parameter), value) if self.variables.contains(&parameter) => {
+                self.constant_bindings.insert(parameter, value);
+                true
+            }
+            (value, UsizeTerm::Parameter(parameter)) if self.variables.contains(&parameter) => {
+                self.constant_bindings.insert(parameter, value);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn resolve_constant(&self, mut term: UsizeTerm) -> UsizeTerm {
+        let mut visited = HashSet::new();
+        while let UsizeTerm::Parameter(parameter) = term {
+            if !visited.insert(parameter) {
+                break;
+            }
+            let Some(next) = self.constant_bindings.get(&parameter).copied() else {
+                break;
+            };
+            term = next;
+        }
+        term
     }
 
     fn record_identity_evidence(&mut self, root: TypeId) -> Result<(), TypeUnificationError> {
@@ -193,8 +297,13 @@ impl TypeUnifier<'_> {
     }
 }
 
-fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, TypeId)>) -> bool {
-    if let Some(result) = decompose_declared_application(left, right, pending) {
+fn decompose_pair(
+    left: &TypeKind,
+    right: &TypeKind,
+    pending: &mut Vec<(TypeId, TypeId)>,
+    pending_constants: &mut Vec<(UsizeTerm, UsizeTerm)>,
+) -> bool {
+    if let Some(result) = decompose_declared_application(left, right, pending, pending_constants) {
         return result;
     }
     match (left, right) {
@@ -248,8 +357,9 @@ fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, 
                 element: right_element,
                 length: right_length,
             },
-        ) if left_length == right_length => {
+        ) => {
             pending.push((*left_element, *right_element));
+            pending_constants.push((*left_length, *right_length));
             true
         }
         (TypeKind::Tuple(left), TypeKind::Tuple(right)) => decompose_tuple(left, right, pending),
@@ -261,6 +371,7 @@ fn decompose_declared_application(
     left: &TypeKind,
     right: &TypeKind,
     pending: &mut Vec<(TypeId, TypeId)>,
+    pending_constants: &mut Vec<(UsizeTerm, UsizeTerm)>,
 ) -> Option<bool> {
     match (left, right) {
         (
@@ -278,6 +389,7 @@ fn decompose_declared_application(
             right_definition,
             right_arguments,
             pending,
+            pending_constants,
         )),
         (
             TypeKind::Nominal {
@@ -294,6 +406,7 @@ fn decompose_declared_application(
             right_definition,
             right_arguments,
             pending,
+            pending_constants,
         )),
         (
             TypeKind::Opaque {
@@ -310,6 +423,7 @@ fn decompose_declared_application(
             right_definition,
             right_arguments,
             pending,
+            pending_constants,
         )),
         _ => None,
     }
@@ -321,6 +435,7 @@ fn decompose_application<T: Eq>(
     right_definition: &T,
     right_arguments: &nocter_model::GenericApplication,
     pending: &mut Vec<(TypeId, TypeId)>,
+    pending_constants: &mut Vec<(UsizeTerm, UsizeTerm)>,
 ) -> bool {
     if left_definition != right_definition || left_arguments.len() != right_arguments.len() {
         return false;
@@ -334,7 +449,8 @@ fn decompose_application<T: Eq>(
                 true
             }
             (nocter_model::GenericValue::Usize(left), nocter_model::GenericValue::Usize(right)) => {
-                left == right
+                pending_constants.push((*left, *right));
+                true
             }
             _ => false,
         })
@@ -447,6 +563,10 @@ impl TypeUnificationConflict {
 pub(crate) enum TypeUnificationError {
     UnknownType(TypeId),
     Conflict(TypeUnificationConflict),
+    ConstantConflict {
+        left: UsizeTerm,
+        right: UsizeTerm,
+    },
     RecursiveBinding {
         parameter: GenericParameterId,
         replacement: TypeId,
@@ -467,6 +587,10 @@ impl fmt::Display for TypeUnificationError {
                 formatter,
                 "types {:?} and {:?} cannot be unified",
                 conflict.left, conflict.right
+            ),
+            Self::ConstantConflict { left, right } => write!(
+                formatter,
+                "constant terms {left:?} and {right:?} cannot be unified"
             ),
             Self::RecursiveBinding {
                 parameter,

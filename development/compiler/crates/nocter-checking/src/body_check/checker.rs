@@ -165,7 +165,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     copy_proofs: CopyProofs,
     closure_result_inference: Option<closure_results::ClosureResultInference>,
     closure_ids: HashMap<NodeId, nocter_model::ClosureId>,
-    closure_type_arguments: Box<[TypeId]>,
+    closure_generic_arguments: nocter_model::GenericApplication,
     opaque_result: Option<OpaqueResultState>,
     interruption: Option<super::TypedBodyInterruption>,
     associated_type_completion_contexts: Vec<crate::AssociatedTypeCompletionContext>,
@@ -263,15 +263,28 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         }
         let contract = body_contract(graph, types, source)?;
         let result_type = contract.result;
-        let closure_type_arguments = body_generic_domain(graph, source)?
+        let closure_generic_arguments = body_generic_domain(graph, source)?
             .iter()
             .map(|parameter| {
-                types
-                    .intern(TypeKind::GenericParameter(*parameter))
-                    .map_err(|_| BodyCheckInternalError::UnknownType(result_type))
+                let declaration = graph
+                    .declarations()
+                    .generic_parameters()
+                    .get(*parameter)
+                    .ok_or(BodyCheckInternalError::UnknownType(result_type))?;
+                match declaration.domain() {
+                    nocter_declarations::GenericParameterDomain::Type => types
+                        .intern(TypeKind::GenericParameter(*parameter))
+                        .map(nocter_model::GenericValue::Type)
+                        .map_err(|_| BodyCheckInternalError::UnknownType(result_type)),
+                    nocter_declarations::GenericParameterDomain::UsizeConstant => {
+                        Ok(nocter_model::GenericValue::Usize(
+                            nocter_model::UsizeTerm::Parameter(*parameter),
+                        ))
+                    }
+                }
             })
             .collect::<Result<Vec<_>, _>>()?
-            .into_boxed_slice();
+            .into();
         let assumptions = body_assumptions
             .get(source.body())
             .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?;
@@ -311,7 +324,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             copy_proofs: assumptions.copy_proofs().clone(),
             closure_result_inference: None,
             closure_ids,
-            closure_type_arguments,
+            closure_generic_arguments,
             opaque_result,
             interruption: None,
             associated_type_completion_contexts: Vec::new(),

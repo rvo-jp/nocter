@@ -993,7 +993,7 @@ impl<'a> Renderer<'a> {
                 self.output.push_str(", ");
             }
             if let Some(argument) = self.generics.and_then(|arguments| arguments.get(id)) {
-                self.ty(argument)?;
+                self.generic_value(argument)?;
             } else {
                 let parameter = self.graph.declarations().generic_parameters().get(id)?;
                 if parameter.domain() == nocter_declarations::GenericParameterDomain::UsizeConstant
@@ -1328,7 +1328,7 @@ impl<'a> Renderer<'a> {
 
     fn generic_parameter(&mut self, id: nocter_model::GenericParameterId) -> Option<()> {
         if let Some(argument) = self.generics.and_then(|arguments| arguments.get(id)) {
-            return self.ty(argument);
+            return self.generic_value(argument);
         }
         let parameter = self.graph.declarations().generic_parameters().get(id)?;
         self.output.push_str(self.symbol(parameter.name())?);
@@ -1344,9 +1344,9 @@ impl<'a> Renderer<'a> {
             TypeKind::Builtin(builtin) => self.output.push_str(builtin.spelling()),
             TypeKind::GenericParameter(id) => {
                 if let Some(argument) = self.generics.and_then(|arguments| arguments.get(*id))
-                    && argument != ty
+                    && argument != nocter_model::GenericValue::Type(ty)
                 {
-                    self.ty(argument)?;
+                    self.generic_value(argument)?;
                 } else {
                     let parameter = self.graph.declarations().generic_parameters().get(*id)?;
                     self.output.push_str(self.symbol(parameter.name())?);
@@ -1428,6 +1428,25 @@ impl<'a> Renderer<'a> {
             }
         }
         Some(())
+    }
+
+    fn generic_value(&mut self, value: nocter_model::GenericValue) -> Option<()> {
+        match value {
+            nocter_model::GenericValue::Type(ty) => self.ty(ty),
+            nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(value)) => {
+                self.output.push_str(&value.to_string());
+                Some(())
+            }
+            nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(parameter)) => {
+                let declaration = self
+                    .graph
+                    .declarations()
+                    .generic_parameters()
+                    .get(parameter)?;
+                self.output.push_str(self.symbol(declaration.name())?);
+                Some(())
+            }
+        }
     }
 
     fn opaque_type(

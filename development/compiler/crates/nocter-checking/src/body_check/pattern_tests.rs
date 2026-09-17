@@ -563,7 +563,11 @@ fn pattern_drop_preserves_the_concrete_drop_substitution() {
         .get(selection.declaration())
         .unwrap();
     let parameter = drop.generic_parameters()[0];
-    let argument = selection.generic_arguments().get(parameter).unwrap();
+    let argument = selection
+        .generic_arguments()
+        .get(parameter)
+        .and_then(|value| value.as_type())
+        .unwrap();
     let Some(TypeKind::Nominal { definition, .. }) = output.program().types().get(argument) else {
         panic!("drop argument must retain the concrete nominal type")
     };

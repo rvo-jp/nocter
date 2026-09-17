@@ -10,12 +10,13 @@ use super::type_uses::NominalOwnerArguments;
 use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
+use crate::instance_operations::selected_generic_arguments;
 use crate::interface_implementation::normalize_requirements;
 use crate::syntax::{child_nodes, direct_node, direct_nodes};
 use crate::type_relations::TypeSubstitution;
 use crate::{
     AllocationSelection, ArgumentPackSegment, CallableInference, CheckedOperation,
-    CheckedPackLiteral, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
+    CheckedPackLiteral, StaticDispatch, StaticSelection,
 };
 
 struct LiteralPlan {
@@ -365,21 +366,13 @@ impl BodyChecker<'_, '_> {
         if *definition != plan.definition {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         }
-        let generic_arguments = GenericArguments::new(
-            plan.construction_parameters
-                .iter()
-                .copied()
-                .map(|parameter| {
-                    let pattern = self
-                        .types
-                        .intern(TypeKind::GenericParameter(parameter))
-                        .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
-                    let ty = self.apply_type_substitution(&plan.substitution, pattern)?;
-                    Ok(GenericArgument::new(parameter, ty))
-                })
-                .collect::<Result<Vec<_>, BodyCheckInternalError>>()?,
+        let generic_arguments = selected_generic_arguments(
+            self.types,
+            self.graph.declarations(),
+            &plan.construction_parameters,
+            &plan.substitution,
         )
-        .map_err(BodyCheckInternalError::CallGenericArguments)?;
+        .map_err(BodyCheckInternalError::from)?;
         if !self.requirements_hold(&plan.requirements, &plan.substitution)?
             || !self.construction_target_requirements_hold(
                 plan.construction_target,

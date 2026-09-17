@@ -102,6 +102,6 @@ pub(super) fn bind_inferred_arguments(
     arguments: &GenericArguments,
 ) {
     for argument in arguments.as_slice() {
-        substitution.bind_generic(argument.parameter(), argument.ty());
+        substitution.bind_value(argument.parameter(), argument.value());
     }
 }
