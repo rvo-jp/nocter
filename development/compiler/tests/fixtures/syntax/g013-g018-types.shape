@@ -6,9 +6,10 @@ SourceFile
       Type
         BorrowType
           NamedType
-            TypeArguments
-              Type
-                NamedType
+            GenericArguments
+              GenericArgument
+                Type
+                  NamedType
   Item
     TypeAliasDeclaration
       GenericParameters
@@ -49,9 +50,10 @@ SourceFile
         OpaqueResult
           InterfaceApplication
             NamedType
-              TypeArguments
-                Type
-                  NamedType
+              GenericArguments
+                GenericArgument
+                  Type
+                    NamedType
             AssociatedBindings
               AssociatedTypeBinding
                 Type
@@ -64,9 +66,10 @@ SourceFile
               NamedType
             InterfaceApplication
               NamedType
-                TypeArguments
-                  Type
-                    NamedType
+                GenericArguments
+                  GenericArgument
+                    Type
+                      NamedType
               AssociatedBindings
                 AssociatedTypeBinding
                   Type

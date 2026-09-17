@@ -147,6 +147,27 @@ fn generic_parameter_nodes_preserve_type_and_constant_domains() {
 }
 
 #[test]
+fn generic_argument_nodes_preserve_type_and_constant_expression_shapes() {
+    let tree = assert_syntax_ok("type Page = Buffer<u8, 2 + 2>\n", ParseGoal::SourceFile);
+
+    assert_eq!(count_node_kind(&tree, NodeKind::GenericArguments), 1);
+    assert_eq!(count_node_kind(&tree, NodeKind::GenericArgument), 2);
+    assert_eq!(count_node_kind(&tree, NodeKind::AdditiveExpression), 1);
+}
+
+#[test]
+fn constant_argument_shift_does_not_consume_nested_generic_closers() {
+    let tree = assert_syntax_ok(
+        "type HalfPage = Outer<Buffer<u8, 8 >> 1>>\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(count_node_kind(&tree, NodeKind::GenericArguments), 2);
+    assert_eq!(count_node_kind(&tree, NodeKind::GenericArgument), 3);
+    assert_eq!(count_node_kind(&tree, NodeKind::ShiftExpression), 1);
+}
+
+#[test]
 fn parses_empty_and_nested_package_directive_values() {
     assert_syntax_ok("", ParseGoal::SourceFile);
     assert_syntax_ok(

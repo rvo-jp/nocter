@@ -65,14 +65,16 @@ pub(super) fn segments(
             SyntaxElement::Node(child)
                 if tree
                     .node(*child)
-                    .is_some_and(|syntax| syntax.kind() == NodeKind::TypeArguments) =>
+                    .is_some_and(|syntax| syntax.kind() == NodeKind::GenericArguments) =>
             {
                 let segment = segments
                     .last_mut()
                     .ok_or(TypeBindingError::InvalidSyntax(node))?;
-                segment.arguments = direct_nodes(tree, *child, NodeKind::Type)
+                segment.arguments = direct_nodes(tree, *child, NodeKind::GenericArgument)
                     .into_iter()
                     .map(|argument| {
+                        let argument = nocter_syntax::direct_node(tree, argument, NodeKind::Type)
+                            .ok_or(TypeBindingError::InvalidSyntax(argument))?;
                         values
                             .get(&argument)
                             .copied()

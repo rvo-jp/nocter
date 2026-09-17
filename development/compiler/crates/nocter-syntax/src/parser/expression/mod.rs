@@ -11,12 +11,13 @@ pub(super) enum ExpressionMode {
     Ordinary,
     Header,
     Delimited,
+    GenericArgument,
 }
 
 impl ExpressionMode {
     fn newline_boundary(self) -> newline::Boundary {
         match self {
-            Self::Delimited => newline::Boundary::Delimited,
+            Self::Delimited | Self::GenericArgument => newline::Boundary::Delimited,
             Self::Ordinary | Self::Header => newline::Boundary::Statement,
         }
     }
@@ -136,27 +137,70 @@ fn equality(parser: &mut Parser<'_>, mode: ExpressionMode) -> CompletedMarker {
 }
 
 fn ordering(parser: &mut Parser<'_>, mode: ExpressionMode) -> CompletedMarker {
-    single_binary(
-        parser,
-        mode,
-        shift,
+    let operators = if mode == ExpressionMode::GenericArgument {
+        &[
+            Punctuation::Less,
+            Punctuation::LessEqual,
+            Punctuation::GreaterEqual,
+        ][..]
+    } else {
         &[
             Punctuation::Less,
             Punctuation::LessEqual,
             Punctuation::Greater,
             Punctuation::GreaterEqual,
-        ],
-        NodeKind::OrderingExpression,
-    )
+        ][..]
+    };
+    single_binary(parser, mode, shift, operators, NodeKind::OrderingExpression)
 }
 
 fn shift(parser: &mut Parser<'_>, mode: ExpressionMode) -> CompletedMarker {
-    repeated_binary(
-        parser,
-        mode,
-        additive,
-        &[Punctuation::ShiftLeft, Punctuation::ShiftRight],
-        NodeKind::ShiftExpression,
+    let mut left = additive(parser, mode);
+    loop {
+        let is_shift = parser.at_punctuation(Punctuation::ShiftLeft)
+            || parser.at_punctuation(Punctuation::ShiftRight);
+        let is_generic_closer = mode == ExpressionMode::GenericArgument
+            && parser.at_punctuation(Punctuation::ShiftRight)
+            && !can_start_expression(parser.nth_kind(1));
+        if !is_shift || is_generic_closer {
+            break;
+        }
+        let marker = parser.precede(left);
+        parser.bump();
+        newline::after_incomplete(parser, mode.newline_boundary());
+        additive(parser, mode);
+        left = parser.complete(marker, NodeKind::ShiftExpression);
+    }
+    left
+}
+
+const fn can_start_expression(kind: TokenKind) -> bool {
+    matches!(
+        kind,
+        TokenKind::Identifier
+            | TokenKind::IntegerLiteral
+            | TokenKind::FloatLiteral
+            | TokenKind::ByteLiteral
+            | TokenKind::CharacterLiteral
+            | TokenKind::StringStart(_)
+            | TokenKind::Keyword(
+                Keyword::Await
+                    | Keyword::False
+                    | Keyword::If
+                    | Keyword::Match
+                    | Keyword::Move
+                    | Keyword::None
+                    | Keyword::True
+            )
+            | TokenKind::Punctuation(
+                Punctuation::Bang
+                    | Punctuation::Minus
+                    | Punctuation::Ampersand
+                    | Punctuation::ReadWrite
+                    | Punctuation::LogicalAnd
+                    | Punctuation::LeftParen
+                    | Punctuation::LeftBracket
+            )
     )
 }
 

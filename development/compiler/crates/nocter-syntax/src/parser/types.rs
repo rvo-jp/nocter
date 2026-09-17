@@ -452,13 +452,38 @@ fn type_arguments(parser: &mut Parser<'_>) {
             TokenKind::Punctuation(Punctuation::ShiftRight),
         ]);
         parser.expect_type_greater();
-        parser.complete(marker, NodeKind::TypeArguments);
+        parser.complete(marker, NodeKind::GenericArguments);
         return;
     }
-    type_delimited_list(parser, false, ExpectedSyntax::Type, type_);
+    type_delimited_list(parser, false, ExpectedSyntax::Type, generic_argument);
     parser.expect_type_greater();
     parser.leave_nesting();
-    parser.complete(marker, NodeKind::TypeArguments);
+    parser.complete(marker, NodeKind::GenericArguments);
+}
+
+fn generic_argument(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    let parsed_type = parser
+        .attempt_with(type_, |parser, ()| at_generic_argument_end(parser))
+        .is_some();
+    if !parsed_type {
+        expression::expression(parser, expression::ExpressionMode::GenericArgument);
+    }
+    parser.complete(marker, NodeKind::GenericArgument);
+}
+
+fn at_generic_argument_end(parser: &Parser<'_>) -> bool {
+    if parser.split.is_some() {
+        return parser.at_punctuation(Punctuation::Greater);
+    }
+    let mut offset = 0;
+    while parser.nth_kind(offset) == TokenKind::Newline {
+        offset += 1;
+    }
+    matches!(
+        parser.nth_kind(offset),
+        TokenKind::Punctuation(Punctuation::Comma | Punctuation::Greater | Punctuation::ShiftRight)
+    )
 }
 
 fn bracket_type(parser: &mut Parser<'_>) {

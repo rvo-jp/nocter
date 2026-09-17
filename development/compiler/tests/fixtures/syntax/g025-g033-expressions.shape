@@ -80,9 +80,10 @@ SourceFile
             Expression
               StructLiteral
                 NamedType
-                  TypeArguments
-                    Type
-                      NamedType
+                  GenericArguments
+                    GenericArgument
+                      Type
+                        NamedType
                 StructInitializer
                   FieldInitializer
                     Expression
@@ -93,9 +94,10 @@ SourceFile
               PostfixExpression
                 GenericOwnerMember
                   NamedType
-                    TypeArguments
-                      Type
-                        NamedType
+                    GenericArguments
+                      GenericArgument
+                        Type
+                          NamedType
                 CallSuffix
                   Expression
                     ReferenceExpression

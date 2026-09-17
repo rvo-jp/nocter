@@ -556,7 +556,7 @@ impl BodyChecker<'_, '_> {
                 SyntaxElement::Node(child)
                     if self
                         .kind(*child)
-                        .is_ok_and(|kind| kind == NodeKind::TypeArguments) =>
+                        .is_ok_and(|kind| kind == NodeKind::GenericArguments) =>
                 {
                     let Some(segment) = segments.last_mut() else {
                         return Err(BodyCheckInternalError::InvalidSyntax(node).into());

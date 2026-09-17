@@ -357,7 +357,7 @@ fn space_before_punctuation(
                 parent,
                 Some(
                     NodeKind::GenericParameters
-                        | NodeKind::TypeArguments
+                        | NodeKind::GenericArguments
                         | NodeKind::PatternArguments
                         | NodeKind::AssociatedBindings
                 )
@@ -463,7 +463,7 @@ const fn space_after_punctuation(punctuation: Punctuation, parent: Option<NodeKi
         parent,
         Some(
             NodeKind::GenericParameters
-                | NodeKind::TypeArguments
+                | NodeKind::GenericArguments
                 | NodeKind::PatternArguments
                 | NodeKind::AssociatedBindings
         )
