@@ -12,8 +12,8 @@ use crate::instance_operations::MethodCandidate;
 use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
     CheckedIteratorAcquisition, CheckedOperation, CheckedReceiver, IterationAcquisition,
-    OutcomeLayer, ReadonlyOperandPreparation, ReceiverPreparation, SpreadMode, StaticDispatch,
-    StaticSelection, TypedAsyncIteration, TypedIteration,
+    IterationItemOrigin, OutcomeLayer, ReadonlyOperandPreparation, ReceiverPreparation, SpreadMode,
+    StaticDispatch, StaticSelection, TypedAsyncIteration, TypedIteration,
 };
 
 pub(super) struct CheckedSpreadDraft {
@@ -26,7 +26,12 @@ pub(super) struct CheckedSpreadDraft {
 struct AcquiredIterator {
     node: nocter_model::BodyNodeId,
     ty: TypeId,
-    next: Option<MethodCandidate>,
+    next: Option<SelectedIteratorMethod>,
+}
+
+struct SelectedIteratorMethod {
+    method: MethodCandidate,
+    item_origin: IterationItemOrigin,
 }
 
 #[derive(Clone, Copy)]
@@ -84,7 +89,7 @@ impl BodyChecker<'_, '_> {
             SpreadMode::Move => self.acquire_owned_spread(element, source)?,
         };
         let iterator_type = acquired.ty;
-        let iteration = self.select_typed_iteration(element, acquired, SPREAD_RULES)?;
+        let iteration = self.select_typed_iteration(element, acquired, SPREAD_RULES, false)?;
         let exact_size = self.select_exact_size(element, iterator_type, SPREAD_RULES)?;
         let item = iteration.item();
         let Some(contribution) = mode.contribution_type(self.types, item) else {
@@ -132,7 +137,7 @@ impl BodyChecker<'_, '_> {
                 self.acquire_direct_iteration(owner, source, COLLECTION_RULES)?
             }
         };
-        self.select_typed_iteration(owner, acquired, COLLECTION_RULES)
+        self.select_typed_iteration(owner, acquired, COLLECTION_RULES, true)
     }
 
     /// Checks one owned asynchronous iterator and freezes its exact `AsyncIterator.next` plan.
@@ -148,21 +153,23 @@ impl BodyChecker<'_, '_> {
     ) -> Result<TypedAsyncIteration, BodyCheckError> {
         let value = self.check_expression(source, None)?;
         let ty = self.node_type(value)?;
-        let mut methods = self.select_async_iterator_methods(ty)?;
+        let mut methods = self.select_async_collection_iterator_methods(ty)?;
         if methods.len() != 1 {
             return Err(self.rule(ASYNC_COLLECTION_RULES.acquisition, owner)?);
         }
         let next = methods.remove(0);
-        if next.receiver_capability() != CallableCapability::ReadWrite {
+        if next.method.receiver_capability() != CallableCapability::ReadWrite {
             return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
         }
         let callable = self
             .graph
             .declarations()
             .callables()
-            .get(next.callable())
-            .ok_or(BodyCheckInternalError::MissingCallable(next.callable()))?;
-        let result = self.apply_type_substitution(next.substitution(), callable.result())?;
+            .get(next.method.callable())
+            .ok_or(BodyCheckInternalError::MissingCallable(
+                next.method.callable(),
+            ))?;
+        let result = self.apply_type_substitution(next.method.substitution(), callable.result())?;
         let Some(TypeKind::Future(deferred)) = self.types.get(result) else {
             return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
         };
@@ -183,8 +190,9 @@ impl BodyChecker<'_, '_> {
         )?;
         Ok(TypedAsyncIteration::new(
             iterator,
-            method_selection(&next),
+            method_selection(&next.method),
             item,
+            next.item_origin,
             failure_outer,
         ))
     }
@@ -329,7 +337,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<AcquiredIterator, BodyCheckError> {
         let value = self.check_expression(source, None)?;
         let source_type = self.node_type(value)?;
-        let mut iterator_methods = self.select_iterator_methods(source_type)?;
+        let mut iterator_methods = self.select_collection_iterator_methods(source_type)?;
         if iterator_methods.len() > 1 {
             return Err(self.rule(rules.iterator, owner)?);
         }
@@ -390,7 +398,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<AcquiredIterator, BodyCheckError> {
         let value = self.check_expression(source, None)?;
         let ty = self.node_type(value)?;
-        let mut methods = self.select_iterator_methods(ty)?;
+        let mut methods = self.select_collection_iterator_methods(ty)?;
         if methods.len() != 1 {
             return Err(self.rule(rules.acquisition, owner)?);
         }
@@ -415,26 +423,39 @@ impl BodyChecker<'_, '_> {
         owner: NodeId,
         acquired: AcquiredIterator,
         rules: IterationRules,
+        allow_lending: bool,
     ) -> Result<TypedIteration, BodyCheckError> {
         let next = if let Some(next) = acquired.next {
             next
         } else {
-            let mut iterator_methods = self.select_iterator_methods(acquired.ty)?;
+            let mut iterator_methods = if allow_lending {
+                self.select_collection_iterator_methods(acquired.ty)?
+            } else {
+                self.select_iterator_methods(acquired.ty)?
+                    .into_iter()
+                    .map(|method| SelectedIteratorMethod {
+                        method,
+                        item_origin: IterationItemOrigin::CallableResult,
+                    })
+                    .collect()
+            };
             if iterator_methods.len() != 1 {
                 return Err(self.rule(rules.iterator, owner)?);
             }
             iterator_methods.remove(0)
         };
-        if next.receiver_capability() != CallableCapability::ReadWrite {
+        if next.method.receiver_capability() != CallableCapability::ReadWrite {
             return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
         }
         let callable = self
             .graph
             .declarations()
             .callables()
-            .get(next.callable())
-            .ok_or(BodyCheckInternalError::MissingCallable(next.callable()))?;
-        let result = self.apply_type_substitution(next.substitution(), callable.result())?;
+            .get(next.method.callable())
+            .ok_or(BodyCheckInternalError::MissingCallable(
+                next.method.callable(),
+            ))?;
+        let result = self.apply_type_substitution(next.method.substitution(), callable.result())?;
         let Some(TypeKind::Optional(item)) = self.types.get(result) else {
             return Err(BodyCheckInternalError::MissingIterationSemanticRoles.into());
         };
@@ -442,8 +463,9 @@ impl BodyChecker<'_, '_> {
 
         Ok(TypedIteration::new(
             acquired.node,
-            method_selection(&next),
+            method_selection(&next.method),
             item,
+            next.item_origin,
         ))
     }
 
@@ -483,6 +505,45 @@ impl BodyChecker<'_, '_> {
         Ok(selected)
     }
 
+    fn select_lending_iterator_methods(
+        &mut self,
+        target: TypeId,
+    ) -> Result<Vec<MethodCandidate>, BodyCheckError> {
+        let Some((interface, method)) = self.lending_iterator_roles()? else {
+            return Ok(Vec::new());
+        };
+        let selected = {
+            let mut selector = self.instance_selector();
+            selector
+                .select_exact_interface_method(target, interface, method)
+                .map_err(BodyCheckInternalError::from)?
+        };
+        Ok(selected)
+    }
+
+    fn select_collection_iterator_methods(
+        &mut self,
+        target: TypeId,
+    ) -> Result<Vec<SelectedIteratorMethod>, BodyCheckError> {
+        let mut selected = self
+            .select_iterator_methods(target)?
+            .into_iter()
+            .map(|method| SelectedIteratorMethod {
+                method,
+                item_origin: IterationItemOrigin::CallableResult,
+            })
+            .collect::<Vec<_>>();
+        selected.extend(
+            self.select_lending_iterator_methods(target)?
+                .into_iter()
+                .map(|method| SelectedIteratorMethod {
+                    method,
+                    item_origin: IterationItemOrigin::ReceiverLoan,
+                }),
+        );
+        Ok(selected)
+    }
+
     fn select_async_iterator_methods(
         &mut self,
         target: TypeId,
@@ -494,6 +555,45 @@ impl BodyChecker<'_, '_> {
                 .select_exact_interface_method(target, interface, method)
                 .map_err(BodyCheckInternalError::from)?
         };
+        Ok(selected)
+    }
+
+    fn select_async_lending_iterator_methods(
+        &mut self,
+        target: TypeId,
+    ) -> Result<Vec<MethodCandidate>, BodyCheckError> {
+        let Some((interface, method)) = self.async_lending_iterator_roles()? else {
+            return Ok(Vec::new());
+        };
+        let selected = {
+            let mut selector = self.instance_selector();
+            selector
+                .select_exact_interface_method(target, interface, method)
+                .map_err(BodyCheckInternalError::from)?
+        };
+        Ok(selected)
+    }
+
+    fn select_async_collection_iterator_methods(
+        &mut self,
+        target: TypeId,
+    ) -> Result<Vec<SelectedIteratorMethod>, BodyCheckError> {
+        let mut selected = self
+            .select_async_iterator_methods(target)?
+            .into_iter()
+            .map(|method| SelectedIteratorMethod {
+                method,
+                item_origin: IterationItemOrigin::CallableResult,
+            })
+            .collect::<Vec<_>>();
+        selected.extend(
+            self.select_async_lending_iterator_methods(target)?
+                .into_iter()
+                .map(|method| SelectedIteratorMethod {
+                    method,
+                    item_origin: IterationItemOrigin::ReceiverLoan,
+                }),
+        );
         Ok(selected)
     }
 
@@ -521,6 +621,21 @@ impl BodyChecker<'_, '_> {
         }
     }
 
+    fn lending_iterator_roles(
+        &self,
+    ) -> Result<Option<(nocter_model::InterfaceId, CallableId)>, BodyCheckError> {
+        match (
+            self.standard_semantics
+                .interface(StandardDeclarationRole::LendingIteratorInterface),
+            self.standard_semantics
+                .callable(StandardDeclarationRole::LendingIteratorNextMethod),
+        ) {
+            (Some(interface), Some(method)) => Ok(Some((interface, method))),
+            (None, None) => Ok(None),
+            _ => Err(BodyCheckInternalError::MissingIterationSemanticRoles.into()),
+        }
+    }
+
     fn async_iterator_roles(
         &self,
     ) -> Result<(nocter_model::InterfaceId, CallableId), BodyCheckError> {
@@ -531,6 +646,21 @@ impl BodyChecker<'_, '_> {
                 .callable(StandardDeclarationRole::AsyncIteratorNextMethod),
         ) {
             (Some(interface), Some(method)) => Ok((interface, method)),
+            _ => Err(BodyCheckInternalError::MissingIterationSemanticRoles.into()),
+        }
+    }
+
+    fn async_lending_iterator_roles(
+        &self,
+    ) -> Result<Option<(nocter_model::InterfaceId, CallableId)>, BodyCheckError> {
+        match (
+            self.standard_semantics
+                .interface(StandardDeclarationRole::AsyncLendingIteratorInterface),
+            self.standard_semantics
+                .callable(StandardDeclarationRole::AsyncLendingIteratorNextMethod),
+        ) {
+            (Some(interface), Some(method)) => Ok(Some((interface, method))),
+            (None, None) => Ok(None),
             _ => Err(BodyCheckInternalError::MissingIterationSemanticRoles.into()),
         }
     }

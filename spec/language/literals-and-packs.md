@@ -302,9 +302,11 @@ The receiver capability is part of the operator identity:
 - `...&+self` expands an exclusive readwrite borrow without transferring the source.
 - `...self` consumes the source.
 
-An expansion operator takes no ordinary parameters and its return type must implement `Iterator`.
-Its body, visibility, generic declaration pattern, result provenance, and source-module rules are
-the same as those of other `instance` members. A type may declare any subset of the three forms.
+An expansion operator takes no ordinary parameters and its return type must implement `Iterator`
+or `LendingIterator` when used by collection iteration. Its body, visibility, generic declaration
+pattern, result provenance, and source-module rules are the same as those of other `instance`
+members. A type may declare any subset of the three forms. Sequence spread imposes the narrower
+`Iterator` and `ExactSizeIterator` requirements described below.
 
 Expansion syntax is selected only by collection iteration and typed-sequence spread. `...value` is
 not a general expression and cannot be called explicitly. An ordinary named method may expose the
@@ -349,9 +351,10 @@ for item in make_iterator() { consume(move item) }
 ```
 
 Readonly and readwrite forms select the corresponding expansion operator. For `move source`, a
-source type that directly implements `Iterator` is used as that iterator; otherwise the form
-selects the owned expansion operator. Direct implementation has fixed priority when a type provides
-both. The final form above is a newly produced direct iterator and performs no expansion.
+source type that directly implements exactly one of `Iterator` and `LendingIterator` is used as
+that iterator; otherwise the form selects the owned expansion operator. Direct implementation has
+fixed priority over expansion. Implementing both iteration protocols is ambiguous, not a priority
+rule. The final form above is a newly produced direct iterator and performs no expansion.
 
 A bare direct-iterator expression follows ordinary ownership rules. A new temporary is already
 owned by the loop, a copyable iterator place is copied, and an existing move-only iterator place
@@ -361,15 +364,20 @@ requires `move`. A bare collection is rejected rather than guessed as readonly o
 cannot be written as `for item in move make_values()`. Bind it first and move that binding. A newly
 produced direct iterator needs no prefix and remains valid as `for item in make_iterator()`.
 
-The source expression is evaluated once. The resulting iterator is advanced through its selected
-`Iterator.next` declaration. Absence ends the loop without initializing an item. Cleanup for
-normal completion, `continue`, `break`, `return`, and propagation follows the ordinary ownership
-and drop rules.
+The source expression is evaluated once. The resulting iterator is advanced through the selected
+`Iterator.next` or `LendingIterator.next` declaration. Absence ends the loop without initializing
+an item. Selection is fixed in the checked program; lowering does not repeat interface lookup.
+Cleanup for normal completion, `continue`, `break`, `return`, and propagation follows the ordinary
+ownership and drop rules.
 
 Readwrite expansion holds the exclusive source loan for the iterator lifetime. A typical iterator
 has `Item = &+T`. Each loop body receives one element loan, and that loan must end before the next
 step. The source cannot be accessed independently while the iterator remains live. A yielded
 borrow may escape only when the ordinary provenance and region rules permit it.
+
+For `LendingIterator`, the complete yielded value is `from self`. A yielded receiver loan must end
+before the next advance. The associated item type carries readonly versus readwrite capability, so
+the language does not duplicate lending protocols by capability.
 
 ### Sequence Spread
 
@@ -388,6 +396,8 @@ let owned = Vec [...move source]
 - The operand of `...move` must be an eligible existing move-only place. A call, literal, or other
   newly produced temporary must first be stored in a binding.
 - Every spread iterator must also implement `ExactSizeIterator`.
+- A spread accepts only `Iterator`; `LendingIterator` is excluded even when its item type is
+  readonly.
 - A directly selected iterator that lacks `ExactSizeIterator` is rejected; selection does not fall
   back to an owned expansion.
 - Bare spread copies readonly yielded referents and therefore requires `copy` elements.

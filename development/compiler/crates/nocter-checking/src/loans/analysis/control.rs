@@ -355,43 +355,13 @@ impl Analyzer<'_> {
                 continues: Vec::new(),
             });
             let mut iteration = header.clone();
-            let condition_reaches = match definition.kind() {
-                LoopKind::While { condition } => {
-                    self.evaluate(*condition, &mut iteration, extra)?.1
-                }
-                LoopKind::Infinite
-                | LoopKind::Range { .. }
-                | LoopKind::For { .. }
-                | LoopKind::ForAwait { .. }
-                | LoopKind::ArgumentPack { .. }
-                | LoopKind::KeyedArgumentPack { .. } => true,
-            };
-            let condition_exit = (condition_reaches
-                && matches!(
-                    definition.kind(),
-                    LoopKind::While { .. }
-                        | LoopKind::Range { .. }
-                        | LoopKind::For { .. }
-                        | LoopKind::ForAwait { .. }
-                        | LoopKind::ArgumentPack { .. }
-                        | LoopKind::KeyedArgumentPack { .. }
-                ))
-            .then(|| iteration.clone());
-            if condition_reaches
-                && let LoopKind::ForAwait {
-                    iteration: async_iteration,
-                    ..
-                } = definition.kind()
-            {
-                self.record_async_iteration_suspension(node, async_iteration, iterator.as_ref())?;
-            }
-            if condition_reaches {
-                self.initialize_loop_bindings(
-                    definition.kind(),
-                    iterator.as_ref(),
-                    &mut iteration,
-                )?;
-            }
+            let (condition_reaches, condition_exit) = self.evaluate_loop_header(
+                node,
+                definition.kind(),
+                iterator.as_ref(),
+                &mut iteration,
+                extra,
+            )?;
             let body_reaches =
                 condition_reaches && self.evaluate(definition.body(), &mut iteration, extra)?.1;
             let mut frame = self.loops.pop().ok_or(BodyCheckInternalError::LoopStack)?;
@@ -416,14 +386,84 @@ impl Analyzer<'_> {
         }
     }
 
+    fn evaluate_loop_header(
+        &mut self,
+        node: BodyNodeId,
+        kind: &LoopKind,
+        iterator: Option<&LoanValue>,
+        state: &mut LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<(bool, Option<LoanState>), BodyRelationError> {
+        let reaches = match kind {
+            LoopKind::While { condition } => self.evaluate(*condition, state, extra)?.1,
+            LoopKind::Infinite
+            | LoopKind::Range { .. }
+            | LoopKind::For { .. }
+            | LoopKind::ForAwait { .. }
+            | LoopKind::ArgumentPack { .. }
+            | LoopKind::KeyedArgumentPack { .. } => true,
+        };
+        let exit = (reaches && !matches!(kind, LoopKind::Infinite)).then(|| state.clone());
+        if !reaches {
+            return Ok((false, exit));
+        }
+        let receiver_loan = self.lending_iteration_receiver_loan(node, kind, state, extra)?;
+        if let LoopKind::ForAwait { iteration, .. } = kind {
+            self.record_async_iteration_suspension(
+                node,
+                iteration,
+                iterator,
+                receiver_loan.as_ref(),
+            )?;
+        }
+        self.initialize_loop_bindings(kind, iterator, receiver_loan.as_ref(), state)?;
+        Ok((true, exit))
+    }
+
+    fn lending_iteration_receiver_loan(
+        &mut self,
+        node: BodyNodeId,
+        kind: &LoopKind,
+        state: &LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<Option<LoanValue>, BodyRelationError> {
+        let step = match kind {
+            LoopKind::For { iteration, .. } => iteration.step(),
+            LoopKind::ForAwait { iteration, .. } => iteration.step(),
+            _ => return Ok(None),
+        };
+        if step.item_origin() != crate::IterationItemOrigin::ReceiverLoan {
+            return Ok(None);
+        }
+        self.issue_value_loan_as(
+            LoanId::Operand { node, position: 0 },
+            node,
+            step.iterator(),
+            nocter_model::BorrowCapability::ReadWrite,
+            state,
+            extra,
+        )
+        .map(Some)
+    }
+
     fn record_async_iteration_suspension(
         &mut self,
         node: BodyNodeId,
         iteration: &crate::TypedAsyncIteration,
         iterator: Option<&LoanValue>,
+        receiver_loan: Option<&LoanValue>,
     ) -> Result<(), BodyRelationError> {
         let iterator = iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?;
-        let pending = self.async_iteration_future_loans(iteration.step(), iterator)?;
+        let pending = match iteration.step().item_origin() {
+            crate::IterationItemOrigin::CallableResult => {
+                self.async_iteration_future_loans(iteration.step(), iterator)?
+            }
+            crate::IterationItemOrigin::ReceiverLoan => {
+                super::values::async_lending_iteration_future_loans(
+                    receiver_loan.ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                )
+            }
+        };
         let mut suspended = self.live_before.get(&node).cloned().unwrap_or_default();
         suspended.extend(pending.all_loans());
         self.suspension_loans
@@ -438,9 +478,10 @@ impl Analyzer<'_> {
     }
 
     fn initialize_loop_bindings(
-        &self,
+        &mut self,
         kind: &LoopKind,
         iterator: Option<&LoanValue>,
+        receiver_loan: Option<&LoanValue>,
         state: &mut LoanState,
     ) -> Result<(), BodyRelationError> {
         match kind {
@@ -449,17 +490,31 @@ impl Analyzer<'_> {
                 state.set_root(PlaceRoot::Local(*binding), LoanValue::independent());
             }
             LoopKind::For { binding, iteration } => {
-                let value = self.iteration_item_loans(
-                    iteration.step(),
-                    iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?,
-                )?;
+                let iterator_value = iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                let value = match iteration.step().item_origin() {
+                    crate::IterationItemOrigin::CallableResult => {
+                        self.iteration_item_loans(iteration.step(), iterator_value)?
+                    }
+                    crate::IterationItemOrigin::ReceiverLoan => {
+                        super::values::lending_iteration_item_loans(
+                            receiver_loan.ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                        )
+                    }
+                };
                 state.set_root(PlaceRoot::Local(*binding), value);
             }
             LoopKind::ForAwait { binding, iteration } => {
-                let value = self.async_iteration_item_loans(
-                    iteration.step(),
-                    iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?,
-                )?;
+                let iterator = iterator.ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                let value = match iteration.step().item_origin() {
+                    crate::IterationItemOrigin::CallableResult => {
+                        self.async_iteration_item_loans(iteration.step(), iterator)?
+                    }
+                    crate::IterationItemOrigin::ReceiverLoan => {
+                        super::values::async_lending_iteration_item_loans(
+                            receiver_loan.ok_or(BodyCheckInternalError::LoanAnalysis)?,
+                        )
+                    }
+                };
                 state.set_root(PlaceRoot::Local(*binding), value);
             }
             LoopKind::ArgumentPack {

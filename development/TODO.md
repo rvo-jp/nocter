@@ -2,16 +2,18 @@
 
 ## Current State
 
-Nocter v0.55.0 is published and externally audited. v0.56.0 Phases 0–2 are complete: `from` now
+Nocter v0.55.0 is published and externally audited. v0.56.0 Phases 0–3 are complete: `from` now
 uses one value-provenance contract across results, inputs, receivers, annotated locals, structural
-callables, calls, closures, and editor presentation. The active scope and completion gates live in
+callables, calls, closures, and editor presentation. Separate synchronous and asynchronous lending
+iteration contracts retain the active receiver loan through generic associated items. The active
+scope and completion gates live in
 [`development/history/milestones/v0.56.0.md`](history/milestones/v0.56.0.md).
 
 ## Next Work
 
-Begin Phase 3 by defining lending iterator contracts and proving that a yielded item remains tied
-to the active receiver loan. Keep ordinary owning `Iterator` behavior intact; lending is a separate
-contract rather than a source-compatible reinterpretation.
+Begin Phase 4 with borrowed text/byte windows and parsing cursors that exercise the lending
+foundation in standard-library APIs. Keep owned convenience operations as explicit ownership
+boundaries rather than hidden copies.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

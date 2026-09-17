@@ -1,5 +1,7 @@
 //! Executor-safe asynchronous item iteration and lazy transformation.
 
+pub use /iter/asynchronous/lending.AsyncLendingIterator
+
 see ./adapters.nct
 see ./defaults.nct
 

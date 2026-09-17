@@ -122,7 +122,8 @@ move-only values, so a future consumed on only one path is maybe initialized aft
 
 ## Asynchronous Iteration
 
-`for await` consumes one owned value implementing the compiler-selected `AsyncIterator` contract:
+`for await` consumes one owned value implementing exactly one compiler-selected asynchronous
+iteration contract. Owning iteration uses `AsyncIterator`:
 
 ```nct
 pub interface AsyncIterator {
@@ -138,11 +139,25 @@ async func scan(source: Source): void! {
 }
 ```
 
+Lending iteration uses a distinct receiver-bound contract:
+
+```nct
+pub interface AsyncLendingIterator {
+    pub type Item
+    pub async method &+self.next(): Self.Item?! from self
+}
+```
+
 The source is acquired once. Every loop header mutably borrows the owned iterator, calls the exact
 `next` implementation selected during checking, awaits its future, propagates a step failure, and
 then distinguishes a present item from clean exhaustion. This propagation is part of the construct;
 the enclosing asynchronous body must therefore have a fallible-compatible result. The compiler
-does not repeat interface lookup while lowering and does not select by the spelling `next`.
+does not repeat interface lookup while lowering and does not select by the spelling `next`. A type
+implementing both asynchronous protocols is ambiguous.
+
+For `AsyncLendingIterator`, the pending future and yielded item retain the iterator receiver loan.
+The item must cease to be live before another step begins. Cancellation releases a pending step
+before destroying the iterator, so no receiver-bound value can outlive its owner.
 
 An existing move-only source place requires an explicit `move`; a newly produced iterator may be
 used directly. Async iteration has no expansion fallback and does not accept range or argument-pack

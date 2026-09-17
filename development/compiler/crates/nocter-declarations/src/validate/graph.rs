@@ -74,9 +74,17 @@ pub(super) fn validate_imports(program: &DeclarationProgram) -> Result<(), Progr
                 for name in names {
                     require_symbol(program, name.exported_name(), DeclarationDomain::Import)?;
                     require_symbol(program, name.local_name(), DeclarationDomain::Import)?;
-                    let target_module =
-                        exported_entity_module(program, name.target(), DeclarationDomain::Import)?;
-                    if target_module != import.target().module() {
+                    exported_entity_module(program, name.target(), DeclarationDomain::Import)?;
+                    let target_namespace = require(
+                        program.module_namespaces().get(import.target().module()),
+                        DeclarationDomain::Import,
+                        DeclarationDomain::Namespace,
+                    )?;
+                    if target_namespace
+                        .lookup_authored(name.exported_name())
+                        .map(crate::NamespaceEntry::target)
+                        != Some(name.target())
+                    {
                         return Err(ProgramIntegrityError::OwnerMismatch(
                             DeclarationDomain::Import,
                         ));

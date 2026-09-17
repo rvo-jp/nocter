@@ -353,6 +353,44 @@ pub interface AsyncIterator {
 }
 
 #[test]
+fn lending_iteration_requires_an_explicit_receiver_result_contract() {
+    let valid = Fixture::with_standard(
+        "",
+        r"
+pub interface LendingIterator {
+    pub type LentItem
+    pub method &+self.lend_next(): Self.LentItem? from self
+}
+",
+    );
+    with_prepared_roles(&valid, lending_iteration_roles(&valid), |prepared| {
+        assert!(
+            prepared
+                .standard_semantics()
+                .interface(StandardDeclarationRole::LendingIteratorInterface)
+                .is_some()
+        );
+    })
+    .unwrap();
+
+    let invalid = Fixture::with_standard(
+        "",
+        r"
+pub interface LendingIterator {
+    pub type LentItem
+    pub method &+self.lend_next(): Self.LentItem?
+}
+",
+    );
+    let error =
+        with_prepared_roles(&invalid, lending_iteration_roles(&invalid), |_| ()).unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidLendingIteratorContract)
+    ));
+}
+
+#[test]
 fn async_iteration_role_rejects_immediate_and_infallible_steps() {
     for source in [
         r"
@@ -481,6 +519,23 @@ fn async_iteration_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
         StandardRoleInput::new(
             StandardDeclarationRole::AsyncIteratorNextMethod,
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
+        ),
+    ]
+}
+
+fn lending_iteration_roles(fixture: &Fixture) -> Vec<StandardRoleInput> {
+    vec![
+        StandardRoleInput::new(
+            StandardDeclarationRole::LendingIteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "LendingIterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::LendingIteratorItem,
+            fixture.standard_declaration_token(NodeKind::AssociatedTypeDeclaration, "LentItem"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::LendingIteratorNextMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "lend_next"),
         ),
     ]
 }

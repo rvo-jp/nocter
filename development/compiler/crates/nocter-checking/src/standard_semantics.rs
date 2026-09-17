@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{
-    CallableExecution, CallableKind, CallableOwner, DeclarationGraph, NominalShape, ParameterRole,
-    StandardDeclaration, Visibility,
+    CallableExecution, CallableKind, CallableOwner, CallableProvenanceContract, DeclarationGraph,
+    NominalShape, ParameterRole, ProvenanceAnnotation, ProvenanceOrigin, StandardDeclaration,
+    Visibility,
 };
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
@@ -27,6 +28,7 @@ struct IterationSemanticRoles {
     item: StandardDeclarationRole,
     next: StandardDeclarationRole,
     result: IterationResultContract,
+    lends_from_receiver: bool,
 }
 
 impl IterationSemanticRoles {
@@ -35,6 +37,15 @@ impl IterationSemanticRoles {
         item: StandardDeclarationRole::IteratorItem,
         next: StandardDeclarationRole::IteratorNextMethod,
         result: IterationResultContract::ImmediateOptional,
+        lends_from_receiver: false,
+    };
+
+    const LENDING: Self = Self {
+        interface: StandardDeclarationRole::LendingIteratorInterface,
+        item: StandardDeclarationRole::LendingIteratorItem,
+        next: StandardDeclarationRole::LendingIteratorNextMethod,
+        result: IterationResultContract::ImmediateOptional,
+        lends_from_receiver: true,
     };
 
     const ASYNCHRONOUS: Self = Self {
@@ -42,12 +53,27 @@ impl IterationSemanticRoles {
         item: StandardDeclarationRole::AsyncIteratorItem,
         next: StandardDeclarationRole::AsyncIteratorNextMethod,
         result: IterationResultContract::DeferredFallibleOptional,
+        lends_from_receiver: false,
+    };
+
+    const ASYNCHRONOUS_LENDING: Self = Self {
+        interface: StandardDeclarationRole::AsyncLendingIteratorInterface,
+        item: StandardDeclarationRole::AsyncLendingIteratorItem,
+        next: StandardDeclarationRole::AsyncLendingIteratorNextMethod,
+        result: IterationResultContract::DeferredFallibleOptional,
+        lends_from_receiver: true,
     };
 
     const fn invalid(self) -> StandardSemanticError {
         match self.result {
+            IterationResultContract::ImmediateOptional if self.lends_from_receiver => {
+                StandardSemanticError::InvalidLendingIteratorContract
+            }
             IterationResultContract::ImmediateOptional => {
                 StandardSemanticError::InvalidIteratorContract
+            }
+            IterationResultContract::DeferredFallibleOptional if self.lends_from_receiver => {
+                StandardSemanticError::InvalidAsyncLendingIteratorContract
             }
             IterationResultContract::DeferredFallibleOptional => {
                 StandardSemanticError::InvalidAsyncIteratorContract
@@ -148,7 +174,13 @@ impl StandardSemanticTable {
             validate_process_abort(graph, types, abort)?;
         }
         self.validate_iteration_relationships(graph, types, IterationSemanticRoles::SYNCHRONOUS)?;
+        self.validate_iteration_relationships(graph, types, IterationSemanticRoles::LENDING)?;
         self.validate_iteration_relationships(graph, types, IterationSemanticRoles::ASYNCHRONOUS)?;
+        self.validate_iteration_relationships(
+            graph,
+            types,
+            IterationSemanticRoles::ASYNCHRONOUS_LENDING,
+        )?;
         self.validate_exact_size_relationships(graph, types)
     }
 
@@ -267,11 +299,16 @@ fn validate_role_domain(
         }
         StandardDeclarationRole::FormatInterface
         | StandardDeclarationRole::IteratorInterface
+        | StandardDeclarationRole::LendingIteratorInterface
         | StandardDeclarationRole::AsyncIteratorInterface
+        | StandardDeclarationRole::AsyncLendingIteratorInterface
         | StandardDeclarationRole::ExactSizeIteratorInterface => {
             matches!(entity, StandardDeclaration::Interface(_))
         }
-        StandardDeclarationRole::IteratorItem | StandardDeclarationRole::AsyncIteratorItem => {
+        StandardDeclarationRole::IteratorItem
+        | StandardDeclarationRole::LendingIteratorItem
+        | StandardDeclarationRole::AsyncIteratorItem
+        | StandardDeclarationRole::AsyncLendingIteratorItem => {
             matches!(entity, StandardDeclaration::AssociatedType(_))
         }
         StandardDeclarationRole::FormatMethod
@@ -279,7 +316,9 @@ fn validate_role_domain(
         | StandardDeclarationRole::InterpolationConstructor
         | StandardDeclarationRole::InterpolationTextAppender
         | StandardDeclarationRole::IteratorNextMethod
+        | StandardDeclarationRole::LendingIteratorNextMethod
         | StandardDeclarationRole::AsyncIteratorNextMethod
+        | StandardDeclarationRole::AsyncLendingIteratorNextMethod
         | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod
         | StandardDeclarationRole::ProcessAbort => {
             matches!(entity, StandardDeclaration::Callable(_))
@@ -463,6 +502,18 @@ fn validate_iterator_next(
     {
         return Err(invalid);
     }
+    if roles.lends_from_receiver
+        && (!matches!(
+            callable.provenance(),
+            CallableProvenanceContract::Declared(provenance)
+                if provenance.origins() == [ProvenanceOrigin::Receiver]
+        ) || !matches!(
+            callable.provenance_annotation(),
+            ProvenanceAnnotation::Explicit { .. }
+        ))
+    {
+        return Err(invalid);
+    }
     Ok(())
 }
 
@@ -549,7 +600,9 @@ pub enum StandardSemanticError {
     InvalidFormatContract,
     InvalidInterpolationContract,
     InvalidIteratorContract,
+    InvalidLendingIteratorContract,
     InvalidAsyncIteratorContract,
+    InvalidAsyncLendingIteratorContract,
     InvalidExactSizeIteratorContract,
     InvalidProcessAbortContract,
     InvalidNominalContract(StandardDeclarationRole),

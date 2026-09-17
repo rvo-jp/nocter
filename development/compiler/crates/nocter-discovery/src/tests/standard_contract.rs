@@ -156,6 +156,8 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("io/stream", "vec"),
     ("iter", "internal/ptr"),
     ("iter", "iter/asynchronous"),
+    ("iter", "iter/lending"),
+    ("iter/asynchronous", "iter/asynchronous/lending"),
     ("iter/collect", "iter"),
     ("iter/collect", "vec"),
     ("json", "fmt"),

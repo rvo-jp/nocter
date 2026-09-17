@@ -339,8 +339,8 @@ Source-backed checked-body diagnostics:
 - `E0403`: an argument-spread item is incompatible with its copy, borrow, or move contribution.
 - `E0404`: a collection-loop source lacks one acquisition for its explicit `&`, `&+`, `move`, or
   bare direct-iterator form.
-- `E0405`: the type acquired by a collection loop does not provide one exact trusted `Iterator`
-  contract.
+- `E0405`: the type acquired by a collection loop does not provide exactly one trusted `Iterator`
+  or `LendingIterator` contract.
 - `E0406`: a type annotation in a body does not resolve to one visible semantic type with complete
   arguments and satisfied requirements.
 - `E0407`: a discard binding uses `var` or carries a type annotation instead of the exact
@@ -368,8 +368,8 @@ Source-backed checked-body diagnostics:
 - `E0418`: an asynchronous callable is declared `blocking`; every `future T` must remain safe to
   drive without synchronously waiting for external progress.
 - `E0419`: `for await` appears outside an `async` function or method body.
-- `E0420`: an asynchronous loop source does not provide exactly one owned implementation of the
-  compiler-selected `AsyncIterator` contract.
+- `E0420`: an asynchronous loop source does not provide exactly one implementation of the
+  compiler-selected `AsyncIterator` or `AsyncLendingIterator` contract.
 - `E0421`: a callable marked `const` contains an operation or value shape outside the supported
   compile-time evaluation domain.
 

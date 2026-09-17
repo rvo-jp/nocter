@@ -1,0 +1,10 @@
+//! Asynchronous iteration whose current item is borrowed from the active advance.
+
+/// Advances asynchronously while lending each successful item from the iterator receiver.
+pub interface AsyncLendingIterator {
+    /// Value lent by one successful asynchronous advance.
+    pub type Item
+
+    /// Awaits one advance and lends its item until the item's last use.
+    pub async method &+self.next(): Self.Item?! from self
+}

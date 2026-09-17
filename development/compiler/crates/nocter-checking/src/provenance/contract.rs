@@ -116,6 +116,72 @@ pub(crate) fn invocation_place_can_reach_result(
     false
 }
 
+/// Reports whether one invocation-origin contract may retain the place loan created at the call.
+///
+/// Concrete structure in the declared result remains the primary authority. An authored `from`
+/// contract extends that authority only for an associated result selected through the receiver
+/// contract. A plain generic result is fixed independently of the invocation: specializing `T` to
+/// a borrowed type carries the borrow already stored in `T`, but must not acquire the call's
+/// receiver reborrow.
+pub(crate) fn invocation_origin_retains_place(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    declared_result: TypeId,
+    result: TypeId,
+    authored_contract: bool,
+) -> bool {
+    invocation_place_can_reach_result(graph, types, declared_result)
+        || (authored_contract
+            && contains_associated_projection(types, declared_result)
+            && type_can_carry_loan(graph, types, result))
+}
+
+fn contains_associated_projection(types: &TypeStore, root: TypeId) -> bool {
+    let mut pending = vec![root];
+    let mut visited = HashSet::new();
+    while let Some(ty) = pending.pop() {
+        if !visited.insert(ty) {
+            continue;
+        }
+        match types.get(ty) {
+            Some(TypeKind::AssociatedProjection { .. }) => return true,
+            Some(TypeKind::Nominal { arguments, .. }) => {
+                pending.extend(arguments.iter().copied());
+            }
+            Some(TypeKind::Tuple(elements)) => pending.extend(elements.iter()),
+            Some(
+                TypeKind::FixedArray { element: ty, .. }
+                | TypeKind::Optional(ty)
+                | TypeKind::Fallible(ty)
+                | TypeKind::Future(ty)
+                | TypeKind::Pointer(ty)
+                | TypeKind::Slice(ty),
+            ) => pending.push(*ty),
+            Some(TypeKind::Borrow { referent, .. }) => pending.push(*referent),
+            Some(TypeKind::PackEntry { key, value }) => {
+                pending.push(*key);
+                pending.push(*value);
+            }
+            Some(TypeKind::Callable(callable)) => {
+                pending.extend(callable.parameters().iter().copied());
+                if let Some(pack) = callable.pack() {
+                    pending.extend(pack.components());
+                }
+                pending.push(callable.result());
+            }
+            Some(
+                TypeKind::Builtin(_)
+                | TypeKind::GenericParameter(_)
+                | TypeKind::InterfaceSelf(_)
+                | TypeKind::Opaque { .. }
+                | TypeKind::Closure { .. },
+            )
+            | None => {}
+        }
+    }
+    false
+}
+
 /// Reports whether a value representation can carry a source loan.
 ///
 /// This is deliberately narrower than storage provenance: raw pointers and allocator-backed owned

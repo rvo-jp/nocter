@@ -815,6 +815,17 @@ pub struct TypedIterationStep {
     iterator: BodyNodeId,
     next: StaticSelection,
     item: TypeId,
+    item_origin: IterationItemOrigin,
+}
+
+/// Semantic source of one iterator step result.
+///
+/// Ordinary and asynchronous iterators map their callable summary. Lending iterators additionally
+/// retain the temporary loan created for the active `&+self` advance.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IterationItemOrigin {
+    CallableResult,
+    ReceiverLoan,
 }
 
 impl TypedIterationStep {
@@ -826,11 +837,17 @@ impl TypedIterationStep {
         self.item = semantics.ty(self.item)?;
         Ok(())
     }
-    pub(crate) const fn new(iterator: BodyNodeId, next: StaticSelection, item: TypeId) -> Self {
+    pub(crate) const fn new(
+        iterator: BodyNodeId,
+        next: StaticSelection,
+        item: TypeId,
+        item_origin: IterationItemOrigin,
+    ) -> Self {
         Self {
             iterator,
             next,
             item,
+            item_origin,
         }
     }
 
@@ -847,6 +864,11 @@ impl TypedIterationStep {
     #[must_use]
     pub const fn item(&self) -> TypeId {
         self.item
+    }
+
+    #[must_use]
+    pub const fn item_origin(&self) -> IterationItemOrigin {
+        self.item_origin
     }
 }
 
@@ -875,10 +897,11 @@ impl TypedAsyncIteration {
         iterator: BodyNodeId,
         next: StaticSelection,
         item: TypeId,
+        item_origin: IterationItemOrigin,
         failure_outer: impl Into<Box<[OutcomeLayer]>>,
     ) -> Self {
         Self {
-            step: TypedIterationStep::new(iterator, next, item),
+            step: TypedIterationStep::new(iterator, next, item, item_origin),
             failure_outer: failure_outer.into(),
         }
     }
@@ -916,9 +939,14 @@ impl TypedIteration {
     ) -> Result<(), super::CheckedSemanticRebindError> {
         self.step.rebind(semantics)
     }
-    pub(crate) const fn new(iterator: BodyNodeId, next: StaticSelection, item: TypeId) -> Self {
+    pub(crate) const fn new(
+        iterator: BodyNodeId,
+        next: StaticSelection,
+        item: TypeId,
+        item_origin: IterationItemOrigin,
+    ) -> Self {
         Self {
-            step: TypedIterationStep::new(iterator, next, item),
+            step: TypedIterationStep::new(iterator, next, item, item_origin),
         }
     }
 

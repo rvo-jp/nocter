@@ -69,6 +69,10 @@ pub interface Iterator {
     pub type Item
     pub method &+self.next(): Self.Item?
 }
+pub interface LendingIterator {
+    pub type LentItem
+    pub method &+self.lend_next(): Self.LentItem? from self
+}
 pub interface ExactSizeIterator {
     pub method &self.remaining_len(): usize
 }
@@ -77,6 +81,10 @@ const ASYNC_ITERATION_SOURCE: &str = "\
 pub interface AsyncIterator {
     pub type Item
     pub async method &+self.next(): Self.Item?!
+}
+pub interface AsyncLendingIterator {
+    pub type AsyncLentItem
+    pub async method &+self.lend_next(): Self.AsyncLentItem?! from self
 }
 ";
 const INTERPOLATION_SOURCE: &str = "\
@@ -816,6 +824,21 @@ const ITERATION_ROLES: &[StandardRoleSpec] = &[
         name: "next",
     },
     StandardRoleSpec {
+        role: StandardDeclarationRole::LendingIteratorInterface,
+        kind: NodeKind::InterfaceDeclaration,
+        name: "LendingIterator",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::LendingIteratorItem,
+        kind: NodeKind::AssociatedTypeDeclaration,
+        name: "LentItem",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::LendingIteratorNextMethod,
+        kind: NodeKind::InterfaceMethod,
+        name: "lend_next",
+    },
+    StandardRoleSpec {
         role: StandardDeclarationRole::ExactSizeIteratorInterface,
         kind: NodeKind::InterfaceDeclaration,
         name: "ExactSizeIterator",
@@ -842,6 +865,21 @@ const ASYNC_ITERATION_ROLES: &[StandardRoleSpec] = &[
         role: StandardDeclarationRole::AsyncIteratorNextMethod,
         kind: NodeKind::InterfaceMethod,
         name: "next",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AsyncLendingIteratorInterface,
+        kind: NodeKind::InterfaceDeclaration,
+        name: "AsyncLendingIterator",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AsyncLendingIteratorItem,
+        kind: NodeKind::AssociatedTypeDeclaration,
+        name: "AsyncLentItem",
+    },
+    StandardRoleSpec {
+        role: StandardDeclarationRole::AsyncLendingIteratorNextMethod,
+        kind: NodeKind::InterfaceMethod,
+        name: "lend_next",
     },
 ];
 

@@ -63,28 +63,12 @@ impl Analyzer<'_> {
         {
             return Ok(LoanValue::independent());
         }
-        let callable = match iteration.next().dispatch() {
-            crate::StaticDispatch::Direct(callable)
-            | crate::StaticDispatch::InterfaceMethod {
-                method: callable, ..
-            }
-            | crate::StaticDispatch::InterfaceSelfMethod {
-                method: callable, ..
-            }
-            | crate::StaticDispatch::InterfaceDefault {
-                method: callable, ..
-            }
-            | crate::StaticDispatch::OpaqueMethod {
-                method: callable, ..
-            } => callable,
-            crate::StaticDispatch::StructuralRequirement { .. } => {
-                return Err(BodyCheckInternalError::LoanAnalysis);
-            }
-        };
+        let callable = iteration_callable(iteration)?;
         self.map_callable_result(
             callable,
             Some(&InvocationLoan::carried(iterator.clone())),
             &[],
+            iteration.item(),
         )
     }
 
@@ -287,5 +271,51 @@ impl Analyzer<'_> {
             LoanValue::from_projection(ProvenanceProjection::Element, elements),
             true,
         ))
+    }
+}
+
+pub(super) fn lending_iteration_item_loans(receiver_loan: &LoanValue) -> LoanValue {
+    lending_iteration_result_loans(receiver_loan).projected(ProvenanceProjection::OutcomeValue)
+}
+
+pub(super) fn async_lending_iteration_item_loans(receiver_loan: &LoanValue) -> LoanValue {
+    lending_iteration_result_loans(receiver_loan)
+        .projected(ProvenanceProjection::AsyncOutput)
+        .projected(ProvenanceProjection::OutcomeValue)
+        .projected(ProvenanceProjection::OutcomeValue)
+}
+
+pub(super) fn async_lending_iteration_future_loans(receiver_loan: &LoanValue) -> LoanValue {
+    lending_iteration_result_loans(receiver_loan)
+}
+
+fn lending_iteration_result_loans(receiver_loan: &LoanValue) -> LoanValue {
+    // Standard semantic validation proves that the selected protocol result is exactly
+    // `from self`. The checked iteration step freezes that protocol decision, so relation
+    // analysis consumes its receiver loan directly instead of reinterpreting the selected
+    // implementation callable's potentially generic result spelling.
+    receiver_loan.flattened()
+}
+
+fn iteration_callable(
+    iteration: &crate::TypedIterationStep,
+) -> Result<nocter_model::CallableId, BodyCheckInternalError> {
+    match iteration.next().dispatch() {
+        crate::StaticDispatch::Direct(callable)
+        | crate::StaticDispatch::InterfaceMethod {
+            method: callable, ..
+        }
+        | crate::StaticDispatch::InterfaceSelfMethod {
+            method: callable, ..
+        }
+        | crate::StaticDispatch::InterfaceDefault {
+            method: callable, ..
+        }
+        | crate::StaticDispatch::OpaqueMethod {
+            method: callable, ..
+        } => Ok(callable),
+        crate::StaticDispatch::StructuralRequirement { .. } => {
+            Err(BodyCheckInternalError::LoanAnalysis)
+        }
     }
 }

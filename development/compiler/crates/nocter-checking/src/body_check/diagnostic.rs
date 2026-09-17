@@ -221,8 +221,8 @@ impl BodyRule {
                 "use `for await` only inside an `async` function or method",
             ),
             Self::InvalidAsyncCollectionIterator => (
-                "expression does not provide one owned asynchronous iterator",
-                "provide a value with exactly one `AsyncIterator` implementation; write `move` when ownership transfer is intended",
+                "expression does not provide one unambiguous asynchronous iterator",
+                "implement exactly one of `AsyncIterator` and `AsyncLendingIterator`; write `move` when ownership transfer is intended",
             ),
             Self::InvalidCompileTimeCallable => (
                 "`const` callable body is outside the compile-time evaluation domain",
@@ -399,8 +399,8 @@ impl BodyRule {
                 "use a direct iterator, or provide one expansion matching `&`, `&+`, or `move`",
             ),
             Self::InvalidCollectionIterator => (
-                "collection acquisition does not provide one trusted iterator contract",
-                "make the acquired type implement the active standard Iterator interface uniquely",
+                "collection acquisition does not provide one unambiguous iterator contract",
+                "implement exactly one of the active standard Iterator and LendingIterator interfaces",
             ),
             _ => unreachable!("non-iteration body rule"),
         }

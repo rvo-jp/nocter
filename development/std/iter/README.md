@@ -9,6 +9,14 @@ own their sources and callbacks and use static generic dispatch. Terminal operat
 iterator. Equality terminals borrow each yielded owner for comparison and destroy every yielded
 owner exactly once, including an item that causes early return.
 
+`LendingIterator` is the separate protocol for an item whose validity is bounded by the active
+mutable receiver loan. Its `next` result is explicitly `from self`; the associated `Item` decides
+whether the loan is readonly (`&T`), readwrite (`&+T`), or carried inside an aggregate. A collection
+loop accepts exactly one of `Iterator` and `LendingIterator`. Implementing both is ambiguous rather
+than establishing a priority. The current item must cease to be live before another lending step,
+which permits one-at-a-time mutable views without a named lifetime parameter. Sequence spread does
+not accept lending iterators because an argument pack may retain several yielded items at once.
+
 Readonly view iteration retains the source view's storage provenance, and each yielded readonly
 borrow carries that same origin. Readwrite view iteration retains one exclusive view and exposes one
 exclusive element borrow at a time. Owning Vec iteration yields elements in source order; dropping
@@ -39,6 +47,11 @@ mistaken for a yielded failure value. `WalkDir` implements this exact contract, 
 consumes it without a second iteration protocol. The standard `ReadDir`, buffered text-line, and
 bounded byte-chunk producers implement the same contract rather than defining subsystem-specific
 loop protocols.
+
+`AsyncLendingIterator` is the asynchronous counterpart. The pending step future and a yielded item
+retain the iterator receiver loan expressed by `from self`; cancellation releases the pending step
+before the iterator. `for await` accepts exactly one of the owning and lending asynchronous
+protocols and rejects a type implementing both.
 
 Asynchronous `map`, `filter`, `take`, and `enumerate` adapters own their source and any callback.
 They remain lazy and request one upstream item only when downstream requests an item. A callback is

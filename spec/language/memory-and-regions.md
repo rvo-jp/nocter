@@ -126,6 +126,11 @@ Trusted allocation and process-lifetime primitives use semantic roles attached t
 identity. None of these internal facts causes formatter or editor signatures to synthesize source
 syntax that the author did not write.
 
+An explicit result clause on an associated type remains authoritative through generic dispatch.
+For example, `Self.Item from self` retains the invocation's receiver loan even while `Self.Item` is
+abstract. Specializing an unrelated generic result `T` to a borrow-carrying concrete type does not
+acquire that temporary receiver loan; it carries only the loans already stored in the input value.
+
 ## Allocation Failure Policies
 
 The standard library provides aborting and recoverable allocation capabilities over one

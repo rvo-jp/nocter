@@ -35,6 +35,9 @@ coordinates, or checking internals.
 - Graph/type integrity, structural-constant integrity, and final declaration-value integrity are
   validated independently.
 - Namespace lookup consumes frozen tables rather than iterating declarations.
+- A selected import is validated against the exact authored name/target pair in its target module
+  namespace. Re-exported targets may retain an original declaration owner in another module; the
+  import validator does not confuse physical declaration ownership with exported surface ownership.
 - A declaration identity never contains a source range or rendered name.
 - Authored callable execution and guarantees are declaration data; consumers do not rediscover
   modifiers from syntax or result shapes.

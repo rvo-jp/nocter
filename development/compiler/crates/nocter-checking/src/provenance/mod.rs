@@ -2,7 +2,9 @@ mod analysis;
 mod contract;
 mod state;
 
-pub(crate) use contract::{invocation_place_can_reach_result, type_can_carry_loan};
+pub(crate) use contract::{
+    invocation_origin_retains_place, invocation_place_can_reach_result, type_can_carry_loan,
+};
 
 use nocter_declarations::DeclarationGraph;
 use nocter_model::TypeStore;

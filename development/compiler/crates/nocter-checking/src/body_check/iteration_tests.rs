@@ -8,7 +8,7 @@ use super::check_prepared_program;
 use crate::test_support::{Fixture, with_standard_roles};
 use crate::{
     BodyRule, CheckedControl, CheckedOperation, CleanupTarget, CleanupTiming, IterationAcquisition,
-    LoopKind, ReceiverPreparation, StaticDispatch, prepare_program_checking,
+    LoanId, LoanRoot, LoopKind, ReceiverPreparation, StaticDispatch, prepare_program_checking,
 };
 
 fn check_iteration(extra: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -17,6 +17,10 @@ fn check_iteration(extra: &str) -> Result<crate::CheckedProgramOutput, crate::Bo
 pub interface Iterator {{
     pub type Item
     pub method &+self.next(): Self.Item?
+}}
+pub interface LendingIterator {{
+    pub type LentItem
+    pub method &+self.lend_next(): Self.LentItem? from self
 }}
 {extra}
 ",
@@ -35,6 +39,18 @@ pub interface Iterator {{
             StandardDeclarationRole::IteratorNextMethod,
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
         ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::LendingIteratorInterface,
+            fixture.standard_declaration_token(NodeKind::InterfaceDeclaration, "LendingIterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::LendingIteratorItem,
+            fixture.standard_declaration_token(NodeKind::AssociatedTypeDeclaration, "LentItem"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::LendingIteratorNextMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "lend_next"),
+        ),
     ];
     let input = fixture.input(false);
     let input = with_standard_roles(input, roles);
@@ -43,6 +59,109 @@ pub interface Iterator {{
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared)
+}
+
+#[test]
+fn collection_iteration_selects_lending_as_a_distinct_protocol() {
+    let output = check_iteration(
+        r"
+struct Lending { value: i32 }
+instance Lending {
+    impl LendingIterator { .LentItem = &i32 }
+    method &+self.lend_next(): &i32? from self { return &self.value }
+}
+func visit(source: Lending): void {
+    for item in move source { let _ = item }
+    return
+}
+",
+    )
+    .unwrap();
+    let (body_id, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| body.loops().len() == 1)
+        .unwrap();
+    let (_, loop_) = body.loops().iter().next().unwrap();
+    let LoopKind::For { iteration, .. } = loop_.kind() else {
+        panic!("expected collection iteration")
+    };
+    assert_eq!(
+        iteration.step().item_origin(),
+        crate::IterationItemOrigin::ReceiverLoan
+    );
+    let loop_node = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| {
+            matches!(
+                checked.operation(),
+                CheckedOperation::Control(CheckedControl::Loop(_))
+            )
+            .then_some(node)
+        })
+        .unwrap();
+    let loan = output
+        .program()
+        .loans()
+        .body(body_id)
+        .unwrap()
+        .loans()
+        .get(&LoanId::Operand {
+            node: loop_node,
+            position: 0,
+        })
+        .unwrap();
+    assert_eq!(loan.capability(), BorrowCapability::ReadWrite);
+    assert!(matches!(
+        loan.places(),
+        [place] if place.root() == LoanRoot::Place(crate::PlaceRoot::Value(iteration.iterator()))
+    ));
+}
+
+#[test]
+fn lending_iteration_rejects_retaining_an_item_across_the_next_advance() {
+    let error = check_iteration(
+        r"
+struct Lending { value: i32 }
+instance Lending {
+    impl LendingIterator { .LentItem = &i32 }
+    method &+self.lend_next(): &i32? from self { return &self.value }
+}
+func invalid(source: Lending): void {
+    var retained: &i32? = none
+    for item in move source {
+        let _ = retained
+        retained = item
+    }
+    return
+}
+",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::InvalidStorageEscape));
+}
+
+#[test]
+fn collection_iteration_rejects_owning_and_lending_protocol_ambiguity() {
+    let error = check_iteration(
+        r"
+struct Ambiguous {}
+instance Ambiguous {
+    impl Iterator { .Item = i32 }
+    impl LendingIterator { .LentItem = &i32 }
+    method &+self.next(): i32? { return none }
+    method &+self.lend_next(): &i32? from self { loop {} }
+}
+func invalid(source: Ambiguous): void {
+    for item in move source { let _ = item }
+    return
+}
+",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::InvalidCollectionIterator));
 }
 
 #[test]

@@ -1,13 +1,15 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::ProvenanceOrigin;
+use nocter_declarations::{ProvenanceAnnotation, ProvenanceOrigin};
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
 use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
-use crate::provenance::{invocation_place_can_reach_result, type_can_carry_loan};
+use crate::provenance::{
+    invocation_origin_retains_place, invocation_place_can_reach_result, type_can_carry_loan,
+};
 use crate::{
     BodyCheckInternalError, BodyRelationError, CallTarget, CheckedCall, CheckedOperation, LoanId,
     PlaceRoot, ProvenanceProjection, ReceiverPreparation, StaticDispatch,
@@ -23,6 +25,13 @@ impl InvocationLoan {
         Self {
             carried: value,
             place: None,
+        }
+    }
+
+    pub(super) fn borrowed(carried: LoanValue, place: LoanValue) -> Self {
+        Self {
+            carried,
+            place: Some(place),
         }
     }
 
@@ -271,10 +280,37 @@ impl Analyzer<'_> {
                     place: Some(loans),
                 }
             }
-            ReceiverPreparation::BorrowTemporary(_)
-            | ReceiverPreparation::Owned
-            | ReceiverPreparation::PreserveBorrow(_)
-            | ReceiverPreparation::WeakenReadwriteBorrow => {
+            ReceiverPreparation::PreserveBorrow(capability) => {
+                let (value, reaches) = self.evaluate(receiver.value(), state, extra)?;
+                if !reaches {
+                    return Ok(None);
+                }
+                let place = self.issue_reborrow_as(
+                    LoanId::Operand { node, position },
+                    node,
+                    &value,
+                    capability,
+                    state,
+                    extra,
+                )?;
+                InvocationLoan::borrowed(value, place)
+            }
+            ReceiverPreparation::WeakenReadwriteBorrow => {
+                let (value, reaches) = self.evaluate(receiver.value(), state, extra)?;
+                if !reaches {
+                    return Ok(None);
+                }
+                let place = self.issue_reborrow_as(
+                    LoanId::Operand { node, position },
+                    node,
+                    &value,
+                    BorrowCapability::Readonly,
+                    state,
+                    extra,
+                )?;
+                InvocationLoan::borrowed(value, place)
+            }
+            ReceiverPreparation::BorrowTemporary(_) | ReceiverPreparation::Owned => {
                 let (value, reaches) = self.evaluate(receiver.value(), state, extra)?;
                 if !reaches {
                     return Ok(None);
@@ -408,7 +444,7 @@ impl Analyzer<'_> {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());
                     }
                 };
-                self.map_callable_result(callable, receiver, arguments)?
+                self.map_callable_result(callable, receiver, arguments, result_type)?
             }
             CallTarget::CallableValue { dispatch, .. } => {
                 let StaticDispatch::StructuralRequirement { evidence } = dispatch.dispatch() else {
@@ -491,7 +527,13 @@ impl Analyzer<'_> {
         result_type: nocter_model::TypeId,
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let mut result = LoanValue::independent();
-        let retain_place = invocation_place_can_reach_result(self.graph, self.types, result_type);
+        let retain_place = invocation_origin_retains_place(
+            self.graph,
+            self.types,
+            contract.result(),
+            result_type,
+            !contract.provenance().origins().is_empty(),
+        );
         for origin in contract.provenance().origins() {
             let argument = arguments
                 .get(origin.position())
@@ -514,6 +556,7 @@ impl Analyzer<'_> {
         callable: CallableId,
         receiver: Option<&InvocationLoan>,
         arguments: &[InvocationLoan],
+        result_type: nocter_model::TypeId,
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let declaration = self
             .graph
@@ -526,21 +569,22 @@ impl Analyzer<'_> {
             .callables()
             .get(callable)
             .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-        let result_type = declaration.body_result();
+        let retain_place = invocation_origin_retains_place(
+            self.graph,
+            self.types,
+            declaration.result(),
+            result_type,
+            matches!(
+                declaration.provenance_annotation(),
+                ProvenanceAnnotation::Explicit { .. }
+            ),
+        );
         let mut result = LoanValue::independent();
         for origin in summary.origins() {
             match origin {
                 ProvenanceOrigin::Receiver => {
                     let receiver = receiver.ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                    result.union_with(
-                        &receiver
-                            .retained(invocation_place_can_reach_result(
-                                self.graph,
-                                self.types,
-                                result_type,
-                            ))
-                            .flattened(),
-                    );
+                    result.union_with(&receiver.retained(retain_place).flattened());
                 }
                 ProvenanceOrigin::Parameter(parameter) => {
                     let position = declaration
@@ -551,15 +595,7 @@ impl Analyzer<'_> {
                     let argument = arguments
                         .get(position)
                         .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                    result.union_with(
-                        &argument
-                            .retained(invocation_place_can_reach_result(
-                                self.graph,
-                                self.types,
-                                result_type,
-                            ))
-                            .flattened(),
-                    );
+                    result.union_with(&argument.retained(retain_place).flattened());
                 }
             }
         }

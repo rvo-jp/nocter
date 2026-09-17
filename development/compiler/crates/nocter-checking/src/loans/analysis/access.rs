@@ -85,6 +85,18 @@ impl Analyzer<'_> {
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
         let (targets, authorization) = self.access_targets(place, state)?;
         let excluded = self.authorization_closure(&authorization);
+        self.check_loan_targets(node, &targets, &excluded, kind, state, extra)
+    }
+
+    fn check_loan_targets(
+        &self,
+        node: BodyNodeId,
+        targets: &[LoanPlace],
+        excluded: &BTreeSet<LoanId>,
+        kind: AccessKind,
+        state: &LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<(), BodyRelationError> {
         let active = self.active_loans(node, state, extra);
         for loan in active {
             if excluded.contains(&loan) {
@@ -117,6 +129,89 @@ impl Analyzer<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Creates an implicit loan of checked value storage without manufacturing a syntax place.
+    ///
+    /// Protocol operations such as lending iteration own semantic temporaries that have no
+    /// source-level `PlaceId`. They still pass through the same overlap and liveness authority as
+    /// authored borrows.
+    pub(super) fn issue_value_loan_as(
+        &mut self,
+        loan: LoanId,
+        node: BodyNodeId,
+        value: BodyNodeId,
+        capability: BorrowCapability,
+        state: &LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<LoanValue, BodyRelationError> {
+        let places = vec![LoanPlace::new(LoanRoot::Place(PlaceRoot::Value(value)), [])];
+        self.check_loan_targets(
+            node,
+            &places,
+            &BTreeSet::new(),
+            AccessKind::Borrow(capability),
+            state,
+            extra,
+        )?;
+        let checked = CheckedLoan::new(capability, places, []);
+        if let Some(current) = self.loans.get_mut(&loan) {
+            current
+                .merge_with(&checked)
+                .map_err(|()| BodyCheckInternalError::LoanAnalysis)?;
+        } else {
+            self.loans.insert(loan, checked);
+        }
+        Ok(LoanValue::from_loan(loan))
+    }
+
+    /// Reborrows storage reached through an existing borrow carrier.
+    ///
+    /// The parent loans authorize access to their referents but do not authorize overlap with a
+    /// sibling reborrow that remains live. This distinction makes repeated `&+self` calls reject
+    /// the second call when the first result still carries its explicit `from self` relation.
+    pub(super) fn issue_reborrow_as(
+        &mut self,
+        loan: LoanId,
+        node: BodyNodeId,
+        carrier: &LoanValue,
+        capability: BorrowCapability,
+        state: &LoanState,
+        extra: &BTreeSet<LoanId>,
+    ) -> Result<LoanValue, BodyRelationError> {
+        let parents = carrier.all_loans();
+        let mut places = Vec::new();
+        for parent in &parents {
+            let definition = self
+                .loans
+                .get(parent)
+                .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+            places.extend_from_slice(definition.places());
+        }
+        places.sort_unstable();
+        places.dedup();
+        let excluded = self.authorization_closure(&parents);
+        self.check_loan_targets(
+            node,
+            &places,
+            &excluded,
+            AccessKind::Borrow(capability),
+            state,
+            extra,
+        )?;
+        let checked = CheckedLoan::new(
+            capability,
+            places,
+            parents.iter().copied().collect::<Vec<_>>(),
+        );
+        if let Some(current) = self.loans.get_mut(&loan) {
+            current
+                .merge_with(&checked)
+                .map_err(|()| BodyCheckInternalError::LoanAnalysis)?;
+        } else {
+            self.loans.insert(loan, checked);
+        }
+        Ok(LoanValue::from_loan(loan))
     }
 
     pub(super) fn issue_loan(

@@ -366,6 +366,25 @@ fn loop_iteration_loan_ends_at_its_last_use() {
 }
 
 #[test]
+fn explicit_from_retains_an_abstract_associated_result_loan() {
+    let error = check(
+        "pub interface Lending {\n\
+             pub type Item\n\
+             pub method &+self.next(): Self.Item from self\n\
+         }\n\
+         func invalid<I>(iterator: &+I): void where I impl Lending {\n\
+             let first = iterator.next()\n\
+             let _ = iterator.next()\n\
+             let _ = move first\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(crate::BodyRule::ConflictingLoan));
+}
+
+#[test]
 fn type_owned_drop_observes_borrow_fields_in_destruction_order() {
     let declarations = "struct Guard { value: &i32 }\n\
                         drop Guard(&+self) { let _ = self.value\n    return }\n";

@@ -765,7 +765,7 @@ impl<'program> Analyzer<'program> {
                 (self.allocation_provenance(allocation, state)?, true)
             }
             CheckedOperation::IteratorAcquisition(acquisition) => {
-                self.evaluate_iterator_acquisition(&acquisition, state)?
+                self.evaluate_iterator_acquisition(node, &acquisition, state)?
             }
             CheckedOperation::PackLiteral(sequence) => {
                 self.evaluate_pack_literal(&sequence, state)?

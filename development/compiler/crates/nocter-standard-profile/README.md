@@ -19,5 +19,7 @@ validate semantic contracts, or orchestrate a compiler session.
 - Every closed primitive role has exactly one bundled source location.
 - Every available target-service role has exactly one private bundled source location; symbols and
   foreign ABI remain in the runtime contract rather than this physical profile.
+- Iteration protocols with repeated member spellings use distinct physical child modules; the
+  profile maps each stable role to an exact declaration without making a spelling an identity.
 - A physical-standard test cannot reconstruct a partial bundled profile.
 - Physical source paths and declaration spellings do not enter semantic or backend products.

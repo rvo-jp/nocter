@@ -18,6 +18,10 @@ pub interface AsyncIterator {{
     pub type Item
     pub async method &+self.next(): Self.Item?!
 }}
+pub interface AsyncLendingIterator {{
+    pub type AsyncLentItem
+    pub async method &+self.lend_next(): Self.AsyncLentItem?! from self
+}}
 {extra}
 ",
     );
@@ -34,6 +38,20 @@ pub interface AsyncIterator {{
         StandardRoleInput::new(
             StandardDeclarationRole::AsyncIteratorNextMethod,
             fixture.standard_declaration_token(NodeKind::InterfaceMethod, "next"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::AsyncLendingIteratorInterface,
+            fixture
+                .standard_declaration_token(NodeKind::InterfaceDeclaration, "AsyncLendingIterator"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::AsyncLendingIteratorItem,
+            fixture
+                .standard_declaration_token(NodeKind::AssociatedTypeDeclaration, "AsyncLentItem"),
+        ),
+        StandardRoleInput::new(
+            StandardDeclarationRole::AsyncLendingIteratorNextMethod,
+            fixture.standard_declaration_token(NodeKind::InterfaceMethod, "lend_next"),
         ),
     ];
     let input = with_standard_roles(fixture.input(false), roles);
@@ -52,6 +70,103 @@ instance Source {
     async method &+self.next(): Item?! { return none }
 }
 ";
+
+#[test]
+fn async_collection_iteration_retains_a_lending_receiver_across_suspension() {
+    let output = check_async_iteration(
+        r"
+struct Source { value: i32 }
+instance Source {
+    impl AsyncLendingIterator { .AsyncLentItem = &i32 }
+    async method &+self.lend_next(): &i32?! from self { return &self.value }
+}
+async func consume(source: Source): void! {
+    for await item in move source { let _ = item }
+    return
+}
+",
+    )
+    .unwrap();
+    let (body_id, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| body.loops().len() == 1)
+        .unwrap();
+    let (_, loop_) = body.loops().iter().next().unwrap();
+    let LoopKind::ForAwait { iteration, .. } = loop_.kind() else {
+        panic!("expected asynchronous collection iteration")
+    };
+    assert_eq!(
+        iteration.step().item_origin(),
+        crate::IterationItemOrigin::ReceiverLoan
+    );
+    let suspension = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| {
+            matches!(
+                checked.operation(),
+                CheckedOperation::Control(crate::CheckedControl::Loop(_))
+            )
+            .then_some(node)
+        })
+        .unwrap();
+    assert!(
+        output
+            .program()
+            .loans()
+            .body(body_id)
+            .unwrap()
+            .suspension_storage(suspension)
+            .unwrap()
+            .contains(&crate::SuspensionStorage::Value(iteration.iterator()))
+    );
+}
+
+#[test]
+fn async_collection_iteration_rejects_owning_and_lending_protocol_ambiguity() {
+    let error = check_async_iteration(
+        r"
+struct Ambiguous {}
+instance Ambiguous {
+    impl AsyncIterator { .Item = i32 }
+    impl AsyncLendingIterator { .AsyncLentItem = &i32 }
+    async method &+self.next(): i32?! { return none }
+    async method &+self.lend_next(): &i32?! from self { loop {} }
+}
+async func invalid(source: Ambiguous): void! {
+    for await item in move source { let _ = item }
+    return
+}
+",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::InvalidAsyncCollectionIterator));
+}
+
+#[test]
+fn async_lending_iteration_rejects_retaining_an_item_across_the_next_advance() {
+    let error = check_async_iteration(
+        r"
+struct Source { value: i32 }
+instance Source {
+    impl AsyncLendingIterator { .AsyncLentItem = &i32 }
+    async method &+self.lend_next(): &i32?! from self { return &self.value }
+}
+async func invalid(source: Source): void! {
+    var retained: &i32? = none
+    for await item in move source {
+        let _ = retained
+        retained = item
+    }
+    return
+}
+",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::InvalidStorageEscape));
+}
 
 #[test]
 fn async_collection_iteration_freezes_owned_acquisition_and_dispatch() {

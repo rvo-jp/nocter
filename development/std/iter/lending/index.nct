@@ -1,0 +1,13 @@
+//! Iteration whose current item is borrowed from the active iterator advance.
+
+/// Advances while lending each yielded value from the active iterator borrow.
+///
+/// Unlike Iterator, one yielded value must stop being live before the next advance. The Item
+/// binding may be readonly or readwrite; its borrow capability remains part of the associated type.
+pub interface LendingIterator {
+    /// Value lent by one successful advance.
+    pub type Item
+
+    /// Advances the iterator and lends the next item until its last use.
+    pub method &+self.next(): Self.Item? from self
+}

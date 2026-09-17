@@ -10,6 +10,7 @@ see ./sources.nct
 see ./adapters.nct
 
 pub use /iter/asynchronous.AsyncIterator
+pub use /iter/lending.LendingIterator
 
 /// Lazily transforms items from an owning source iterator.
 pub struct MapIter<U, I, F>

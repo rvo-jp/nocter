@@ -238,9 +238,10 @@ impl CallableProvenanceContract {
 
 /// Whether a callable's result provenance was authored in its public signature.
 ///
-/// This fact never participates in provenance checking. It is retained solely so source-facing
-/// presentation can omit compiler-inferred contracts and preserve an explicit `from static` whose
-/// external-origin set is intentionally empty.
+/// In addition to preserving source-facing presentation, an explicit contract authorizes an
+/// abstract associated result to retain an invocation-place loan. Without that fact a lending
+/// interface would lose its receiver relation before its associated item is specialized. A plain
+/// generic result remains fixed independently of the invocation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProvenanceAnnotation {
     Elided,

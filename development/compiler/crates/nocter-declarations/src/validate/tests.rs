@@ -7,12 +7,96 @@ use crate::{
     Body, BodyOwner, CallableDeclaration, CallableKind, CallableOwner, CallableProvenance,
     CallableProvenanceContract, ConstantDeclaration, ConstructionDeclaration, DeclarationDomain,
     DeclarationProgramBuilder, DeclarationRule, DeclarationValidationReport, DeclarationViolation,
-    DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter, InstanceDeclaration,
-    ModuleNamespace, ModulePath, NominalShape, NominalTypeDeclaration, PackageTarget, Parameter,
-    ParameterOwner, ParameterRole, ProgramBuildError, ProgramBuildFailure, ProgramIntegrityError,
-    ProgramValidationError, ProvenanceOrigin, RejectedDeclarationAnalysis, VariantDeclaration,
-    Visibility,
+    DropDeclaration, FieldDeclaration, GenericOwner, GenericParameter, ImportDeclaration,
+    ImportTarget, ImportedName, InstanceDeclaration, ModuleNamespace, ModulePath, NamespaceEntry,
+    NominalShape, NominalTypeDeclaration, PackageTarget, Parameter, ParameterOwner, ParameterRole,
+    ProgramBuildError, ProgramBuildFailure, ProgramIntegrityError, ProgramValidationError,
+    ProvenanceOrigin, RejectedDeclarationAnalysis, VariantDeclaration, Visibility,
 };
+
+#[test]
+fn selected_import_integrity_accepts_an_authored_reexport_target() {
+    let symbols = SymbolTable::from_spellings(["app", "facade", "implementation", "Value", "Item"]);
+    let app_name = symbols.get("app").unwrap();
+    let facade_name = symbols.get("facade").unwrap();
+    let implementation_name = symbols.get("implementation").unwrap();
+    let value_name = symbols.get("Value").unwrap();
+    let item_name = symbols.get("Item").unwrap();
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app_name)
+        .unwrap();
+    let root = program.add_module(package, ModulePath::root()).unwrap();
+    let facade = program
+        .add_module(package, ModulePath::from_segments([facade_name]))
+        .unwrap();
+    let implementation = program
+        .add_module(package, ModulePath::from_segments([implementation_name]))
+        .unwrap();
+    let site = program
+        .add_declaration_site(implementation, Visibility::Public)
+        .unwrap();
+    let value = program.declarations_mut().reserve_nominal_type();
+    program
+        .declarations_mut()
+        .define_nominal_type(
+            value,
+            NominalTypeDeclaration::new(
+                site,
+                value_name,
+                [],
+                [],
+                NominalShape::Struct {
+                    copy_declared: false,
+                    fields: Box::new([]),
+                },
+                None,
+            ),
+        )
+        .unwrap();
+    let target = crate::ExportedEntity::NominalType(value);
+    program
+        .define_module_namespace(
+            implementation,
+            ModuleNamespace::new(
+                [NamespaceEntry::new(value_name, target, Visibility::Public)],
+                [],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    program
+        .define_module_namespace(
+            facade,
+            ModuleNamespace::new(
+                [NamespaceEntry::new(item_name, target, Visibility::Public)],
+                [],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    program
+        .define_module_namespace(
+            root,
+            ModuleNamespace::new(
+                [NamespaceEntry::new(item_name, target, Visibility::Private)],
+                [],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    program.add_import(ImportDeclaration::new(
+        root,
+        Visibility::Private,
+        ImportTarget::Selected {
+            module: facade,
+            names: Box::new([ImportedName::new(item_name, item_name, target)]),
+        },
+    ));
+
+    program.finish().unwrap();
+}
 
 #[test]
 fn constant_storage_rejects_integer_values_outside_their_declared_range() {

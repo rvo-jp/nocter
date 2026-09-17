@@ -447,18 +447,18 @@ for item in &+values {
 
 - `&expression` selects the source type's readonly expansion operator.
 - `&+expression` selects its readwrite expansion operator and holds an exclusive source loan.
-- `move place` first uses the source directly when its type implements the trusted iterator
-  contract. Otherwise the form selects the source type's owned expansion operator. A type that has
-  both a direct iterator implementation and an owned expansion uses direct iteration; this priority is
-  fixed and does not form an overload set.
+- `move place` first uses the source directly when its type implements exactly one trusted owning
+  or lending iterator contract. Otherwise the form selects the source type's owned expansion
+  operator. Direct iteration has fixed priority over expansion and does not form an overload set.
 - The `move` in a collection-loop source is the ordinary move expression, not a separate capability
   marker. Its operand must be an existing move-only local, parameter, or eligible named struct
   field. `for item in move make_values()` is invalid. Bind a newly produced collection first, then
   iterate with `move binding`.
-- A bare expression is accepted only when its type already implements the trusted iterator
-  contract, and ordinary ownership rules still apply. A new iterator temporary may be used
-  directly. A copyable iterator place is copied. An existing move-only iterator place requires
-  `move place`; `for item in iterator` never performs an implicit move.
+- A bare expression is accepted only when its type already implements exactly one of `Iterator`
+  and `LendingIterator`, and ordinary ownership rules still apply. A type implementing both is
+  ambiguous. A new iterator temporary may be used directly. A copyable iterator place is copied.
+  An existing move-only iterator place requires `move place`; `for item in iterator` never performs
+  an implicit move.
 - A collection value without `&`, `&+`, or `move` is rejected rather than guessed.
 - The source expression is evaluated once. Its iterator is owned by the loop and advanced through
   a validated declaration identity, not a method-name search.
@@ -470,6 +470,9 @@ for item in &+values {
   yielded value owns exactly one transferred drop obligation.
 - A readwrite yielded borrow holds one exclusive element loan. It must end before the iterator is
   advanced again.
+- `LendingIterator.next` explicitly returns `Self.Item? from self`. The associated item type, not a
+  second protocol name, distinguishes readonly and readwrite lending. The complete yielded value
+  retains the receiver loan and cannot remain live across the next advance.
 
 Asynchronous collection iteration consumes an owned asynchronous iterator:
 
@@ -482,13 +485,15 @@ async func visit(walker: WalkDir): void! {
 }
 ```
 
-- The source expression is evaluated once and must itself implement the compiler-selected
-  `AsyncIterator` contract. Asynchronous iteration does not invoke an expansion operator.
+- The source expression is evaluated once and must itself implement exactly one of the
+  compiler-selected `AsyncIterator` and `AsyncLendingIterator` contracts. Implementing both is
+  ambiguous. Asynchronous iteration does not invoke an expansion operator.
 - The source obeys ordinary ownership rules. A new temporary may be consumed directly; an existing
   move-only place requires `move`.
-- Each advance awaits `AsyncIterator.next()`. A successful present item initializes the immutable
+- Each advance awaits the selected `next()`. A successful present item initializes the immutable
   loop binding, successful absence ends the loop, and a step failure propagates through the
-  enclosing asynchronous callable's fallible result.
+  enclosing asynchronous callable's fallible result. `AsyncLendingIterator.next` returns
+  `Self.Item?! from self`; its pending future and yielded item retain the receiver loan.
 - `for await` is therefore valid only in an `async` function or method whose declared body result
   can carry failure. It does not hide failure recovery in an infallible callable.
 - Cancellation releases the pending step future before destroying the iterator and other live
@@ -504,7 +509,7 @@ Deferred:
 - iterator adapters that require closures
 
 The compiler must not lower collection iteration into calls selected by the spellings `iter`,
-`into_iter`, or `next`. Expansion operators and the trusted `Iterator` declaration are selected by
+`into_iter`, or `next`. Expansion operators and trusted iteration declarations are selected by
 declaration identity. See [Expansion Operators](literals-and-packs.md#expansion-operators).
 
 Use range `for` with indexing:

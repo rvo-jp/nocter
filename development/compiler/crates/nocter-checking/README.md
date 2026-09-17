@@ -32,6 +32,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - ownership, cleanup dependencies, execution facts, loans, provenance, regions, and destruction
 - checked local provenance contracts and call-site proofs over the declaration/model-owned
   constraint graph
+- checked iteration steps freeze owning versus receiver-lending item origin; loan and provenance
+  analysis consume that fact without repeating protocol selection
 - one exact-coverage body-relation catalog shared by provenance, execution, and loans
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries

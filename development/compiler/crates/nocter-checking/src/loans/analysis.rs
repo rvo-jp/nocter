@@ -518,11 +518,18 @@ impl<'program> Analyzer<'program> {
         else {
             return Ok((LoanValue::independent(), false));
         };
+        let result_type = self
+            .input
+            .body()
+            .nodes()
+            .get(node)
+            .ok_or(BodyCheckInternalError::MissingNode(node))?
+            .ty();
         let result = match acquisition.acquisition() {
             crate::IterationAcquisition::Direct => source.into_carried(),
             crate::IterationAcquisition::Expansion(selection) => match selection.dispatch() {
                 crate::StaticDispatch::Direct(callable) => {
-                    self.map_callable_result(callable, Some(&source), &[])?
+                    self.map_callable_result(callable, Some(&source), &[], result_type)?
                 }
                 crate::StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(

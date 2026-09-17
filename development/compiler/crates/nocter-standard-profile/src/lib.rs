@@ -131,6 +131,19 @@ const fn bundled_standard_source_location(
         Role::IteratorInterface => (&["iter"], NodeKind::InterfaceDeclaration, "Iterator"),
         Role::IteratorItem => (&["iter"], NodeKind::AssociatedTypeDeclaration, "Item"),
         Role::IteratorNextMethod => (&["iter"], NodeKind::InterfaceMethod, "next"),
+        Role::LendingIteratorInterface => (
+            &["iter", "lending"],
+            NodeKind::InterfaceDeclaration,
+            "LendingIterator",
+        ),
+        Role::LendingIteratorItem => (
+            &["iter", "lending"],
+            NodeKind::AssociatedTypeDeclaration,
+            "Item",
+        ),
+        Role::LendingIteratorNextMethod => {
+            (&["iter", "lending"], NodeKind::InterfaceMethod, "next")
+        }
         Role::AsyncIteratorInterface => (
             &["iter", "asynchronous"],
             NodeKind::InterfaceDeclaration,
@@ -144,6 +157,21 @@ const fn bundled_standard_source_location(
         Role::AsyncIteratorNextMethod => {
             (&["iter", "asynchronous"], NodeKind::InterfaceMethod, "next")
         }
+        Role::AsyncLendingIteratorInterface => (
+            &["iter", "asynchronous", "lending"],
+            NodeKind::InterfaceDeclaration,
+            "AsyncLendingIterator",
+        ),
+        Role::AsyncLendingIteratorItem => (
+            &["iter", "asynchronous", "lending"],
+            NodeKind::AssociatedTypeDeclaration,
+            "Item",
+        ),
+        Role::AsyncLendingIteratorNextMethod => (
+            &["iter", "asynchronous", "lending"],
+            NodeKind::InterfaceMethod,
+            "next",
+        ),
         Role::ExactSizeIteratorInterface => (
             &["iter"],
             NodeKind::InterfaceDeclaration,
