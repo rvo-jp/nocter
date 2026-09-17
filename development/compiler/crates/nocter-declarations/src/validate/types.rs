@@ -49,7 +49,11 @@ pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), Program
                     DeclarationDomain::Type,
                     DeclarationDomain::NominalType,
                 )?;
-                if arguments.len() != declaration.generic_parameters().len() {
+                if program
+                    .declarations()
+                    .validate_generic_application(declaration.generic_parameters(), arguments)
+                    .is_err()
+                {
                     return Err(ProgramIntegrityError::InvalidPosition(
                         DeclarationDomain::Type,
                     ));
@@ -71,7 +75,11 @@ pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), Program
                     DeclarationDomain::Type,
                     DeclarationDomain::OpaqueType,
                 )?;
-                if arguments.len() != declaration.generic_parameters().len() {
+                if program
+                    .declarations()
+                    .validate_generic_application(declaration.generic_parameters(), arguments)
+                    .is_err()
+                {
                     return Err(ProgramIntegrityError::InvalidPosition(
                         DeclarationDomain::Type,
                     ));

@@ -12,6 +12,7 @@ mod callable;
 mod constant;
 mod constant_lookup;
 mod declaration;
+mod generic_application;
 mod import;
 mod interface_capability;
 mod namespace;
@@ -48,6 +49,7 @@ pub use declaration::{
     NominalTypeDeclaration, OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration,
     VariantDeclaration,
 };
+pub use generic_application::GenericApplicationError;
 pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use interface_capability::{InterfaceCapability, InterfaceCapabilityGraph};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};
