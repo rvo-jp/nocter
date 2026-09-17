@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Recent Milestones
 
 - [v0.57.0: Constant Generics and Fixed-Capacity Data](v0.57.0.md)
+- [v0.57.0 Release Preparation](v0.57.0-release-preparation.md)
 - [v0.56.0: Lending APIs and Zero-Copy Foundations](v0.56.0.md)
 - [v0.56.0 Release Preparation](v0.56.0-release-preparation.md)
 - [v0.55.0: Erased Callables and Practical HTTP Applications](v0.55.0.md)

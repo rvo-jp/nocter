@@ -2,18 +2,17 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. v0.57.0 Phases 0–5 are complete: declarations,
-checked operations, compile-time plans, executable identities, MIR, layout, ABI lowering, native
-execution, editor projection, repeat-array construction, and fixed-capacity standard APIs preserve
-one ordered type-or-`usize` application without source reinterpretation or hidden runtime
-parameters. The milestone contract lives in
+Nocter v0.56.0 is published and externally audited. v0.57.0 release preparation is active after
+completion of its constant-generic model, repeat-array construction, fixed-capacity standard APIs,
+native execution, and editor qualification. Release identity now selects `0.57.0`; public notes
+and the release-preparation contract are authored. The completed implementation scope lives in
 [`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
 
 ## Next Work
 
-Prepare v0.57.0 for release: perform the release audit from the completed milestone, freeze the
-public specification and standard-library surface, then build and verify the distributable without
-changing the implemented contract.
+Commit the exact release content, run deterministic two-build packaging and installed-home
+qualification from that clean commit, then record the measured artifact identities. Publication
+must reuse the retained candidate archive without rebuilding it.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
