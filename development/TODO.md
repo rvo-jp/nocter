@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.55.0 is published and externally audited. The v0.56.0 Lending APIs and Zero-Copy
-Foundations candidate is complete and qualified, publication is authorized, and public metadata
-now selects v0.56.0. The retained archive and measured identities are recorded in the
-release-preparation record.
+Nocter v0.56.0 is published and externally audited. Its annotated tag, single release asset,
+downloaded installed home, latest-release selection, and source-identified Pages deployment agree
+with the qualified candidate. The immutable evidence lives in
+[`development/history/release-audits/v0.56.0.md`](history/release-audits/v0.56.0.md).
 
 ## Next Work
 
-Commit this publication metadata, create annotated tag `v0.56.0`, fast-forward `main`, and publish
-the retained archive as the release's single asset. Then audit the public tag, asset, latest-release
-endpoint, downloaded installed home, and source-identified Pages deployment. Do not rebuild or
-replace the qualified archive.
+Define v0.57.0 around constant generic parameters and fixed-capacity data. Start from concrete
+standard-library needs—fixed buffers, protocol records, stack-resident collections, and
+allocation-free adapters—then design one checked constant-argument model that reuses the existing
+compile-time evaluator, participates in type identity and layout, and remains available to editor
+features without source-text reinterpretation.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
