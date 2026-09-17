@@ -181,10 +181,12 @@ impl InvalidCompileTimeCallTarget {
 
 /// Syntax-independent operation admitted by checked-body compile-time projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CompileTimeOperation<C = CompileTimeCallTarget> {
+pub enum CompileTimeOperation<C = CompileTimeCallTarget, G = u64> {
     Complete,
     Literal(nocter_model::ConstantValue),
     DeclaredConstant(ConstantId),
+    /// A specialization value: recipes carry a parameter identity, closed plans carry `u64`.
+    GenericConstant(G),
     ReadParameter(ParameterId),
     ReadLocal(LocalBindingId),
     Unary {
@@ -235,23 +237,27 @@ pub enum CompileTimeOperation<C = CompileTimeCallTarget> {
     },
 }
 
-impl<C> CompileTimeOperation<C> {
-    /// Rebinds the only representation-specific edge while preserving the checked operation.
+impl<C, G> CompileTimeOperation<C, G> {
+    /// Rebinds both representation-specific edges while preserving the checked operation.
     ///
     /// This is the exhaustive recipe-to-plan boundary. Adding an operation variant therefore
     /// cannot silently leave specialization with a second partial operation model.
     ///
     /// # Errors
     ///
-    /// Returns the call-target mapper's failure without publishing a partially rebound operation.
-    pub fn try_map_call_target<D, E>(
+    /// Returns either mapper's failure without publishing a partially rebound operation.
+    pub fn try_map_edges<D, H, E>(
         self,
-        mut map: impl FnMut(C) -> Result<D, E>,
-    ) -> Result<CompileTimeOperation<D>, E> {
+        mut map_call: impl FnMut(C) -> Result<D, E>,
+        mut map_generic: impl FnMut(G) -> Result<H, E>,
+    ) -> Result<CompileTimeOperation<D, H>, E> {
         Ok(match self {
             Self::Complete => CompileTimeOperation::Complete,
             Self::Literal(value) => CompileTimeOperation::Literal(value),
             Self::DeclaredConstant(id) => CompileTimeOperation::DeclaredConstant(id),
+            Self::GenericConstant(parameter) => {
+                CompileTimeOperation::GenericConstant(map_generic(parameter)?)
+            }
             Self::ReadParameter(parameter) => CompileTimeOperation::ReadParameter(parameter),
             Self::ReadLocal(local) => CompileTimeOperation::ReadLocal(local),
             Self::Unary { operation, operand } => {
@@ -285,7 +291,7 @@ impl<C> CompileTimeOperation<C> {
                 receiver,
                 arguments,
             } => CompileTimeOperation::Call {
-                target: map(target)?,
+                target: map_call(target)?,
                 receiver,
                 arguments,
             },
@@ -325,14 +331,14 @@ impl<C> CompileTimeOperation<C> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompileTimeNode<T = CompileTimeValueType, C = CompileTimeCallTarget> {
+pub struct CompileTimeNode<T = CompileTimeValueType, C = CompileTimeCallTarget, G = u64> {
     ty: T,
-    operation: CompileTimeOperation<C>,
+    operation: CompileTimeOperation<C, G>,
 }
 
-impl<T, C> CompileTimeNode<T, C> {
+impl<T, C, G> CompileTimeNode<T, C, G> {
     #[must_use]
-    pub const fn new(ty: T, operation: CompileTimeOperation<C>) -> Self {
+    pub const fn new(ty: T, operation: CompileTimeOperation<C, G>) -> Self {
         Self { ty, operation }
     }
 
@@ -342,7 +348,7 @@ impl<T, C> CompileTimeNode<T, C> {
     }
 
     #[must_use]
-    pub const fn operation(&self) -> &CompileTimeOperation<C> {
+    pub const fn operation(&self) -> &CompileTimeOperation<C, G> {
         &self.operation
     }
 }
@@ -373,11 +379,11 @@ impl<T> CompileTimeParameter<T> {
 
 /// One ordinary checked body lowered into a compile-time operation domain.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompileTimeCallable<T, C> {
+pub struct CompileTimeCallable<T, C, G = u64> {
     parameters: Box<[CompileTimeParameter<T>]>,
     result: T,
     locals: Arena<LocalBindingId, T>,
-    nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
+    nodes: Arena<BodyNodeId, CompileTimeNode<T, C, G>>,
     root: BodyNodeId,
     constant_dependencies: Box<[ConstantId]>,
     call_dependencies: Box<[C]>,
@@ -385,12 +391,12 @@ pub struct CompileTimeCallable<T, C> {
 
 /// One checked body recipe before its generic type domain is closed.
 pub type CompileTimeCallableRecipe =
-    CompileTimeCallable<nocter_model::TypeId, CompileTimeRecipeCallTarget>;
+    CompileTimeCallable<nocter_model::TypeId, CompileTimeRecipeCallTarget, GenericParameterId>;
 
 /// One checked body plan after its complete generic type domain is closed.
 pub type CompileTimeCallablePlan = CompileTimeCallable<CompileTimeValueType, CompileTimeCallTarget>;
 
-impl<T, C> CompileTimeCallable<T, C> {
+impl<T, C, G> CompileTimeCallable<T, C, G> {
     /// Builds a recipe or plan whose identities remain in one canonical body-node domain.
     ///
     /// # Errors
@@ -401,7 +407,7 @@ impl<T, C> CompileTimeCallable<T, C> {
         parameters: impl Into<Box<[CompileTimeParameter<T>]>>,
         result: T,
         locals: Arena<LocalBindingId, T>,
-        nodes: Arena<BodyNodeId, CompileTimeNode<T, C>>,
+        nodes: Arena<BodyNodeId, CompileTimeNode<T, C, G>>,
         root: BodyNodeId,
     ) -> Result<Self, InvalidCompileTimeCallable>
     where
@@ -468,7 +474,7 @@ impl<T, C> CompileTimeCallable<T, C> {
     }
 
     #[must_use]
-    pub const fn nodes(&self) -> &Arena<BodyNodeId, CompileTimeNode<T, C>> {
+    pub const fn nodes(&self) -> &Arena<BodyNodeId, CompileTimeNode<T, C, G>> {
         &self.nodes
     }
 
@@ -588,6 +594,7 @@ impl<T, C> CompileTimeCallable<T, C> {
                 CompileTimeOperation::Complete
                 | CompileTimeOperation::Literal(_)
                 | CompileTimeOperation::DeclaredConstant(_)
+                | CompileTimeOperation::GenericConstant(_)
                 | CompileTimeOperation::Unreachable => {}
             }
         }

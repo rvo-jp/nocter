@@ -1,8 +1,8 @@
 pub use nocter_model::ConstantValue;
 use nocter_model::{
     BodyNodeId, BodyScopeId, BorrowCapability, CallableCapability, CaptureId, ClosureId,
-    ConstantId, FieldId, LocalBindingId, LoopId, NominalTypeId, ParameterId, PlaceId, TypeId,
-    VariantId,
+    ConstantId, FieldId, GenericParameterId, LocalBindingId, LoopId, NominalTypeId, ParameterId,
+    PlaceId, TypeId, VariantId,
 };
 
 use super::{ArgumentPackSegment, CheckedArgumentPack};
@@ -67,6 +67,7 @@ impl CheckedOperation {
             Self::Complete
             | Self::Literal(_)
             | Self::DeclaredConstant(_)
+            | Self::GenericConstant(_)
             | Self::Place(_)
             | Self::Copy(_)
             | Self::Move(_)
@@ -89,6 +90,8 @@ pub enum CheckedOperation {
     Literal(ConstantValue),
     /// A reference to one declaration-owned constant value.
     DeclaredConstant(ConstantId),
+    /// A specialization-owned `usize` constant generic used as a body value.
+    GenericConstant(GenericParameterId),
     Place(PlaceId),
     Copy(PlaceId),
     Move(PlaceId),

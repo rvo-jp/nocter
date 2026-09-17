@@ -6,15 +6,15 @@ use nocter_frontend_bindings::{
     FrontendBindingsBuilder, FrontendDeclaration, SourceOwnershipError,
 };
 use nocter_model::{
-    AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, Symbol,
-    TypeId,
+    AssociatedTypeId, BodyId, DeclarationSiteId, GenericParameterId, ModuleId, NominalTypeId,
+    ParameterId, Symbol, TypeId,
 };
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{
     SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin, SourceRole,
 };
 use nocter_syntax::{
-    BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin,
+    BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin, SyntaxToken,
     project_declaration_syntax,
 };
 
@@ -59,6 +59,12 @@ enum ProjectionOperation {
     },
     Parameter {
         parameter: ParameterId,
+        declaration: SurfaceOrigin,
+        role: SourceRole,
+        origin: SurfaceOrigin,
+    },
+    GenericParameter {
+        parameter: GenericParameterId,
         declaration: SurfaceOrigin,
         role: SourceRole,
         origin: SurfaceOrigin,
@@ -257,6 +263,25 @@ impl FrontendProjectionRecipe {
                     bindings.add_parameter_declaration(*parameter, declaration);
                     index.insert(
                         SemanticEntity::Parameter(*parameter),
+                        *role,
+                        domain.source_origin(*origin)?,
+                    );
+                }
+                ProjectionOperation::GenericParameter {
+                    parameter,
+                    declaration,
+                    role,
+                    origin,
+                } => {
+                    let declaration = match domain.syntax(*declaration)? {
+                        SyntaxOrigin::Token(token) => token,
+                        SyntaxOrigin::Node(_) => {
+                            return Err(ProjectionRecipeError::ExpectedToken);
+                        }
+                    };
+                    bindings.add_generic_parameter_declaration(*parameter, declaration);
+                    index.insert(
+                        SemanticEntity::GenericParameter(*parameter),
                         *role,
                         domain.source_origin(*origin)?,
                     );
@@ -500,6 +525,24 @@ impl ProjectionRecipeBuilder {
         let declaration = self.origin(SyntaxOrigin::Token(declaration))?;
         let origin = self.source_origin(origin)?;
         self.operations.push(ProjectionOperation::Parameter {
+            parameter,
+            declaration,
+            role,
+            origin,
+        });
+        Ok(())
+    }
+
+    pub(crate) fn generic_parameter(
+        &mut self,
+        parameter: GenericParameterId,
+        declaration: SyntaxToken,
+        role: SourceRole,
+        origin: SourceOrigin,
+    ) -> Result<(), ProjectionRecipeError> {
+        let declaration = self.origin(SyntaxOrigin::Token(declaration))?;
+        let origin = self.source_origin(origin)?;
+        self.operations.push(ProjectionOperation::GenericParameter {
             parameter,
             declaration,
             role,

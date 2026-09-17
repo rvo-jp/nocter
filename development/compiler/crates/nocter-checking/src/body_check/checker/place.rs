@@ -659,7 +659,7 @@ impl BodyChecker<'_, '_> {
                     .ok_or(BodyCheckInternalError::UnsupportedNameTarget(node, target))?;
                 (PlaceRoot::Static(id), ty)
             }
-            NameTarget::Exported(_) => {
+            NameTarget::GenericConstant(_) | NameTarget::Exported(_) => {
                 return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into());
             }
         })

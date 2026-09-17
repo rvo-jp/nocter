@@ -5,8 +5,8 @@ use nocter_declarations::{BodyForm, DeclarationGraph};
 use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair};
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
-    BodyNodeId, BorrowCapability, BuiltinType, CaptureId, ConstantId, LocalBindingId,
-    NominalTypeId, PlaceId, TypeId, TypeKind,
+    BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
+    TypeId, TypeKind,
 };
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{
@@ -686,6 +686,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .map(|token| {
                 let target = self.consume_name_use(clause, token)?;
                 match target {
+                    NameTarget::GenericConstant(_) => {
+                        Err(self.rule(BodyRule::InvalidValueProvenance, clause)?)
+                    }
                     NameTarget::Parameter(parameter) => Ok(PlaceRoot::Parameter(parameter)),
                     NameTarget::Local(local) => Ok(PlaceRoot::Local(local)),
                     NameTarget::Capture(capture) => Ok(PlaceRoot::Capture(capture)),
@@ -1081,8 +1084,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        if let Some((ty, constant)) = self.constant_reference(node)? {
-            let checked = self.add_node(node, ty, CheckedOperation::DeclaredConstant(constant))?;
+        if let Some((ty, operation)) = self.constant_reference(node)? {
+            let checked = self.add_node(node, ty, operation)?;
             return expected.map_or(Ok(checked), |expected| {
                 self.apply_expected(node, checked, expected)
             });
@@ -1100,8 +1103,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
-        if let Some((ty, constant)) = self.constant_reference(node)? {
-            let checked = self.add_node(node, ty, CheckedOperation::DeclaredConstant(constant))?;
+        if let Some((ty, operation)) = self.constant_reference(node)? {
+            let checked = self.add_node(node, ty, operation)?;
             return expected.map_or(Ok(checked), |expected| {
                 self.apply_expected(node, checked, expected)
             });
@@ -1117,15 +1120,43 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn constant_reference(
         &mut self,
         node: NodeId,
-    ) -> Result<Option<(TypeId, ConstantId)>, BodyCheckError> {
+    ) -> Result<Option<(TypeId, CheckedOperation)>, BodyCheckError> {
         let tokens = descendant_identifiers(self.tree(), node);
         let Some(last) = tokens.last().copied() else {
             return Ok(None);
         };
-        let Some(NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(id))) =
-            self.uses.get(&SyntaxOrigin::Token(last)).copied()
-        else {
+        let Some(target) = self.uses.get(&SyntaxOrigin::Token(last)).copied() else {
             return Ok(None);
+        };
+        let (ty, operation) = match target {
+            NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(id)) => {
+                let ty = self
+                    .graph
+                    .declarations()
+                    .constants()
+                    .get(id)
+                    .map(nocter_declarations::ConstantDeclaration::ty)
+                    .ok_or(BodyCheckInternalError::UnsupportedNameTarget(node, target))?;
+                (ty, CheckedOperation::DeclaredConstant(id))
+            }
+            NameTarget::GenericConstant(parameter) => {
+                let declaration = self
+                    .graph
+                    .declarations()
+                    .generic_parameters()
+                    .get(parameter)
+                    .ok_or(BodyCheckInternalError::UnsupportedNameTarget(node, target))?;
+                if declaration.domain()
+                    != nocter_declarations::GenericParameterDomain::UsizeConstant
+                {
+                    return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into());
+                }
+                (
+                    self.types.builtin(BuiltinType::Usize),
+                    CheckedOperation::GenericConstant(parameter),
+                )
+            }
+            _ => return Ok(None),
         };
         for token in tokens {
             let origin = SyntaxOrigin::Token(token);
@@ -1133,18 +1164,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.consumed_uses.insert(origin);
             }
         }
-        self.graph
-            .declarations()
-            .constants()
-            .get(id)
-            .map(|constant| Some((constant.ty(), id)))
-            .ok_or(
-                BodyCheckInternalError::UnsupportedNameTarget(
-                    node,
-                    NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(id)),
-                )
-                .into(),
-            )
+        Ok(Some((ty, operation)))
     }
 
     fn is_constant_reference(&self, node: NodeId) -> bool {
@@ -1154,7 +1174,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .is_some_and(|target| {
                 matches!(
                     target,
-                    NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(_))
+                    NameTarget::GenericConstant(_)
+                        | NameTarget::Exported(nocter_declarations::ExportedEntity::Constant(_))
                 )
             })
     }

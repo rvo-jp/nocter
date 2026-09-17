@@ -8,8 +8,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 use nocter_model::{
-    AssociatedTypeId, BodyId, BuiltinType, CallableId, InterfaceId, ModuleId, NominalTypeId,
-    ParameterId, Symbol, TypeId,
+    AssociatedTypeId, BodyId, BuiltinType, CallableId, GenericParameterId, InterfaceId, ModuleId,
+    NominalTypeId, ParameterId, Symbol, TypeId,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
@@ -255,6 +255,7 @@ pub struct FrontendBindings {
     module_sources: BTreeMap<ModuleId, Box<[SourceId]>>,
     body_roots: BTreeMap<BodyId, Box<[NodeId]>>,
     parameter_declarations: BTreeMap<ParameterId, Box<[SyntaxToken]>>,
+    generic_parameter_declarations: BTreeMap<GenericParameterId, Box<[SyntaxToken]>>,
     declarations: HashMap<SyntaxToken, Box<[FrontendDeclaration]>>,
     associated_projection_uses: Box<[AssociatedProjectionUse]>,
     block_imports: HashMap<NodeId, ModuleId>,
@@ -276,6 +277,13 @@ impl FrontendBindings {
     #[must_use]
     pub fn parameter_declarations(&self, parameter: ParameterId) -> &[SyntaxToken] {
         self.parameter_declarations
+            .get(&parameter)
+            .map_or(&[], AsRef::as_ref)
+    }
+
+    #[must_use]
+    pub fn generic_parameter_declarations(&self, parameter: GenericParameterId) -> &[SyntaxToken] {
+        self.generic_parameter_declarations
             .get(&parameter)
             .map_or(&[], AsRef::as_ref)
     }
@@ -331,6 +339,7 @@ pub struct FrontendBindingsBuilder {
     module_sources: BTreeMap<ModuleId, Vec<SourceId>>,
     body_roots: BTreeMap<BodyId, Vec<NodeId>>,
     parameter_declarations: BTreeMap<ParameterId, Vec<SyntaxToken>>,
+    generic_parameter_declarations: BTreeMap<GenericParameterId, Vec<SyntaxToken>>,
     declarations: HashMap<SyntaxToken, Vec<FrontendDeclaration>>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
     block_imports: HashMap<NodeId, ModuleId>,
@@ -371,6 +380,17 @@ impl FrontendBindingsBuilder {
 
     pub fn add_parameter_declaration(&mut self, parameter: ParameterId, token: SyntaxToken) {
         self.parameter_declarations
+            .entry(parameter)
+            .or_default()
+            .push(token);
+    }
+
+    pub fn add_generic_parameter_declaration(
+        &mut self,
+        parameter: GenericParameterId,
+        token: SyntaxToken,
+    ) {
+        self.generic_parameter_declarations
             .entry(parameter)
             .or_default()
             .push(token);
@@ -493,6 +513,17 @@ impl FrontendBindingsBuilder {
                 .collect(),
             parameter_declarations: self
                 .parameter_declarations
+                .into_iter()
+                .map(|(parameter, mut declarations)| {
+                    declarations.sort_unstable_by_key(|token| {
+                        (token.source(), token.range().start(), token.range().end())
+                    });
+                    declarations.dedup();
+                    (parameter, declarations.into_boxed_slice())
+                })
+                .collect(),
+            generic_parameter_declarations: self
+                .generic_parameter_declarations
                 .into_iter()
                 .map(|(parameter, mut declarations)| {
                     declarations.sort_unstable_by_key(|token| {

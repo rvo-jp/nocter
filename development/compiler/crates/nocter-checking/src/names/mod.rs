@@ -135,6 +135,7 @@ pub enum NameResolutionInternalError {
     InvalidSyntaxOrigin(SyntaxOrigin),
     MissingSymbol(Box<str>),
     MissingParameterProjection(nocter_model::ParameterId),
+    MissingGenericParameterProjection(nocter_model::GenericParameterId),
     InvalidBodyOwner(BodyId),
     ReusableBodyNames(ReusableBodyNameCatalogError),
 }
@@ -186,6 +187,12 @@ impl fmt::Display for NameResolutionInternalError {
                 write!(
                     formatter,
                     "parameter {parameter:?} has no declaration projection"
+                )
+            }
+            Self::MissingGenericParameterProjection(parameter) => {
+                write!(
+                    formatter,
+                    "generic parameter {parameter:?} has no declaration projection"
                 )
             }
             Self::InvalidBodyOwner(body) => {

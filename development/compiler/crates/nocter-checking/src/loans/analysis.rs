@@ -387,6 +387,7 @@ impl<'program> Analyzer<'program> {
             CheckedOperation::Complete
             | CheckedOperation::Literal(_)
             | CheckedOperation::DeclaredConstant(_)
+            | CheckedOperation::GenericConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => (LoanValue::independent(), true),
             CheckedOperation::Place(place) => {
                 self.evaluate_place_indices(place, state, extra_active)?;

@@ -6,8 +6,8 @@ use nocter_model::{
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
-    ContextualSpelling, ExpectedSyntax, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken,
-    TokenKind,
+    ContextualSpelling, ExpectedSyntax, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin,
+    SyntaxToken, TokenKind,
 };
 
 use super::BodyChecker;
@@ -15,7 +15,7 @@ use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{
     child_nodes, descendant_identifiers, direct_identifier, direct_node, direct_nodes,
-    first_direct_token,
+    first_direct_token, is_transparent_expression,
 };
 use crate::type_relations::TypeSubstitution;
 use crate::{
@@ -370,10 +370,10 @@ impl BodyChecker<'_, '_> {
             NodeKind::FixedArrayType => {
                 let expression = direct_node(self.tree(), node, NodeKind::Expression)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-                let length = self.evaluate_array_length(expression)?;
+                let length = self.resolve_usize_generic_argument(expression)?;
                 TypeKind::FixedArray {
                     element: inner,
-                    length: length.into(),
+                    length,
                 }
             }
             NodeKind::GroupedType => return Ok(inner),
@@ -951,6 +951,22 @@ impl BodyChecker<'_, '_> {
         &mut self,
         node: NodeId,
     ) -> Result<UsizeTerm, BodyCheckError> {
+        let mut reference = node;
+        while self.kind(reference).is_ok_and(is_transparent_expression) {
+            let children = child_nodes(self.tree(), reference);
+            let [child] = children.as_slice() else {
+                break;
+            };
+            reference = *child;
+        }
+        if self.kind(reference)? == NodeKind::ReferenceExpression
+            && let Some(token) = direct_identifier(self.tree(), reference)
+            && let Some(NameTarget::GenericConstant(parameter)) =
+                self.uses.get(&SyntaxOrigin::Token(token)).copied()
+        {
+            self.consume_name_use(reference, token)?;
+            return Ok(UsizeTerm::Parameter(parameter));
+        }
         if self.kind(node)? == NodeKind::Type {
             let Some(named) = direct_node(self.tree(), node, NodeKind::NamedType) else {
                 return Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?);
@@ -958,8 +974,16 @@ impl BodyChecker<'_, '_> {
             let mut segments = self.named_segments(named)?;
             if segments.len() == 1 && segments[0].arguments.is_empty() {
                 let token = segments[0].token;
+                let exact = self
+                    .uses
+                    .get(&SyntaxOrigin::Token(token))
+                    .copied()
+                    .and_then(|target| match target {
+                        NameTarget::GenericConstant(parameter) => Some(parameter),
+                        _ => None,
+                    });
                 let name = self.segment_symbol(token)?;
-                if let Some(parameter) = self.lexical_generic(name)? {
+                if let Some(parameter) = exact.or(self.lexical_generic(name)?) {
                     let declaration = self
                         .graph
                         .declarations()
@@ -967,10 +991,14 @@ impl BodyChecker<'_, '_> {
                         .get(parameter)
                         .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
                     if declaration.domain() == GenericParameterDomain::UsizeConstant {
-                        self.project_type_entity(
-                            token,
-                            SemanticEntity::GenericParameter(parameter),
-                        )?;
+                        if exact.is_some() {
+                            self.consume_name_use(node, token)?;
+                        } else {
+                            self.project_type_entity(
+                                token,
+                                SemanticEntity::GenericParameter(parameter),
+                            )?;
+                        }
                         return Ok(UsizeTerm::Parameter(parameter));
                     }
                 }

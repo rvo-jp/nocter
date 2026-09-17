@@ -517,6 +517,39 @@ fn callable_inference_preserves_constant_arguments_in_static_selection() {
 }
 
 #[test]
+fn constant_generic_parameters_are_body_values_with_stable_identity() {
+    let output = check(
+        "func length_of<T, const N: usize>(values: [T; N]): usize {\n\
+             let retained: [T; N] = move values\n\
+             drop retained\n\
+             N\n\
+         }\n\
+         func four(values: [i32; 4]): usize { length_of(values) }\n",
+    )
+    .unwrap();
+    let parameter = output
+        .program()
+        .graph()
+        .declarations()
+        .generic_parameters()
+        .iter()
+        .find_map(|(parameter, declaration)| {
+            (declaration.domain() == nocter_declarations::GenericParameterDomain::UsizeConstant)
+                .then_some(parameter)
+        })
+        .expect("constant generic parameter");
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes().iter().any(|(_, node)| {
+            matches!(
+                node.operation(),
+                CheckedOperation::GenericConstant(candidate) if *candidate == parameter
+            )
+        })
+    }));
+}
+
+#[test]
 fn explicit_construction_preserves_constant_owner_arguments() {
     let output = check(
         "struct Buffer<T, const N: usize> { values: [T; N] }\n\

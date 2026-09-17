@@ -75,6 +75,7 @@ pub(super) fn infer(
             CheckedOperation::Complete
             | CheckedOperation::Literal(_)
             | CheckedOperation::DeclaredConstant(_)
+            | CheckedOperation::GenericConstant(_)
             | CheckedOperation::Place(_)
             | CheckedOperation::Copy(_)
             | CheckedOperation::Borrow {
@@ -164,6 +165,7 @@ fn append_operands(
         CheckedOperation::Complete
         | CheckedOperation::Literal(_)
         | CheckedOperation::DeclaredConstant(_)
+        | CheckedOperation::GenericConstant(_)
         | CheckedOperation::Place(_)
         | CheckedOperation::Copy(_)
         | CheckedOperation::Move(_)

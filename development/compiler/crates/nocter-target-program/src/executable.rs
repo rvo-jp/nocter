@@ -78,6 +78,19 @@ pub enum ExecutableItemKey {
     Test(TestId),
 }
 
+impl ExecutableItemKey {
+    /// Returns the closed generic substitution carried by this executable identity.
+    #[must_use]
+    pub const fn generic_arguments(&self) -> Option<&GenericArguments> {
+        match self {
+            Self::Callable(key) => Some(key.generic_arguments()),
+            Self::Closure(key) => Some(key.generic_arguments()),
+            Self::Drop(key) => Some(key.generic_arguments()),
+            Self::Test(_) => None,
+        }
+    }
+}
+
 /// One callable execution contract after concrete specialization.
 ///
 /// This is copied from the checked declaration authority while the executable closure still owns
@@ -527,6 +540,15 @@ impl ExecutableItem {
     #[must_use]
     pub const fn key(&self) -> &ExecutableItemKey {
         &self.key
+    }
+
+    /// Returns one concrete generic value from this item's canonical executable identity.
+    #[must_use]
+    pub fn generic_argument(
+        &self,
+        parameter: nocter_model::GenericParameterId,
+    ) -> Option<nocter_model::GenericValue> {
+        self.key.generic_arguments()?.get(parameter)
     }
 
     #[must_use]

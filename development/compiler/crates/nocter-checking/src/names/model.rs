@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
 use nocter_declarations::ExportedEntity;
-use nocter_model::{Arena, BodyId, BodyScopeId, CaptureId, LocalBindingId, ParameterId, Symbol};
+use nocter_model::{
+    Arena, BodyId, BodyScopeId, CaptureId, GenericParameterId, LocalBindingId, ParameterId, Symbol,
+};
 use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
 /// One exact value/name target selected during body lookup.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum NameTarget {
+    GenericConstant(GenericParameterId),
     Parameter(ParameterId),
     Local(LocalBindingId),
     Capture(CaptureId),
@@ -23,7 +26,8 @@ impl NameTarget {
     pub(crate) const fn is_value(self) -> bool {
         matches!(
             self,
-            Self::Parameter(_)
+            Self::GenericConstant(_)
+                | Self::Parameter(_)
                 | Self::Local(_)
                 | Self::Capture(_)
                 | Self::Exported(ExportedEntity::Constant(_) | ExportedEntity::Static(_))

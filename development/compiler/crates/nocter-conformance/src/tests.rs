@@ -1077,6 +1077,28 @@ fn indirect_aggregate_arguments_and_results_cross_the_native_pipeline() {
 }
 
 #[test]
+fn constant_generic_layout_and_abi_cross_the_native_pipeline() {
+    let machine = lower_machine(
+        "copy struct Buffer<const N: usize> { values: [i32; N] }\n\
+         func capacity<const N: usize>(value: &Buffer<N>): usize { N }\n\
+         func small_tail(value: Buffer<2>): i32 { value.values[1] }\n\
+         func large_tail(value: Buffer<5>): i32 { value.values[4] }\n\
+         func main(): i32 {\n\
+             let small = Buffer<2> { values: [1, 20] }\n\
+             let large = Buffer<5> { values: [1, 2, 3, 4, 22] }\n\
+             if capacity(&small) == 2 && capacity(&large) == 5 {\n\
+                 return small_tail(small) + large_tail(large)\n\
+             }\n\
+             return 1\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn indirect_aggregate_arguments_cross_the_outgoing_stack_boundary() {
     let machine = lower_machine(
         "copy struct Large { first: i64\n    second: i64\n    third: i32 }\n\

@@ -239,6 +239,10 @@ impl<'program> CompileTimeExecutor<'program> {
                     })?;
                 scalar_value(node.ty(), value).map_err(|rule| frame.error(rule, Some(node_id)))?
             }
+            CompileTimeOperation::GenericConstant(value) => {
+                scalar_value(node.ty(), ConstantValue::Integer(i128::from(*value)))
+                    .map_err(|rule| frame.error(rule, Some(node_id)))?
+            }
             CompileTimeOperation::ReadParameter(parameter) => {
                 frame.parameters.get(parameter).cloned().ok_or_else(|| {
                     frame.error(CompileTimeExecutionRule::InvalidPlan, Some(node_id))

@@ -193,6 +193,17 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::Complete => Ok(None),
             CheckedOperation::Literal(constant) => self.lower_constant(ty, constant).map(Some),
             CheckedOperation::DeclaredConstant(id) => self.lower_declared_constant(ty, *id),
+            CheckedOperation::GenericConstant(parameter) => {
+                let value = match self.item.generic_argument(*parameter) {
+                    Some(nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Value(
+                        value,
+                    ))) => value,
+                    Some(_) => return Err(MirLoweringError::InvalidGenericConstant(*parameter)),
+                    None => return Err(MirLoweringError::UnknownGenericConstant(*parameter)),
+                };
+                self.lower_constant(ty, &ConstantValue::Integer(i128::from(value)))
+                    .map(Some)
+            }
             CheckedOperation::Copy(place) => {
                 let place = self.lower_place(*place)?;
                 self.append_value(

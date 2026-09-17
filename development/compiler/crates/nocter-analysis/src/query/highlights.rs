@@ -195,7 +195,20 @@ fn classify(
             SemanticHighlightKind::Type
         }
         SemanticEntity::Interface(_) => SemanticHighlightKind::Interface,
-        SemanticEntity::GenericParameter(_) => SemanticHighlightKind::TypeParameter,
+        SemanticEntity::GenericParameter(id) => {
+            let parameter = declarations
+                .generic_parameters()
+                .get(id)
+                .ok_or(EvidenceIntegrityError::MissingSemanticEntity(entity))?;
+            match parameter.domain() {
+                nocter_declarations::GenericParameterDomain::Type => {
+                    SemanticHighlightKind::TypeParameter
+                }
+                nocter_declarations::GenericParameterDomain::UsizeConstant => {
+                    return Ok(Some((SemanticHighlightKind::Variable, true)));
+                }
+            }
+        }
         SemanticEntity::Constant(_) | SemanticEntity::Static(_) => {
             return Ok(Some((SemanticHighlightKind::Variable, true)));
         }

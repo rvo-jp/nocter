@@ -137,6 +137,52 @@ fn lexical_identities_cover_scopes_and_explicit_capture_projection() {
 }
 
 #[test]
+fn constant_generic_binders_are_value_names_and_source_references() {
+    let fixture = Fixture::new("func length<const N: usize>(): usize { N }\n", "");
+    let input = fixture.input(false, Vec::new());
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let parameter = program
+        .graph()
+        .declarations()
+        .generic_parameters()
+        .iter()
+        .find_map(|(parameter, declaration)| {
+            (declaration.domain() == nocter_declarations::GenericParameterDomain::UsizeConstant)
+                .then_some(parameter)
+        })
+        .unwrap();
+    let resolution =
+        resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap();
+    let (_, body) = resolution.bodies().iter().next().unwrap();
+
+    assert!(
+        body.uses()
+            .iter()
+            .any(|usage| { usage.target() == NameTarget::GenericConstant(parameter) })
+    );
+    assert!(body.scopes().iter().any(|(_, scope)| {
+        scope
+            .bindings()
+            .iter()
+            .any(|binding| binding.target() == NameTarget::GenericConstant(parameter))
+    }));
+    let bindings = resolution
+        .source_index()
+        .bindings_for(SemanticEntity::GenericParameter(parameter));
+    assert!(
+        bindings
+            .iter()
+            .any(|binding| binding.role() == SourceRole::Declaration)
+    );
+    assert!(
+        bindings
+            .iter()
+            .any(|binding| binding.role() == SourceRole::Reference)
+    );
+}
+
+#[test]
 fn binding_initializer_cannot_see_the_binding_being_declared() {
     let fixture = Fixture::new(
         "func main(): void {\n    let value = value\n    return\n}\n",

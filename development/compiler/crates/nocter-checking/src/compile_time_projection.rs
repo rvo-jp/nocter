@@ -242,6 +242,38 @@ fn specialize_compile_time_callable_recipe(
             rule: CompileTimeProjectionRule::InvalidPlan,
         });
     }
+    let argument_domains = target
+        .generic_arguments()
+        .iter()
+        .map(|argument| match argument.value() {
+            CompileTimeGenericValue::Type(_) => nocter_declarations::GenericParameterDomain::Type,
+            CompileTimeGenericValue::Usize(_) => {
+                nocter_declarations::GenericParameterDomain::UsizeConstant
+            }
+        })
+        .collect::<Vec<_>>();
+    graph
+        .declarations()
+        .validate_generic_domains(&domain, &argument_domains)
+        .map_err(|_| CompileTimeProjectionError {
+            owner: BodyOwner::Callable(callable),
+            body: declaration.body(),
+            node: None,
+            rule: CompileTimeProjectionRule::InvalidPlan,
+        })?;
+    if target.generic_arguments().iter().any(|argument| {
+        matches!(
+            argument.value(),
+            CompileTimeGenericValue::Usize(nocter_model::UsizeTerm::Parameter(_))
+        )
+    }) {
+        return Err(CompileTimeProjectionError {
+            owner: BodyOwner::Callable(callable),
+            body: declaration.body(),
+            node: None,
+            rule: CompileTimeProjectionRule::InvalidPlan,
+        });
+    }
     specialize_compile_time_recipe(
         types,
         BodyOwner::Callable(callable),
@@ -280,10 +312,10 @@ fn specialize_compile_time_recipe(
         let ty = specializer.value_type(*recipe_node.ty()).ok_or_else(|| {
             specializer.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType)
         })?;
-        let operation = recipe_node
-            .operation()
-            .clone()
-            .try_map_call_target(|target| specializer.call_target(&target, node))?;
+        let operation = recipe_node.operation().clone().try_map_edges(
+            |target| specializer.call_target(&target, node),
+            |parameter| specializer.generic_constant(parameter, node),
+        )?;
         Ok(CompileTimeNode::new(ty, operation))
     })?;
     let parameters = recipe
@@ -328,12 +360,18 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         operation: &CheckedOperation,
-    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
+    ) -> Result<
+        CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
+        CompileTimeProjectionError,
+    > {
         match operation {
             CheckedOperation::Complete => Ok(CompileTimeOperation::Complete),
             CheckedOperation::Literal(value) => Ok(CompileTimeOperation::Literal(value.clone())),
             CheckedOperation::DeclaredConstant(id) => {
                 Ok(CompileTimeOperation::DeclaredConstant(*id))
+            }
+            CheckedOperation::GenericConstant(parameter) => {
+                Ok(CompileTimeOperation::GenericConstant(*parameter))
             }
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
@@ -376,7 +414,10 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         comparison: &crate::CheckedComparison,
-    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
+    ) -> Result<
+        CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
+        CompileTimeProjectionError,
+    > {
         if comparison.left().coercion().is_some() || comparison.right().coercion().is_some() {
             return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
         }
@@ -430,7 +471,10 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         place: nocter_model::PlaceId,
-    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
+    ) -> Result<
+        CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
+        CompileTimeProjectionError,
+    > {
         let place = self
             .body
             .places()
@@ -452,7 +496,10 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         operation: &PrimitiveOperation,
-    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
+    ) -> Result<
+        CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
+        CompileTimeProjectionError,
+    > {
         match operation {
             PrimitiveOperation::Unary { operation, operand } => Ok(CompileTimeOperation::Unary {
                 operation: match operation {
@@ -501,7 +548,10 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         call: &crate::CheckedCall,
-    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
+    ) -> Result<
+        CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
+        CompileTimeProjectionError,
+    > {
         if call.pack().is_some() {
             return Err(self.error(Some(node), CompileTimeProjectionRule::ArgumentPack));
         }
@@ -565,7 +615,10 @@ impl Projector<'_> {
         &self,
         node: nocter_model::BodyNodeId,
         control: &CheckedControl,
-    ) -> Result<CompileTimeOperation<CompileTimeRecipeCallTarget>, CompileTimeProjectionError> {
+    ) -> Result<
+        CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
+        CompileTimeProjectionError,
+    > {
         match control {
             CheckedControl::Block {
                 statements, result, ..
@@ -674,6 +727,22 @@ fn primitive_comparison_step(step: &crate::CheckedComparisonStep) -> bool {
 }
 
 impl Specializer<'_> {
+    fn generic_constant(
+        &self,
+        parameter: nocter_model::GenericParameterId,
+        node: nocter_model::BodyNodeId,
+    ) -> Result<u64, CompileTimeProjectionError> {
+        let value = match self.substitution.get(&parameter) {
+            Some(CompileTimeGenericValue::Usize(nocter_model::UsizeTerm::Value(value))) => *value,
+            Some(CompileTimeGenericValue::Usize(nocter_model::UsizeTerm::Parameter(_)))
+            | Some(CompileTimeGenericValue::Type(_))
+            | None => {
+                return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedValueType));
+            }
+        };
+        Ok(value)
+    }
+
     fn call_target(
         &self,
         target: &CompileTimeRecipeCallTarget,
@@ -1186,6 +1255,28 @@ mod tests {
             &CompileTimeValueType::Scalar(ConstantScalarType::Integer(BuiltinType::I32))
         );
         assert_eq!(program.compile_time_plans().len(), 2);
+    }
+
+    #[test]
+    fn a_constant_generic_body_value_is_closed_before_compile_time_execution() {
+        let output = check(
+            "const func length_of<T, const N: usize>(values: [T; N]): usize { N }\n\
+             const LENGTH: usize = length_of([1, 2, 3, 4])\n",
+        );
+        let program = output.program();
+        let length = program.graph().symbols().get("LENGTH").unwrap();
+        let constant = program
+            .graph()
+            .declarations()
+            .constants()
+            .iter()
+            .find_map(|(id, declaration)| (declaration.name() == length).then_some(id))
+            .unwrap();
+
+        assert_eq!(
+            program.constant_value(constant),
+            Some(&nocter_model::ConstantValue::Integer(4))
+        );
     }
 
     #[test]

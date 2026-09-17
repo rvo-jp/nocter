@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use nocter_frontend_bindings::{DuplicateBlockImport, FrontendBindings, FrontendDeclaration};
 use nocter_model::{
-    AssociatedTypeId, BodyId, DeclarationSiteId, ModuleId, NominalTypeId, ParameterId, TypeId,
+    AssociatedTypeId, BodyId, DeclarationSiteId, GenericParameterId, ModuleId, NominalTypeId,
+    ParameterId, TypeId,
 };
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceOrigin, SourceRole};
@@ -97,6 +98,20 @@ impl FrontendProjectionBuilder {
     ) {
         self.binding_count += 1;
         let result = self.recipe.parameter(parameter, declaration, role, origin);
+        self.retain(result);
+    }
+
+    pub(crate) fn insert_generic_parameter(
+        &mut self,
+        parameter: GenericParameterId,
+        declaration: SyntaxToken,
+        role: SourceRole,
+        origin: SourceOrigin,
+    ) {
+        self.binding_count += 1;
+        let result = self
+            .recipe
+            .generic_parameter(parameter, declaration, role, origin);
         self.retain(result);
     }
 

@@ -422,6 +422,24 @@ fn lowers_a_declared_constant_through_the_executable_value_table() {
 }
 
 #[test]
+fn lowers_a_constant_generic_from_the_executable_item_identity() {
+    let program = lower_fixture(
+        "func length_of<T, const N: usize>(values: [T; N]): usize { N }\n\
+         func main(): usize { length_of([1, 2, 3, 4]) }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Constant(crate::MirConstant::Integer(4))
+            )
+        })
+    }));
+}
+
+#[test]
 fn lowers_typed_string_literals_to_the_declared_constructor() {
     let program = lower_fixture(
         "struct Text {}\n\

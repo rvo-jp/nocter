@@ -4,7 +4,8 @@ use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{BodyForm, BodyOwner, DeclarationGraph, ExportedEntity};
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{
-    ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
+    ArenaBuilder, BodyScopeId, CaptureId, GenericParameterId, LocalBindingId, ModuleId,
+    ParameterId, Symbol,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{ContextualSpelling, SyntaxOrigin};
@@ -720,6 +721,28 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
 
     fn seed_parameters(&mut self) -> Result<(), NameResolutionError> {
         let declarations = self.graph.declarations();
+        for parameter in declarations
+            .body_generic_domain(self.source.body())
+            .ok_or(NameResolutionInternalError::InvalidBodyOwner(
+                self.source.body(),
+            ))?
+            .iter()
+            .copied()
+        {
+            let declaration = declarations.generic_parameters().get(parameter).ok_or(
+                NameResolutionInternalError::InvalidBodyOwner(self.source.body()),
+            )?;
+            if declaration.domain() != nocter_declarations::GenericParameterDomain::UsizeConstant {
+                continue;
+            }
+            let origin = self.generic_parameter_origin(parameter)?;
+            self.insert_name(
+                declaration.name(),
+                origin,
+                NameTarget::GenericConstant(parameter),
+                false,
+            )?;
+        }
         let parameters: Vec<ParameterId> = match self.source.owner() {
             BodyOwner::Callable(owner) => {
                 let callable = declarations.callables().get(owner).ok_or(
@@ -1117,6 +1140,32 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         })
     }
 
+    fn generic_parameter_origin(
+        &self,
+        parameter: GenericParameterId,
+    ) -> Result<SourceOrigin, NameResolutionInternalError> {
+        let declarations = self.bindings.generic_parameter_declarations(parameter);
+        let token = declarations
+            .iter()
+            .find(|token| token.source() == self.tree().source())
+            .or_else(|| declarations.first())
+            .copied()
+            .ok_or(NameResolutionInternalError::MissingGenericParameterProjection(parameter))?;
+        let tree = self
+            .input
+            .modules()
+            .iter()
+            .flat_map(nocter_compile_input::ModuleInput::sources)
+            .map(nocter_compile_input::ModuleSourceInput::syntax)
+            .find(|tree| tree.source() == token.source())
+            .ok_or(NameResolutionInternalError::InvalidSyntaxOrigin(
+                SyntaxOrigin::Token(token),
+            ))?;
+        SourceOrigin::from_token(tree, token).map_err(|_| {
+            NameResolutionInternalError::InvalidSyntaxOrigin(SyntaxOrigin::Token(token))
+        })
+    }
+
     fn symbol(&self, token: SyntaxToken) -> Result<Symbol, NameResolutionInternalError> {
         token_symbol(self.input.sources(), self.graph.symbols(), token)
     }
@@ -1148,6 +1197,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
 
 const fn semantic_entity(body: nocter_model::BodyId, target: NameTarget) -> SemanticEntity {
     match target {
+        NameTarget::GenericConstant(id) => SemanticEntity::GenericParameter(id),
         NameTarget::Parameter(id) => SemanticEntity::Parameter(id),
         NameTarget::Local(id) => SemanticEntity::LocalBinding(body, id),
         NameTarget::Capture(id) => SemanticEntity::Capture(body, id),

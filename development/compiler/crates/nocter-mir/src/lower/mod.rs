@@ -1,7 +1,8 @@
 use std::fmt;
 
 use nocter_model::{
-    BodyId, BodyNodeId, ExecutableItemId, LocalBindingId, LoopId, ParameterId, PlaceId, TypeId,
+    BodyId, BodyNodeId, ExecutableItemId, GenericParameterId, LocalBindingId, LoopId, ParameterId,
+    PlaceId, TypeId,
 };
 use nocter_target_program::ExecutableProgram;
 
@@ -76,6 +77,8 @@ pub enum MirLoweringError {
     InvalidLoop(LoopId),
     UnknownParameter(ParameterId),
     UnknownConstant(nocter_model::ConstantId),
+    UnknownGenericConstant(GenericParameterId),
+    InvalidGenericConstant(GenericParameterId),
     UnknownStatic(nocter_model::StaticId),
     MissingConcreteType(TypeId),
     MissingInput(ParameterId),

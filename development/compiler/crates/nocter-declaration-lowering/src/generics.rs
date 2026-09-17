@@ -6,7 +6,7 @@ use std::fmt;
 
 use nocter_declarations::{ExportedEntity, GenericOwner, GenericParameter, GenericParameterDomain};
 use nocter_model::{GenericParameterId, Symbol};
-use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
+use nocter_source_index::{SourceOrigin, SourceRole};
 use nocter_syntax::{
     ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
     direct_identifier, direct_node, direct_node_iter, direct_token,
@@ -522,8 +522,9 @@ fn project_binder(
         .sources
         .get(declaration_surface.source().index())
         .ok_or(GenericError::MissingSource(declaration))?;
-    headers.reserved.source_index.insert(
-        SemanticEntity::GenericParameter(parameter),
+    headers.reserved.source_index.insert_generic_parameter(
+        parameter,
+        token,
         role,
         SourceOrigin::from_token(source.syntax(), token)
             .map_err(|_| GenericError::InconsistentSource(declaration))?,

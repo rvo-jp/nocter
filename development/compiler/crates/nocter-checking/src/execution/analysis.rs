@@ -460,6 +460,7 @@ impl<'program> Collector<'program> {
             CheckedOperation::Complete
             | CheckedOperation::Literal(_)
             | CheckedOperation::DeclaredConstant(_)
+            | CheckedOperation::GenericConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => {}
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)

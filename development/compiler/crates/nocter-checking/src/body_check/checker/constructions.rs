@@ -580,7 +580,8 @@ const fn construction_completion_owner(target: NameTarget) -> Option<Constructio
         NameTarget::Exported(ExportedEntity::BuiltinType(builtin)) => {
             Some(ConstructionCompletionOwner::Builtin(builtin))
         }
-        NameTarget::Exported(_)
+        NameTarget::GenericConstant(_)
+        | NameTarget::Exported(_)
         | NameTarget::Parameter(_)
         | NameTarget::Local(_)
         | NameTarget::Capture(_) => None,

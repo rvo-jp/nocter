@@ -719,6 +719,7 @@ impl<'program> Analyzer<'program> {
             CheckedOperation::Complete
             | CheckedOperation::Literal(_)
             | CheckedOperation::DeclaredConstant(_)
+            | CheckedOperation::GenericConstant(_)
             | CheckedOperation::ArgumentPackLength(_) => (ValueProvenance::independent(), true),
             CheckedOperation::Place(place) | CheckedOperation::Copy(place) => {
                 self.evaluate_place_indices(place, state)?;

@@ -863,6 +863,55 @@ fn const_callable_hover_renders_the_authored_compile_time_capability() {
 }
 
 #[test]
+fn constant_generic_value_uses_share_hover_navigation_and_readonly_highlighting() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func length<const N: usize>(values: [i32; N]): usize { N }\n",
+        "func main(): usize { length([1, 2, 3, 4]) }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(73));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "constant generic fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let body_use = source_text.rfind("N }").unwrap();
+    let offset = ByteOffset::new(u32::try_from(body_use).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), offset)
+        .unwrap()
+        .expect("constant generic subject");
+
+    assert_eq!(subject.presentation().code(), "const parameter N: usize");
+    assert_eq!(
+        snapshot
+            .semantic_definition(source.id(), offset)
+            .unwrap()
+            .len(),
+        1
+    );
+    let highlights = snapshot.semantic_highlights(source.id()).unwrap();
+    assert_eq!(
+        highlights
+            .values()
+            .iter()
+            .filter(|highlight| {
+                highlight.kind() == SemanticHighlightKind::Variable
+                    && highlight.is_readonly()
+                    && source.text_at(highlight.range()) == Some("N")
+            })
+            .count(),
+        3
+    );
+}
+
+#[test]
 fn repeated_recovery_member_queries_are_semantically_identical() {
     let tree = TempTree::new();
     let source_text = concat!(

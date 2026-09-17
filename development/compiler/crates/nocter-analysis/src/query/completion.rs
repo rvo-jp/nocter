@@ -737,6 +737,10 @@ fn local_is_available(
 
 fn name_candidate(graph: &DeclarationGraph, body: BodyId, target: NameTarget) -> Option<Candidate> {
     match target {
+        NameTarget::GenericConstant(parameter) => Some(Candidate {
+            entity: SemanticEntity::GenericParameter(parameter),
+            kind: SemanticCompletionKind::Constant,
+        }),
         NameTarget::Parameter(parameter) => Some(Candidate {
             entity: SemanticEntity::Parameter(parameter),
             kind: SemanticCompletionKind::Parameter,

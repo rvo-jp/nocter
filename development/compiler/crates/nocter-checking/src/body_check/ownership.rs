@@ -241,6 +241,7 @@ impl OwnershipAnalyzer<'_> {
             CheckedOperation::Complete
             | CheckedOperation::Literal(_)
             | CheckedOperation::DeclaredConstant(_)
+            | CheckedOperation::GenericConstant(_)
             | CheckedOperation::ArgumentPackLength(_)
             | CheckedOperation::Outcome(CheckedOutcome::Absent) => Ok(true),
             CheckedOperation::Place(place) | CheckedOperation::Borrow { place, .. } => {

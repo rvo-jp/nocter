@@ -294,6 +294,7 @@ impl<'program> DependencyCollector<'program> {
                     self.constants.push(*id);
                 }
             }
+            CheckedOperation::GenericConstant(_) => {}
             CheckedOperation::Place(place)
             | CheckedOperation::Copy(place)
             | CheckedOperation::Move(place)
