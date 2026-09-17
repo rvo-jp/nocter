@@ -165,6 +165,20 @@ caller's checked value. v0.57.0 does not accept arithmetic that remains symbolic
 introducing normalized symbolic expression identity is separate from the fixed-capacity model.
 Closed arithmetic is still evaluated at the authored argument or length that owns the expression.
 
+Inside its declaration body, a `usize` constant parameter is also a readonly,
+storage-independent value:
+
+```nct
+func capacity<T, const N: usize>(values: &[T; N]): usize {
+    return N
+}
+```
+
+It has no address and cannot be assigned, borrowed, moved, or captured as runtime storage. Its
+semantic identity remains symbolic while the generic body is checked. Each executable or
+compile-time specialization then supplies the one closed value from its canonical generic
+arguments; lowering does not add a hidden runtime parameter or evaluate source text again.
+
 The evaluator remains the sole authority for literals, constant references, arithmetic,
 conversion, overflow, and target-width checks. Type construction does not copy those rules, and
 layout, ABI lowering, code generation, and editor presentation cannot evaluate or parse an
@@ -216,8 +230,9 @@ exists for immutable data whose address and indexed storage are part of executio
 
 Hover presents the canonical evaluated value, not the initializer's original spacing or numeric
 spelling. Definition, references, rename, completion, and semantic highlighting use the same
-constant identity as compilation. A constant completion item is classified as a constant, and its
-semantic highlight is readonly.
+constant identity as compilation. Constants and constant parameters have readonly value
+highlighting and constant completion classification; a constant-parameter hover identifies its
+`usize` parameter contract rather than one caller's specialization.
 
 Static declarations participate in parsing, formatting, tokens and AST output, diagnostics,
 navigation, references, rename, completion, hover, and semantic highlighting through one static
