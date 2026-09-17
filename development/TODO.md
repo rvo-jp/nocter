@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. v0.57.0 is locally qualified from exact
-release-content commit `180bac07b66fd031eade3a1fd40fd0fcdc219245`: two independent optimized
-builds produced one deterministic archive, and the complete compiler, installed-home, native,
-example, and LSP gates pass. The completed implementation scope lives in
-[`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
+Nocter v0.56.0 is published and externally audited. The v0.57.0 Constant Generics and
+Fixed-Capacity Data candidate is complete and qualified, publication is authorized, and public
+metadata now selects v0.57.0. The retained archive and measured identities are recorded in the
+release-preparation record.
 
 ## Next Work
 
-Publish v0.57.0 from the retained qualified archive without rebuilding it, then audit the public
-tag, release asset, latest-release endpoint, downloaded installed home, remote `main`, and Pages
-deployment before marking the release complete.
+Commit this publication metadata, create annotated tag `v0.57.0`, fast-forward `main`, and publish
+the retained archive as the release's single asset. Then audit the public tag, asset, latest-release
+endpoint, downloaded installed home, and source-identified Pages deployment. Do not rebuild or
+replace the qualified archive.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
