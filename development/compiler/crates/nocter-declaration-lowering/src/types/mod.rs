@@ -115,6 +115,28 @@ pub struct BoundInterfaceApplication {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BoundGenericValue {
+    Type(BoundTypeId),
+    UsizeExpression(NodeId),
+}
+
+impl BoundGenericValue {
+    fn type_value(self) -> Option<BoundTypeId> {
+        match self {
+            Self::Type(ty) => Some(ty),
+            Self::UsizeExpression(_) => None,
+        }
+    }
+
+    fn usize_expression(self) -> Option<NodeId> {
+        match self {
+            Self::Type(_) => None,
+            Self::UsizeExpression(expression) => Some(expression),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BoundAssociatedTypeBinding {
     projection: BoundTypeId,
     value: BoundTypeId,
@@ -128,7 +150,7 @@ pub enum BoundTypeKind {
     SelfType(ReservedEntity),
     Nominal {
         definition: NominalTypeId,
-        arguments: Box<[BoundTypeId]>,
+        arguments: Box<[BoundGenericValue]>,
     },
     Opaque {
         definition: OpaqueTypeId,
@@ -136,7 +158,7 @@ pub enum BoundTypeKind {
     },
     Alias {
         definition: TypeAliasId,
-        arguments: Box<[BoundTypeId]>,
+        arguments: Box<[BoundGenericValue]>,
     },
     AssociatedSelection {
         base: BoundTypeId,
@@ -292,10 +314,10 @@ pub struct PreparedTypeBindings<'syntax> {
     requirements: Box<[Box<[BoundRequirementKind]>]>,
     normalization_origins: normalization_origins::NormalizationOrigins,
     structural_constants: HashMap<nocter_model::ConstantId, PreparedStructuralConstant>,
-    array_expressions: Arena<ConstantExpressionId, NodeId>,
-    array_expression_ids: HashMap<NodeId, ConstantExpressionId>,
-    array_expression_declarations: HashMap<NodeId, SurfaceDeclarationId>,
-    array_lengths: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
+    usize_expressions: Arena<ConstantExpressionId, NodeId>,
+    usize_expression_ids: HashMap<NodeId, ConstantExpressionId>,
+    usize_expression_declarations: HashMap<NodeId, SurfaceDeclarationId>,
+    usize_terms: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -458,20 +480,26 @@ pub fn bind_header_type_syntax(
     let (opaque_results, callable_results) =
         results::bind_all(&mut namespaces, &interface_applications, &mut arena)?;
 
-    let mut array_expression_nodes = arena
+    let mut usize_expression_nodes = arena
         .kinds
         .iter()
-        .filter_map(|kind| match kind {
-            BoundTypeKind::FixedArray { length, .. } => Some(*length),
-            _ => None,
+        .flat_map(|kind| match kind {
+            BoundTypeKind::FixedArray { length, .. } => vec![*length],
+            BoundTypeKind::Nominal { arguments, .. } | BoundTypeKind::Alias { arguments, .. } => {
+                arguments
+                    .iter()
+                    .filter_map(|argument| argument.usize_expression())
+                    .collect()
+            }
+            _ => Vec::new(),
         })
         .collect::<Vec<_>>();
-    array_expression_nodes.sort_unstable_by_key(|node| (node.source(), node.index()));
-    array_expression_nodes.dedup();
-    let mut array_expressions = ArenaBuilder::new();
-    let array_expression_ids = array_expression_nodes
+    usize_expression_nodes.sort_unstable_by_key(|node| (node.source(), node.index()));
+    usize_expression_nodes.dedup();
+    let mut usize_expressions = ArenaBuilder::new();
+    let usize_expression_ids = usize_expression_nodes
         .into_iter()
-        .map(|node| (node, array_expressions.insert(node)))
+        .map(|node| (node, usize_expressions.insert(node)))
         .collect();
 
     Ok(PreparedTypeBindings {
@@ -488,10 +516,10 @@ pub fn bind_header_type_syntax(
         requirements: requirements.into_boxed_slice(),
         normalization_origins: arena.origins,
         structural_constants: HashMap::new(),
-        array_expressions: array_expressions.finish(),
-        array_expression_ids,
-        array_expression_declarations: arena.array_expression_declarations,
-        array_lengths: HashMap::new(),
+        usize_expressions: usize_expressions.finish(),
+        usize_expression_ids,
+        usize_expression_declarations: arena.usize_expression_declarations,
+        usize_terms: HashMap::new(),
     })
 }
 

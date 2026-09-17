@@ -97,25 +97,25 @@ pub fn evaluate(
     project_references(&mut bindings, evaluated.reference_projections);
     project_generic_references(&mut bindings, evaluated.generic_reference_projections);
     bindings.structural_constants = structural_constants;
-    bindings.array_lengths = evaluated.array_lengths;
+    bindings.usize_terms = evaluated.usize_terms;
     Ok(bindings)
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum HeaderValueKey {
     Constant(ConstantId),
-    ArrayLength(ConstantExpressionId),
+    UsizeExpression(ConstantExpressionId),
 }
 
 #[derive(Clone, Debug)]
 enum HeaderValue {
     Constant(ConstantValue),
-    ArrayLength(nocter_model::UsizeTerm),
+    UsizeTerm(nocter_model::UsizeTerm),
 }
 
 struct EvaluatedHeaderValues {
     constants: HashMap<ConstantId, ConstantValue>,
-    array_lengths: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
+    usize_terms: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
     reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
     generic_reference_projections:
         HashMap<SyntaxToken, (nocter_model::GenericParameterId, SourceOrigin)>,
@@ -123,8 +123,8 @@ struct EvaluatedHeaderValues {
 
 struct HeaderValueComputation {
     constant_plans: HashMap<ConstantId, ConstantExpressionPlan>,
-    array_length_plans: HashMap<ConstantExpressionId, ConstantExpressionPlan>,
-    symbolic_array_lengths: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
+    usize_expression_plans: HashMap<ConstantExpressionId, ConstantExpressionPlan>,
+    symbolic_usize_terms: HashMap<ConstantExpressionId, nocter_model::UsizeTerm>,
 }
 
 fn evaluate_header_values(
@@ -159,17 +159,17 @@ fn evaluate_header_values(
     }
 
     let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
-    let mut array_length_plans = HashMap::new();
-    let mut symbolic_array_lengths = HashMap::new();
+    let mut usize_expression_plans = HashMap::new();
+    let mut symbolic_usize_terms = HashMap::new();
     let mut generic_reference_projections = HashMap::new();
-    let mut array_length_ids = Vec::new();
-    for (id, expression) in bindings.array_expressions.iter() {
-        array_length_ids.push(id);
+    let mut usize_expression_ids = Vec::new();
+    for (id, expression) in bindings.usize_expressions.iter() {
+        usize_expression_ids.push(id);
         let expression = *expression;
         if let Some((parameter, token, origin)) =
             constant_parameter_reference(bindings, source_ids, expression)?
         {
-            symbolic_array_lengths.insert(id, nocter_model::UsizeTerm::Parameter(parameter));
+            symbolic_usize_terms.insert(id, nocter_model::UsizeTerm::Parameter(parameter));
             generic_reference_projections.insert(token, (parameter, origin));
             continue;
         }
@@ -180,21 +180,21 @@ fn evaluate_header_values(
         let plan = plan_expression(target, syntax, expression, usize_ty, &mut resolver)
             .map_err(plan_error)?;
         merge_reference_projections(&mut reference_projections, resolver.reference_projections)?;
-        array_length_plans.insert(id, plan);
+        usize_expression_plans.insert(id, plan);
     }
 
     let mut computation = HeaderValueComputation {
         constant_plans,
-        array_length_plans,
-        symbolic_array_lengths,
+        usize_expression_plans,
+        symbolic_usize_terms,
     };
     let mut query = DependencyQuery::default();
-    // Resolve array lengths first so correctness cannot depend on an eager constants-first pass.
-    // Length plans request constants through this same authority.
-    for key in array_length_ids
+    // Resolve structural usize expressions first so correctness cannot depend on an eager
+    // constants-first pass. Their plans request constants through this same authority.
+    for key in usize_expression_ids
         .iter()
         .copied()
-        .map(HeaderValueKey::ArrayLength)
+        .map(HeaderValueKey::UsizeExpression)
     {
         if let Err(error) = query.resolve(&mut computation, key) {
             return Err(computation.query_error(key, error));
@@ -221,26 +221,26 @@ fn evaluate_header_values(
         .into_iter()
         .filter_map(|id| match query.completed(&HeaderValueKey::Constant(id)) {
             Some(HeaderValue::Constant(value)) => Some((id, value.clone())),
-            Some(HeaderValue::ArrayLength(_)) | None => None,
+            Some(HeaderValue::UsizeTerm(_)) | None => None,
         })
         .collect::<HashMap<_, _>>();
-    let array_lengths = array_length_ids
+    let usize_terms = usize_expression_ids
         .into_iter()
         .map(
-            |id| match query.completed(&HeaderValueKey::ArrayLength(id)) {
-                Some(HeaderValue::ArrayLength(value)) => Ok((id, value.clone())),
+            |id| match query.completed(&HeaderValueKey::UsizeExpression(id)) {
+                Some(HeaderValue::UsizeTerm(value)) => Ok((id, value.clone())),
                 _ => Err(inconsistent_node(
                     *bindings
-                        .array_expressions
+                        .usize_expressions
                         .get(id)
-                        .expect("queried array-length identity must retain its bound expression"),
+                        .expect("queried usize expression must retain its bound syntax"),
                 )),
             },
         )
         .collect::<Result<HashMap<_, _>, _>>()?;
     Ok(EvaluatedHeaderValues {
         constants,
-        array_lengths,
+        usize_terms,
         reference_projections,
         generic_reference_projections,
     })
@@ -258,7 +258,7 @@ impl DependencyComputation<HeaderValueKey, HeaderValue, HeaderDefinitionError>
     ) -> Result<HeaderValue, HeaderQueryError> {
         match key {
             HeaderValueKey::Constant(id) => self.constant(query, id),
-            HeaderValueKey::ArrayLength(id) => self.array_length(query, id),
+            HeaderValueKey::UsizeExpression(id) => self.usize_expression(query, id),
         }
     }
 }
@@ -286,19 +286,19 @@ impl HeaderValueComputation {
         Ok(HeaderValue::Constant(value))
     }
 
-    fn array_length(
+    fn usize_expression(
         &mut self,
         query: &mut DependencyQuery<HeaderValueKey, HeaderValue>,
         id: ConstantExpressionId,
     ) -> Result<HeaderValue, HeaderQueryError> {
-        if let Some(term) = self.symbolic_array_lengths.get(&id) {
-            return Ok(HeaderValue::ArrayLength(term.clone()));
+        if let Some(term) = self.symbolic_usize_terms.get(&id) {
+            return Ok(HeaderValue::UsizeTerm(*term));
         }
         let plan = self
-            .array_length_plans
+            .usize_expression_plans
             .get(&id)
             .cloned()
-            .expect("queried array-length identity must retain its closed plan");
+            .expect("queried usize expression must retain its closed plan");
         self.resolve_constant_dependencies(query, plan.dependencies())?;
         let value = evaluate_expression_plan(&plan, |dependency| {
             match query.completed(&HeaderValueKey::Constant(dependency)) {
@@ -320,7 +320,7 @@ impl HeaderValueComputation {
                 plan.origin(),
             ))
         })?;
-        Ok(HeaderValue::ArrayLength(length.into()))
+        Ok(HeaderValue::UsizeTerm(length.into()))
     }
 
     fn resolve_constant_dependencies(
@@ -378,8 +378,8 @@ impl HeaderValueComputation {
                 .constant_plans
                 .get(&id)
                 .map(ConstantExpressionPlan::origin),
-            HeaderValueKey::ArrayLength(id) => self
-                .array_length_plans
+            HeaderValueKey::UsizeExpression(id) => self
+                .usize_expression_plans
                 .get(&id)
                 .map(ConstantExpressionPlan::origin),
         }
@@ -738,7 +738,7 @@ fn constant_parameter_reference(
         .get(spelling)
         .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))?;
     let declaration = bindings
-        .array_expression_declarations
+        .usize_expression_declarations
         .get(&expression)
         .copied()
         .ok_or_else(|| inconsistent_node(expression))?;

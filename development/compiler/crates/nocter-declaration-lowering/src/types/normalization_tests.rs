@@ -163,6 +163,95 @@ fn preserves_constant_parameters_in_fixed_array_types() {
 }
 
 #[test]
+fn normalizes_constant_arguments_in_nominal_applications() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "pub struct Buffer<T, const N: usize> {\n",
+            "    pub values: [T; N]\n",
+            "}\n",
+            "type Page = Buffer<u8, 2 + 2>\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+    let store = normalized
+        .namespaces()
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types();
+    let u8_ty = store.builtin(BuiltinType::U8);
+
+    assert!(
+        all_nodes(&app, NodeKind::Type)
+            .into_iter()
+            .filter_map(|node| normalized.type_for(node))
+            .any(|ty| matches!(
+                store.get(ty),
+                Some(TypeKind::Nominal { arguments, .. })
+                    if arguments.as_slice() == [
+                        nocter_model::GenericValue::Type(u8_ty),
+                        nocter_model::GenericValue::Usize(UsizeTerm::Value(4)),
+                    ]
+            ))
+    );
+}
+
+#[test]
+fn substitutes_constant_arguments_while_expanding_aliases() {
+    let mut sources = SourceMap::new();
+    let (manifest, app, std_manifest, std_root, prelude) = fixture(
+        &mut sources,
+        concat!(
+            "type Row<T, const N: usize> = [T; N]\n",
+            "type Four = Row<u8, 2 + 2>\n",
+        ),
+    );
+    let normalized = normalized_app(
+        &sources,
+        &manifest,
+        &app,
+        &std_manifest,
+        &std_root,
+        &prelude,
+    )
+    .unwrap();
+    let store = normalized
+        .namespaces()
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types();
+    let u8_ty = store.builtin(BuiltinType::U8);
+
+    assert!(
+        all_nodes(&app, NodeKind::Type)
+            .into_iter()
+            .filter_map(|node| normalized.type_for(node))
+            .any(|ty| matches!(
+                store.get(ty),
+                Some(TypeKind::FixedArray {
+                    element,
+                    length: UsizeTerm::Value(4),
+                }) if *element == u8_ty
+            ))
+    );
+}
+
+#[test]
 fn callable_requirements_normalize_aliases_and_reject_noncallable_types() {
     let mut valid_sources = SourceMap::new();
     let (manifest, app, std_manifest, std_root, prelude) = fixture(

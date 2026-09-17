@@ -81,7 +81,7 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
         panic!("expected qualified nominal base");
     };
     assert!(matches!(
-        bound.kind(arguments[0]),
+        bound.kind(arguments[0].type_value().unwrap()),
         Some(BoundTypeKind::GenericParameter(_))
     ));
 }

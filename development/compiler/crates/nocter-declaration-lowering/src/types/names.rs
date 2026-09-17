@@ -11,17 +11,17 @@ use nocter_syntax::{
 use crate::{PreparedNamespaces, SurfaceDeclarationId};
 
 use super::context::{declaration_module, declaration_source, token_symbol};
-use super::{BoundTypeId, TypeBindingError, TypeBindingRule, projection};
+use super::{BoundGenericValue, BoundTypeId, TypeBindingError, TypeBindingRule, projection};
 
 pub(super) struct NameSegment {
     pub(super) token: SyntaxToken,
-    pub(super) arguments: Vec<BoundTypeId>,
+    pub(super) arguments: Vec<BoundGenericValue>,
     pub(super) arguments_origin: Option<NodeId>,
 }
 
 pub(super) struct TrailingSelection {
     pub(super) name: Symbol,
-    pub(super) arguments: Vec<BoundTypeId>,
+    pub(super) arguments: Vec<BoundGenericValue>,
     pub(super) token: SyntaxToken,
     pub(super) arguments_origin: Option<NodeId>,
 }
@@ -29,7 +29,7 @@ pub(super) struct TrailingSelection {
 pub(super) struct ResolvedEntityPath {
     pub(super) entity: ExportedEntity,
     pub(super) entity_token: SyntaxToken,
-    pub(super) arguments: Vec<BoundTypeId>,
+    pub(super) arguments: Vec<BoundGenericValue>,
     pub(super) arguments_origin: Option<NodeId>,
     pub(super) trailing: Vec<TrailingSelection>,
 }
@@ -73,12 +73,18 @@ pub(super) fn segments(
                 segment.arguments = direct_nodes(tree, *child, NodeKind::GenericArgument)
                     .into_iter()
                     .map(|argument| {
-                        let argument = nocter_syntax::direct_node(tree, argument, NodeKind::Type)
-                            .ok_or(TypeBindingError::InvalidSyntax(argument))?;
-                        values
-                            .get(&argument)
-                            .copied()
-                            .ok_or(TypeBindingError::InvalidSyntax(argument))
+                        if let Some(ty) = nocter_syntax::direct_node(tree, argument, NodeKind::Type)
+                        {
+                            values
+                                .get(&ty)
+                                .copied()
+                                .map(BoundGenericValue::Type)
+                                .ok_or(TypeBindingError::InvalidSyntax(ty))
+                        } else {
+                            nocter_syntax::direct_node(tree, argument, NodeKind::Expression)
+                                .map(BoundGenericValue::UsizeExpression)
+                                .ok_or(TypeBindingError::InvalidSyntax(argument))
+                        }
                     })
                     .collect::<Result<_, _>>()?;
                 segment.arguments_origin = Some(*child);

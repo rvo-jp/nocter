@@ -6,9 +6,9 @@ use nocter_declarations::{
 };
 use nocter_frontend_bindings::AssociatedProjectionUse;
 use nocter_model::{
-    AssociatedTypeId, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
-    ParameterOrigin, ProvenanceSet, Symbol, TupleElements, TypeAliasId, TypeId, TypeKind,
-    TypeStore,
+    AssociatedTypeId, CallableContract, GenericParameterId, GenericValue, InterfaceId,
+    OpaqueTypeId, ParameterOrigin, ProvenanceSet, Symbol, TupleElements, TypeAliasId, TypeId,
+    TypeKind, TypeStore, UsizeTerm,
 };
 use nocter_syntax::NodeId;
 
@@ -210,7 +210,7 @@ struct NormalizationContext {
 struct EvaluationKey {
     ty: BoundTypeId,
     declaration: SurfaceDeclarationId,
-    substitutions: Box<[(GenericParameterId, TypeId)]>,
+    substitutions: Box<[(GenericParameterId, GenericValue)]>,
 }
 
 impl EvaluationKey {
@@ -232,7 +232,7 @@ enum EvaluationFrame {
     AliasArguments {
         key: EvaluationKey,
         definition: TypeAliasId,
-        arguments: Vec<EvaluationKey>,
+        arguments: Box<[super::BoundGenericValue]>,
     },
     AliasTarget {
         key: EvaluationKey,
@@ -249,8 +249,8 @@ struct Evaluator<'a> {
     memo: HashMap<EvaluationKey, TypeId>,
     active: HashSet<EvaluationKey>,
     alias_stack: Vec<TypeAliasId>,
-    array_expression_ids: &'a HashMap<NodeId, nocter_model::ConstantExpressionId>,
-    array_lengths: &'a HashMap<nocter_model::ConstantExpressionId, nocter_model::UsizeTerm>,
+    usize_expression_ids: &'a HashMap<NodeId, nocter_model::ConstantExpressionId>,
+    usize_terms: &'a HashMap<nocter_model::ConstantExpressionId, nocter_model::UsizeTerm>,
     associated_projection_uses: Vec<AssociatedProjectionUse>,
 }
 
@@ -334,9 +334,11 @@ impl Evaluator<'_> {
                 let normalized = if let Some(substitution) = key
                     .substitutions
                     .iter()
-                    .find_map(|(candidate, ty)| (*candidate == parameter).then_some(*ty))
+                    .find_map(|(candidate, value)| (*candidate == parameter).then_some(*value))
                 {
                     substitution
+                        .as_type()
+                        .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?
                 } else {
                     self.store
                         .intern(TypeKind::GenericParameter(parameter))
@@ -358,17 +360,17 @@ impl Evaluator<'_> {
                 arguments,
             } => {
                 self.alias_stack.push(definition);
-                let arguments: Vec<_> = arguments
+                let type_arguments: Vec<_> = arguments
                     .iter()
                     .copied()
-                    .map(|argument| key.child(argument))
+                    .filter_map(|argument| argument.type_value().map(|ty| key.child(ty)))
                     .collect();
                 frames.push(EvaluationFrame::AliasArguments {
                     key,
                     definition,
-                    arguments: arguments.clone(),
+                    arguments,
                 });
-                for argument in arguments.iter().rev() {
+                for argument in type_arguments.iter().rev() {
                     frames.push(EvaluationFrame::Enter(argument.clone()));
                 }
             }
@@ -387,7 +389,7 @@ impl Evaluator<'_> {
         &mut self,
         key: EvaluationKey,
         definition: TypeAliasId,
-        arguments: &[EvaluationKey],
+        arguments: &[super::BoundGenericValue],
         frames: &mut Vec<EvaluationFrame>,
     ) -> Result<(), TypeNormalizationError> {
         let alias = self
@@ -402,13 +404,11 @@ impl Evaluator<'_> {
             .parameters
             .iter()
             .copied()
-            .zip(arguments.iter().map(|argument| {
-                self.memo
-                    .get(argument)
-                    .copied()
-                    .ok_or(TypeNormalizationError::InvalidBoundType(argument.ty))
-            }))
-            .map(|(parameter, argument)| argument.map(|argument| (parameter, argument)))
+            .zip(arguments.iter().copied())
+            .map(|(parameter, argument)| {
+                self.generic_result(&key, argument)
+                    .map(|argument| (parameter, argument))
+            })
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
         let target = EvaluationKey {
@@ -436,7 +436,7 @@ impl Evaluator<'_> {
                 arguments,
             } => TypeKind::Nominal {
                 definition,
-                arguments: self.results(&key, &arguments)?.into(),
+                arguments: self.generic_results(&key, &arguments)?,
             },
             BoundTypeKind::Opaque {
                 definition,
@@ -464,12 +464,7 @@ impl Evaluator<'_> {
             BoundTypeKind::Slice(element) => TypeKind::Slice(self.result(&key, element)?),
             BoundTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
                 element: self.result(&key, element)?,
-                length: self
-                    .array_expression_ids
-                    .get(&length)
-                    .and_then(|length| self.array_lengths.get(length))
-                    .cloned()
-                    .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
+                length: self.usize_term(&key, length)?,
             },
             BoundTypeKind::Tuple(elements) => {
                 let elements = self.results(&key, &elements)?;
@@ -552,6 +547,57 @@ impl Evaluator<'_> {
             .copied()
             .map(|child| self.result(parent, child))
             .collect()
+    }
+
+    fn generic_results(
+        &self,
+        parent: &EvaluationKey,
+        values: &[super::BoundGenericValue],
+    ) -> Result<nocter_model::GenericApplication, TypeNormalizationError> {
+        values
+            .iter()
+            .copied()
+            .map(|value| self.generic_result(parent, value))
+            .collect::<Result<Vec<_>, _>>()
+            .map(nocter_model::GenericApplication::new)
+    }
+
+    fn generic_result(
+        &self,
+        parent: &EvaluationKey,
+        value: super::BoundGenericValue,
+    ) -> Result<GenericValue, TypeNormalizationError> {
+        match value {
+            super::BoundGenericValue::Type(ty) => self.result(parent, ty).map(GenericValue::Type),
+            super::BoundGenericValue::UsizeExpression(expression) => {
+                self.usize_term(parent, expression).map(GenericValue::Usize)
+            }
+        }
+    }
+
+    fn usize_term(
+        &self,
+        parent: &EvaluationKey,
+        expression: NodeId,
+    ) -> Result<UsizeTerm, TypeNormalizationError> {
+        let term = self
+            .usize_expression_ids
+            .get(&expression)
+            .and_then(|id| self.usize_terms.get(id))
+            .copied()
+            .ok_or(TypeNormalizationError::InvalidBoundType(parent.ty))?;
+        let UsizeTerm::Parameter(parameter) = term else {
+            return Ok(term);
+        };
+        match parent
+            .substitutions
+            .iter()
+            .find_map(|(candidate, value)| (*candidate == parameter).then_some(*value))
+        {
+            Some(GenericValue::Usize(value)) => Ok(value),
+            Some(GenericValue::Type(_)) => Err(TypeNormalizationError::InvalidBoundType(parent.ty)),
+            None => Ok(term),
+        }
     }
 
     fn complete(&mut self, key: EvaluationKey, normalized: TypeId) {
@@ -856,9 +902,11 @@ impl Evaluator<'_> {
 
 fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey> {
     let children: Vec<_> = match kind {
-        BoundTypeKind::Nominal { arguments, .. } | BoundTypeKind::Opaque { arguments, .. } => {
-            arguments.to_vec()
-        }
+        BoundTypeKind::Nominal { arguments, .. } => arguments
+            .iter()
+            .filter_map(|argument| argument.type_value())
+            .collect(),
+        BoundTypeKind::Opaque { arguments, .. } => arguments.to_vec(),
         BoundTypeKind::Tuple(elements) => elements.to_vec(),
         BoundTypeKind::AssociatedSelection { base, .. }
         | BoundTypeKind::Pointer(base)
@@ -945,10 +993,10 @@ pub fn normalize_header_types(
         requirements: bound_requirements,
         normalization_origins,
         structural_constants,
-        array_expressions: _,
-        array_expression_ids,
-        array_expression_declarations: _,
-        array_lengths,
+        usize_expressions: _,
+        usize_expression_ids,
+        usize_expression_declarations: _,
+        usize_terms,
     } = bindings;
     let context = prepare_context(
         &mut namespaces,
@@ -973,8 +1021,8 @@ pub fn normalize_header_types(
         memo: HashMap::new(),
         active: HashSet::new(),
         alias_stack: Vec::new(),
-        array_expression_ids: &array_expression_ids,
-        array_lengths: &array_lengths,
+        usize_expression_ids: &usize_expression_ids,
+        usize_terms: &usize_terms,
         associated_projection_uses: Vec::new(),
     };
 

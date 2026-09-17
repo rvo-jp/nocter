@@ -64,10 +64,21 @@ pub(super) fn bind(
             if kind == NodeKind::Type {
                 arena.roots.insert(node, id);
                 arena.root_declarations.insert(node, declaration);
-            } else if kind == NodeKind::FixedArrayType {
-                arena
-                    .array_expression_declarations
-                    .insert(array_length(tree, node)?, declaration);
+            } else {
+                let expressions: Vec<_> = match &arena.kinds[id.index()] {
+                    BoundTypeKind::FixedArray { length, .. } => vec![*length],
+                    BoundTypeKind::Nominal { arguments, .. }
+                    | BoundTypeKind::Alias { arguments, .. } => arguments
+                        .iter()
+                        .filter_map(|argument| argument.usize_expression())
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                for expression in expressions {
+                    arena
+                        .usize_expression_declarations
+                        .insert(expression, declaration);
+                }
             }
         }
     }
@@ -235,7 +246,7 @@ fn bind_entity(
     token: SyntaxToken,
     arguments_origin: Option<NodeId>,
     entity: ExportedEntity,
-    arguments: &[BoundTypeId],
+    arguments: &[super::BoundGenericValue],
     kinds: &mut Vec<BoundTypeKind>,
 ) -> Result<BoundTypeId, TypeBindingError> {
     match entity {
@@ -255,6 +266,12 @@ fn bind_entity(
                 ReservedEntity::NominalType(definition),
                 arguments.len(),
             )?;
+            validate_argument_domains(
+                namespaces,
+                ReservedEntity::NominalType(definition),
+                arguments,
+                arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
+            )?;
             Ok(push(
                 kinds,
                 BoundTypeKind::Nominal {
@@ -269,6 +286,12 @@ fn bind_entity(
                 arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
                 ReservedEntity::TypeAlias(definition),
                 arguments.len(),
+            )?;
+            validate_argument_domains(
+                namespaces,
+                ReservedEntity::TypeAlias(definition),
+                arguments,
+                arguments_origin.map_or(SyntaxOrigin::Token(token), SyntaxOrigin::Node),
             )?;
             Ok(push(
                 kinds,
@@ -287,6 +310,48 @@ fn bind_entity(
             SyntaxOrigin::Token(token),
         )),
     }
+}
+
+fn validate_argument_domains(
+    namespaces: &PreparedNamespaces<'_>,
+    entity: ReservedEntity,
+    arguments: &[super::BoundGenericValue],
+    origin: SyntaxOrigin,
+) -> Result<(), TypeBindingError> {
+    let generics = &namespaces.imports.generics;
+    let parameters = generics
+        .headers
+        .reserved
+        .declaration_for_entity(entity)
+        .and_then(|declaration| generics.own(declaration))
+        .ok_or_else(|| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))?;
+    for (parameter, argument) in parameters.iter().copied().zip(arguments) {
+        let domain = generics
+            .headers
+            .reserved
+            .program
+            .declarations()
+            .generic_parameter(parameter)
+            .ok_or_else(|| TypeBindingError::rule(TypeBindingRule::InvalidTypeArguments, origin))?
+            .domain();
+        let valid = matches!(
+            (domain, argument),
+            (
+                nocter_declarations::GenericParameterDomain::Type,
+                super::BoundGenericValue::Type(_)
+            ) | (
+                nocter_declarations::GenericParameterDomain::UsizeConstant,
+                super::BoundGenericValue::UsizeExpression(_)
+            )
+        );
+        if !valid {
+            return Err(TypeBindingError::rule(
+                TypeBindingRule::InvalidTypeArguments,
+                origin,
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn bind_associated_tail(

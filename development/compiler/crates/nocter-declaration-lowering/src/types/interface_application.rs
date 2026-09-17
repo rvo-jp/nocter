@@ -58,9 +58,23 @@ pub(super) fn bind(
                 ReservedEntity::Interface(definition),
                 path.arguments.len(),
             )?;
+            let arguments = path
+                .arguments
+                .iter()
+                .copied()
+                .map(|argument| {
+                    argument.type_value().ok_or_else(|| {
+                        TypeBindingError::rule(
+                            TypeBindingRule::InvalidTypeArguments,
+                            path.arguments_origin
+                                .map_or(SyntaxOrigin::Token(path.entity_token), SyntaxOrigin::Node),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(BoundInterfaceApplication {
                 definition,
-                arguments: path.arguments.into_boxed_slice(),
+                arguments: arguments.into_boxed_slice(),
             })
         }
         _ => Err(TypeBindingError::InvalidSyntax(application)),
