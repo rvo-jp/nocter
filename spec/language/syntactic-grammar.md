@@ -217,7 +217,8 @@ parsing.
 The following productions are reused by declarations and member containers:
 
 ```text
-GenericParameters = "<" NonEmptyList(Name) ">"
+GenericParameters = "<" NonEmptyList(GenericParameter) ">"
+GenericParameter = Name | "const" Name ":" Type
 
 Parameters = "(" List(ParameterContract) ")"
 ParameterContract = Parameter ProvenanceClause?
@@ -534,9 +535,10 @@ BuiltinScalarType = "bool"
                   | "usize" | "isize"
 
 NamedType = NamedTypeHead TypeSelectionSuffix*
-NamedTypeHead = Name TypeArguments? | "Self"
-TypeArguments = "<" NonEmptyList(Type) ">"
-TypeSelectionSuffix = "." Name TypeArguments?
+NamedTypeHead = Name GenericArguments? | "Self"
+GenericArguments = "<" NonEmptyList(GenericArgument) ">"
+GenericArgument = Type | StructuralConstantExpression
+TypeSelectionSuffix = "." Name GenericArguments?
 
 SliceType = "[" Type "]"
 FixedArrayType = "[" Type ";" Expression "]"
@@ -554,6 +556,12 @@ BorrowType = "&" NonCallablePrefix | "&+" NonCallablePrefix
 CallableResult = Type | OpaqueResult TypeOutcomeSuffix?
 OpaqueResult = "some" InterfaceApplication
 ```
+
+`StructuralConstantExpression` is the expression subset defined by
+[Compile-Time Constants](constants.md#structural-constant-arguments). A generic argument syntax
+node retains its parsed type or expression structure without consulting a declaration. A bare name
+is the common leaf of both forms; semantic lowering classifies that leaf once from the selected
+declaration's parameter schema. It is not reparsed from source text.
 
 Prefix pointer and borrow operators bind before an outcome suffix. Consequently `&T?` is an
 optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in
@@ -592,14 +600,14 @@ module-qualified nominal type can be generic; semantic validation rejects argume
 associated projection because generic associated types are not supported. A selected type may
 then participate in ordinary outer prefix and outcome forms.
 
-After a `Name`, `<` starts `TypeArguments` only when the complete non-empty list and matching `>`
+After a `Name`, `<` starts `GenericArguments` only when the complete non-empty list and matching `>`
 are present in that type position. Otherwise the enclosing expression grammar retains `<` as its
 ordering token. This bounded syntactic lookahead never asks whether the name denotes a generic
 type. Nested closing `>>` follows the token-subdivision rule below.
 
 The fixed-array length is an `Expression` parsed without name or type information. Semantic
-constant evaluation requires it to produce a `usize`; constant generic parameters remain
-unsupported.
+constant evaluation requires it to produce a `usize`; a visible `usize` constant parameter is a
+valid structural value.
 
 The lexer emits `>>` as one punctuation token. While parsing type arguments, that token supplies
 two consecutive `>` closers only when two currently open type-argument lists require them. Thus
@@ -910,10 +918,10 @@ GenericOwnerMember = GenericOwnerReference "." Name
 GenericOwnerReference = GenericNamedTypeHead TypeSelectionSuffix*
                       | PlainNamedTypeHead PlainTypeSelectionSuffix*
                         GenericTypeSelectionSuffix TypeSelectionSuffix*
-GenericNamedTypeHead = Name TypeArguments
+GenericNamedTypeHead = Name GenericArguments
 PlainNamedTypeHead = Name | "Self"
 PlainTypeSelectionSuffix = "." Name
-GenericTypeSelectionSuffix = "." Name TypeArguments
+GenericTypeSelectionSuffix = "." Name GenericArguments
 
 OwnerReference = NamedType
                | BuiltinScalarType
@@ -941,7 +949,7 @@ AllocationOverride = "using" AllocatorPlace
 owner arguments remains the same identifier-shaped primary used for values and types; resolution
 decides its namespace. Dotted owner references can select a type from an imported module namespace
 or an associated type through the same left-to-right rule as `NamedType`. Explicit
-`TypeArguments` in expression position are recognized only in the three productions that
+`GenericArguments` in expression position are recognized only in the three productions that
 immediately prove construction-owner syntax: before a final `.Name` member, a struct initializer,
 or a spaced typed literal. `GenericOwnerReference` spells out the token cases in which at least one
 owner segment has explicit arguments. Consequently `left < middle > right` is never reparsed as a

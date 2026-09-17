@@ -146,6 +146,30 @@ structural constants. A constant whose initializer calls a `const` callable rema
 ordinary value, but it cannot determine a fixed-array length. This boundary prevents type
 construction from invoking body checking before declaration types exist.
 
+## Structural Constant Arguments
+
+A `usize` constant generic argument uses the same structural constant-expression evaluator as a
+fixed-array length. A closed argument is evaluated once while declaration types are normalized.
+Its checked value, not its source expression, becomes part of type identity:
+
+```nct
+const WORD_BYTES: usize = 4
+
+type First = Buffer<u8, WORD_BYTES>
+type Second = Buffer<u8, 2 + 2>
+```
+
+`First` and `Second` denote the same specialization. A reference to a visible `usize` constant
+parameter is represented as a symbolic parameter term. Structural arithmetic containing such a
+term is retained as a normalized semantic expression and is evaluated when substitution closes all
+of its parameters. Evaluation failures are reported at the authored argument or length that owns
+the expression.
+
+The evaluator remains the sole authority for literals, constant references, arithmetic,
+conversion, overflow, and target-width checks. Type construction does not copy those rules, and
+layout, ABI lowering, code generation, and editor presentation cannot evaluate or parse an
+argument again.
+
 ## Immutable Static Data
 
 `static` declares one immutable, addressable value whose initialized representation is embedded in
@@ -202,5 +226,6 @@ storage from `const` values, and never prints an initializer's potentially large
 
 ## Future Direction
 
-This chapter does not define associated or interface constants, constant generic parameters,
-compile-time construction of owned `String` and `Vec` values, or mutable globals.
+This chapter does not define associated or interface constants, constant parameters other than
+`usize`, constant defaults or predicates, compile-time construction of owned `String` and `Vec`
+values, or mutable globals.

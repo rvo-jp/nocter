@@ -2,7 +2,8 @@
 
 ## Generics
 
-Generic declarations use angle brackets:
+Generic declarations use angle brackets. A bare parameter is a type parameter. A constant
+parameter writes `const`, a name, and its value type:
 
 ```nct
 struct Buffer<T> {
@@ -15,15 +16,20 @@ func first<T>(items: &[T]): T? {
     }
     return items[0]
 }
+
+struct FixedBuffer<T, const N: usize> {
+    values: [T; N]
+}
 ```
 
-A generic parameter list declares names and arity only. A `where` clause declares every nominal
+A generic parameter list declares an ordered parameter schema and arity. v0.57.0 supports `usize`
+constant parameters; every other bare parameter is a type parameter. A `where` clause declares every nominal
 interface, structural callable, intrinsic copy, operator, coercion, expansion, and pattern-refinement
 requirement. The complete
 recognition grammar is centralized under
 [Generic Requirements](syntactic-grammar.md#generic-requirements).
 
-Names in an explicit generic parameter list are unique. A nested declaration cannot redeclare a
+Names in an explicit generic parameter list are unique across both domains. A nested declaration cannot redeclare a
 generic name visible from its enclosing declaration; it must use that existing parameter or choose
 a new name. Declaration type patterns are the sole exception to spelling repetition: their first
 occurrence declares a binder and later occurrences refer to that same binder, as specified below.
@@ -175,7 +181,31 @@ Generic implementation uses monomorphization. Predicate equality and binder refi
 compile-time only and create
 no witness, metadata, dictionary, or ABI field. Nocter does not provide runtime generic metadata,
 first-class interface objects, class-style implementation inheritance, higher-kinded types, generic
-associated types, or general const generics.
+associated types, or general dependent types.
+
+### Constant Parameters and Arguments
+
+A constant argument occupies the position of a `const` parameter and uses the structural
+constant-expression domain defined by [Compile-Time Constants](constants.md#structural-constant-arguments).
+The argument must evaluate to `usize`. A type argument in that position, or a value argument in a
+type-parameter position, is an error at the argument site.
+
+```nct
+type Page = FixedBuffer<u8, 4096>
+
+const HEADER_SIZE: usize = 12
+type Packet = FixedBuffer<u8, HEADER_SIZE + 256>
+```
+
+Argument order is the declaration's authored parameter order. The semantic type stores normalized
+generic arguments, not syntax. Closed constant arguments therefore compare by evaluated value:
+`FixedBuffer<u8, 4>` and `FixedBuffer<u8, 2 + 2>` are the same type. Within a generic declaration,
+a reference to its own constant parameter remains one symbolic semantic identity until
+specialization supplies a value.
+
+Constant parameters may appear where a structural `usize` constant is required, including a
+fixed-array length and a nested constant argument. They are values only in compile-time structural
+positions; they do not create runtime parameters, addresses, mutable storage, or runtime metadata.
 
 ### Callable Type-Argument Inference
 

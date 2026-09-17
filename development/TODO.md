@@ -2,18 +2,17 @@
 
 ## Current State
 
-Nocter v0.56.0 is published and externally audited. Its annotated tag, single release asset,
-downloaded installed home, latest-release selection, and source-identified Pages deployment agree
-with the qualified candidate. The immutable evidence lives in
-[`development/history/release-audits/v0.56.0.md`](history/release-audits/v0.56.0.md).
+Nocter v0.56.0 is published and externally audited. v0.57.0 Phase 0 is active and establishes the
+single semantic authority for `usize` constant parameters and arguments before fixed-capacity
+standard APIs depend on them. The milestone contract lives in
+[`development/history/milestones/v0.57.0.md`](history/milestones/v0.57.0.md).
 
 ## Next Work
 
-Define v0.57.0 around constant generic parameters and fixed-capacity data. Start from concrete
-standard-library needs—fixed buffers, protocol records, stack-resident collections, and
-allocation-free adapters—then design one checked constant-argument model that reuses the existing
-compile-time evaluator, participates in type identity and layout, and remains available to editor
-features without source-text reinterpretation.
+Complete v0.57.0 Phase 0: freeze the grammar and replace type-only generic metadata with one ordered
+parameter schema whose constant arguments become normalized semantic terms or evaluated values.
+Then proceed through type construction, inference, layout, fixed-capacity APIs, and editor
+qualification without introducing a second evaluator or downstream source interpretation.
 
 Preserve the v0.52.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
