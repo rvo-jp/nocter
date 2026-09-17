@@ -24,6 +24,7 @@ comments.
 | owned UTF-8 text | [Owned Strings](string/README.md) | `std/string` |
 | growable sequences | [Vectors](vec/README.md) | `std/vec` |
 | borrowed sequences | [Slices](slice/README.md) | `std/slice` |
+| borrowed parsing windows | [Borrowed Scanning](scan/README.md) | `std/scan` |
 | iteration and collection | [Iteration](iter/README.md) | `std/iter`, `std/iter/collect` |
 | value formatting | [Formatting](fmt/README.md) | `std/fmt` |
 | byte streams and buffering | [I/O](io/README.md) | `std/io`, `std/io/buffer` |

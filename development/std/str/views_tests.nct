@@ -2,6 +2,24 @@
 
 see ./index.nct
 
+use /vec.Vec
+
+test borrowed_utf8_validation_preserves_the_input_storage {
+    let bytes: Vec<u8> = Vec [u8.truncate(206), u8.truncate(187)]
+    let view = from_utf8(&bytes)?
+    if view == "λ" { return }
+    return error.new("std.str.test", "borrowed UTF-8 validation changed bytes")
+}
+
+test borrowed_utf8_validation_rejects_invalid_encoding {
+    let bytes: Vec<u8> = Vec [u8.truncate(255)]
+    let _view = from_utf8(&bytes) catch failure {
+        if failure.has_code("std.string.invalid_utf8") { return }
+        return error.new("std.str.test", "borrowed UTF-8 used the wrong failure")
+    }
+    return error.new("std.str.test", "invalid borrowed UTF-8 was accepted")
+}
+
 test split_once_returns_two_borrowed_positions {
     let (key, value) = "language=Nocter".split_once("=") otherwise {
         return error.new("std.str.test", "split_once missed a present separator")

@@ -229,6 +229,17 @@ instance BufReader<R> where R impl Reader {
         )?
     }
 
+    async method &+self.read_line_into_bounded(
+        destination: &+String,
+        maximum_encoded_line_bytes: usize,
+    ): bool! {
+        return await read_async_line_into_with_limit(
+            self,
+            destination,
+            bounded_line_limit(maximum_encoded_line_bytes),
+        )?
+    }
+
     method self.finish(): R {
         return move self.source
     }

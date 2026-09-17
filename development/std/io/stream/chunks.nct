@@ -4,11 +4,19 @@ see ./index.nct
 
 use /io.Reader
 use /io
+use /internal/safety
+use /scan.ByteWindow
 use /vec.Vec
 
 struct ByteChunks<R> {
     source: R
     chunk_size: usize
+    is_finished: bool
+}
+
+struct ByteWindows<R> {
+    source: R
+    storage: Vec<u8>
     is_finished: bool
 }
 
@@ -64,6 +72,47 @@ instance ByteChunks<R> where R impl Reader {
         }
         storage.truncate(received)
         return move storage
+    }
+
+    method self.finish(): R {
+        return move self.source
+    }
+}
+
+construct ByteWindows<R> {
+    func new(source: R): Self where R impl Reader {
+        return ByteWindows.with_window_size(move source, DEFAULT_CHUNK_SIZE)
+    }
+
+    func with_window_size(source: R, requested_window_size: usize): Self where R impl Reader {
+        return ByteWindows<R> {
+            source: move source,
+            storage: initialized_chunk(normalized_chunk_size(requested_window_size)),
+            is_finished: false,
+        }
+    }
+}
+
+instance ByteWindows<R> where R impl Reader {
+    async method &+self.next(): ByteWindow?! from self {
+        if self.is_finished { return none }
+        let reported = await self.source.read(&+self.storage) catch failure {
+            self.is_finished = true
+            return move failure
+        }
+        let received = io.validate_read_count(reported, self.storage.len()) catch failure {
+            self.is_finished = true
+            return move failure
+        }
+        if received == 0 {
+            self.is_finished = true
+            return none
+        }
+        let storage: &[u8] = &self.storage
+        let window = ByteWindow.get(storage, 0, received) otherwise {
+            return safety.invariant_abort()
+        }
+        return move window
     }
 
     method self.finish(): R {

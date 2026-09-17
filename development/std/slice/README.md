@@ -10,6 +10,11 @@ the required equality operation. Strict ordering is lexicographic and relies onl
 element order. [`Vec<T>`](../vec/README.md) reaches these operations through one-step borrow
 coercions, so direct Vec indexing and slice indexing select the same implementation.
 
+`get_range` uses half-open element bounds. It returns `none` when the start exceeds the end or the
+end exceeds the source length. Empty ranges, including the range at the source end, are valid and
+retain the source slice's provenance; constructing a range never grants access through a raw
+address.
+
 Readwrite slices order elements in place with constant auxiliary storage and `O(n log n)`
 worst-case comparisons and moves. No later element is strictly less than an earlier element after
 sorting. Equivalent elements may change relative order. Rearrangement transfers values without

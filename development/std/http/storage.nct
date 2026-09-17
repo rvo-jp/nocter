@@ -2,6 +2,7 @@
 
 see ./index.nct
 
+use /scan.TextCursor
 use /string.String
 use /vec.Vec
 
@@ -58,13 +59,19 @@ copy struct RequestTargetSegment {
 }
 
 struct QueryParameter {
+    name_value: &str
+    value_value: &str
+}
+
+struct OwnedQueryParameter {
     name_value: String
     value_value: String
 }
 
 struct QueryIter {
-    query: &str
-    next_start: usize
+    cursor: TextCursor
+    name_scratch: Vec<u8>
+    value_scratch: Vec<u8>
     finished: bool
 }
 

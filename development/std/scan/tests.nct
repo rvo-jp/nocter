@@ -1,0 +1,36 @@
+//! Cursor behavior and provenance regression tests.
+
+see ./index.nct
+
+test byte_cursor_lends_exact_windows_without_partial_advance {
+    var cursor = ByteCursor.new("alpha,beta".bytes())
+    let first = cursor.take_until(44)
+    if first.len() != 5 || first.bytes()[0] != 97 || cursor.offset() != 6 {
+        return error.new("std.scan.test", "byte delimiter window changed")
+    }
+    let too_large = cursor.take(5) otherwise {
+        if cursor.offset() != 6 { return error.new("std.scan.test", "failed take advanced") }
+        let tail = cursor.take(4) otherwise {
+            return error.new("std.scan.test", "byte tail was lost")
+        }
+        if tail.len() == 4 && tail.bytes()[3] == 97 && cursor.is_finished() { return }
+        return error.new("std.scan.test", "byte tail changed")
+    }
+    let _ = move too_large
+    return error.new("std.scan.test", "oversized byte take succeeded")
+}
+
+test text_cursor_preserves_utf8_boundaries_and_delimiters {
+    var cursor = TextCursor.new("α/βγ")
+    let first = cursor.take_until("/")?
+    if first.text() != "α" || cursor.offset() != 3 {
+        return error.new("std.scan.test", "text delimiter window changed")
+    }
+    let split_scalar = cursor.take_bytes(1) otherwise {
+        let tail = cursor.remaining()
+        if tail == "βγ" && cursor.offset() == 3 { return }
+        return error.new("std.scan.test", "failed UTF-8 take advanced")
+    }
+    let _ = move split_scalar
+    return error.new("std.scan.test", "split UTF-8 scalar was accepted")
+}

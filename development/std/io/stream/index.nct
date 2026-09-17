@@ -2,7 +2,8 @@
 
 use /io.Reader
 use /io/buffer.BufReader
-use /iter/asynchronous.AsyncIterator
+use /iter/asynchronous.{AsyncIterator, AsyncLendingIterator}
+use /scan.{ByteWindow, TextWindow}
 use /string.String
 use /vec.Vec
 see ./chunks.nct
@@ -26,6 +27,24 @@ instance ByteChunks<R> where R impl Reader {
     pub method self.finish(): R
 }
 
+/// Lazily reads bounded byte windows through one reusable allocation.
+pub struct ByteWindows<R>
+
+construct ByteWindows<R> {
+    /// Wraps `source` with the default positive reusable window size.
+    pub func new(source: R): Self where R impl Reader
+
+    /// Wraps `source`, normalizing a zero requested window size to one byte.
+    pub func with_window_size(source: R, requested_window_size: usize): Self where R impl Reader
+}
+
+instance ByteWindows<R> where R impl Reader {
+    impl AsyncLendingIterator { .Item = ByteWindow }
+
+    /// Consumes the adapter and returns its underlying source.
+    pub method self.finish(): R
+}
+
 /// Lazily reads bounded, independently owned UTF-8 lines from a source.
 pub struct Lines<R>
 
@@ -43,6 +62,28 @@ construct Lines<R> {
 
 instance Lines<R> where R impl Reader {
     impl AsyncIterator { .Item = String }
+
+    /// Consumes the adapter, discards buffered input, and returns its underlying source.
+    pub method self.finish(): R
+}
+
+/// Lazily reads UTF-8 line windows through one reusable line allocation.
+pub struct LineWindows<R>
+
+construct LineWindows<R> {
+    /// Wraps `source` with the default read buffer and an explicit line bound.
+    pub func new(source: R, maximum_encoded_line_bytes: usize): Self where R impl Reader
+
+    /// Wraps `source` with explicit read-buffer and encoded-line bounds.
+    pub func with_limits(
+        source: R,
+        requested_buffer_capacity: usize,
+        maximum_encoded_line_bytes: usize,
+    ): Self where R impl Reader
+}
+
+instance LineWindows<R> where R impl Reader {
+    impl AsyncLendingIterator { .Item = TextWindow }
 
     /// Consumes the adapter, discards buffered input, and returns its underlying source.
     pub method self.finish(): R

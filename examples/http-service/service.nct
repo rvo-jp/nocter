@@ -115,7 +115,7 @@ async func handle_user_route(
             timeout,
         )?
     }
-    let parameter = move item?
+    let parameter = move item
     if user != "alice" || parameter.name() != "view" || parameter.value() != "full" {
         let response = OutgoingResponse.text(Status.bad_request(), "invalid user query")?
         return await request.respond_with_timeout(

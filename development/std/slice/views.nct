@@ -47,6 +47,16 @@ instance [T] {
         return self.get(0)?
     }
 
+    noalloc method &self.get_range(start: usize, end: usize): &[T]? from self {
+        if start > end || end > self.len() {
+            return none
+        }
+        let element_size = ptr.pointee_size(self.ptr())
+        let start_address = slice_ptr_addr_raw(self) + start * element_size
+        let start_pointer: *T = ptr.from_addr(start_address)
+        return ptr.slice_from_raw_parts_value(start_pointer, end - start)
+    }
+
     operator (&self == other: &Self): bool where (&T == &T): bool {
         if self.len() != other.len() {
             return false

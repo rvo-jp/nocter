@@ -26,6 +26,9 @@ instance [T] {
     /// Returns the first element borrow, or `none` when the slice is empty.
     pub noalloc method &self.first(): &T?
 
+    /// Returns the borrowed half-open range when both bounds are ordered and in bounds.
+    pub noalloc method &self.get_range(start: usize, end: usize): &[T]? from self
+
     /// Compares elements from left to right without consuming either slice.
     pub operator (&self == other: &Self): bool where (&T == &T): bool
 

@@ -75,6 +75,12 @@ instance BufReader<R> where R impl Reader {
     /// Reads one line for a package-owned adapter with an explicit encoded-byte limit.
     pub(/) async method &+self.read_line_bounded(maximum_encoded_line_bytes: usize): String?!
 
+    /// Replaces package-owned reusable storage with one explicitly bounded line.
+    pub(/) async method &+self.read_line_into_bounded(
+        destination: &+String,
+        maximum_encoded_line_bytes: usize,
+    ): bool!
+
     /// Consumes this buffer, discards unread bytes, and returns its underlying source.
     pub method self.finish(): R
 

@@ -1,6 +1,6 @@
 use std/http.Response
 use std/io.{File, Reader}
-use std/io/stream.{ByteChunks, Lines}
+use std/io/stream.{ByteChunks, ByteWindows, Lines, LineWindows}
 use std/iter/asynchronous.AsyncIterator
 use std/net.TcpStream
 use std/process.{ChildStderr, ChildStdout}
@@ -158,11 +158,75 @@ async func oversized_line_is_terminal(): bool {
     return false
 }
 
+async func byte_windows_reuse_storage_without_losing_bounds(): bool! {
+    let source = MemoryReader.new(Vec [
+        u8.truncate(10),
+        u8.truncate(11),
+        u8.truncate(12),
+        u8.truncate(13),
+        u8.truncate(14),
+    ])
+    let windows = ByteWindows.with_window_size(move source, 3)
+    var seen: usize = 0
+    for await window in move windows {
+        let bytes = window.bytes()
+        if seen == 0 && (bytes.len() != 3 || bytes[0] != 10 || bytes[2] != 12) {
+            return false
+        }
+        if seen == 1 && (bytes.len() != 2 || bytes[0] != 13 || bytes[1] != 14) {
+            return false
+        }
+        if seen >= 2 { return false }
+        seen += 1
+    }
+    return seen == 2
+}
+
+async func line_windows_reuse_owned_text(): bool! {
+    let source = MemoryReader.new(Vec [
+        u8.truncate(120),
+        u8.truncate(10),
+        u8.truncate(121),
+        u8.truncate(122),
+    ])
+    let lines = LineWindows.with_limits(move source, 2, 8)
+    var seen: usize = 0
+    for await window in move lines {
+        let text = window.text()
+        if seen == 0 && text != "x" { return false }
+        if seen == 1 && text != "yz" { return false }
+        if seen >= 2 { return false }
+        seen += 1
+    }
+    return seen == 2
+}
+
+async func oversized_line_window_is_terminal(): bool {
+    let source = MemoryReader.new(Vec [
+        u8.truncate(97),
+        u8.truncate(98),
+        u8.truncate(99),
+        u8.truncate(10),
+    ])
+    var lines = LineWindows.with_limits(move source, 2, 2)
+    let _line = await lines.next() catch failure {
+        if !failure.has_code("std.io.line_too_long") { return false }
+        let _again = await lines.next() catch _ { return false } otherwise { return true }
+        return false
+    } otherwise {
+        return false
+    }
+    return false
+}
+
 async func main(): i32! {
     if !await chunks_are_bounded_and_terminal()? { return 1 }
     if !await zero_chunk_size_makes_progress()? { return 2 }
     if !await invalid_chunk_count_is_terminal() { return 3 }
     if !await buffered_lines_are_async_items()? { return 4 }
     if !await oversized_line_is_terminal() { return 5 }
+    if !await byte_windows_reuse_storage_without_losing_bounds()? { return 6 }
+    if !await line_windows_reuse_owned_text()? { return 7 }
+    if !await oversized_line_window_is_terminal() { return 8 }
     return 0
 }

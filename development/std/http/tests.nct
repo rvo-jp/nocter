@@ -456,43 +456,41 @@ test request_targets_split_once_and_decode_query_values {
     }
 
     var pairs = target.query_pairs()
-    let first_result = pairs.next() otherwise {
+    let first = pairs.next() otherwise {
         return error.new("std.http.test", "first query parameter was lost")
     }
-    let first = move first_result?
     if first.name() != "tag" || first.value() != "one+two" {
         return error.new("std.http.test", "first query parameter changed")
     }
 
-    let second_result = pairs.next() otherwise {
+    let second = pairs.next() otherwise {
         return error.new("std.http.test", "second query parameter was lost")
     }
-    let second = move second_result?
     if second.name() != "empty" || second.value() != "" {
         return error.new("std.http.test", "empty query value changed")
     }
 
-    let third_result = pairs.next() otherwise {
+    let third = pairs.next() otherwise {
         return error.new("std.http.test", "third query parameter was lost")
     }
-    let third = move third_result?
     if third.name() != "encoded" || third.value() != "✓" {
         return error.new("std.http.test", "percent-decoded query value changed")
     }
-    let _extra = pairs.next() otherwise { return }
+    let retained = third.to_owned()
+    let _extra = pairs.next() otherwise {
+        if retained.name() != "encoded" || retained.value() != "✓" {
+            return error.new("std.http.test", "explicitly owned query parameter changed")
+        }
+        return
+    }
     return error.new("std.http.test", "query iterator did not stop")
 }
 
-test request_target_query_iteration_distinguishes_absence_and_invalid_utf8 {
+test request_target_query_iteration_distinguishes_absence_and_rejects_invalid_utf8_early {
     let target = RequestTarget.parse("/plain")?
     var no_pairs = target.query_pairs()
     let _unexpected = no_pairs.next() otherwise {
-        let malformed = RequestTarget.parse("/?value=%FF")?
-        var malformed_pairs = malformed.query_pairs()
-        let malformed_result = malformed_pairs.next() otherwise {
-            return error.new("std.http.test", "malformed query parameter was lost")
-        }
-        let _decoded = move malformed_result catch failure {
+        let _malformed = RequestTarget.parse("/?value=%FF") catch failure {
             if failure.has_code("std.http.invalid_target_encoding") { return }
             return error.new("std.http.test", "malformed query used the wrong error")
         }

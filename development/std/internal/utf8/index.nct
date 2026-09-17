@@ -4,6 +4,9 @@ see ./encoding.nct
 see ./decoding.nct
 see ./validation.nct
 
+/// Incremental validator for UTF-8 bytes that arrive without contiguous storage.
+pub(/) struct StreamingValidator
+
 /// One validated Unicode scalar encoded into its initialized UTF-8 prefix.
 pub(/) copy struct ScalarEncoding
 
@@ -32,3 +35,16 @@ pub(/) noalloc func is_valid_utf8(candidate: &[u8]): bool
 
 /// Accepts well-formed UTF-8 or returns the stable string encoding error.
 pub(/) noalloc func validate_utf8(candidate: &[u8]): void!
+
+construct StreamingValidator {
+    /// Creates an empty complete UTF-8 validation state.
+    pub(/) noalloc func new(): Self
+}
+
+instance StreamingValidator {
+    /// Advances with one byte and reports whether the prefix can still form UTF-8.
+    pub(/) noalloc method &+self.push(byte: u8): bool
+
+    /// Reports whether the complete bytes accepted so far end at a scalar boundary.
+    pub(/) noalloc method &self.is_complete(): bool
+}

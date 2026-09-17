@@ -2,13 +2,72 @@
 
 see ./index.nct
 
+struct StreamingValidator {
+    remaining_continuations: usize
+    next_minimum: u8
+    next_maximum: u8
+    valid: bool
+}
+
+construct StreamingValidator {
+    noalloc func new(): Self {
+        return StreamingValidator {
+            remaining_continuations: 0,
+            next_minimum: 128,
+            next_maximum: 191,
+            valid: true,
+        }
+    }
+}
+
+instance StreamingValidator {
+    noalloc method &+self.push(byte: u8): bool {
+        if !self.valid { return false }
+        if self.remaining_continuations > 0 {
+            if byte < self.next_minimum || byte > self.next_maximum {
+                self.valid = false
+                return false
+            }
+            self.remaining_continuations -= 1
+            self.next_minimum = 128
+            self.next_maximum = 191
+            return true
+        }
+
+        if byte < 128 { return true }
+        if byte >= 194 && byte <= 223 {
+            self.remaining_continuations = 1
+            return true
+        }
+        if byte >= 224 && byte <= 239 {
+            self.remaining_continuations = 2
+            self.next_minimum = if byte == 224 { 160 } else { 128 }
+            self.next_maximum = if byte == 237 { 159 } else { 191 }
+            return true
+        }
+        if byte >= 240 && byte <= 244 {
+            self.remaining_continuations = 3
+            self.next_minimum = if byte == 240 { 144 } else { 128 }
+            self.next_maximum = if byte == 244 { 143 } else { 191 }
+            return true
+        }
+        self.valid = false
+        return false
+    }
+
+    noalloc method &self.is_complete(): bool {
+        return self.valid && self.remaining_continuations == 0
+    }
+}
+
 noalloc func is_valid_utf8(candidate: &[u8]): bool {
+    var validator = StreamingValidator.new()
     var offset: usize = 0
     while offset < candidate.len() {
-        let step = decode_scalar(candidate, offset) otherwise { return false }
-        offset += step.width
+        if !validator.push(candidate[offset]) { return false }
+        offset += 1
     }
-    return true
+    return validator.is_complete()
 }
 
 noalloc func validate_utf8(candidate: &[u8]): void! {
@@ -20,4 +79,33 @@ noalloc func validate_utf8(candidate: &[u8]): void! {
 
 noalloc func invalid_utf8(): error {
     return error.new("std.string.invalid_utf8", "invalid UTF-8")
+}
+
+test streaming_validation_preserves_scalar_boundaries_across_fragments {
+    var validator = StreamingValidator.new()
+    if !validator.push(226)
+        || validator.is_complete()
+        || !validator.push(156)
+        || validator.is_complete()
+        || !validator.push(147)
+        || !validator.is_complete() {
+        return error.new("std.utf8.validation", "streaming scalar state changed")
+    }
+    if !validator.push(65) || !validator.is_complete() {
+        return error.new("std.utf8.validation", "ASCII after a scalar was rejected")
+    }
+    return
+}
+
+test streaming_validation_rejects_invalid_and_incomplete_sequences {
+    var invalid = StreamingValidator.new()
+    if invalid.push(255) || invalid.is_complete() {
+        return error.new("std.utf8.validation", "invalid leading byte was accepted")
+    }
+    var incomplete = StreamingValidator.new()
+    if !incomplete.push(240) {
+        return error.new("std.utf8.validation", "valid scalar prefix was rejected")
+    }
+    if !incomplete.is_complete() { return }
+    return error.new("std.utf8.validation", "incomplete scalar was accepted")
 }

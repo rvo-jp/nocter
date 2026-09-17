@@ -1,0 +1,189 @@
+//! Cursor representations and allocation-free range selection.
+
+see ./index.nct
+
+use /internal/safety
+
+struct ByteCursor {
+    input: &[u8]
+    next_offset: usize
+}
+
+struct ByteWindow {
+    input: &[u8]
+    start: usize
+    end: usize
+}
+
+struct TextCursor {
+    input: &str
+    next_offset: usize
+}
+
+struct TextWindow {
+    input: &str
+    start: usize
+    end: usize
+}
+
+construct ByteWindow {
+    noalloc func get(input: &[u8], start: usize, end: usize): Self? from input {
+        if start > end || end > input.len() { return none }
+        return ByteWindow { input: input, start: start, end: end }
+    }
+}
+
+construct TextWindow {
+    noalloc func get(input: &str, start: usize, end: usize): Self? from input {
+        if start > end || !input.is_char_boundary(start) || !input.is_char_boundary(end) {
+            return none
+        }
+        return TextWindow { input: input, start: start, end: end }
+    }
+}
+
+instance ByteWindow {
+    noalloc method &self.offset(): usize {
+        return self.start
+    }
+
+    noalloc method &self.len(): usize {
+        return self.end - self.start
+    }
+
+    noalloc method &self.bytes(): &[u8] from self {
+        return self.input.get_range(self.start, self.end) otherwise {
+            return safety.invariant_abort()
+        }
+    }
+}
+
+instance TextWindow {
+    noalloc method &self.offset(): usize {
+        return self.start
+    }
+
+    noalloc method &self.len(): usize {
+        return self.end - self.start
+    }
+
+    noalloc method &self.text(): &str from self {
+        return self.input.get_range(self.start, self.end) otherwise {
+            return safety.invariant_abort()
+        }
+    }
+}
+
+construct ByteCursor {
+    noalloc func new(input: &[u8]): Self from input {
+        return ByteCursor { input: input, next_offset: 0 }
+    }
+}
+
+instance ByteCursor {
+    noalloc method &self.offset(): usize {
+        return self.next_offset
+    }
+
+    noalloc method &self.remaining_len(): usize {
+        return self.input.len() - self.next_offset
+    }
+
+    noalloc method &self.is_finished(): bool {
+        return self.next_offset == self.input.len()
+    }
+
+    noalloc method &self.remaining(): &[u8] from self {
+        return self.input.get_range(self.next_offset, self.input.len()) otherwise {
+            return safety.invariant_abort()
+        }
+    }
+
+    noalloc method &self.peek(): u8? {
+        if self.is_finished() { return none }
+        return self.input[self.next_offset]
+    }
+
+    noalloc method &+self.take(count: usize): ByteWindow? from self {
+        if count > self.remaining_len() { return none }
+        let start = self.next_offset
+        let end = start + count
+        self.next_offset = end
+        return ByteWindow { input: self.input, start: start, end: end }
+    }
+
+    noalloc method &+self.take_until(delimiter: u8): ByteWindow from self {
+        let start = self.next_offset
+        var end = start
+        while end < self.input.len() && self.input[end] != delimiter {
+            end += 1
+        }
+        self.next_offset = if end < self.input.len() { end + 1 } else { end }
+        return ByteWindow { input: self.input, start: start, end: end }
+    }
+}
+
+construct TextCursor {
+    noalloc func new(input: &str): Self from input {
+        return TextCursor { input: input, next_offset: 0 }
+    }
+}
+
+instance TextCursor {
+    noalloc method &self.offset(): usize {
+        return self.next_offset
+    }
+
+    noalloc method &self.remaining_len(): usize {
+        return self.input.len() - self.next_offset
+    }
+
+    noalloc method &self.is_finished(): bool {
+        return self.next_offset == self.input.len()
+    }
+
+    noalloc method &self.remaining(): &str from self {
+        return self.input.get_range(self.next_offset, self.input.len()) otherwise {
+            return safety.invariant_abort()
+        }
+    }
+
+    noalloc method &self.get_range(start: usize, end: usize): &str? from self {
+        return self.input.get_range(start, end)?
+    }
+
+    noalloc method &self.byte_at(index: usize): u8? {
+        if index >= self.input.len() { return none }
+        return self.input[index]
+    }
+
+    noalloc method &+self.take_bytes(count: usize): TextWindow? from self {
+        if count > self.remaining_len() { return none }
+        let start = self.next_offset
+        let end = start + count
+        if !self.input.is_char_boundary(end) { return none }
+        self.next_offset = end
+        return TextWindow { input: self.input, start: start, end: end }
+    }
+
+    noalloc method &+self.take_until(separator: &str): TextWindow! from self {
+        if separator.len() == 0 {
+            return error.new(
+                "std.scan.empty_separator",
+                "text cursor separator must not be empty",
+            )
+        }
+        let start = self.next_offset
+        let separator_start = self.input.find_from(separator, start) otherwise {
+            let end = self.input.len()
+            self.next_offset = end
+            return TextWindow { input: self.input, start: start, end: end }
+        }
+        self.next_offset = separator_start + separator.len()
+        return TextWindow {
+            input: self.input,
+            start: start,
+            end: separator_start,
+        }
+    }
+}

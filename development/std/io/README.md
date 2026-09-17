@@ -134,6 +134,12 @@ admits an LF-terminated empty line, but not a CR/LF line or a nonempty line. `Li
 its fixed read buffer, the configured line bound, and the most recently yielded value owned by the
 consumer.
 
+`LineWindows<R>` selects the same state machine when the consumer does not need to retain lines.
+It owns one reusable `String` and implements `AsyncLendingIterator<Item = TextWindow>`. The window
+borrows that string through the active advance, so it must stop being live before another line can
+replace the storage. Converting a window to independently owned text is an explicit copy at the
+consumer boundary; ordinary iteration never performs that copy on the consumer's behalf.
+
 `ByteChunks<R>` in `std/io/stream` implements `AsyncIterator<Item = Vec<u8>>` for every `Reader`.
 Each step allocates one initialized buffer with the configured positive bound, performs at most one
 underlying read, validates the reported count, and yields only the initialized prefix. A requested
@@ -141,6 +147,13 @@ chunk size of zero is normalized to one. EOF and failure make the adapter termin
 drops the unpublished chunk and leaves later source usability to the underlying `Reader` contract.
 The adapter never reads ahead and does not retain a previously yielded chunk, so downstream demand
 controls upstream progress. Consumers can still choose to retain or collect yielded chunks.
+
+`ByteWindows<R>` is the lending counterpart for consumers that process each read before requesting
+the next one. It allocates one initialized buffer at construction, performs the same one-read and
+count-validation policy as `ByteChunks`, and lends a `ByteWindow` over only the initialized prefix.
+The next advance may overwrite that buffer and is therefore rejected while the preceding window is
+live. `ByteChunks` remains the explicit independently owned alternative rather than a hidden copy
+inside the lending adapter.
 
 `BufWriter.write` accepts bytes into private bounded storage and flushes full chunks through its
 underlying `Writer`. `flush` always propagates through the underlying writer, including when the

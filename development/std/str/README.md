@@ -4,6 +4,10 @@ The compiler-checked [`str` module contract](index.nct) is the sole authority fo
 declarations. Owned UTF-8 storage belongs to [`String`](../string/README.md); this module owns
 borrowed byte-oriented search, validated views, iteration, and owned results derived from `str`.
 
+`str.from_utf8` validates a borrowed byte slice and returns a text view over the same storage. It
+reports `std.string.invalid_utf8` without copying, allocating, or extending the input lifetime.
+`String.from_utf8` remains the explicit independently owned alternative.
+
 Search and range indices are UTF-8 byte offsets. `get_range` returns `none` when `start > end`, an
 endpoint is outside the input, or an endpoint divides a UTF-8 encoding. Empty ranges and the full
 input range are valid. The result borrows `self`; it never reconstructs provenance from an integer

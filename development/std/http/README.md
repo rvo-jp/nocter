@@ -244,14 +244,23 @@ fields.
 
 `RequestHead` accepts only non-empty ASCII origin-form targets beginning with `/`; percent escapes
 must be complete hexadecimal triplets and characters outside the path/query grammar are rejected.
+`RequestTarget.parse` also validates percent-decoded query bytes incrementally without allocating
+decoded storage. It rejects invalid UTF-8 before construction, so subsequent query iteration is
+infallible.
 The resulting `RequestTarget` retains that exact spelling and records the first path/query boundary
 plus every slash-delimited path segment once. `path`, `query`, `path_segment_count`, and
 `path_segment` project borrowed ranges from that retained structure; none scans the request again.
 `query_pairs` splits a present non-empty query on `&`, splits each item at its first `=`, and yields
-owned UTF-8 names and values in source order. A missing `=` means an empty value. Percent triplets
-decode to bytes, `+` remains `+` rather than becoming a space, and invalid decoded UTF-8 is reported
-as `std.http.invalid_target_encoding`. An absent or explicitly empty query yields no pairs. Empty
-items inside a non-empty query remain observable rather than being silently discarded.
+one lending `QueryParameter` at a time. Names and values without percent escapes are borrowed
+directly from the retained target. A percent-encoded component uses decoder-owned scratch text, so
+the item must stop being live before the decoder advances and may reuse that storage. A missing `=`
+means an empty value. Percent triplets decode to bytes, `+` remains `+` rather than becoming a
+space. Invalid decoded UTF-8 is reported as `std.http.invalid_target_encoding` by construction,
+before a `QueryIter` can exist. An absent or explicitly empty query yields no pairs. Empty items
+inside a non-empty query remain observable rather than being silently discarded.
+`QueryParameter.to_owned` is the explicit boundary for a
+pair that must outlive the next decoder advance; plain iteration never copies unescaped component
+text.
 
 The private wire encoder adds exactly one `Content-Length` selected from the bounded body and
 rejects caller fields that could introduce a second framing interpretation.

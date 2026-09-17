@@ -1,0 +1,107 @@
+//! Allocation-free cursors over borrowed bytes and UTF-8 text.
+
+see ./cursors.nct
+see ./tests.nct
+
+/// A forward cursor over one borrowed byte slice.
+pub struct ByteCursor
+
+/// One borrowed byte range selected by a cursor advance.
+pub struct ByteWindow
+
+construct ByteWindow {
+    /// Selects one absolute half-open byte range from `input`.
+    pub noalloc func get(input: &[u8], start: usize, end: usize): Self? from input
+}
+
+instance ByteWindow {
+    /// Returns the absolute byte offset where this window begins.
+    pub noalloc method &self.offset(): usize
+
+    /// Returns the selected byte count.
+    pub noalloc method &self.len(): usize
+
+    /// Borrows the exact selected bytes.
+    pub noalloc method &self.bytes(): &[u8] from self
+}
+
+construct ByteCursor {
+    /// Starts before the first byte of `input`.
+    pub noalloc func new(input: &[u8]): Self from input
+}
+
+instance ByteCursor {
+    /// Returns the consumed byte count.
+    pub noalloc method &self.offset(): usize
+
+    /// Returns the unconsumed byte count.
+    pub noalloc method &self.remaining_len(): usize
+
+    /// Returns whether no unconsumed bytes remain.
+    pub noalloc method &self.is_finished(): bool
+
+    /// Borrows all unconsumed bytes without advancing.
+    pub noalloc method &self.remaining(): &[u8] from self
+
+    /// Returns the next byte without advancing.
+    pub noalloc method &self.peek(): u8?
+
+    /// Selects and consumes exactly `count` bytes, or returns `none` without advancing.
+    pub noalloc method &+self.take(count: usize): ByteWindow? from self
+
+    /// Selects through the next delimiter or the end, excluding and consuming the delimiter.
+    pub noalloc method &+self.take_until(delimiter: u8): ByteWindow from self
+}
+
+/// A forward cursor whose byte positions remain valid UTF-8 boundaries.
+pub struct TextCursor
+
+/// One borrowed, scalar-aligned UTF-8 range selected by a cursor advance.
+pub struct TextWindow
+
+construct TextWindow {
+    /// Selects one absolute half-open UTF-8 byte range with scalar-aligned endpoints.
+    pub noalloc func get(input: &str, start: usize, end: usize): Self? from input
+}
+
+instance TextWindow {
+    /// Returns the absolute UTF-8 byte offset where this window begins.
+    pub noalloc method &self.offset(): usize
+
+    /// Returns the selected UTF-8 byte count.
+    pub noalloc method &self.len(): usize
+
+    /// Borrows the exact selected UTF-8 text.
+    pub noalloc method &self.text(): &str from self
+}
+
+construct TextCursor {
+    /// Starts before the first UTF-8 byte of `input`.
+    pub noalloc func new(input: &str): Self from input
+}
+
+instance TextCursor {
+    /// Returns the consumed UTF-8 byte count.
+    pub noalloc method &self.offset(): usize
+
+    /// Returns the unconsumed UTF-8 byte count.
+    pub noalloc method &self.remaining_len(): usize
+
+    /// Returns whether no unconsumed text remains.
+    pub noalloc method &self.is_finished(): bool
+
+    /// Borrows all unconsumed text without advancing.
+    pub noalloc method &self.remaining(): &str from self
+
+    /// Borrows one absolute half-open byte range when both endpoints are scalar boundaries.
+    pub noalloc method &self.get_range(start: usize, end: usize): &str? from self
+
+    /// Returns one encoding byte at an absolute offset without advancing.
+    pub noalloc method &self.byte_at(index: usize): u8?
+
+    /// Selects and consumes exactly `count` boundary-aligned bytes, or returns `none` unchanged.
+    pub noalloc method &+self.take_bytes(count: usize): TextWindow? from self
+
+    /// Selects through the next separator or the end, excluding and consuming the separator.
+    pub noalloc method &+self.take_until(separator: &str): TextWindow! from self
+}

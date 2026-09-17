@@ -4,7 +4,10 @@ see ./errors.nct
 see ./index.nct
 see ./storage.nct
 
-use /iter.Iterator
+use /scan.TextCursor
+use /internal/safety
+use /internal/utf8
+use /str as text_module
 use /string.String
 use /vec.Vec
 
@@ -94,29 +97,117 @@ noalloc func hex_value(value: u8): u8? {
     return none
 }
 
-func decode_target_component(text: &str): String! {
-    var bytes: Vec<u8> = Vec.with_capacity(text.len())
+func decode_target_component(encoded: &str): String! {
+    var bytes: Vec<u8> = Vec.with_capacity(encoded.len())
+    let cursor = TextCursor.new(encoded)
     var offset: usize = 0
-    while offset < text.len() {
-        if text[offset] != 37 {
-            bytes.push(text[offset])
-            offset += 1
-        } else {
-            if offset + 2 >= text.len() { return invalid_target() }
-            let high: u8 = hex_value(text[offset + 1]) otherwise { return invalid_target() }
-            let low: u8 = hex_value(text[offset + 2]) otherwise { return invalid_target() }
-            bytes.push(high * 16 + low)
-            offset += 3
-        }
+    while offset < encoded.len() {
+        let step = decoded_query_byte(&cursor, offset, encoded.len())?
+        bytes.push(step.value)
+        offset = step.next_offset
     }
     let byte_view: &[u8] = &bytes
     let decoded = String.from_utf8(byte_view) catch _ { return invalid_target_encoding() }
     return move decoded
 }
 
+copy struct DecodedQueryByte {
+    value: u8
+    next_offset: usize
+}
+
+noalloc func decoded_query_byte(
+    cursor: &TextCursor,
+    offset: usize,
+    end: usize,
+): DecodedQueryByte! {
+    let source = cursor.byte_at(offset) otherwise { return invalid_target() }
+    if source != 37 {
+        return DecodedQueryByte { value: source, next_offset: offset + 1 }
+    }
+    if offset + 2 >= end { return invalid_target() }
+    let high_source = cursor.byte_at(offset + 1) otherwise { return invalid_target() }
+    let low_source = cursor.byte_at(offset + 2) otherwise { return invalid_target() }
+    let high = hex_value(high_source) otherwise { return invalid_target() }
+    let low = hex_value(low_source) otherwise { return invalid_target() }
+    return DecodedQueryByte {
+        value: high * 16 + low,
+        next_offset: offset + 3,
+    }
+}
+
+noalloc func query_item_separator(
+    cursor: &TextCursor,
+    start: usize,
+    end: usize,
+): usize! {
+    var offset = start
+    while offset < end {
+        let byte = cursor.byte_at(offset) otherwise { return invalid_target() }
+        if byte == 61 { return offset - start }
+        offset += 1
+    }
+    return end - start
+}
+
+noalloc func query_component_is_encoded(
+    cursor: &TextCursor,
+    start: usize,
+    end: usize,
+): bool! {
+    var offset = start
+    while offset < end {
+        let byte = cursor.byte_at(offset) otherwise { return invalid_target() }
+        if byte == 37 { return true }
+        offset += 1
+    }
+    return false
+}
+
+func validate_decoded_query_component(
+    cursor: &TextCursor,
+    start: usize,
+    end: usize,
+): void! {
+    if !query_component_is_encoded(cursor, start, end)? { return }
+    var validator = utf8.StreamingValidator.new()
+    var offset = start
+    while offset < end {
+        let step = decoded_query_byte(cursor, offset, end)?
+        if !validator.push(step.value) { return invalid_target_encoding() }
+        offset = step.next_offset
+    }
+    if !validator.is_complete() { return invalid_target_encoding() }
+    return
+}
+
+func validate_decoded_query(text: &str): void! {
+    let query_start = request_target_query_start(text)
+    if query_start >= text.len() { return }
+
+    let cursor = TextCursor.new(text)
+    var item_start = query_start
+    loop {
+        var item_end = item_start
+        while item_end < text.len() {
+            let byte = cursor.byte_at(item_end) otherwise { return invalid_target() }
+            if byte == 38 { break }
+            item_end += 1
+        }
+        let separator = query_item_separator(&cursor, item_start, item_end)?
+        let name_end = item_start + separator
+        let value_start = if name_end < item_end { name_end + 1 } else { name_end }
+        validate_decoded_query_component(&cursor, item_start, name_end)?
+        validate_decoded_query_component(&cursor, value_start, item_end)?
+        if item_end == text.len() { return }
+        item_start = item_end + 1
+    }
+}
+
 construct RequestTarget {
     func parse(text: &str): Self! {
         if !valid_request_target(text) { return invalid_target() }
+        validate_decoded_query(text)?
         return request_target_from_validated(String.copy(text))
     }
 }
@@ -151,20 +242,39 @@ instance RequestTarget {
     noalloc method &self.query_pairs(): QueryIter from self {
         let query: &str = self.query() otherwise {
             return QueryIter {
-                query: "",
-                next_start: 0,
+                cursor: TextCursor.new(""),
+                name_scratch: Vec.empty(),
+                value_scratch: Vec.empty(),
                 finished: true,
             }
         }
         return QueryIter {
-            query: query,
-            next_start: 0,
+            cursor: TextCursor.new(query),
+            name_scratch: Vec.empty(),
+            value_scratch: Vec.empty(),
             finished: query.len() == 0,
         }
     }
 }
 
 instance QueryParameter {
+    noalloc method &self.name(): &str from self {
+        return self.name_value
+    }
+
+    noalloc method &self.value(): &str from self {
+        return self.value_value
+    }
+
+    method &self.to_owned(): OwnedQueryParameter {
+        return OwnedQueryParameter {
+            name_value: String.copy(self.name_value),
+            value_value: String.copy(self.value_value),
+        }
+    }
+}
+
+instance OwnedQueryParameter {
     noalloc method &self.name(): &str from self {
         return &self.name_value as &str
     }
@@ -175,36 +285,71 @@ instance QueryParameter {
 }
 
 instance QueryIter {
-    method &+self.next(): (QueryParameter!)? {
+    method &+self.next(): QueryParameter? from self {
         if self.finished { return none }
-        var end = self.next_start
-        while end < self.query.len() && self.query[end] != 38 { end += 1 }
-        if end == self.query.len() { self.finished = true }
-        let item: &str = self.query.get_range(self.next_start, end) otherwise {
-            return invalid_target()
+        let item_start = self.cursor.offset()
+        let item_window = self.cursor.take_until("&") catch _ {
+            return safety.invariant_abort()
         }
-        self.next_start = end + 1
-        var separator = item.len()
-        var offset: usize = 0
-        while offset < item.len() {
-            if item[offset] == 61 {
-                separator = offset
-                break
+        let item_end = item_start + item_window.len()
+        let _ = move item_window
+        self.finished = self.cursor.offset() == item_end
+
+        let separator = query_item_separator(&self.cursor, item_start, item_end) catch _ {
+            return safety.invariant_abort()
+        }
+        let name_start = item_start
+        let name_end = item_start + separator
+        let value_start = if name_end < item_end { name_end + 1 } else { name_end }
+        let name_encoded = query_component_is_encoded(&self.cursor, name_start, name_end) catch _ {
+            return safety.invariant_abort()
+        }
+        let value_encoded = query_component_is_encoded(&self.cursor, value_start, item_end) catch _ {
+            return safety.invariant_abort()
+        }
+
+        if name_encoded {
+            self.name_scratch.clear()
+            var offset = name_start
+            while offset < name_end {
+                let step = decoded_query_byte(&self.cursor, offset, name_end) catch _ {
+                    return safety.invariant_abort()
+                }
+                self.name_scratch.push(step.value)
+                offset = step.next_offset
             }
-            offset += 1
         }
-        let name: &str = item.get_range(0, separator) otherwise {
-            return invalid_target()
+        if value_encoded {
+            self.value_scratch.clear()
+            var offset = value_start
+            while offset < item_end {
+                let step = decoded_query_byte(&self.cursor, offset, item_end) catch _ {
+                    return safety.invariant_abort()
+                }
+                self.value_scratch.push(step.value)
+                offset = step.next_offset
+            }
         }
-        let value_start = if separator < item.len() { separator + 1 } else { separator }
-        let value: &str = item.get_range(value_start, item.len()) otherwise {
-            return invalid_target()
+
+        let decoded_name: &str = if name_encoded {
+            let bytes: &[u8] = &self.name_scratch
+            text_module.from_utf8(bytes) catch _ { return safety.invariant_abort() }
+        } else {
+            self.cursor.get_range(name_start, name_end) otherwise {
+                return safety.invariant_abort()
+            }
         }
-        let decoded_name = decode_target_component(name)?
-        let decoded_value = decode_target_component(value)?
+        let decoded_value: &str = if value_encoded {
+            let bytes: &[u8] = &self.value_scratch
+            text_module.from_utf8(bytes) catch _ { return safety.invariant_abort() }
+        } else {
+            self.cursor.get_range(value_start, item_end) otherwise {
+                return safety.invariant_abort()
+            }
+        }
         return QueryParameter {
-            name_value: move decoded_name,
-            value_value: move decoded_value,
+            name_value: decoded_name,
+            value_value: decoded_value,
         }
     }
 }
