@@ -8,6 +8,7 @@ see ./conversion.nct
 see ./floating.nct
 see ./float_big.nct
 see ./float_parse.nct
+see ./integer_bits.nct
 see ./scalar.nct
 see ./tests.nct
 see ./text.nct
@@ -202,6 +203,9 @@ instance f64 {
 }
 
 construct i8 {
+    /// Creates a signed integer with exactly the supplied two's-complement representation.
+    pub noalloc func from_bits(bits: u8): Self
+
     /// Converts an integral binary64 value when it is representable as `i8`.
     pub noalloc func from_f64(value: f64): Self?
 
@@ -210,6 +214,9 @@ construct i8 {
 }
 
 construct i16 {
+    /// Creates a signed integer with exactly the supplied two's-complement representation.
+    pub noalloc func from_bits(bits: u16): Self
+
     /// Converts an integral binary64 value when it is representable as `i16`.
     pub noalloc func from_f64(value: f64): Self?
 
@@ -218,6 +225,9 @@ construct i16 {
 }
 
 construct i32 {
+    /// Creates a signed integer with exactly the supplied two's-complement representation.
+    pub noalloc func from_bits(bits: u32): Self
+
     /// Converts an integral binary64 value when it is representable as `i32`.
     pub noalloc func from_f64(value: f64): Self?
 
@@ -226,11 +236,34 @@ construct i32 {
 }
 
 construct i64 {
+    /// Creates a signed integer with exactly the supplied two's-complement representation.
+    pub noalloc func from_bits(bits: u64): Self
+
     /// Converts an integral binary64 value when it is representable as `i64`.
     pub noalloc func from_f64(value: f64): Self?
 
     /// Parses one complete signed decimal integer.
     pub noalloc func parse(text: &str): Self?
+}
+
+instance i8 {
+    /// Returns the exact stored two's-complement representation.
+    pub noalloc method self.to_bits(): u8
+}
+
+instance i16 {
+    /// Returns the exact stored two's-complement representation.
+    pub noalloc method self.to_bits(): u16
+}
+
+instance i32 {
+    /// Returns the exact stored two's-complement representation.
+    pub noalloc method self.to_bits(): u32
+}
+
+instance i64 {
+    /// Returns the exact stored two's-complement representation.
+    pub noalloc method self.to_bits(): u64
 }
 
 construct isize {

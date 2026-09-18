@@ -5,6 +5,7 @@
 
 see ./scalar.nct
 see ./tests.nct
+see ./variable.nct
 
 /// The result of decoding one scalar from the beginning of a byte view.
 ///
@@ -35,6 +36,24 @@ pub noalloc func decode_u64_be(input: &[u8]): u64?
 
 /// Decodes the first eight bytes as one little-endian unsigned integer.
 pub noalloc func decode_u64_le(input: &[u8]): u64?
+
+/// Decodes the first two bytes as one big-endian signed two's-complement integer.
+pub noalloc func decode_i16_be(input: &[u8]): i16?
+
+/// Decodes the first two bytes as one little-endian signed two's-complement integer.
+pub noalloc func decode_i16_le(input: &[u8]): i16?
+
+/// Decodes the first four bytes as one big-endian signed two's-complement integer.
+pub noalloc func decode_i32_be(input: &[u8]): i32?
+
+/// Decodes the first four bytes as one little-endian signed two's-complement integer.
+pub noalloc func decode_i32_le(input: &[u8]): i32?
+
+/// Decodes the first eight bytes as one big-endian signed two's-complement integer.
+pub noalloc func decode_i64_be(input: &[u8]): i64?
+
+/// Decodes the first eight bytes as one little-endian signed two's-complement integer.
+pub noalloc func decode_i64_le(input: &[u8]): i64?
 
 /// Decodes the first four bytes as one big-endian IEEE binary32 value.
 pub noalloc func decode_f32_be(input: &[u8]): f32?
@@ -72,6 +91,30 @@ pub noalloc func encode_u64_be(output: &+[u8], value: u64): bool
 /// Returns false and leaves output unchanged when fewer than eight bytes are available.
 pub noalloc func encode_u64_le(output: &+[u8], value: u64): bool
 
+/// Encodes one signed integer into the first two output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than two bytes are available.
+pub noalloc func encode_i16_be(output: &+[u8], value: i16): bool
+
+/// Encodes one signed integer into the first two output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than two bytes are available.
+pub noalloc func encode_i16_le(output: &+[u8], value: i16): bool
+
+/// Encodes one signed integer into the first four output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than four bytes are available.
+pub noalloc func encode_i32_be(output: &+[u8], value: i32): bool
+
+/// Encodes one signed integer into the first four output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than four bytes are available.
+pub noalloc func encode_i32_le(output: &+[u8], value: i32): bool
+
+/// Encodes one signed integer into the first eight output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than eight bytes are available.
+pub noalloc func encode_i64_be(output: &+[u8], value: i64): bool
+
+/// Encodes one signed integer into the first eight output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than eight bytes are available.
+pub noalloc func encode_i64_le(output: &+[u8], value: i64): bool
+
 /// Encodes one IEEE binary32 value into the first four output bytes in big-endian order.
 /// Returns false and leaves output unchanged when fewer than four bytes are available.
 pub noalloc func encode_f32_be(output: &+[u8], value: f32): bool
@@ -87,3 +130,17 @@ pub noalloc func encode_f64_be(output: &+[u8], value: f64): bool
 /// Encodes one IEEE binary64 value into the first eight output bytes in little-endian order.
 /// Returns false and leaves output unchanged when fewer than eight bytes are available.
 pub noalloc func encode_f64_le(output: &+[u8], value: f64): bool
+
+/// Decodes one canonical unsigned LEB128 value from the beginning of a byte view.
+pub noalloc func decode_uleb128(input: &[u8]): PrefixDecode<u64>
+
+/// Encodes one unsigned LEB128 value and returns its width.
+/// Returns none and leaves output unchanged when the complete encoding does not fit.
+pub noalloc func encode_uleb128(output: &+[u8], value: u64): usize?
+
+/// Decodes one canonical ZigZag-signed LEB128 value from the beginning of a byte view.
+pub noalloc func decode_zigzag_uleb128(input: &[u8]): PrefixDecode<i64>
+
+/// ZigZag-encodes one signed value as unsigned LEB128 and returns its width.
+/// Returns none and leaves output unchanged when the complete encoding does not fit.
+pub noalloc func encode_zigzag_uleb128(output: &+[u8], value: i64): usize?

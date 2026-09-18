@@ -2,19 +2,19 @@
 
 ## Current State
 
-Nocter v0.58.0 is published and externally audited. v0.59.0 Phase 0 is complete: `std/bytes` owns one
-ordinary generic `PrefixDecode<T>` declaration for decoded values and widths, incomplete input,
-overflow, and non-canonical representations. Native and editor fixtures prove that execution,
-hover, completion, navigation, and semantic highlighting consume that same public identity. The
-active scope lives in
+Nocter v0.58.0 is published and externally audited. v0.59.0 Phases 0 and 1 are complete. `std/bytes`
+owns one typed prefix result, exact signed fixed-width codecs, canonical unsigned LEB128, and
+ZigZag-signed LEB128. Explicit integer `from_bits` and `to_bits` preserve two's-complement
+representations without weakening value-preserving `as`. Native execution covers signed minima,
+all prefix failure classes, and transactional short output. The active scope lives in
 [`development/history/milestones/v0.59.0.md`](history/milestones/v0.59.0.md).
 
 ## Next Work
 
-Complete portable signed fixed-width bit conversion and canonical unsigned base-128 and ZigZag
-codecs on the Phase 0 result. Keep numeric conversion rules unchanged, reject every invalid prefix
-before cursor mutation, and preserve output bytes until the complete variable-width representation
-fits.
+Add the independent `std/checksum` CRC-32 authority. Keep its state transition allocation-free,
+derive or verify one canonical table from the published polynomial, and prove the standard check
+value, empty input, arbitrary chunk boundaries, and repeatable finalization. Do not attach framing,
+transport, or authentication meaning to the checksum module.
 
 Preserve the v0.58.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

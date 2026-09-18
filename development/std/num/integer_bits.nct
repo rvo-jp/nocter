@@ -1,0 +1,44 @@
+//! Exact conversion between signed integers and their unsigned bit representations.
+
+see ./index.nct
+
+noalloc primitive func i8_from_bits_raw(bits: u8): i8
+noalloc primitive func i8_to_bits_raw(value: i8): u8
+noalloc primitive func i16_from_bits_raw(bits: u16): i16
+noalloc primitive func i16_to_bits_raw(value: i16): u16
+noalloc primitive func i32_from_bits_raw(bits: u32): i32
+noalloc primitive func i32_to_bits_raw(value: i32): u32
+noalloc primitive func i64_from_bits_raw(bits: u64): i64
+noalloc primitive func i64_to_bits_raw(value: i64): u64
+
+construct i8 {
+    noalloc func from_bits(bits: u8): Self { return i8_from_bits_raw(bits) }
+}
+
+construct i16 {
+    noalloc func from_bits(bits: u16): Self { return i16_from_bits_raw(bits) }
+}
+
+construct i32 {
+    noalloc func from_bits(bits: u32): Self { return i32_from_bits_raw(bits) }
+}
+
+construct i64 {
+    noalloc func from_bits(bits: u64): Self { return i64_from_bits_raw(bits) }
+}
+
+instance i8 {
+    noalloc method self.to_bits(): u8 { return i8_to_bits_raw(self) }
+}
+
+instance i16 {
+    noalloc method self.to_bits(): u16 { return i16_to_bits_raw(self) }
+}
+
+instance i32 {
+    noalloc method self.to_bits(): u32 { return i32_to_bits_raw(self) }
+}
+
+instance i64 {
+    noalloc method self.to_bits(): u64 { return i64_to_bits_raw(self) }
+}

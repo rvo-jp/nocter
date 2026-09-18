@@ -2,9 +2,9 @@
 
 ## Floating-Point Representation
 
-The built-in `f32` and `f64` types expose their exact IEEE 754 representations through
-`from_bits` and `to_bits`. These operations preserve every bit, including the sign of zero and a
-NaN payload. Classification methods distinguish zero, subnormal, normal, infinity, and NaN values
+The built-in `f32` and `f64` types expose their exact IEEE 754 representations through `from_bits`
+and `to_bits`. Floating-point operations preserve every bit, including the sign of zero and a NaN
+payload. Classification methods distinguish zero, subnormal, normal, infinity, and NaN values
 without allocating. `is_sign_negative` and `is_sign_positive` inspect the representation, so they
 also classify signed zero and NaN. `abs` clears only the sign bit.
 
@@ -80,6 +80,10 @@ and a leading `-` only for a negative signed value. It uses the current allocati
 aborts on allocation failure. `try_to_string` uses the supplied recoverable allocator and returns
 its allocation failure. These operations and `Format` must use one decimal-generation authority;
 parsing must scan an input once through one signed or unsigned decimal authority.
+
+Fixed-width signed integers expose the same explicitly named operations for their unsigned
+two's-complement representation. They are representation conversions, not numeric `as`
+conversions, and therefore preserve every bit even when the signed and unsigned values differ.
 
 There are no type-named free-function aliases. This contract does not add arbitrary radix parsing,
 locale rules, or a matrix of public integer-to-integer conversions.

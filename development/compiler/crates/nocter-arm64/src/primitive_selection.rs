@@ -111,7 +111,15 @@ pub(crate) fn select(
         | PrimitiveRole::U32Truncate
         | PrimitiveRole::I8Truncate
         | PrimitiveRole::I16Truncate
-        | PrimitiveRole::I32Truncate => select_direct_unary(operation, target),
+        | PrimitiveRole::I32Truncate
+        | PrimitiveRole::I8FromBits
+        | PrimitiveRole::I8ToBits
+        | PrimitiveRole::I16FromBits
+        | PrimitiveRole::I16ToBits
+        | PrimitiveRole::I32FromBits
+        | PrimitiveRole::I32ToBits
+        | PrimitiveRole::I64FromBits
+        | PrimitiveRole::I64ToBits => select_direct_unary(operation, target),
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingSubtract
         | PrimitiveRole::U64WrappingMultiply

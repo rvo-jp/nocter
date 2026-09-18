@@ -11,6 +11,30 @@ noalloc func decode_u32_le(input: &[u8]): u32? { return codec.decode_u32_le(inpu
 noalloc func decode_u64_be(input: &[u8]): u64? { return codec.decode_u64_be(input)? }
 noalloc func decode_u64_le(input: &[u8]): u64? { return codec.decode_u64_le(input)? }
 
+noalloc func decode_i16_be(input: &[u8]): i16? {
+    return i16.from_bits(codec.decode_u16_be(input)?)
+}
+
+noalloc func decode_i16_le(input: &[u8]): i16? {
+    return i16.from_bits(codec.decode_u16_le(input)?)
+}
+
+noalloc func decode_i32_be(input: &[u8]): i32? {
+    return i32.from_bits(codec.decode_u32_be(input)?)
+}
+
+noalloc func decode_i32_le(input: &[u8]): i32? {
+    return i32.from_bits(codec.decode_u32_le(input)?)
+}
+
+noalloc func decode_i64_be(input: &[u8]): i64? {
+    return i64.from_bits(codec.decode_u64_be(input)?)
+}
+
+noalloc func decode_i64_le(input: &[u8]): i64? {
+    return i64.from_bits(codec.decode_u64_le(input)?)
+}
+
 noalloc func decode_f32_be(input: &[u8]): f32? { return f32.from_bits(codec.decode_u32_be(input)?) }
 noalloc func decode_f32_le(input: &[u8]): f32? { return f32.from_bits(codec.decode_u32_le(input)?) }
 noalloc func decode_f64_be(input: &[u8]): f64? { return f64.from_bits(codec.decode_u64_be(input)?) }
@@ -38,6 +62,30 @@ noalloc func encode_u64_be(output: &+[u8], value: u64): bool {
 
 noalloc func encode_u64_le(output: &+[u8], value: u64): bool {
     return codec.encode_u64_le(output, value)
+}
+
+noalloc func encode_i16_be(output: &+[u8], value: i16): bool {
+    return codec.encode_u16_be(output, value.to_bits())
+}
+
+noalloc func encode_i16_le(output: &+[u8], value: i16): bool {
+    return codec.encode_u16_le(output, value.to_bits())
+}
+
+noalloc func encode_i32_be(output: &+[u8], value: i32): bool {
+    return codec.encode_u32_be(output, value.to_bits())
+}
+
+noalloc func encode_i32_le(output: &+[u8], value: i32): bool {
+    return codec.encode_u32_le(output, value.to_bits())
+}
+
+noalloc func encode_i64_be(output: &+[u8], value: i64): bool {
+    return codec.encode_u64_be(output, value.to_bits())
+}
+
+noalloc func encode_i64_le(output: &+[u8], value: i64): bool {
+    return codec.encode_u64_le(output, value.to_bits())
 }
 
 noalloc func encode_f32_be(output: &+[u8], value: f32): bool {

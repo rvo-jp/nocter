@@ -1,0 +1,75 @@
+//! Canonical variable-width integer codecs.
+
+see ./index.nct
+
+noalloc func decode_uleb128(input: &[u8]): PrefixDecode<u64> {
+    var value: u64 = 0
+    var place: u64 = 1
+    var index: usize = 0
+    while index < input.len() && index < 10 {
+        let byte = input[index]
+        let payload = (byte % 128) as u64
+        if index == 9 && payload > 1 { return PrefixDecode.overflow }
+        value = value + payload * place
+        if byte < 128 {
+            if index > 0 && payload == 0 { return PrefixDecode.non_canonical }
+            return PrefixDecode.decoded(value, index + 1)
+        }
+        if index == 9 { return PrefixDecode.overflow }
+        place = place * 128
+        index += 1
+    }
+    return PrefixDecode.incomplete
+}
+
+noalloc func uleb128_width(value: u64): usize {
+    var width: usize = 1
+    var remaining = value
+    while remaining >= 128 {
+        remaining = remaining / 128
+        width += 1
+    }
+    return width
+}
+
+noalloc func encode_uleb128(output: &+[u8], value: u64): usize? {
+    let width = uleb128_width(value)
+    if output.len() < width { return none }
+    var remaining = value
+    var index: usize = 0
+    while index < width {
+        let payload = u8.truncate(remaining % 128)
+        output[index] = if index + 1 < width { payload + 128 } else { payload }
+        remaining = remaining / 128
+        index += 1
+    }
+    return width
+}
+
+noalloc func zigzag_encode(value: i64): u64 {
+    if value >= 0 { return value.to_bits() * 2 }
+    let magnitude = -(value + 1)
+    return magnitude.to_bits() * 2 + 1
+}
+
+noalloc func zigzag_decode(value: u64): i64 {
+    let magnitude = i64.from_bits(value / 2)
+    if value % 2 == 0 { return magnitude }
+    return -magnitude - 1
+}
+
+noalloc func decode_zigzag_uleb128(input: &[u8]): PrefixDecode<i64> {
+    let decoded = decode_uleb128(input)
+    match move decoded {
+        PrefixDecode.decoded(value, consumed) {
+            return PrefixDecode.decoded(zigzag_decode(value), consumed)
+        }
+        PrefixDecode.incomplete { return PrefixDecode.incomplete }
+        PrefixDecode.overflow { return PrefixDecode.overflow }
+        PrefixDecode.non_canonical { return PrefixDecode.non_canonical }
+    }
+}
+
+noalloc func encode_zigzag_uleb128(output: &+[u8], value: i64): usize? {
+    return encode_uleb128(output, zigzag_encode(value))?
+}

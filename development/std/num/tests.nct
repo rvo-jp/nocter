@@ -564,3 +564,14 @@ test floating_decimal_generation_round_trips_a_deterministic_bit_sample {
     }
     return
 }
+
+test signed_bit_conversions_preserve_exact_representations {
+    require(i8.from_bits(255).to_bits() == 255, "i8 representation changed")?
+    require(i16.from_bits(32768).to_bits() == 32768, "i16 representation changed")?
+    require(i32.from_bits(2147483648).to_bits() == 2147483648, "i32 representation changed")?
+    require(
+        i64.from_bits(9223372036854775808).to_bits() == 9223372036854775808,
+        "i64 representation changed",
+    )?
+    return
+}

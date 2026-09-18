@@ -206,6 +206,14 @@ impl PrimitiveRole {
             | Self::I8Truncate
             | Self::I16Truncate
             | Self::I32Truncate
+            | Self::I8FromBits
+            | Self::I8ToBits
+            | Self::I16FromBits
+            | Self::I16ToBits
+            | Self::I32FromBits
+            | Self::I32ToBits
+            | Self::I64FromBits
+            | Self::I64ToBits
             | Self::F32FromBits
             | Self::F32ToBits
             | Self::F64FromBits

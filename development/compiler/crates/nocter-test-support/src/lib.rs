@@ -255,6 +255,14 @@ primitive func u32_truncate_raw(value: u64): u32
 primitive func i8_truncate_raw(value: i64): i8
 primitive func i16_truncate_raw(value: i64): i16
 primitive func i32_truncate_raw(value: i64): i32
+primitive func i8_from_bits_raw(bits: u8): i8
+primitive func i8_to_bits_raw(value: i8): u8
+primitive func i16_from_bits_raw(bits: u16): i16
+primitive func i16_to_bits_raw(value: i16): u16
+primitive func i32_from_bits_raw(bits: u32): i32
+primitive func i32_to_bits_raw(value: i32): u32
+primitive func i64_from_bits_raw(bits: u64): i64
+primitive func i64_to_bits_raw(value: i64): u64
 primitive func f32_from_bits_raw(bits: u32): f32
 primitive func f32_to_bits_raw(value: f32): u32
 primitive func f64_from_bits_raw(bits: u64): f64
