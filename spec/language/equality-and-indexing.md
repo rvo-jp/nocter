@@ -57,7 +57,7 @@ Comparison rules:
   before coerced candidates; multiple remaining coercion candidates are ambiguous.
 - Owned operands are implicitly borrowed for the selected readonly equality call and remain usable.
 - Standard text and collection equality declarations and their coercion behavior belong to the
-  relevant [standard-library contracts](../../development/std/README.md).
+  relevant [standard-library contracts](../../std/README.md).
 - Struct equality is not automatically generated.
 - Payload-carrying enum equality is not supported. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.

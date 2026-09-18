@@ -135,7 +135,7 @@ acquire that temporary receiver loan; it carries only the loans already stored i
 
 The standard library provides aborting and recoverable allocation capabilities over one
 implementation. Their exact declarations, termination behavior, error codes, and failure atomicity
-belong to [Allocation and Failure](../../development/std/mem/README.md).
+belong to [Allocation and Failure](../../std/mem/README.md).
 
 The ambient allocation context selects the ordinary aborting capability. Recoverable allocation
 requires an explicit library API whose declared result is fallible; changing the current context
@@ -155,8 +155,8 @@ The compiler's special behavior is limited to:
 
 The exact declarations, layout validation, raw-buffer invariants, and aborting-versus-recoverable
 adapter behavior belong to the compiler-checked
-[`std/mem` contract](../../development/std/mem/index.nct) and its
-[Allocation and Failure](../../development/std/mem/README.md) guide.
+[`std/mem` contract](../../std/mem/index.nct) and its
+[Allocation and Failure](../../std/mem/README.md) guide.
 
 ## Lexical Regions
 

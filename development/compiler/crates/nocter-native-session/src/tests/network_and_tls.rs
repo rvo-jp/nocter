@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn standard_network_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str(concat!(
@@ -53,8 +52,7 @@ fn standard_network_contract_crosses_native_tests() {
 
 #[test]
 fn standard_http_framing_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"http\", module: \"./http\" }\n");
@@ -105,8 +103,7 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -302,8 +299,7 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let sync_image = compile_single_file_native_source(
         &package_root,
@@ -405,8 +401,7 @@ fn tls_and_https_handshakes_share_the_fixed_timeout_contract() {
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let sync_image = compile_single_file_native_source(
         &package_root,
@@ -705,7 +700,6 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = reservation.local_addr().unwrap().port();
     drop(reservation);
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
     let package_root = TempPackage::new();
     create_local_tls_fixture(&fixture_root, &package_root.0);
@@ -715,7 +709,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let certificate_source =
         byte_vector_source(&fs::read(package_root.0.join("root-cert.der")).unwrap());
 
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let sync_main = format!(
         "blocking func main(): i32 {{\n\
              let _system = TlsStream.connect_with_timeout_blocking(\n\
@@ -785,7 +779,6 @@ fn custom_trust_does_not_override_certificate_validity() {
     let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = reservation.local_addr().unwrap().port();
     drop(reservation);
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
     let package_root = TempPackage::new();
     create_local_tls_fixture(&fixture_root, &package_root.0);
@@ -794,7 +787,7 @@ fn custom_trust_does_not_override_certificate_validity() {
     let key = package_root.0.join("localhost-key.pem");
     let _server = start_local_tls_server(port, &certificate, &key, true);
 
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     package_root.source(
         "main.nct",
         &format!(
@@ -836,7 +829,6 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
     let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = reservation.local_addr().unwrap().port();
     drop(reservation);
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
     let package_root = TempPackage::new();
     create_local_tls_fixture(&fixture_root, &package_root.0);
@@ -846,7 +838,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
     let certificate_source =
         byte_vector_source(&fs::read(package_root.0.join("root-cert.der")).unwrap());
 
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let sync_main = "blocking func main(): i32 {\n\
              let certificate = fs.read_blocking(\"root-cert.der\") catch _ { return 1 }\n\
              let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
@@ -923,7 +915,6 @@ fn https_requires_the_negotiated_http1_application_protocol() {
     let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = reservation.local_addr().unwrap().port();
     drop(reservation);
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
     let package_root = TempPackage::new();
     create_local_tls_fixture(&fixture_root, &package_root.0);
@@ -933,7 +924,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
     let certificate_source =
         byte_vector_source(&fs::read(package_root.0.join("root-cert.der")).unwrap());
 
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let sync_main = "blocking func main(): i32 {\n\
              let certificate = fs.read_blocking(\"root-cert.der\") catch _ { return 1 }\n\
              let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
@@ -1010,8 +1001,7 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -1206,8 +1196,7 @@ fn public_async_http_timeouts_and_abandoned_operations_preserve_ownership() {
     let abandoned_port = abandoned_fixture.local_addr().unwrap().port();
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let fixture_port = fixture.local_addr().unwrap().port();
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -1263,8 +1252,7 @@ fn public_async_http_request_body_observes_write_backpressure_timeout() {
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let body_chunk = "x".repeat(1024);
     package_root.source(

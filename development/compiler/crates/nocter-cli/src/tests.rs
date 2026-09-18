@@ -34,8 +34,7 @@ impl TempTree {
         fs::create_dir(&root).unwrap();
         let standard = root.join("std");
         if complete_standard {
-            let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-            copy_directory(&compiler.join("../std"), &standard);
+            copy_directory(&nocter_test_support::standard_library_root(), &standard);
             let root_source = standard.join("index.nct");
             let source = fs::read_to_string(&root_source).unwrap().replace(
                 &format!(

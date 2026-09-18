@@ -10,7 +10,7 @@ operations. User-facing library behavior is divided by responsibility:
 - [Callable Values and Interface Default Methods](../language/callables.md) defines callable and
   interface-default semantics;
 - [Native Testing](../tooling/testing.md) defines test declarations and execution;
-- [Standard Library](../../development/std/README.md) defines text, collection, path,
+- [Standard Library](../../std/README.md) defines text, collection, path,
   file, numeric, and process APIs.
 
 ## Standard-Library Architecture
@@ -100,8 +100,8 @@ Rules:
 ## Error Boundary
 
 The compiler-level failure payload is lowercase `error`. The exact type and member declarations
-belong to the compiler-checked [`std/error` contract](../../development/std/error/index.nct), while
-its storage, code, and context behavior belongs to [Recoverable Errors](../../development/std/error/README.md).
+belong to the compiler-checked [`std/error` contract](../../std/error/index.nct), while
+its storage, code, and context behavior belongs to [Recoverable Errors](../../std/error/README.md).
 The language-level `T!` meaning and propagation rules remain in
 [Errors and Optionals](../language/errors-and-optionals.md).
 
@@ -159,9 +159,9 @@ primitives.
 
 ## Pointer Boundary
 
-The compiler-checked [`std/ptr` contract](../../development/std/ptr/index.nct) owns the exact public
+The compiler-checked [`std/ptr` contract](../../std/ptr/index.nct) owns the exact public
 pointer primitive declarations. Their observable behavior belongs to
-[Pointer and Address Conversion](../../development/std/ptr/README.md), while raw-pointer language
+[Pointer and Address Conversion](../../std/ptr/README.md), while raw-pointer language
 semantics belong to [Strings, Arrays, Views, and Pointers](../language/sequences-and-text.md).
 Package-internal raw-view construction retains separate trusted authority and is not made public by
 the existence of the conversion API.
@@ -224,8 +224,8 @@ separate capability and distribution design rather than overloading visibility.
 ## Process and I/O Boundaries
 
 Target primitives expose only the minimum facts needed by ordinary wrappers. The public
-[`std/io`](../../development/std/io/README.md), [`std/fs`](../../development/std/fs/README.md), and
-[`std/process`](../../development/std/process/README.md) guides own validation, handle ownership,
+[`std/io`](../../std/io/README.md), [`std/fs`](../../std/fs/README.md), and
+[`std/process`](../../std/process/README.md) guides own validation, handle ownership,
 retry, partial-transfer, operation, and failure behavior. Their package-internal target translation
 is an implementation contract rather than a second public API.
 

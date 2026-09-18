@@ -108,7 +108,7 @@ The installed layout is:
 The `host` part in the archive name identifies the environment that runs the `nocter` compiler
 binary. The current host is `arm64-darwin`, and every archive extracts a `.nocter/` root.
 
-The installed Nocter home contains standard-library directory modules under `std/`. Target-dependent type, helper, and primitive declarations in those modules use `#target: "..."`; ordinary public wrapper functions remain normal functions. The public surface is owned by the checked [standard-library contracts](../../development/std/README.md), while the compiler boundary is specified in [Standard-Library Primitive and OS Boundary](primitives-and-os.md).
+The installed Nocter home contains standard-library directory modules under `std/`. Target-dependent type, helper, and primitive declarations in those modules use `#target: "..."`; ordinary public wrapper functions remain normal functions. The public surface is owned by the checked [standard-library contracts](../../std/README.md), while the compiler boundary is specified in [Standard-Library Primitive and OS Boundary](primitives-and-os.md).
 
 Because cross compilation beyond `arm64-darwin` is not implemented, the default active target is the host target. The `arm64-darwin` archive contains the compiler that runs on ARM64 macOS, and `std/internal/os/index.nct` contains the `#target: "arm64-darwin"` primitive boundary for that target.
 

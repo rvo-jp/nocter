@@ -126,7 +126,7 @@ Rules:
   code. Use `async func main(): i32!` when the entry body must await work.
 - Entry functions cannot declare type parameters or value parameters.
 - Command-line arguments and environment variables are accessed through the ordinary
-  [`std/process` contract](../development/std/process/index.nct), not through special entry function
+  [`std/process` contract](../std/process/index.nct), not through special entry function
   parameters.
 - Package-root `#executable` metadata selects the module, not a different function name.
 

@@ -158,8 +158,7 @@ const RECOVERABLE_NET_TEST_SOURCE: &str = concat!(
 
 #[test]
 fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
 
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
@@ -248,8 +247,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
 
 #[test]
 fn standard_json_phase_three_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str(concat!(
@@ -297,8 +295,7 @@ fn standard_json_phase_three_contract_crosses_native_tests() {
 
 #[test]
 fn standard_json_writer_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source("index.nct", JSON_WRITER_CONTRACT_TEST_SOURCE);
     package_root.source("implementation.nct", JSON_WRITER_IMPLEMENTATION_TEST_SOURCE);
@@ -332,8 +329,7 @@ fn standard_json_writer_contract_crosses_native_tests() {
 
 #[test]
 fn standard_map_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "index.nct",
@@ -394,8 +390,7 @@ fn standard_map_contract_crosses_native_tests() {
 
 #[test]
 fn constants_cross_fixed_array_checking_and_native_lowering() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -426,8 +421,7 @@ fn constants_cross_fixed_array_checking_and_native_lowering() {
 
 #[test]
 fn immutable_static_arrays_cross_readonly_data_and_native_relocation() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",

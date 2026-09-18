@@ -12,9 +12,8 @@ Before compiler work, read:
 - `TODO.md`
 - `compiler/README.md`
 - `history/milestones/README.md`
-- `design/README.md`
-- `design/architecture.md`
-- `design/maintenance.md`
+- `architecture/README.md`
+- `architecture/overview.md`
 
 Before editing a compiler crate, also read that crate's colocated `README.md` completely.
 
@@ -33,8 +32,8 @@ development:
 - do not copy the previous standard-library implementation to bootstrap compiler behavior
 - derive language, platform, and tooling behavior only from `spec/` and external platform standards
   explicitly cited by it
-- derive standard-library behavior only from its checked `development/std/**/index.nct` contract and
-  the sole behavior guide assigned by `development/std/README.md`
+- derive standard-library behavior only from its checked `std/**/index.nct` contract and
+  the sole behavior guide assigned by `std/README.md`
 
 Historical milestone and release records may be consulted only for release-history work explicitly
 requested by the user. They are never evidence for language semantics or new compiler structure.
@@ -79,20 +78,20 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 ## Documentation Ownership
 
 - `spec/`: sole normative source for language, platform, CLI, diagnostics, and editor behavior
-- `development/std/**/index.nct`: sole normative source for exact standard-library declarations and
+- `std/**/index.nct`: sole normative source for exact standard-library declarations and
   declaration documentation
-- `development/std/README.md`: sole assignment of longer observable subjects to behavior guides
-- assigned `development/std/**/README.md`: sole normative source for its named behavior subject
+- `std/README.md`: sole assignment of longer observable subjects to behavior guides
+- assigned `std/**/README.md`: sole normative source for its named behavior subject
 - `development/history/milestones/README.md`: milestone catalog; each linked milestone owns its own
   status
 - `development/history/release-audits/README.md`: publication catalog; each linked record owns
   immutable release evidence
-- `development/design/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
+- `development/architecture/overview.md`: compiler-wide pipeline, dependency direction, and cross-crate
   authority boundaries only
 - `development/compiler/crates/<crate>/README.md`: that crate's responsibility, input/output
   contract, internal responsibility split, and local invariants
-- `development/design/*.md`: cross-crate contracts and completed design records; never a duplicate
-  owner of crate internals
+- `development/architecture/`: current cross-responsibility contracts; never completed work records
+  or a duplicate owner of crate internals
 - `development/TODO.md`: next concrete work and current blockers only
 - `development/history/milestones/` and `development/history/reviews/`: plans, historical
   rationale, findings, and remediation evidence; never current crate-internal authority

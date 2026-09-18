@@ -4,7 +4,7 @@ This document owns implementation architecture and runtime invariants for the so
 `development/std/` and packaged as `.nocter/std`. Public modules, signatures, and behavior are
 defined by the responsibility-specific chapters indexed by
 [Standard-Library Primitive and OS Boundary](../../../spec/platform/primitives-and-os.md) and by
-[Standard Library](../../std/README.md).
+[Standard Library](../../../std/README.md).
 
 ## Responsibility Boundaries
 

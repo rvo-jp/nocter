@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::super::tests::{TemporaryDirectory, semantic_server};
 use crate::{LanguageServer, ServerStep};
 
@@ -1014,7 +1012,7 @@ fn rename_rejects_standard_library_occurrences_as_one_readonly_plan() {
         "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
     ));
 
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+    let standard = nocter_test_support::standard_library_root().join("str/index.nct");
     let text = std::fs::read_to_string(&standard).unwrap();
     let (line, source_line) = text
         .lines()
@@ -4331,7 +4329,7 @@ fn module_path_segments_navigate_as_one_resolved_namespace() {
         "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
     ));
 
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/process/darwin.nct");
+    let standard = nocter_test_support::standard_library_root().join("process/darwin.nct");
     let text = std::fs::read_to_string(&standard).unwrap();
     let (line, source_line) = text
         .lines()

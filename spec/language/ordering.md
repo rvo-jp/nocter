@@ -99,8 +99,8 @@ Matching integer types retain primitive ordering. `bool`, payloadless enums, and
 do not receive generated ordering or `TotalOrder` implementations.
 
 Source-defined ordering for borrowed text and slices, including coercion from their owning
-containers, belongs to the compiler-checked [`std/str`](../../development/std/str/index.nct) and
-[`std/slice`](../../development/std/slice/index.nct) contracts and their assigned behavior guides.
+containers, belongs to the compiler-checked [`std/str`](../../std/str/index.nct) and
+[`std/slice`](../../std/slice/index.nct) contracts and their assigned behavior guides.
 Those declarations use the selector defined here. The `<` operator does not prescribe a sorting
 algorithm.
 

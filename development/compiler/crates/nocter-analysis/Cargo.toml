@@ -25,6 +25,7 @@ nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 nocter-standard-profile = { path = "../nocter-standard-profile" }
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

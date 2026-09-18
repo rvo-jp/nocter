@@ -11,8 +11,7 @@ use super::{
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn public_http_server_deadlines_cancel_owned_operations_without_poisoning_listener() {
-    let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -64,8 +63,7 @@ fn public_http_server_deadlines_cancel_owned_operations_without_poisoning_listen
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn public_http_server_streams_request_and_response_bodies_through_linear_authority() {
-    let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -140,8 +138,7 @@ fn public_http_server_streams_request_and_response_bodies_through_linear_authori
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn public_http_server_reuses_one_connection_and_retains_pipelined_input() {
-    let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -240,8 +237,7 @@ fn public_http_server_reuses_one_connection_and_retains_pipelined_input() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn public_http_server_gracefully_drains_and_cancels_every_owned_typestate() {
-    let compiler_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",

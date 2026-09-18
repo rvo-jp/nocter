@@ -40,7 +40,7 @@ try {
     fs.appendFileSync(unrelatedRust, '\n#[cfg(test)]\nconst UNRELATED_TEXT: &str = "E9999";\n');
     build(early);
 
-    const standardLibraryGuide = path.join(early, "development/std/map/README.md");
+    const standardLibraryGuide = path.join(early, "std/map/README.md");
     const originalStandardLibraryGuide = fs.readFileSync(standardLibraryGuide, "utf8");
     fs.writeFileSync(standardLibraryGuide, originalStandardLibraryGuide.replaceAll("(index.nct)", "(README.md)"));
     const missingStandardLibraryContractLink = runBuild(early);
@@ -52,7 +52,7 @@ try {
     }
     fs.writeFileSync(standardLibraryGuide, originalStandardLibraryGuide);
 
-    const standardLibraryCatalog = path.join(early, "development/std/README.md");
+    const standardLibraryCatalog = path.join(early, "std/README.md");
     const originalStandardLibraryCatalog = fs.readFileSync(standardLibraryCatalog, "utf8");
     fs.writeFileSync(
         standardLibraryCatalog,
@@ -276,7 +276,6 @@ function assertPublicationBoundary(root) {
     const privateSources = [
         "development/history/index.html",
         "development/history/milestones/index.html",
-        "development/std/index.html",
         "std/str/text/index.html",
         "std/json/output/index/index.html",
         "std/internal/utf8/index/index.html"
@@ -333,7 +332,7 @@ function assertDocumentTreeNavigation(root) {
 
 function assertMarkdownTableRendering(root) {
     const grammar = fs.readFileSync(
-        path.join(generatedRoot(root), "development/design/grammar-conformance/index.html"),
+        path.join(generatedRoot(root), "development/compiler/tests/grammar/index.html"),
         "utf8"
     );
     const row = grammar.match(/<tr><td>G006<\/td>([\s\S]*?)<\/tr>/)?.[0];

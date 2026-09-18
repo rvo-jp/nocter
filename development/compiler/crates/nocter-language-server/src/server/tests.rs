@@ -636,7 +636,7 @@ fn semantic_tokens_use_exact_compiler_bindings_instead_of_syntax_ranges() {
     );
     assert!(changed_tokens.issue().is_none());
 
-    let memory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/mem/raw_buffer.nct");
+    let memory = nocter_test_support::standard_library_root().join("mem/raw_buffer.nct");
     let memory_uri = DocumentUri::new(format!("file://{}", memory.display())).unwrap();
     let memory = crate::semantic_document::semantic_document(
         &server.documents,
@@ -685,7 +685,7 @@ fn semantic_tokens_classify_readonly_receiver_as_a_parameter() {
         "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
     ));
 
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+    let standard = nocter_test_support::standard_library_root().join("str/index.nct");
     let standard_uri = DocumentUri::new(format!("file://{}", standard.display())).unwrap();
     let document = crate::semantic_document::semantic_document(
         &server.documents,
@@ -808,7 +808,7 @@ fn hover_normalizes_method_self_to_its_semantic_owner() {
         "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func main(): void {{ return }}\\n\"}}}}}}"
     ));
 
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+    let standard = nocter_test_support::standard_library_root().join("str/index.nct");
     let text = fs::read_to_string(&standard).unwrap();
     let (line, source_line) = text
         .lines()
@@ -826,7 +826,7 @@ fn hover_normalizes_method_self_to_its_semantic_owner() {
         "\"start\":{{\"line\":{line},\"character\":{character}}}"
     )));
 
-    let vec_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/vec/index.nct");
+    let vec_source = nocter_test_support::standard_library_root().join("vec/index.nct");
     let text = fs::read_to_string(&vec_source).unwrap();
     let (line, source_line) = text
         .lines()
@@ -843,7 +843,7 @@ fn hover_normalizes_method_self_to_its_semantic_owner() {
         "I impl ExactSizeIterator { .Item = T }"
     )));
 
-    let iter_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/iter/index.nct");
+    let iter_source = nocter_test_support::standard_library_root().join("iter/index.nct");
     let text = fs::read_to_string(&iter_source).unwrap();
     let (line, source_line) = text
         .lines()
@@ -993,7 +993,7 @@ fn task_group_hover_uses_the_public_dynamic_ownership_contract() {
     let temporary = TemporaryDirectory::new();
     let (mut server, _source_uri) =
         open_semantic_source(&temporary, "func main(): void { return }\n");
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/task/index.nct");
+    let standard = nocter_test_support::standard_library_root().join("task/index.nct");
     let text = fs::read_to_string(&standard).unwrap();
 
     let (line, source_line) = text
@@ -1038,7 +1038,7 @@ fn text_transformation_hover_uses_the_public_standard_contract() {
     let temporary = TemporaryDirectory::new();
     let (mut server, _source_uri) =
         open_semantic_source(&temporary, "func main(): void { return }\n");
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+    let standard = nocter_test_support::standard_library_root().join("str/index.nct");
     let text = fs::read_to_string(&standard).unwrap();
 
     let (line, source_line) = text
@@ -1079,7 +1079,7 @@ fn format_hover_distinguishes_recoverable_requirement_and_aborting_default() {
     let temporary = TemporaryDirectory::new();
     let (mut server, _source_uri) =
         open_semantic_source(&temporary, "func main(): void { return }\n");
-    let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/fmt/index.nct");
+    let standard = nocter_test_support::standard_library_root().join("fmt/index.nct");
     let text = fs::read_to_string(&standard).unwrap();
 
     let (line, source_line) = text
@@ -1174,7 +1174,7 @@ fn integer_text_queries_use_the_type_owned_standard_contract() {
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
 
-    let num_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/num/index.nct");
+    let num_source = nocter_test_support::standard_library_root().join("num/index.nct");
     let num_text = fs::read_to_string(&num_source).unwrap();
     let (line, source_line) = num_text
         .lines()
@@ -1223,7 +1223,7 @@ fn directory_stream_contract_and_body_share_complete_editor_semantics() {
     assert!(response.contains("/std/fs/index.nct"), "{response}");
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
-    let contract = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/fs/index.nct");
+    let contract = nocter_test_support::standard_library_root().join("fs/index.nct");
     let text = fs::read_to_string(&contract).unwrap();
     let (line, source_line) = text
         .lines()
@@ -1242,7 +1242,7 @@ fn directory_stream_contract_and_body_share_complete_editor_semantics() {
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
 
-    let body = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/fs/directory.nct");
+    let body = nocter_test_support::standard_library_root().join("fs/directory.nct");
     let text = fs::read_to_string(&body).unwrap();
     let (line, source_line) = text
         .lines()
@@ -1680,7 +1680,7 @@ fn streaming_line_contract_and_body_share_complete_editor_semantics() {
     assert!(response.contains("/std/io/buffer/index.nct"), "{response}");
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
-    let contract = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/io/buffer/index.nct");
+    let contract = nocter_test_support::standard_library_root().join("io/buffer/index.nct");
     let text = fs::read_to_string(&contract).unwrap();
     let (line, source_line) = text
         .lines()
@@ -1703,7 +1703,7 @@ fn streaming_line_contract_and_body_share_complete_editor_semantics() {
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
 
-    let body = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/io/buffer/buffering.nct");
+    let body = nocter_test_support::standard_library_root().join("io/buffer/buffering.nct");
     let text = fs::read_to_string(&body).unwrap();
     let (line, source_line) = text
         .lines()
@@ -1888,7 +1888,7 @@ fn collection_ordering_uses_slice_semantics_for_vec_editor_queries() {
     assert!(!response.contains("/std/vec/index.nct"), "{response}");
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
-    let contract = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/slice/index.nct");
+    let contract = nocter_test_support::standard_library_root().join("slice/index.nct");
     let text = fs::read_to_string(&contract).unwrap();
     let (line, source_line) = text
         .lines()
@@ -1907,7 +1907,7 @@ fn collection_ordering_uses_slice_semantics_for_vec_editor_queries() {
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
 
-    let body = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/slice/ordering.nct");
+    let body = nocter_test_support::standard_library_root().join("slice/ordering.nct");
     let text = fs::read_to_string(&body).unwrap();
     let (line, source_line) = text
         .lines()
@@ -1943,7 +1943,7 @@ fn server(version: &str) -> LanguageServer {
 }
 
 pub(super) fn semantic_server(root: &Path) -> LanguageServer {
-    let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+    let standard_root = nocter_test_support::standard_library_root();
     LanguageServer::new(
         "dev",
         LanguageServerEnvironment::new(

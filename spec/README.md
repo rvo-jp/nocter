@@ -2,7 +2,7 @@
 
 This directory is the sole normative source for the current Nocter language, supported platform
 boundary, command-line interface, and editor behavior. The checked standard-library source and its
-documentation are owned separately by the [Standard Library](../development/std/README.md). The
+documentation are owned separately by the [Standard Library](../std/README.md). The
 catalogs below recommend a reading order; generated navigation follows the published directory
 structure and does not use those links as a page registry. File names describe responsibilities
 and never encode release history.
@@ -17,7 +17,7 @@ public contract.
 - [Design Principles](principles.md) explains the criteria used to resolve design choices.
 - [Language Overview](overview.md) introduces the language as a coherent whole.
 - [Language](language/README.md) defines source syntax and program semantics.
-- [Standard Library](../development/std/README.md) defines portable public modules and APIs next to
+- [Standard Library](../std/README.md) defines portable public modules and APIs next to
   their checked declarations.
 - [Platform](platform/README.md) defines ABI, target, primitive, and distribution boundaries.
 - [Tooling](tooling/README.md) defines diagnostics, formatting, CLI, testing, and editor behavior.

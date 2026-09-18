@@ -2,7 +2,7 @@
 
 This directory owns the reproducible transformation from the pinned Unicode Character Database to
 the generated Nocter source consumed by `std/internal/unicode`. It does not define public text
-semantics; those belong to [`development/std/char/README.md`](../std/char/README.md).
+semantics; those belong to [`std/char/README.md`](../../std/char/README.md).
 
 `manifest.json` is the input authority. It records the Unicode version, canonical source URL, byte
 length, and SHA-256 digest for every tracked file under `inputs/17.0.0/`. The generator verifies all
@@ -19,7 +19,7 @@ node development/unicode/test.js
 Generation parses the complete pinned property and casing corpus, rejects unknown
 locale-independent casing conditions, rejects empty mappings that the lookup representation cannot
 encode, validates every scalar lookup and mapping bound, and writes
-`development/std/internal/unicode/tables.nct` atomically only when its exact bytes change. Normal
+`std/internal/unicode/tables.nct` atomically only when its exact bytes change. Normal
 compiler, standard-library, and package builds consume that committed source directly.
 
 Updating Unicode is one reviewed change: replace all input files, update every manifest field, run

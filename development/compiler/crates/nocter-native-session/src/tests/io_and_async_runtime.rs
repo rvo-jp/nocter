@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn standard_io_descriptor_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"output\", module: \"./io\" }\n");
@@ -43,8 +42,7 @@ fn standard_io_descriptor_contract_crosses_native_tests() {
 
 #[test]
 fn public_writer_line_adapter_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source("index.nct", IO_WRITER_CONTRACT_TEST_SOURCE);
     package_root.source("implementation.nct", IO_WRITER_IMPLEMENTATION_TEST_SOURCE);
@@ -78,8 +76,7 @@ fn public_writer_line_adapter_crosses_native_tests() {
 
 #[test]
 fn standard_num_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"numeric\", module: \"./num\" }\n");
@@ -119,8 +116,7 @@ fn standard_num_contract_crosses_native_tests() {
 
 #[test]
 fn standard_checksum_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"checksum\", module: \"./checksum\" }\n");
@@ -160,8 +156,7 @@ fn standard_checksum_contract_crosses_native_tests() {
 
 #[test]
 fn standard_time_value_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"time\", module: \"./time\" }\n");
@@ -201,8 +196,7 @@ fn standard_time_value_contract_crosses_native_tests() {
 
 #[test]
 fn standard_async_sleep_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -231,8 +225,7 @@ fn standard_async_sleep_crosses_the_complete_native_session() {
 
 #[test]
 fn generic_async_io_defaults_cross_interface_dispatch_and_native_execution() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -244,8 +237,7 @@ fn generic_async_io_defaults_cross_interface_dispatch_and_native_execution() {
 
 #[test]
 fn structured_async_join_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -298,8 +290,7 @@ fn structured_async_join_crosses_the_complete_native_session() {
 
 #[test]
 fn structured_async_race_selects_one_winner_and_cancels_the_other() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -377,8 +368,7 @@ fn structured_async_race_selects_one_winner_and_cancels_the_other() {
 
 #[test]
 fn structured_async_timeout_distinguishes_completion_from_elapsed_time() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -432,8 +422,7 @@ fn structured_async_timeout_distinguishes_completion_from_elapsed_time() {
 
 #[test]
 fn dynamic_task_group_drives_runtime_sized_children_and_preserves_empty_state() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -497,8 +486,7 @@ fn dynamic_task_group_drives_runtime_sized_children_and_preserves_empty_state() 
 
 #[test]
 fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -533,8 +521,7 @@ fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
 
 #[test]
 fn large_async_output_staging_preserves_the_consume_entry() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -596,8 +583,7 @@ fn large_async_output_staging_preserves_the_consume_entry() {
 
 #[test]
 fn large_fallible_async_output_preserves_the_failure_variant() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -670,8 +656,7 @@ fn large_fallible_async_output_preserves_the_failure_variant() {
 
 #[test]
 fn public_async_tcp_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -725,8 +710,7 @@ fn public_async_tcp_crosses_the_complete_native_session() {
 
 #[test]
 fn standard_async_buffers_cross_generic_tcp_and_line_contracts() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -747,8 +731,7 @@ fn standard_async_buffers_cross_generic_tcp_and_line_contracts() {
 
 #[test]
 fn standard_async_iterator_adapters_preserve_values_order_exhaustion_and_failure() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -769,8 +752,7 @@ fn standard_async_iterator_adapters_preserve_values_order_exhaustion_and_failure
 
 #[test]
 fn standard_async_streaming_producers_are_bounded_lazy_and_terminal() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -796,8 +778,7 @@ fn standard_async_streaming_producers_are_bounded_lazy_and_terminal() {
 
 #[test]
 fn standard_async_copy_preserves_failure_cancellation_and_timeout_contracts() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -818,8 +799,7 @@ fn standard_async_copy_preserves_failure_cancellation_and_timeout_contracts() {
 
 #[test]
 fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_writer() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -845,8 +825,7 @@ fn standard_async_buffer_cancellation_preserves_reader_prefix_and_terminates_wri
 
 #[test]
 fn public_async_udp_crosses_readiness_timeout_cancellation_and_datagram_boundaries() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -867,8 +846,7 @@ fn public_async_udp_crosses_readiness_timeout_cancellation_and_datagram_boundari
 
 #[test]
 fn provider_async_stream_policy_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str(
@@ -916,8 +894,7 @@ fn provider_async_stream_policy_crosses_the_complete_native_session() {
 
 #[test]
 fn provider_listener_policy_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source
@@ -964,8 +941,7 @@ fn provider_listener_policy_crosses_the_complete_native_session() {
 
 #[test]
 fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -1015,8 +991,7 @@ fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
 
 #[test]
 fn public_async_tcp_idle_read_observes_its_deadline() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -1061,8 +1036,7 @@ fn public_async_tcp_idle_read_observes_its_deadline() {
 
 #[test]
 fn public_async_host_connection_uses_one_awaited_result() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",

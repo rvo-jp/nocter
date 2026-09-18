@@ -10,16 +10,16 @@ contracts, or milestone status.
 
 - [`spec/`](../../spec/README.md) is the sole authority for public language, platform, CLI,
   diagnostic, and editor behavior.
-- [`development/std`](../std/README.md) owns compiler-checked standard-library declarations and
+- [`std`](../../std/README.md) owns compiler-checked standard-library declarations and
   declaration documentation, and assigns longer observable subjects to behavior guides.
-- [Compiler architecture](../design/architecture.md) owns the pipeline, dependency direction, and
+- [Compiler architecture](../architecture/overview.md) owns the pipeline, dependency direction, and
   cross-stage authority rules.
-- [Checked program design](../design/checked-program-design.md),
-  [target and executable program design](../design/target-program-design.md), and
-  [machine program design](../design/machine-program-design.md) own their detailed stage contracts.
-- [Execution contract design](../design/execution-contract-design.md) owns the boundary between
+- [Checked program design](../architecture/pipeline/checked-program.md),
+  [target and executable program design](../architecture/pipeline/target-program.md), and
+  [machine program design](../architecture/pipeline/machine-program.md) own their detailed stage contracts.
+- [Execution contract design](../architecture/contracts/execution.md) owns the boundary between
   authored callable guarantees, checked execution facts, primitive facts, and their consumers.
-- [Semantic presentation design](../design/semantic-presentation-design.md) owns the compiler-to-editor
+- [Semantic presentation design](../architecture/pipeline/semantic-presentation.md) owns the compiler-to-editor
   presentation boundary.
 - [`Cargo.toml`](Cargo.toml) is the canonical workspace-member list. Crate manifests and public Rust
   APIs are the canonical dependency and implementation surface.

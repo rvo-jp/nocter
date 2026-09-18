@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn standard_string_concat_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -31,8 +30,7 @@ fn standard_string_concat_crosses_the_complete_native_session() {
 
 #[test]
 fn unicode_scalar_values_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -85,8 +83,7 @@ func main(): i32 {
 
 #[test]
 fn standard_text_transformations_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -150,8 +147,7 @@ func main(): i32 {
 
 #[test]
 fn standard_directory_stream_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -262,8 +258,7 @@ async func main(): i32 {
 
 #[test]
 fn standard_symbolic_link_targets_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     std::fs::write(package_root.0.join("item"), b"value").unwrap();
     std::fs::hard_link(
@@ -348,8 +343,7 @@ async func count_walk(walker: fs.WalkDir): usize! {
 
 #[test]
 fn public_path_and_directory_lifecycle_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -455,8 +449,7 @@ blocking func main(): i32! {
 
 #[test]
 fn standard_streaming_lines_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -484,8 +477,7 @@ fn standard_streaming_lines_cross_the_complete_native_session() {
 
 #[test]
 fn standard_input_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -545,8 +537,7 @@ blocking func main(): i32! {
 
 #[test]
 fn standard_buffered_input_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -600,8 +591,7 @@ blocking func main(): i32! {
 
 #[test]
 fn standard_collection_ordering_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source("main.nct", COLLECTION_ORDERING_TEST_SOURCE);
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -626,8 +616,7 @@ fn standard_collection_ordering_crosses_the_complete_native_session() {
 
 #[test]
 fn standard_filesystem_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"directory-records\", module: \"./fs\" }\n");
@@ -673,8 +662,7 @@ fn standard_filesystem_contract_crosses_native_tests() {
 
 #[test]
 fn standard_path_lexical_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"path\", module: \"./path\" }\n");
@@ -714,8 +702,7 @@ fn standard_path_lexical_contract_crosses_native_tests() {
 
 #[test]
 fn standard_url_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"url\", module: \"./url\" }\n");
@@ -755,8 +742,7 @@ fn standard_url_contract_crosses_native_tests() {
 
 #[test]
 fn standard_str_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str(concat!(
@@ -804,8 +790,7 @@ fn standard_str_contract_crosses_native_tests() {
 
 #[test]
 fn standard_hash_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"hash\", module: \"./hash\" }\n");
@@ -845,8 +830,7 @@ fn standard_hash_contract_crosses_native_tests() {
 
 #[test]
 fn standard_format_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"format\", module: \"./fmt\" }\n");

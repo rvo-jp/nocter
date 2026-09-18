@@ -4,6 +4,9 @@ This directory owns repeatable, non-normative measurements of user-visible compi
 latency. Measurements guide optimization; they do not define language or tooling correctness.
 Correctness remains owned by `spec/` and the compiler conformance suite.
 
+The [measurement boundary](methodology.md) separates external latency evidence from deterministic
+compiler query counters and defines the evidence required for a valid comparison.
+
 ## Scenarios
 
 `run.js` measures three paths with released or candidate installed compilers:

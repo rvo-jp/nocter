@@ -434,7 +434,7 @@ mod tests {
         fs::write(&first, first_text).unwrap();
         fs::write(&second, second_text).unwrap();
 
-        let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+        let standard_root = nocter_test_support::standard_library_root();
         let shared = fs::canonicalize(standard_root.join("fs/index.nct")).unwrap();
         let shared_uri = DocumentUri::from_file_path(&shared).unwrap();
         let mut documents = DocumentWorkspace::new();
@@ -506,7 +506,7 @@ mod tests {
     }
 
     fn configuration(root: &Path) -> WorkspaceConfiguration {
-        let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+        let standard_root = nocter_test_support::standard_library_root();
         let environment = LanguageServerEnvironment::new(
             root,
             LanguageServerToolchain::new(

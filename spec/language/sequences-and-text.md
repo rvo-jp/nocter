@@ -49,8 +49,8 @@ These operations may be reconsidered only if Nocter later adopts an explicit uns
 ### `std/ptr`
 
 Pointer and address conversion APIs live in the compiler-checked
-[`std/ptr` contract](../../development/std/ptr/index.nct). Their observable conversion and
-zero-sized-address behavior belongs to the [Pointer and Address Conversion](../../development/std/ptr/README.md)
+[`std/ptr` contract](../../std/ptr/index.nct). Their observable conversion and
+zero-sized-address behavior belongs to the [Pointer and Address Conversion](../../std/ptr/README.md)
 guide. Pointer-to-integer conversion is an ordinary library call, not `as` syntax. Package-internal
 address-to-pointer and raw-view construction remain inaccessible to user packages.
 
@@ -68,8 +68,8 @@ func address_of(value: &u8): usize {
 ### View Pointer APIs
 
 The active Nocter home declares observation methods for `&[T]`, `&+[T]`, and `&str` in the
-compiler-checked [`std/slice`](../../development/std/slice/index.nct) and
-[`std/str`](../../development/std/str/index.nct) contracts. The compiler built-in types own the
+compiler-checked [`std/slice`](../../std/slice/index.nct) and
+[`std/str`](../../std/str/index.nct) contracts. The compiler built-in types own the
 method identities, while declarations and ordinary bodies remain standard-library source. A
 readwrite slice may call readonly `[T]` methods by capability weakening. Observing a pointer grants
 no dereference permission.
@@ -264,16 +264,16 @@ Collection operations are ordinary standard-library methods.
 
 The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and
 `&+[T]`. The active Nocter home exclusively owns `instance` declarations for built-in `[T]`; their
-exact API and behavior belong to the [slice contract](../../development/std/slice/index.nct) and
-[guide](../../development/std/slice/README.md). Owning collection and iterator names remain
+exact API and behavior belong to the [slice contract](../../std/slice/index.nct) and
+[guide](../../std/slice/README.md). Owning collection and iterator names remain
 declaration-resolved API surface; the compiler does not infer behavior from member spelling.
 
 ### Iteration
 
 Readonly, readwrite, and owned iteration use ordinary standard-library iterator declarations. Their
 exact source, yielded types, provenance, exhaustion, and destruction behavior belongs to the
-compiler-checked [iteration contract](../../development/std/iter/index.nct) and its
-[behavior guide](../../development/std/iter/README.md). Expansion declarations, rather than an
+compiler-checked [iteration contract](../../std/iter/index.nct) and its
+[behavior guide](../../std/iter/README.md). Expansion declarations, rather than an
 iterator type or method spelling, connect a source type to `for`.
 
 ```nct
@@ -345,9 +345,9 @@ func open(path: &str): File! {
 ```
 
 The compiler-checked standard-library contracts own the exact `str`, `String`, slice, and `Vec`
-operations and their observable behavior. See [Borrowed Text](../../development/std/str/README.md),
-[Owned Strings](../../development/std/string/README.md), [Vectors](../../development/std/vec/README.md),
-and [Slices](../../development/std/slice/README.md).
+operations and their observable behavior. See [Borrowed Text](../../std/str/README.md),
+[Owned Strings](../../std/string/README.md), [Vectors](../../std/vec/README.md),
+and [Slices](../../std/slice/README.md).
 This language chapter owns only the built-in `str` data meaning, borrow types, literal behavior,
 and the coercion and method-selection rules that make those library declarations usable.
 
@@ -368,7 +368,7 @@ does not synthesize forwarding members on owning types.
 Unicode scalar construction, observation, and iteration belong to
 [Unicode Scalar Values](unicode-scalars.md). Unicode properties, Unicode whitespace trimming,
 and default case conversion belong to
-[Unicode Text and Scalars](../../development/std/char/README.md). Byte-oriented APIs in this chapter keep
+[Unicode Text and Scalars](../../std/char/README.md). Byte-oriented APIs in this chapter keep
 their existing meanings and do not silently adopt scalar, grapheme, or normalization behavior.
 
 ## String and Byte Literals
@@ -452,8 +452,8 @@ Formatting rules:
 
 Interpolation requires implementation of the exact `std/fmt.Format` interface selected from the
 active Nocter home. Its exact declaration and standard implementations belong to the
-compiler-checked [`std/fmt` contract](../../development/std/fmt/index.nct); destination mutation,
-failure, and formatting behavior belongs to the [Formatting](../../development/std/fmt/README.md)
+compiler-checked [`std/fmt` contract](../../std/fmt/index.nct); destination mutation,
+failure, and formatting behavior belongs to the [Formatting](../../std/fmt/README.md)
 guide.
 
 - A project-owned struct or enum becomes interpolatable only through an explicit implementation of

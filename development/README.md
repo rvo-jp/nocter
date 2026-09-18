@@ -2,14 +2,14 @@
 
 Nocter development is contract-first. Language, platform, and tooling behavior belongs in
 [`spec/`](../spec/README.md). Standard-library behavior belongs with its compiler-checked public
-surface under [`development/std`](std/README.md). Implementation milestones and reviews record how
+surface under [`std`](../std/README.md). Implementation milestones and reviews record how
 the compiler reached those contracts without becoming another authority.
 
 ## Current Work
 
 - [Current handoff](TODO.md) — next concrete work and blockers only
-- [Compiler architecture](design/architecture.md) — pipeline and cross-crate authority boundaries
-- [Architecture and maintenance documents](design/README.md)
+- [Compiler architecture](architecture/overview.md) — pipeline and cross-responsibility authority boundaries
+- [Architecture contracts](architecture/README.md)
 - [Compiler workspace](compiler/README.md)
 - [Performance measurement](benchmarks/README.md) — external latency evidence and query-count boundary
 - [Development verification](verification/README.md) — disposable complete compiler gates
@@ -37,8 +37,24 @@ The specification is the sole source for:
 - command-line and editor contracts
 
 Compiler-checked standard-library declarations and declaration documentation belong to module
-`index.nct` files. The [standard-library catalog](std/README.md#behavior-guide-authority) assigns
+`index.nct` files. The [standard-library catalog](../std/README.md#behavior-guide-authority) assigns
 each longer observable subject to one behavior guide without repeating signatures.
+
+## Maintenance Workflow
+
+Escalate a language decision only when at least two materially different observable behaviors
+remain consistent after the owning specification chapter and its cross-references have been
+audited. Reduce the ambiguity to one minimal source example, compare concrete consequences, record
+the selected behavior in `spec/`, and derive conformance cases before implementation continues.
+Internal representation, implementation order, and diagnostic wording not fixed by the
+specification do not require a language decision.
+
+Keep one authority replacement coherent: do not introduce a new producer while retaining an
+undocumented compatibility path. Passing tests are necessary but do not replace an audit for
+duplicate producers, reverse lookup, order dependence, or hidden fallback behavior. Exact compiler
+verification commands live in the [compiler workspace guide](compiler/README.md); documentation
+changes also run the [site generator](site/README.md) into an explicit directory outside the
+repository.
 
 ## Repository Layout
 
@@ -49,11 +65,10 @@ development/
 ├── TODO.md
 ├── benchmarks/        # repeatable external compiler and editor measurements
 ├── compiler/          # specification-first compiler workspace
-├── design/            # active cross-crate architecture and maintenance policy
+├── architecture/      # active cross-responsibility compiler and runtime contracts
 ├── history/           # non-normative engineering records, excluded from the website
 ├── packaging/         # release identity, deterministic assembly, and artifact qualification
 ├── site/              # documentation generator and static website inputs
-├── std/               # standard-library contracts and implementation sources
 ├── unicode/           # generated Unicode source data and its generator
 └── verification/      # disposable development verification entry points
 ```

@@ -5,6 +5,8 @@ local release candidate.
 
 - `VERSION` is the sole authored release-version identity. `RELEASE.json` owns version-independent
   host, target, license, and archive-layout metadata.
+- Root [`std/`](../../std/README.md) is the sole authored standard-library package copied into the
+  installed home; packaging rejects untracked or non-regular entries in that tree.
 - `render-manifest.js` validates those inputs, derives the versioned archive name, and combines them
   with the compiler file digest and standard-library tree digest to create the installed
   `MANIFEST.json` v2.

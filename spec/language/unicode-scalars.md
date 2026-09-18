@@ -7,7 +7,7 @@ extended grapheme cluster, a displayed glyph, or a locale-sensitive character.
 ## Type and Representation
 
 `char` is a compiler built-in copy type whose exact source declaration belongs to the
-compiler-checked [`std/char` contract](../../development/std/char/index.nct).
+compiler-checked [`std/char` contract](../../std/char/index.nct).
 
 Every runtime `char` value is a valid Unicode scalar. Its stored representation is the scalar's
 unsigned value with size 4 and alignment 4. It remains a distinct type from `u32`; arithmetic and
@@ -48,19 +48,19 @@ not the authored escape spelling.
 
 The standard package owns `char` construction, observation, comparison, hashing, formatting, and
 Unicode property operations. Their exact declarations and observable behavior are defined by
-[Unicode Text and Scalars](../../development/std/char/README.md), not by the language grammar.
+[Unicode Text and Scalars](../../std/char/README.md), not by the language grammar.
 
 ## UTF-8 Scalar Iteration
 
 `str.len()` remains a UTF-8 byte count. The standard library provides explicit scalar traversal;
 the language does not reinterpret text indices as scalar positions. See
-[Unicode Text and Scalars](../../development/std/char/README.md#utf-8-scalar-iteration).
+[Unicode Text and Scalars](../../std/char/README.md#utf-8-scalar-iteration).
 
 ## Owned String Integration
 
 Owned-string scalar operations belong to the standard-library
-[`String` contract](../../development/std/string/index.nct) and its
-[Unicode behavior](../../development/std/char/README.md#owned-string-integration).
+[`String` contract](../../std/string/index.nct) and its
+[Unicode behavior](../../std/char/README.md#owned-string-integration).
 
 ## Tooling
 

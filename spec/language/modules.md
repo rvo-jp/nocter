@@ -407,7 +407,7 @@ Rules:
 - project-wide prelude configuration is not supported
 
 The exact export set belongs to the compiler-checked
-[`std/prelude` contract](../../development/std/prelude/index.nct). Changing that source changes the
+[`std/prelude` contract](../../std/prelude/index.nct). Changing that source changes the
 fallback names without changing the import mechanism in this chapter.
 
 Named builtins such as `str` and primitive numeric types come from the compiler-managed universal

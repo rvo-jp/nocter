@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn bundled_standard_library_crosses_the_complete_target_session() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+    let root = nocter_test_support::standard_library_root();
     let package = PackageIdentity::new("toolchain:std");
     let resolved = resolved_standard(&root, &package);
     let roots = module_roots(&root)
@@ -54,8 +54,7 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
 
 #[test]
 fn standard_unicode_lookup_contract_crosses_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"unicode\", module: \"./internal/unicode\" }\n");
@@ -95,8 +94,7 @@ fn standard_unicode_lookup_contract_crosses_native_tests() {
 
 #[test]
 fn standard_subprocess_contract_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let helper = package_root.0.join("subprocess-helper");
     let missing = package_root.0.join("missing-executable");
@@ -153,8 +151,7 @@ async func main(): i32 {{
 #[test]
 #[allow(clippy::too_many_lines)] // Keeps one complete async-output source scenario contiguous.
 fn standard_subprocess_output_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let helper = package_root.0.join("capture-helper");
     let empty = package_root.0.join("empty-capture-helper");
@@ -273,8 +270,7 @@ async func main(): i32 {{
 
 #[test]
 fn standard_spawned_child_and_pipe_values_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let helper = package_root.0.join("streaming-child-helper");
     package_root.source(
@@ -358,8 +354,7 @@ blocking func main(): i32 {{
 
 #[test]
 fn standard_async_spawn_and_pipe_values_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let helper = package_root.0.join("streaming-child-helper");
     package_root.source(
@@ -444,8 +439,7 @@ async func main(): i32 {{
 
 #[test]
 fn standard_files_and_process_pipes_compose_through_one_async_copy_contract() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let helper = package_root.0.join("streaming-child-helper");
     package_root.source(
@@ -525,8 +519,7 @@ const CONFIGURED_SUBPROCESS_HELPERS_SOURCE: &str =
 
 #[test]
 fn configured_subprocess_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let workspace = package_root.0.join("configured-workspace");
     let inherited_helper = package_root.0.join("inherited-helper");
@@ -612,8 +605,7 @@ blocking func main(): i32 {{
 
 #[test]
 fn standard_process_internal_contracts_cross_native_tests() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"process\", module: \"./process\" }\n");
@@ -660,8 +652,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
 #[test]
 #[allow(clippy::too_many_lines)] // Keeps one complete child-lifecycle source scenario contiguous.
 fn standard_subprocess_failures_and_lifecycle_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let success = package_root.0.join("success-helper");
     let nonzero = package_root.0.join("nonzero-helper");
@@ -814,8 +805,7 @@ blocking func main(): i32 {{
 
 #[test]
 fn subprocess_timeout_cancellation_reaps_the_exact_child() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let helper = package_root.0.join("timeout-helper");
     let pid_file = package_root.0.join("timeout-child.pid");

@@ -382,10 +382,9 @@ fn assert_http_lending_query_editor_features(
     ));
     let response = definition.response().unwrap();
     assert!(response.contains("/std/http/index.nct"), "{response}");
-    let standard_source = fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/http/index.nct"),
-    )
-    .unwrap();
+    let standard_source =
+        fs::read_to_string(nocter_test_support::standard_library_root().join("http/index.nct"))
+            .unwrap();
     let (definition_line, definition_source) =
         source_line(&standard_source, "method &self.query_pairs");
     let definition_character = definition_source.find("query_pairs").unwrap();

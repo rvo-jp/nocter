@@ -1134,7 +1134,7 @@ fn configuration_with_standard(root: &Path, standard_root: &Path) -> WorkspaceCo
 }
 
 fn standard_root() -> PathBuf {
-    fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap()
+    nocter_test_support::standard_library_root()
 }
 
 pub(super) struct TemporaryDirectory(PathBuf);

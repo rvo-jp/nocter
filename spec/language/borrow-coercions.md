@@ -212,10 +212,10 @@ the value borrowed by the caller.
 ## Standard Library Surface
 
 The exact standard coercions belong to the compiler-checked
-[`String`](../../development/std/string/index.nct) and
-[`Vec`](../../development/std/vec/index.nct) contracts. Their longer safety and ownership behavior
-belongs to the corresponding [owned-string](../../development/std/string/README.md) and
-[vector](../../development/std/vec/README.md) guides. Those declarations use the same selection,
+[`String`](../../std/string/index.nct) and
+[`Vec`](../../std/vec/index.nct) contracts. Their longer safety and ownership behavior
+belongs to the corresponding [owned-string](../../std/string/README.md) and
+[vector](../../std/vec/README.md) guides. Those declarations use the same selection,
 execution, and lifetime rules as project-defined coercions; the compiler does not recognize their
 type names as coercion syntax.
 

@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [Repository Documentation Authority Review after v0.59.0](repository-documentation-authority-after-v0.59.0.md)
 - [Repository Structure Review after v0.59.0](repository-structure-after-v0.59.0.md)
 - [v0.59.0 Phase 5 Integrity-Checked Record Review](v0.59.0-phase-5.md)
 - [v0.58.0 Phase 5 Binary Data Foundation Review](v0.58.0-phase-5.md)

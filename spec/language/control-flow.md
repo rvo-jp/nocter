@@ -531,7 +531,7 @@ Typical uses:
 
 - `trap(): never`
 - a standard-library termination operation from the compiler-checked
-  [`std/process` contract](../../development/std/process/index.nct)
+  [`std/process` contract](../../std/process/index.nct)
 - an infinite event loop that has no reachable `break`
 - an explicit unreachable-code marker in the standard library
 

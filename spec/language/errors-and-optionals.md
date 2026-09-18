@@ -36,8 +36,8 @@ Rules:
   completion or recoverable failure and remains an ordinary storable outcome value.
 - `T` must not be `never`, including after alias expansion or generic substitution. Use `void!`
   when failure is recoverable but success carries no value.
-- The compiler-checked [`std/error` contract](../../development/std/error/index.nct) owns the exact
-  construction and observation surface. Its [behavior guide](../../development/std/error/README.md)
+- The compiler-checked [`std/error` contract](../../std/error/index.nct) owns the exact
+  construction and observation surface. Its [behavior guide](../../std/error/README.md)
   owns code policy, storage, context, and accessor behavior. The built-in type identity selects that
   validated surface; the compiler does not recognize a member spelling or rewrite an alias.
 - `error` is move-only and owns cleanup. It cannot be copied, and a returned view cannot outlive

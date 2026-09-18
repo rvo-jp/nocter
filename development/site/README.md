@@ -36,10 +36,10 @@ The website publishes:
   records;
 - every runnable Nocter source under `examples/`;
 - public standard-library READMEs and exact checked `index.nct` module-contract sources under
-  `development/std/`, excluding the `internal/` subtree.
+  `std/`, excluding the `internal/` subtree.
 
-Standard-library documentation is projected from its repository location into the public `/std/`
-tree; the site does not present it as contributor documentation. A contract page preserves its
+Standard-library documentation keeps its repository path in the public `/std/` tree; the site does
+not present it as contributor documentation. A contract page preserves its
 complete canonical source, including visibly restricted declarations and module-assembly edges; it
 does not relabel those source forms as public API. Private standard-library implementation sources
 and package-only modules remain available in the repository but do not become website pages.
@@ -56,9 +56,8 @@ hero and the Markdown content beginning at `# Nocter`.
 The filtered published-document set is the sole authority for navigation membership and hierarchy.
 Each document receives one public path before `document-tree.js` derives the immutable directory
 tree; rendering, reachability validation, output paths, and the sitemap consume that same
-projection. Most public paths equal repository paths. Standard-library sources have the single
-explicit `development/std/` to `std/` projection described above. A `README.md` is the preferred
-landing page for its directory; when none exists, a published `index.nct` is the landing page.
+projection. Public paths equal repository paths. A `README.md` is the preferred landing page for
+its directory; when none exists, a published `index.nct` is the landing page.
 Navigation lists the landing page, remaining files, and child directories in deterministic name
 order. Directories without a landing page remain structural groups and expose their descendants
 through the nearest navigable ancestor. Display labels may use a document's first heading, but
@@ -140,7 +139,7 @@ Nocter home.
 ## Editing Rule
 
 Edit public Markdown in the repository root, `examples/`, `releases/`, and `spec/`. Standard-library
-API documentation is the deliberate exception colocated under `development/std/`. Edit other
+API documentation is colocated with the product sources under `std/`. Edit other
 compiler and contributor documentation under `development/`. Edit website and shared repository
 assets in `static/`. Commit only authored sources and build machinery; never copy generated HTML
 into the repository.

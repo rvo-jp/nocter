@@ -1702,6 +1702,7 @@ dependencies = [
  "nocter-source-index",
  "nocter-standard-profile",
  "nocter-syntax",
+ "nocter-test-support",
  "nocter-workspace-revision",
 ]
 
@@ -1928,6 +1929,7 @@ dependencies = [
  "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-selection",
+ "nocter-test-support",
  "nocter-toolchain-contract",
 ]
 
@@ -2059,6 +2061,7 @@ dependencies = [
  "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-program",
+ "nocter-test-support",
 ]
 
 [[package]]

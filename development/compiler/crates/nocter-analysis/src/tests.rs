@@ -1582,8 +1582,7 @@ fn associative_collection_misuse_is_reported_at_the_public_source_operation() {
 fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> AnalysisSnapshot {
     let package = PackageIdentity::new("workspace:app");
     let standard = PackageIdentity::new("toolchain:std");
-    let standard_root =
-        fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let graph = package_graph(vec![
         ResolvedPackageSpec::new(package.clone(), tree.path().join("app"))
             .with_standard_dependency(standard.clone()),
@@ -1607,8 +1606,7 @@ pub(crate) fn bundled_snapshot(
 ) -> (PathBuf, AnalysisSnapshot) {
     tree.source("app.nct", source_text);
     let source_path = fs::canonicalize(tree.path().join("app.nct")).unwrap();
-    let standard_root =
-        fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std")).unwrap();
+    let standard_root = nocter_test_support::standard_library_root();
     let standard = PackageIdentity::new("toolchain:std");
     let graph = package_graph(vec![
         ResolvedPackageSpec::new(standard.clone(), &standard_root)

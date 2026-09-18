@@ -43,4 +43,4 @@ results. Protocol crates receive result values only.
   parallel list of bytes and document versions.
 
 The cross-crate presentation contract is documented in
-[Semantic Presentation Design](../../../design/semantic-presentation-design.md).
+[Semantic Presentation Design](../../../architecture/pipeline/semantic-presentation.md).

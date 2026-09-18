@@ -1,5 +1,7 @@
 //! Shared source fixtures and public-example contracts for compiler tests.
 
+use std::{path::PathBuf, sync::OnceLock};
+
 mod public_examples;
 
 pub use public_examples::{
@@ -14,6 +16,33 @@ pub use public_examples::{
 #[must_use]
 pub fn repository_release_version() -> &'static str {
     include_str!("../../../../packaging/VERSION").trim_ascii_end()
+}
+
+/// Returns the canonical root of the source repository containing this test-support crate.
+///
+/// Repository integration tests use this authority instead of each crate encoding its own number
+/// of parent-directory traversals.
+///
+/// # Panics
+///
+/// Panics when the crate is not located inside an accessible source checkout.
+#[must_use]
+pub fn repository_root() -> PathBuf {
+    static ROOT: OnceLock<PathBuf> = OnceLock::new();
+
+    ROOT.get_or_init(|| {
+        std::fs::canonicalize(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../.."))
+            .expect("the compiler test-support crate must remain inside a source repository")
+    })
+    .clone()
+}
+
+/// Returns the canonical root of the repository's authored standard-library package.
+#[must_use]
+pub fn standard_library_root() -> PathBuf {
+    static ROOT: OnceLock<PathBuf> = OnceLock::new();
+
+    ROOT.get_or_init(|| repository_root().join("std")).clone()
 }
 
 use nocter_compile_input::{

@@ -48,4 +48,4 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   direct calls and callbacks, but it does not decide which primitive roles consume those contexts.
 
 The cross-stage boundary is documented in
-[Machine Program and Native Target Design](../../../design/machine-program-design.md).
+[Machine Program and Native Target Design](../../../architecture/pipeline/machine-program.md).

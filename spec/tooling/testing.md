@@ -80,7 +80,7 @@ target-wide parse, resolution, or type error is reported with a null case identi
 
 ## Assertions
 
-The compiler-checked [`std/testing` contract](../../development/std/testing/index.nct) owns the
+The compiler-checked [`std/testing` contract](../../std/testing/index.nct) owns the
 exact assertion declarations. Their failure codes, allocation behavior, and equality semantics are
-defined by [Native Assertions](../../development/std/testing/README.md). The test runner gives these
+defined by [Native Assertions](../../std/testing/README.md). The test runner gives these
 ordinary fallible calls no compiler-intrinsic behavior.

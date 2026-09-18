@@ -15,3 +15,6 @@ runner and does not own expected compiler behavior; each consuming crate test ow
 Keep a short inline source in a Rust test when its exact spelling is the assertion or when the test
 constructs it dynamically. Put a reusable program or a substantial static package here so source
 formatting, module boundaries, and ownership remain visible without reading an escaped Rust string.
+
+The [grammar conformance matrix](grammar.md) derives syntax and semantic-boundary coverage from the
+normative grammar without becoming another source-language authority.

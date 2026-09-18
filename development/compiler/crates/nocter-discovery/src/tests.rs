@@ -1037,7 +1037,7 @@ fn semantic_topology_tracks_top_level_use_selection() {
 
 #[test]
 fn authored_standard_library_is_one_discoverable_declaration_unit() {
-    let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let standard_identity = PackageIdentity::new("toolchain:std");
     let standard = package("toolchain:std", "std", &standard_root)
         .with_standard_dependency(standard_identity.clone());

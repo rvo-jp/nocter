@@ -1,0 +1,178 @@
+# Secure Transport Boundary
+
+This document records the current cross-responsibility secure-transport boundary. Exact public
+declarations remain owned by the relevant `std/**/index.nct`, and observable behavior remains in
+the standard-library guide assigned by `std/README.md`.
+
+## Outcome Boundary
+
+Secure transport authenticates the remote server, preserves one unique stream owner, and drives
+synchronous and asynchronous progress without creating a second HTTP implementation. HTTPS reuses
+the URL, request policy, response decoder, body cursor, and response owner already
+shared by the synchronous and asynchronous HTTP clients.
+
+The public layer must not expose a native TLS context, certificate object, trust result, Darwin
+status code, callback pointer, dispatch object, or loader symbol. The compiler must not expose a
+general foreign-function or callback facility merely to reach a platform TLS provider.
+
+## Required Provider Contract
+
+A provider is acceptable only if it can uphold all of these requirements:
+
+- server authentication against the operating-system trust store;
+- hostname verification using the exact requested DNS host;
+- a separately owned custom-root configuration without silently disabling system validation;
+- TLS 1.2 at minimum, with any TLS 1.3 claim backed by an API contract and a native test;
+- ALPN configuration and inspection sufficient to require `http/1.1`;
+- one terminal release of every native TLS and trust object;
+- logical ordered events that distinguish establishment, transfer completion, clean EOF, and stable
+  failure without leaking provider status codes;
+- cancellation that observes the terminal provider state and callback-queue quiescence before
+  releasing the stream; and
+- composition with Nocter's monotonic-deadline, reactor, and HTTP ownership
+  authorities.
+
+The provider owns record protection, handshake state, certificate-path evaluation, hostname
+verification, and provider error classification. `std/tls` owns public values and stable Nocter
+errors. The private stream policy owns provider connection state. The reactor owns readiness
+registration for the callback event channel. HTTP owns protocol syntax and response framing.
+
+## Darwin Provider Boundary
+
+Network.framework is the selected Darwin connection and TLS provider. It owns endpoint resolution,
+connection establishment, transport progress, dispatch scheduling, and completion callbacks. One
+provider substrate serves plain TCP and TLS so HTTPS cannot create a second DNS, deadline,
+cancellation, or reactor model. Numeric address values and the explicit resolver remain independent
+value services; UDP retains its datagram-specific descriptor substrate.
+
+The required system frameworks and Blocks runtime are operating-system components of the selected
+target. Compilation invokes no external compiler or linker, and a generated executable requires no
+adjacent Nocter or third-party runtime.
+
+## Executable Dependency Authority
+
+The runtime contract gives each trusted import a logical library identity. The Mach-O writer is
+the sole authority mapping those identities to concrete install names. It freezes one canonical
+loaded-library sequence from the completed ARM64 program, and the same sequence drives:
+
+- `LC_LOAD_DYLIB` command order;
+- each dyld bind ordinal;
+- command-count and command-size layout; and
+- deterministic image identity.
+
+ARM64 retains logical imports and pointer slots only. It does not know framework paths or ordinals.
+A native generated-image test loads Security.framework and CoreFoundation.framework, creates a TLS
+context, releases it, and exits without an external linker or bundled runtime.
+
+## Adapter Boundary
+
+The migration proceeds through one compiler-owned adapter with four closed responsibilities:
+
+1. retain typed function and data imports required by the public Network.framework ABI;
+2. materialize only the fixed block signatures used by the adapter;
+3. translate callback completion into one fixed event sent through an owned reactor-visible
+   datagram socketpair;
+4. publish logical connection, transfer, cancellation, and release results to the standard
+   library.
+
+No source declaration may construct a block, import a native symbol, choose a dispatch queue, or
+inspect an `nw_*` object. Plain TCP and TLS use the same adapter so HTTPS cannot introduce a second
+connection engine.
+
+The runtime contract models the Darwin Blocks ABI once. ARM64
+can construct only a typed, one-pointer capture block whose descriptor size and signature pointer
+are fixed by that schema. A generated executable passes such a block to Network.framework; the
+framework invokes it and the callback updates its captured mailbox. This proves the actual block
+calling convention without exposing general blocks or foreign callbacks to Nocter source. The
+asynchronous boundary consumes a closed adapter-operation vocabulary before any connection object
+becomes public.
+
+The callback transport does not use a shared-memory mailbox plus a separate wake byte. Each
+callback writes one fixed 40-byte record to an `AF_UNIX/SOCK_DGRAM` socketpair owned by its native
+adapter object. The kernel datagram queue preserves complete message boundaries and callback order,
+applies bounded backpressure, and exposes the read descriptor directly to the existing reactor.
+Consequently no mutex, event-node allocation, pointer publication, or second readiness model exists.
+A serial dispatch queue is mandatory. Any provider object placed in an event must be retained before
+the send and becomes the consumer's responsibility only after a complete receive. Receiving the
+final cancelled state does not by itself permit release: the callback sends the event before it
+returns. The consumer must subsequently complete a synchronous barrier on the same serial dispatch
+queue. Only this two-step fence proves that the final callback has returned, after which blocks,
+queue, channel, and connection can be released.
+
+A generated executable now copies a one-pointer block onto a serial dispatch queue, sends one event
+from the callback thread, receives it as one datagram, and observes its payload. A second generated
+executable creates and cancels a real secure TCP connection, retains callback error objects across
+the channel, releases them after receipt, waits for the final cancelled state, completes the
+same-queue barrier, and only then releases every connection, endpoint, parameter, queue, and channel
+owner. Loader symbols, symbol kinds, libraries, and Block signatures now come from one closed
+runtime catalog. ARM64 event transfer retries only interruption and aborts on EOF, short records, or
+permanent channel failure because continuing after a lost ownership-bearing event cannot be safe.
+The production operation surface consumes this policy rather than reproducing it or exposing it to
+source code.
+
+## Adapter Operation Authority
+
+The runtime contract owns one checked lifecycle for both connection and listener owners. A native
+owner progresses through `initialized`, `running`, `cancel requested`, `final state observed`,
+`quiesced`, and `released`. The final provider state and the same-queue dispatch barrier are
+separate transitions; neither can independently manufacture release authority. Connection
+transfer operations are rejected for listener owners, and provider-state finality is derived from
+the typed connection or listener state rather than supplied as a Boolean by a caller.
+
+The closed operation vocabulary admits only owner creation or accepted-owner adoption, start,
+event-descriptor observation, receive/send initiation, complete event receipt, cancellation, the
+release barrier, and final release. It does not admit independent handler installation, arbitrary
+queue selection, Block construction, or native retain/release from source code. The target adapter
+applies this state machine while it materializes those operations.
+
+The runtime import catalog contains the complete plain-TCP dependency families needed by that
+surface: address endpoints, plain-TCP parameters, connections, listeners, dispatch data, effective
+path endpoints, provider errors, and fixed message contexts. Exact Block signatures for connection
+state, receive, send, listener state, and accepted-connection callbacks are likewise closed runtime
+roles. A source-level primitive cannot choose a different loader symbol or callback signature.
+
+Connection and listener owners share one fixed six-word native record: provider object, serial
+queue, event reader, event writer, optional callback context, and lifecycle tag. The context slot is
+null for plain connections and listeners. TLS custom trust uses it for one copied DER record whose
+lifetime is shared by every provider-owned verification Block. Endpoint, parameter, Block,
+dispatch-data, path, and error objects are otherwise operation-local and cannot silently acquire a
+second owner lifetime.
+ARM64 initializes the record only after all resources exist, derives every legal transition from
+the runtime operation authority, checks the current tag in generated code, and permits terminal
+cleanup only from `quiesced`. Cleanup clears each resource slot and ends in `released`, so a second
+release fails before it can touch native storage.
+
+The plain outbound constructor is the first complete producer of this record. Its input is a
+numeric Darwin socket address rather than a provider endpoint or textual host. It creates the
+channel, queue, endpoint, plain-TCP parameters, connection, state handler, and queue association as
+one transaction. The destination record remains untouched on failure, and every fully initialized
+temporary is released in reverse order. On success the endpoint and parameters are released
+immediately while the connection, queue, and channel move into the record. A native generated image
+executes this production constructor and the complete cancellation fence, so qualification cannot
+drift into a second connection-creation implementation.
+
+The source-to-Machine boundary names this storage through the private standard declaration
+`primitive type NetworkOwner`. Declaration lowering binds that exact nominal identity once to the
+closed `NetworkOwner` runtime-storage role. Target closure removes its empty source representation,
+and Machine obtains size and alignment only from the ABI contract above. Standard source therefore
+controls visibility and unique ownership while it cannot restate, construct, or project any of the
+six native fields.
+
+## Custom Trust Ownership
+
+Custom trust extends the TLS constructor rather than introducing a second connection primitive.
+System trust supplies a null anchor pointer and zero length. A custom connection supplies borrowed
+DER bytes; the compiler target checks the pair, allocates one `[length, bytes...]` record, and copies
+the bytes before Network.framework can retain a callback. The source borrow therefore ends when the
+constructor returns, while the copied record remains owned by the connection.
+
+The TLS configuration callback installs one fixed verify Block on the connection's serial queue.
+For each provider verification request, that Block copies the underlying `SecTrustRef`, constructs
+temporary CoreFoundation data, certificate, and array values, augments rather than replaces the
+system anchors, evaluates the provider-created hostname policy, releases all temporaries, and calls
+the provider completion exactly once. The provider may invoke this Block more than once; it observes
+only the immutable copied record.
+
+Terminal release first crosses the final-state and same-queue barrier. It then releases the native
+connection, which disposes its copied Blocks, before freeing the captured DER record. This order is
+owned by the runtime owner schema rather than repeated by TLS cleanup code.

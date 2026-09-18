@@ -50,7 +50,7 @@ const PAGE_META = {
         title: "Contributor Documentation",
         description: "Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow."
     },
-    "development/std/README.md": {
+    "std/README.md": {
         title: "Nocter Standard Library",
         description: "Compiler-checked public standard-library declarations and their observable module contracts."
     }
@@ -212,7 +212,7 @@ function validatePrimitiveTypeCatalog() {
     const declarationEntries = sourceFiles
         .filter(file => {
             const relative = normalizePath(path.relative(PROJECT_ROOT, file));
-            return relative.startsWith("development/std/") && path.basename(file) === "index.nct";
+            return relative.startsWith("std/") && path.basename(file) === "index.nct";
         })
         .flatMap(file => [...sourceContents.get(path.resolve(file)).matchAll(/^pub primitive type ([A-Za-z_][A-Za-z0-9_]*)$/gm)])
         .map(match => match[1]);
@@ -328,12 +328,12 @@ function validateCrateDocumentation() {
 }
 
 function validateStandardLibraryDocumentation() {
-    const standardRoot = path.join(PROJECT_ROOT, "development/std");
+    const standardRoot = path.join(PROJECT_ROOT, "std");
     const catalogPath = path.join(standardRoot, "README.md");
     const catalog = sourceContents.get(path.resolve(catalogPath));
     const readmes = sourceFiles.filter(file => {
         const relative = normalizePath(path.relative(PROJECT_ROOT, file));
-        return relative.startsWith("development/std/") && path.basename(file) === "README.md";
+        return relative.startsWith("std/") && path.basename(file) === "README.md";
     });
 
     for (const readme of readmes) {
@@ -542,7 +542,7 @@ function collectSourceFiles(directory) {
 }
 
 function isPublishedSource(relative) {
-    if (relative.startsWith("development/std/internal/")) {
+    if (relative.startsWith("std/internal/")) {
         return false;
     }
 
@@ -555,10 +555,10 @@ function isPublishedSource(relative) {
     }
 
     return relative.startsWith("examples/")
-        || relative === "development/std/index.nct"
+        || relative === "std/index.nct"
         || (
-            relative.startsWith("development/std/")
-            && !relative.startsWith("development/std/internal/")
+            relative.startsWith("std/")
+            && !relative.startsWith("std/internal/")
             && path.basename(relative) === "index.nct"
         );
 }
@@ -955,14 +955,7 @@ function outputPathForSource(sourcePath) {
 }
 
 function publishedPathForSource(sourcePath) {
-    const relative = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
-    const standardLibraryPrefix = "development/std/";
-
-    if (relative.startsWith(standardLibraryPrefix)) {
-        return relative.slice("development/".length);
-    }
-
-    return relative;
+    return normalizePath(path.relative(PROJECT_ROOT, sourcePath));
 }
 
 function publicPathForOutput(outputPath) {

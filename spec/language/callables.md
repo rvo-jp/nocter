@@ -383,8 +383,8 @@ let output = values
 ```
 
 The exact interfaces, adapters, operations, allocation behavior, provenance, and exact-size rules
-belong to the compiler-checked [iteration contract](../../development/std/iter/index.nct) and its
-[behavior guide](../../development/std/iter/README.md). They are ordinary applications of the
+belong to the compiler-checked [iteration contract](../../std/iter/index.nct) and its
+[behavior guide](../../std/iter/README.md). They are ordinary applications of the
 callable and interface rules in this chapter, not additional callable syntax.
 
 ## Unsupported Features

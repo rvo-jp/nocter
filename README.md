@@ -125,7 +125,7 @@ diagnostics before machine code is emitted.
 - [Examples](examples/README.md): runnable single-file and package examples.
 - [Language Specification](spec/README.md): Nocter syntax, type system, ownership, CLI behavior,
   diagnostics, and tooling contract.
-- [Standard Library](development/std/README.md): checked public APIs and observable module behavior.
+- [Standard Library](std/README.md): checked public APIs and observable module behavior.
 - [Design Principles](spec/principles.md): the simplicity,
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Release Index](releases/README.md): published downloads, supported targets, and version history.

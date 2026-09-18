@@ -7,11 +7,14 @@ integrity-checked binary records, native and editor integration, deterministic p
 public asset, and the Pages deployment are complete. The immutable evidence is recorded in
 [`development/history/release-audits/v0.59.0.md`](history/release-audits/v0.59.0.md).
 
-The post-release repository structure review is complete. Compiler integration tests and reusable
-Nocter corpora now have explicit physical owners, while the existing crate, documentation, history,
-standard-library, and generated-state boundaries were retained after review. Findings and evidence
-are recorded in the
-[`Repository Structure Review after v0.59.0`](history/reviews/repository-structure-after-v0.59.0.md).
+The post-release repository and documentation authority reviews are complete. Compiler integration
+tests and reusable Nocter corpora have explicit physical owners. The distributed standard library
+now lives at root `std/`, current cross-responsibility contracts live under
+`development/architecture/`, and local test and measurement policy lives with its mechanism.
+Findings and evidence are recorded in the
+[`Repository Structure Review after v0.59.0`](history/reviews/repository-structure-after-v0.59.0.md)
+and the
+[`Repository Documentation Authority Review after v0.59.0`](history/reviews/repository-documentation-authority-after-v0.59.0.md).
 
 ## Next Work
 

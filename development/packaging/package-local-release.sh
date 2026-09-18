@@ -7,7 +7,7 @@ repository_root="$(cd -- "$script_directory/../.." && pwd -P)"
 compiler_manifest="$repository_root/development/compiler/Cargo.toml"
 version_file="$script_directory/VERSION"
 release_file="$script_directory/RELEASE.json"
-standard_root="$repository_root/development/std"
+standard_root="$repository_root/std"
 output_directory="${1:-$repository_root/dist}"
 
 node "$repository_root/development/verification/verify-repository-metadata.js"
@@ -35,16 +35,16 @@ tracked_list="$temporary_root/tracked-std.txt"
 actual_list="$temporary_root/actual-std.txt"
 (
   cd "$repository_root"
-  git ls-files -- development/std | LC_ALL=C sort > "$tracked_list"
-  find development/std -type f -print | LC_ALL=C sort > "$actual_list"
+  git ls-files -- std | LC_ALL=C sort > "$tracked_list"
+  find std -type f -print | LC_ALL=C sort > "$actual_list"
 )
 if ! cmp -s "$tracked_list" "$actual_list"; then
-  echo "development/std must contain exactly its tracked regular files" >&2
+  echo "std must contain exactly its tracked regular files" >&2
   diff -u "$tracked_list" "$actual_list" >&2 || true
   exit 1
 fi
 if find "$standard_root" ! -type d ! -type f -print -quit | grep -q .; then
-  echo "development/std may contain only regular files and directories" >&2
+  echo "std may contain only regular files and directories" >&2
   exit 1
 fi
 
@@ -72,7 +72,7 @@ install -m 644 "$repository_root/LICENSE" "$home/LICENSE"
 install -m 644 "$repository_root/NOTICE" "$home/NOTICE"
 
 while IFS= read -r tracked; do
-  relative="${tracked#development/std/}"
+  relative="${tracked#std/}"
   destination="$home/std/$relative"
   mkdir -p "$(dirname -- "$destination")"
   install -m 644 "$repository_root/$tracked" "$destination"

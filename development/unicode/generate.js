@@ -12,7 +12,7 @@ const { validateProduct } = require("./lib/validate");
 
 const root = __dirname;
 const repository = path.resolve(root, "..", "..");
-const output = path.join(repository, "development", "std", "internal", "unicode", "tables.nct");
+const output = path.join(repository, "std", "internal", "unicode", "tables.nct");
 
 function replaceAtomically(target, contents) {
   const current = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;

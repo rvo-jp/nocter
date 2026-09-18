@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn body_failure_retains_preparation_and_exact_typed_interruption() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -51,8 +50,7 @@ fn body_failure_retains_preparation_and_exact_typed_interruption() {
 
 #[test]
 fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -85,8 +83,7 @@ fn name_failure_retains_lexical_state_without_claiming_body_preparation() {
 
 #[test]
 fn interface_implementation_failure_retains_declarations_without_claiming_later_semantics() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -121,8 +118,7 @@ fn interface_implementation_failure_retains_declarations_without_claiming_later_
 
 #[test]
 fn incomplete_member_syntax_retains_typed_receiver_context() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -153,8 +149,7 @@ fn incomplete_member_syntax_retains_typed_receiver_context() {
 
 #[test]
 fn incomplete_declaration_syntax_cannot_enter_body_recovery() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source("main.nct", "func broken(: void { return }\n");
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -174,8 +169,7 @@ fn incomplete_declaration_syntax_cannot_enter_body_recovery() {
 
 #[test]
 fn incomplete_syntax_preserves_an_independent_declaration_failure() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -220,8 +214,7 @@ fn incomplete_syntax_preserves_an_independent_declaration_failure() {
 
 #[test]
 fn incomplete_syntax_preserves_an_earlier_name_failure() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
@@ -265,8 +258,7 @@ fn incomplete_syntax_preserves_an_earlier_name_failure() {
 
 #[test]
 fn all_root_executables_share_one_target_compilation_and_keep_declaration_order() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "index.nct",
@@ -346,8 +338,7 @@ fn all_root_executables_share_one_target_compilation_and_keep_declaration_order(
 
 #[test]
 fn native_test_set_preserves_target_and_case_declaration_identity() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "index.nct",

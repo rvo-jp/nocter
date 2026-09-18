@@ -188,5 +188,5 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   shapes, before sealing its reusable authority. Projection and body checking cannot make type
   availability depend on whether a body happens to mention `self`.
 
-The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
+The [checked-program boundary](../../../architecture/pipeline/checked-program.md) documents contracts shared
 with adjacent stages.

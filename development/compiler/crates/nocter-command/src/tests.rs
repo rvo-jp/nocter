@@ -305,7 +305,7 @@ fn build_commits_one_complete_session_image_at_the_requested_path() {
 fn one_shot_command_demands_the_closed_semantic_query_graph() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = compiler_root.join("../../examples/hello.nct");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let standard = PackageIdentity::new("toolchain:std");
     let mut compiler = super::compiler::CommandCompiler::default();
     let unit = compiler
@@ -1478,7 +1478,7 @@ fn command_toolchain() -> super::CommandToolchain {
         compiler_root.join("../packaging"),
         StandardPackage::new(
             PackageIdentity::new("toolchain:std"),
-            compiler_root.join("../std"),
+            nocter_test_support::standard_library_root(),
             repository_release_version(),
         ),
     )
@@ -1487,7 +1487,7 @@ fn command_toolchain() -> super::CommandToolchain {
 fn hello_request() -> DiscoveryRequest {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = compiler_root.join("../../examples/hello.nct");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package = PackageIdentity::new("toolchain:std");
     DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
@@ -1498,8 +1498,7 @@ fn hello_request() -> DiscoveryRequest {
 }
 
 fn single_file_request(source: &Path) -> DiscoveryRequest {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package = PackageIdentity::new("toolchain:std");
     DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
@@ -1526,8 +1525,7 @@ fn package_request(
     mut packages: Vec<ResolvedPackageSpec>,
     roots: Vec<ModuleIdentity>,
 ) -> DiscoveryRequest {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let standard = PackageIdentity::new("toolchain:std");
     packages.push(resolved_standard(&standard_root, &standard));
     DiscoveryRequest::declared(

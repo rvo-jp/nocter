@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn public_byte_codecs_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -16,8 +15,7 @@ fn public_byte_codecs_cross_the_complete_native_session() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn fixed_binary_staging_composes_with_both_writer_contracts() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let fixture = include_str!("../../../../tests/fixtures/native/byte_stream_composition.nct");
 
     let blocking_package = TempPackage::new();
@@ -43,8 +41,7 @@ fn fixed_binary_staging_composes_with_both_writer_contracts() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_readonly_callable_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -63,8 +60,7 @@ fn erased_readonly_callable_crosses_the_complete_native_session() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_readwrite_callable_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -86,8 +82,7 @@ fn erased_readwrite_callable_crosses_the_complete_native_session() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_callable_releases_an_owned_capture_after_invocation() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -107,8 +102,7 @@ fn erased_callable_releases_an_owned_capture_after_invocation() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_callable_deferred_result_crosses_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -128,8 +122,7 @@ fn erased_callable_deferred_result_crosses_the_complete_native_session() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_callable_fallible_result_crosses_a_persistent_async_frame() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -153,8 +146,7 @@ fn erased_callable_fallible_result_crosses_a_persistent_async_frame() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_consuming_callable_moves_a_direct_environment() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -174,8 +166,7 @@ fn erased_consuming_callable_moves_a_direct_environment() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_consuming_callable_destroys_a_retained_environment_once() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -203,8 +194,7 @@ fn erased_consuming_callable_destroys_a_retained_environment_once() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_consuming_callable_does_not_redestroy_a_moved_environment() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -233,8 +223,7 @@ fn erased_consuming_callable_does_not_redestroy_a_moved_environment() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_consuming_callable_preserves_fallible_results_during_cleanup() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -267,8 +256,7 @@ fn erased_consuming_callable_preserves_fallible_results_during_cleanup() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_consuming_callable_transfers_owned_state_into_future_results() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -306,8 +294,7 @@ fn erased_consuming_callable_transfers_owned_state_into_future_results() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn erased_consuming_callable_cleans_staged_ownership_when_an_argument_fails() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
@@ -346,8 +333,7 @@ fn erased_consuming_callable_cleans_staged_ownership_when_an_argument_fails() {
 
 #[test]
 fn scalar_floating_values_cross_the_complete_native_session() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = compiler_root.join("../std");
+    let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
