@@ -1,0 +1,69 @@
+//! Allocation-free ISO-HDLC CRC-32 state transition.
+
+see ./index.nct
+
+use /internal/safety
+
+const CRC32_POLYNOMIAL: u64 = 0xEDB88320
+const CRC32_INITIAL: u64 = 0xFFFFFFFF
+const CRC32_XOR_OUT: u64 = 0xFFFFFFFF
+
+// Reflected four-bit table derived from CRC32_POLYNOMIAL.
+static CRC32_TABLE: [u64; 16] = [
+    0x00000000,
+    0x1DB71064,
+    0x3B6E20C8,
+    0x26D930AC,
+    0x76DC4190,
+    0x6B6B51F4,
+    0x4DB26158,
+    0x5005713C,
+    0xEDB88320,
+    0xF00F9344,
+    0xD6D6A3E8,
+    0xCB61B38C,
+    0x9B64C2B0,
+    0x86D3D2D4,
+    0xA00AE278,
+    0xBDBDF21C,
+]
+
+struct Crc32 {
+    state: u64
+}
+
+noalloc func advance_nibble(state: u64): u64 {
+    let index = (state % 16) as usize
+    let shifted = state / 16
+    return shifted.bit_xor(CRC32_TABLE[index])
+}
+
+construct Crc32 {
+    noalloc func new(): Self { return Crc32 { state: CRC32_INITIAL } }
+}
+
+instance Crc32 {
+    noalloc method &+self.update(input: &[u8]): void {
+        var index: usize = 0
+        while index < input.len() {
+            let previous = self.state
+            self.state = previous.bit_xor(input[index] as u64)
+            self.state = advance_nibble(self.state)
+            self.state = advance_nibble(self.state)
+            index += 1
+        }
+        return
+    }
+
+    noalloc method &self.value(): u32 {
+        let retained = self.state
+        let value = retained.bit_xor(CRC32_XOR_OUT)
+        return u32.from_u64(value) otherwise { return safety.invariant_abort() }
+    }
+}
+
+noalloc func crc32(input: &[u8]): u32 {
+    var state = Crc32.new()
+    state.update(input)
+    return state.value()
+}

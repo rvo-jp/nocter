@@ -1,0 +1,23 @@
+//! Reproducible checksums for accidental-corruption detection.
+
+see ./crc32.nct
+see ./tests.nct
+
+/// Incremental ISO-HDLC CRC-32 state.
+pub struct Crc32
+
+construct Crc32 {
+    /// Starts one checksum with the standard initial state.
+    pub noalloc func new(): Self
+}
+
+instance Crc32 {
+    /// Adds an exact byte sequence to this checksum.
+    pub noalloc method &+self.update(input: &[u8]): void
+
+    /// Returns the checksum of every byte supplied so far without changing the state.
+    pub noalloc method &self.value(): u32
+}
+
+/// Returns the ISO-HDLC CRC-32 of one complete byte sequence.
+pub noalloc func crc32(input: &[u8]): u32

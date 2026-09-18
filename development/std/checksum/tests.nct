@@ -1,0 +1,73 @@
+//! CRC-32 table and public behavior contract tests.
+
+see ./index.nct
+see ./crc32.nct
+
+noalloc func generated_crc32_table_entry(index: usize): u64 {
+    var value = index as u64
+    var bit: usize = 0
+    while bit < 4 {
+        if value % 2 == 0 {
+            value = value / 2
+        } else {
+            let shifted = value / 2
+            value = shifted.bit_xor(CRC32_POLYNOMIAL)
+        }
+        bit += 1
+    }
+    return value
+}
+
+test crc32_table_is_derived_from_the_published_polynomial {
+    var index: usize = 0
+    while index < 16 {
+        if CRC32_TABLE[index] != generated_crc32_table_entry(index) {
+            return error.new("std.checksum.table", "CRC-32 table does not match its polynomial")
+        }
+        index += 1
+    }
+    return
+}
+
+test crc32_matches_standard_vectors_and_chunk_boundaries {
+    if crc32("".bytes()) != 0 {
+        return error.new("std.checksum.crc32", "empty CRC-32 changed")
+    }
+    let expected: u32 = 3421780262
+    if crc32("123456789".bytes()) != expected {
+        return error.new("std.checksum.crc32", "standard CRC-32 check value changed")
+    }
+
+    let input = "123456789".bytes()
+    var boundary: usize = 0
+    while boundary <= input.len() {
+        let prefix = input.get_range(0, boundary) otherwise {
+            return error.new("std.checksum.range", "valid CRC-32 prefix range was rejected")
+        }
+        let suffix = input.get_range(boundary, input.len()) otherwise {
+            return error.new("std.checksum.range", "valid CRC-32 suffix range was rejected")
+        }
+        var split = Crc32.new()
+        split.update(prefix)
+        split.update(suffix)
+        if split.value() != expected || split.value() != expected {
+            return error.new(
+                "std.checksum.crc32",
+                "chunking or repeated finalization changed CRC-32",
+            )
+        }
+        boundary += 1
+    }
+    return
+}
+
+test crc32_can_continue_after_observing_a_prefix {
+    var state = Crc32.new()
+    state.update("1234".bytes())
+    let prefix = state.value()
+    state.update("56789".bytes())
+    if prefix != crc32("1234".bytes()) || state.value() != crc32("123456789".bytes()) {
+        return error.new("std.checksum.crc32", "observation changed incremental state")
+    }
+    return
+}
