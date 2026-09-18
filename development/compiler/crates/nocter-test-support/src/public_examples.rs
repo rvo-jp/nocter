@@ -225,6 +225,34 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         ],
     },
     PublicPackageExample {
+        directory: "binary-record",
+        package_identity: "workspace:binary-record",
+        executable: "binary-record",
+        fixtures: &[],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                stdin: b"",
+                status: 2,
+                stdout: b"",
+                stderr: b"usage: binary-record PATH\n",
+            },
+            PublicExampleRun {
+                name: "portable-record-round-trip",
+                arguments: &[PublicExampleArgument::FixturePath("record.bin")],
+                stdin: b"",
+                status: 0,
+                stdout: b"version 1, items 42, measurement 3.5\n",
+                stderr: b"",
+            },
+        ],
+        postconditions: &[PublicExamplePostcondition::File {
+            path: "record.bin",
+            contents: b"\x4e\x43\x54\x52\x00\x01\x2a\x00\x00\x00\x40\x0c\x00\x00\x00\x00\x00\x00",
+        }],
+    },
+    PublicPackageExample {
         directory: "async-loopback",
         package_identity: "workspace:async-loopback",
         executable: "async-loopback",
