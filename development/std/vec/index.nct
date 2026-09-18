@@ -12,6 +12,7 @@ use /mem.TryAllocator
 see ./construction.nct
 see ./into_iter.nct
 see ./mutation.nct
+see ./slice_extension.nct
 see ./storage.nct
 
 /// A forward iterator that owns a Vec allocation and its remaining elements.
@@ -107,6 +108,13 @@ instance Vec<T> {
 
     /// Transfers `value` into the end with recoverable allocation failure.
     pub method &+self.try_push(value: T): void!
+
+    /// Copies every source element onto the end of this vector.
+    pub method &+self.extend_from_slice(values: &[T]): void where copy T
+
+    /// Copies every source element after recoverable capacity growth.
+    /// Failed growth leaves this vector unchanged.
+    pub method &+self.try_extend_from_slice(values: &[T]): void! where copy T
 
     /// Inserts an owned value and aborts if growth or bounds validation fails.
     pub method &+self.insert(index: usize, value: T): void

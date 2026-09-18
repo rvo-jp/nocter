@@ -1,0 +1,29 @@
+//! Batch extension from borrowed copyable elements.
+
+see ./index.nct
+see ./mutation.nct
+
+use /internal/mem
+
+func try_extend_from_slice<T>(destination: &+Vec<T>, values: &[T]): void! where copy T {
+    let count = values.len()
+    let _ = try_reserve(destination, count)?
+    var index: usize = 0
+    while index < count {
+        try_push(destination, values[index])?
+        index += 1
+    }
+    return
+}
+
+instance Vec<T> {
+    method &+self.extend_from_slice(values: &[T]): void where copy T {
+        try_extend_from_slice(self, values) catch _ { return mem.allocation_abort() }
+        return
+    }
+
+    method &+self.try_extend_from_slice(values: &[T]): void! where copy T {
+        try_extend_from_slice(self, values)?
+        return
+    }
+}

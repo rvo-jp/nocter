@@ -18,6 +18,10 @@ use one transient uninitialized slot, but no fallible call or externally observa
 that state. Recoverable insertion validates bounds and completes capacity growth before shifting;
 failed growth leaves pointer, length, capacity, contents, and storage origin unchanged.
 
+Slice extension first reserves the complete additional element count and only then copies the
+source prefix. Recoverable capacity failure therefore leaves the vector unchanged. Once reservation
+succeeds, each copied element enters already-owned spare storage without another allocation.
+
 Zero-sized element types use logical length and capacity without allocating backing bytes.
 Reservation, insertion, removal, iteration, and destruction still perform their normal ownership
 effects once per logical element.

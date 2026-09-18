@@ -122,6 +122,20 @@ nocter run examples/url-inspect.nct
 
 ## Package Examples
 
+[binary-record/index.nct](binary-record/index.nct) writes one 18-byte portable record, reads it
+back, and decodes it without host-endian assumptions. Its [record.nct](binary-record/record.nct)
+implementation composes `ByteBuffer<18>` transactional encoding, `ByteCursor` exact advances,
+dynamic file input, fixed-width integer and IEEE codecs, malformed-input errors, and ordinary
+blocking filesystem transport. The complete wire size is part of the type and the encoder performs
+no allocation.
+
+```sh
+cd examples/binary-record
+nocter check
+nocter test
+nocter run -- record.bin
+```
+
 [async-file-report/index.nct](async-file-report/index.nct) recursively discovers regular files,
 counts their bytes through bounded asynchronous chunks, and writes a deterministic summary through
 a buffered file endpoint. The complete operation has a finite timeout and writes to a temporary

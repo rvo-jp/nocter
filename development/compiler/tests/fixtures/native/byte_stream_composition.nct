@@ -1,0 +1,66 @@
+use std/fixed.ByteBuffer
+use std/io.{BlockingWriter, Writer}
+use std/scan.ByteCursor
+use std/vec.Vec
+
+struct Collector {
+    bytes: Vec<u8>
+}
+
+construct Collector {
+    func empty(): Self {
+        return Collector { bytes: Vec.empty() }
+    }
+}
+
+instance Collector {
+    impl BlockingWriter
+    impl Writer
+
+    blocking method &+self.write_blocking(value: &[u8]): void! {
+        self.bytes.try_extend_from_slice(value)?
+        return
+    }
+
+    async method &+self.write(value: &[u8]): void! {
+        self.bytes.try_extend_from_slice(value)?
+        return
+    }
+}
+
+noalloc func record(): ByteBuffer<14>? {
+    var output: ByteBuffer<14> = ByteBuffer.empty()
+    if !output.try_push_u16_be(4660)
+        || !output.try_push_u32_le(2309737967)
+        || !output.try_push_u64_be(72623859790382856) {
+        return none
+    }
+    return move output
+}
+
+noalloc func valid_record(input: &[u8]): bool {
+    var cursor = ByteCursor.new(input)
+    let kind = cursor.take_u16_be() otherwise { return false }
+    let count = cursor.take_u32_le() otherwise { return false }
+    let identity = cursor.take_u64_be() otherwise { return false }
+    return kind == 4660
+        && count == 2309737967
+        && identity == 72623859790382856
+        && cursor.is_finished()
+}
+
+blocking func blocking_entry(): i32! {
+    var destination = Collector.empty()
+    let encoded = record() otherwise { return 2 }
+    destination.write_blocking(&encoded as &[u8])?
+    if !valid_record(&destination.bytes as &[u8]) { return 1 }
+    return 0
+}
+
+async func async_entry(): i32! {
+    var destination = Collector.empty()
+    let encoded = record() otherwise { return 2 }
+    await destination.write(&encoded as &[u8])?
+    if !valid_record(&destination.bytes as &[u8]) { return 1 }
+    return 0
+}

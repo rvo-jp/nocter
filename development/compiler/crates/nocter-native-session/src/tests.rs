@@ -522,6 +522,33 @@ fn public_byte_codecs_cross_the_complete_native_session() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn fixed_binary_staging_composes_with_both_writer_contracts() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let fixture = include_str!("../../../tests/fixtures/native/byte_stream_composition.nct");
+
+    let blocking_package = TempPackage::new();
+    let blocking_source =
+        format!("{fixture}\nblocking func main(): i32! {{ return blocking_entry()? }}\n");
+    let blocking_image =
+        compile_single_file_native_source(&blocking_package, &standard_root, &blocking_source);
+    execute_native_status(
+        &blocking_image,
+        &blocking_package.0,
+        "binary-blocking-writer",
+        0,
+    );
+
+    let async_package = TempPackage::new();
+    let async_source =
+        format!("{fixture}\nasync func main(): i32! {{ return await async_entry()? }}\n");
+    let async_image =
+        compile_single_file_native_source(&async_package, &standard_root, &async_source);
+    execute_native_status(&async_image, &async_package.0, "binary-async-writer", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn erased_readonly_callable_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

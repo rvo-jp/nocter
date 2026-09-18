@@ -77,14 +77,18 @@ func check_composition(): i32 {
         return 15
     }
 
-    var input = ByteCursor.new(&output as &[u8])
-    let first = input.take_u16_be() otherwise { return 16 }
-    let second = input.take_u64_le() otherwise { return 17 }
-    if first != 4660 || second != 72623859790382856 || !input.is_finished() { return 18 }
+    var dynamic: Vec<u8> = Vec.empty()
+    dynamic.extend_from_slice(&output as &[u8])
+    if dynamic.len() != output.len() { return 16 }
+
+    var input = ByteCursor.new(&dynamic as &[u8])
+    let first = input.take_u16_be() otherwise { return 17 }
+    let second = input.take_u64_le() otherwise { return 18 }
+    if first != 4660 || second != 72623859790382856 || !input.is_finished() { return 19 }
     let unchanged_offset = input.offset()
     let _unexpected = input.take_u16_be() otherwise {
         if input.offset() == unchanged_offset { return 0 }
-        return 19
+        return 20
     }
-    return 20
+    return 21
 }

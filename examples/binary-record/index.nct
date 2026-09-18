@@ -1,0 +1,21 @@
+//! Writes and reads one bounded portable binary record.
+
+#package: {
+    name: "binary-record",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "binary-record",
+}
+
+#test: {
+    name: "unit",
+    module: ".",
+}
+
+see ./record.nct
+
+blocking func main(): i32 {
+    return run()
+}
