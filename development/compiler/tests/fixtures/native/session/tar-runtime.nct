@@ -1,0 +1,233 @@
+use std/archive.{TarEntryKind, TarFailure, TarReader, TarStep}
+use std/vec.Vec
+
+func zero_bytes(count: usize): Vec<u8> {
+    var result: Vec<u8> = Vec.with_capacity(count)
+    var index: usize = 0
+    while index < count {
+        result.push(u8.truncate(0))
+        index += 1
+    }
+    return move result
+}
+
+noalloc func write_octal(output: &+[u8], start: usize, width: usize, value: usize): bool {
+    if start + width > output.len() || width < 2 { return false }
+    var index: usize = 0
+    while index < width - 1 {
+        output[start + index] = u8.truncate(48)
+        index += 1
+    }
+    output[start + width - 1] = u8.truncate(0)
+    var remaining = value
+    index = width - 1
+    while index != 0 && remaining != 0 {
+        index -= 1
+        output[start + index] = u8.truncate(48 + (remaining % 8) as u64)
+        remaining = remaining / 8
+    }
+    return remaining == 0
+}
+
+noalloc func refresh_checksum(header: &+[u8]): void {
+    var index: usize = 148
+    while index < 156 {
+        header[index] = u8.truncate(32)
+        index += 1
+    }
+    var checksum: usize = 0
+    index = 0
+    while index < 512 {
+        checksum += header[index] as usize
+        index += 1
+    }
+    let _written = write_octal(header, 148, 7, checksum)
+    header[155] = u8.truncate(32)
+    return
+}
+
+func make_header(path: &str, size: usize, type_flag: u8): Vec<u8> {
+    var header = zero_bytes(512)
+    let path_bytes = path.bytes()
+    var index: usize = 0
+    while index < path_bytes.len() && index < 100 {
+        header[index] = path_bytes[index]
+        index += 1
+    }
+    let _size_written = write_octal(&+header as &+[u8], 124, 12, size)
+    header[156] = type_flag
+    header[257] = u8.truncate(117)
+    header[258] = u8.truncate(115)
+    header[259] = u8.truncate(116)
+    header[260] = u8.truncate(97)
+    header[261] = u8.truncate(114)
+    header[262] = u8.truncate(0)
+    header[263] = u8.truncate(48)
+    header[264] = u8.truncate(48)
+
+    refresh_checksum(&+header as &+[u8])
+    return move header
+}
+
+func append_entry(archive: &+Vec<u8>, path: &str, body: &[u8], type_flag: u8): void {
+    let header = make_header(path, body.len(), type_flag)
+    archive.extend_from_slice(&header as &[u8])
+    archive.extend_from_slice(body)
+    let block_size: usize = 512
+    let remainder = body.len() % block_size
+    let padding: usize = if remainder == 0 { 0 } else { block_size - remainder }
+    var index: usize = 0
+    while index < padding {
+        archive.push(u8.truncate(0))
+        index += 1
+    }
+    return
+}
+
+func valid_archive(): Vec<u8> {
+    var archive: Vec<u8> = Vec.empty()
+    append_entry(&+archive, "./dir//file.txt", "abc".bytes(), u8.truncate(48))
+    append_entry(&+archive, "folder/", "".bytes(), u8.truncate(53))
+    append_entry(&+archive, "link", "".bytes(), u8.truncate(50))
+    let ending = zero_bytes(1024)
+    archive.extend_from_slice(&ending as &[u8])
+    return move archive
+}
+
+func reads_fragmented(archive: &[u8]): bool {
+    var reader = TarReader.new()
+    var offset: usize = 0
+    var entries: usize = 0
+    var body_index: usize = 0
+    loop {
+        if offset == archive.len() { return false }
+        let input = archive.get_range(offset, offset + 1) otherwise { return false }
+        let step = reader.advance(input)
+        match step {
+            TarStep.needs_input(consumed) { offset += consumed }
+            TarStep.entry(consumed) {
+                offset += consumed
+                let entry = reader.entry() otherwise { return false }
+                if entries == 0 {
+                    if entry.path() != "dir/file.txt" || entry.size() != 3 { return false }
+                    match entry.kind() {
+                        TarEntryKind.file {}
+                        _ { return false }
+                    }
+                } else if entries == 1 {
+                    if entry.path() != "folder" || entry.size() != 0 { return false }
+                    match entry.kind() {
+                        TarEntryKind.directory {}
+                        _ { return false }
+                    }
+                } else if entries == 2 {
+                    if entry.path() != "link" || entry.size() != 0 { return false }
+                    match entry.kind() {
+                        TarEntryKind.unsupported(code) {
+                            if code != 50 { return false }
+                        }
+                        _ { return false }
+                    }
+                } else {
+                    return false
+                }
+                entries += 1
+            }
+            TarStep.body(consumed, body_start, body_len) {
+                let body = input.get_range(body_start, body_start + body_len) otherwise {
+                    return false
+                }
+                offset += consumed
+                var index: usize = 0
+                while index < body.len() {
+                    if body_index >= 3 || body[index] != "abc".bytes()[body_index] {
+                        return false
+                    }
+                    body_index += 1
+                    index += 1
+                }
+            }
+            TarStep.finished(consumed) {
+                offset += consumed
+                if entries != 3 || body_index != 3 || offset != archive.len() { return false }
+                return true
+            }
+            TarStep.invalid(_, _) { return false }
+        }
+    }
+}
+
+noalloc func failure_code(failure: TarFailure): i32 {
+    match failure {
+        TarFailure.unsupported_header { return 1 }
+        TarFailure.invalid_checksum { return 2 }
+        TarFailure.invalid_size { return 3 }
+        TarFailure.invalid_path { return 4 }
+        TarFailure.invalid_utf8 { return 5 }
+        TarFailure.truncated_header { return 6 }
+        TarFailure.truncated_body { return 7 }
+        TarFailure.truncated_padding { return 8 }
+        TarFailure.missing_end_marker { return 9 }
+    }
+}
+
+func rejects_as(input: &[u8], expected: i32): bool {
+    var reader = TarReader.new()
+    var offset: usize = 0
+    loop {
+        let step = if offset < input.len() {
+            let remaining = input.get_range(offset, input.len()) otherwise { return false }
+            reader.advance(remaining)
+        } else {
+            reader.finish()
+        }
+        match step {
+            TarStep.needs_input(consumed) { offset += consumed }
+            TarStep.entry(consumed) { offset += consumed }
+            TarStep.body(consumed, _, _) { offset += consumed }
+            TarStep.invalid(consumed, failure) {
+                offset += consumed
+                return failure_code(failure) == expected
+            }
+            TarStep.finished(_) { return false }
+        }
+    }
+}
+
+func main(): i32 {
+    let valid = valid_archive()
+    if !reads_fragmented(&valid as &[u8]) { return 1 }
+
+    var bad_magic = make_header("file", 0, u8.truncate(48))
+    bad_magic[257] = u8.truncate(0)
+    if !rejects_as(&bad_magic as &[u8], 1) { return 2 }
+
+    var bad_checksum = make_header("file", 0, u8.truncate(48))
+    bad_checksum[0] = u8.truncate(71)
+    if !rejects_as(&bad_checksum as &[u8], 2) { return 3 }
+
+    var bad_size = make_header("file", 0, u8.truncate(48))
+    bad_size[124] = u8.truncate(57)
+    refresh_checksum(&+bad_size as &+[u8])
+    if !rejects_as(&bad_size as &[u8], 3) { return 4 }
+
+    let parent = make_header("../escape", 0, u8.truncate(48))
+    if !rejects_as(&parent as &[u8], 4) { return 5 }
+    var invalid_utf8 = make_header("file", 0, u8.truncate(48))
+    invalid_utf8[0] = u8.truncate(255)
+    refresh_checksum(&+invalid_utf8 as &+[u8])
+    if !rejects_as(&invalid_utf8 as &[u8], 5) { return 6 }
+
+    let short_header = (&valid as &[u8]).get_range(0, 100) otherwise { return 7 }
+    if !rejects_as(short_header, 6) { return 8 }
+    let short_body = (&valid as &[u8]).get_range(0, 514) otherwise { return 9 }
+    if !rejects_as(short_body, 7) { return 10 }
+    let short_padding = (&valid as &[u8]).get_range(0, 515) otherwise { return 11 }
+    if !rejects_as(short_padding, 8) { return 12 }
+    let first_zero_end = valid.len() - 512
+    let one_zero = (&valid as &[u8]).get_range(0, first_zero_end) otherwise { return 13 }
+    if !rejects_as(one_zero, 9) { return 14 }
+    let empty: Vec<u8> = Vec.empty()
+    if !rejects_as(&empty as &[u8], 9) { return 15 }
+    return 0
+}

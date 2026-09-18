@@ -29,6 +29,7 @@ comments.
 | fixed-width binary scalar encoding | [Binary Scalar Codecs](bytes/README.md) | `std/bytes` |
 | accidental-corruption checksums | [CRC-32 Checksums](checksum/README.md) | `std/checksum` |
 | streaming compressed representations | [Streaming Compression](compress/README.md) | `std/compress` |
+| streaming archive entries and safe relative paths | [Streaming Tar Archives](archive/README.md) | `std/archive` |
 | iteration and collection | [Iteration](iter/README.md) | `std/iter`, `std/iter/collect` |
 | value formatting | [Formatting](fmt/README.md) | `std/fmt` |
 | byte streams and buffering | [I/O](io/README.md) | `std/io`, `std/io/buffer` |

@@ -1,0 +1,32 @@
+//! Private fixed-capacity state for POSIX ustar observation.
+
+see ./index.nct
+
+use /fixed.ByteBuffer
+
+enum TarPhase {
+    header
+    body
+    padding
+    finished
+    invalid
+}
+
+struct TarEntry {
+    normalized_path: ByteBuffer<256>
+    body_size: u64
+    type_flag: u8
+}
+
+struct TarReader {
+    phase: TarPhase
+    header: [u8; 512]
+    header_index: usize
+    zero_blocks: usize
+    current: TarEntry
+    has_entry: bool
+    body_remaining: u64
+    padding_remaining: usize
+    input_complete: bool
+    failure: TarFailure
+}

@@ -1,0 +1,331 @@
+//! Incremental POSIX ustar header, body, and padding state machine.
+
+see ./index.nct
+see ./storage.nct
+
+use /fixed.ByteBuffer
+use /internal/safety
+use /str as text
+use /string
+
+const TAR_BLOCK_SIZE: u64 = 512
+
+enum OctalResult {
+    value(value: u64)
+    invalid
+}
+
+enum TarValidation {
+    ready
+    invalid(failure: TarFailure)
+}
+
+construct TarReader {
+    noalloc func new(): Self {
+        return TarReader {
+            phase: TarPhase.header,
+            header: [0; 512],
+            header_index: 0,
+            zero_blocks: 0,
+            current: TarEntry {
+                normalized_path: ByteBuffer<256>.empty(),
+                body_size: 0,
+                type_flag: 0,
+            },
+            has_entry: false,
+            body_remaining: 0,
+            padding_remaining: 0,
+            input_complete: false,
+            failure: TarFailure.unsupported_header,
+        }
+    }
+}
+
+noalloc func tar_fail(
+    reader: &+TarReader,
+    input_consumed: usize,
+    failure: TarFailure,
+): TarStep {
+    reader.phase = TarPhase.invalid
+    reader.failure = failure
+    return TarStep.invalid(input_consumed, failure)
+}
+
+noalloc func header_is_zero(header: &[u8; 512]): bool {
+    var index: usize = 0
+    while index < 512 {
+        if header[index] != 0 { return false }
+        index += 1
+    }
+    return true
+}
+
+noalloc func header_checksum(header: &[u8; 512]): u64 {
+    var sum: u64 = 0
+    var index: usize = 0
+    while index < 512 {
+        if index >= 148 && index < 156 {
+            sum += 32
+        } else {
+            sum += header[index] as u64
+        }
+        index += 1
+    }
+    return sum
+}
+
+noalloc func parse_octal(header: &[u8; 512], start: usize, end: usize): OctalResult {
+    var index = start
+    while index < end && (header[index] == 0 || header[index] == 32) { index += 1 }
+    var value: u64 = 0
+    var digits: usize = 0
+    while index < end && header[index] >= 48 && header[index] <= 55 {
+        let digit = (header[index] - 48) as u64
+        if value > (18446744073709551615 - digit) / 8 { return OctalResult.invalid }
+        value = value * 8 + digit
+        digits += 1
+        index += 1
+    }
+    while index < end {
+        if header[index] != 0 && header[index] != 32 { return OctalResult.invalid }
+        index += 1
+    }
+    if digits == 0 { return OctalResult.invalid }
+    return OctalResult.value(value)
+}
+
+noalloc func field_len(header: &[u8; 512], start: usize, width: usize): usize {
+    var length: usize = 0
+    while length < width && header[start + length] != 0 { length += 1 }
+    return length
+}
+
+noalloc func append_header_field(
+    output: &+ByteBuffer<256>,
+    header: &[u8; 512],
+    start: usize,
+    length: usize,
+): bool {
+    var index: usize = 0
+    while index < length {
+        if !output.try_push(header[start + index]) { return false }
+        index += 1
+    }
+    return true
+}
+
+noalloc func normalize_path(raw: &[u8], output: &+ByteBuffer<256>): TarValidation {
+    output.clear()
+    if raw.len() == 0 || raw[0] == 47 {
+        return TarValidation.invalid(TarFailure.invalid_path)
+    }
+    var component_start: usize = 0
+    var index: usize = 0
+    while index <= raw.len() {
+        if index == raw.len() || raw[index] == 47 {
+            let length = index - component_start
+            let is_dot = length == 1 && raw[component_start] == 46
+            let is_parent = length == 2
+                && raw[component_start] == 46
+                && raw[component_start + 1] == 46
+            if is_parent { return TarValidation.invalid(TarFailure.invalid_path) }
+            if length != 0 && !is_dot {
+                if !output.is_empty() && !output.try_push(47) {
+                    return TarValidation.invalid(TarFailure.invalid_path)
+                }
+                let component = raw.get_range(component_start, index) otherwise {
+                    return TarValidation.invalid(TarFailure.invalid_path)
+                }
+                if output.append(component) != component.len() {
+                    return TarValidation.invalid(TarFailure.invalid_path)
+                }
+            }
+            component_start = index + 1
+        }
+        index += 1
+    }
+    if output.is_empty() { return TarValidation.invalid(TarFailure.invalid_path) }
+    return TarValidation.ready
+}
+
+noalloc func parse_entry(reader: &+TarReader): TarValidation {
+    let header = &reader.header
+    if header[257] != 117 || header[258] != 115 || header[259] != 116
+        || header[260] != 97 || header[261] != 114
+        || header[262] != 0 || header[263] != 48 || header[264] != 48 {
+        return TarValidation.invalid(TarFailure.unsupported_header)
+    }
+    let expected = parse_octal(header, 148, 156)
+    var expected_checksum: u64 = 0
+    match expected {
+        OctalResult.value(value) { expected_checksum = value }
+        OctalResult.invalid { return TarValidation.invalid(TarFailure.invalid_checksum) }
+    }
+    if expected_checksum != header_checksum(header) {
+        return TarValidation.invalid(TarFailure.invalid_checksum)
+    }
+
+    let parsed_size = parse_octal(header, 124, 136)
+    var body_size: u64 = 0
+    match parsed_size {
+        OctalResult.value(value) { body_size = value }
+        OctalResult.invalid { return TarValidation.invalid(TarFailure.invalid_size) }
+    }
+
+    var raw_path = ByteBuffer<256>.empty()
+    let prefix_len = field_len(header, 345, 155)
+    let name_len = field_len(header, 0, 100)
+    if prefix_len != 0 {
+        if !append_header_field(&+raw_path, header, 345, prefix_len) {
+            return TarValidation.invalid(TarFailure.invalid_path)
+        }
+        if !raw_path.try_push(47) { return TarValidation.invalid(TarFailure.invalid_path) }
+    }
+    if !append_header_field(&+raw_path, header, 0, name_len) {
+        return TarValidation.invalid(TarFailure.invalid_path)
+    }
+    let raw_view: &[u8] = &raw_path as &[u8]
+    if !string.is_valid_utf8(raw_view) {
+        return TarValidation.invalid(TarFailure.invalid_utf8)
+    }
+    let path_failure = normalize_path(raw_view, &+reader.current.normalized_path)
+    match path_failure {
+        TarValidation.ready {}
+        TarValidation.invalid(failure) { return TarValidation.invalid(failure) }
+    }
+
+    let type_flag = header[156]
+    reader.current.body_size = body_size
+    reader.current.type_flag = type_flag
+    reader.body_remaining = body_size
+    let remainder = body_size % TAR_BLOCK_SIZE
+    reader.padding_remaining = if remainder == 0 {
+        0
+    } else {
+        (TAR_BLOCK_SIZE - remainder) as usize
+    }
+    reader.has_entry = true
+    return TarValidation.ready
+}
+
+noalloc func eof_failure(phase: TarPhase, header_index: usize): TarFailure {
+    match phase {
+        TarPhase.header {
+            if header_index == 0 { return TarFailure.missing_end_marker }
+            return TarFailure.truncated_header
+        }
+        TarPhase.body { return TarFailure.truncated_body }
+        TarPhase.padding { return TarFailure.truncated_padding }
+        _ { return TarFailure.truncated_header }
+    }
+}
+
+noalloc func tar_input_exhausted(reader: &+TarReader, consumed: usize): TarStep {
+    if !reader.input_complete { return TarStep.needs_input(consumed) }
+    let failure = eof_failure(reader.phase, reader.header_index)
+    return tar_fail(reader, consumed, failure)
+}
+
+noalloc func advance_tar(reader: &+TarReader, input: &[u8]): TarStep {
+    var input_index: usize = 0
+    loop {
+        match reader.phase {
+            TarPhase.finished { return TarStep.finished(input_index) }
+            TarPhase.invalid { return TarStep.invalid(input_index, reader.failure) }
+            TarPhase.header {
+                while reader.header_index < 512 {
+                    if input_index == input.len() {
+                        return tar_input_exhausted(reader, input_index)
+                    }
+                    reader.header[reader.header_index] = input[input_index]
+                    reader.header_index += 1
+                    input_index += 1
+                }
+                if header_is_zero(&reader.header) {
+                    reader.zero_blocks += 1
+                    reader.header_index = 0
+                    if reader.zero_blocks == 2 {
+                        reader.phase = TarPhase.finished
+                        return TarStep.finished(input_index)
+                    }
+                } else {
+                    if reader.zero_blocks != 0 {
+                        return tar_fail(reader, input_index, TarFailure.missing_end_marker)
+                    }
+                    let failure = parse_entry(reader)
+                    match failure {
+                        TarValidation.ready {}
+                        TarValidation.invalid(reason) {
+                            return tar_fail(reader, input_index, reason)
+                        }
+                    }
+                    reader.header_index = 0
+                    reader.phase = TarPhase.body
+                    return TarStep.entry(input_index)
+                }
+            }
+            TarPhase.body {
+                if reader.body_remaining == 0 {
+                    reader.phase = TarPhase.padding
+                } else {
+                    if input_index == input.len() {
+                        return tar_input_exhausted(reader, input_index)
+                    }
+                    let available = input.len() - input_index
+                    let count = if reader.body_remaining < available as u64 {
+                        reader.body_remaining as usize
+                    } else {
+                        available
+                    }
+                    let end = input_index + count
+                    let body_start = input_index
+                    reader.body_remaining -= count as u64
+                    input_index = end
+                    return TarStep.body(input_index, body_start, count)
+                }
+            }
+            TarPhase.padding {
+                while reader.padding_remaining != 0 {
+                    if input_index == input.len() {
+                        return tar_input_exhausted(reader, input_index)
+                    }
+                    reader.padding_remaining -= 1
+                    input_index += 1
+                }
+                reader.phase = TarPhase.header
+            }
+        }
+    }
+}
+
+instance TarReader {
+    noalloc method &+self.advance(input: &[u8]): TarStep {
+        if self.input_complete { return advance_tar(self, "".bytes()) }
+        return advance_tar(self, input)
+    }
+
+    noalloc method &+self.finish(): TarStep {
+        self.input_complete = true
+        return advance_tar(self, "".bytes())
+    }
+
+    noalloc method &self.entry(): &TarEntry? from self {
+        if !self.has_entry { return none }
+        return &self.current
+    }
+}
+
+instance TarEntry {
+    noalloc method &self.path(): &str from self {
+        let bytes: &[u8] = &self.normalized_path as &[u8]
+        return text.from_utf8(bytes) catch _ { return safety.invariant_abort() }
+    }
+
+    noalloc method &self.size(): u64 { return self.body_size }
+
+    noalloc method &self.kind(): TarEntryKind {
+        if self.type_flag == 0 || self.type_flag == 48 { return TarEntryKind.file }
+        if self.type_flag == 53 { return TarEntryKind.directory }
+        return TarEntryKind.unsupported(self.type_flag)
+    }
+}

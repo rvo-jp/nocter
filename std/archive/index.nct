@@ -1,0 +1,70 @@
+//! Allocation-free observation of archive entries and their bounded bodies.
+
+see ./storage.nct
+see ./tar.nct
+
+/// Incremental state for one POSIX ustar byte stream.
+pub struct TarReader
+
+/// Metadata for the current entry, retained by its reader until the next header is accepted.
+pub struct TarEntry
+
+/// The supported interpretation of one ustar type flag.
+pub enum TarEntryKind {
+    file
+    directory
+    unsupported(code: u8)
+}
+
+/// One terminal reason that makes the inspected tar stream invalid.
+pub enum TarFailure {
+    unsupported_header
+    invalid_checksum
+    invalid_size
+    invalid_path
+    invalid_utf8
+    truncated_header
+    truncated_body
+    truncated_padding
+    missing_end_marker
+}
+
+/// One exact incremental archive observation.
+///
+/// `entry` makes retained metadata available through `TarReader.entry`. `body` identifies an exact
+/// range of the current input without retaining or returning its borrow. Both are resumable events;
+/// `finished` and `invalid` are terminal.
+pub enum TarStep {
+    needs_input(input_consumed: usize)
+    entry(input_consumed: usize)
+    body(input_consumed: usize, body_start: usize, body_len: usize)
+    finished(input_consumed: usize)
+    invalid(input_consumed: usize, failure: TarFailure)
+}
+
+construct TarReader {
+    /// Constructs a reader before the first 512-byte header block.
+    pub noalloc func new(): Self
+}
+
+instance TarReader {
+    /// Advances the archive with caller-owned bytes.
+    pub noalloc method &+self.advance(input: &[u8]): TarStep
+
+    /// Declares permanent end of input and classifies every incomplete archive region.
+    pub noalloc method &+self.finish(): TarStep
+
+    /// Borrows metadata from the most recently reported entry, if one has been published.
+    pub noalloc method &self.entry(): &TarEntry? from self
+}
+
+instance TarEntry {
+    /// Returns the normalized nonempty relative UTF-8 entry path.
+    pub noalloc method &self.path(): &str from self
+
+    /// Returns the declared body size.
+    pub noalloc method &self.size(): u64
+
+    /// Returns the interpreted type flag.
+    pub noalloc method &self.kind(): TarEntryKind
+}

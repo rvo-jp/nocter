@@ -223,6 +223,15 @@ fn concatenated_gzip_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn streaming_tar_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image =
+        compile_single_file_native_source(&package_root, &standard_root, TAR_RUNTIME_TEST_SOURCE);
+    execute_native_status(&image, &package_root.0, "tar-runtime", 0);
+}
+
+#[test]
 fn standard_time_value_contract_crosses_native_tests() {
     let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");
