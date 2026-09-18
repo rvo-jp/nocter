@@ -1,0 +1,15 @@
+//! Public BlockingWriter line-adapter tests.
+#package: { name: "io-writer-tests", version: "0.0.0", }
+#test: { name: "writer", module: "." }
+use std/io.BlockingWriter
+use std/string.String
+see ./implementation.nct
+pub struct RecordingWriter
+construct RecordingWriter {
+    pub func accepting(): Self
+    pub func failing_after(write_count: usize): Self
+}
+instance RecordingWriter {
+    impl BlockingWriter
+    pub method &self.text(): &str
+}

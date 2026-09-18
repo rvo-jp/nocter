@@ -1,0 +1,74 @@
+
+async func main(): i32 {
+    var listener = match await listen_stream_async(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        StreamListenerAttempt.ready(ready_listener) { move ready_listener }
+        StreamListenerAttempt.failed(_) { return 1 }
+    }
+    let address = match listener.local_address() {
+        AddressAttempt.ready(value) { value }
+        AddressAttempt.failed(_) { return 2 }
+    }
+    var client = match await connect_stream_async_with_timeout(
+        address,
+        Duration.from_seconds(1),
+    ) {
+        StreamConnectionAttempt.ready(connection) { move connection }
+        StreamConnectionAttempt.failed(_) { return 3 }
+    }
+    var server = match await listener.accept_async() {
+        StreamListenerAcceptAttempt.ready(connection, _) { move connection }
+        StreamListenerAcceptAttempt.failed(_) { return 4 }
+    }
+    match await client.write_async_with_timeout(
+        "ping".bytes(),
+        Duration.from_seconds(1),
+    ) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) { return 5 }
+    }
+    var request: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    let request_len = match await server.read_async(&+request) {
+        TransferAttempt.ready(count) { count }
+        TransferAttempt.failed(_) { return 6 }
+    }
+    if request_len != 4 || request[0] != 112 || request[3] != 103 { return 7 }
+    match await server.write_async("pong".bytes()) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) { return 8 }
+    }
+    var response: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    let response_len = match await client.read_async_with_timeout(
+        &+response,
+        Duration.from_seconds(1),
+    ) {
+        TransferAttempt.ready(count) { count }
+        TransferAttempt.failed(_) { return 9 }
+    }
+    if response_len != 4 || response[0] != 112 || response[3] != 103 { return 10 }
+    var waiting: Vec<u8> = Vec [u8.truncate(0)]
+    match await client.read_async_with_timeout(
+        &+waiting,
+        Duration.from_milliseconds(2),
+    ) {
+        TransferAttempt.ready(_) { return 11 }
+        TransferAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.timed_out {}
+                _ { return 12 }
+            }
+        }
+    }
+    match await client.write_async("closed".bytes()) {
+        UnitAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.closed { return 0 }
+                _ { return 13 }
+            }
+        }
+        _ { return 14 }
+    }
+}

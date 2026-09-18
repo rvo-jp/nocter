@@ -1,0 +1,45 @@
+see ./index.nct
+use std/string.String
+struct RecordingWriter {
+    output: String
+    writes: usize
+    failure_at: usize
+}
+construct RecordingWriter {
+    func accepting(): Self {
+        return RecordingWriter { output: String.empty(), writes: 0, failure_at: 1000000 }
+    }
+    func failing_after(write_count: usize): Self {
+        return RecordingWriter { output: String.empty(), writes: 0, failure_at: write_count }
+    }
+}
+instance RecordingWriter {
+    method &+self.write_blocking(bytes: &[u8]): void! {
+        if self.writes >= self.failure_at {
+            return error.new("test.destination", "destination rejected line bytes")
+        }
+        self.writes += 1
+        self.output.try_push_utf8(bytes)?
+        return
+    }
+    method &self.text(): &str { return &self.output as &str }
+}
+test line_adapter_preserves_exact_and_empty_lines {
+    var writer = RecordingWriter.accepting()
+    writer.write_line_blocking("alpha")?
+    writer.write_line_blocking("")?
+    if writer.text() != "alpha\n\n" {
+        return error.new("test.output", "BlockingWriter line adapter changed its exact bytes")
+    }
+    return
+}
+test line_adapter_returns_failure_after_observable_prefix {
+    var writer = RecordingWriter.failing_after(1)
+    writer.write_line_blocking("prefix") catch failure {
+        if !failure.has_code("test.destination") || writer.text() != "prefix" {
+            return error.new("test.failure", "BlockingWriter line failure or prefix changed")
+        }
+        return
+    }
+    return error.new("test.failure", "BlockingWriter line destination failure was not returned")
+}

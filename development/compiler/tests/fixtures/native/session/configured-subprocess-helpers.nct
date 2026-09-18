@@ -1,0 +1,32 @@
+use std/process.Command
+use std/vec.Vec
+
+func repeated(byte: u8, count: usize): Vec<u8> {
+    var bytes: Vec<u8> = Vec.with_capacity(count)
+    var index: usize = 0
+    while index < count {
+        bytes.push(byte)
+        index += 1
+    }
+    return move bytes
+}
+
+noalloc func range_matches(bytes: &[u8], start: usize, count: usize, byte: u8): bool {
+    if start + count > bytes.len() { return false }
+    var index: usize = 0
+    while index < count {
+        if bytes[start + index] != byte { return false }
+        index += 1
+    }
+    return true
+}
+
+blocking func status_fails_with(command: Command, code: &str): bool {
+    let _status = command.status_blocking() catch failure { return failure.has_code(code) }
+    return false
+}
+
+blocking func output_fails_with(command: Command, code: &str): bool {
+    let _output = command.output_blocking() catch failure { return failure.has_code(code) }
+    return false
+}

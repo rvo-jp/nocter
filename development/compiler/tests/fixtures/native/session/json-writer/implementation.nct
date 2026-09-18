@@ -1,0 +1,64 @@
+see ./index.nct
+use std/json
+use std/mem
+use std/string.String
+struct RecordingWriter {
+    output: String
+    write_count: usize
+    failure_at: usize
+}
+construct RecordingWriter {
+    func accepting(): Self {
+        return RecordingWriter { output: String.empty(), write_count: 0, failure_at: 1000000 }
+    }
+    func failing_after(write_count: usize): Self {
+        return RecordingWriter { output: String.empty(), write_count: 0, failure_at: write_count }
+    }
+}
+instance RecordingWriter {
+    method &+self.write_blocking(bytes: &[u8]): void! {
+        if self.write_count >= self.failure_at {
+            return error.new("test.destination", "destination rejected JSON bytes")
+        }
+        self.output.try_push_utf8(bytes)?
+        self.write_count += 1
+        return
+    }
+    method &self.text(): &str { return &self.output as &str }
+}
+test write_streams_the_shared_compact_spelling {
+    let value = json.parse("{\"items\":[1,\"é\"]}")?
+    var writer = RecordingWriter.accepting()
+    json.write(&+writer, &value)?
+    if writer.text() != "{\"items\":[1,\"é\"]}" {
+        return error.new("test.output", "BlockingWriter spelling diverged from String generation")
+    }
+    return
+}
+test try_write_uses_the_selected_traversal_allocator {
+    let value = json.parse("[null,true,-0]")?
+    var allocator = mem.page_try_allocator()
+    var writer = RecordingWriter.accepting()
+    json.try_write(&+allocator, &+writer, &value)?
+    if writer.text() != "[null,true,-0]" {
+        return error.new("test.output", "recoverable BlockingWriter spelling changed")
+    }
+    return
+}
+test write_returns_destination_failure_after_partial_output {
+    var payload = String.with_capacity(5000)
+    var index: usize = 0
+    while index < 5000 {
+        payload.push_str("x")
+        index += 1
+    }
+    let value = json.Value.string(move payload)
+    var writer = RecordingWriter.failing_after(1)
+    json.write(&+writer, &value) catch failure {
+        if !failure.has_code("test.destination") || writer.text() != "\"" {
+            return error.new("test.failure", "destination failure identity or partial output changed")
+        }
+        return
+    }
+    return error.new("test.failure", "destination failure was not returned")
+}

@@ -1,0 +1,54 @@
+
+async func main(): i32 {
+    var listener = match await listen_stream_async(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        StreamListenerAttempt.ready(value) { move value }
+        StreamListenerAttempt.failed(_) { return 1 }
+    }
+    let address = match listener.local_address() {
+        AddressAttempt.ready(value) { value }
+        AddressAttempt.failed(_) { return 2 }
+    }
+    if address.port == 0 { return 3 }
+    match await listener.accept_async_with_timeout(Duration.from_milliseconds(2)) {
+        StreamListenerAcceptAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.timed_out {}
+                _ { return 4 }
+            }
+        }
+        StreamListenerAcceptAttempt.ready(_, _) { return 5 }
+    }
+    var client = match await connect_stream_async_with_timeout(
+        address,
+        Duration.from_seconds(1),
+    ) {
+        StreamConnectionAttempt.ready(connection) { move connection }
+        StreamConnectionAttempt.failed(_) { return 6 }
+    }
+    let accepted = match await listener.accept_async_with_timeout(Duration.from_seconds(1)) {
+        StreamListenerAcceptAttempt.ready(connection, peer) { (move connection, peer) }
+        StreamListenerAcceptAttempt.failed(_) { return 7 }
+    }
+    var server = move accepted.0
+    if accepted.1.port == 0 { return 8 }
+    server.close()
+    var end: Vec<u8> = Vec [u8.truncate(0)]
+    match await client.read_async_with_timeout(&+end, Duration.from_seconds(1)) {
+        TransferAttempt.ready(count) {
+            if count != 0 { return 10 }
+        }
+        TransferAttempt.failed(_) { return 11 }
+    }
+    client.close()
+    listener.close()
+    listener.close()
+    match await listener.accept_async() {
+        StreamListenerAcceptAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.closed { return 0 }
+                _ { return 12 }
+            }
+        }
+        StreamListenerAcceptAttempt.ready(_, _) { return 13 }
+    }
+}
