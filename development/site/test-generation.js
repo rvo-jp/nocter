@@ -22,6 +22,7 @@ try {
     assertEqualTrees(generatedRoot(early), generatedRoot(late));
     assertPublicationBoundary(early);
     assertDocumentTreeNavigation(early);
+    assertSiteNavigationPolicy(early);
     assertMarkdownTableRendering(early);
     assertDeploymentManifest(early);
     assertRepositoryLinksUseDeploymentRevision(early);
@@ -145,7 +146,7 @@ try {
         throw new Error("documentation generation accepted a compiler catalog absent from the specification");
     }
 
-    console.log("documentation generation is deterministic and enforces publication boundaries and structural navigation");
+    console.log("documentation generation is deterministic and enforces publication, entry, navigation, and search boundaries");
 } finally {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
 }
@@ -327,6 +328,50 @@ function assertDocumentTreeNavigation(root) {
         .sort();
     if (unreachable.length > 0) {
         throw new Error(`generated pages are unreachable through structural navigation: ${unreachable.join(", ")}`);
+    }
+}
+
+function assertSiteNavigationPolicy(root) {
+    const docsRoot = generatedRoot(root);
+    const language = fs.readFileSync(path.join(docsRoot, "spec/language/index.html"), "utf8");
+
+    if (!language.includes('<link rel="canonical" href="https://nocter.dev/spec/language/">')) {
+        throw new Error("canonical documentation URL includes navigation state or has drifted");
+    }
+    if (!language.includes('<a class="skip-link" href="#content">Skip to content</a>')) {
+        throw new Error("generated documentation has no hero bypass for keyboard navigation");
+    }
+    if (!language.includes('class="site-navigation"') || !language.includes('href="../../std/index.html#content"')) {
+        throw new Error("global site navigation does not enter destination content after the shared hero");
+    }
+    if (!language.includes('href="./lexical-grammar/index.html#content"')) {
+        throw new Error("ordinary authored documentation links do not skip the destination hero");
+    }
+    if (!language.includes('href="./literals-and-packs/index.html#expansion-operators"')) {
+        throw new Error("specific heading links were replaced by the generic content boundary");
+    }
+    if (!language.includes('class="page-contents"') || !language.includes('class="page-adjacent"')) {
+        throw new Error("generated documentation lacks derived local navigation");
+    }
+    if (!language.includes('class="document-tree-toggle"') || !language.includes('aria-controls="document-tree-panel"')) {
+        throw new Error("generated documentation lacks collapsible narrow-screen navigation");
+    }
+    if (!language.includes('role="tabpanel"') || !language.includes('aria-controls="hero-panel-hello"')) {
+        throw new Error("hero examples do not expose an accessible tab relationship");
+    }
+
+    const search = JSON.parse(fs.readFileSync(path.join(docsRoot, "search-index.json"), "utf8"));
+    const generatedPages = collectFiles(docsRoot).filter(file => file.endsWith("index.html"));
+    if (search.version !== 1 || search.documents.length !== generatedPages.length) {
+        throw new Error("search index and published document set have different authorities");
+    }
+    if (search.documents.some(document => !document.url.endsWith("#content"))) {
+        throw new Error("search result navigation can reopen the destination hero");
+    }
+
+    const stylesheet = fs.readFileSync(path.join(docsRoot, "style.css"), "utf8");
+    if (/fonts\.(?:googleapis|gstatic)\.com/.test(stylesheet)) {
+        throw new Error("documentation styling depends on a remote font provider");
     }
 }
 

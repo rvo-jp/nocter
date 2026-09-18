@@ -65,6 +65,7 @@ const publishedDocuments = sourceFiles.map(file => ({
 }));
 const documentTree = new PublishedDocumentTree(PROJECT_ROOT, publishedDocuments);
 const documentLabels = new Map(sourceFiles.map(file => [path.resolve(file), sourceDocumentLabel(file)]));
+const renderedDocumentMetadata = new Map();
 
 // Hero panels consume complete runnable examples instead of maintaining a second set of Nocter
 // snippets inside the documentation generator. Release qualification checks these same sources.
@@ -100,6 +101,7 @@ try {
         fs.writeFileSync(output, html);
     }
 
+    writeSearchIndex(sourceFiles);
     writeRobots();
     writeSitemap(sourceFiles);
     writeDeploymentManifest();
@@ -568,20 +570,28 @@ function renderPage(sourcePath) {
     const publishedSourcePath = publishedPathForSource(sourcePath);
     const source = sourceContents.get(path.resolve(sourcePath));
     const isNocterSource = sourcePath.endsWith(".nct");
-    const body = isNocterSource ? nocterSourceToHtml(source, sourcePath) : markdownToHtml(source, sourcePath);
+    const headings = [];
+    const body = isNocterSource
+        ? nocterSourceToHtml(source, sourcePath)
+        : markdownToHtml(source, sourcePath, new Map(), headings);
     const title = isNocterSource ? publishedSourcePath : firstHeading(source) || "Nocter";
     const pageMeta = PAGE_META[relativeSourcePath] || {};
     const description = pageMeta.description || (isNocterSource ? nocterSourceDescription(publishedSourcePath) : pageDescription(source));
+    renderedDocumentMetadata.set(path.resolve(sourcePath), {
+        headings: headings.map(heading => heading.label),
+        text: searchTextForSource(source, isNocterSource)
+    });
     const outputPath = outputPathForSource(sourcePath);
     const outputDir = path.dirname(outputPath);
     const styleHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "style.css"));
     const scriptHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "script.js"));
     const logoHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "assets/logo.svg"));
-    const specHref = relativeUrl(outputDir, outputPathForSource(path.join(PROJECT_ROOT, "spec/README.md"))) + "#content";
+    const specHref = internalPageHref(outputDir, path.join(PROJECT_ROOT, "spec/README.md"));
     const canonical = `${SITE_ORIGIN}${publicPathForOutput(outputPath)}`;
-    const navigation = renderDocumentTreeNavigation(sourcePath, outputDir);
+    const navigation = renderDocumentTreeNavigation(sourcePath, outputDir, headings);
     const bodyClass = navigation ? ' class="has-document-tree"' : "";
     const isHomePage = relativeSourcePath === "README.md";
+    const sourceHref = `${SOURCE_ORIGIN}/${publishedSourcePath}`;
 
     const pageTitle = pageMeta.title || (title === "Nocter" ? "Nocter - Self-contained systems language" : `${title} - Nocter`);
     return `<!DOCTYPE html>
@@ -615,17 +625,21 @@ function renderPage(sourcePath) {
     <link rel="stylesheet" href="${styleHref}">
 </head>
 <body${bodyClass}>
+    <a class="skip-link" href="#content">Skip to content</a>
     ${renderHero(logoHref, specHref)}
+    ${renderGlobalNavigation(sourcePath, outputDir)}
 
     <div class="docs-shell">
         ${navigation || '<aside class="document-tree" aria-label="Documentation tree"></aside>'}
         <main id="content">
             <div class="markdown-path">
                 <span class="markdown-path-text">/${escapeHtml(publishedSourcePath)}</span>
+                <a class="markdown-source" href="${escapeAttribute(sourceHref)}">View source</a>
             </div>
             <div class="markdown-body">
                 ${body}
             </div>
+            ${renderAdjacentPages(sourcePath, outputDir)}
         </main>
     </div>
 
@@ -667,21 +681,51 @@ function renderHero(logoHref, specHref) {
 
             <aside class="hero-code" aria-label="Nocter code examples">
                 <div class="hero-code-tabs" role="tablist" aria-label="Code example">
-                    ${Object.keys(codeExamples).map((name, index) => `<button class="hero-code-tab" type="button" role="tab" aria-selected="${index === 0 ? "true" : "false"}" data-example="${name}">${name}</button>`).join("\n                    ")}
+                    ${Object.keys(codeExamples).map((name, index) => `<button id="hero-tab-${name}" class="hero-code-tab" type="button" role="tab" aria-selected="${index === 0 ? "true" : "false"}" aria-controls="hero-panel-${name}" tabindex="${index === 0 ? "0" : "-1"}" data-example="${name}">${name}</button>`).join("\n                    ")}
                 </div>
 
                 <div class="hero-code-panels">
-                    ${Object.entries(codeExamples).map(([name, code], index) => `<pre class="hero-code-panel" data-example-panel="${name}"${index === 0 ? "" : " hidden"}><code class="language-nocter">${highlightCode(code, "nocter")}</code></pre>`).join("\n                    ")}
+                    ${Object.entries(codeExamples).map(([name, code], index) => `<pre id="hero-panel-${name}" class="hero-code-panel" role="tabpanel" aria-labelledby="hero-tab-${name}" data-example-panel="${name}"${index === 0 ? "" : " hidden"}><code class="language-nocter">${highlightCode(code, "nocter")}</code></pre>`).join("\n                    ")}
                 </div>
             </aside>
         </div>
     </header>`;
 }
 
+function renderGlobalNavigation(sourcePath, outputDir) {
+    const relativeSource = publishedPathForSource(sourcePath);
+    const sections = [
+        ["Home", "README.md", relativeSource === "README.md"],
+        ["Specification", "spec/README.md", relativeSource.startsWith("spec/")],
+        ["Standard Library", "std/README.md", relativeSource.startsWith("std/")],
+        ["Examples", "examples/README.md", relativeSource.startsWith("examples/")],
+        ["Contributors", "development/README.md", relativeSource.startsWith("development/")],
+        ["Releases", "releases/README.md", relativeSource.startsWith("releases/")]
+    ];
+    const searchIndexHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "search-index.json"));
+
+    return `<div class="site-navigation">
+        <div class="site-navigation-inner">
+            <nav class="site-sections" aria-label="Primary documentation">
+                ${sections.map(([label, relative, current]) => {
+                    const target = path.join(PROJECT_ROOT, relative);
+                    const href = internalPageHref(outputDir, target);
+                    return `<a href="${href}"${current ? ' aria-current="page"' : ""}>${label}</a>`;
+                }).join("\n                ")}
+            </nav>
+            <div class="site-search" data-search-root data-search-index="${searchIndexHref}">
+                <label class="visually-hidden" for="site-search-input">Search documentation</label>
+                <input id="site-search-input" type="search" placeholder="Search documentation" autocomplete="off" aria-controls="site-search-results" aria-expanded="false">
+                <div id="site-search-results" class="site-search-results" hidden></div>
+            </div>
+        </div>
+    </div>`;
+}
+
 function renderFooter() {
     return `<footer class="site-footer">
         <div class="site-footer-inner">
-            <p>© 2026 Rvo JP</p>
+            <p>© Rvo JP</p>
 
             <nav class="site-footer-links" aria-label="Footer links">
                 <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
@@ -692,7 +736,7 @@ function renderFooter() {
     </footer>`;
 }
 
-function markdownToHtml(markdown, markdownPath, headingIds = new Map()) {
+function markdownToHtml(markdown, markdownPath, headingIds = new Map(), headings = []) {
     return markdown
         .replace(/\r/g, "")
         .split(/(```[\s\S]*?```)/)
@@ -704,12 +748,12 @@ function markdownToHtml(markdown, markdownPath, headingIds = new Map()) {
                 return `<pre><code${language}>${highlighted}</code></pre>`;
             }
 
-            return block.split(/\n{2,}/).map(part => parseBlock(part, markdownPath, headingIds)).join("");
+            return block.split(/\n{2,}/).map(part => parseBlock(part, markdownPath, headingIds, headings)).join("");
         })
         .join("");
 }
 
-function parseBlock(block, markdownPath, headingIds) {
+function parseBlock(block, markdownPath, headingIds, headings) {
     block = block.trim();
 
     if (!block || block.startsWith("<")) {
@@ -720,14 +764,16 @@ function parseBlock(block, markdownPath, headingIds) {
         const level = Math.min(block.match(/^#+/)[0].length, 6);
         const text = block.slice(level).trim();
         const id = uniqueHeadingId(text, headingIds);
-        return `<h${level} id="${escapeAttribute(id)}">${inline(text, markdownPath)}</h${level}>`;
+        const label = stripMarkdown(text);
+        headings.push({ level, id, label });
+        return `<h${level} id="${escapeAttribute(id)}"><a class="heading-link" href="#${escapeAttribute(id)}">${inline(text, markdownPath)}<span class="heading-link-mark" aria-hidden="true">#</span></a></h${level}>`;
     }
 
     const lines = block.split("\n");
 
     if (lines.every(line => line.startsWith(">") || line.trim() === "")) {
         const quoted = lines.map(line => line.replace(/^>\s?/, "")).join("\n").trim();
-        return `<blockquote>${markdownToHtml(quoted, markdownPath, headingIds)}</blockquote>`;
+        return `<blockquote>${markdownToHtml(quoted, markdownPath, headingIds, headings)}</blockquote>`;
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(block)) {
@@ -824,7 +870,7 @@ function inline(text, markdownPath) {
         .replace(/CODE_SPAN_(\d+)_PLACEHOLDER/g, (_, index) => `<code>${escapeHtml(codeSpans[Number(index)])}</code>`);
 }
 
-function renderDocumentTreeNavigation(sourcePath, outputDir) {
+function renderDocumentTreeNavigation(sourcePath, outputDir, headings) {
     const navigation = documentTree.navigation(sourcePath);
     const title = directoryPath(navigation.scope) || "Documentation";
     const breadcrumbs = navigation.ancestors.length > 0
@@ -836,13 +882,25 @@ function renderDocumentTreeNavigation(sourcePath, outputDir) {
         return "";
     }
 
+    const contents = headings.filter(heading => heading.level === 2 || heading.level === 3);
+    const tableOfContents = contents.length > 1
+        ? `<nav class="page-contents" aria-label="On this page">
+                <p class="document-tree-title">On this page</p>
+                <ul>${contents.map(heading => `<li class="page-contents-level-${heading.level}"><a href="#${escapeAttribute(heading.id)}">${escapeHtml(heading.label)}</a></li>`).join("")}</ul>
+            </nav>`
+        : "";
+
     return `<aside class="document-tree">
+            <button class="document-tree-toggle" type="button" aria-expanded="false" aria-controls="document-tree-panel">Browse this section</button>
+            <div id="document-tree-panel" class="document-tree-panel">
+            ${tableOfContents}
             <nav aria-label="Documentation tree">${breadcrumbs}
                 <p class="document-tree-title">${escapeHtml(title)}/</p>
                 <ul class="document-tree-list">
                     ${entries}
                 </ul>
             </nav>
+            </div>
         </aside>`;
 }
 
@@ -867,8 +925,33 @@ function renderDocumentTreeEntries(entries, sourcePath, outputDir) {
 
 function renderDocumentTreeLink(page, sourcePath, outputDir, label) {
     const current = path.resolve(page.sourcePath) === path.resolve(sourcePath);
-    const href = `${relativeUrl(outputDir, outputPathForSource(page.sourcePath))}#content`;
+    const href = internalPageHref(outputDir, page.sourcePath);
     return `<li><a href="${href}"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a></li>`;
+}
+
+function renderAdjacentPages(sourcePath, outputDir) {
+    const navigation = documentTree.navigation(sourcePath);
+    const pages = flattenEntries(navigation.entries);
+    const currentIndex = pages.findIndex(page => path.resolve(page.sourcePath) === path.resolve(sourcePath));
+
+    if (currentIndex < 0) {
+        return "";
+    }
+
+    const previous = pages[currentIndex - 1] || null;
+    const next = pages[currentIndex + 1] || null;
+    if (!previous && !next) {
+        return "";
+    }
+
+    const link = (page, relation, marker) => page
+        ? `<a class="page-adjacent-${relation}" rel="${relation}" href="${internalPageHref(outputDir, page.sourcePath)}"><span>${marker}</span><strong>${escapeHtml(documentLabel(page))}</strong></a>`
+        : `<span></span>`;
+
+    return `<nav class="page-adjacent" aria-label="Adjacent documentation">
+        ${link(previous, "prev", "Previous")}
+        ${link(next, "next", "Next")}
+    </nav>`;
 }
 
 function documentLabel(page) {
@@ -901,17 +984,15 @@ function resolveLinkUrl(markdownPath, href) {
     const relativeTarget = normalizePath(path.relative(PROJECT_ROOT, targetSource));
 
     if (/\.(?:md|nct)$/.test(rawPath) && sourceSet.has(relativeTarget)) {
-        const targetOutput = outputPathForSource(targetSource);
         const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
-        return relativeUrl(currentOutputDir, targetOutput) + (hash ? `#${hash}` : "#content");
+        return internalPageHref(currentOutputDir, targetSource, hash || "content");
     }
 
     const targetReadme = path.join(targetSource, "README.md");
     const relativeTargetReadme = normalizePath(path.relative(PROJECT_ROOT, targetReadme));
     if (fs.existsSync(targetReadme) && sourceSet.has(relativeTargetReadme)) {
-        const targetOutput = outputPathForSource(targetReadme);
         const currentOutputDir = path.dirname(outputPathForSource(markdownPath));
-        return relativeUrl(currentOutputDir, targetOutput) + (hash ? `#${hash}` : "#content");
+        return internalPageHref(currentOutputDir, targetReadme, hash || "content");
     }
 
     if (/\.(?:md|nct)$/.test(rawPath) && fs.existsSync(targetSource)) {
@@ -976,6 +1057,17 @@ function relativeUrl(fromDir, toPath) {
     }
 
     return relative;
+}
+
+// Canonical and externally discovered URLs remain fragment-free so a first visit starts at the
+// shared hero. Every generated site-internal page transition uses this one authority and lands at
+// the content boundary, unless the authored link names a more specific heading.
+function internalPageHref(fromDir, sourcePath, fragment = "content") {
+    return `${relativeUrl(fromDir, outputPathForSource(sourcePath))}${internalNavigationFragment(fragment)}`;
+}
+
+function internalNavigationFragment(fragment = "content") {
+    return `#${encodeURIComponent(fragment)}`;
 }
 
 function firstHeading(markdown) {
@@ -1107,6 +1199,51 @@ function breadcrumbName(segment) {
         .filter(Boolean)
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
+}
+
+function writeSearchIndex(files) {
+    const documents = files.map(file => {
+        const relative = publishedPathForSource(file);
+        const output = outputPathForSource(file);
+        const metadata = renderedDocumentMetadata.get(path.resolve(file));
+        if (!metadata) {
+            throw new Error(`Search metadata was not rendered for ${relative}`);
+        }
+
+        return {
+            title: searchDocumentTitle(file),
+            path: `/${relative}`,
+            url: `${publicPathForOutput(output)}${internalNavigationFragment()}`,
+            headings: metadata.headings,
+            text: metadata.text
+        };
+    });
+
+    fs.writeFileSync(
+        path.join(OUTPUT_ROOT, "search-index.json"),
+        `${JSON.stringify({ version: 1, documents })}\n`
+    );
+}
+
+function searchTextForSource(source, isNocterSource) {
+    if (!isNocterSource) {
+        return stripMarkdown(source.replace(/```[\s\S]*?```/g, " ")).slice(0, 6000);
+    }
+
+    return source.split("\n")
+        .map(line => line.trim())
+        .filter(line => line.startsWith("pub ") || line.startsWith("///"))
+        .join(" ")
+        .slice(0, 6000);
+}
+
+function searchDocumentTitle(file) {
+    if (path.basename(file) !== "index.nct") {
+        return documentLabels.get(path.resolve(file));
+    }
+
+    const modulePath = normalizePath(path.relative(PROJECT_ROOT, path.dirname(file)));
+    return `${modulePath} Module Contract`;
 }
 
 function writeRobots() {

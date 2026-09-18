@@ -16,6 +16,12 @@ Findings and evidence are recorded in the
 and the
 [`Repository Documentation Authority Review after v0.59.0`](history/reviews/repository-documentation-authority-after-v0.59.0.md).
 
+The generated documentation site retains the complete Nocter hero on fragment-free external entry
+URLs. All generated site-internal navigation enters at the content boundary, while specific heading
+links remain exact. Global sections, local search, page contents, adjacent-page links, narrow-screen
+navigation, and accessible hero tabs are derived from the published document set without a second
+page registry or hosted search service.
+
 ## Next Work
 
 Select the next milestone from concrete application and standard-library pressure. Do not reopen

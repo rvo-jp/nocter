@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=M+PLUS+2:wght@100..900&family=Manrope:wght@200..800&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
-
 * {
     margin: 0;
     padding: 0;
@@ -74,11 +72,43 @@ body {
     background: var(--page-background);
     overflow-x: hidden;
 
-    font-family:
-        "Manrope",
-        "M PLUS 2",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.skip-link {
+    position: fixed;
+    z-index: 100;
+    top: 12px;
+    left: 12px;
+    padding: 10px 14px;
+    color: #fff;
+    background: var(--nocter-blue-dark);
+    border-radius: 5px;
+    text-decoration: none;
+    transform: translateY(-160%);
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+    outline: 3px solid var(--nocter-yellow);
+    outline-offset: 3px;
 }
 
 .hero {
@@ -164,11 +194,7 @@ body {
 .hero-kicker {
     color: var(--nocter-blue);
 
-    font-family:
-        "Ubuntu",
-        "Manrope",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -185,11 +211,7 @@ body {
 
     color: var(--hero-text);
 
-    font-family:
-        "Manrope",
-        "Inter",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
     font-size: clamp(3rem, 6vw, 5.35rem);
     font-weight: 700;
@@ -205,10 +227,7 @@ body {
 
     color: var(--hero-muted);
 
-    font-family:
-        "Inter",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
     font-size: clamp(1rem, 1.6vw, 1.16rem);
     font-weight: 400;
@@ -236,11 +255,7 @@ body {
     border: 1px solid var(--content-border);
     border-radius: 5px;
 
-    font-family:
-        "Ubuntu",
-        "Manrope",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 0.88rem;
     font-weight: 700;
     text-decoration: none;
@@ -288,10 +303,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
 
-    font-family:
-        "Ubuntu",
-        ui-monospace,
-        monospace;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 0.78rem;
 }
 
@@ -434,6 +446,142 @@ main pre code {
     }
 }
 
+.site-navigation {
+    position: relative;
+    z-index: 5;
+    background: rgba(251, 252, 255, 0.96);
+    border-bottom: 1px solid var(--content-border);
+}
+
+.site-navigation-inner {
+    display: flex;
+    width: min(100% - 40px, 1180px);
+    min-height: 58px;
+    margin: 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.site-sections {
+    display: flex;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.site-sections::-webkit-scrollbar {
+    display: none;
+}
+
+.site-sections a {
+    display: inline-flex;
+    min-height: 58px;
+    padding: 0 12px;
+    align-items: center;
+    flex: 0 0 auto;
+    color: var(--content-muted);
+    border-bottom: 3px solid transparent;
+    font-size: 0.86rem;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.site-sections a:hover {
+    color: var(--nocter-blue-dark);
+}
+
+.site-sections a[aria-current="page"] {
+    color: var(--nocter-blue-dark);
+    border-bottom-color: var(--nocter-blue);
+}
+
+.site-search {
+    position: relative;
+    width: min(260px, 30vw);
+    flex: 0 0 auto;
+}
+
+.site-search input {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 12px;
+    color: var(--content-text);
+    background: #fff;
+    border: 1px solid var(--content-border);
+    border-radius: 5px;
+    font: inherit;
+    font-size: 0.86rem;
+}
+
+.site-search-results {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(520px, 70vh);
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--content-border);
+    border-radius: 6px;
+    box-shadow: 0 18px 54px rgba(52, 73, 102, 0.16);
+}
+
+.site-search-results a,
+.site-search-empty {
+    display: block;
+    padding: 11px 13px;
+    color: var(--content-text);
+    border-bottom: 1px solid var(--content-soft-border);
+    text-decoration: none;
+}
+
+.site-search-results a:last-child {
+    border-bottom: 0;
+}
+
+.site-search-results a:hover,
+.site-search-results a:focus-visible {
+    background: var(--nocter-sky);
+}
+
+.site-search-results strong,
+.site-search-results span {
+    display: block;
+}
+
+.site-search-results span,
+.site-search-empty {
+    color: var(--content-muted);
+    font-size: 0.76rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 860px) {
+    .site-navigation-inner {
+        min-height: 0;
+        padding: 10px 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 9px;
+    }
+
+    .site-sections a {
+        min-height: 38px;
+    }
+
+    .site-search {
+        width: 100%;
+    }
+
+    .site-search-results {
+        right: auto;
+        left: 0;
+        width: 100%;
+    }
+}
+
 .docs-shell {
     width: min(100% - 40px, 1180px);
     margin: 0 auto;
@@ -466,16 +614,33 @@ body.has-document-tree .document-tree {
     border-radius: 6px;
 }
 
+.document-tree-toggle {
+    display: none;
+}
+
+.page-contents {
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--content-soft-border);
+}
+
+.page-contents ul {
+    display: grid;
+    gap: 2px;
+    list-style: none;
+}
+
+.page-contents .page-contents-level-3 a {
+    padding-left: 20px;
+    font-size: 0.82rem;
+}
+
 .document-tree-title {
     margin-bottom: 10px;
 
     color: var(--nocter-blue-dark);
 
-    font-family:
-        "Ubuntu",
-        "Manrope",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -504,11 +669,7 @@ body.has-document-tree .document-tree {
 
     color: var(--content-muted);
 
-    font-family:
-        "Ubuntu",
-        "Manrope",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 0.78rem;
     font-weight: 700;
 }
@@ -570,10 +731,7 @@ body.has-document-tree main {
     gap: 4px;
 
     color: var(--content-muted);
-    font-family:
-        "Ubuntu",
-        ui-monospace,
-        monospace;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 0.8rem;
     line-height: 1.4;
 }
@@ -593,6 +751,16 @@ body.has-document-tree main {
     overflow-wrap: anywhere;
 }
 
+.markdown-source {
+    min-height: 32px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    color: var(--nocter-blue);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
 .markdown-body > * + * {
     margin-top: 1.15em;
 }
@@ -605,11 +773,7 @@ main h5,
 main h6 {
     color: var(--nocter-blue-dark);
 
-    font-family:
-        "Ubuntu",
-        "Manrope",
-        system-ui,
-        sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-weight: 700;
     line-height: 1.25;
 }
@@ -670,6 +834,27 @@ main h6 {
     color: var(--content-muted);
 
     font-size: 0.98rem;
+}
+
+.heading-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.heading-link:hover {
+    color: inherit;
+}
+
+.heading-link-mark {
+    margin-left: 0.35em;
+    color: var(--content-border);
+    font-weight: 500;
+    opacity: 0;
+}
+
+.heading-link:hover .heading-link-mark,
+.heading-link:focus-visible .heading-link-mark {
+    opacity: 1;
 }
 
 main p {
@@ -746,6 +931,35 @@ main pre code {
     border: 0;
 }
 
+.code-block {
+    position: relative;
+}
+
+.code-block > pre {
+    margin: 0;
+}
+
+.code-copy {
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    right: 8px;
+    min-height: 30px;
+    padding: 0 9px;
+    color: var(--content-muted);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--content-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 650;
+}
+
+.markdown-body > .code-block {
+    margin: 1.45em 0;
+}
+
 main ul,
 main ol {
     padding-left: 1.35em;
@@ -804,6 +1018,46 @@ main img {
     border-radius: 6px;
 }
 
+.page-adjacent {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--content-border);
+}
+
+.page-adjacent a {
+    display: flex;
+    min-width: 0;
+    padding: 13px 15px;
+    flex-direction: column;
+    color: var(--content-text);
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid var(--content-soft-border);
+    border-radius: 6px;
+    text-decoration: none;
+}
+
+.page-adjacent a:hover {
+    background: var(--nocter-sky);
+    border-color: var(--content-border);
+}
+
+.page-adjacent span {
+    color: var(--content-muted);
+    font-size: 0.76rem;
+}
+
+.page-adjacent strong {
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+
+.page-adjacent-next {
+    text-align: right;
+}
+
 
 .site-footer {
     border-top: 1px solid var(--content-soft-border);
@@ -844,6 +1098,60 @@ main img {
     text-decoration-color: var(--nocter-yellow);
 }
 
+@media (max-width: 1050px) {
+    body.has-document-tree .docs-shell {
+        display: block;
+    }
+
+    body.has-document-tree .document-tree {
+        position: static;
+        max-height: none;
+        margin-top: 32px;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .document-tree-toggle {
+        display: flex;
+        width: 100%;
+        min-height: 46px;
+        padding: 0 14px;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--nocter-blue-dark);
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        text-align: left;
+    }
+
+    .document-tree-toggle::after {
+        content: "+";
+        color: var(--content-muted);
+        font-size: 1.2rem;
+    }
+
+    .document-tree-toggle[aria-expanded="true"]::after {
+        content: "−";
+    }
+
+    .document-tree-panel {
+        display: none;
+        padding: 0 14px 14px;
+    }
+
+    .document-tree-toggle[aria-expanded="true"] + .document-tree-panel {
+        display: block;
+    }
+
+    body.has-document-tree main {
+        width: min(100% - 40px, 860px);
+        margin: 0 auto;
+    }
+}
+
 @media (max-width: 600px) {
     .site-footer-inner {
         width: min(100% - 32px, 1180px);
@@ -861,17 +1169,6 @@ main img {
 
     .docs-shell {
         width: min(100% - 32px, 1180px);
-    }
-
-    body.has-document-tree .docs-shell {
-        display: block;
-    }
-
-    body.has-document-tree .document-tree {
-        position: static;
-
-        max-height: none;
-        margin-top: 32px;
     }
 
     main {
@@ -896,5 +1193,17 @@ main img {
         border-right: 0;
         border-left: 0;
         border-radius: 0;
+    }
+
+    .markdown-path {
+        flex-wrap: wrap;
+    }
+
+    .page-adjacent {
+        grid-template-columns: 1fr;
+    }
+
+    .page-adjacent-next {
+        text-align: left;
     }
 }

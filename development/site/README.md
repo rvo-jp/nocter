@@ -9,6 +9,8 @@ GitHub Pages deployment artifact.
 - `build-docs.js` validates authored documentation and generates one complete website into an
   explicit directory outside the repository.
 - `document-tree.js` owns the immutable hierarchy derived from the complete published-source set.
+- the generated search index contains one entry for every published document and is loaded only
+  when a visitor searches; it introduces no hosted search service or build dependency.
 - `highlight.js` provides build-time syntax highlighting for Nocter and shell code blocks.
 - `markdown-table.js` owns table-cell boundaries across code spans and escaped pipe characters.
 - `output-transaction.js` owns sibling staging, complete output replacement, and failure
@@ -69,6 +71,18 @@ or appears in navigation. Every published page must be reachable from the reposi
 through generated structural navigation. Private sources and history are removed by the publication
 filter before the tree is built, so filesystem discovery cannot make them public accidentally.
 
+Every page retains the complete shared hero as its external entry surface. Canonical URLs and the
+sitemap remain fragment-free, so search engines and direct visits begin at that hero. Generated
+site-internal links instead end at `#content`; a link to a specific authored heading retains that
+heading fragment. The global section bar, Markdown links, document tree, search results, and
+previous/next navigation all consume this rule. No runtime referrer inference or delayed scripted
+scroll decides whether the hero is visible.
+
+The same published document set derives global section links, directory navigation, local heading
+contents, adjacent pages, and the search index. Narrow screens collapse directory navigation
+before the article so a large sibling set cannot displace the requested content. A keyboard skip
+link provides the same direct content boundary without removing the hero from the document.
+
 ## Build
 
 Run from the repository root:
@@ -121,7 +135,9 @@ navigation without README registration, historical records remain excluded, ever
 behavior guide links its checked contract, named built-in declarations cannot drift from the
 language catalog, unrelated Rust text cannot register diagnostics, diagnostic drift is rejected,
 every behavior guide remains assigned by the standard-library catalog, and table pipes inside code
-spans or escapes cannot corrupt the generated columns.
+spans or escapes cannot corrupt the generated columns. It also proves that canonical URLs retain
+the external hero entry, every generated internal navigation surface targets content, specific
+heading links remain specific, and the search index has exactly one entry per published page.
 
 ## Deployment
 
