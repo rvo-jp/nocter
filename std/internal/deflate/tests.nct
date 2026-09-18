@@ -1,6 +1,7 @@
 //! Contract tests for bounded LSB-first bit input.
 
 see ./index.nct
+see ./huffman.nct
 
 noalloc func rejects_without_change(input: &+BitInput, count: u64, available: u64): bool {
     let _unexpected = input.take(count) otherwise { return input.available() == available }
@@ -57,4 +58,132 @@ test bit_input_alignment_discards_only_the_partial_byte {
         return error.new("std.internal.deflate.align", "byte alignment changed")
     }
     return
+}
+
+noalloc func reads_expected_symbol(
+    lengths: &[u8; 288],
+    symbol_count: usize,
+    first_byte: u8,
+    second_byte: u8,
+    expected: usize,
+): bool {
+    let built = build_huffman(lengths, symbol_count)
+    match move built {
+        HuffmanBuild.ready(table) {
+            var input = BitInput.empty()
+            if !input.push_byte(first_byte) || !input.push_byte(second_byte) { return false }
+            let read = read_huffman(&+input, &table)
+            match read {
+                HuffmanRead.symbol(value) { return value == expected }
+                _ { return false }
+            }
+        }
+        _ { return false }
+    }
+}
+
+test canonical_huffman_reads_each_source_symbol_in_deflate_order {
+    var lengths: [u8; 288] = [0; 288]
+    lengths[0] = 1
+    lengths[1] = 2
+    lengths[2] = 2
+    if !reads_expected_symbol(&lengths, 3, 0, 0, 0)
+        || !reads_expected_symbol(&lengths, 3, 1, 0, 1)
+        || !reads_expected_symbol(&lengths, 3, 3, 0, 2) {
+        return error.new("std.internal.deflate.huffman", "canonical symbol order changed")
+    }
+    return
+}
+
+test fixed_huffman_table_preserves_every_code_length_range {
+    var lengths: [u8; 288] = [0; 288]
+    var symbol: usize = 0
+    while symbol <= 143 {
+        lengths[symbol] = 8
+        symbol += 1
+    }
+    while symbol <= 255 {
+        lengths[symbol] = 9
+        symbol += 1
+    }
+    while symbol <= 279 {
+        lengths[symbol] = 7
+        symbol += 1
+    }
+    while symbol <= 287 {
+        lengths[symbol] = 8
+        symbol += 1
+    }
+
+    if !reads_expected_symbol(&lengths, 288, 12, 0, 0)
+        || !reads_expected_symbol(&lengths, 288, 253, 0, 143)
+        || !reads_expected_symbol(&lengths, 288, 19, 0, 144)
+        || !reads_expected_symbol(&lengths, 288, 0, 0, 256)
+        || !reads_expected_symbol(&lengths, 288, 116, 0, 279)
+        || !reads_expected_symbol(&lengths, 288, 3, 0, 280)
+        || !reads_expected_symbol(&lengths, 288, 227, 0, 287) {
+        return error.new("std.internal.deflate.fixed", "fixed Huffman range changed")
+    }
+    return
+}
+
+test canonical_huffman_rejects_oversubscribed_and_incomplete_trees {
+    var lengths: [u8; 288] = [0; 288]
+    lengths[0] = 1
+    lengths[1] = 1
+    lengths[2] = 1
+    let oversubscribed_result = build_huffman(&lengths, 3)
+    match move oversubscribed_result {
+        HuffmanBuild.oversubscribed {}
+        _ { return error.new("std.internal.deflate.huffman", "oversubscribed tree was accepted") }
+    }
+
+    lengths[0] = 2
+    lengths[1] = 2
+    lengths[2] = 0
+    let incomplete_result = build_huffman(&lengths, 2)
+    match move incomplete_result {
+        HuffmanBuild.incomplete {}
+        _ { return error.new("std.internal.deflate.huffman", "incomplete tree was accepted") }
+    }
+    return
+}
+
+test canonical_huffman_distinguishes_empty_and_invalid_lengths {
+    var lengths: [u8; 288] = [0; 288]
+    let empty_result = build_huffman(&lengths, 3)
+    match move empty_result {
+        HuffmanBuild.empty {}
+        _ { return error.new("std.internal.deflate.huffman", "empty tree was not preserved") }
+    }
+
+    lengths[0] = 16
+    let invalid_result = build_huffman(&lengths, 1)
+    match move invalid_result {
+        HuffmanBuild.invalid_length {}
+        _ { return error.new("std.internal.deflate.huffman", "invalid code length was accepted") }
+    }
+    return
+}
+
+test canonical_huffman_does_not_consume_an_incomplete_symbol {
+    var lengths: [u8; 288] = [0; 288]
+    lengths[0] = 1
+    lengths[1] = 2
+    lengths[2] = 2
+    let built = build_huffman(&lengths, 3)
+    match move built {
+        HuffmanBuild.ready(table) {
+            var input = BitInput.empty()
+            let read = read_huffman(&+input, &table)
+            match read {
+                HuffmanRead.needs_input {
+                    if input.available() == 0 { return }
+                }
+                _ {}
+            }
+        }
+        _ {}
+    }
+    return error.new("std.internal.deflate.huffman", "incomplete symbol changed input state")
 }

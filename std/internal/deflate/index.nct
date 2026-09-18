@@ -4,10 +4,32 @@
 //! transport belongs to std/io, and caller input and output storage are never retained here.
 
 see ./bit_input.nct
+see ./huffman.nct
+see ./storage.nct
 see ./tests.nct
 
 /// A bounded LSB-first reservoir of bits already consumed from caller-owned input bytes.
 pub(/) struct BitInput
+
+/// One bounded canonical Huffman table with symbols ordered by code length and source value.
+pub(/) struct HuffmanTable
+
+/// The complete structural result of constructing one canonical Huffman table.
+pub(/) enum HuffmanBuild {
+    ready(table: HuffmanTable)
+    empty
+    invalid_length
+    too_many_symbols
+    oversubscribed
+    incomplete
+}
+
+/// One symbol-read attempt that never consumes an incomplete prefix.
+pub(/) enum HuffmanRead {
+    symbol(value: usize)
+    needs_input
+    invalid
+}
 
 construct BitInput {
     /// Constructs an empty byte-aligned reservoir.

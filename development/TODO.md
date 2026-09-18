@@ -28,9 +28,9 @@ responsibility boundaries, and completion gates are recorded in
 
 ## Next Work
 
-Implement v0.60.0 Phase 1 through the qualified LSB-first bit-input and structured progress
-contracts. Build the DEFLATE state machine without adding public transport or archive policy to
-the compression core. Do not reopen v0.59.0; any correction requires a new version,
+Continue v0.60.0 Phase 1 from the qualified bit-input and canonical-Huffman authorities. Add the
+stored, fixed, dynamic-tree, and history-window states to one DEFLATE decoder without introducing
+transport or archive policy. Do not reopen v0.59.0; any correction requires a new version,
 implementation gate, qualified archive, tag, and publication audit.
 
 Preserve the v0.59.0 tag, release asset, public notes, specification snapshot, and publication audit

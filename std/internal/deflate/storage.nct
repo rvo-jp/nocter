@@ -1,0 +1,9 @@
+//! Private fixed-capacity DEFLATE state.
+
+see ./index.nct
+
+struct HuffmanTable {
+    counts: [usize; 16]
+    symbols: [usize; 288]
+    max_bits: usize
+}
