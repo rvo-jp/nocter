@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { PublishedDocumentTree, directoryPath, flattenEntries } = require("./document-tree");
+const { PublishedDocumentTree, flattenEntries, landingPage } = require("./document-tree");
 const { NOCTER_RESERVED_KEYWORDS, highlightCode } = require("./highlight");
 const { splitTableRow } = require("./markdown-table");
 const { OutputTransaction } = require("./output-transaction");
@@ -591,8 +591,6 @@ function renderPage(sourcePath) {
     const navigation = renderDocumentTreeNavigation(sourcePath, outputDir, headings);
     const bodyClass = navigation ? ' class="has-document-tree"' : "";
     const isHomePage = relativeSourcePath === "README.md";
-    const sourceHref = `${SOURCE_ORIGIN}/${publishedSourcePath}`;
-
     const pageTitle = pageMeta.title || (title === "Nocter" ? "Nocter - Self-contained systems language" : `${title} - Nocter`);
     return `<!DOCTYPE html>
 <html lang="en">
@@ -632,10 +630,6 @@ function renderPage(sourcePath) {
     <div class="docs-shell">
         ${navigation || '<aside class="document-tree" aria-label="Documentation tree"></aside>'}
         <main id="content">
-            <div class="markdown-path">
-                <span class="markdown-path-text">/${escapeHtml(publishedSourcePath)}</span>
-                <a class="markdown-source" href="${escapeAttribute(sourceHref)}">View source</a>
-            </div>
             <div class="markdown-body">
                 ${body}
             </div>
@@ -872,7 +866,10 @@ function inline(text, markdownPath) {
 
 function renderDocumentTreeNavigation(sourcePath, outputDir, headings) {
     const navigation = documentTree.navigation(sourcePath);
-    const title = directoryPath(navigation.scope) || "Documentation";
+    const scopeLanding = landingPage(navigation.scope);
+    const title = scopeLanding && scopeLanding.sourcePath.endsWith(".md")
+        ? documentLabel(scopeLanding)
+        : navigationDirectoryLabel(navigation.scope.name) || "Documentation";
     const breadcrumbs = navigation.ancestors.length > 0
         ? `\n                <ol class="document-tree-breadcrumbs">${navigation.ancestors.map(entry => renderDocumentTreeLink(entry.page, sourcePath, outputDir, documentLabel(entry.page))).join("")}</ol>`
         : "";
@@ -895,7 +892,7 @@ function renderDocumentTreeNavigation(sourcePath, outputDir, headings) {
             <div id="document-tree-panel" class="document-tree-panel">
             ${tableOfContents}
             <nav aria-label="Documentation tree">${breadcrumbs}
-                <p class="document-tree-title">${escapeHtml(title)}/</p>
+                <p class="document-tree-title">${escapeHtml(title)}</p>
                 <ul class="document-tree-list">
                     ${entries}
                 </ul>
@@ -910,7 +907,9 @@ function renderDocumentTreeEntries(entries, sourcePath, outputDir) {
             return renderDocumentTreeLink(entry.page, sourcePath, outputDir, documentLabel(entry.page));
         }
 
-        const directoryLabel = entry.directory.name;
+        const directoryLabel = entry.page && entry.page.sourcePath.endsWith(".md")
+            ? documentLabel(entry.page)
+            : entry.directory.name;
         if (entry.page) {
             return renderDocumentTreeLink(entry.page, sourcePath, outputDir, directoryLabel);
         }
@@ -919,7 +918,7 @@ function renderDocumentTreeEntries(entries, sourcePath, outputDir) {
         if (!children) {
             return "";
         }
-        return `<li class="document-tree-group"><span>${escapeHtml(directoryLabel)}/</span><ul>${children}</ul></li>`;
+        return `<li class="document-tree-group"><span>${escapeHtml(navigationDirectoryLabel(directoryLabel))}</span><ul>${children}</ul></li>`;
     }).join("\n                    ");
 }
 
@@ -965,13 +964,15 @@ function sourceDocumentLabel(sourcePath) {
         if (heading) return heading;
     }
 
-    const name = path.basename(absoluteSource);
-    if (name === "index.nct") {
-        const readme = path.join(path.dirname(absoluteSource), "README.md");
-        const relativeReadme = normalizePath(path.relative(PROJECT_ROOT, readme));
-        return sourceSet.has(relativeReadme) ? "Module Contract" : path.basename(path.dirname(absoluteSource));
-    }
-    return name;
+    return path.basename(absoluteSource);
+}
+
+function navigationDirectoryLabel(name) {
+    return name
+        .split(/[-_]+/)
+        .filter(Boolean)
+        .map(word => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+        .join(" ");
 }
 
 function resolveLinkUrl(markdownPath, href) {

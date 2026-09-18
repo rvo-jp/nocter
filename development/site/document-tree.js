@@ -195,23 +195,12 @@ function ancestorLandings(directory) {
         .filter(entry => entry.page);
 }
 
-function directoryPath(directory) {
-    const segments = [];
-    let current = directory;
-    while (current && current.parent) {
-        segments.push(current.name);
-        current = current.parent;
-    }
-    return segments.reverse().join("/");
-}
-
 function normalizePath(value) {
     return value.split(path.sep).join("/");
 }
 
 module.exports = {
     PublishedDocumentTree,
-    directoryPath,
     flattenEntries,
     landingPage
 };

@@ -54,6 +54,8 @@
     --content-soft-border: #e8edf5;
     --content-code: #24324a;
     --content-code-background: #f1f5fb;
+    --content-success: #447663;
+    --content-danger: #a33b45;
     --syntax-keyword: #4a648f;
     --syntax-type: #6b7f2e;
     --syntax-function: #5b6f9c;
@@ -721,46 +723,6 @@ body.has-document-tree main {
     margin: 0;
 }
 
-.markdown-path {
-    display: flex;
-    max-width: 100%;
-    min-height: 32px;
-    margin-bottom: 28px;
-
-    align-items: center;
-    gap: 4px;
-
-    color: var(--content-muted);
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.8rem;
-    line-height: 1.4;
-}
-
-.markdown-path-text {
-    display: inline-flex;
-    max-width: 100%;
-    min-height: 32px;
-    padding: 0 10px;
-
-    align-items: center;
-
-    background: rgba(255, 255, 255, 0.74);
-    border: 1px solid var(--content-soft-border);
-    border-radius: 5px;
-
-    overflow-wrap: anywhere;
-}
-
-.markdown-source {
-    min-height: 32px;
-    padding: 0 10px;
-    display: inline-flex;
-    align-items: center;
-    color: var(--nocter-blue);
-    text-decoration: none;
-    white-space: nowrap;
-}
-
 .markdown-body > * + * {
     margin-top: 1.15em;
 }
@@ -944,16 +906,40 @@ main pre code {
     z-index: 2;
     top: 8px;
     right: 8px;
-    min-height: 30px;
-    padding: 0 9px;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
     color: var(--content-muted);
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid var(--content-border);
-    border-radius: 4px;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
     cursor: pointer;
-    font: inherit;
-    font-size: 0.74rem;
-    font-weight: 650;
+    transition: color 120ms ease, background-color 120ms ease;
+}
+
+.code-copy:hover,
+.code-copy:focus-visible {
+    color: var(--nocter-blue-dark);
+    background: rgba(255, 255, 255, 0.88);
+}
+
+.code-copy[data-state="copied"] {
+    color: var(--content-success);
+}
+
+.code-copy[data-state="unavailable"] {
+    color: var(--content-danger);
+}
+
+.code-copy svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
 }
 
 .markdown-body > .code-block {
@@ -1193,10 +1179,6 @@ main img {
         border-right: 0;
         border-left: 0;
         border-radius: 0;
-    }
-
-    .markdown-path {
-        flex-wrap: wrap;
     }
 
     .page-adjacent {

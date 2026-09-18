@@ -59,22 +59,44 @@ document.querySelectorAll(".markdown-body > pre").forEach(pre => {
     wrapper.appendChild(pre);
 
     const button = document.createElement("button");
+    let resetTimer = null;
     button.className = "code-copy";
     button.type = "button";
-    button.textContent = "Copy";
-    button.setAttribute("aria-label", "Copy code");
+    button.setAttribute("aria-live", "polite");
+    setCopyButtonState(button, "copy");
     button.addEventListener("click", async () => {
         try {
             await navigator.clipboard.writeText(pre.textContent);
-            button.textContent = "Copied";
-            setTimeout(() => { button.textContent = "Copy"; }, 1400);
+            setCopyButtonState(button, "copied");
         } catch {
-            button.textContent = "Unavailable";
-            setTimeout(() => { button.textContent = "Copy"; }, 1400);
+            setCopyButtonState(button, "unavailable");
         }
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+            setCopyButtonState(button, "copy");
+            resetTimer = null;
+        }, 1400);
     });
     wrapper.appendChild(button);
 });
+
+function setCopyButtonState(button, state) {
+    const labels = {
+        copy: "Copy code",
+        copied: "Code copied",
+        unavailable: "Copy unavailable"
+    };
+    const paths = {
+        copy: '<rect x="8" y="8" width="10" height="10" rx="1.5"></rect><path d="M14 8V6.5A1.5 1.5 0 0 0 12.5 5h-6A1.5 1.5 0 0 0 5 6.5v6A1.5 1.5 0 0 0 6.5 14H8"></path>',
+        copied: '<path d="m5.5 12 4 4 9-10"></path>',
+        unavailable: '<path d="m7 7 10 10M17 7 7 17"></path>'
+    };
+
+    button.setAttribute("aria-label", labels[state]);
+    button.title = labels[state];
+    button.dataset.state = state;
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[state]}</svg>`;
+}
 
 const searchRoot = document.querySelector("[data-search-root]");
 if (searchRoot) {

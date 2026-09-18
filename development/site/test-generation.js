@@ -353,6 +353,13 @@ function assertSiteNavigationPolicy(root) {
     if (!language.includes('class="page-contents"') || !language.includes('class="page-adjacent"')) {
         throw new Error("generated documentation lacks derived local navigation");
     }
+    const languageNavigation = language.match(/<aside class="document-tree">([\s\S]*?)<\/aside>/)?.[1] || "";
+    if (!languageNavigation.includes('<p class="document-tree-title">Language</p>')) {
+        throw new Error("Markdown directory navigation does not use its authored title");
+    }
+    if (language.includes('class="markdown-path"') || language.includes("View source")) {
+        throw new Error("generated content retained the removed repository source strip");
+    }
     if (!language.includes('class="document-tree-toggle"') || !language.includes('aria-controls="document-tree-panel"')) {
         throw new Error("generated documentation lacks collapsible narrow-screen navigation");
     }
@@ -367,6 +374,20 @@ function assertSiteNavigationPolicy(root) {
     }
     if (search.documents.some(document => !document.url.endsWith("#content"))) {
         throw new Error("search result navigation can reopen the destination hero");
+    }
+
+    const standardLibrary = fs.readFileSync(path.join(docsRoot, "std/index.html"), "utf8");
+    const standardLibraryNavigation = standardLibrary.match(/<aside class="document-tree">([\s\S]*?)<\/aside>/)?.[1] || "";
+    if (!standardLibraryNavigation.includes(">Borrowed Text</a>") || standardLibraryNavigation.includes(">str</a>")) {
+        throw new Error("Markdown navigation exposes a physical directory name instead of its title");
+    }
+    if (!standardLibraryNavigation.includes(">index.nct</a>")) {
+        throw new Error("Nocter source navigation does not retain its physical file name");
+    }
+
+    const script = fs.readFileSync(path.join(docsRoot, "script.js"), "utf8");
+    if (!script.includes('viewBox="0 0 24 24"') || script.includes('textContent = "Copy"')) {
+        throw new Error("code copy control is not an icon-only control");
     }
 
     const stylesheet = fs.readFileSync(path.join(docsRoot, "style.css"), "utf8");

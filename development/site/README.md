@@ -61,9 +61,11 @@ tree; rendering, reachability validation, output paths, and the sitemap consume 
 projection. Public paths equal repository paths. A `README.md` is the preferred landing page for
 its directory; when none exists, a published `index.nct` is the landing page.
 Navigation lists the landing page, remaining files, and child directories in deterministic name
-order. Directories without a landing page remain structural groups and expose their descendants
-through the nearest navigable ancestor. Display labels may use a document's first heading, but
-labels never affect membership or structure.
+order. Markdown links use the document's first heading as their display label. Nocter source links
+retain the physical file or directory name because the source itself is the subject. Directories
+without a landing page remain structural groups, use a human-readable form of their physical name,
+and expose their descendants through the nearest navigable ancestor. Labels never affect
+membership or structure.
 
 Navigation never parses links from README prose. README catalogs may explain a recommended reading
 order and ordinary links may connect related concepts, but neither determines whether a page exists
