@@ -428,9 +428,6 @@ function assertSiteNavigationPolicy(root) {
     if (!script.includes('event.key === "/"') || !script.includes("bestSymbolMatch")) {
         throw new Error("documentation search lacks its keyboard or declaration-search contract");
     }
-    if (!script.includes("Type at least 2 characters to search.")) {
-        throw new Error("search scope controls remain undiscoverable before a query");
-    }
 
     const stringSource = fs.readFileSync(path.join(docsRoot, "std/string/index/index.html"), "utf8");
     if (

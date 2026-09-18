@@ -170,12 +170,7 @@ if (searchRoot) {
         const request = ++searchRequest;
         const query = input.value.trim().toLocaleLowerCase();
         if (query.length < 2) {
-            matchesRoot.replaceChildren();
-            const prompt = document.createElement("p");
-            prompt.className = "site-search-empty";
-            prompt.textContent = "Type at least 2 characters to search.";
-            matchesRoot.appendChild(prompt);
-            openSearch();
+            closeSearch();
             return;
         }
 
