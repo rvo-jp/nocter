@@ -122,12 +122,16 @@ nocter run examples/url-inspect.nct
 
 ## Package Examples
 
-[binary-record/index.nct](binary-record/index.nct) writes one 18-byte portable record, reads it
-back, and decodes it without host-endian assumptions. Its [record.nct](binary-record/record.nct)
-implementation composes `ByteBuffer<18>` transactional encoding, `ByteCursor` exact advances,
-dynamic file input, fixed-width integer and IEEE codecs, malformed-input errors, and ordinary
-blocking filesystem transport. The complete wire size is part of the type and the encoder performs
-no allocation.
+[binary-record/index.nct](binary-record/index.nct) writes two portable records as one append-only
+log, reads the exact bytes back asynchronously, and decodes two-byte input fragments without
+host-endian assumptions. Each 23-byte record contains a magic number, version, canonical ULEB128
+payload length, fixed-schema payload, and big-endian CRC-32. [wire.nct](binary-record/wire.nct)
+owns emission, [parsing.nct](binary-record/parsing.nct) owns damaged-tail classification, and
+[streams.nct](binary-record/streams.nct) adapts one fragmented source to both `BlockingReader` and
+`Reader`; neither transport repeats framing or checksum policy. Declared tests exercise one-byte
+blocking fragments, every truncated prefix, malformed lengths, checksum damage, and trailing
+corruption. The executable reports success through its exit status and leaves the deterministic
+46-byte wire image at the requested path.
 
 ```sh
 cd examples/binary-record

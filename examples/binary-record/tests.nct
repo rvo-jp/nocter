@@ -1,0 +1,217 @@
+//! Wire, damage-classification, and fragmented blocking-reader tests.
+
+see ./index.nct
+
+use std/vec.Vec
+
+func sample_records(): Vec<Record> {
+    return Vec [Record.new(42, 3.5), Record.new(7, -1.25)]
+}
+
+func record_header(): Vec<u8> {
+    var header: Vec<u8> = Vec.empty()
+    header.push(78)
+    header.push(67)
+    header.push(84)
+    header.push(82)
+    header.push(0)
+    header.push(1)
+    return move header
+}
+
+noalloc func require_record(record: Record?, count: u32, bits: u64): bool {
+    let value = record otherwise { return false }
+    return value.item_count() == count && value.measurement().to_bits() == bits
+}
+
+test records_round_trip_through_one_byte_blocking_fragments {
+    let records = sample_records()
+    let encoded = encode_log(&records as &[Record])?
+    var input = FragmentedBytes.new(&encoded as &[u8], 1)
+    let decoded = decode_blocking(&+input)?
+    match decoded.tail() {
+        RecordTail.complete {}
+        _ {
+            return error.new(
+                "example.binary_record.round_trip",
+                "fragmented record log remained incomplete",
+            )
+        }
+    }
+    if decoded.len() != 2
+        || !require_record(decoded.record(0), 42, 4615063718147915776)
+        || !require_record(decoded.record(1), 7, 13831680355561635840) {
+        return error.new("example.binary_record.round_trip", "fragmented record log changed")
+    }
+    return
+}
+
+test every_truncated_position_preserves_the_complete_prefix {
+    let records = sample_records()
+    let encoded = encode_log(&records as &[Record])?
+    let complete: &[u8] = &encoded
+    var split: usize = 0
+    while split < complete.len() {
+        let prefix = complete.get_range(0, split) otherwise {
+            return error.new("example.binary_record.range", "valid prefix range was rejected")
+        }
+        let decoded = decode_log(prefix)?
+        let expected_records: usize = if split < 23 { 0 } else { 1 }
+        if decoded.len() != expected_records {
+            return error.new("example.binary_record.truncated", "complete prefix was not preserved")
+        }
+        if split == 0 || split == 23 {
+            match decoded.tail() {
+                RecordTail.complete {}
+                _ {
+                    return error.new(
+                        "example.binary_record.boundary",
+                        "exact record boundary was damaged",
+                    )
+                }
+            }
+        } else {
+            match decoded.tail() {
+                RecordTail.incomplete {}
+                _ {
+                    return error.new(
+                        "example.binary_record.truncated",
+                        "truncated tail classification changed",
+                    )
+                }
+            }
+        }
+        split += 1
+    }
+    return
+}
+
+test malformed_headers_and_lengths_are_classified_before_payload_consumption {
+    var invalid_magic = record_header()
+    invalid_magic[0] = 0
+    let invalid_magic_log = decode_log(&invalid_magic as &[u8])?
+    match invalid_magic_log.tail() {
+        RecordTail.invalid_magic {}
+        _ { return error.new("example.binary_record.header", "invalid magic was not classified") }
+    }
+
+    var unsupported_version = record_header()
+    unsupported_version[5] = 2
+    let unsupported_version_log = decode_log(&unsupported_version as &[u8])?
+    match unsupported_version_log.tail() {
+        RecordTail.unsupported_version {}
+        _ {
+            return error.new(
+                "example.binary_record.header",
+                "unsupported version was not classified",
+            )
+        }
+    }
+
+    var non_canonical = record_header()
+    non_canonical.push(140)
+    non_canonical.push(0)
+    let non_canonical_log = decode_log(&non_canonical as &[u8])?
+    if non_canonical_log.len() != 0 {
+        return error.new("example.binary_record.length", "non-canonical length was not rejected")
+    }
+    match non_canonical_log.tail() {
+        RecordTail.non_canonical_length {}
+        _ {
+            return error.new(
+                "example.binary_record.length",
+                "non-canonical length was not classified",
+            )
+        }
+    }
+
+    var overflow = record_header()
+    var overflow_byte: usize = 0
+    while overflow_byte < 9 {
+        overflow.push(255)
+        overflow_byte += 1
+    }
+    overflow.push(2)
+    let overflow_log = decode_log(&overflow as &[u8])?
+    match overflow_log.tail() {
+        RecordTail.length_overflow {}
+        _ {
+            return error.new(
+                "example.binary_record.length",
+                "overflowing length was not classified",
+            )
+        }
+    }
+
+    var excessive = record_header()
+    excessive.push(129)
+    excessive.push(32)
+    let excessive_log = decode_log(&excessive as &[u8])?
+    if excessive_log.len() != 0 {
+        return error.new("example.binary_record.length", "excessive length was not rejected")
+    }
+    match excessive_log.tail() {
+        RecordTail.excessive_length {}
+        _ {
+            return error.new(
+                "example.binary_record.length",
+                "excessive length was not classified",
+            )
+        }
+    }
+
+    var unexpected = record_header()
+    unexpected.push(13)
+    let unexpected_log = decode_log(&unexpected as &[u8])?
+    match unexpected_log.tail() {
+        RecordTail.unexpected_length {}
+        _ {
+            return error.new(
+                "example.binary_record.length",
+                "unexpected schema length was not classified",
+            )
+        }
+    }
+    return
+}
+
+test checksum_and_trailing_corruption_preserve_preceding_records {
+    let one: Vec<Record> = Vec [Record.new(42, 3.5)]
+    let first = encode_log(&one as &[Record])?
+    let two = sample_records()
+    var damaged = encode_log(&two as &[Record])?
+    damaged[45] = 0
+    let damaged_log = decode_log(&damaged as &[u8])?
+    if damaged_log.len() != 1 {
+        return error.new("example.binary_record.checksum", "checksum damage lost the valid prefix")
+    }
+    match damaged_log.tail() {
+        RecordTail.checksum_mismatch {}
+        _ {
+            return error.new(
+                "example.binary_record.checksum",
+                "checksum damage was not classified",
+            )
+        }
+    }
+
+    var trailing = Vec.from_slice(&first as &[u8])
+    trailing.push(0)
+    trailing.push(0)
+    trailing.push(0)
+    trailing.push(0)
+    let trailing_log = decode_log(&trailing as &[u8])?
+    if trailing_log.len() != 1 {
+        return error.new("example.binary_record.trailing", "trailing corruption was accepted")
+    }
+    match trailing_log.tail() {
+        RecordTail.invalid_magic {}
+        _ {
+            return error.new(
+                "example.binary_record.trailing",
+                "trailing corruption was not classified",
+            )
+        }
+    }
+    return
+}

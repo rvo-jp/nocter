@@ -1,0 +1,91 @@
+//! Append-only record parsing and damaged-tail classification.
+
+see ./index.nct
+see ./wire.nct
+
+use std/bytes
+use std/bytes.PrefixDecode
+use std/checksum
+use std/scan.ByteCursor
+use std/vec.Vec
+
+func finish(records: Vec<Record>, tail: RecordTail): RecordLog {
+    return record_log(move records, tail)
+}
+
+func decode_log(input: &[u8]): RecordLog! {
+    var records: Vec<Record> = Vec.empty()
+    var cursor = ByteCursor.new(input)
+    while !cursor.is_finished() {
+        let magic = cursor.take_u32_be() otherwise {
+            return finish(move records, RecordTail.incomplete)
+        }
+        if magic != expected_magic() {
+            return finish(move records, RecordTail.invalid_magic)
+        }
+        let version = cursor.take_u16_be() otherwise {
+            return finish(move records, RecordTail.incomplete)
+        }
+        if version != expected_version() {
+            return finish(move records, RecordTail.unsupported_version)
+        }
+
+        let decoded_length = bytes.decode_uleb128(cursor.remaining())
+        var encoded_width: usize = 0
+        var declared_length: u64 = 0
+        match move decoded_length {
+            PrefixDecode.decoded(value, consumed) {
+                declared_length = value
+                encoded_width = consumed
+            }
+            PrefixDecode.incomplete {
+                return finish(move records, RecordTail.incomplete)
+            }
+            PrefixDecode.overflow {
+                return finish(move records, RecordTail.length_overflow)
+            }
+            PrefixDecode.non_canonical {
+                return finish(move records, RecordTail.non_canonical_length)
+            }
+        }
+        if declared_length > maximum_payload_bytes() {
+            return finish(move records, RecordTail.excessive_length)
+        }
+        if declared_length != payload_bytes() as u64 {
+            return finish(move records, RecordTail.unexpected_length)
+        }
+        let _length = cursor.take(encoded_width) otherwise {
+            return error.new("example.binary_record.invariant", "validated length prefix disappeared")
+        }
+        let frame_length = declared_length as usize + 4
+        let frame = cursor.take(frame_length) otherwise {
+            return finish(move records, RecordTail.incomplete)
+        }
+        let frame_bytes = frame.bytes()
+        let payload = frame_bytes.get_range(0, declared_length as usize) otherwise {
+            return error.new("example.binary_record.invariant", "validated payload range disappeared")
+        }
+        let checksum_bytes = frame_bytes.get_range(declared_length as usize, frame_length) otherwise {
+            return error.new("example.binary_record.invariant", "validated checksum range disappeared")
+        }
+        let expected_checksum = bytes.decode_u32_be(checksum_bytes) otherwise {
+            return error.new("example.binary_record.invariant", "validated checksum width disappeared")
+        }
+        if checksum.crc32(payload) != expected_checksum {
+            return finish(move records, RecordTail.checksum_mismatch)
+        }
+
+        var payload_cursor = ByteCursor.new(payload)
+        let item_count = payload_cursor.take_u32_le() otherwise {
+            return error.new("example.binary_record.invariant", "validated payload count disappeared")
+        }
+        let measurement = payload_cursor.take_f64_be() otherwise {
+            return error.new("example.binary_record.invariant", "validated payload value disappeared")
+        }
+        if !payload_cursor.is_finished() {
+            return error.new("example.binary_record.invariant", "payload schema did not consume its width")
+        }
+        records.try_push(Record.new(item_count, measurement))?
+    }
+    return finish(move records, RecordTail.complete)
+}

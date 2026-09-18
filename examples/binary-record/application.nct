@@ -1,0 +1,36 @@
+//! Command-line round trip through fragmented asynchronous input.
+
+see ./index.nct
+
+use std/fs
+use std/process
+use std/vec.Vec
+
+async func run(): i32 {
+    let path = process.arg(1) catch _ { return 2 } otherwise { return 2 }
+
+    let records: Vec<Record> = Vec [
+        Record.new(42, 3.5),
+        Record.new(7, -1.25),
+    ]
+    let encoded = encode_log(&records as &[Record]) catch _ { return 2 }
+    await fs.write(path, &encoded as &[u8]) catch _ { return 2 }
+    let stored = await fs.read(path) catch _ { return 2 }
+    var fragmented = FragmentedBytes.new(&stored as &[u8], 2)
+    let decoded = await decode_async(&+fragmented) catch _ { return 2 }
+    match decoded.tail() {
+        RecordTail.complete {
+            if decoded.len() != 2 { return 2 }
+        }
+        _ { return 2 }
+    }
+    let last = decoded.record(1) otherwise { return 2 }
+    if last.item_count() != 7 || last.measurement().to_bits() != 13831680355561635840 {
+        return 2
+    }
+    return 0
+}
+
+async func main(): i32! {
+    return await run()
+}

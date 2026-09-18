@@ -1112,6 +1112,43 @@ fn every_public_package_example_runs_with_its_process_contract() {
     }
 }
 
+#[test]
+fn binary_record_example_runs_with_its_process_contract() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let contract = PUBLIC_PACKAGE_EXAMPLES
+        .iter()
+        .find(|contract| contract.directory() == "binary-record")
+        .expect("binary-record public example contract");
+    run_public_package_example(&compiler_root, *contract);
+}
+
+#[test]
+fn binary_record_example_passes_its_declared_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let package_root = compiler_root.join("../../examples/binary-record");
+    let super::ParsedCommand::Test(parsed) = super::parse_command_arguments([
+        "test".into(),
+        "--root".into(),
+        package_root.as_os_str().to_owned(),
+        "--test".into(),
+        "unit".into(),
+    ])
+    .unwrap() else {
+        panic!("expected test command");
+    };
+
+    let result = super::execute_prepared_test(
+        parsed.prepare(&compiler_root).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+
+    assert!(result.succeeded(), "{result:#?}");
+    assert_eq!(result.summary().passed(), 4);
+    assert_eq!(result.summary().failed(), 0);
+}
+
 fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExample) {
     let package_root = compiler_root
         .join("../../examples")
@@ -1181,9 +1218,11 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
         assert_eq!(
             executed.status.code(),
             Some(run.status()),
-            "unexpected status from {} {}",
+            "unexpected status from {} {}; stdout={:?}; stderr={:?}",
             contract.directory(),
-            run.name()
+            run.name(),
+            executed.stdout,
+            executed.stderr,
         );
         assert_eq!(
             executed.stdout,

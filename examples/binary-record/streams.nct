@@ -1,0 +1,55 @@
+//! Fragmented blocking and executor-safe sources over one borrowed wire image.
+
+see ./index.nct
+
+use std/io.{BlockingReader, Reader}
+
+struct FragmentedBytes {
+    input: &[u8]
+    next_offset: usize
+    maximum_chunk: usize
+}
+
+construct FragmentedBytes {
+    noalloc func new(input: &[u8], maximum_chunk: usize): Self from input {
+        return FragmentedBytes {
+            input: input,
+            next_offset: 0,
+            maximum_chunk: if maximum_chunk == 0 { 1 } else { maximum_chunk },
+        }
+    }
+}
+
+noalloc func read_fragment(source: &+FragmentedBytes, destination: &+[u8]): usize {
+    let remaining = source.input.len() - source.next_offset
+    var count = destination.len()
+    if count > source.maximum_chunk { count = source.maximum_chunk }
+    if count > remaining { count = remaining }
+    var index: usize = 0
+    while index < count {
+        destination[index] = source.input[source.next_offset + index]
+        index += 1
+    }
+    source.next_offset += count
+    return count
+}
+
+instance FragmentedBytes {
+    blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
+        return read_fragment(self, buffer)
+    }
+
+    async method &+self.read(buffer: &+[u8]): usize! {
+        return read_fragment(self, buffer)
+    }
+}
+
+blocking func decode_blocking<R>(reader: &+R): RecordLog! where R impl BlockingReader {
+    let input = reader.read_to_end_blocking()?
+    return decode_log(&input as &[u8])?
+}
+
+async func decode_async<R>(reader: &+R): RecordLog! where R impl Reader {
+    let input = await reader.read_to_end()?
+    return decode_log(&input as &[u8])?
+}

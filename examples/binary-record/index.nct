@@ -1,3 +1,9 @@
+//! Append-only, integrity-checked binary record example.
+//!
+//! Decoding retains every complete record before an incomplete or corrupt tail. Blocking and
+//! asynchronous readers collect bytes through their ordinary transport contracts and share the
+//! same framing and checksum implementation.
+
 #package: {
     name: "binary-record",
     version: "0.1.0",
@@ -12,8 +18,81 @@
     module: ".",
 }
 
-see ./record.nct
+use std/io.{BlockingReader, Reader}
 
-blocking func main(): i32 {
-    return run()
+see ./application.nct
+see ./parsing.nct
+see ./streams.nct
+see ./tests.nct
+see ./wire.nct
+
+/// One fixed-schema measurement record.
+pub copy struct Record
+
+construct Record {
+    /// Creates one in-memory record value.
+    pub noalloc func new(item_count: u32, measurement: f64): Self
 }
+
+instance Record {
+    /// Returns the recorded item count.
+    pub noalloc method &self.item_count(): u32
+
+    /// Returns the recorded measurement.
+    pub noalloc method &self.measurement(): f64
+}
+
+/// The disposition of the bytes after the last complete decoded record.
+pub enum RecordTail {
+    complete
+    incomplete
+    invalid_magic
+    unsupported_version
+    non_canonical_length
+    length_overflow
+    excessive_length
+    unexpected_length
+    checksum_mismatch
+}
+
+/// Complete decoded records and the classification of their trailing bytes.
+pub struct RecordLog
+
+instance RecordLog {
+    /// Returns the number of complete records retained in this result.
+    pub noalloc method &self.len(): usize
+
+    /// Returns one complete record by index.
+    pub noalloc method &self.record(index: usize): Record?
+
+    /// Returns the disposition of the bytes after the complete prefix.
+    pub noalloc method &self.tail(): RecordTail
+}
+
+/// A borrowed byte source that deliberately limits every blocking or asynchronous read.
+pub struct FragmentedBytes
+
+construct FragmentedBytes {
+    /// Creates a source whose reads return at most `maximum_chunk` bytes.
+    pub noalloc func new(input: &[u8], maximum_chunk: usize): Self from input
+}
+
+instance FragmentedBytes {
+    impl BlockingReader
+    impl Reader
+}
+
+/// Encodes every record into one deterministic append-only wire image.
+pub func encode_log(records: &[Record]): Vec<u8>!
+
+/// Decodes a complete prefix and classifies any incomplete or corrupt tail.
+pub func decode_log(input: &[u8]): RecordLog!
+
+/// Collects a blocking source and decodes it through `decode_log`.
+pub blocking func decode_blocking<R>(reader: &+R): RecordLog! where R impl BlockingReader
+
+/// Collects an asynchronous source and decodes it through `decode_log`.
+pub async func decode_async<R>(reader: &+R): RecordLog! where R impl Reader
+
+/// Writes, reads, and validates the example log at the path in argument one.
+pub async func main(): i32!

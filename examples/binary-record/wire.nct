@@ -1,0 +1,96 @@
+//! Deterministic record values and byte emission.
+
+see ./index.nct
+
+use std/checksum
+use std/fixed.ByteBuffer
+use std/vec.Vec
+
+const MAGIC: u32 = 1313035346
+const VERSION: u16 = 1
+const PAYLOAD_BYTES: usize = 12
+
+copy struct Record {
+    item_count: u32
+    measurement: f64
+}
+
+struct RecordLog {
+    records: Vec<Record>
+    tail: RecordTail
+}
+
+noalloc func expected_magic(): u32 { return MAGIC }
+noalloc func expected_version(): u16 { return VERSION }
+noalloc func payload_bytes(): usize { return PAYLOAD_BYTES }
+noalloc func maximum_payload_bytes(): u64 { return 4096 }
+
+construct Record {
+    noalloc func new(item_count: u32, measurement: f64): Self {
+        return Record { item_count: item_count, measurement: measurement }
+    }
+}
+
+instance Record {
+    noalloc method &self.item_count(): u32 { return self.item_count }
+    noalloc method &self.measurement(): f64 { return self.measurement }
+}
+
+instance RecordLog {
+    noalloc method &self.len(): usize { return self.records.len() }
+
+    noalloc method &self.record(index: usize): Record? {
+        if index >= self.records.len() { return none }
+        return self.records[index]
+    }
+
+    noalloc method &self.tail(): RecordTail { return self.tail }
+}
+
+func record_log(records: Vec<Record>, tail: RecordTail): RecordLog {
+    return RecordLog { records: move records, tail: tail }
+}
+
+noalloc func encode_payload(record: &Record): ByteBuffer<PAYLOAD_BYTES>! {
+    var payload: ByteBuffer<PAYLOAD_BYTES> = ByteBuffer.empty()
+    if !payload.try_push_u32_le(record.item_count)
+        || !payload.try_push_f64_be(record.measurement) {
+        return error.new("example.binary_record.capacity", "record payload exceeded its wire size")
+    }
+    return move payload
+}
+
+func encode_record(record: &Record): Vec<u8>! {
+    var header: ByteBuffer<6> = ByteBuffer.empty()
+    if !header.try_push_u32_be(MAGIC) || !header.try_push_u16_be(VERSION) {
+        return error.new("example.binary_record.capacity", "record header exceeded its wire size")
+    }
+    let payload = encode_payload(record)?
+    let payload_view: &[u8] = &payload as &[u8]
+    let payload_checksum = checksum.crc32(payload_view)
+    var trailer: ByteBuffer<4> = ByteBuffer.empty()
+    if !trailer.try_push_u32_be(payload_checksum) {
+        return error.new("example.binary_record.capacity", "record trailer exceeded its wire size")
+    }
+
+    var output: Vec<u8> = Vec.empty()
+    output.try_extend_from_slice(&header as &[u8])?
+    let encoded_width = output.try_append_uleb128(PAYLOAD_BYTES as u64)?
+    if encoded_width != 1 {
+        return error.new("example.binary_record.invariant", "canonical payload width changed")
+    }
+    output.try_extend_from_slice(payload_view)?
+    output.try_extend_from_slice(&trailer as &[u8])?
+    return move output
+}
+
+func encode_log(records: &[Record]): Vec<u8>! {
+    var output: Vec<u8> = Vec.empty()
+    var index: usize = 0
+    while index < records.len() {
+        let encoded = encode_record(&records[index])?
+        output.try_extend_from_slice(&encoded as &[u8])?
+        index += 1
+    }
+    return move output
+}
