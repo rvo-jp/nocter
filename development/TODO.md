@@ -7,6 +7,12 @@ integrity-checked binary records, native and editor integration, deterministic p
 public asset, and the Pages deployment are complete. The immutable evidence is recorded in
 [`development/history/release-audits/v0.59.0.md`](history/release-audits/v0.59.0.md).
 
+The post-release repository structure review is complete. Compiler integration tests and reusable
+Nocter corpora now have explicit physical owners, while the existing crate, documentation, history,
+standard-library, and generated-state boundaries were retained after review. Findings and evidence
+are recorded in the
+[`Repository Structure Review after v0.59.0`](history/reviews/repository-structure-after-v0.59.0.md).
+
 ## Next Work
 
 Select the next milestone from concrete application and standard-library pressure. Do not reopen
