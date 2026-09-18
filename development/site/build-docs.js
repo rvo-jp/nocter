@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { PublishedDocumentCatalog, stripMarkdown } = require("./document-catalog");
 const { PublishedDocumentTree, flattenEntries, landingPage } = require("./document-tree");
 const { NOCTER_RESERVED_KEYWORDS, highlightCode } = require("./highlight");
 const { splitTableRow } = require("./markdown-table");
@@ -57,15 +58,14 @@ const PAGE_META = {
 };
 
 const sourceFiles = collectSourceFiles(PROJECT_ROOT);
-const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
-const sourceContents = new Map(sourceFiles.map(file => [path.resolve(file), fs.readFileSync(file, "utf8")]));
-const publishedDocuments = sourceFiles.map(file => ({
+const documentCatalog = new PublishedDocumentCatalog(PROJECT_ROOT, sourceFiles.map(file => ({
     sourcePath: file,
-    publicPath: publishedPathForSource(file)
-}));
+    publicPath: publishedPathForSource(file),
+    source: fs.readFileSync(file, "utf8")
+})), PAGE_META);
+const publishedDocuments = documentCatalog.all();
+const sourceSet = new Set(publishedDocuments.map(document => document.relativeSourcePath));
 const documentTree = new PublishedDocumentTree(PROJECT_ROOT, publishedDocuments);
-const documentLabels = new Map(sourceFiles.map(file => [path.resolve(file), sourceDocumentLabel(file)]));
-const renderedDocumentMetadata = new Map();
 
 // Hero panels consume complete runnable examples instead of maintaining a second set of Nocter
 // snippets inside the documentation generator. Release qualification checks these same sources.
@@ -77,7 +77,7 @@ const codeExamples = Object.fromEntries(Object.entries({
     indexing: "examples/indexing.nct"
 }).map(([name, relative]) => [
     name,
-    sourceContents.get(path.join(PROJECT_ROOT, relative)).trimEnd()
+    documentCatalog.document(path.join(PROJECT_ROOT, relative)).source.trimEnd()
 ]));
 
 validateNocterLexicon();
@@ -93,17 +93,17 @@ try {
     outputTransaction.prepare();
     fs.cpSync(STATIC_ROOT, OUTPUT_ROOT, { recursive: true });
 
-    for (const file of sourceFiles) {
-        const html = renderPage(file);
-        const output = outputPathForSource(file);
+    const renderedDocuments = publishedDocuments.map(renderPage);
+    for (const rendered of renderedDocuments) {
+        const output = outputPathForSource(rendered.document.sourcePath);
 
         fs.mkdirSync(path.dirname(output), { recursive: true });
-        fs.writeFileSync(output, html);
+        fs.writeFileSync(output, rendered.html);
     }
 
-    writeSearchIndex(sourceFiles);
+    writeSearchIndex(renderedDocuments);
     writeRobots();
-    writeSitemap(sourceFiles);
+    writeSitemap(publishedDocuments);
     writeDeploymentManifest();
     validatePagesArtifact(OUTPUT_ROOT);
     outputTransaction.publish();
@@ -216,7 +216,7 @@ function validatePrimitiveTypeCatalog() {
             const relative = normalizePath(path.relative(PROJECT_ROOT, file));
             return relative.startsWith("std/") && path.basename(file) === "index.nct";
         })
-        .flatMap(file => [...sourceContents.get(path.resolve(file)).matchAll(/^pub primitive type ([A-Za-z_][A-Za-z0-9_]*)$/gm)])
+        .flatMap(file => [...documentCatalog.document(file).source.matchAll(/^pub primitive type ([A-Za-z_][A-Za-z0-9_]*)$/gm)])
         .map(match => match[1]);
     const declarationTypes = new Set(declarationEntries);
     const duplicateDeclarationTypes = declarationEntries.filter(
@@ -332,7 +332,7 @@ function validateCrateDocumentation() {
 function validateStandardLibraryDocumentation() {
     const standardRoot = path.join(PROJECT_ROOT, "std");
     const catalogPath = path.join(standardRoot, "README.md");
-    const catalog = sourceContents.get(path.resolve(catalogPath));
+    const catalog = documentCatalog.document(catalogPath).source;
     const readmes = sourceFiles.filter(file => {
         const relative = normalizePath(path.relative(PROJECT_ROOT, file));
         return relative.startsWith("std/") && path.basename(file) === "README.md";
@@ -345,7 +345,7 @@ function validateStandardLibraryDocumentation() {
         if (!sourceSet.has(relativeContract)) {
             throw new Error(`Standard-library documentation has no public contract: ${relative}`);
         }
-        const source = sourceContents.get(path.resolve(readme));
+        const source = documentCatalog.document(readme).source;
         if (!source.includes("(index.nct)")) {
             throw new Error(`Standard-library documentation does not link its public contract: ${relative}`);
         }
@@ -565,22 +565,13 @@ function isPublishedSource(relative) {
         );
 }
 
-function renderPage(sourcePath) {
-    const relativeSourcePath = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
-    const publishedSourcePath = publishedPathForSource(sourcePath);
-    const source = sourceContents.get(path.resolve(sourcePath));
-    const isNocterSource = sourcePath.endsWith(".nct");
+function renderPage(document) {
+    const sourcePath = document.sourcePath;
     const headings = [];
-    const body = isNocterSource
-        ? nocterSourceToHtml(source, sourcePath)
-        : markdownToHtml(source, sourcePath, new Map(), headings);
-    const title = isNocterSource ? publishedSourcePath : firstHeading(source) || "Nocter";
-    const pageMeta = PAGE_META[relativeSourcePath] || {};
-    const description = pageMeta.description || (isNocterSource ? nocterSourceDescription(publishedSourcePath) : pageDescription(source));
-    renderedDocumentMetadata.set(path.resolve(sourcePath), {
-        headings: headings.map(heading => heading.label),
-        text: searchTextForSource(source, isNocterSource)
-    });
+    const body = document.kind === "nocter-source"
+        ? nocterSourceToHtml(document)
+        : markdownToHtml(document.source, sourcePath, new Map(), headings);
+    const outline = document.kind === "nocter-source" ? document.symbols : headings;
     const outputPath = outputPathForSource(sourcePath);
     const outputDir = path.dirname(outputPath);
     const styleHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "style.css"));
@@ -588,17 +579,16 @@ function renderPage(sourcePath) {
     const logoHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "assets/logo.svg"));
     const specHref = internalPageHref(outputDir, path.join(PROJECT_ROOT, "spec/README.md"));
     const canonical = `${SITE_ORIGIN}${publicPathForOutput(outputPath)}`;
-    const navigation = renderDocumentTreeNavigation(sourcePath, outputDir, headings);
+    const navigation = renderDocumentTreeNavigation(sourcePath, outputDir, outline);
     const bodyClass = navigation ? ' class="has-document-tree"' : "";
-    const isHomePage = relativeSourcePath === "README.md";
-    const pageTitle = pageMeta.title || (title === "Nocter" ? "Nocter - Self-contained systems language" : `${title} - Nocter`);
-    return `<!DOCTYPE html>
+    const isHomePage = document.relativeSourcePath === "README.md";
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(pageTitle)}</title>
-    <meta name="description" content="${escapeAttribute(description)}">
+    <title>${escapeHtml(document.pageTitle)}</title>
+    <meta name="description" content="${escapeAttribute(document.description)}">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="${canonical}">
@@ -606,19 +596,19 @@ function renderPage(sourcePath) {
 
     <meta property="og:type" content="${isHomePage ? "website" : "article"}">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="${escapeAttribute(pageTitle)}">
-    <meta property="og:description" content="${escapeAttribute(description)}">
+    <meta property="og:title" content="${escapeAttribute(document.pageTitle)}">
+    <meta property="og:description" content="${escapeAttribute(document.description)}">
     <meta property="og:url" content="${canonical}">
     <meta property="og:image" content="${SITE_ORIGIN}/assets/og-image.png">
     <meta property="og:image:width" content="${OG_IMAGE_WIDTH}">
     <meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${escapeAttribute(pageTitle)}">
-    <meta name="twitter:description" content="${escapeAttribute(description)}">
+    <meta name="twitter:title" content="${escapeAttribute(document.pageTitle)}">
+    <meta name="twitter:description" content="${escapeAttribute(document.description)}">
     <meta name="twitter:image" content="${SITE_ORIGIN}/assets/og-image.png">
 
-    <script type="application/ld+json">${structuredData(pageTitle, description, canonical, outputPath, isNocterSource)}</script>
+    <script type="application/ld+json">${structuredData(document, canonical, outputPath)}</script>
 
     <link rel="stylesheet" href="${styleHref}">
 </head>
@@ -642,14 +632,24 @@ function renderPage(sourcePath) {
 </body>
 </html>
 `;
+
+    return Object.freeze({
+        document,
+        headings: Object.freeze(headings.map(heading => Object.freeze({ ...heading }))),
+        html
+    });
 }
 
-function nocterSourceToHtml(source, sourcePath) {
-    return `<h1>${escapeHtml(path.basename(sourcePath))}</h1><pre><code class="language-nocter">${highlightCode(source, "nocter")}</code></pre>`;
-}
-
-function nocterSourceDescription(relativeSourcePath) {
-    return `Nocter source code for ${relativeSourcePath}.`;
+function nocterSourceToHtml(document) {
+    const symbolsByLine = new Map(document.symbols.map(symbol => [symbol.line, symbol]));
+    const highlighted = document.source.replace(/\r/g, "").split("\n").map((line, index) => {
+        const symbol = symbolsByLine.get(index + 1);
+        const attributes = symbol
+            ? ` id="${escapeAttribute(symbol.id)}" class="source-declaration"`
+            : "";
+        return `<span${attributes}>${highlightCode(line, "nocter")}</span>`;
+    }).join("\n");
+    return `<h1>${escapeHtml(document.navigationTitle)}</h1><pre class="source-code"><code class="language-nocter">${highlighted}</code></pre>`;
 }
 
 function renderHero(logoHref, specHref) {
@@ -709,7 +709,18 @@ function renderGlobalNavigation(sourcePath, outputDir) {
             </nav>
             <div class="site-search" data-search-root data-search-index="${searchIndexHref}">
                 <label class="visually-hidden" for="site-search-input">Search documentation</label>
-                <input id="site-search-input" type="search" placeholder="Search documentation" autocomplete="off" aria-controls="site-search-results" aria-expanded="false">
+                <label class="visually-hidden" for="site-search-scope">Search scope</label>
+                <div class="site-search-controls">
+                    <select id="site-search-scope" aria-label="Search scope">
+                        <option value="all">All</option>
+                        <option value="specification">Specification</option>
+                        <option value="standard-library">Standard Library</option>
+                        <option value="examples">Examples</option>
+                        <option value="contributors">Contributors</option>
+                        <option value="releases">Releases</option>
+                    </select>
+                    <input id="site-search-input" type="search" placeholder="Search documentation (/)" autocomplete="off" aria-controls="site-search-results" aria-expanded="false">
+                </div>
                 <div id="site-search-results" class="site-search-results" hidden></div>
             </div>
         </div>
@@ -867,7 +878,7 @@ function inline(text, markdownPath) {
 function renderDocumentTreeNavigation(sourcePath, outputDir, headings) {
     const navigation = documentTree.navigation(sourcePath);
     const scopeLanding = landingPage(navigation.scope);
-    const title = scopeLanding && scopeLanding.sourcePath.endsWith(".md")
+    const title = scopeLanding && scopeLanding.kind === "markdown"
         ? documentLabel(scopeLanding)
         : navigationDirectoryLabel(navigation.scope.name) || "Documentation";
     const breadcrumbs = navigation.ancestors.length > 0
@@ -883,7 +894,7 @@ function renderDocumentTreeNavigation(sourcePath, outputDir, headings) {
     const tableOfContents = contents.length > 1
         ? `<nav class="page-contents" aria-label="On this page">
                 <p class="document-tree-title">On this page</p>
-                <ul>${contents.map(heading => `<li class="page-contents-level-${heading.level}"><a href="#${escapeAttribute(heading.id)}">${escapeHtml(heading.label)}</a></li>`).join("")}</ul>
+                ${renderPageContents(contents)}
             </nav>`
         : "";
 
@@ -901,13 +912,33 @@ function renderDocumentTreeNavigation(sourcePath, outputDir, headings) {
         </aside>`;
 }
 
+function renderPageContents(contents) {
+    if (!contents.some(entry => entry.qualifiedName)) {
+        return `<ul>${contents.map(entry => renderOutlineLink(entry)).join("")}</ul>`;
+    }
+
+    const groups = [];
+    for (const entry of contents) {
+        if (entry.level === 2 || groups.length === 0) groups.push({ entry, children: [] });
+        else groups.at(-1).children.push(entry);
+    }
+    return `<ul class="source-outline">${groups.map(group => {
+        if (group.children.length === 0) return renderOutlineLink(group.entry);
+        return `<li class="source-outline-group"><details><summary>${escapeHtml(group.entry.label)}</summary><ul>${group.children.map(entry => renderOutlineLink(entry)).join("")}</ul></details></li>`;
+    }).join("")}</ul>`;
+}
+
+function renderOutlineLink(entry) {
+    return `<li class="page-contents-level-${entry.level}"><a data-outline-link href="#${escapeAttribute(entry.id)}">${escapeHtml(entry.label)}</a></li>`;
+}
+
 function renderDocumentTreeEntries(entries, sourcePath, outputDir) {
     return entries.map(entry => {
         if (entry.kind === "page") {
             return renderDocumentTreeLink(entry.page, sourcePath, outputDir, documentLabel(entry.page));
         }
 
-        const directoryLabel = entry.page && entry.page.sourcePath.endsWith(".md")
+        const directoryLabel = entry.page && entry.page.kind === "markdown"
             ? documentLabel(entry.page)
             : entry.directory.name;
         if (entry.page) {
@@ -954,17 +985,7 @@ function renderAdjacentPages(sourcePath, outputDir) {
 }
 
 function documentLabel(page) {
-    return documentLabels.get(path.resolve(page.sourcePath));
-}
-
-function sourceDocumentLabel(sourcePath) {
-    const absoluteSource = path.resolve(sourcePath);
-    if (absoluteSource.endsWith(".md")) {
-        const heading = firstHeading(sourceContents.get(absoluteSource));
-        if (heading) return heading;
-    }
-
-    return path.basename(absoluteSource);
+    return page.navigationTitle;
 }
 
 function navigationDirectoryLabel(name) {
@@ -1071,41 +1092,16 @@ function internalNavigationFragment(fragment = "content") {
     return `#${encodeURIComponent(fragment)}`;
 }
 
-function firstHeading(markdown) {
-    const match = markdown.match(/^#\s+(.+)$/m);
-    return match ? stripMarkdown(match[1]).trim() : "";
-}
-
-function pageDescription(markdown) {
-    const text = markdown
-        .replace(/```[\s\S]*?```/g, "")
-        .split(/\n{2,}/)
-        .map(block => block.trim())
-        .filter(block => block && !block.startsWith("#") && !block.startsWith("<"))
-        .map(stripMarkdown)
-        .find(Boolean);
-
-    return (text || "Nocter is a self-contained systems language built around simplicity, encapsulation, and foolproof design.").slice(0, 155);
-}
-
-function stripMarkdown(text) {
-    return removeHtml(text)
-        .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-        .replace(/[`*_>#]/g, "")
-        .replace(/\s+/g, " ");
-}
-
-function structuredData(title, description, canonical, outputPath, isNocterSource) {
+function structuredData(document, canonical, outputPath) {
     const isHome = normalizePath(path.relative(OUTPUT_ROOT, outputPath)) === "index.html";
-    const schemas = [breadcrumbStructuredData(outputPath)];
+    const schemas = [breadcrumbStructuredData(document)];
 
-    if (isNocterSource) {
-        schemas.unshift(nocterSourceCodeStructuredData(title, description, canonical));
+    if (document.kind === "nocter-source") {
+        schemas.unshift(nocterSourceCodeStructuredData(document.pageTitle, document.description, canonical));
     } else if (isHome) {
-        schemas.unshift(softwareSourceCodeStructuredData(title, description, canonical));
+        schemas.unshift(softwareSourceCodeStructuredData(document.pageTitle, document.description, canonical));
     } else {
-        schemas.unshift(techArticleStructuredData(title, description, canonical));
+        schemas.unshift(techArticleStructuredData(document.pageTitle, document.description, canonical));
     }
 
     return JSON.stringify(schemas);
@@ -1140,28 +1136,29 @@ function softwareSourceCodeStructuredData(title, description, canonical) {
     };
 }
 
-function breadcrumbStructuredData(outputPath) {
-    const publicPath = publicPathForOutput(outputPath);
-    const parts = publicPath.split("/").filter(Boolean);
-    const items = [
-        {
-            "@type": "ListItem",
-            position: 1,
-            name: "Home",
-            item: `${SITE_ORIGIN}/`
-        }
-    ];
+function breadcrumbStructuredData(document) {
+    const documents = [];
+    const root = documentCatalog.findRelativeSource("README.md");
+    if (root) documents.push(root);
 
-    let currentPath = "";
-    parts.forEach((part, index) => {
-        currentPath += `/${part}`;
-        items.push({
-            "@type": "ListItem",
-            position: index + 2,
-            name: breadcrumbName(part),
-            item: `${SITE_ORIGIN}${currentPath}/`
-        });
-    });
+    const directory = path.posix.dirname(document.relativeSourcePath);
+    if (directory !== ".") {
+        const segments = directory.split("/");
+        for (let index = 0; index < segments.length; index += 1) {
+            const relativeDirectory = segments.slice(0, index + 1).join("/");
+            const landing = documentCatalog.findRelativeSource(`${relativeDirectory}/README.md`)
+                || documentCatalog.findRelativeSource(`${relativeDirectory}/index.nct`);
+            if (landing && landing !== document) documents.push(landing);
+        }
+    }
+    if (!documents.includes(document)) documents.push(document);
+
+    const items = documents.map((entry, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: entry.navigationTitle,
+        item: `${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(entry.sourcePath))}`
+    }));
 
     return {
         "@context": "https://schema.org",
@@ -1191,68 +1188,41 @@ function siteOrganization() {
     };
 }
 
-function breadcrumbName(segment) {
-    if (segment === "spec") return "Language Specification";
-    if (segment === "development") return "Development";
-    if (segment === "docs") return "Docs";
-    return segment
-        .split("-")
-        .filter(Boolean)
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-}
-
-function writeSearchIndex(files) {
-    const documents = files.map(file => {
-        const relative = publishedPathForSource(file);
-        const output = outputPathForSource(file);
-        const metadata = renderedDocumentMetadata.get(path.resolve(file));
-        if (!metadata) {
-            throw new Error(`Search metadata was not rendered for ${relative}`);
-        }
-
+function writeSearchIndex(renderedDocuments) {
+    const documents = renderedDocuments.map(rendered => {
+        const { document } = rendered;
+        const output = outputPathForSource(document.sourcePath);
+        const publicPage = publicPathForOutput(output);
         return {
-            title: searchDocumentTitle(file),
-            path: `/${relative}`,
-            url: `${publicPathForOutput(output)}${internalNavigationFragment()}`,
-            headings: metadata.headings,
-            text: metadata.text
+            title: document.searchTitle,
+            path: `/${document.relativeSourcePath}`,
+            url: `${publicPage}${internalNavigationFragment()}`,
+            section: document.section,
+            kind: document.kind,
+            headings: rendered.headings.map(heading => heading.label),
+            symbols: document.symbols.map(symbol => ({
+                name: symbol.name,
+                qualified_name: symbol.qualifiedName,
+                kind: symbol.kind,
+                documentation: symbol.documentation,
+                url: `${publicPage}${internalNavigationFragment(symbol.id)}`
+            })),
+            text: document.searchText
         };
     });
 
     fs.writeFileSync(
         path.join(OUTPUT_ROOT, "search-index.json"),
-        `${JSON.stringify({ version: 1, documents })}\n`
+        `${JSON.stringify({ version: 2, documents })}\n`
     );
-}
-
-function searchTextForSource(source, isNocterSource) {
-    if (!isNocterSource) {
-        return stripMarkdown(source.replace(/```[\s\S]*?```/g, " ")).slice(0, 6000);
-    }
-
-    return source.split("\n")
-        .map(line => line.trim())
-        .filter(line => line.startsWith("pub ") || line.startsWith("///"))
-        .join(" ")
-        .slice(0, 6000);
-}
-
-function searchDocumentTitle(file) {
-    if (path.basename(file) !== "index.nct") {
-        return documentLabels.get(path.resolve(file));
-    }
-
-    const modulePath = normalizePath(path.relative(PROJECT_ROOT, path.dirname(file)));
-    return `${modulePath} Module Contract`;
 }
 
 function writeRobots() {
     fs.writeFileSync(path.join(OUTPUT_ROOT, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
 }
 
-function writeSitemap(files) {
-    const urls = files.map(file => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(file))}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${normalizePath(path.relative(PROJECT_ROOT, file)) === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
+function writeSitemap(documents) {
+    const urls = documents.map(document => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(document.sourcePath))}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${document.relativeSourcePath === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
     fs.writeFileSync(path.join(OUTPUT_ROOT, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`);
 }
 

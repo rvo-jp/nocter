@@ -500,11 +500,17 @@ main pre code {
 
 .site-search {
     position: relative;
-    width: min(260px, 30vw);
+    width: min(380px, 36vw);
     flex: 0 0 auto;
 }
 
-.site-search input {
+.site-search-controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.site-search input,
+.site-search select {
     width: 100%;
     min-height: 36px;
     padding: 0 12px;
@@ -514,6 +520,25 @@ main pre code {
     border-radius: 5px;
     font: inherit;
     font-size: 0.86rem;
+}
+
+.site-search select {
+    width: auto;
+    max-width: 126px;
+    padding-right: 28px;
+    border-right: 0;
+    border-radius: 5px 0 0 5px;
+    color: var(--content-muted);
+}
+
+.site-search input {
+    border-radius: 0 5px 5px 0;
+}
+
+.site-search input:focus,
+.site-search select:focus {
+    position: relative;
+    z-index: 1;
 }
 
 .site-search-results {
@@ -635,6 +660,49 @@ body.has-document-tree .document-tree {
 .page-contents .page-contents-level-3 a {
     padding-left: 20px;
     font-size: 0.82rem;
+}
+
+.source-outline {
+    gap: 3px;
+}
+
+.source-outline-group summary {
+    padding: 7px 9px;
+    color: var(--content-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.source-outline-group summary:hover {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-sky);
+}
+
+.source-outline-group details[data-active="true"] > summary {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-mint);
+}
+
+.source-outline-group ul {
+    display: grid;
+    gap: 2px;
+    margin-left: 10px;
+    padding-left: 8px;
+    border-left: 1px solid var(--content-soft-border);
+    list-style: none;
+}
+
+.source-outline-group .page-contents-level-3 a {
+    padding-left: 9px;
+}
+
+.page-contents a[aria-current="location"] {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-mint);
+    font-weight: 700;
 }
 
 .document-tree-title {
@@ -817,6 +885,15 @@ main h6 {
 .heading-link:hover .heading-link-mark,
 .heading-link:focus-visible .heading-link-mark {
     opacity: 1;
+}
+
+main [id] {
+    scroll-margin-top: 28px;
+}
+
+.source-declaration:target {
+    background: linear-gradient(90deg, var(--nocter-mint), transparent 82%);
+    outline: 2px solid transparent;
 }
 
 main p {

@@ -98,15 +98,65 @@ function setCopyButtonState(button, state) {
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[state]}</svg>`;
 }
 
+const outlineLinks = [...document.querySelectorAll("[data-outline-link]")];
+if (outlineLinks.length > 0) {
+    const linksByTarget = new Map(outlineLinks.map(link => [decodeURIComponent(link.hash.slice(1)), link]));
+    const targets = [...linksByTarget.keys()].map(id => document.getElementById(id)).filter(Boolean);
+
+    function selectOutlineTarget(id, reveal = false) {
+        document.querySelectorAll(".source-outline details[data-active]").forEach(group => {
+            group.removeAttribute("data-active");
+        });
+        outlineLinks.forEach(link => {
+            if (decodeURIComponent(link.hash.slice(1)) === id) {
+                link.setAttribute("aria-current", "location");
+                const group = link.closest("details");
+                if (group) {
+                    group.dataset.active = "true";
+                    if (reveal) group.open = true;
+                }
+            } else link.removeAttribute("aria-current");
+        });
+    }
+
+    const requestedTarget = decodeURIComponent(location.hash.slice(1));
+    selectOutlineTarget(linksByTarget.has(requestedTarget) ? requestedTarget : targets[0]?.id, true);
+
+    if ("IntersectionObserver" in window) {
+        const visible = new Set();
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) visible.add(entry.target);
+                else visible.delete(entry.target);
+            });
+            const current = [...visible].sort((left, right) => left.offsetTop - right.offsetTop).at(-1);
+            if (current) selectOutlineTarget(current.id);
+        }, { rootMargin: "-12% 0px -72% 0px" });
+        targets.forEach(target => observer.observe(target));
+    }
+
+    window.addEventListener("hashchange", () => {
+        const id = decodeURIComponent(location.hash.slice(1));
+        if (linksByTarget.has(id)) selectOutlineTarget(id, true);
+    });
+}
+
 const searchRoot = document.querySelector("[data-search-root]");
 if (searchRoot) {
     const input = searchRoot.querySelector("input[type=search]");
+    const scope = searchRoot.querySelector("select");
     const results = searchRoot.querySelector(".site-search-results");
     let documentsPromise = null;
+    let searchRequest = 0;
 
     function closeSearch() {
         results.hidden = true;
         input.setAttribute("aria-expanded", "false");
+    }
+
+    function cancelSearch() {
+        searchRequest += 1;
+        closeSearch();
     }
 
     function openSearch() {
@@ -115,6 +165,7 @@ if (searchRoot) {
     }
 
     async function searchDocuments() {
+        const request = ++searchRequest;
         const query = input.value.trim().toLocaleLowerCase();
         if (query.length < 2) {
             closeSearch();
@@ -126,12 +177,18 @@ if (searchRoot) {
                 if (!response.ok) throw new Error(`search index returned ${response.status}`);
                 return response.json();
             })
-            .then(index => index.documents);
+            .then(index => {
+                if (index.version !== 2 || !Array.isArray(index.documents)) {
+                    throw new Error("unsupported search index");
+                }
+                return index.documents;
+            });
 
         let documents;
         try {
             documents = await documentsPromise;
         } catch {
+            if (request !== searchRequest) return;
             results.replaceChildren();
             const unavailable = document.createElement("p");
             unavailable.className = "site-search-empty";
@@ -140,21 +197,29 @@ if (searchRoot) {
             openSearch();
             return;
         }
+        if (request !== searchRequest) return;
 
         const matches = documents
+            .filter(entry => scope.value === "all" || entry.section === scope.value)
             .map(entry => {
-                const title = entry.title.toLocaleLowerCase();
-                const entryPath = entry.path.toLocaleLowerCase();
-                const headings = entry.headings.join(" ").toLocaleLowerCase();
-                const text = entry.text.toLocaleLowerCase();
-                let score = 0;
-                if (title === query) score += 120;
-                else if (title.startsWith(query)) score += 90;
-                else if (title.includes(query)) score += 60;
-                if (entryPath.includes(query)) score += 35;
-                if (headings.includes(query)) score += 25;
-                if (text.includes(query)) score += 10;
-                return { entry, score };
+                const documentScore = scoreDocument(entry, query);
+                const symbol = bestSymbolMatch(entry.symbols, query);
+                if (symbol && symbol.score > documentScore) {
+                    return {
+                        entry,
+                        score: symbol.score,
+                        title: symbol.symbol.qualified_name,
+                        detail: `${symbol.symbol.kind} · ${entry.path}`,
+                        url: symbol.symbol.url
+                    };
+                }
+                return {
+                    entry,
+                    score: documentScore,
+                    title: entry.title,
+                    detail: `${sectionLabel(entry.section)} · ${entry.path}`,
+                    url: entry.url
+                };
             })
             .filter(match => match.score > 0)
             .sort((left, right) => right.score - left.score || left.entry.path.localeCompare(right.entry.path))
@@ -167,14 +232,14 @@ if (searchRoot) {
             empty.textContent = "No matching documentation.";
             results.appendChild(empty);
         } else {
-            matches.forEach(({ entry }) => {
+            matches.forEach(match => {
                 const link = document.createElement("a");
-                link.href = entry.url;
+                link.href = match.url;
                 const title = document.createElement("strong");
-                title.textContent = entry.title;
-                const entryPath = document.createElement("span");
-                entryPath.textContent = entry.path;
-                link.append(title, entryPath);
+                title.textContent = match.title;
+                const detail = document.createElement("span");
+                detail.textContent = match.detail;
+                link.append(title, detail);
                 results.appendChild(link);
             });
         }
@@ -183,9 +248,10 @@ if (searchRoot) {
 
     input.addEventListener("input", searchDocuments);
     input.addEventListener("focus", searchDocuments);
+    scope.addEventListener("change", searchDocuments);
     input.addEventListener("keydown", event => {
         if (event.key === "Escape") {
-            closeSearch();
+            cancelSearch();
             input.blur();
         } else if (event.key === "ArrowDown" && !results.hidden) {
             const first = results.querySelector("a");
@@ -196,6 +262,60 @@ if (searchRoot) {
         }
     });
     document.addEventListener("click", event => {
-        if (!searchRoot.contains(event.target)) closeSearch();
+        if (!searchRoot.contains(event.target)) cancelSearch();
     });
+    document.addEventListener("keydown", event => {
+        const target = event.target;
+        const editing = target instanceof HTMLInputElement
+            || target instanceof HTMLTextAreaElement
+            || target instanceof HTMLSelectElement
+            || target.isContentEditable;
+        if (event.key === "/" && !editing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            event.preventDefault();
+            input.focus();
+        }
+    });
+}
+
+function scoreDocument(entry, query) {
+    const title = entry.title.toLocaleLowerCase();
+    const entryPath = entry.path.toLocaleLowerCase();
+    const headings = entry.headings.join(" ").toLocaleLowerCase();
+    const text = entry.text.toLocaleLowerCase();
+    let score = 0;
+    if (title === query) score += 140;
+    else if (title.startsWith(query)) score += 100;
+    else if (title.includes(query)) score += 70;
+    if (entryPath.includes(query)) score += 35;
+    if (headings.includes(query)) score += 25;
+    if (text.includes(query)) score += 10;
+    return score;
+}
+
+function bestSymbolMatch(symbols, query) {
+    return symbols.map(symbol => {
+        const name = symbol.name.toLocaleLowerCase();
+        const qualified = symbol.qualified_name.toLocaleLowerCase();
+        const documentation = symbol.documentation.toLocaleLowerCase();
+        let score = 0;
+        if (qualified === query) score = 220;
+        else if (name === query) score = 200;
+        else if (qualified.startsWith(query)) score = 150;
+        else if (name.startsWith(query)) score = 140;
+        else if (qualified.includes(query)) score = 100;
+        else if (name.includes(query)) score = 90;
+        if (documentation.includes(query)) score += 20;
+        return { symbol, score };
+    }).sort((left, right) => right.score - left.score)[0] || null;
+}
+
+function sectionLabel(section) {
+    return ({
+        home: "Home",
+        specification: "Specification",
+        "standard-library": "Standard Library",
+        examples: "Examples",
+        contributors: "Contributors",
+        releases: "Releases"
+    })[section] || section;
 }

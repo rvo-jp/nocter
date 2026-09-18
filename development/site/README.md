@@ -8,9 +8,14 @@ GitHub Pages deployment artifact.
 
 - `build-docs.js` validates authored documentation and generates one complete website into an
   explicit directory outside the repository.
+- `document-catalog.js` creates the immutable presentation record for every published source,
+  including its kind, titles, description, section, searchable text, and declaration outline.
 - `document-tree.js` owns the immutable hierarchy derived from the complete published-source set.
-- the generated search index contains one entry for every published document and is loaded only
-  when a visitor searches; it introduces no hosted search service or build dependency.
+- `nocter-source-index.js` derives addressable declaration headings from published `.nct` text
+  without validating or assigning language semantics.
+- the generated search index contains one entry for every published document plus the declarations
+  already owned by its catalog record. It is loaded only when a visitor searches and introduces no
+  hosted search service or build dependency.
 - `highlight.js` provides build-time syntax highlighting for Nocter and shell code blocks.
 - `markdown-table.js` owns table-cell boundaries across code spans and escaped pipe characters.
 - `output-transaction.js` owns sibling staging, complete output replacement, and failure
@@ -81,9 +86,17 @@ previous/next navigation all consume this rule. No runtime referrer inference or
 scroll decides whether the hero is visible.
 
 The same published document set derives global section links, directory navigation, local heading
-contents, adjacent pages, and the search index. Narrow screens collapse directory navigation
-before the article so a large sibling set cannot displace the requested content. A keyboard skip
-link provides the same direct content boundary without removing the hero from the document.
+contents, adjacent pages, and the search index. A published `.nct` page exposes its declaration
+outline beside the exact highlighted source; outline and search links address the same generated
+declaration fragments. The outline marks the section currently crossing the viewport without
+changing navigation or source identity. Narrow screens collapse directory navigation before the
+article so a large sibling set cannot displace the requested content. A keyboard skip link provides
+the same direct content boundary without removing the hero from the document.
+
+Search ranks exact declaration names such as `String.copy` ahead of document prose, supports a
+section filter, and uses `/` as a keyboard shortcut outside an editing control. Search scoring does
+not decide whether a declaration exists: it consumes the immutable catalog produced before any
+page renders.
 
 ## Build
 
@@ -115,8 +128,9 @@ Generation fails when:
 - a published source cannot be represented uniquely or reached through structural navigation;
 - a Markdown table row has a different cell count from its header.
 
-The generator enforces structural authority, not language meaning. It does not claim that a regular
-expression can distinguish a duplicated standard-library declaration from a valid user example.
+The generator enforces structural authority, not language meaning. The source outline recognizes
+declaration headers only to label and address compiler-checked source. It cannot accept or reject a
+Nocter program, establish visibility, resolve a type, or decide whether two declarations conflict.
 Standard-library READMEs must not restate exact signatures; review checks that content rule, while
 the compiler checks the sole declarations in `index.nct`.
 
@@ -140,6 +154,9 @@ every behavior guide remains assigned by the standard-library catalog, and table
 spans or escapes cannot corrupt the generated columns. It also proves that canonical URLs retain
 the external hero entry, every generated internal navigation surface targets content, specific
 heading links remain specific, and the search index has exactly one entry per published page.
+It additionally checks that declaration outlines use unique stable fragments, every search symbol
+resolves to its generated source target, search consumes those same symbols, and the outline
+scanner ignores braces inside strings and comments.
 
 ## Deployment
 

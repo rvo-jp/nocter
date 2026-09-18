@@ -47,7 +47,7 @@ class PublishedDocumentTree {
     }
 
     #addDocument(document) {
-        const { sourcePath, publicPath } = document;
+        const { sourcePath, publicPath, kind, navigationTitle } = document;
         const absoluteSource = path.resolve(sourcePath);
         const sourceRelative = path.relative(this.#projectRoot, absoluteSource);
         if (sourceRelative === ".." || sourceRelative.startsWith(`..${path.sep}`) || path.isAbsolute(sourceRelative)) {
@@ -61,6 +61,9 @@ class PublishedDocumentTree {
             || path.posix.isAbsolute(normalizedPublicPath)
         ) {
             throw new Error(`Published documentation path is invalid: ${publicPath}`);
+        }
+        if ((kind !== "markdown" && kind !== "nocter-source") || !navigationTitle) {
+            throw new Error(`Published document has incomplete presentation metadata: ${sourcePath}`);
         }
 
         const segments = normalizedPublicPath.split("/");
@@ -84,6 +87,8 @@ class PublishedDocumentTree {
             name: fileName,
             relativePath: normalizedPublicPath,
             sourcePath: absoluteSource,
+            kind,
+            navigationTitle,
             parent: directory
         };
         directory.pages.push(page);

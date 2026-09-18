@@ -4,6 +4,7 @@ const childProcess = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { indexNocterSource } = require("./nocter-source-index");
 const { splitTableRow } = require("./markdown-table");
 
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
@@ -13,6 +14,7 @@ const SKIP_NAMES = new Set([".git", "dist", "target"]);
 
 try {
     assertMarkdownTableTokenizer();
+    assertNocterSourceIndex();
     const early = prepareTree("early", new Date("2001-01-01T00:00:00Z"));
     const late = prepareTree("late", new Date("2037-12-31T23:59:59Z"));
 
@@ -360,6 +362,10 @@ function assertSiteNavigationPolicy(root) {
     if (language.includes('class="markdown-path"') || language.includes("View source")) {
         throw new Error("generated content retained the removed repository source strip");
     }
+    const bindings = fs.readFileSync(path.join(docsRoot, "spec/language/bindings-and-initialization/index.html"), "utf8");
+    if (!bindings.includes('"name":"Bindings and Initialization"')) {
+        throw new Error("structured navigation independently reconstructed a Markdown title");
+    }
     if (!language.includes('class="document-tree-toggle"') || !language.includes('aria-controls="document-tree-panel"')) {
         throw new Error("generated documentation lacks collapsible narrow-screen navigation");
     }
@@ -369,11 +375,38 @@ function assertSiteNavigationPolicy(root) {
 
     const search = JSON.parse(fs.readFileSync(path.join(docsRoot, "search-index.json"), "utf8"));
     const generatedPages = collectFiles(docsRoot).filter(file => file.endsWith("index.html"));
-    if (search.version !== 1 || search.documents.length !== generatedPages.length) {
+    if (search.version !== 2 || search.documents.length !== generatedPages.length) {
         throw new Error("search index and published document set have different authorities");
     }
     if (search.documents.some(document => !document.url.endsWith("#content"))) {
         throw new Error("search result navigation can reopen the destination hero");
+    }
+    const stringContract = search.documents.find(document => document.path === "/std/string/index.nct");
+    const stringCopy = stringContract?.symbols.find(symbol => symbol.qualified_name === "String.copy");
+    if (
+        stringContract?.section !== "standard-library"
+        || stringCopy?.kind !== "func"
+        || !stringCopy.url.endsWith("#declaration-func-string-copy")
+    ) {
+        throw new Error("standard-library declaration search does not consume the source outline");
+    }
+    if (search.documents.some(document => document.symbols.some(symbol => !symbol.url.includes("#declaration-")))) {
+        throw new Error("source declaration search contains an unaddressable symbol");
+    }
+    const sourcePages = new Map();
+    for (const document of search.documents) {
+        for (const symbol of document.symbols) {
+            const [publicPath, fragment] = symbol.url.split("#");
+            const generatedPath = path.join(docsRoot, publicPath, "index.html");
+            let html = sourcePages.get(generatedPath);
+            if (!html) {
+                html = fs.readFileSync(generatedPath, "utf8");
+                sourcePages.set(generatedPath, html);
+            }
+            if (!html.includes(`id="${fragment}"`)) {
+                throw new Error(`search declaration target is absent: ${symbol.url}`);
+            }
+        }
     }
 
     const standardLibrary = fs.readFileSync(path.join(docsRoot, "std/index.html"), "utf8");
@@ -388,6 +421,17 @@ function assertSiteNavigationPolicy(root) {
     const script = fs.readFileSync(path.join(docsRoot, "script.js"), "utf8");
     if (!script.includes('viewBox="0 0 24 24"') || script.includes('textContent = "Copy"')) {
         throw new Error("code copy control is not an icon-only control");
+    }
+    if (!script.includes('event.key === "/"') || !script.includes("bestSymbolMatch")) {
+        throw new Error("documentation search lacks its keyboard or declaration-search contract");
+    }
+
+    const stringSource = fs.readFileSync(path.join(docsRoot, "std/string/index/index.html"), "utf8");
+    if (
+        !stringSource.includes('data-outline-link href="#declaration-struct-string"')
+        || !stringSource.includes('id="declaration-func-string-copy" class="source-declaration"')
+    ) {
+        throw new Error("published Nocter source lacks its declaration outline or stable targets");
     }
 
     const stylesheet = fs.readFileSync(path.join(docsRoot, "style.css"), "utf8");
@@ -448,6 +492,42 @@ function assertMarkdownTableTokenizer() {
     const evenEscape = splitTableRow("| first \\\\| second |");
     if (evenEscape.length !== 2) {
         throw new Error("an even backslash run incorrectly escaped a Markdown table delimiter");
+    }
+}
+
+function assertNocterSourceIndex() {
+    const symbols = indexNocterSource(`//! Fixture.
+
+/// A container.
+pub struct Box<T> {
+    /// Stored value.
+    pub value: T
+}
+
+construct Box<T> {
+    /// Creates a box.
+    pub func new(value: T): Self
+}
+
+instance Box<T> {
+    impl Display
+    /// Reads the value.
+    pub noalloc method &self.get(): &T
+}
+
+pub func braces(): &str { "{}" }
+`);
+    const byQualifiedName = new Map(symbols.map(symbol => [symbol.qualifiedName, symbol]));
+    for (const expected of ["Box", "Box.value", "Box.new", "Box.Display", "Box.get", "braces"]) {
+        if (!byQualifiedName.has(expected)) {
+            throw new Error(`Nocter source outline omitted ${expected}`);
+        }
+    }
+    if (byQualifiedName.get("Box.new").documentation !== "Creates a box.") {
+        throw new Error("Nocter source outline detached declaration documentation");
+    }
+    if (new Set(symbols.map(symbol => symbol.id)).size !== symbols.length) {
+        throw new Error("Nocter source outline produced duplicate fragment identifiers");
     }
 }
 
