@@ -633,9 +633,10 @@ impl BodyChecker<'_, '_> {
                 ) {
                     return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
                 }
-                let ty = declaration
+                let declared = declaration
                     .value_type(self.types)
                     .ok_or(BodyCheckInternalError::UnknownType(declaration.ty()))?;
+                let ty = self.normalize_lexical_type(declared)?;
                 (PlaceRoot::Parameter(parameter), ty)
             }
             NameTarget::Local(local) => (

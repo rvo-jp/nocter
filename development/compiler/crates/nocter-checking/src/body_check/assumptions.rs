@@ -14,6 +14,7 @@ use crate::{CheckedPredicate, CheckedRequirement, RequirementDerivation};
 /// and deliberately cannot masquerade as authored requirements.
 #[derive(Debug)]
 pub(crate) struct BodyAssumptions {
+    substitution: TypeSubstitution,
     declared: Box<[BodyRequirement]>,
     intrinsic: Box<[CheckedPredicate]>,
     copy_proofs: CopyProofs,
@@ -123,6 +124,10 @@ impl CapabilityEvidenceTable {
 }
 
 impl BodyAssumptions {
+    pub(crate) const fn substitution(&self) -> &TypeSubstitution {
+        &self.substitution
+    }
+
     pub(crate) fn declared(&self) -> &[BodyRequirement] {
         &self.declared
     }
@@ -146,6 +151,7 @@ fn normalize_body_assumptions(
 ) -> Result<BodyAssumptions, SubstitutionError> {
     let BodyOwner::Callable(callable_id) = owner else {
         return Ok(BodyAssumptions {
+            substitution: TypeSubstitution::default(),
             declared: Box::new([]),
             intrinsic: Box::new([]),
             copy_proofs: CopyProofs::default(),
@@ -222,6 +228,7 @@ fn normalize_body_assumptions(
             .chain(intrinsic.iter()),
     );
     Ok(BodyAssumptions {
+        substitution,
         declared: declared.into_boxed_slice(),
         intrinsic: intrinsic.into_boxed_slice(),
         copy_proofs,

@@ -79,6 +79,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen
   capability-evidence identity; a later stage cannot reinterpret the predicate or collapse its
   source derivations to whichever requirement was visited first.
+- One normalized lexical type substitution accompanies every body assumption set. Refined
+  instance bodies apply that same substitution to their result, parameters, authored type uses,
+  `Self`, and nested closure arguments; body checking cannot reinterpret a declaration-pattern
+  binder as an unconstrained generic after operation indexing has made it concrete.
 - One checking-owned constructor creates an unspecialized generic value from its declared domain.
   Body environments, construction inference, interface assumptions, and instance selection cannot
   independently assume that a parameter denotes a type.

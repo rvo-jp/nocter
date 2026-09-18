@@ -21,6 +21,11 @@ Fixed-width scalar appends delegate byte order to [`std/bytes`](../bytes/README.
 complete required capacity before committing anything. Failure returns `false` with the committed
 prefix unchanged; success commits exactly the scalar width.
 
+Variable-width scalar appends use the same spare-prefix transaction. The byte codec first proves
+that the complete canonical representation fits and returns its width; `ByteBuffer` commits that
+width only afterward. Insufficient capacity returns `none` and leaves the committed prefix
+unchanged.
+
 Use these types when an explicit upper bound is part of the application contract or allocation is
 forbidden. Use [`Vec`](../vec/README.md) when input size is not naturally bounded or retaining a
 large maximum inline capacity would make every value unnecessarily large.

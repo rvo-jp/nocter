@@ -439,6 +439,23 @@ fn interface_default_body_preserves_its_constant_generic_self_application() {
 }
 
 #[test]
+fn refined_instance_bodies_use_the_normalized_lexical_type_environment() {
+    check(
+        "struct Buffer<T> { value: T }\n\
+         func accept(value: &Buffer<u8>): void { return }\n\
+         instance Buffer<T> where T = u8 {\n\
+             pub method &self.read(): T {\n\
+                 accept(self)\n\
+                 let exact: T = self.value\n\
+                 return exact\n\
+             }\n\
+         }\n\
+         func read(buffer: &Buffer<u8>): u8 { return buffer.read() }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn associated_method_results_specialize_for_concrete_and_generic_receivers() {
     check(
         "pub interface Source {\n\

@@ -4,7 +4,23 @@ see ./index.nct
 see ./cursors.nct
 
 use /bytes
+use /bytes.PrefixDecode
 use /internal/safety
+
+noalloc func commit_prefix_decode<T>(
+    cursor: &+ByteCursor,
+    result: PrefixDecode<T>,
+): PrefixDecode<T> {
+    match move result {
+        PrefixDecode.decoded(value, consumed) {
+            if !advance_exact(cursor, consumed) { return safety.invariant_abort() }
+            return PrefixDecode.decoded(move value, consumed)
+        }
+        PrefixDecode.incomplete { return PrefixDecode.incomplete }
+        PrefixDecode.overflow { return PrefixDecode.overflow }
+        PrefixDecode.non_canonical { return PrefixDecode.non_canonical }
+    }
+}
 
 instance ByteCursor {
     noalloc method &+self.take_u16_be(): u16? {
@@ -43,6 +59,42 @@ instance ByteCursor {
         return value
     }
 
+    noalloc method &+self.take_i16_be(): i16? {
+        let value = bytes.decode_i16_be(self.remaining())?
+        if !advance_exact(self, 2) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_i16_le(): i16? {
+        let value = bytes.decode_i16_le(self.remaining())?
+        if !advance_exact(self, 2) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_i32_be(): i32? {
+        let value = bytes.decode_i32_be(self.remaining())?
+        if !advance_exact(self, 4) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_i32_le(): i32? {
+        let value = bytes.decode_i32_le(self.remaining())?
+        if !advance_exact(self, 4) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_i64_be(): i64? {
+        let value = bytes.decode_i64_be(self.remaining())?
+        if !advance_exact(self, 8) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_i64_le(): i64? {
+        let value = bytes.decode_i64_le(self.remaining())?
+        if !advance_exact(self, 8) { return safety.invariant_abort() }
+        return value
+    }
+
     noalloc method &+self.take_f32_be(): f32? {
         let value = bytes.decode_f32_be(self.remaining())?
         if !advance_exact(self, 4) { return safety.invariant_abort() }
@@ -65,5 +117,13 @@ instance ByteCursor {
         let value = bytes.decode_f64_le(self.remaining())?
         if !advance_exact(self, 8) { return safety.invariant_abort() }
         return value
+    }
+
+    noalloc method &+self.take_uleb128(): PrefixDecode<u64> {
+        return commit_prefix_decode(self, bytes.decode_uleb128(self.remaining()))
+    }
+
+    noalloc method &+self.take_zigzag_uleb128(): PrefixDecode<i64> {
+        return commit_prefix_decode(self, bytes.decode_zigzag_uleb128(self.remaining()))
     }
 }

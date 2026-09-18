@@ -22,6 +22,11 @@ Slice extension first reserves the complete additional element count and only th
 source prefix. Recoverable capacity failure therefore leaves the vector unchanged. Once reservation
 succeeds, each copied element enters already-owned spare storage without another allocation.
 
+The `Vec<u8>` specialization appends canonical unsigned and ZigZag-signed LEB128 values. It asks
+`std/bytes` for the complete width, reserves that many bytes, encodes into uncommitted storage, and
+publishes the new length only after the codec returns that exact width. Recoverable allocation
+failure leaves the vector unchanged; the specialization does not own a second encoding algorithm.
+
 Zero-sized element types use logical length and capacity without allocating backing bytes.
 Reservation, insertion, removal, iteration, and destruction still perform their normal ownership
 effects once per logical element.

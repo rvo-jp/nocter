@@ -135,6 +135,24 @@ instance ByteBuffer<N> {
     /// Atomically appends one little-endian unsigned 64-bit value when capacity permits.
     pub noalloc method &+self.try_push_u64_le(value: u64): bool
 
+    /// Atomically appends one big-endian signed 16-bit value when capacity permits.
+    pub noalloc method &+self.try_push_i16_be(value: i16): bool
+
+    /// Atomically appends one little-endian signed 16-bit value when capacity permits.
+    pub noalloc method &+self.try_push_i16_le(value: i16): bool
+
+    /// Atomically appends one big-endian signed 32-bit value when capacity permits.
+    pub noalloc method &+self.try_push_i32_be(value: i32): bool
+
+    /// Atomically appends one little-endian signed 32-bit value when capacity permits.
+    pub noalloc method &+self.try_push_i32_le(value: i32): bool
+
+    /// Atomically appends one big-endian signed 64-bit value when capacity permits.
+    pub noalloc method &+self.try_push_i64_be(value: i64): bool
+
+    /// Atomically appends one little-endian signed 64-bit value when capacity permits.
+    pub noalloc method &+self.try_push_i64_le(value: i64): bool
+
     /// Atomically appends one big-endian IEEE binary32 value when capacity permits.
     pub noalloc method &+self.try_push_f32_be(value: f32): bool
 
@@ -146,4 +164,10 @@ instance ByteBuffer<N> {
 
     /// Atomically appends one little-endian IEEE binary64 value when capacity permits.
     pub noalloc method &+self.try_push_f64_le(value: f64): bool
+
+    /// Atomically appends one unsigned LEB128 value and returns its committed width.
+    pub noalloc method &+self.try_push_uleb128(value: u64): usize?
+
+    /// Atomically appends one ZigZag-signed LEB128 value and returns its committed width.
+    pub noalloc method &+self.try_push_zigzag_uleb128(value: i64): usize?
 }

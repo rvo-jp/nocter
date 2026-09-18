@@ -615,7 +615,7 @@ impl BodyChecker<'_, '_> {
                 else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node).into());
                 };
-                Some(ty)
+                Some(self.normalize_lexical_type(ty)?)
             } else if self.token_text(segments[0].token)? == ContextualSpelling::UpperSelf.as_str()
             {
                 Some(self.lexical_self_type(node, segments[0].token)?)
@@ -1154,7 +1154,7 @@ impl BodyChecker<'_, '_> {
         if let Some(entity) = entity {
             self.project_type_entity(token, entity)?;
         }
-        Ok(ty)
+        self.normalize_lexical_type(ty).map_err(Into::into)
     }
 
     pub(super) fn segment_symbol(

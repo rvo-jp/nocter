@@ -158,6 +158,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     argument_pack_uses: HashMap<nocter_model::ParameterId, argument_pack::ArgumentPackUse>,
     local_declarations: HashMap<SyntaxOrigin, LocalBindingId>,
     capture_declarations: HashMap<SyntaxOrigin, CaptureId>,
+    lexical_substitution: crate::TypeSubstitution,
     result_type: TypeId,
     execution: BodyExecution,
     projections: Vec<NodeProjection>,
@@ -197,6 +198,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let substituted = substitution
             .apply_type(self.types, ty)
             .map_err(BodyCheckInternalError::CallSubstitution)?;
+        self.reduce_associated_type(substituted)
+    }
+
+    fn normalize_lexical_type(&mut self, ty: TypeId) -> Result<TypeId, BodyCheckInternalError> {
+        let substituted = self
+            .lexical_substitution
+            .apply_type(self.types, ty)
+            .map_err(BodyCheckInternalError::BodyAssumptions)?;
         self.reduce_associated_type(substituted)
     }
 
@@ -244,8 +253,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let diagnostic_origins = facts.diagnostic_origins();
         let uses = collect_name_uses(names)?;
         let declaration_origins = collect_declaration_origins(source, names)?;
+        let assumptions = body_assumptions
+            .get(source.body())
+            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?;
+        let lexical_substitution = assumptions.substitution().clone();
         let contract = body_contract(graph, types, source)?;
-        let result_type = contract.result;
+        let result_type = lexical_substitution
+            .apply_type(types, contract.result)
+            .map_err(BodyCheckInternalError::BodyAssumptions)?;
         let closure_generic_arguments = nocter_model::GenericApplication::new(
             body_generic_domain(graph, source)?
                 .iter()
@@ -256,12 +271,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                         *parameter,
                     )
                     .ok_or(BodyCheckInternalError::UnknownType(result_type))
+                    .and_then(|value| {
+                        lexical_substitution
+                            .apply_value(types, value)
+                            .map_err(BodyCheckInternalError::BodyAssumptions)
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         );
-        let assumptions = body_assumptions
-            .get(source.body())
-            .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body()))?;
         let opaque_result = OpaqueResultState::for_body(graph, types, source, result_type)?;
         Ok(Self {
             input,
@@ -287,6 +304,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             argument_pack_uses: HashMap::new(),
             local_declarations: declaration_origins.locals,
             capture_declarations: declaration_origins.captures,
+            lexical_substitution,
             result_type,
             execution: contract.execution,
             projections: Vec::new(),

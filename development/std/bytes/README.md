@@ -26,12 +26,16 @@ ZigZag mapping across the complete `i64` range before using that same unsigned r
 Variable-width encoders return the exact committed width, or return `none` without changing output
 when the complete encoding does not fit.
 
+`uleb128_width` and `zigzag_uleb128_width` expose the same canonical width decision used by the
+encoders. Storage owners may reserve or validate a complete destination before exposing writable
+capacity, but they do not reproduce the representation algorithm.
+
 This module does not own input position or storage. Use [`scan.ByteCursor`](../scan/README.md) to
 select and advance through borrowed input, [`fixed.ByteBuffer`](../fixed/README.md) for inline
 bounded staging, and [`io`](../io/README.md) for external streams. Those modules delegate scalar
 conversion to this contract rather than defining additional byte-order rules.
 
-Dynamic output copies one completely encoded fixed-buffer view through
-[`Vec.extend_from_slice`](../vec/README.md). Blocking and asynchronous writers already accept the
-same complete slice. No dynamic or stream adapter owns another endian implementation, and failed
-fixed-buffer encoding cannot expose a partial value to either destination.
+Dynamic byte vectors reserve the reported width and let this module encode directly into
+uncommitted storage. Blocking and asynchronous writers accept the resulting complete slice. No
+storage or stream adapter owns another endian or variable-width implementation, and a failed
+encoding cannot publish a partial value to any destination.

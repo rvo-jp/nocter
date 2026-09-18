@@ -19,3 +19,8 @@ Text separator matching uses exact non-empty UTF-8 text. An empty separator fail
 Fixed-width numeric advances delegate byte interpretation to [`std/bytes`](../bytes/README.md).
 Insufficient input returns `none` without advancing. A successful advance consumes exactly the
 encoded width; the cursor does not retain a second byte-order or scalar-decoding implementation.
+
+Variable-width numeric advances return `PrefixDecode<T>` unchanged from `std/bytes`. Only
+`decoded` advances the cursor, by the exact reported width. `incomplete`, `overflow`, and
+`non_canonical` preserve the original offset, so a streaming caller can append input or report the
+terminal representation failure without reconstructing cursor state.

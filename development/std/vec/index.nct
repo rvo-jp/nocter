@@ -10,6 +10,7 @@
 use /iter.{ExactSizeIterator, Iterator, MutableViewIter, ViewIter}
 use /mem.TryAllocator
 see ./construction.nct
+see ./byte_encoding.nct
 see ./into_iter.nct
 see ./mutation.nct
 see ./slice_extension.nct
@@ -130,4 +131,20 @@ instance Vec<T> {
 
     /// Transfers and returns the last initialized element, or `none` when empty.
     pub method &+self.pop(): T?
+}
+
+instance Vec<T> where T = u8 {
+    /// Appends one canonical unsigned LEB128 value and returns its width.
+    pub method &+self.append_uleb128(value: u64): usize
+
+    /// Appends one canonical unsigned LEB128 value with recoverable allocation failure.
+    /// Failed growth leaves this vector unchanged.
+    pub method &+self.try_append_uleb128(value: u64): usize!
+
+    /// Appends one canonical ZigZag-signed LEB128 value and returns its width.
+    pub method &+self.append_zigzag_uleb128(value: i64): usize
+
+    /// Appends one canonical ZigZag-signed LEB128 value with recoverable allocation failure.
+    /// Failed growth leaves this vector unchanged.
+    pub method &+self.try_append_zigzag_uleb128(value: i64): usize!
 }

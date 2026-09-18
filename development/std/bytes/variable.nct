@@ -58,6 +58,10 @@ noalloc func zigzag_decode(value: u64): i64 {
     return -magnitude - 1
 }
 
+noalloc func zigzag_uleb128_width(value: i64): usize {
+    return uleb128_width(zigzag_encode(value))
+}
+
 noalloc func decode_zigzag_uleb128(input: &[u8]): PrefixDecode<i64> {
     let decoded = decode_uleb128(input)
     match move decoded {

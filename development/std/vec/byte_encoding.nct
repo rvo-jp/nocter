@@ -1,0 +1,65 @@
+//! Transactional variable-width byte encoding into dynamic storage.
+
+see ./index.nct
+see ./mutation.nct
+see ./storage.nct
+
+use /bytes
+use /internal/mem
+use /internal/ptr
+use /internal/safety
+use /ptr as ptr_module
+
+noalloc func uncommitted_bytes(
+    output: &+Vec<u8>,
+    start: usize,
+    width: usize,
+): &+[u8] from output {
+    let start_address = ptr_module.addr(output.ptr) + start
+    let start_pointer: *u8 = ptr.from_addr(start_address)
+    return ptr.slice_from_raw_parts_mut(start_pointer, width)
+}
+
+func try_append_uleb128(output: &+Vec<u8>, value: u64): usize! {
+    let width = bytes.uleb128_width(value)
+    let old_len = output.len
+    let next_len = try_reserve(output, width)?
+    let encoded_width = bytes.encode_uleb128(uncommitted_bytes(output, old_len, width), value)
+        otherwise { return safety.invariant_abort() }
+    if encoded_width != width { return safety.invariant_abort() }
+    output.len = next_len
+    return width
+}
+
+func try_append_zigzag_uleb128(output: &+Vec<u8>, value: i64): usize! {
+    let width = bytes.zigzag_uleb128_width(value)
+    let old_len = output.len
+    let next_len = try_reserve(output, width)?
+    let encoded_width = bytes.encode_zigzag_uleb128(
+        uncommitted_bytes(output, old_len, width),
+        value,
+    ) otherwise { return safety.invariant_abort() }
+    if encoded_width != width { return safety.invariant_abort() }
+    output.len = next_len
+    return width
+}
+
+instance Vec<T> where T = u8 {
+    method &+self.append_uleb128(value: u64): usize {
+        return try_append_uleb128(self, value) catch _ { return mem.allocation_abort() }
+    }
+
+    method &+self.try_append_uleb128(value: u64): usize! {
+        return try_append_uleb128(self, value)?
+    }
+
+    method &+self.append_zigzag_uleb128(value: i64): usize {
+        return try_append_zigzag_uleb128(self, value) catch _ {
+            return mem.allocation_abort()
+        }
+    }
+
+    method &+self.try_append_zigzag_uleb128(value: i64): usize! {
+        return try_append_zigzag_uleb128(self, value)?
+    }
+}

@@ -134,12 +134,18 @@ pub noalloc func encode_f64_le(output: &+[u8], value: f64): bool
 /// Decodes one canonical unsigned LEB128 value from the beginning of a byte view.
 pub noalloc func decode_uleb128(input: &[u8]): PrefixDecode<u64>
 
+/// Returns the canonical unsigned LEB128 width of one value.
+pub noalloc func uleb128_width(value: u64): usize
+
 /// Encodes one unsigned LEB128 value and returns its width.
 /// Returns none and leaves output unchanged when the complete encoding does not fit.
 pub noalloc func encode_uleb128(output: &+[u8], value: u64): usize?
 
 /// Decodes one canonical ZigZag-signed LEB128 value from the beginning of a byte view.
 pub noalloc func decode_zigzag_uleb128(input: &[u8]): PrefixDecode<i64>
+
+/// Returns the canonical ZigZag-signed LEB128 width of one value.
+pub noalloc func zigzag_uleb128_width(value: i64): usize
 
 /// ZigZag-encodes one signed value as unsigned LEB128 and returns its width.
 /// Returns none and leaves output unchanged when the complete encoding does not fit.

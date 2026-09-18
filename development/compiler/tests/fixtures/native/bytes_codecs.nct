@@ -231,8 +231,115 @@ func check_variable_codecs(): i32 {
 
     var short: Vec<u8> = Vec [u8.truncate(9)]
     let _unexpected = bytes.encode_uleb128(&+short as &+[u8], 300) otherwise {
-        if short[0] == 9 { return 0 }
+        if short[0] == 9 { return check_storage_composition() }
         return 38
     }
     return 39
+}
+
+func check_storage_composition(): i32 {
+    var short: ByteBuffer<1> = ByteBuffer.empty()
+    let _unexpected = short.try_push_uleb128(300) otherwise {
+        if short.len() != 0 { return 40 }
+        return check_fixed_variable_storage()
+    }
+    return 41
+}
+
+func check_fixed_variable_storage(): i32 {
+    var output: ByteBuffer<20> = ByteBuffer.empty()
+    let unsigned_width = output.try_push_uleb128(300) otherwise { return 42 }
+    let signed_width = output.try_push_zigzag_uleb128(-65) otherwise { return 43 }
+    if unsigned_width != 2 || signed_width != 2 || output.len() != 4 { return 44 }
+
+    var input = ByteCursor.new(&output as &[u8])
+    let unsigned = input.take_uleb128()
+    match move unsigned {
+        PrefixDecode.decoded(value, consumed) {
+            if value != 300 || consumed != 2 || input.offset() != 2 { return 45 }
+        }
+        _ { return 46 }
+    }
+    let signed = input.take_zigzag_uleb128()
+    match move signed {
+        PrefixDecode.decoded(value, consumed) {
+            if value != -65 || consumed != 2 || !input.is_finished() { return 47 }
+        }
+        _ { return 48 }
+    }
+    return check_cursor_failure_transactions()
+}
+
+func check_cursor_failure_transactions(): i32 {
+    let incomplete_bytes: Vec<u8> = Vec [u8.truncate(128)]
+    var incomplete = ByteCursor.new(&incomplete_bytes as &[u8])
+    let incomplete_result = incomplete.take_uleb128()
+    match move incomplete_result {
+        PrefixDecode.incomplete {
+            if incomplete.offset() != 0 { return 49 }
+        }
+        _ { return 50 }
+    }
+
+    let non_canonical_bytes: Vec<u8> = Vec [u8.truncate(128), u8.truncate(0)]
+    var non_canonical = ByteCursor.new(&non_canonical_bytes as &[u8])
+    let non_canonical_result = non_canonical.take_uleb128()
+    match move non_canonical_result {
+        PrefixDecode.non_canonical {
+            if non_canonical.offset() != 0 { return 51 }
+        }
+        _ { return 52 }
+    }
+
+    let overflow_bytes: Vec<u8> = Vec [
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(255),
+        u8.truncate(2),
+    ]
+    var overflow = ByteCursor.new(&overflow_bytes as &[u8])
+    let overflow_result = overflow.take_uleb128()
+    match move overflow_result {
+        PrefixDecode.overflow {
+            if overflow.offset() != 0 { return 53 }
+        }
+        _ { return 54 }
+    }
+    return check_dynamic_variable_storage()
+}
+
+func check_dynamic_variable_storage(): i32 {
+    var output: Vec<u8> = Vec.empty()
+    let first_width = output.append_uleb128(624485)
+    let second_width = output.append_zigzag_uleb128(-12345)
+    if first_width != 3 || second_width != 3 || output.len() != 6 { return 55 }
+
+    var input = ByteCursor.new(&output as &[u8])
+    let first = input.take_uleb128()
+    match move first {
+        PrefixDecode.decoded(value, consumed) {
+            if value != 624485 || consumed != first_width { return 56 }
+        }
+        _ { return 57 }
+    }
+    let second = input.take_zigzag_uleb128()
+    match move second {
+        PrefixDecode.decoded(value, consumed) {
+            if value != -12345 || consumed != second_width || !input.is_finished() { return 58 }
+        }
+        _ { return 59 }
+    }
+
+    var signed: ByteBuffer<8> = ByteBuffer.empty()
+    if !signed.try_push_i64_le(-2) { return 60 }
+    var signed_input = ByteCursor.new(&signed as &[u8])
+    let signed_value = signed_input.take_i64_le() otherwise { return 61 }
+    if signed_value != -2 || !signed_input.is_finished() { return 62 }
+    return 0
 }
