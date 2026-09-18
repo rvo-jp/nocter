@@ -2,17 +2,23 @@
 
 ## Current State
 
-Nocter v0.57.0 is published and externally audited. v0.58.0 is active as one binary-data and
-protocol-foundation milestone. Its completion definition and responsibility boundaries are the
-authority in [`development/history/milestones/v0.58.0.md`](history/milestones/v0.58.0.md).
+Nocter v0.57.0 is published and externally audited. v0.58.0 implementation is complete as one
+binary-data and protocol-foundation milestone. Its completion definition, responsibility
+boundaries, and closed phase record are the authority in
+[`development/history/milestones/v0.58.0.md`](history/milestones/v0.58.0.md).
 
 ## Next Work
 
-Complete v0.58.0 Phase 5 through editor verification, whole-repository review, and release-candidate
-qualification. Phases 0 through 4 are complete: `std/bytes` owns scalar conversion,
-`scan.ByteCursor` owns exact input progress, `fixed.ByteBuffer<N>` owns transactional bounded
-commit, `Vec<T>` owns batch growth, existing writer contracts transport the same encoded slice, and
-the `binary-record` package passes valid, truncated, invalid-magic, and trailing-input execution.
+Prepare v0.58.0 for release without expanding its completed scope. `std/bytes` owns public scalar
+conversion, `std/internal/bytes` owns its one package implementation, `scan.ByteCursor` owns exact
+input progress, `fixed.ByteBuffer<N>` owns transactional bounded commit, `Vec<T>` owns batch growth,
+and existing writer contracts transport the same encoded slice. The `binary-record` package passes
+valid, truncated, invalid-magic, trailing-input, installed-home, and exact wire-image execution.
+
+The Phase 5 review is recorded in
+[`development/history/reviews/v0.58.0-phase-5.md`](history/reviews/v0.58.0-phase-5.md). Release
+preparation must requalify the versioned archive; Phase 5 deliberately did not change release
+metadata, create a tag, push commits, or publish an asset.
 
 Preserve the v0.57.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

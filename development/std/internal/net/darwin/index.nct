@@ -1,7 +1,8 @@
 //! Darwin ARM64 socket ABI adapter.
 //!
-//! Native address and poll layouts, socket constants, byte order, and raw syscall classification
-//! are confined to this module. Consumers receive closed logical attempts.
+//! Native address and poll layouts, socket constants, and raw syscall classification are confined
+//! to this module. Canonical byte order belongs to std/internal/bytes. Consumers receive closed
+//! logical attempts.
 
 use /internal/net/model.{
     NetworkAddress,
