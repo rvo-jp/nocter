@@ -2,6 +2,7 @@
 
 see ./index.nct
 
+use /internal/bytes as codec
 use /internal/net/model.{
     NetworkAddress,
     NetworkConnectionEvent,
@@ -91,8 +92,8 @@ noalloc func native_address(address: &NetworkAddress): NativeSocketAddress {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]
-    bytes[2] = u8.truncate((address.port / 256) as u64)
-    bytes[3] = u8.truncate((address.port % 256) as u64)
+    bytes[2] = codec.u16_be_high_byte(address.port)
+    bytes[3] = codec.u16_be_low_byte(address.port)
     match address.family {
         NetworkFamily.ipv4 {
             bytes[0] = 16
@@ -133,7 +134,7 @@ noalloc func logical_address(bytes: &[u8; 28], len: usize): NetworkAddress? {
     if len == 16 && bytes[0] == 16 && bytes[1] == 2 {
         return NetworkAddress.ipv4(
             [bytes[4], bytes[5], bytes[6], bytes[7]],
-            (bytes[2] as u16) * 256 + bytes[3] as u16,
+            codec.decode_u16_be_pair(bytes[2], bytes[3]),
         )
     }
     if len == 28 && bytes[0] == 28 && bytes[1] == 30 {
@@ -145,7 +146,7 @@ noalloc func logical_address(bytes: &[u8; 28], len: usize): NetworkAddress? {
         ]
         return NetworkAddress.ipv6(
             address,
-            (bytes[2] as u16) * 256 + bytes[3] as u16,
+            codec.decode_u16_be_pair(bytes[2], bytes[3]),
         )
     }
     return none

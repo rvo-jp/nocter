@@ -2,6 +2,8 @@
 
 see ./index.nct
 
+use /internal/bytes as codec
+
 copy struct Ipv4Address {
     bytes: [u8; 4]
 }
@@ -74,14 +76,6 @@ instance Ipv4Address {
     }
 }
 
-noalloc func segment_high(value: u16): u8 {
-    return u8.truncate((value / 256) as u64)
-}
-
-noalloc func segment_low(value: u16): u8 {
-    return u8.truncate((value % 256) as u64)
-}
-
 construct Ipv6Address {
     noalloc func from_segments(
         first: u16,
@@ -94,22 +88,22 @@ construct Ipv6Address {
         eighth: u16,
     ): Self {
         return ipv6_from_bytes([
-            segment_high(first),
-            segment_low(first),
-            segment_high(second),
-            segment_low(second),
-            segment_high(third),
-            segment_low(third),
-            segment_high(fourth),
-            segment_low(fourth),
-            segment_high(fifth),
-            segment_low(fifth),
-            segment_high(sixth),
-            segment_low(sixth),
-            segment_high(seventh),
-            segment_low(seventh),
-            segment_high(eighth),
-            segment_low(eighth),
+            codec.u16_be_high_byte(first),
+            codec.u16_be_low_byte(first),
+            codec.u16_be_high_byte(second),
+            codec.u16_be_low_byte(second),
+            codec.u16_be_high_byte(third),
+            codec.u16_be_low_byte(third),
+            codec.u16_be_high_byte(fourth),
+            codec.u16_be_low_byte(fourth),
+            codec.u16_be_high_byte(fifth),
+            codec.u16_be_low_byte(fifth),
+            codec.u16_be_high_byte(sixth),
+            codec.u16_be_low_byte(sixth),
+            codec.u16_be_high_byte(seventh),
+            codec.u16_be_low_byte(seventh),
+            codec.u16_be_high_byte(eighth),
+            codec.u16_be_low_byte(eighth),
         ])
     }
 
@@ -138,7 +132,7 @@ instance Ipv6Address {
 
     noalloc method &self.raw_segment(index: usize): u16 {
         let offset = index * 2
-        return (self.bytes[offset] as u16) * 256 + self.bytes[offset + 1] as u16
+        return codec.decode_u16_be_pair(self.bytes[offset], self.bytes[offset + 1])
     }
 
     noalloc method &self.is_unspecified(): bool {

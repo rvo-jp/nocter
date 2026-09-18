@@ -5,6 +5,7 @@ see ./formatting.nct
 see ./values.nct
 
 use /hash.HashState
+use /internal/bytes as codec
 use /internal/ptr
 use /ptr as ptr_module
 use /string.String
@@ -79,8 +80,8 @@ instance SocketAddress {
     noalloc method &self.hash_into(state: &+HashState): void {
         self.ip_address.hash_into(state)
         let port_bytes: [u8; 2] = [
-            u8.truncate((self.port_value / 256) as u64),
-            u8.truncate((self.port_value % 256) as u64),
+            codec.u16_be_high_byte(self.port_value),
+            codec.u16_be_low_byte(self.port_value),
         ]
         write_two_bytes(state, &port_bytes)
         return

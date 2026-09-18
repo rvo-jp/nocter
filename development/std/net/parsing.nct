@@ -3,6 +3,8 @@
 see ./index.nct
 see ./values.nct
 
+use /internal/bytes as codec
+
 noalloc func parse_ipv4_bytes(text: &str): [u8; 4]? {
     let bytes = text.bytes()
     if bytes.len() == 0 { return none }
@@ -135,8 +137,8 @@ noalloc func parse_ipv6(text: &str): Ipv6Address? {
             let tail = text.get_range(component_start, bytes.len()) otherwise { return none }
             let ipv4 = Ipv4Address.parse(tail) otherwise { return none }
             let octets = ipv4.octets()
-            segments[written] = (octets[0] as u16) * 256 + octets[1] as u16
-            segments[written + 1] = (octets[2] as u16) * 256 + octets[3] as u16
+            segments[written] = codec.decode_u16_be_pair(octets[0], octets[1])
+            segments[written + 1] = codec.decode_u16_be_pair(octets[2], octets[3])
             written += 2
             offset = bytes.len()
             continue
