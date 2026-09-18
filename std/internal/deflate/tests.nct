@@ -1,7 +1,6 @@
 //! Contract tests for bounded LSB-first bit input.
 
 see ./index.nct
-see ./huffman.nct
 
 noalloc func rejects_without_change(input: &+BitInput, count: u64, available: u64): bool {
     let _unexpected = input.take(count) otherwise { return input.available() == available }
@@ -67,12 +66,13 @@ noalloc func reads_expected_symbol(
     second_byte: u8,
     expected: usize,
 ): bool {
-    let built = build_huffman(lengths, symbol_count)
-    match move built {
-        HuffmanBuild.ready(table) {
+    var table = HuffmanTable.empty()
+    let built = build_huffman(lengths, symbol_count, &+table)
+    match built {
+        HuffmanBuild.ready {
             var input = BitInput.empty()
             if !input.push_byte(first_byte) || !input.push_byte(second_byte) { return false }
-            let read = read_huffman(&+input, &table)
+            let read = input.read_huffman(&table)
             match read {
                 HuffmanRead.symbol(value) { return value == expected }
                 _ { return false }
@@ -132,8 +132,9 @@ test canonical_huffman_rejects_oversubscribed_and_incomplete_trees {
     lengths[0] = 1
     lengths[1] = 1
     lengths[2] = 1
-    let oversubscribed_result = build_huffman(&lengths, 3)
-    match move oversubscribed_result {
+    var table = HuffmanTable.empty()
+    let oversubscribed_result = build_huffman(&lengths, 3, &+table)
+    match oversubscribed_result {
         HuffmanBuild.oversubscribed {}
         _ { return error.new("std.internal.deflate.huffman", "oversubscribed tree was accepted") }
     }
@@ -141,8 +142,8 @@ test canonical_huffman_rejects_oversubscribed_and_incomplete_trees {
     lengths[0] = 2
     lengths[1] = 2
     lengths[2] = 0
-    let incomplete_result = build_huffman(&lengths, 2)
-    match move incomplete_result {
+    let incomplete_result = build_huffman(&lengths, 2, &+table)
+    match incomplete_result {
         HuffmanBuild.incomplete {}
         _ { return error.new("std.internal.deflate.huffman", "incomplete tree was accepted") }
     }
@@ -151,15 +152,16 @@ test canonical_huffman_rejects_oversubscribed_and_incomplete_trees {
 
 test canonical_huffman_distinguishes_empty_and_invalid_lengths {
     var lengths: [u8; 288] = [0; 288]
-    let empty_result = build_huffman(&lengths, 3)
-    match move empty_result {
+    var table = HuffmanTable.empty()
+    let empty_result = build_huffman(&lengths, 3, &+table)
+    match empty_result {
         HuffmanBuild.empty {}
         _ { return error.new("std.internal.deflate.huffman", "empty tree was not preserved") }
     }
 
     lengths[0] = 16
-    let invalid_result = build_huffman(&lengths, 1)
-    match move invalid_result {
+    let invalid_result = build_huffman(&lengths, 1, &+table)
+    match invalid_result {
         HuffmanBuild.invalid_length {}
         _ { return error.new("std.internal.deflate.huffman", "invalid code length was accepted") }
     }
@@ -171,11 +173,12 @@ test canonical_huffman_does_not_consume_an_incomplete_symbol {
     lengths[0] = 1
     lengths[1] = 2
     lengths[2] = 2
-    let built = build_huffman(&lengths, 3)
-    match move built {
-        HuffmanBuild.ready(table) {
+    var table = HuffmanTable.empty()
+    let built = build_huffman(&lengths, 3, &+table)
+    match built {
+        HuffmanBuild.ready {
             var input = BitInput.empty()
-            let read = read_huffman(&+input, &table)
+            let read = input.read_huffman(&table)
             match read {
                 HuffmanRead.needs_input {
                     if input.available() == 0 { return }

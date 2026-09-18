@@ -43,6 +43,9 @@ const IO_WRITER_IMPLEMENTATION_TEST_SOURCE: &str =
 const MAP_PHASE3_TEST_SOURCE: &str =
     include_str!("../../../tests/fixtures/native/session/map-implementation.nct");
 
+const INFLATE_RUNTIME_TEST_SOURCE: &str =
+    include_str!("../../../tests/fixtures/native/session/inflate-runtime.nct");
+
 struct TestDiscoveredUnit {
     computation: nocter_compiler_computation::CompilerComputation,
     discovered: nocter_compiler_computation::CompilerDiscoveredUnit,

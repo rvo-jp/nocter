@@ -1,0 +1,270 @@
+use std/compress.{InflateDecoder, InflateFailure, InflateStep}
+use std/vec.Vec
+
+noalloc func expected_byte(
+    index: usize,
+    repeated: &[u8],
+    repeated_bytes: usize,
+    suffix: &[u8],
+): u8? {
+    if index < repeated_bytes {
+        if repeated.len() == 0 { return none }
+        return repeated[index % repeated.len()]
+    }
+    let suffix_index = index - repeated_bytes
+    if suffix_index >= suffix.len() { return none }
+    return suffix[suffix_index]
+}
+
+noalloc func valid_output(
+    output: &[u8],
+    start: usize,
+    repeated: &[u8],
+    repeated_bytes: usize,
+    suffix: &[u8],
+): bool {
+    var index: usize = 0
+    while index < output.len() {
+        let expected = expected_byte(start + index, repeated, repeated_bytes, suffix)
+            otherwise { return false }
+        if output[index] != expected { return false }
+        index += 1
+    }
+    return true
+}
+
+func decode_fragmented(
+    compressed: &[u8],
+    repeated: &[u8],
+    repeated_bytes: usize,
+    suffix: &[u8],
+): bool {
+    var decoder = InflateDecoder.new()
+    var input_offset: usize = 0
+    var output_offset: usize = 0
+    var output: Vec<u8> = Vec [u8.truncate(0)]
+    let expected_len = repeated_bytes + suffix.len()
+
+    loop {
+        let input_end = if input_offset < compressed.len() { input_offset + 1 } else { input_offset }
+        let input = compressed.get_range(input_offset, input_end) otherwise { return false }
+        let step = decoder.decode(input, &+output as &+[u8])
+        match step {
+            InflateStep.needs_input(consumed, written) {
+                let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+                if !valid_output(produced, output_offset, repeated, repeated_bytes, suffix) {
+                    return false
+                }
+                input_offset += consumed
+                output_offset += written
+                if input_offset == compressed.len() { return false }
+            }
+            InflateStep.needs_output(consumed, written) {
+                let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+                if !valid_output(produced, output_offset, repeated, repeated_bytes, suffix) {
+                    return false
+                }
+                input_offset += consumed
+                output_offset += written
+                if written == 0 { return false }
+            }
+            InflateStep.finished(consumed, written) {
+                let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+                if !valid_output(produced, output_offset, repeated, repeated_bytes, suffix) {
+                    return false
+                }
+                input_offset += consumed
+                output_offset += written
+                if input_offset != compressed.len() || output_offset != expected_len { return false }
+
+                let empty: Vec<u8> = Vec.empty()
+                let empty_input: &[u8] = &empty as &[u8]
+                let terminal = decoder.decode(empty_input, &+output as &+[u8])
+                match terminal {
+                    InflateStep.finished(terminal_consumed, terminal_written) {
+                        return terminal_consumed == 0 && terminal_written == 0
+                    }
+                    _ { return false }
+                }
+            }
+            InflateStep.invalid(_, _, _) { return false }
+        }
+    }
+}
+
+func decode_whole(
+    compressed: &[u8],
+    repeated: &[u8],
+    repeated_bytes: usize,
+    suffix: &[u8],
+): bool {
+    let expected_len = repeated_bytes + suffix.len()
+    var output: Vec<u8> = Vec.with_capacity(expected_len)
+    var index: usize = 0
+    while index < expected_len {
+        output.push(u8.truncate(0))
+        index += 1
+    }
+    var decoder = InflateDecoder.new()
+    let step = decoder.decode(compressed, &+output as &+[u8])
+    match step {
+        InflateStep.finished(consumed, written) {
+            if consumed != compressed.len() || written != expected_len { return false }
+            let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+            let valid = valid_output(produced, 0, repeated, repeated_bytes, suffix)
+            return valid
+        }
+        _ { return false }
+    }
+}
+
+noalloc func failure_code(failure: InflateFailure): i32 {
+    match failure {
+        InflateFailure.reserved_block_type { return 1 }
+        InflateFailure.stored_length_mismatch { return 2 }
+        InflateFailure.incomplete_tree { return 3 }
+        InflateFailure.distance_too_far { return 4 }
+        _ { return 0 }
+    }
+}
+
+func rejects_as(compressed: &[u8], expected_code: i32): bool {
+    var decoder = InflateDecoder.new()
+    var output: Vec<u8> = Vec [u8.truncate(0)]
+    let step = decoder.decode(compressed, &+output as &+[u8])
+    match step {
+        InflateStep.invalid(consumed, written, failure) {
+            if consumed != compressed.len() || written != 0 {
+                return false
+            }
+            if failure_code(failure) != expected_code { return false }
+
+            let empty: Vec<u8> = Vec.empty()
+            let terminal = decoder.decode(&empty as &[u8], &+output as &+[u8])
+            match terminal {
+                InflateStep.invalid(terminal_consumed, terminal_written, terminal_failure) {
+                    return terminal_consumed == 0
+                        && terminal_written == 0
+                        && failure_code(terminal_failure) == expected_code
+                }
+                _ { return false }
+            }
+        }
+        _ { return false }
+    }
+}
+
+func main(): i32 {
+    let stored: Vec<u8> = Vec [
+        u8.truncate(1), u8.truncate(3), u8.truncate(0), u8.truncate(252),
+        u8.truncate(255), u8.truncate(97), u8.truncate(98), u8.truncate(99),
+    ]
+    if !decode_fragmented(&stored as &[u8], "abc".bytes(), 3, "".bytes()) { return 1 }
+    if !decode_whole(&stored as &[u8], "abc".bytes(), 3, "".bytes()) { return 2 }
+
+    let fixed: Vec<u8> = Vec [
+        u8.truncate(203), u8.truncate(72), u8.truncate(205), u8.truncate(201),
+        u8.truncate(201), u8.truncate(87), u8.truncate(200), u8.truncate(64),
+        u8.truncate(144), u8.truncate(0),
+    ]
+    if !decode_fragmented(
+        &fixed as &[u8],
+        "hello hello hello".bytes(),
+        17,
+        "".bytes(),
+    ) { return 3 }
+    if !decode_whole(
+        &fixed as &[u8],
+        "hello hello hello".bytes(),
+        17,
+        "".bytes(),
+    ) { return 4 }
+
+    let dynamic: Vec<u8> = Vec [
+        u8.truncate(237), u8.truncate(203), u8.truncate(209), u8.truncate(13),
+        u8.truncate(192), u8.truncate(32), u8.truncate(8), u8.truncate(5),
+        u8.truncate(192), u8.truncate(85), u8.truncate(222), u8.truncate(4),
+        u8.truncate(29), u8.truncate(197), u8.truncate(33), u8.truncate(42),
+        u8.truncate(36), u8.truncate(229), u8.truncate(67), u8.truncate(94),
+        u8.truncate(3), u8.truncate(26), u8.truncate(211), u8.truncate(237),
+        u8.truncate(187), u8.truncate(135), u8.truncate(225), u8.truncate(254),
+        u8.truncate(175), u8.truncate(177), u8.truncate(79), u8.truncate(13),
+        u8.truncate(116), u8.truncate(142), u8.truncate(55), u8.truncate(52),
+        u8.truncate(211), u8.truncate(232), u8.truncate(88), u8.truncate(169),
+        u8.truncate(9), u8.truncate(186), u8.truncate(226), u8.truncate(230),
+        u8.truncate(114), u8.truncate(81), u8.truncate(193), u8.truncate(99),
+        u8.truncate(57), u8.truncate(25), u8.truncate(31), u8.truncate(182),
+        u8.truncate(185), u8.truncate(112), u8.truncate(95), u8.truncate(104),
+        u8.truncate(117), u8.truncate(234), u8.truncate(212), u8.truncate(57),
+        u8.truncate(242), u8.truncate(252),
+    ]
+    let phrase = "Nocter compression uses one bounded history window. ".bytes()
+    if !decode_fragmented(&dynamic as &[u8], phrase, 1040, "".bytes()) { return 5 }
+    if !decode_whole(&dynamic as &[u8], phrase, 1040, "".bytes()) { return 6 }
+
+    let wrapped: Vec<u8> = Vec [
+        u8.truncate(237), u8.truncate(199), u8.truncate(203), u8.truncate(13),
+        u8.truncate(128), u8.truncate(32), u8.truncate(20), u8.truncate(0),
+        u8.truncate(176), u8.truncate(137), u8.truncate(24), u8.truncate(234),
+        u8.truncate(33), u8.truncate(126), u8.truncate(64), u8.truncate(20),
+        u8.truncate(14), u8.truncate(238), u8.truncate(31), u8.truncate(111),
+        u8.truncate(46), u8.truncate(97), u8.truncate(47), u8.truncate(77),
+        u8.truncate(26), u8.truncate(121), u8.truncate(41), u8.truncate(235),
+        u8.truncate(182), u8.truncate(31), u8.truncate(181), u8.truncate(157),
+        u8.truncate(253), u8.truncate(186), u8.truncate(199), u8.truncate(12),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(119), u8.truncate(119),
+        u8.truncate(119), u8.truncate(119), u8.truncate(255),
+        u8.truncate(229), u8.truncate(159), u8.truncate(168), u8.truncate(61),
+        u8.truncate(125), u8.truncate(188),
+    ]
+    if !decode_fragmented(
+        &wrapped as &[u8],
+        "abcdefghijklmnop".bytes(),
+        65536,
+        "tail-tail-tail".bytes(),
+    ) { return 7 }
+
+    let reserved: Vec<u8> = Vec [u8.truncate(7)]
+    if !rejects_as(&reserved as &[u8], 1) { return 8 }
+    let mismatched_stored: Vec<u8> = Vec [
+        u8.truncate(1), u8.truncate(3), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    if !rejects_as(&mismatched_stored as &[u8], 2) { return 9 }
+    let empty_dynamic_tree: Vec<u8> = Vec [
+        u8.truncate(5), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    if !rejects_as(&empty_dynamic_tree as &[u8], 3) { return 10 }
+    let premature_match: Vec<u8> = Vec [u8.truncate(3), u8.truncate(2)]
+    if !rejects_as(&premature_match as &[u8], 4) { return 11 }
+    return 0
+}

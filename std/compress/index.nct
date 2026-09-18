@@ -3,7 +3,16 @@
 //! This module owns compressed representation and decoder progress. External transport remains in
 //! std/io, archive structure remains in std/archive, and integrity checks remain in std/checksum.
 
+see ./decoder.nct
+see ./storage.nct
 see ./tests.nct
+
+/// Allocation-free incremental state for one raw DEFLATE stream.
+///
+/// The decoder retains a 32 KiB history window and format state, but never retains caller input or
+/// output slices. One value decodes exactly one stream and remains terminal after completion or
+/// invalidity.
+pub struct InflateDecoder
 
 /// One terminal reason that makes the inspected DEFLATE stream invalid.
 pub enum InflateFailure {
@@ -29,4 +38,17 @@ pub enum InflateStep {
     needs_output(input_consumed: usize, output_written: usize)
     finished(input_consumed: usize, output_written: usize)
     invalid(input_consumed: usize, output_written: usize, failure: InflateFailure)
+}
+
+construct InflateDecoder {
+    /// Constructs a decoder at the beginning of one raw DEFLATE stream.
+    pub noalloc func new(): Self
+}
+
+instance InflateDecoder {
+    /// Advances the stream with caller-owned input and output storage.
+    ///
+    /// Reported counts apply only to this call. Resume with the unconsumed input suffix and fresh
+    /// output capacity. Empty input or output is valid, and terminal calls consume and write zero.
+    pub noalloc method &+self.decode(input: &[u8], output: &+[u8]): InflateStep
 }

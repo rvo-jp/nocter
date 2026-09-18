@@ -16,7 +16,7 @@ pub(/) struct HuffmanTable
 
 /// The complete structural result of constructing one canonical Huffman table.
 pub(/) enum HuffmanBuild {
-    ready(table: HuffmanTable)
+    ready
     empty
     invalid_length
     too_many_symbols
@@ -33,6 +33,11 @@ pub(/) enum HuffmanRead {
 
 construct BitInput {
     /// Constructs an empty byte-aligned reservoir.
+    pub(/) noalloc func empty(): Self
+}
+
+construct HuffmanTable {
+    /// Constructs an empty table for decoder state that has not received a block tree yet.
     pub(/) noalloc func empty(): Self
 }
 
@@ -54,4 +59,14 @@ instance BitInput {
 
     /// Discards pending bits through the next byte boundary and returns the discarded count.
     pub(/) noalloc method &+self.align_to_byte(): u64
+
+    /// Reads one complete canonical symbol without consuming an incomplete prefix.
+    pub(/) noalloc method &+self.read_huffman(table: &HuffmanTable): HuffmanRead
 }
+
+/// Builds one bounded canonical table after validating the complete code-length set.
+pub(/) noalloc func build_huffman(
+    lengths: &[u8; 288],
+    symbol_count: usize,
+    output: &+HuffmanTable,
+): HuffmanBuild

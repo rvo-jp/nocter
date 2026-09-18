@@ -3,7 +3,11 @@
 see ./index.nct
 see ./storage.nct
 
-noalloc func build_huffman(lengths: &[u8; 288], symbol_count: usize): HuffmanBuild {
+noalloc func build_huffman(
+    lengths: &[u8; 288],
+    symbol_count: usize,
+    output: &+HuffmanTable,
+): HuffmanBuild {
     if symbol_count > 288 { return HuffmanBuild.too_many_symbols }
 
     var counts: [usize; 16] = [0; 16]
@@ -51,32 +55,33 @@ noalloc func build_huffman(lengths: &[u8; 288], symbol_count: usize): HuffmanBui
         symbol += 1
     }
 
-    return HuffmanBuild.ready(HuffmanTable {
-        counts: counts,
-        symbols: symbols,
-        max_bits: max_bits,
-    })
+    output.counts = counts
+    output.symbols = symbols
+    output.max_bits = max_bits
+    return HuffmanBuild.ready
 }
 
-noalloc func read_huffman(input: &+BitInput, table: &HuffmanTable): HuffmanRead {
-    var code: usize = 0
-    var first: usize = 0
-    var symbol_index: usize = 0
-    var bits: usize = 1
-    while bits <= table.max_bits {
-        let prefix = input.peek(bits as u64) otherwise { return HuffmanRead.needs_input }
-        let bit = (prefix >> ((bits - 1) as u64)) as usize
-        code += bit
-        let count = table.counts[bits]
-        if code < first + count {
-            let consumed = input.take(bits as u64) otherwise { return HuffmanRead.invalid }
-            if consumed != prefix { return HuffmanRead.invalid }
-            return HuffmanRead.symbol(table.symbols[symbol_index + code - first])
+instance BitInput {
+    noalloc method &+self.read_huffman(table: &HuffmanTable): HuffmanRead {
+        var code: usize = 0
+        var first: usize = 0
+        var symbol_index: usize = 0
+        var bits: usize = 1
+        while bits <= table.max_bits {
+            let prefix = self.peek(bits as u64) otherwise { return HuffmanRead.needs_input }
+            let bit = (prefix >> ((bits - 1) as u64)) as usize
+            code += bit
+            let count = table.counts[bits]
+            if code < first + count {
+                let consumed = self.take(bits as u64) otherwise { return HuffmanRead.invalid }
+                if consumed != prefix { return HuffmanRead.invalid }
+                return HuffmanRead.symbol(table.symbols[symbol_index + code - first])
+            }
+            symbol_index += count
+            first = (first + count) * 2
+            code *= 2
+            bits += 1
         }
-        symbol_index += count
-        first = (first + count) * 2
-        code *= 2
-        bits += 1
+        return HuffmanRead.invalid
     }
-    return HuffmanRead.invalid
 }

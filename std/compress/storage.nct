@@ -1,0 +1,70 @@
+//! Private state for one raw DEFLATE stream.
+
+see ./index.nct
+
+use /internal/deflate
+
+enum InflatePhase {
+    block_header
+    stored_length
+    stored_complement
+    stored_body
+    dynamic_counts
+    dynamic_code_lengths
+    dynamic_lengths
+    dynamic_repeat
+    compressed_symbol
+    literal_output
+    length_extra
+    distance_symbol
+    distance_extra
+    match_copy
+    finished
+    invalid
+}
+
+enum TableSetup {
+    ready
+    invalid(failure: InflateFailure)
+}
+
+enum BitFill {
+    ready(input_consumed: usize)
+    needs_input(input_consumed: usize)
+}
+
+struct InflateDecoder {
+    bits: deflate.BitInput
+    phase: InflatePhase
+    final_block: bool
+
+    stored_length: usize
+
+    literal_table: deflate.HuffmanTable
+    distance_table: deflate.HuffmanTable
+    code_length_table: deflate.HuffmanTable
+    literal_lengths: [u8; 288]
+    distance_lengths: [u8; 288]
+    code_lengths: [u8; 288]
+    literal_count: usize
+    distance_count: usize
+    code_length_count: usize
+    code_length_index: usize
+    length_index: usize
+    previous_length: u8
+    repeat_value: u8
+    repeat_base: usize
+    repeat_extra: u64
+
+    pending_base: usize
+    pending_extra: u64
+    pending_literal: u8
+    match_length: usize
+    match_distance: usize
+
+    history: [u8; 32768]
+    history_position: usize
+    history_len: usize
+
+    failure: InflateFailure
+}

@@ -1,0 +1,740 @@
+//! Incremental raw-DEFLATE decoding over caller-owned slices.
+
+see ./index.nct
+see ./storage.nct
+
+use /internal/deflate
+use /internal/deflate.{HuffmanBuild, HuffmanRead}
+
+construct InflateDecoder {
+    noalloc func new(): Self {
+        return InflateDecoder {
+            bits: deflate.BitInput.empty(),
+            phase: InflatePhase.block_header,
+            final_block: false,
+            stored_length: 0,
+            literal_table: deflate.HuffmanTable.empty(),
+            distance_table: deflate.HuffmanTable.empty(),
+            code_length_table: deflate.HuffmanTable.empty(),
+            literal_lengths: [0; 288],
+            distance_lengths: [0; 288],
+            code_lengths: [0; 288],
+            literal_count: 0,
+            distance_count: 0,
+            code_length_count: 0,
+            code_length_index: 0,
+            length_index: 0,
+            previous_length: 0,
+            repeat_value: 0,
+            repeat_base: 0,
+            repeat_extra: 0,
+            pending_base: 0,
+            pending_extra: 0,
+            pending_literal: 0,
+            match_length: 0,
+            match_distance: 0,
+            history: [0; 32768],
+            history_position: 0,
+            history_len: 0,
+            failure: InflateFailure.reserved_block_type,
+        }
+    }
+}
+
+noalloc func fill_bits(
+    bits: &+deflate.BitInput,
+    input: &[u8],
+    start: usize,
+    required: u64,
+): BitFill {
+    var input_index = start
+    while bits.available() < required {
+        if input_index == input.len() { return BitFill.needs_input(input_index) }
+        if !bits.push_byte(input[input_index]) { return BitFill.needs_input(input_index) }
+        input_index += 1
+    }
+    return BitFill.ready(input_index)
+}
+
+noalloc func fail_inflate(
+    decoder: &+InflateDecoder,
+    input_consumed: usize,
+    output_written: usize,
+    failure: InflateFailure,
+): InflateStep {
+    decoder.phase = InflatePhase.invalid
+    decoder.failure = failure
+    return InflateStep.invalid(input_consumed, output_written, failure)
+}
+
+noalloc func emit_byte(
+    decoder: &+InflateDecoder,
+    output: &+[u8],
+    output_index: usize,
+    value: u8,
+): usize? {
+    if output_index == output.len() { return none }
+    output[output_index] = value
+    decoder.history[decoder.history_position] = value
+    decoder.history_position = (decoder.history_position + 1) % 32768
+    if decoder.history_len < 32768 { decoder.history_len += 1 }
+    return output_index + 1
+}
+
+noalloc func code_length_position(index: usize): usize {
+    if index == 0 { return 16 }
+    if index == 1 { return 17 }
+    if index == 2 { return 18 }
+    let offset = index - 3
+    if offset == 0 { return 0 }
+    if offset % 2 == 1 { return 7 + ((offset + 1) / 2) }
+    return 8 - (offset / 2)
+}
+
+noalloc func literal_length_base(symbol: usize): usize {
+    let index = symbol - 257
+    if index < 8 { return index + 3 }
+    if index == 28 { return 258 }
+    let extra = (index - 4) / 4
+    let first = (extra * 4) + 4
+    return 3 + (1 << (extra + 2)) + ((index - first) << extra)
+}
+
+noalloc func literal_length_extra(symbol: usize): u64 {
+    let index = symbol - 257
+    if index < 8 || index == 28 { return 0 }
+    return ((index - 4) / 4) as u64
+}
+
+noalloc func distance_base(symbol: usize): usize {
+    if symbol < 4 { return symbol + 1 }
+    let extra = (symbol / 2) - 1
+    return 1 + (1 << (extra + 1)) + ((symbol % 2) << extra)
+}
+
+noalloc func distance_extra(symbol: usize): u64 {
+    if symbol < 4 { return 0 }
+    return ((symbol / 2) - 1) as u64
+}
+
+noalloc func setup_fixed_tables(decoder: &+InflateDecoder): TableSetup {
+    var symbol: usize = 0
+    while symbol <= 143 {
+        decoder.literal_lengths[symbol] = 8
+        symbol += 1
+    }
+    while symbol <= 255 {
+        decoder.literal_lengths[symbol] = 9
+        symbol += 1
+    }
+    while symbol <= 279 {
+        decoder.literal_lengths[symbol] = 7
+        symbol += 1
+    }
+    while symbol <= 287 {
+        decoder.literal_lengths[symbol] = 8
+        symbol += 1
+    }
+    symbol = 0
+    while symbol < 32 {
+        decoder.distance_lengths[symbol] = 5
+        symbol += 1
+    }
+
+    let literal_build = deflate.build_huffman(
+        &decoder.literal_lengths,
+        288,
+        &+decoder.literal_table,
+    )
+    match literal_build {
+        HuffmanBuild.ready {}
+        HuffmanBuild.oversubscribed {
+            return TableSetup.invalid(InflateFailure.oversubscribed_tree)
+        }
+        _ { return TableSetup.invalid(InflateFailure.incomplete_tree) }
+    }
+    let distance = deflate.build_huffman(
+        &decoder.distance_lengths,
+        32,
+        &+decoder.distance_table,
+    )
+    match distance {
+        HuffmanBuild.ready { return TableSetup.ready }
+        HuffmanBuild.oversubscribed {
+            return TableSetup.invalid(InflateFailure.oversubscribed_tree)
+        }
+        _ { return TableSetup.invalid(InflateFailure.incomplete_tree) }
+    }
+}
+
+noalloc func clear_dynamic_lengths(decoder: &+InflateDecoder): void {
+    var index: usize = 0
+    while index < 288 {
+        decoder.literal_lengths[index] = 0
+        decoder.distance_lengths[index] = 0
+        decoder.code_lengths[index] = 0
+        index += 1
+    }
+    return
+}
+
+noalloc func set_dynamic_length(
+    decoder: &+InflateDecoder,
+    index: usize,
+    value: u8,
+): bool {
+    let total = decoder.literal_count + decoder.distance_count
+    if index >= total { return false }
+    if index < decoder.literal_count {
+        decoder.literal_lengths[index] = value
+    } else {
+        decoder.distance_lengths[index - decoder.literal_count] = value
+    }
+    return true
+}
+
+noalloc func setup_dynamic_tables(decoder: &+InflateDecoder): TableSetup {
+    if decoder.literal_lengths[256] == 0 {
+        return TableSetup.invalid(InflateFailure.missing_end_of_block)
+    }
+    let literal_build = deflate.build_huffman(
+        &decoder.literal_lengths,
+        decoder.literal_count,
+        &+decoder.literal_table,
+    )
+    match literal_build {
+        HuffmanBuild.ready {}
+        HuffmanBuild.oversubscribed {
+            return TableSetup.invalid(InflateFailure.oversubscribed_tree)
+        }
+        _ { return TableSetup.invalid(InflateFailure.incomplete_tree) }
+    }
+
+    let distance = deflate.build_huffman(
+        &decoder.distance_lengths,
+        decoder.distance_count,
+        &+decoder.distance_table,
+    )
+    match distance {
+        HuffmanBuild.ready {}
+        HuffmanBuild.empty {
+            decoder.distance_table = deflate.HuffmanTable.empty()
+        }
+        HuffmanBuild.oversubscribed {
+            return TableSetup.invalid(InflateFailure.oversubscribed_tree)
+        }
+        _ { return TableSetup.invalid(InflateFailure.incomplete_tree) }
+    }
+    return TableSetup.ready
+}
+
+instance InflateDecoder {
+    noalloc method &+self.decode(input: &[u8], output: &+[u8]): InflateStep {
+        var input_index: usize = 0
+        var output_index: usize = 0
+
+        loop {
+            match self.phase {
+                InflatePhase.finished {
+                    return InflateStep.finished(input_index, output_index)
+                }
+                InflatePhase.invalid {
+                    return InflateStep.invalid(input_index, output_index, self.failure)
+                }
+                InflatePhase.block_header {
+                    let filled = fill_bits(&+self.bits, input, input_index, 3)
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let header = self.bits.take(3) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.reserved_block_type,
+                        )
+                    }
+                    self.final_block = header % 2 == 1
+                    let block_type = (header / 2) % 4
+                    if block_type == 0 {
+                        let _ = self.bits.align_to_byte()
+                        self.phase = InflatePhase.stored_length
+                    } else if block_type == 1 {
+                        let setup = setup_fixed_tables(self)
+                        match setup {
+                            TableSetup.ready { self.phase = InflatePhase.compressed_symbol }
+                            TableSetup.invalid(failure) {
+                                return fail_inflate(self, input_index, output_index, failure)
+                            }
+                        }
+                    } else if block_type == 2 {
+                        clear_dynamic_lengths(self)
+                        self.phase = InflatePhase.dynamic_counts
+                    } else {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.reserved_block_type,
+                        )
+                    }
+                }
+                InflatePhase.stored_length {
+                    let filled = fill_bits(&+self.bits, input, input_index, 16)
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let length = self.bits.take(16) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.stored_length_mismatch,
+                        )
+                    }
+                    self.stored_length = length as usize
+                    self.phase = InflatePhase.stored_complement
+                }
+                InflatePhase.stored_complement {
+                    let filled = fill_bits(&+self.bits, input, input_index, 16)
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let complement = self.bits.take(16) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.stored_length_mismatch,
+                        )
+                    }
+                    if (self.stored_length + (complement as usize)) % 65536 != 65535 {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.stored_length_mismatch,
+                        )
+                    }
+                    self.phase = InflatePhase.stored_body
+                }
+                InflatePhase.stored_body {
+                    while self.stored_length != 0 {
+                        if output_index == output.len() {
+                            return InflateStep.needs_output(input_index, output_index)
+                        }
+                        if input_index == input.len() {
+                            return InflateStep.needs_input(input_index, output_index)
+                        }
+                        let next = emit_byte(self, output, output_index, input[input_index])
+                            otherwise {
+                                return InflateStep.needs_output(input_index, output_index)
+                            }
+                        output_index = next
+                        input_index += 1
+                        self.stored_length -= 1
+                    }
+                    if self.final_block {
+                        self.phase = InflatePhase.finished
+                    } else {
+                        self.phase = InflatePhase.block_header
+                    }
+                }
+                InflatePhase.dynamic_counts {
+                    let filled = fill_bits(&+self.bits, input, input_index, 14)
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let literal_bits = self.bits.take(5) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.incomplete_tree,
+                        )
+                    }
+                    let distance_bits = self.bits.take(5) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.incomplete_tree,
+                        )
+                    }
+                    let code_bits = self.bits.take(4) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.incomplete_tree,
+                        )
+                    }
+                    self.literal_count = (literal_bits as usize) + 257
+                    self.distance_count = (distance_bits as usize) + 1
+                    self.code_length_count = (code_bits as usize) + 4
+                    if self.literal_count > 286 {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.invalid_literal_length_symbol,
+                        )
+                    }
+                    self.code_length_index = 0
+                    self.length_index = 0
+                    self.previous_length = 0
+                    self.phase = InflatePhase.dynamic_code_lengths
+                }
+                InflatePhase.dynamic_code_lengths {
+                    if self.code_length_index == self.code_length_count {
+                        let built = deflate.build_huffman(
+                            &self.code_lengths,
+                            19,
+                            &+self.code_length_table,
+                        )
+                        match built {
+                            HuffmanBuild.ready {
+                                self.phase = InflatePhase.dynamic_lengths
+                            }
+                            HuffmanBuild.oversubscribed {
+                                return fail_inflate(
+                                    self,
+                                    input_index,
+                                    output_index,
+                                    InflateFailure.oversubscribed_tree,
+                                )
+                            }
+                            _ {
+                                return fail_inflate(
+                                    self,
+                                    input_index,
+                                    output_index,
+                                    InflateFailure.incomplete_tree,
+                                )
+                            }
+                        }
+                    } else {
+                        let filled = fill_bits(&+self.bits, input, input_index, 3)
+                        match filled {
+                            BitFill.ready(consumed) { input_index = consumed }
+                            BitFill.needs_input(consumed) {
+                                return InflateStep.needs_input(consumed, output_index)
+                            }
+                        }
+                        let length = self.bits.take(3) otherwise {
+                            return fail_inflate(
+                                self,
+                                input_index,
+                                output_index,
+                                InflateFailure.incomplete_tree,
+                            )
+                        }
+                        let position = code_length_position(self.code_length_index)
+                        self.code_lengths[position] = u8.truncate(length)
+                        self.code_length_index += 1
+                    }
+                }
+                InflatePhase.dynamic_lengths {
+                    let total = self.literal_count + self.distance_count
+                    if self.length_index == total {
+                        let setup = setup_dynamic_tables(self)
+                        match setup {
+                            TableSetup.ready { self.phase = InflatePhase.compressed_symbol }
+                            TableSetup.invalid(failure) {
+                                return fail_inflate(self, input_index, output_index, failure)
+                            }
+                        }
+                    } else {
+                        let read = self.bits.read_huffman(&self.code_length_table)
+                        match read {
+                            HuffmanRead.symbol(value) {
+                                if value <= 15 {
+                                    let length = u8.truncate(value as u64)
+                                    let destination = self.length_index
+                                    if !set_dynamic_length(self, destination, length) {
+                                        return fail_inflate(
+                                            self,
+                                            input_index,
+                                            output_index,
+                                            InflateFailure.invalid_code_length_repeat,
+                                        )
+                                    }
+                                    self.previous_length = length
+                                    self.length_index += 1
+                                } else if value == 16 {
+                                    if self.length_index == 0 {
+                                        return fail_inflate(
+                                            self,
+                                            input_index,
+                                            output_index,
+                                            InflateFailure.invalid_code_length_repeat,
+                                        )
+                                    }
+                                    self.repeat_value = self.previous_length
+                                    self.repeat_base = 3
+                                    self.repeat_extra = 2
+                                    self.phase = InflatePhase.dynamic_repeat
+                                } else if value == 17 {
+                                    self.repeat_value = 0
+                                    self.repeat_base = 3
+                                    self.repeat_extra = 3
+                                    self.phase = InflatePhase.dynamic_repeat
+                                } else if value == 18 {
+                                    self.repeat_value = 0
+                                    self.repeat_base = 11
+                                    self.repeat_extra = 7
+                                    self.phase = InflatePhase.dynamic_repeat
+                                } else {
+                                    return fail_inflate(
+                                        self,
+                                        input_index,
+                                        output_index,
+                                        InflateFailure.invalid_code_length_repeat,
+                                    )
+                                }
+                            }
+                            HuffmanRead.needs_input {
+                                if input_index == input.len() {
+                                    return InflateStep.needs_input(input_index, output_index)
+                                }
+                                if !self.bits.push_byte(input[input_index]) {
+                                    return InflateStep.needs_input(input_index, output_index)
+                                }
+                                input_index += 1
+                            }
+                            HuffmanRead.invalid {
+                                return fail_inflate(
+                                    self,
+                                    input_index,
+                                    output_index,
+                                    InflateFailure.incomplete_tree,
+                                )
+                            }
+                        }
+                    }
+                }
+                InflatePhase.dynamic_repeat {
+                    let filled = fill_bits(
+                        &+self.bits,
+                        input,
+                        input_index,
+                        self.repeat_extra,
+                    )
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let extra = self.bits.take(self.repeat_extra) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.invalid_code_length_repeat,
+                        )
+                    }
+                    let repeat_count = self.repeat_base + (extra as usize)
+                    let total = self.literal_count + self.distance_count
+                    if repeat_count > total - self.length_index {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.invalid_code_length_repeat,
+                        )
+                    }
+                    var repeated: usize = 0
+                    while repeated < repeat_count {
+                        let destination = self.length_index
+                        let repeated_value = self.repeat_value
+                        if !set_dynamic_length(self, destination, repeated_value) {
+                            return fail_inflate(
+                                self,
+                                input_index,
+                                output_index,
+                                InflateFailure.invalid_code_length_repeat,
+                            )
+                        }
+                        self.length_index += 1
+                        repeated += 1
+                    }
+                    self.previous_length = self.repeat_value
+                    self.phase = InflatePhase.dynamic_lengths
+                }
+                InflatePhase.compressed_symbol {
+                    let read = self.bits.read_huffman(&self.literal_table)
+                    match read {
+                        HuffmanRead.symbol(value) {
+                            if value < 256 {
+                                self.pending_literal = u8.truncate(value as u64)
+                                self.phase = InflatePhase.literal_output
+                            } else if value == 256 {
+                                if self.final_block {
+                                    self.phase = InflatePhase.finished
+                                } else {
+                                    self.phase = InflatePhase.block_header
+                                }
+                            } else if value <= 285 {
+                                self.pending_base = literal_length_base(value)
+                                self.pending_extra = literal_length_extra(value)
+                                self.phase = InflatePhase.length_extra
+                            } else {
+                                return fail_inflate(
+                                    self,
+                                    input_index,
+                                    output_index,
+                                    InflateFailure.invalid_literal_length_symbol,
+                                )
+                            }
+                        }
+                        HuffmanRead.needs_input {
+                            if input_index == input.len() {
+                                return InflateStep.needs_input(input_index, output_index)
+                            }
+                            if !self.bits.push_byte(input[input_index]) {
+                                return InflateStep.needs_input(input_index, output_index)
+                            }
+                            input_index += 1
+                        }
+                        HuffmanRead.invalid {
+                            return fail_inflate(
+                                self,
+                                input_index,
+                                output_index,
+                                InflateFailure.invalid_literal_length_symbol,
+                            )
+                        }
+                    }
+                }
+                InflatePhase.literal_output {
+                    let literal_value = self.pending_literal
+                    let next = emit_byte(self, output, output_index, literal_value)
+                        otherwise {
+                            return InflateStep.needs_output(input_index, output_index)
+                        }
+                    output_index = next
+                    self.phase = InflatePhase.compressed_symbol
+                }
+                InflatePhase.length_extra {
+                    let filled = fill_bits(
+                        &+self.bits,
+                        input,
+                        input_index,
+                        self.pending_extra,
+                    )
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let extra = self.bits.take(self.pending_extra) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.invalid_literal_length_symbol,
+                        )
+                    }
+                    self.match_length = self.pending_base + (extra as usize)
+                    self.phase = InflatePhase.distance_symbol
+                }
+                InflatePhase.distance_symbol {
+                    let read = self.bits.read_huffman(&self.distance_table)
+                    match read {
+                        HuffmanRead.symbol(value) {
+                            if value > 29 {
+                                return fail_inflate(
+                                    self,
+                                    input_index,
+                                    output_index,
+                                    InflateFailure.invalid_distance_symbol,
+                                )
+                            }
+                            self.pending_base = distance_base(value)
+                            self.pending_extra = distance_extra(value)
+                            self.phase = InflatePhase.distance_extra
+                        }
+                        HuffmanRead.needs_input {
+                            if input_index == input.len() {
+                                return InflateStep.needs_input(input_index, output_index)
+                            }
+                            if !self.bits.push_byte(input[input_index]) {
+                                return InflateStep.needs_input(input_index, output_index)
+                            }
+                            input_index += 1
+                        }
+                        HuffmanRead.invalid {
+                            return fail_inflate(
+                                self,
+                                input_index,
+                                output_index,
+                                InflateFailure.invalid_distance_symbol,
+                            )
+                        }
+                    }
+                }
+                InflatePhase.distance_extra {
+                    let filled = fill_bits(
+                        &+self.bits,
+                        input,
+                        input_index,
+                        self.pending_extra,
+                    )
+                    match filled {
+                        BitFill.ready(consumed) { input_index = consumed }
+                        BitFill.needs_input(consumed) {
+                            return InflateStep.needs_input(consumed, output_index)
+                        }
+                    }
+                    let extra = self.bits.take(self.pending_extra) otherwise {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.invalid_distance_symbol,
+                        )
+                    }
+                    self.match_distance = self.pending_base + (extra as usize)
+                    if self.match_distance == 0 || self.match_distance > self.history_len {
+                        return fail_inflate(
+                            self,
+                            input_index,
+                            output_index,
+                            InflateFailure.distance_too_far,
+                        )
+                    }
+                    self.phase = InflatePhase.match_copy
+                }
+                InflatePhase.match_copy {
+                    while self.match_length != 0 {
+                        if output_index == output.len() {
+                            return InflateStep.needs_output(input_index, output_index)
+                        }
+                        let source = (self.history_position + 32768 - self.match_distance) % 32768
+                        let value = self.history[source]
+                        let next = emit_byte(self, output, output_index, value) otherwise {
+                            return InflateStep.needs_output(input_index, output_index)
+                        }
+                        output_index = next
+                        self.match_length -= 1
+                    }
+                    self.phase = InflatePhase.compressed_symbol
+                }
+            }
+        }
+    }
+}

@@ -7,3 +7,13 @@ struct HuffmanTable {
     symbols: [usize; 288]
     max_bits: usize
 }
+
+construct HuffmanTable {
+    noalloc func empty(): Self {
+        return HuffmanTable {
+            counts: [0; 16],
+            symbols: [0; 288],
+            max_bits: 0,
+        }
+    }
+}

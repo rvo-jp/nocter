@@ -7,7 +7,8 @@ DEFLATE reads bits least-significant-bit first inside each byte. One decoder own
 reservoir, canonical Huffman state, and 32 KiB history required between calls. It never retains a
 borrow of a caller's input or output slice. Consequently the same decoder can be driven by a file,
 socket, fixed buffer, blocking adapter, or asynchronous adapter without changing representation
-semantics.
+semantics. Stored, fixed-Huffman, and dynamic-Huffman blocks all pass through this same state and
+history authority.
 
 Every bounded operation reports exact input consumption and output production through
 `InflateStep`. `needs_input` means all reported input was consumed before another semantic step
