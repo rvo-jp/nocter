@@ -709,19 +709,18 @@ function renderGlobalNavigation(sourcePath, outputDir) {
             </nav>
             <div class="site-search" data-search-root data-search-index="${searchIndexHref}">
                 <label class="visually-hidden" for="site-search-input">Search documentation</label>
-                <label class="visually-hidden" for="site-search-scope">Search scope</label>
-                <div class="site-search-controls">
-                    <select id="site-search-scope" aria-label="Search scope">
-                        <option value="all">All</option>
-                        <option value="specification">Specification</option>
-                        <option value="standard-library">Standard Library</option>
-                        <option value="examples">Examples</option>
-                        <option value="contributors">Contributors</option>
-                        <option value="releases">Releases</option>
-                    </select>
-                    <input id="site-search-input" type="search" placeholder="Search documentation (/)" autocomplete="off" aria-controls="site-search-results" aria-expanded="false">
+                <input id="site-search-input" type="search" placeholder="Search documentation (/)" autocomplete="off" aria-controls="site-search-results" aria-expanded="false">
+                <div id="site-search-results" class="site-search-results" hidden>
+                    <div class="site-search-scopes" role="group" aria-label="Search scope">
+                        <button type="button" data-search-scope="all" aria-pressed="true">All</button>
+                        <button type="button" data-search-scope="specification" aria-pressed="false">Specification</button>
+                        <button type="button" data-search-scope="standard-library" aria-pressed="false">Standard Library</button>
+                        <button type="button" data-search-scope="examples" aria-pressed="false">Examples</button>
+                        <button type="button" data-search-scope="contributors" aria-pressed="false">Contributors</button>
+                        <button type="button" data-search-scope="releases" aria-pressed="false">Releases</button>
+                    </div>
+                    <div class="site-search-matches" data-search-matches></div>
                 </div>
-                <div id="site-search-results" class="site-search-results" hidden></div>
             </div>
         </div>
     </div>`;

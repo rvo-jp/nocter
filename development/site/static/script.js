@@ -144,10 +144,12 @@ if (outlineLinks.length > 0) {
 const searchRoot = document.querySelector("[data-search-root]");
 if (searchRoot) {
     const input = searchRoot.querySelector("input[type=search]");
-    const scope = searchRoot.querySelector("select");
     const results = searchRoot.querySelector(".site-search-results");
+    const matchesRoot = searchRoot.querySelector("[data-search-matches]");
+    const scopeButtons = [...searchRoot.querySelectorAll("[data-search-scope]")];
     let documentsPromise = null;
     let searchRequest = 0;
+    let selectedScope = "all";
 
     function closeSearch() {
         results.hidden = true;
@@ -189,18 +191,18 @@ if (searchRoot) {
             documents = await documentsPromise;
         } catch {
             if (request !== searchRequest) return;
-            results.replaceChildren();
+            matchesRoot.replaceChildren();
             const unavailable = document.createElement("p");
             unavailable.className = "site-search-empty";
             unavailable.textContent = "Search is unavailable.";
-            results.appendChild(unavailable);
+            matchesRoot.appendChild(unavailable);
             openSearch();
             return;
         }
         if (request !== searchRequest) return;
 
         const matches = documents
-            .filter(entry => scope.value === "all" || entry.section === scope.value)
+            .filter(entry => selectedScope === "all" || entry.section === selectedScope)
             .map(entry => {
                 const documentScore = scoreDocument(entry, query);
                 const symbol = bestSymbolMatch(entry.symbols, query);
@@ -225,12 +227,12 @@ if (searchRoot) {
             .sort((left, right) => right.score - left.score || left.entry.path.localeCompare(right.entry.path))
             .slice(0, 8);
 
-        results.replaceChildren();
+        matchesRoot.replaceChildren();
         if (matches.length === 0) {
             const empty = document.createElement("p");
             empty.className = "site-search-empty";
             empty.textContent = "No matching documentation.";
-            results.appendChild(empty);
+            matchesRoot.appendChild(empty);
         } else {
             matches.forEach(match => {
                 const link = document.createElement("a");
@@ -240,7 +242,7 @@ if (searchRoot) {
                 const detail = document.createElement("span");
                 detail.textContent = match.detail;
                 link.append(title, detail);
-                results.appendChild(link);
+                matchesRoot.appendChild(link);
             });
         }
         openSearch();
@@ -248,13 +250,21 @@ if (searchRoot) {
 
     input.addEventListener("input", searchDocuments);
     input.addEventListener("focus", searchDocuments);
-    scope.addEventListener("change", searchDocuments);
+    scopeButtons.forEach(button => {
+        button.addEventListener("click", () => {
+            selectedScope = button.dataset.searchScope;
+            scopeButtons.forEach(candidate => {
+                candidate.setAttribute("aria-pressed", String(candidate === button));
+            });
+            searchDocuments();
+        });
+    });
     input.addEventListener("keydown", event => {
         if (event.key === "Escape") {
             cancelSearch();
             input.blur();
         } else if (event.key === "ArrowDown" && !results.hidden) {
-            const first = results.querySelector("a");
+            const first = matchesRoot.querySelector("a");
             if (first) {
                 event.preventDefault();
                 first.focus();
@@ -268,7 +278,6 @@ if (searchRoot) {
         const target = event.target;
         const editing = target instanceof HTMLInputElement
             || target instanceof HTMLTextAreaElement
-            || target instanceof HTMLSelectElement
             || target.isContentEditable;
         if (event.key === "/" && !editing && !event.metaKey && !event.ctrlKey && !event.altKey) {
             event.preventDefault();

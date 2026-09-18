@@ -346,6 +346,9 @@ function assertSiteNavigationPolicy(root) {
     if (!language.includes('class="site-navigation"') || !language.includes('href="../../std/index.html#content"')) {
         throw new Error("global site navigation does not enter destination content after the shared hero");
     }
+    if (!language.includes('class="site-search-scopes"') || language.includes('<select id="site-search-scope"')) {
+        throw new Error("search scope control compresses the input or depends on a native select");
+    }
     if (!language.includes('href="./lexical-grammar/index.html#content"')) {
         throw new Error("ordinary authored documentation links do not skip the destination hero");
     }
