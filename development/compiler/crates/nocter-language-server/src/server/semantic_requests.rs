@@ -2384,6 +2384,96 @@ mod tests {
     }
 
     #[test]
+    fn prefix_decode_outcome_uses_one_public_editor_identity() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let text = concat!(
+            "use std/bytes.PrefixDecode\n",
+            "func consumed(result: PrefixDecode<u64>): usize {\n",
+            "    match move result {\n",
+            "        PrefixDecode.decoded(_, width) { return width }\n",
+            "        PrefixDecode.incomplete {}\n",
+            "        PrefixDecode.overflow {}\n",
+            "        PrefixDecode.non_canonical { return 0 }\n",
+            "    }\n",
+            "    return 0\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (type_line, type_character) = source_position(text, "PrefixDecode<u64>");
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{type_line},\"character\":{}}}}}}}",
+            type_character + 2
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub enum PrefixDecode<T>"), "{response}");
+        assert!(
+            response.contains("decoded(value: T, consumed: usize)"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{type_line},\"character\":{}}}}}}}",
+            type_character + 2
+        ));
+        assert!(
+            definition
+                .response()
+                .is_some_and(|response| response.contains("/std/bytes/index.nct")),
+            "response={:?}, issue={:?}",
+            definition.response(),
+            definition.issue()
+        );
+
+        let (variant_line, variant_character) = source_position(text, "PrefixDecode.decoded");
+        let completion = request_completion(
+            &mut server,
+            &uri,
+            4,
+            variant_line,
+            variant_character + "PrefixDecode.".len(),
+        );
+        let response = completion.response().unwrap();
+        for variant in ["decoded", "incomplete", "overflow", "non_canonical"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{variant}\",\"kind\":20")),
+                "{response}"
+            );
+        }
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        let response = tokens.response().unwrap();
+        let enum_type = nocter_lsp::SEMANTIC_TOKEN_TYPES
+            .iter()
+            .position(|name| *name == "enum")
+            .and_then(|index| u32::try_from(index).ok())
+            .unwrap();
+        assert_eq!(
+            semantic_token_at(
+                response,
+                u32::try_from(type_line).unwrap(),
+                u32::try_from(type_character).unwrap(),
+                u32::try_from("PrefixDecode".len()).unwrap(),
+            ),
+            Some((enum_type, 0)),
+            "{response}"
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+    }
+
+    #[test]
     fn url_contract_drives_hover_navigation_signature_and_completion() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

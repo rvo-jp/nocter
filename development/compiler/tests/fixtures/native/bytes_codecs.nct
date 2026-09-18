@@ -1,36 +1,58 @@
 use std/bytes
+use std/bytes.PrefixDecode
 use std/fixed.ByteBuffer
 use std/scan.ByteCursor
 use std/vec.Vec
 
 func main(): i32 {
     let source: Vec<u8> = Vec [
-        u8.truncate(1), u8.truncate(35), u8.truncate(69), u8.truncate(103),
-        u8.truncate(137), u8.truncate(171), u8.truncate(205), u8.truncate(239),
+        u8.truncate(1),
+        u8.truncate(35),
+        u8.truncate(69),
+        u8.truncate(103),
+        u8.truncate(137),
+        u8.truncate(171),
+        u8.truncate(205),
+        u8.truncate(239),
     ]
     let big = bytes.decode_u64_be(&source as &[u8]) otherwise { return 1 }
     let little = bytes.decode_u64_le(&source as &[u8]) otherwise { return 2 }
 
     var encoded_big: Vec<u8> = Vec [
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
     ]
     var encoded_little: Vec<u8> = Vec [
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
     ]
     if !bytes.encode_u64_be(&+encoded_big as &+[u8], big)
-        || !bytes.encode_u64_le(&+encoded_little as &+[u8], little) {
+    || !bytes.encode_u64_le(&+encoded_little as &+[u8], little) {
         return 3
     }
     if (&encoded_big as &[u8]) != (&source as &[u8])
-        || (&encoded_little as &[u8]) != (&source as &[u8]) {
+    || (&encoded_little as &[u8]) != (&source as &[u8]) {
         return 4
     }
 
     let u16_bytes: Vec<u8> = Vec [u8.truncate(18), u8.truncate(52)]
     let u32_bytes: Vec<u8> = Vec [
-        u8.truncate(120), u8.truncate(86), u8.truncate(52), u8.truncate(18),
+        u8.truncate(120),
+        u8.truncate(86),
+        u8.truncate(52),
+        u8.truncate(18),
     ]
     let decoded16 = bytes.decode_u16_be(&u16_bytes as &[u8]) otherwise { return 5 }
     let decoded32 = bytes.decode_u32_le(&u32_bytes as &[u8]) otherwise { return 6 }
@@ -38,7 +60,7 @@ func main(): i32 {
 
     var short: Vec<u8> = Vec [u8.truncate(9), u8.truncate(8), u8.truncate(7)]
     if bytes.encode_u32_be(&+short as &+[u8], decoded32)
-        || short[0] != 9 || short[1] != 8 || short[2] != 7 {
+    || short[0] != 9 || short[1] != 8 || short[2] != 7 {
         return 8
     }
     let one: Vec<u8> = Vec [u8.truncate(42)]
@@ -50,14 +72,23 @@ func check_floats(): i32 {
     let value32 = f32.from_bits(2143294004)
     let value64 = f64.from_bits(9223372036854775808)
     var bytes32: Vec<u8> = Vec [
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
     ]
     var bytes64: Vec<u8> = Vec [
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
     ]
     if !bytes.encode_f32_le(&+bytes32 as &+[u8], value32)
-        || !bytes.encode_f64_be(&+bytes64 as &+[u8], value64) {
+    || !bytes.encode_f64_be(&+bytes64 as &+[u8], value64) {
         return 10
     }
     let decoded32 = bytes.decode_f32_le(&bytes32 as &[u8]) otherwise { return 11 }
@@ -87,8 +118,36 @@ func check_composition(): i32 {
     if first != 4660 || second != 72623859790382856 || !input.is_finished() { return 19 }
     let unchanged_offset = input.offset()
     let _unexpected = input.take_u16_be() otherwise {
-        if input.offset() == unchanged_offset { return 0 }
+        if input.offset() == unchanged_offset { return check_prefix_decode() }
         return 20
     }
     return 21
+}
+
+func check_prefix_decode(): i32 {
+    let source_value: u64 = 300
+    let source_consumed: usize = 2
+    let decoded: PrefixDecode<u64> = PrefixDecode.decoded(source_value, source_consumed)
+    match move decoded {
+        PrefixDecode.decoded(decoded_value, decoded_consumed) {
+            if decoded_value != 300 || decoded_consumed != 2 { return 22 }
+        }
+        _ { return 23 }
+    }
+
+    let incomplete: PrefixDecode<u64> = PrefixDecode.incomplete
+    match move incomplete {
+        PrefixDecode.incomplete {}
+        _ { return 24 }
+    }
+    let overflow: PrefixDecode<u64> = PrefixDecode.overflow
+    match move overflow {
+        PrefixDecode.overflow {}
+        _ { return 25 }
+    }
+    let non_canonical: PrefixDecode<u64> = PrefixDecode.non_canonical
+    match move non_canonical {
+        PrefixDecode.non_canonical { return 0 }
+        _ { return 26 }
+    }
 }

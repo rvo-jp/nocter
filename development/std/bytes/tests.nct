@@ -1,0 +1,36 @@
+//! Contract tests for prefix decoding outcomes.
+
+see ./index.nct
+
+test prefix_decode_variants_keep_exact_semantic_state {
+    let source_value: u64 = 300
+    let source_consumed: usize = 2
+    let decoded: PrefixDecode<u64> = PrefixDecode.decoded(source_value, source_consumed)
+    match move decoded {
+        PrefixDecode.decoded(decoded_value, decoded_consumed) {
+            if decoded_value != 300 || decoded_consumed != 2 {
+                return error.new("std.bytes.prefix", "decoded payload changed")
+            }
+        }
+        _ { return error.new("std.bytes.prefix", "decoded variant changed") }
+    }
+
+    let incomplete: PrefixDecode<u64> = PrefixDecode.incomplete
+    match move incomplete {
+        PrefixDecode.incomplete {}
+        _ { return error.new("std.bytes.prefix", "incomplete variant changed") }
+    }
+
+    let overflow: PrefixDecode<u64> = PrefixDecode.overflow
+    match move overflow {
+        PrefixDecode.overflow {}
+        _ { return error.new("std.bytes.prefix", "overflow variant changed") }
+    }
+
+    let non_canonical: PrefixDecode<u64> = PrefixDecode.non_canonical
+    match move non_canonical {
+        PrefixDecode.non_canonical {}
+        _ { return error.new("std.bytes.prefix", "non-canonical variant changed") }
+    }
+    return
+}

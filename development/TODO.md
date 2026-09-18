@@ -2,18 +2,19 @@
 
 ## Current State
 
-Nocter v0.58.0 is published and externally audited. v0.59.0 development is active with an
-integrity-checked binary-record milestone. Phase 0 owns one explicit prefix-decode outcome for
-complete, incomplete, overflowed, and non-canonical input before variable-width codecs, checksums,
-or stream composition are admitted. The active scope lives in
+Nocter v0.58.0 is published and externally audited. v0.59.0 Phase 0 is complete: `std/bytes` owns one
+ordinary generic `PrefixDecode<T>` declaration for decoded values and widths, incomplete input,
+overflow, and non-canonical representations. Native and editor fixtures prove that execution,
+hover, completion, navigation, and semantic highlighting consume that same public identity. The
+active scope lives in
 [`development/history/milestones/v0.59.0.md`](history/milestones/v0.59.0.md).
 
 ## Next Work
 
-Complete the Phase 0 semantic result and its compiler, formatter, editor, and native fixtures. Then
-build canonical base-128 integer codecs and CRC-32 as separate responsibilities, compose them with
-existing cursors and storage, and prove the complete design through an integrity-checked append-only
-record application.
+Complete portable signed fixed-width bit conversion and canonical unsigned base-128 and ZigZag
+codecs on the Phase 0 result. Keep numeric conversion rules unchanged, reject every invalid prefix
+before cursor mutation, and preserve output bytes until the complete variable-width representation
+fits.
 
 Preserve the v0.58.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
