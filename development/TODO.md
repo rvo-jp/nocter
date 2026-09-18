@@ -2,18 +2,19 @@
 
 ## Current State
 
-Nocter v0.57.0 is published and externally audited. The v0.58.0 Binary Data Foundation candidate
-is complete and qualified, publication is authorized, and public metadata now selects v0.58.0.
-The retained archive and measured identities are recorded in the release-preparation record.
+Nocter v0.58.0 is published and externally audited. Binary scalar codecs, cursor and storage
+composition, portable binary-record execution, native and editor integration, deterministic
+packaging, the public asset, and the Pages deployment are complete. The immutable evidence is
+recorded in
+[`development/history/release-audits/v0.58.0.md`](history/release-audits/v0.58.0.md).
 
 ## Next Work
 
-Commit this publication metadata, create annotated tag `v0.58.0`, fast-forward `main`, and publish
-the retained archive as the release's single asset. Then audit the public tag, asset, latest-release
-endpoint, downloaded installed home, and source-identified Pages deployment. Do not rebuild or
-replace the qualified archive.
+Select the next milestone from concrete application and standard-library pressure. Do not reopen
+v0.58.0; any correction requires a new version, implementation gate, qualified archive, tag, and
+publication audit.
 
-Preserve the v0.57.0 tag, release asset, public notes, specification snapshot, and publication audit
+Preserve the v0.58.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
 
 Preserve every published tag and asset, including v0.49.0.
