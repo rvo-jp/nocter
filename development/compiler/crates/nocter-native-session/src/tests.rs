@@ -5826,7 +5826,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 31);
+    assert_eq!(case_count, 32);
 }
 
 #[test]

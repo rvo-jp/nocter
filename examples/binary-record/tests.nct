@@ -1,5 +1,3 @@
-//! Wire, damage-classification, and fragmented blocking-reader tests.
-
 see ./index.nct
 
 use std/vec.Vec
@@ -39,8 +37,8 @@ test records_round_trip_through_one_byte_blocking_fragments {
         }
     }
     if decoded.len() != 2
-        || !require_record(decoded.record(0), 42, 4615063718147915776)
-        || !require_record(decoded.record(1), 7, 13831680355561635840) {
+    || !require_record(decoded.record(0), 42, 4615063718147915776)
+    || !require_record(decoded.record(1), 7, 13831680355561635840) {
         return error.new("example.binary_record.round_trip", "fragmented record log changed")
     }
     return

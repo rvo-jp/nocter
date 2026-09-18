@@ -1544,6 +1544,220 @@ fn async_file_report_uses_streaming_and_filesystem_editor_contracts() {
     assert!(hints.issue().is_none(), "{:?}", hints.issue());
 }
 
+#[test]
+fn binary_record_uses_one_codec_and_framing_contract_across_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/binary-record");
+    let application = root.join("application.nct");
+    let (mut server, application_text) = open_package_source(&root, &application);
+
+    assert_binary_record_decode_contract(&mut server, &application, &application_text);
+
+    let parsing = root.join("parsing.nct");
+    let parsing_text = fs::read_to_string(&parsing).unwrap();
+    assert_binary_record_prefix_contract(&mut server, &parsing, &parsing_text);
+
+    let wire = root.join("wire.nct");
+    let wire_text = fs::read_to_string(&wire).unwrap();
+    assert_binary_record_checksum_contract(&mut server, &wire, &wire_text);
+    assert_binary_record_source_projection(
+        &mut server,
+        [&application, &parsing, &wire],
+        &parsing_text,
+    );
+}
+
+fn assert_binary_record_decode_contract(
+    server: &mut super::LanguageServer,
+    application: &Path,
+    text: &str,
+) {
+    let (decode_line, decode_source) = source_line(text, "decode_async");
+    let decode_character = decode_source.find("decode_async").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        application,
+        decode_line,
+        decode_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("async func decode_async<R>"),
+        "{response}"
+    );
+    assert!(response.contains("reader: &+R"), "{response}");
+    assert!(response.contains(": RecordLog!"), "{response}");
+    assert!(response.contains("R impl Reader"), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        application,
+        decode_line,
+        decode_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/binary-record/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        application,
+        decode_line,
+        decode_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(
+        response.contains("/binary-record/streams.nct"),
+        "{response}"
+    );
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+}
+
+fn assert_binary_record_prefix_contract(
+    server: &mut super::LanguageServer,
+    parsing: &Path,
+    text: &str,
+) {
+    let (uleb_line, uleb_source) = source_line(text, "bytes.decode_uleb128");
+    let uleb_character = uleb_source.find("decode_uleb128").unwrap();
+    let hover = server.receive(&position_request(
+        5,
+        "textDocument/hover",
+        parsing,
+        uleb_line,
+        uleb_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("decode_uleb128(input: &[u8]): PrefixDecode<u64>"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        6,
+        "textDocument/definition",
+        parsing,
+        uleb_line,
+        uleb_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/bytes/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        7,
+        "textDocument/implementation",
+        parsing,
+        uleb_line,
+        uleb_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/bytes/variable.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let (cursor_line, cursor_source) = source_line(text, "cursor.take_u32_be");
+    let completion_character = cursor_source.find("cursor.").unwrap() + "cursor.".len();
+    let completion = server.receive(&position_request(
+        8,
+        "textDocument/completion",
+        parsing,
+        cursor_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in ["remaining", "take", "take_u32_be", "take_uleb128"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+fn assert_binary_record_checksum_contract(
+    server: &mut super::LanguageServer,
+    wire: &Path,
+    text: &str,
+) {
+    let (crc_line, crc_source) = source_line(text, "checksum.crc32");
+    let crc_character = crc_source.find("crc32").unwrap();
+    let hover = server.receive(&position_request(
+        9,
+        "textDocument/hover",
+        wire,
+        crc_line,
+        crc_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(response.contains("crc32(input: &[u8]): u32"), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        10,
+        "textDocument/definition",
+        wire,
+        crc_line,
+        crc_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/checksum/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        11,
+        "textDocument/implementation",
+        wire,
+        crc_line,
+        crc_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/checksum/crc32.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+}
+
+fn assert_binary_record_source_projection(
+    server: &mut super::LanguageServer,
+    sources: [&Path; 3],
+    parsing_text: &str,
+) {
+    for (id, source) in [(12, sources[0]), (13, sources[1]), (14, sources[2])] {
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+            source.display()
+        ));
+        let response = tokens.response().unwrap();
+        assert!(response.contains("\"data\":["), "{response}");
+        assert!(!response.contains("\"data\":[]"), "{response}");
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+    }
+
+    let hints = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{},\"character\":0}}}}}}}}",
+        sources[1].display(),
+        parsing_text.lines().count()
+    ));
+    let response = hints.response().unwrap();
+    assert!(response.contains("\"label\":\": u32\""), "{response}");
+    assert!(response.contains("\"label\":\": u64\""), "{response}");
+    assert!(hints.issue().is_none(), "{:?}", hints.issue());
+}
+
 fn assert_pipeline_generic_copy_contracts(
     server: &mut super::LanguageServer,
     source: &Path,

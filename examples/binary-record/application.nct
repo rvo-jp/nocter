@@ -1,5 +1,3 @@
-//! Command-line round trip through fragmented asynchronous input.
-
 see ./index.nct
 
 use std/fs

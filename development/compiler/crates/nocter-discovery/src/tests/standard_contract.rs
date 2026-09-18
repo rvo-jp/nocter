@@ -60,6 +60,7 @@ pub(super) fn assert_standard_root_visibility_boundaries(unit: &crate::Discovere
 /// Exact cross-module dependencies accepted by the standard-library ownership review.
 const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("bytes", "internal/bytes"),
+    ("checksum", "internal/safety"),
     ("char", "internal/character"),
     ("char", "internal/ptr"),
     ("char", "internal/unicode"),
@@ -283,6 +284,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("url", "mem"),
     ("url", "net"),
     ("url", "string"),
+    ("vec", "bytes"),
     ("vec", "internal/mem"),
     ("vec", "internal/ptr"),
     ("vec", "internal/safety"),

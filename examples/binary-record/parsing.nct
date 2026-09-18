@@ -1,6 +1,5 @@
-//! Append-only record parsing and damaged-tail classification.
-
 see ./index.nct
+
 see ./wire.nct
 
 use std/bytes

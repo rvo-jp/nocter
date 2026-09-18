@@ -1,5 +1,3 @@
-//! Deterministic record values and byte emission.
-
 see ./index.nct
 
 use std/checksum
@@ -7,7 +5,9 @@ use std/fixed.ByteBuffer
 use std/vec.Vec
 
 const MAGIC: u32 = 1313035346
+
 const VERSION: u16 = 1
+
 const PAYLOAD_BYTES: usize = 12
 
 copy struct Record {
@@ -21,8 +21,11 @@ struct RecordLog {
 }
 
 noalloc func expected_magic(): u32 { return MAGIC }
+
 noalloc func expected_version(): u16 { return VERSION }
+
 noalloc func payload_bytes(): usize { return PAYLOAD_BYTES }
+
 noalloc func maximum_payload_bytes(): u64 { return 4096 }
 
 construct Record {
@@ -54,7 +57,7 @@ func record_log(records: Vec<Record>, tail: RecordTail): RecordLog {
 noalloc func encode_payload(record: &Record): ByteBuffer<PAYLOAD_BYTES>! {
     var payload: ByteBuffer<PAYLOAD_BYTES> = ByteBuffer.empty()
     if !payload.try_push_u32_le(record.item_count)
-        || !payload.try_push_f64_be(record.measurement) {
+    || !payload.try_push_f64_be(record.measurement) {
         return error.new("example.binary_record.capacity", "record payload exceeded its wire size")
     }
     return move payload

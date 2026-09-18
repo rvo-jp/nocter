@@ -1,5 +1,3 @@
-//! Fragmented blocking and executor-safe sources over one borrowed wire image.
-
 see ./index.nct
 
 use std/io.{BlockingReader, Reader}

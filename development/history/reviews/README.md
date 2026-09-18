@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.59.0 Phase 5 Integrity-Checked Record Review](v0.59.0-phase-5.md)
 - [v0.58.0 Phase 5 Binary Data Foundation Review](v0.58.0-phase-5.md)
 - [v0.56.0 Phase 5 Editor, Application, and Qualification Review](v0.56.0-phase-5.md)
 - [v0.55.0 Phase 5 Practical HTTP Application and Qualification Review](v0.55.0-phase-5.md)
