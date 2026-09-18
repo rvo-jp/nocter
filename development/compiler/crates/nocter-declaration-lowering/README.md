@@ -37,6 +37,10 @@ does not check callable bodies.
   projection
 - declaration recovery and diagnostic classification
 
+`src/pipeline.rs` owns only production stage composition and failure classification. Its
+cross-stage integration tests live in `src/pipeline/tests.rs`; focused responsibility tests remain
+beside their owning modules.
+
 ## Invariants
 
 - Accepted declaration semantics are built once and cannot contain a deferred invalid edge.

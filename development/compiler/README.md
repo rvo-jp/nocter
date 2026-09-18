@@ -59,6 +59,9 @@ Every workspace member has a colocated `README.md`. Start with
 [`crates/nocter-machine/README.md`](crates/nocter-machine/README.md) for native lowering. The
 workspace manifest, rather than a copied crate list, remains the membership authority.
 
+Reusable source corpora are documented under [`tests/`](tests/README.md). Test assertions remain in
+the consuming crate; that directory owns only physical non-Rust inputs shared across those tests.
+
 ## Verification
 
 Run the complete gate from the repository root:

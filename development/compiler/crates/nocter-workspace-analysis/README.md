@@ -26,6 +26,10 @@ it recomputed and one complete immutable view of every active generation after t
 - discovery through the shared computed syntax provider
 - transport of only the final complete-or-incomplete unit product to session
 
+`src/lib.rs` exposes the orchestration contract and its shared helpers. Revision, invalidation, and
+generation integration tests live in `src/tests.rs` so the production entry does not also own the
+test workspace implementation.
+
 ## Invariants
 
 - Every document has exactly one selected or rejected topology result per revision.
