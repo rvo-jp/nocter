@@ -2,23 +2,18 @@
 
 ## Current State
 
-Nocter v0.57.0 is published and externally audited. v0.58.0 implementation is complete as one
-binary-data and protocol-foundation milestone. Its completion definition, responsibility
-boundaries, and closed phase record are the authority in
+Nocter v0.57.0 is published and externally audited. v0.58.0 release preparation is active after
+completion of its binary scalar codecs, cursor and storage composition, practical binary
+application, editor qualification, and whole-repository review. Release identity now selects
+`0.58.0`; public candidate notes and the release-preparation contract are authored. The completed
+implementation scope lives in
 [`development/history/milestones/v0.58.0.md`](history/milestones/v0.58.0.md).
 
 ## Next Work
 
-Prepare v0.58.0 for release without expanding its completed scope. `std/bytes` owns public scalar
-conversion, `std/internal/bytes` owns its one package implementation, `scan.ByteCursor` owns exact
-input progress, `fixed.ByteBuffer<N>` owns transactional bounded commit, `Vec<T>` owns batch growth,
-and existing writer contracts transport the same encoded slice. The `binary-record` package passes
-valid, truncated, invalid-magic, trailing-input, installed-home, and exact wire-image execution.
-
-The Phase 5 review is recorded in
-[`development/history/reviews/v0.58.0-phase-5.md`](history/reviews/v0.58.0-phase-5.md). Release
-preparation must requalify the versioned archive; Phase 5 deliberately did not change release
-metadata, create a tag, push commits, or publish an asset.
+Commit the exact release content, run deterministic two-build packaging and installed-home
+qualification from that clean commit, then record the measured artifact identities. Publication
+must reuse the retained candidate archive without rebuilding it.
 
 Preserve the v0.57.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
