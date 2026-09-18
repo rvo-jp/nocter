@@ -1,0 +1,35 @@
+//! Package-private allocation-free state shared by every DEFLATE block decoder.
+//!
+//! This module owns bit order only. Compressed-format progress belongs to std/compress, byte
+//! transport belongs to std/io, and caller input and output storage are never retained here.
+
+see ./bit_input.nct
+see ./tests.nct
+
+/// A bounded LSB-first reservoir of bits already consumed from caller-owned input bytes.
+pub(/) struct BitInput
+
+construct BitInput {
+    /// Constructs an empty byte-aligned reservoir.
+    pub(/) noalloc func empty(): Self
+}
+
+instance BitInput {
+    /// Returns the number of buffered bits.
+    pub(/) noalloc method &self.available(): u64
+
+    /// Returns whether one complete input byte can be accepted without overflow.
+    pub(/) noalloc method &self.can_accept_byte(): bool
+
+    /// Appends one input byte in DEFLATE least-significant-bit-first order.
+    pub(/) noalloc method &+self.push_byte(value: u8): bool
+
+    /// Observes up to 24 low bits without consuming them.
+    pub(/) noalloc method &self.peek(count: u64): u64?
+
+    /// Consumes and returns up to 24 low bits.
+    pub(/) noalloc method &+self.take(count: u64): u64?
+
+    /// Discards pending bits through the next byte boundary and returns the discarded count.
+    pub(/) noalloc method &+self.align_to_byte(): u64
+}

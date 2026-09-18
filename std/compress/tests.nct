@@ -1,0 +1,33 @@
+//! Semantic-shape tests for bounded inflate progress.
+
+see ./index.nct
+
+test inflate_progress_keeps_exact_consumption_and_production {
+    let step = InflateStep.needs_output(7, 11)
+    match move step {
+        InflateStep.needs_output(input_consumed, output_written) {
+            if input_consumed != 7 || output_written != 11 {
+                return error.new("std.compress.progress", "progress counts changed")
+            }
+        }
+        _ { return error.new("std.compress.progress", "progress variant changed") }
+    }
+    return
+}
+
+test inflate_failure_remains_structured_data {
+    let step = InflateStep.invalid(3, 5, InflateFailure.distance_too_far)
+    match move step {
+        InflateStep.invalid(input_consumed, output_written, failure) {
+            if input_consumed != 3 || output_written != 5 {
+                return error.new("std.compress.failure", "failure progress changed")
+            }
+            match failure {
+                InflateFailure.distance_too_far {}
+                _ { return error.new("std.compress.failure", "failure identity changed") }
+            }
+        }
+        _ { return error.new("std.compress.failure", "invalid stream became resumable") }
+    }
+    return
+}

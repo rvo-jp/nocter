@@ -155,6 +155,53 @@ fn standard_checksum_contract_crosses_native_tests() {
 }
 
 #[test]
+fn standard_compression_foundation_crosses_native_tests() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"compression-progress\", module: \"./compress\" }\n");
+    root_source
+        .push_str("\n#test: { name: \"deflate-bit-input\", module: \"./internal/deflate\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["compress"]),
+            ModuleIdentity::new(standard_package.clone(), ["internal", "deflate"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 2);
+    let output = TempPackage::new();
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard compression foundation tests failed native compilation")
+        };
+        for case in cases {
+            case_count += 1;
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
+    }
+    assert_eq!(case_count, 5);
+}
+
+#[test]
 fn standard_time_value_contract_crosses_native_tests() {
     let standard_root = nocter_test_support::standard_library_root();
     let standard_package = PackageIdentity::new("toolchain:std");

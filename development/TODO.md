@@ -22,11 +22,16 @@ links remain exact. Global sections, local search, page contents, adjacent-page 
 navigation, and accessible hero tabs are derived from the published document set without a second
 page registry or hosted search service.
 
+v0.60.0 development has started with the streaming-compression state foundation. The active scope,
+responsibility boundaries, and completion gates are recorded in
+[`v0.60.0: Streaming Compression and Safe Archives`](history/milestones/v0.60.0.md).
+
 ## Next Work
 
-Select the next milestone from concrete application and standard-library pressure. Do not reopen
-v0.59.0; any correction requires a new version, implementation gate, qualified archive, tag, and
-publication audit.
+Implement v0.60.0 Phase 1 through the qualified LSB-first bit-input and structured progress
+contracts. Build the DEFLATE state machine without adding public transport or archive policy to
+the compression core. Do not reopen v0.59.0; any correction requires a new version,
+implementation gate, qualified archive, tag, and publication audit.
 
 Preserve the v0.59.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

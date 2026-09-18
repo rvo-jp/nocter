@@ -1,0 +1,60 @@
+//! Contract tests for bounded LSB-first bit input.
+
+see ./index.nct
+
+noalloc func rejects_without_change(input: &+BitInput, count: u64, available: u64): bool {
+    let _unexpected = input.take(count) otherwise { return input.available() == available }
+    return false
+}
+
+test bit_input_reads_deflate_order_without_retaining_source_storage {
+    var input = BitInput.empty()
+    if !input.push_byte(178) || input.available() != 8 {
+        return error.new("std.internal.deflate.input", "first byte was not buffered")
+    }
+    let low = input.take(3) otherwise {
+        return error.new("std.internal.deflate.input", "three buffered bits were unavailable")
+    }
+    let high = input.take(5) otherwise {
+        return error.new("std.internal.deflate.input", "remaining buffered bits were unavailable")
+    }
+    if low != 2 || high != 22 || input.available() != 0 {
+        return error.new("std.internal.deflate.order", "LSB-first order changed")
+    }
+    return
+}
+
+test bit_input_preserves_fragment_boundaries_and_failed_reads {
+    var input = BitInput.empty()
+    if !input.push_byte(1) {
+        return error.new("std.internal.deflate.fragment", "first fragment was rejected")
+    }
+    if !rejects_without_change(&+input, 9, 8) {
+        return error.new("std.internal.deflate.transaction", "failed read changed buffered state")
+    }
+    if !input.push_byte(2) {
+        return error.new("std.internal.deflate.fragment", "second fragment was rejected")
+    }
+    let combined = input.take(9) otherwise {
+        return error.new("std.internal.deflate.fragment", "combined fragments were unavailable")
+    }
+    if combined != 1 || input.available() != 7 {
+        return error.new("std.internal.deflate.fragment", "fragmented input changed bit order")
+    }
+    return
+}
+
+test bit_input_alignment_discards_only_the_partial_byte {
+    var input = BitInput.empty()
+    if !input.push_byte(213) {
+        return error.new("std.internal.deflate.align", "alignment input was rejected")
+    }
+    let prefix = input.take(3) otherwise {
+        return error.new("std.internal.deflate.align", "alignment prefix was unavailable")
+    }
+    let discarded = input.align_to_byte()
+    if prefix != 5 || discarded != 5 || input.available() != 0 {
+        return error.new("std.internal.deflate.align", "byte alignment changed")
+    }
+    return
+}

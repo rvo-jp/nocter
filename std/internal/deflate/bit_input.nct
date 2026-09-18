@@ -1,0 +1,53 @@
+//! LSB-first input state for DEFLATE decoding.
+
+see ./index.nct
+
+struct BitInput {
+    bits: u64
+    available: u64
+}
+
+construct BitInput {
+    noalloc func empty(): Self {
+        return BitInput { bits: 0, available: 0 }
+    }
+}
+
+instance BitInput {
+    noalloc method &self.available(): u64 {
+        return self.available
+    }
+
+    noalloc method &self.can_accept_byte(): bool {
+        return self.available <= 56
+    }
+
+    noalloc method &+self.push_byte(value: u8): bool {
+        if !self.can_accept_byte() { return false }
+        self.bits = self.bits + ((value as u64) << self.available)
+        self.available += 8
+        return true
+    }
+
+    noalloc method &self.peek(count: u64): u64? {
+        if count > 24 || count > self.available { return none }
+        if count == 0 { return 0 }
+        let one: u64 = 1
+        let modulus = one << count
+        return self.bits % modulus
+    }
+
+    noalloc method &+self.take(count: u64): u64? {
+        let value = self.peek(count)?
+        self.bits = self.bits >> count
+        self.available -= count
+        return value
+    }
+
+    noalloc method &+self.align_to_byte(): u64 {
+        let discarded = self.available % 8
+        self.bits = self.bits >> discarded
+        self.available -= discarded
+        return discarded
+    }
+}
