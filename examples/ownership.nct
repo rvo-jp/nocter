@@ -1,0 +1,27 @@
+use std/io
+use std/vec.Vec
+
+struct Counter {
+    value: i32
+}
+
+blocking func main(): i32! {
+    var counters = Vec [Counter { value: 1 }, Counter { value: 2 }, Counter { value: 3 }]
+    for counter in &+counters {
+        counter.value += 10
+    }
+
+    var borrowed_total: i32 = 0
+    for counter in &counters {
+        borrowed_total += counter.value
+    }
+
+    var moved_total: i32 = 0
+    for counter in move counters {
+        moved_total += counter.value
+    }
+
+    let message = "borrowed: ${borrowed_total}, moved: ${moved_total}\n"
+    io.print(&message)?
+    return 0
+}

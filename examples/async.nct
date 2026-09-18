@@ -1,0 +1,16 @@
+use std/task
+use std/time
+use std/time.Duration
+
+async func delayed(value: i32): i32 {
+    await time.sleep(Duration.from_milliseconds(1))
+    return value
+}
+
+async func main(): i32! {
+    let (left, right) = await task.join(delayed(20), delayed(22))
+    if left + right != 42 {
+        return error.new("example.unexpected_total", "joined tasks returned the wrong total")
+    }
+    return 0
+}

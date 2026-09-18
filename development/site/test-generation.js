@@ -275,6 +275,16 @@ function assertPublicationBoundary(root) {
     if (home.includes('align="center"')) {
         throw new Error("repository-only README presentation leaked into the generated homepage");
     }
+    for (const name of ["hello", "ownership", "recovery", "async", "url"]) {
+        if (!home.includes(`data-example="${name}"`)) {
+            throw new Error(`website hero omitted the ${name} example`);
+        }
+    }
+    for (const superseded of ["format", "equality", "indexing"]) {
+        if (home.includes(`data-example="${superseded}"`)) {
+            throw new Error(`website hero retained the superseded ${superseded} example`);
+        }
+    }
 
     const privateSources = [
         "development/history/index.html",

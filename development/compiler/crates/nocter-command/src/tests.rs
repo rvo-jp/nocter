@@ -1068,6 +1068,7 @@ fn bundled_async_filesystem_mutations_cross_owned_path_jobs() {
 
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
+        "async.nct" => b"",
         "custom-format.nct" => b"point = (3, 4)\n",
         "elapsed.nct" => b"at least two milliseconds elapsed\n",
         "equality.nct" => b"equality found the point\n",
@@ -1077,6 +1078,7 @@ fn expected_example_output(name: &str) -> &'static [u8] {
         "mutable-iteration.nct" => b"mutable iteration updated every element\n",
         "network-address.nct" => b"[::1]:443\n",
         "ordering.nct" => b"strict ordering selected source declarations\n",
+        "ownership.nct" => b"borrowed: 36, moved: 36\n",
         "tuples.nct" => b"Nocter structural tuples: v0.33.0\n",
         "unicode-text.nct" => "ος\nSTRASSE\nA\n".as_bytes(),
         "url-inspect.nct" => {

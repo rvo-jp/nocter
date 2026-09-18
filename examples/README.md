@@ -17,6 +17,24 @@ nocter check examples/hello.nct
 nocter run examples/hello.nct
 ```
 
+[ownership.nct](ownership.nct) mutates aggregate elements through a readwrite borrow, observes
+them through a readonly borrow, then consumes the owning `Vec`. The same concise program appears
+in the website hero because it is compiled and executed as an ordinary public example.
+
+```sh
+nocter check examples/ownership.nct
+nocter run examples/ownership.nct
+```
+
+[async.nct](async.nct) starts two delayed computations, awaits their structured join, and verifies
+the combined result. It demonstrates that `async` functions produce ordinary `future T` values
+while `await` remains the explicit extraction point.
+
+```sh
+nocter check examples/async.nct
+nocter run examples/async.nct
+```
+
 [custom-format.nct](custom-format.nct) defines `Format` for a project-owned `Point` and uses that
 ordinary static conformance from string interpolation.
 

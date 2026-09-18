@@ -71,10 +71,10 @@ const documentTree = new PublishedDocumentTree(PROJECT_ROOT, publishedDocuments)
 // snippets inside the documentation generator. Release qualification checks these same sources.
 const codeExamples = Object.fromEntries(Object.entries({
     hello: "examples/hello.nct",
+    ownership: "examples/ownership.nct",
     recovery: "examples/recovery.nct",
-    format: "examples/custom-format.nct",
-    equality: "examples/equality.nct",
-    indexing: "examples/indexing.nct"
+    async: "examples/async.nct",
+    url: "examples/url-inspect.nct"
 }).map(([name, relative]) => [
     name,
     documentCatalog.document(path.join(PROJECT_ROOT, relative)).source.trimEnd()
