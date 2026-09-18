@@ -21,6 +21,10 @@ cannot name checking, declaration, target-program, syntax-tree, or source-index 
 - atomic workspace-diagnostic projection
 - workspace edit version projection
 
+Production request routing stays in `server.rs`; semantic request projection stays in
+`server/semantic_requests.rs`. Their integration tests live in sibling test modules under
+`server/` so test setup and protocol transcripts do not obscure either production responsibility.
+
 ## Invariants
 
 - Feature handlers do not implement semantic fallback or lookup.
