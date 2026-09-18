@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.57.0 is published and externally audited. Constant generics, repeat-array construction,
-fixed-capacity standard data, native execution, editor integration, deterministic packaging, the
-public asset, and the Pages deployment are complete. The immutable evidence is recorded in
-[`development/history/release-audits/v0.57.0.md`](history/release-audits/v0.57.0.md).
+Nocter v0.57.0 is published and externally audited. v0.58.0 is active as one binary-data and
+protocol-foundation milestone. Its completion definition and responsibility boundaries are the
+authority in [`development/history/milestones/v0.58.0.md`](history/milestones/v0.58.0.md).
 
 ## Next Work
 
-Select the next milestone from concrete application and standard-library pressure. Do not reopen
-v0.57.0; any correction requires a new version, implementation gate, qualified archive, tag, and
-publication audit.
+Complete v0.58.0 Phase 0 by freezing one byte-codec contract that composes with `std/scan`,
+`std/fixed`, and `std/io` without introducing another cursor, buffer, or stream authority. Continue
+through the implementation and practical application phases unless an observable language-design
+choice requires user direction.
 
 Preserve the v0.57.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
