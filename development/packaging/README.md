@@ -37,8 +37,10 @@ captured-output behavior. It runs the structured subprocess pipeline against the
 standard library to qualify concurrent generic transfer and observation under one timeout. It also
 builds and runs the bounded asynchronous file report application, checks its exact recursively
 discovered file and byte counts, and proves that its recoverable missing-root path leaves neither
-final nor temporary output. The remaining gates include interactive LSP analysis of an initialized
-user package and installed standard-library contract, implementation, byte-order, generated
+final nor temporary output. It compiles and runs every declared integrity-checked binary-record
+test, builds the application, and compares its exact 46-byte output. The remaining gates include
+interactive LSP analysis of an initialized user package and installed standard-library contract,
+implementation, fixed and variable byte-codec, checksum, cursor, dynamic-storage, generated
 Unicode table, and Unicode casing sources. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.

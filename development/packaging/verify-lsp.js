@@ -48,11 +48,16 @@ async function verify() {
   const standardSources = [
     path.join(home, "std", "bytes", "index.nct"),
     path.join(home, "std", "bytes", "scalar.nct"),
+    path.join(home, "std", "bytes", "variable.nct"),
+    path.join(home, "std", "checksum", "index.nct"),
+    path.join(home, "std", "checksum", "crc32.nct"),
     path.join(home, "std", "error", "index.nct"),
     path.join(home, "std", "error", "construction.nct"),
     path.join(home, "std", "internal", "bytes", "scalar.nct"),
     path.join(home, "std", "internal", "unicode", "tables.nct"),
+    path.join(home, "std", "scan", "binary.nct"),
     path.join(home, "std", "str", "casing.nct"),
+    path.join(home, "std", "vec", "byte_encoding.nct"),
   ].map((sourcePath) => ({
     path: sourcePath,
     uri: pathToFileURL(sourcePath).href,

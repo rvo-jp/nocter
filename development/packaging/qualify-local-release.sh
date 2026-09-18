@@ -238,6 +238,33 @@ test ! -s "$async_file_report_stderr"
 test ! -e "$async_file_report_root/failed.txt"
 test ! -e "$async_file_report_root/failed.txt.tmp"
 
+binary_record_root="$temporary_root/binary-record"
+binary_record_executable="$temporary_root/binary-record-program"
+binary_record_output="$binary_record_root/records.bin"
+binary_record_expected="$temporary_root/binary-record.expected"
+binary_record_stdout="$temporary_root/binary-record.stdout"
+binary_record_stderr="$temporary_root/binary-record.stderr"
+mkdir -p "$binary_record_root"
+printf '%b' \
+  '\x4e\x43\x54\x52\x00\x01\x0c\x2a\x00\x00\x00\x40\x0c\x00\x00\x00\x00\x00\x00\x67\xee\x5d\x6f' \
+  '\x4e\x43\x54\x52\x00\x01\x0c\x07\x00\x00\x00\xbf\xf4\x00\x00\x00\x00\x00\x00\x90\xaa\xf5\x21' \
+  > "$binary_record_expected"
+"${environment[@]}" "$home/nocter" test \
+  --root "$repository_root/examples/binary-record" \
+  --locked \
+  --offline
+"${environment[@]}" "$home/nocter" build \
+  --root "$repository_root/examples/binary-record" \
+  --locked \
+  --offline \
+  --output "$binary_record_executable"
+"$binary_record_executable" "$binary_record_output" \
+  > "$binary_record_stdout" \
+  2> "$binary_record_stderr"
+cmp "$binary_record_expected" "$binary_record_output"
+test ! -s "$binary_record_stdout"
+test ! -s "$binary_record_stderr"
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"
