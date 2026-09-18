@@ -4,6 +4,8 @@
 //! std/io, archive structure remains in std/archive, and integrity checks remain in std/checksum.
 
 see ./decoder.nct
+see ./gzip_decoder.nct
+see ./gzip_storage.nct
 see ./storage.nct
 see ./tests.nct
 
@@ -40,6 +42,39 @@ pub enum InflateStep {
     invalid(input_consumed: usize, output_written: usize, failure: InflateFailure)
 }
 
+/// Allocation-free incremental state for one concatenated gzip stream.
+///
+/// The decoder owns gzip framing, integrity state, and one raw DEFLATE decoder. It retains no
+/// caller input or output slice. End of input is declared explicitly with `finish` so an absent
+/// next member remains distinct from a truncated member.
+pub struct GzipDecoder
+
+/// One terminal reason that makes the inspected gzip stream invalid.
+pub enum GzipFailure {
+    invalid_magic
+    unsupported_method
+    reserved_flags
+    header_checksum_mismatch
+    invalid_payload
+    checksum_mismatch
+    size_mismatch
+    truncated_header
+    truncated_payload
+    truncated_trailer
+}
+
+/// The exact outcome of one bounded gzip operation.
+///
+/// `member_finished` is resumable and creates an explicit boundary between concatenated members.
+/// `finished` and `invalid` are terminal. Every count applies only to the current call.
+pub enum GzipStep {
+    needs_input(input_consumed: usize, output_written: usize)
+    needs_output(input_consumed: usize, output_written: usize)
+    member_finished(input_consumed: usize, output_written: usize)
+    finished(input_consumed: usize, output_written: usize)
+    invalid(input_consumed: usize, output_written: usize, failure: GzipFailure)
+}
+
 construct InflateDecoder {
     /// Constructs a decoder at the beginning of one raw DEFLATE stream.
     pub noalloc func new(): Self
@@ -51,4 +86,23 @@ instance InflateDecoder {
     /// Reported counts apply only to this call. Resume with the unconsumed input suffix and fresh
     /// output capacity. Empty input or output is valid, and terminal calls consume and write zero.
     pub noalloc method &+self.decode(input: &[u8], output: &+[u8]): InflateStep
+}
+
+construct GzipDecoder {
+    /// Constructs a decoder before the first gzip member.
+    pub noalloc func new(): Self
+}
+
+instance GzipDecoder {
+    /// Advances gzip members with caller-owned input and output storage.
+    ///
+    /// A completed member returns `member_finished`; resume with the unconsumed input suffix. When
+    /// the underlying input reaches EOF, call `finish` instead of submitting another input slice.
+    pub noalloc method &+self.decode(input: &[u8], output: &+[u8]): GzipStep
+
+    /// Declares permanent end of input and drains output already represented by decoder state.
+    ///
+    /// Repeat with fresh output after `needs_output`. A complete sequence ends with `finished`;
+    /// every partial header, payload, or trailer ends with the corresponding truncation failure.
+    pub noalloc method &+self.finish(output: &+[u8]): GzipStep
 }

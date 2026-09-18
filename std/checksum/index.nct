@@ -12,6 +12,9 @@ construct Crc32 {
 }
 
 instance Crc32 {
+    /// Adds one byte to this checksum.
+    pub noalloc method &+self.update_byte(value: u8): void
+
     /// Adds an exact byte sequence to this checksum.
     pub noalloc method &+self.update(input: &[u8]): void
 

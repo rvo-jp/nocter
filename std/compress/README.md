@@ -25,3 +25,11 @@ Raw DEFLATE provides no integrity protection. Gzip composition validates its tra
 single [`std/checksum`](../checksum/README.md) CRC-32 authority. Compression does not own archive
 entry structure, external transport, deadlines, filesystem paths, extraction limits, or file
 publication.
+
+`GzipDecoder` accepts every standard optional header field without retaining its contents, checks
+the optional header checksum, and validates each member's CRC-32 and modulo-2^32 uncompressed size.
+It returns `member_finished` before starting the next concatenated member, which gives callers an
+explicit output and metadata boundary without treating it as end of stream. Gzip has no in-band
+end marker for the member sequence, so callers declare transport EOF with `finish`. EOF between
+members produces terminal `finished`; EOF inside a header, payload, or trailer produces a precise
+truncation failure.

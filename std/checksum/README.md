@@ -6,9 +6,9 @@ signatures. It provides the reflected ISO-HDLC CRC-32 parameters: polynomial `0x
 exclusive-or `0xFFFFFFFF`. The check value for `123456789` is `0xCBF43926`.
 
 `crc32` computes one complete checksum. `Crc32` applies the same state transition incrementally;
-input chunk boundaries do not affect the result. `value` does not mutate or consume the state, so
-repeated observation is stable and later `update` calls continue from the bytes already supplied.
-All operations are allocation-free.
+`update_byte` and `update` share that transition, and input chunk boundaries do not affect the
+result. `value` does not mutate or consume the state, so repeated observation is stable and later
+updates continue from the bytes already supplied. All operations are allocation-free.
 
 The implementation owns one reflected four-bit lookup table. Standard-library tests derive all
 sixteen entries from the reflected polynomial before checking public vectors and arbitrary chunk

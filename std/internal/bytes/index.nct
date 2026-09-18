@@ -15,5 +15,7 @@ pub(/) noalloc func encode_u32_le(output: &+[u8], value: u32): bool
 pub(/) noalloc func encode_u64_be(output: &+[u8], value: u64): bool
 pub(/) noalloc func encode_u64_le(output: &+[u8], value: u64): bool
 pub(/) noalloc func decode_u16_be_pair(high: u8, low: u8): u16
+pub(/) noalloc func decode_u16_le_pair(low: u8, high: u8): u16
+pub(/) noalloc func decode_u32_le_quad(first: u8, second: u8, third: u8, fourth: u8): u32
 pub(/) noalloc func u16_be_high_byte(value: u16): u8
 pub(/) noalloc func u16_be_low_byte(value: u16): u8

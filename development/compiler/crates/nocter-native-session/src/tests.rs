@@ -45,6 +45,8 @@ const MAP_PHASE3_TEST_SOURCE: &str =
 
 const INFLATE_RUNTIME_TEST_SOURCE: &str =
     include_str!("../../../tests/fixtures/native/session/inflate-runtime.nct");
+const GZIP_RUNTIME_TEST_SOURCE: &str =
+    include_str!("../../../tests/fixtures/native/session/gzip-runtime.nct");
 
 struct TestDiscoveredUnit {
     computation: nocter_compiler_computation::CompilerComputation,

@@ -43,13 +43,18 @@ construct Crc32 {
 }
 
 instance Crc32 {
+    noalloc method &+self.update_byte(value: u8): void {
+        let previous = self.state
+        self.state = previous.bit_xor(value as u64)
+        self.state = advance_nibble(self.state)
+        self.state = advance_nibble(self.state)
+        return
+    }
+
     noalloc method &+self.update(input: &[u8]): void {
         var index: usize = 0
         while index < input.len() {
-            let previous = self.state
-            self.state = previous.bit_xor(input[index] as u64)
-            self.state = advance_nibble(self.state)
-            self.state = advance_nibble(self.state)
+            self.update_byte(input[index])
             index += 1
         }
         return

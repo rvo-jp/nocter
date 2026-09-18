@@ -64,6 +64,8 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("char", "internal/character"),
     ("char", "internal/ptr"),
     ("char", "internal/unicode"),
+    ("compress", "checksum"),
+    ("compress", "internal/bytes"),
     ("compress", "internal/deflate"),
     ("fixed", "bytes"),
     ("fixed", "internal/ptr"),

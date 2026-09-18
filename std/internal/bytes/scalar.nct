@@ -6,6 +6,16 @@ noalloc func decode_u16_be_pair(high: u8, low: u8): u16 {
     return (high as u16) * 256 + low as u16
 }
 
+noalloc func decode_u16_le_pair(low: u8, high: u8): u16 {
+    return decode_u16_be_pair(high, low)
+}
+
+noalloc func decode_u32_le_quad(first: u8, second: u8, third: u8, fourth: u8): u32 {
+    let low = decode_u16_le_pair(first, second)
+    let high = decode_u16_le_pair(third, fourth)
+    return (high as u32) * 65536 + low as u32
+}
+
 noalloc func u16_be_high_byte(value: u16): u8 {
     return u8.truncate((value / 256) as u64)
 }
@@ -21,7 +31,7 @@ noalloc func decode_u16_be(input: &[u8]): u16? {
 
 noalloc func decode_u16_le(input: &[u8]): u16? {
     if input.len() < 2 { return none }
-    return decode_u16_be_pair(input[1], input[0])
+    return decode_u16_le_pair(input[0], input[1])
 }
 
 noalloc func decode_u32(input: &[u8], little_endian: bool): u32? {

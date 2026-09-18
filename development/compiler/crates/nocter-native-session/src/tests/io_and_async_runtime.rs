@@ -147,7 +147,7 @@ fn standard_checksum_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard checksum tests failed native compilation")
     };
-    assert_eq!(cases.len(), 3);
+    assert_eq!(cases.len(), 4);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -211,6 +211,15 @@ fn streaming_inflate_crosses_the_complete_native_session() {
         INFLATE_RUNTIME_TEST_SOURCE,
     );
     execute_native_status(&image, &package_root.0, "inflate-runtime", 0);
+}
+
+#[test]
+fn concatenated_gzip_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image =
+        compile_single_file_native_source(&package_root, &standard_root, GZIP_RUNTIME_TEST_SOURCE);
+    execute_native_status(&image, &package_root.0, "gzip-runtime", 0);
 }
 
 #[test]

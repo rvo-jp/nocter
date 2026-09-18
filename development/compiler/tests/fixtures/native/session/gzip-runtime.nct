@@ -1,0 +1,246 @@
+use std/compress.{GzipDecoder, GzipFailure, GzipStep}
+use std/vec.Vec
+
+noalloc func output_matches(output: &[u8], start: usize, expected: &[u8]): bool {
+    var index: usize = 0
+    while index < output.len() {
+        if start + index >= expected.len() || output[index] != expected[start + index] {
+            return false
+        }
+        index += 1
+    }
+    return true
+}
+
+func decodes_fragmented(compressed: &[u8], expected: &[u8], expected_members: usize): bool {
+    var decoder = GzipDecoder.new()
+    var input_offset: usize = 0
+    var output_offset: usize = 0
+    var members: usize = 0
+    var output: Vec<u8> = Vec [u8.truncate(0)]
+
+    loop {
+        let step = if input_offset < compressed.len() {
+            let input = compressed.get_range(input_offset, input_offset + 1) otherwise {
+                return false
+            }
+            decoder.decode(input, &+output as &+[u8])
+        } else {
+            decoder.finish(&+output as &+[u8])
+        }
+        match step {
+            GzipStep.needs_input(consumed, written) {
+                let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+                if !output_matches(produced, output_offset, expected) { return false }
+                input_offset += consumed
+                output_offset += written
+            }
+            GzipStep.needs_output(consumed, written) {
+                let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+                if !output_matches(produced, output_offset, expected) || written == 0 { return false }
+                input_offset += consumed
+                output_offset += written
+            }
+            GzipStep.member_finished(consumed, written) {
+                let produced = (&output as &[u8]).get_range(0, written) otherwise { return false }
+                if !output_matches(produced, output_offset, expected) { return false }
+                input_offset += consumed
+                output_offset += written
+                members += 1
+            }
+            GzipStep.finished(consumed, written) {
+                if consumed != 0 || written != 0
+                    || input_offset != compressed.len()
+                    || output_offset != expected.len()
+                    || members != expected_members {
+                    return false
+                }
+                let terminal = decoder.finish(&+output as &+[u8])
+                match terminal {
+                    GzipStep.finished(replayed_consumed, replayed_written) {
+                        if replayed_consumed != 0 || replayed_written != 0 { return false }
+                        let after_end = decoder.decode(compressed, &+output as &+[u8])
+                        match after_end {
+                            GzipStep.finished(after_consumed, after_written) {
+                                return after_consumed == 0 && after_written == 0
+                            }
+                            _ { return false }
+                        }
+                    }
+                    _ { return false }
+                }
+            }
+            GzipStep.invalid(_, _, _) { return false }
+        }
+    }
+}
+
+func decodes_concatenated_whole(compressed: &[u8], expected: &[u8]): bool {
+    var decoder = GzipDecoder.new()
+    var output: Vec<u8> = Vec.with_capacity(expected.len())
+    var index: usize = 0
+    while index < expected.len() {
+        output.push(u8.truncate(0))
+        index += 1
+    }
+
+    let first = decoder.decode(compressed, &+output as &+[u8])
+    var first_consumed: usize = 0
+    var first_written: usize = 0
+    match first {
+        GzipStep.member_finished(consumed, written) {
+            first_consumed = consumed
+            first_written = written
+        }
+        _ { return false }
+    }
+    let first_output = (&output as &[u8]).get_range(0, first_written) otherwise { return false }
+    if !output_matches(first_output, 0, expected) || first_consumed >= compressed.len() {
+        return false
+    }
+
+    let remaining = compressed.get_range(first_consumed, compressed.len()) otherwise { return false }
+    let second = decoder.decode(remaining, &+output as &+[u8])
+    match second {
+        GzipStep.member_finished(consumed, written) {
+            let second_output = (&output as &[u8]).get_range(0, written) otherwise { return false }
+            if consumed != remaining.len()
+                || !output_matches(second_output, first_written, expected)
+                || first_written + written != expected.len() {
+                return false
+            }
+        }
+        _ { return false }
+    }
+    let terminal = decoder.finish(&+output as &+[u8])
+    match terminal {
+        GzipStep.finished(consumed, written) { return consumed == 0 && written == 0 }
+        _ { return false }
+    }
+}
+
+noalloc func failure_code(failure: GzipFailure): i32 {
+    match failure {
+        GzipFailure.invalid_magic { return 1 }
+        GzipFailure.unsupported_method { return 2 }
+        GzipFailure.reserved_flags { return 3 }
+        GzipFailure.header_checksum_mismatch { return 4 }
+        GzipFailure.checksum_mismatch { return 5 }
+        GzipFailure.size_mismatch { return 6 }
+        GzipFailure.truncated_header { return 7 }
+        GzipFailure.truncated_payload { return 8 }
+        GzipFailure.truncated_trailer { return 9 }
+        GzipFailure.invalid_payload { return 10 }
+    }
+}
+
+func rejects_as(compressed: &[u8], expected_code: i32): bool {
+    var decoder = GzipDecoder.new()
+    var output: Vec<u8> = Vec [u8.truncate(0)]
+    var input_offset: usize = 0
+    loop {
+        let step = if input_offset < compressed.len() {
+            let remaining = compressed.get_range(input_offset, compressed.len()) otherwise {
+                return false
+            }
+            decoder.decode(remaining, &+output as &+[u8])
+        } else {
+            decoder.finish(&+output as &+[u8])
+        }
+        match step {
+            GzipStep.needs_input(consumed, _) { input_offset += consumed }
+            GzipStep.needs_output(consumed, written) {
+                if written == 0 { return false }
+                input_offset += consumed
+            }
+            GzipStep.invalid(consumed, _, failure) {
+                input_offset += consumed
+                if failure_code(failure) != expected_code { return false }
+                let replayed = decoder.finish(&+output as &+[u8])
+                match replayed {
+                    GzipStep.invalid(replayed_consumed, replayed_written, replayed_failure) {
+                        return replayed_consumed == 0
+                            && replayed_written == 0
+                            && failure_code(replayed_failure) == expected_code
+                    }
+                    _ { return false }
+                }
+            }
+            _ { return false }
+        }
+    }
+}
+
+func main(): i32 {
+    var optional: Vec<u8> = Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(30),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(255), u8.truncate(2), u8.truncate(0),
+        u8.truncate(1), u8.truncate(2), u8.truncate(97), u8.truncate(0),
+        u8.truncate(98), u8.truncate(0), u8.truncate(10), u8.truncate(226),
+        u8.truncate(203), u8.truncate(72), u8.truncate(205), u8.truncate(201),
+        u8.truncate(201), u8.truncate(87), u8.truncate(72), u8.truncate(175),
+        u8.truncate(202), u8.truncate(44), u8.truncate(224), u8.truncate(2),
+        u8.truncate(0), u8.truncate(57), u8.truncate(124), u8.truncate(99),
+        u8.truncate(86), u8.truncate(11), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let second: Vec<u8> = Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(255), u8.truncate(43), u8.truncate(78),
+        u8.truncate(77), u8.truncate(206), u8.truncate(207), u8.truncate(75),
+        u8.truncate(1), u8.truncate(0), u8.truncate(105), u8.truncate(17),
+        u8.truncate(31), u8.truncate(182), u8.truncate(6), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0),
+    ]
+    var concatenated: Vec<u8> = Vec.empty()
+    concatenated.extend_from_slice(&optional as &[u8])
+    concatenated.extend_from_slice(&second as &[u8])
+    if !decodes_concatenated_whole(
+        &concatenated as &[u8],
+        "hello gzip\nsecond".bytes(),
+    ) { return 1 }
+    if !decodes_fragmented(
+        &concatenated as &[u8],
+        "hello gzip\nsecond".bytes(),
+        2,
+    ) { return 2 }
+
+    let bad_magic: Vec<u8> = Vec [u8.truncate(0)]
+    if !rejects_as(&bad_magic as &[u8], 1) { return 3 }
+    let bad_method: Vec<u8> = Vec [u8.truncate(31), u8.truncate(139), u8.truncate(0)]
+    if !rejects_as(&bad_method as &[u8], 2) { return 4 }
+    let bad_flags: Vec<u8> = Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(32),
+    ]
+    if !rejects_as(&bad_flags as &[u8], 3) { return 5 }
+
+    optional[18] = u8.truncate(11)
+    if !rejects_as(&optional as &[u8], 4) { return 6 }
+    optional[18] = u8.truncate(10)
+    optional[33] = u8.truncate(58)
+    if !rejects_as(&optional as &[u8], 5) { return 7 }
+    optional[33] = u8.truncate(57)
+    optional[37] = u8.truncate(12)
+    if !rejects_as(&optional as &[u8], 6) { return 8 }
+    optional[37] = u8.truncate(11)
+
+    let short_header: Vec<u8> = Vec [u8.truncate(31), u8.truncate(139)]
+    if !rejects_as(&short_header as &[u8], 7) { return 9 }
+    let short_payload: Vec<u8> = Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(255),
+    ]
+    if !rejects_as(&short_payload as &[u8], 8) { return 10 }
+    let short_trailer = (&optional as &[u8]).get_range(0, 40) otherwise { return 11 }
+    if !rejects_as(short_trailer, 9) { return 12 }
+    let invalid_payload: Vec<u8> = Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(255), u8.truncate(7),
+    ]
+    if !rejects_as(&invalid_payload as &[u8], 10) { return 13 }
+    return 0
+}

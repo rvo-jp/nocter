@@ -71,3 +71,14 @@ test crc32_can_continue_after_observing_a_prefix {
     }
     return
 }
+
+test crc32_byte_updates_share_the_sequence_transition {
+    var bytes = Crc32.new()
+    bytes.update_byte(u8.truncate(49))
+    bytes.update_byte(u8.truncate(50))
+    bytes.update_byte(u8.truncate(51))
+    if bytes.value() != crc32("123".bytes()) {
+        return error.new("std.checksum.crc32", "byte update diverged from slice update")
+    }
+    return
+}

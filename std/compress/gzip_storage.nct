@@ -1,0 +1,34 @@
+//! Private state for concatenated gzip framing and integrity.
+
+see ./index.nct
+
+use /checksum
+
+enum GzipPhase {
+    fixed_header
+    extra_length
+    extra_data
+    name
+    comment
+    header_checksum
+    payload
+    trailer
+    finished
+    invalid
+}
+
+struct GzipDecoder {
+    phase: GzipPhase
+    flags: u8
+    header_index: usize
+    field_index: usize
+    field_bytes: [u8; 8]
+    extra_remaining: usize
+    header_checksum: checksum.Crc32
+    payload_checksum: checksum.Crc32
+    payload_size: u64
+    inflate: InflateDecoder
+    members: usize
+    input_complete: bool
+    failure: GzipFailure
+}
