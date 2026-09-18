@@ -1,5 +1,3 @@
-//! Writes and reads one bounded portable binary record.
-
 #package: {
     name: "binary-record",
     version: "0.1.0",

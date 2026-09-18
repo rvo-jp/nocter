@@ -5,6 +5,7 @@ use std/process
 use std/scan.ByteCursor
 
 const MAGIC: u32 = 1313035346
+
 const RECORD_BYTES: usize = 18
 
 copy struct Record {
@@ -20,9 +21,9 @@ noalloc func sample_record(): Record {
 noalloc func encode(record: &Record): ByteBuffer<RECORD_BYTES>! {
     var output: ByteBuffer<RECORD_BYTES> = ByteBuffer.empty()
     if !output.try_push_u32_be(MAGIC)
-        || !output.try_push_u16_be(record.version)
-        || !output.try_push_u32_le(record.item_count)
-        || !output.try_push_f64_be(record.measurement) {
+    || !output.try_push_u16_be(record.version)
+    || !output.try_push_u32_le(record.item_count)
+    || !output.try_push_f64_be(record.measurement) {
         return error.new("example.binary_record.capacity", "record exceeded its fixed wire size")
     }
     return move output
@@ -102,8 +103,8 @@ test record_round_trips_every_field {
     let encoded = encode(&source)?
     let decoded = decode(&encoded as &[u8])?
     if decoded.version != source.version
-        || decoded.item_count != source.item_count
-        || decoded.measurement.to_bits() != source.measurement.to_bits() {
+    || decoded.item_count != source.item_count
+    || decoded.measurement.to_bits() != source.measurement.to_bits() {
         return error.new("example.binary_record.round_trip", "record field changed")
     }
     return
