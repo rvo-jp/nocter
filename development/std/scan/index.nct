@@ -1,6 +1,7 @@
 //! Allocation-free cursors over borrowed bytes and UTF-8 text.
 
 see ./cursors.nct
+see ./binary.nct
 see ./tests.nct
 
 /// A forward cursor over one borrowed byte slice.
@@ -51,6 +52,36 @@ instance ByteCursor {
 
     /// Selects through the next delimiter or the end, excluding and consuming the delimiter.
     pub noalloc method &+self.take_until(delimiter: u8): ByteWindow from self
+
+    /// Consumes and decodes one big-endian unsigned 16-bit value.
+    pub noalloc method &+self.take_u16_be(): u16?
+
+    /// Consumes and decodes one little-endian unsigned 16-bit value.
+    pub noalloc method &+self.take_u16_le(): u16?
+
+    /// Consumes and decodes one big-endian unsigned 32-bit value.
+    pub noalloc method &+self.take_u32_be(): u32?
+
+    /// Consumes and decodes one little-endian unsigned 32-bit value.
+    pub noalloc method &+self.take_u32_le(): u32?
+
+    /// Consumes and decodes one big-endian unsigned 64-bit value.
+    pub noalloc method &+self.take_u64_be(): u64?
+
+    /// Consumes and decodes one little-endian unsigned 64-bit value.
+    pub noalloc method &+self.take_u64_le(): u64?
+
+    /// Consumes and decodes one big-endian IEEE binary32 value.
+    pub noalloc method &+self.take_f32_be(): f32?
+
+    /// Consumes and decodes one little-endian IEEE binary32 value.
+    pub noalloc method &+self.take_f32_le(): f32?
+
+    /// Consumes and decodes one big-endian IEEE binary64 value.
+    pub noalloc method &+self.take_f64_be(): f64?
+
+    /// Consumes and decodes one little-endian IEEE binary64 value.
+    pub noalloc method &+self.take_f64_le(): f64?
 }
 
 /// A forward cursor whose byte positions remain valid UTF-8 boundaries.

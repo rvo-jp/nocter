@@ -17,6 +17,10 @@ but uncommitted capacity, and `commit` advances the observable prefix only after
 written it. A failed commit leaves the prefix unchanged. Its slice coercion and iterator expose
 only committed bytes.
 
+Fixed-width scalar appends delegate byte order to [`std/bytes`](../bytes/README.md). They check the
+complete required capacity before committing anything. Failure returns `false` with the committed
+prefix unchanged; success commits exactly the scalar width.
+
 Use these types when an explicit upper bound is part of the application contract or allocation is
 forbidden. Use [`Vec`](../vec/README.md) when input size is not naturally bounded or retaining a
 large maximum inline capacity would make every value unnecessarily large.

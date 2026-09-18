@@ -1,0 +1,68 @@
+//! Transactional scalar append over fixed-capacity byte storage.
+
+see ./index.nct
+
+use /bytes
+use /internal/safety
+
+instance ByteBuffer<N> {
+    noalloc method &+self.try_push_u16_be(value: u16): bool {
+        if !bytes.encode_u16_be(self.spare_mut(), value) { return false }
+        if !self.commit(2) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_u16_le(value: u16): bool {
+        if !bytes.encode_u16_le(self.spare_mut(), value) { return false }
+        if !self.commit(2) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_u32_be(value: u32): bool {
+        if !bytes.encode_u32_be(self.spare_mut(), value) { return false }
+        if !self.commit(4) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_u32_le(value: u32): bool {
+        if !bytes.encode_u32_le(self.spare_mut(), value) { return false }
+        if !self.commit(4) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_u64_be(value: u64): bool {
+        if !bytes.encode_u64_be(self.spare_mut(), value) { return false }
+        if !self.commit(8) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_u64_le(value: u64): bool {
+        if !bytes.encode_u64_le(self.spare_mut(), value) { return false }
+        if !self.commit(8) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_f32_be(value: f32): bool {
+        if !bytes.encode_f32_be(self.spare_mut(), value) { return false }
+        if !self.commit(4) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_f32_le(value: f32): bool {
+        if !bytes.encode_f32_le(self.spare_mut(), value) { return false }
+        if !self.commit(4) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_f64_be(value: f64): bool {
+        if !bytes.encode_f64_be(self.spare_mut(), value) { return false }
+        if !self.commit(8) { return safety.invariant_abort() }
+        return true
+    }
+
+    noalloc method &+self.try_push_f64_le(value: f64): bool {
+        if !bytes.encode_f64_le(self.spare_mut(), value) { return false }
+        if !self.commit(8) { return safety.invariant_abort() }
+        return true
+    }
+}

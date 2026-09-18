@@ -1,0 +1,69 @@
+//! Fixed-width scalar advances delegated to the canonical byte codecs.
+
+see ./index.nct
+see ./cursors.nct
+
+use /bytes
+use /internal/safety
+
+instance ByteCursor {
+    noalloc method &+self.take_u16_be(): u16? {
+        let value = bytes.decode_u16_be(self.remaining())?
+        if !advance_exact(self, 2) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_u16_le(): u16? {
+        let value = bytes.decode_u16_le(self.remaining())?
+        if !advance_exact(self, 2) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_u32_be(): u32? {
+        let value = bytes.decode_u32_be(self.remaining())?
+        if !advance_exact(self, 4) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_u32_le(): u32? {
+        let value = bytes.decode_u32_le(self.remaining())?
+        if !advance_exact(self, 4) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_u64_be(): u64? {
+        let value = bytes.decode_u64_be(self.remaining())?
+        if !advance_exact(self, 8) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_u64_le(): u64? {
+        let value = bytes.decode_u64_le(self.remaining())?
+        if !advance_exact(self, 8) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_f32_be(): f32? {
+        let value = bytes.decode_f32_be(self.remaining())?
+        if !advance_exact(self, 4) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_f32_le(): f32? {
+        let value = bytes.decode_f32_le(self.remaining())?
+        if !advance_exact(self, 4) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_f64_be(): f64? {
+        let value = bytes.decode_f64_be(self.remaining())?
+        if !advance_exact(self, 8) { return safety.invariant_abort() }
+        return value
+    }
+
+    noalloc method &+self.take_f64_le(): f64? {
+        let value = bytes.decode_f64_le(self.remaining())?
+        if !advance_exact(self, 8) { return safety.invariant_abort() }
+        return value
+    }
+}

@@ -5,6 +5,7 @@
 
 use /iter.{ExactSizeIterator, Iterator, ViewIter}
 see ./byte_buffer.nct
+see ./byte_encoding.nct
 see ./fixed_vec.nct
 see ./iteration.nct
 see ./storage.nct
@@ -115,4 +116,34 @@ instance ByteBuffer<N> {
 
     /// Returns the readonly iterator explicitly.
     pub noalloc method &self.iter(): ViewIter<u8>
+
+    /// Atomically appends one big-endian unsigned 16-bit value when capacity permits.
+    pub noalloc method &+self.try_push_u16_be(value: u16): bool
+
+    /// Atomically appends one little-endian unsigned 16-bit value when capacity permits.
+    pub noalloc method &+self.try_push_u16_le(value: u16): bool
+
+    /// Atomically appends one big-endian unsigned 32-bit value when capacity permits.
+    pub noalloc method &+self.try_push_u32_be(value: u32): bool
+
+    /// Atomically appends one little-endian unsigned 32-bit value when capacity permits.
+    pub noalloc method &+self.try_push_u32_le(value: u32): bool
+
+    /// Atomically appends one big-endian unsigned 64-bit value when capacity permits.
+    pub noalloc method &+self.try_push_u64_be(value: u64): bool
+
+    /// Atomically appends one little-endian unsigned 64-bit value when capacity permits.
+    pub noalloc method &+self.try_push_u64_le(value: u64): bool
+
+    /// Atomically appends one big-endian IEEE binary32 value when capacity permits.
+    pub noalloc method &+self.try_push_f32_be(value: f32): bool
+
+    /// Atomically appends one little-endian IEEE binary32 value when capacity permits.
+    pub noalloc method &+self.try_push_f32_le(value: f32): bool
+
+    /// Atomically appends one big-endian IEEE binary64 value when capacity permits.
+    pub noalloc method &+self.try_push_f64_be(value: f64): bool
+
+    /// Atomically appends one little-endian IEEE binary64 value when capacity permits.
+    pub noalloc method &+self.try_push_f64_le(value: f64): bool
 }

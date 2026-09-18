@@ -8,10 +8,11 @@ authority in [`development/history/milestones/v0.58.0.md`](history/milestones/v0
 
 ## Next Work
 
-Complete v0.58.0 Phase 0 by freezing one byte-codec contract that composes with `std/scan`,
-`std/fixed`, and `std/io` without introducing another cursor, buffer, or stream authority. Continue
-through the implementation and practical application phases unless an observable language-design
-choice requires user direction.
+Complete v0.58.0 Phase 3 by connecting the canonical scalar codecs to dynamic storage and external
+writers without introducing another cursor, buffer, or byte-order authority. Phases 0 through 2
+are complete: `std/bytes` owns scalar conversion, `scan.ByteCursor` owns exact input progress, and
+`fixed.ByteBuffer<N>` owns transactional bounded commit. Continue through the practical application
+unless an observable language-design choice requires user direction.
 
 Preserve the v0.57.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

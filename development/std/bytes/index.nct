@@ -1,0 +1,76 @@
+//! Allocation-free conversion between scalar values and byte sequences.
+//!
+//! This module owns byte order only. Borrowed cursor progress belongs to std/scan, bounded storage
+//! belongs to std/fixed, and external transport belongs to std/io.
+
+see ./scalar.nct
+
+/// Decodes the first two bytes as one big-endian unsigned integer.
+pub noalloc func decode_u16_be(input: &[u8]): u16?
+
+/// Decodes the first two bytes as one little-endian unsigned integer.
+pub noalloc func decode_u16_le(input: &[u8]): u16?
+
+/// Decodes the first four bytes as one big-endian unsigned integer.
+pub noalloc func decode_u32_be(input: &[u8]): u32?
+
+/// Decodes the first four bytes as one little-endian unsigned integer.
+pub noalloc func decode_u32_le(input: &[u8]): u32?
+
+/// Decodes the first eight bytes as one big-endian unsigned integer.
+pub noalloc func decode_u64_be(input: &[u8]): u64?
+
+/// Decodes the first eight bytes as one little-endian unsigned integer.
+pub noalloc func decode_u64_le(input: &[u8]): u64?
+
+/// Decodes the first four bytes as one big-endian IEEE binary32 value.
+pub noalloc func decode_f32_be(input: &[u8]): f32?
+
+/// Decodes the first four bytes as one little-endian IEEE binary32 value.
+pub noalloc func decode_f32_le(input: &[u8]): f32?
+
+/// Decodes the first eight bytes as one big-endian IEEE binary64 value.
+pub noalloc func decode_f64_be(input: &[u8]): f64?
+
+/// Decodes the first eight bytes as one little-endian IEEE binary64 value.
+pub noalloc func decode_f64_le(input: &[u8]): f64?
+
+/// Encodes one unsigned integer into the first two output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than two bytes are available.
+pub noalloc func encode_u16_be(output: &+[u8], value: u16): bool
+
+/// Encodes one unsigned integer into the first two output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than two bytes are available.
+pub noalloc func encode_u16_le(output: &+[u8], value: u16): bool
+
+/// Encodes one unsigned integer into the first four output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than four bytes are available.
+pub noalloc func encode_u32_be(output: &+[u8], value: u32): bool
+
+/// Encodes one unsigned integer into the first four output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than four bytes are available.
+pub noalloc func encode_u32_le(output: &+[u8], value: u32): bool
+
+/// Encodes one unsigned integer into the first eight output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than eight bytes are available.
+pub noalloc func encode_u64_be(output: &+[u8], value: u64): bool
+
+/// Encodes one unsigned integer into the first eight output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than eight bytes are available.
+pub noalloc func encode_u64_le(output: &+[u8], value: u64): bool
+
+/// Encodes one IEEE binary32 value into the first four output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than four bytes are available.
+pub noalloc func encode_f32_be(output: &+[u8], value: f32): bool
+
+/// Encodes one IEEE binary32 value into the first four output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than four bytes are available.
+pub noalloc func encode_f32_le(output: &+[u8], value: f32): bool
+
+/// Encodes one IEEE binary64 value into the first eight output bytes in big-endian order.
+/// Returns false and leaves output unchanged when fewer than eight bytes are available.
+pub noalloc func encode_f64_be(output: &+[u8], value: f64): bool
+
+/// Encodes one IEEE binary64 value into the first eight output bytes in little-endian order.
+/// Returns false and leaves output unchanged when fewer than eight bytes are available.
+pub noalloc func encode_f64_le(output: &+[u8], value: f64): bool

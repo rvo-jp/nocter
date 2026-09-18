@@ -1,0 +1,90 @@
+use std/bytes
+use std/fixed.ByteBuffer
+use std/scan.ByteCursor
+use std/vec.Vec
+
+func main(): i32 {
+    let source: Vec<u8> = Vec [
+        u8.truncate(1), u8.truncate(35), u8.truncate(69), u8.truncate(103),
+        u8.truncate(137), u8.truncate(171), u8.truncate(205), u8.truncate(239),
+    ]
+    let big = bytes.decode_u64_be(&source as &[u8]) otherwise { return 1 }
+    let little = bytes.decode_u64_le(&source as &[u8]) otherwise { return 2 }
+
+    var encoded_big: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    var encoded_little: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    if !bytes.encode_u64_be(&+encoded_big as &+[u8], big)
+        || !bytes.encode_u64_le(&+encoded_little as &+[u8], little) {
+        return 3
+    }
+    if (&encoded_big as &[u8]) != (&source as &[u8])
+        || (&encoded_little as &[u8]) != (&source as &[u8]) {
+        return 4
+    }
+
+    let u16_bytes: Vec<u8> = Vec [u8.truncate(18), u8.truncate(52)]
+    let u32_bytes: Vec<u8> = Vec [
+        u8.truncate(120), u8.truncate(86), u8.truncate(52), u8.truncate(18),
+    ]
+    let decoded16 = bytes.decode_u16_be(&u16_bytes as &[u8]) otherwise { return 5 }
+    let decoded32 = bytes.decode_u32_le(&u32_bytes as &[u8]) otherwise { return 6 }
+    if decoded16 != 4660 || decoded32 != 305419896 { return 7 }
+
+    var short: Vec<u8> = Vec [u8.truncate(9), u8.truncate(8), u8.truncate(7)]
+    if bytes.encode_u32_be(&+short as &+[u8], decoded32)
+        || short[0] != 9 || short[1] != 8 || short[2] != 7 {
+        return 8
+    }
+    let one: Vec<u8> = Vec [u8.truncate(42)]
+    let _unexpected = bytes.decode_u16_be(&one as &[u8]) otherwise { return check_floats() }
+    return 9
+}
+
+func check_floats(): i32 {
+    let value32 = f32.from_bits(2143294004)
+    let value64 = f64.from_bits(9223372036854775808)
+    var bytes32: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    var bytes64: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    if !bytes.encode_f32_le(&+bytes32 as &+[u8], value32)
+        || !bytes.encode_f64_be(&+bytes64 as &+[u8], value64) {
+        return 10
+    }
+    let decoded32 = bytes.decode_f32_le(&bytes32 as &[u8]) otherwise { return 11 }
+    let decoded64 = bytes.decode_f64_be(&bytes64 as &[u8]) otherwise { return 12 }
+    if decoded32.to_bits() != value32.to_bits() || decoded64.to_bits() != value64.to_bits() {
+        return 13
+    }
+    return check_composition()
+}
+
+func check_composition(): i32 {
+    var output: ByteBuffer<10> = ByteBuffer.empty()
+    if !output.try_push_u16_be(4660) || !output.try_push_u64_le(72623859790382856) {
+        return 14
+    }
+    if output.len() != 10 || output.try_push_u16_be(1) || output.len() != 10 {
+        return 15
+    }
+
+    var input = ByteCursor.new(&output as &[u8])
+    let first = input.take_u16_be() otherwise { return 16 }
+    let second = input.take_u64_le() otherwise { return 17 }
+    if first != 4660 || second != 72623859790382856 || !input.is_finished() { return 18 }
+    let unchanged_offset = input.offset()
+    let _unexpected = input.take_u16_be() otherwise {
+        if input.offset() == unchanged_offset { return 0 }
+        return 19
+    }
+    return 20
+}

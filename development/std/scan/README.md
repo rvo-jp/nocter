@@ -15,3 +15,7 @@ delimiter remains, they return the complete suffix and finish the cursor.
 `TextCursor` measures positions in UTF-8 bytes. Exact takes accept only scalar-aligned endpoints.
 Text separator matching uses exact non-empty UTF-8 text. An empty separator fails with
 `std.scan.empty_separator`; it never creates a non-progressing cursor operation.
+
+Fixed-width numeric advances delegate byte interpretation to [`std/bytes`](../bytes/README.md).
+Insufficient input returns `none` without advancing. A successful advance consumes exactly the
+encoded width; the cursor does not retain a second byte-order or scalar-decoding implementation.

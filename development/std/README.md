@@ -26,6 +26,7 @@ comments.
 | inline fixed-capacity sequences and byte staging | [Fixed-Capacity Collections](fixed/README.md) | `std/fixed` |
 | borrowed sequences | [Slices](slice/README.md) | `std/slice` |
 | borrowed parsing windows | [Borrowed Scanning](scan/README.md) | `std/scan` |
+| fixed-width binary scalar encoding | [Binary Scalar Codecs](bytes/README.md) | `std/bytes` |
 | iteration and collection | [Iteration](iter/README.md) | `std/iter`, `std/iter/collect` |
 | value formatting | [Formatting](fmt/README.md) | `std/fmt` |
 | byte streams and buffering | [I/O](io/README.md) | `std/io`, `std/io/buffer` |

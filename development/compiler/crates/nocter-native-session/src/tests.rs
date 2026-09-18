@@ -508,6 +508,20 @@ fn byte_vector_source(bytes: &[u8]) -> String {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn public_byte_codecs_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        include_str!("../../../tests/fixtures/native/bytes_codecs.nct"),
+    );
+    execute_native_status(&image, &package_root.0, "byte-codecs", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn erased_readonly_callable_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

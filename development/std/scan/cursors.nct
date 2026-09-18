@@ -26,6 +26,12 @@ struct TextWindow {
     end: usize
 }
 
+noalloc func advance_exact(cursor: &+ByteCursor, count: usize): bool {
+    if count > cursor.input.len() - cursor.next_offset { return false }
+    cursor.next_offset += count
+    return true
+}
+
 construct ByteWindow {
     noalloc func get(input: &[u8], start: usize, end: usize): Self? from input {
         if start > end || end > input.len() { return none }
@@ -105,10 +111,9 @@ instance ByteCursor {
     }
 
     noalloc method &+self.take(count: usize): ByteWindow? from self {
-        if count > self.remaining_len() { return none }
         let start = self.next_offset
-        let end = start + count
-        self.next_offset = end
+        if !advance_exact(self, count) { return none }
+        let end = self.next_offset
         return ByteWindow { input: self.input, start: start, end: end }
     }
 
