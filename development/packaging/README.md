@@ -38,8 +38,8 @@ standard library to qualify concurrent generic transfer and observation under on
 builds and runs the bounded asynchronous file report application, checks its exact recursively
 discovered file and byte counts, and proves that its recoverable missing-root path leaves neither
 final nor temporary output. The remaining gates include interactive LSP analysis of an initialized
-user package and installed standard-library contract, implementation, generated Unicode table, and
-Unicode casing sources. It also proves
+user package and installed standard-library contract, implementation, byte-order, generated
+Unicode table, and Unicode casing sources. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.
 Only after every check passes does it replace the generated candidate outputs in `dist/`.

@@ -46,8 +46,11 @@ async function verify() {
   const workspace = fs.realpathSync(workspaceArgument);
   const home = path.dirname(binary);
   const standardSources = [
+    path.join(home, "std", "bytes", "index.nct"),
+    path.join(home, "std", "bytes", "scalar.nct"),
     path.join(home, "std", "error", "index.nct"),
     path.join(home, "std", "error", "construction.nct"),
+    path.join(home, "std", "internal", "bytes", "scalar.nct"),
     path.join(home, "std", "internal", "unicode", "tables.nct"),
     path.join(home, "std", "str", "casing.nct"),
   ].map((sourcePath) => ({
