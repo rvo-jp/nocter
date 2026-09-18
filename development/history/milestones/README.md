@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.59.0: Integrity-Checked Binary Records](v0.59.0.md)
 - [v0.58.0: Binary Data and Protocol Foundation](v0.58.0.md)
 - [v0.58.0 Release Preparation](v0.58.0-release-preparation.md)
 - [v0.57.0: Constant Generics and Fixed-Capacity Data](v0.57.0.md)
