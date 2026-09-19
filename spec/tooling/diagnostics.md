@@ -50,11 +50,11 @@ Rules:
 
 Formatting diagnostic codes:
 
-- `E0601`: formatter cannot safely rewrite a source that contains comments.
+- `E0601`: reserved; comment-preserving formatting does not reject comments.
 - `E0602`: formatter check found a source file that would change.
 
-`E0601` points to the first comment that prevents a lossless rewrite. `E0602` is spanless because
-the complete canonical output differs rather than one source range being invalid.
+`E0602` is spanless because the complete canonical output differs rather than one source range
+being invalid.
 
 Spanless CLI diagnostic codes:
 

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic, syntax_diagnostics};
+use nocter_diagnostics::syntax_diagnostics;
 use nocter_source::{SourceFile, SourceMap, SourceName};
 use nocter_syntax::{
     Keyword, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
@@ -8,10 +8,12 @@ use nocter_syntax::{
 
 use crate::{FormatError, syntax_tokens};
 
+mod comments;
 mod equivalence;
 mod layout;
 mod rewrite;
 
+use comments::{CommentLayout, FormatElement};
 use layout::LayoutPlan;
 
 pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String, FormatError> {
@@ -20,21 +22,11 @@ pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String,
             std::slice::from_ref(syntax),
         )));
     }
-    if let Some(comment) = syntax.lexed().comments().first().copied() {
-        return Err(FormatError::Diagnostics(vec![SourceDiagnostic::new(
-            DiagnosticCode::E0601,
-            "formatting source with comments is not supported yet",
-            comment.span(),
-            [],
-            Some(
-                "remove the comment or leave this file unformatted until comment-preserving formatting is available",
-            ),
-        )]
-        .into_boxed_slice()));
-    }
     let formatted = Formatter::new(source, syntax).run();
     let candidate = parse_candidate(source, syntax, &formatted)?;
-    if !equivalence::same_tree(source, syntax, candidate.source(), &candidate.syntax) {
+    if !equivalence::same_tree(source, syntax, candidate.source(), &candidate.syntax)
+        || !equivalence::same_comments(source, syntax, candidate.source(), &candidate.syntax)
+    {
         return Err(FormatError::ChangedSyntax);
     }
     let rewrites = rewrite::RewritePlan::build(&candidate.syntax);
@@ -43,6 +35,11 @@ pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String,
     };
     let rewritten_candidate = parse_candidate(candidate.source(), &candidate.syntax, &rewritten)?;
     if !rewrites.preserves_tokens(
+        candidate.source(),
+        &candidate.syntax,
+        rewritten_candidate.source(),
+        &rewritten_candidate.syntax,
+    ) || !equivalence::same_comments(
         candidate.source(),
         &candidate.syntax,
         rewritten_candidate.source(),
@@ -97,7 +94,7 @@ fn parse_candidate(
 
 struct Formatter<'syntax> {
     source: &'syntax SourceFile,
-    tokens: Vec<SyntaxToken>,
+    elements: Vec<FormatElement>,
     parent_kinds: HashMap<SyntaxToken, NodeKind>,
     top_level_items: HashMap<u32, TopLevelItemKind>,
     layout: LayoutPlan,
@@ -108,6 +105,13 @@ struct Formatter<'syntax> {
     previous: Option<SyntaxToken>,
     previous_parent: Option<NodeKind>,
     previous_top_level: Option<TopLevelItemKind>,
+    comment_before_next: Option<CommentTail>,
+}
+
+#[derive(Clone, Copy)]
+struct CommentTail {
+    followed_on_line: bool,
+    leading: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -149,7 +153,7 @@ impl<'syntax> Formatter<'syntax> {
             .collect();
         Self {
             source,
-            tokens: tokens.clone(),
+            elements: comments::ordered(source, &tokens, syntax.lexed().comments()),
             parent_kinds,
             top_level_items,
             layout: LayoutPlan::build(source, syntax, &tokens),
@@ -160,21 +164,27 @@ impl<'syntax> Formatter<'syntax> {
             previous: None,
             previous_parent: None,
             previous_top_level: None,
+            comment_before_next: None,
         }
     }
 
     fn run(mut self) -> String {
-        let tokens = std::mem::take(&mut self.tokens);
-        for token in tokens {
-            if self.layout.omits(token) {
-                continue;
-            }
-            match token.kind() {
-                TokenKind::Eof => break,
-                TokenKind::Newline => {
-                    self.pending_newlines = self.pending_newlines.saturating_add(1).min(2);
+        let elements = std::mem::take(&mut self.elements);
+        for element in elements {
+            match element {
+                FormatElement::Token(token) => {
+                    if self.layout.omits(token) {
+                        continue;
+                    }
+                    match token.kind() {
+                        TokenKind::Eof => break,
+                        TokenKind::Newline => {
+                            self.pending_newlines = self.pending_newlines.saturating_add(1).min(2);
+                        }
+                        _ => self.write_token(token),
+                    }
                 }
-                _ => self.write_token(token),
+                FormatElement::Comment(comment) => self.write_comment(comment),
             }
         }
         while self.output.ends_with([' ', '\n']) {
@@ -200,8 +210,9 @@ impl<'syntax> Formatter<'syntax> {
         if forced_break {
             self.pending_newlines = 1;
         }
+        let comment_tail = self.comment_before_next.take();
         if self.pending_newlines != 0 {
-            if !forced_break && self.joins_previous_line(token) {
+            if comment_tail.is_none() && !forced_break && self.joins_previous_line(token) {
                 if !self.output.is_empty()
                     && needs_space(
                         self.previous,
@@ -213,15 +224,18 @@ impl<'syntax> Formatter<'syntax> {
                     self.output.push(' ');
                 }
             } else if !self.output.is_empty() {
-                let line_count = match (self.previous_top_level, current_top_level) {
-                    (Some(TopLevelItemKind::Import), Some(TopLevelItemKind::Import)) => 1,
-                    (_, Some(_)) => 2,
+                let line_count = match (comment_tail, self.previous_top_level, current_top_level) {
+                    (Some(CommentTail { leading: true, .. }), _, _) => self.pending_newlines,
+                    (_, Some(TopLevelItemKind::Import), Some(TopLevelItemKind::Import)) => 1,
+                    (_, _, Some(_)) => 2,
                     _ => self.pending_newlines,
                 };
                 self.output.push_str(&"\n".repeat(usize::from(line_count)));
                 self.at_line_start = true;
             }
             self.pending_newlines = 0;
+        } else if comment_tail.is_some_and(|tail| tail.followed_on_line) {
+            self.write_space();
         } else if !self.at_line_start
             && needs_space(
                 self.previous,
@@ -263,6 +277,56 @@ impl<'syntax> Formatter<'syntax> {
         self.previous_parent = self.parent(token);
         if let Some(kind) = current_top_level {
             self.previous_top_level = Some(kind);
+        }
+    }
+
+    fn write_comment(&mut self, layout: CommentLayout) {
+        let continues_comment_group = self.comment_before_next.is_some();
+        let current_top_level = layout.next_token().and_then(|token| {
+            self.top_level_items
+                .get(&token.range().start().get())
+                .copied()
+        });
+        if layout.preceded_on_line() {
+            self.write_space();
+        } else {
+            if !self.output.is_empty() && !self.at_line_start && self.pending_newlines == 0 {
+                self.pending_newlines = 1;
+            }
+            if self.pending_newlines != 0 && !self.output.is_empty() {
+                let line_count = if continues_comment_group {
+                    self.pending_newlines
+                } else {
+                    match (self.previous_top_level, current_top_level) {
+                        (Some(TopLevelItemKind::Import), Some(TopLevelItemKind::Import)) => 1,
+                        (_, Some(_)) => 2,
+                        _ => self.pending_newlines,
+                    }
+                };
+                self.output.push_str(&"\n".repeat(usize::from(line_count)));
+                self.at_line_start = true;
+            }
+            self.pending_newlines = 0;
+        }
+        if self.at_line_start {
+            self.output.push_str(&"    ".repeat(self.delimiter_depth));
+            self.at_line_start = false;
+        }
+        let text = self
+            .source
+            .text_at(layout.comment().span().range())
+            .expect("comment range remains in its source");
+        self.output.push_str(text);
+        self.at_line_start = text.ends_with('\n');
+        self.comment_before_next = Some(CommentTail {
+            followed_on_line: layout.followed_on_line(),
+            leading: !layout.preceded_on_line(),
+        });
+    }
+
+    fn write_space(&mut self) {
+        if !self.at_line_start && !self.output.ends_with([' ', '\n']) {
+            self.output.push(' ');
         }
     }
 
@@ -905,19 +969,51 @@ mod tests {
     }
 
     #[test]
-    fn rejects_comments_without_rewriting_their_text() {
-        let inspection = SourceInspection::new(
-            SourceName::new("test.nct"),
-            b"// keep me\nfunc main(): void { return }\n",
-            InspectionGoal::SourceFile,
-        )
-        .unwrap();
+    fn preserves_documentation_trailing_and_inline_comments() {
+        let source = "//! File docs.\nuse std/io // keep import\n\n/// Main docs.\nblocking func main( ):i32! { /* open */\nvar value:i32=1 // state\nvalue+=1/* increment */\nreturn value\n}\n";
+        let expected = "//! File docs.\nuse std/io // keep import\n\n/// Main docs.\nblocking func main(): i32! { /* open */\n    var value: i32 = 1 // state\n    value += 1 /* increment */\n    return value\n}\n";
+        let formatted = format(source);
 
-        let failure = inspection.format().unwrap_err();
-        let diagnostics = failure.diagnostics().unwrap();
+        assert_eq!(formatted, expected);
+        assert_eq!(format(&formatted), formatted);
+    }
 
-        assert_eq!(diagnostics[0].code(), "E0601");
-        assert_eq!(diagnostics[0].primary().span().range().start().get(), 0);
+    #[test]
+    fn preserves_consecutive_documentation_as_one_leading_trivia_group() {
+        let source = "/// First line.\n/// Second line.\nstruct Value { field:i32 }\n";
+        let formatted = format(source);
+
+        assert_eq!(
+            formatted,
+            "/// First line.\n/// Second line.\nstruct Value { field: i32 }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn preserves_multiline_block_comment_text_while_formatting_around_it() {
+        let source = "func main():void {\n/* keep\n * exact */\nreturn\n}\n";
+        let formatted = format(source);
+
+        assert_eq!(
+            formatted,
+            "func main(): void {\n    /* keep\n * exact */\n    return\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn comment_anchors_are_stable_across_supported_source_positions() {
+        for source in [
+            "/* top */func main():void {/* body */return}\n",
+            "func main():void {\n// before\nreturn // after\n}\n",
+            "/// Value docs.\nstruct Value { field:i32 /* field */ }\n",
+            "func identity(value:i32/* type */):i32 { return value }\n",
+            "func main():void {\n/* first\nsecond */return\n}\n",
+        ] {
+            let formatted = format(source);
+            assert_eq!(format(&formatted), formatted, "{source}");
+        }
     }
 
     #[test]

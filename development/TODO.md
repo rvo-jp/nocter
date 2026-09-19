@@ -2,17 +2,15 @@
 
 ## Current State
 
-Nocter v0.60.0 is published and externally audited. Streaming DEFLATE, concatenated gzip, bounded
-POSIX ustar observation, the safe archive-inspection application, native and editor integration,
-deterministic packaging, the public replacement asset, and the Pages deployment are complete. The
-immutable evidence is recorded in
-[`development/history/release-audits/v0.60.0.md`](history/release-audits/v0.60.0.md).
+Nocter v0.60.0 is published and externally audited. v0.61.0 repository-operability work is
+complete. Comment-preserving formatting is complete and has passed the full compiler, native,
+editor, documentation, and reproducibility gate.
 
 ## Next Work
 
-Select the next milestone from concrete application and standard-library pressure. Do not reopen
-v0.60.0; any correction requires a new version, implementation gate, qualified archive, tag, and
-publication audit.
+Close the verified artifact-installation trust, acquisition, destination, replacement, and
+recovery contracts before implementation begins. Do not treat the current checksum manifest as an
+authenticity guarantee.
 
 Preserve the v0.60.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

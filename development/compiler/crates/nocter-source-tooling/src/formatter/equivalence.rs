@@ -12,20 +12,40 @@ pub(super) fn same_tree(
     if left.root_id().index() != right.root_id().index() || left_nodes.len() != right_nodes.len() {
         return false;
     }
-    left_nodes
-        .into_iter()
-        .zip(right_nodes)
-        .all(|((left_id, left_node), (right_id, right_node))| {
-            left_id.index() == right_id.index()
-                && left_node.kind() == right_node.kind()
-                && same_children(
-                    left_node.kind(),
-                    left_source,
-                    left.children(left_id),
-                    right_source,
-                    right.children(right_id),
-                )
-        })
+    left.file_documentation() == right.file_documentation()
+        && left_nodes.into_iter().zip(right_nodes).all(
+            |((left_id, left_node), (right_id, right_node))| {
+                left_id.index() == right_id.index()
+                    && left_node.kind() == right_node.kind()
+                    && left.documentation(left_id) == right.documentation(right_id)
+                    && same_children(
+                        left_node.kind(),
+                        left_source,
+                        left.children(left_id),
+                        right_source,
+                        right.children(right_id),
+                    )
+            },
+        )
+}
+
+pub(super) fn same_comments(
+    left_source: &SourceFile,
+    left: &SyntaxTree,
+    right_source: &SourceFile,
+    right: &SyntaxTree,
+) -> bool {
+    left.lexed().comments().len() == right.lexed().comments().len()
+        && left
+            .lexed()
+            .comments()
+            .iter()
+            .zip(right.lexed().comments())
+            .all(|(left, right)| {
+                left.kind() == right.kind()
+                    && left_source.text_at(left.span().range())
+                        == right_source.text_at(right.span().range())
+            })
 }
 
 fn same_children(

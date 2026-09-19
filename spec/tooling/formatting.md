@@ -64,15 +64,15 @@ Rules:
 - `fmt` does not treat the input as a compile-unit root.
 - `fmt` does not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.
 - `fmt` must not delete or rewrite comments.
-- Until comment-preserving formatting is implemented, `fmt` must reject files that contain comments instead of rewriting them.
+- `fmt` preserves each comment's kind, exact text, source order, and documentation attachment.
 - If parsing fails, `fmt` must not rewrite the file.
 - `fmt` rewrites the file in place only after formatting succeeds.
 - `fmt --check` compares the input against formatter output and does not rewrite the file.
 - `fmt --check` exits successfully only when the file already matches formatter output.
 - `fmt` does not need a target option.
 
-Project-wide formatting is not supported. Package identity alone does not define comment-preserving
-traversal, atomic multi-file writes, or partial-failure behavior.
+Project-wide formatting is not supported. Package identity alone does not define atomic multi-file
+writes or partial-failure behavior.
 
 ## Package Directives
 
@@ -381,11 +381,12 @@ for item in move values { ... }
 
 Rules:
 
-- Formatter output must preserve normal comments and doc comments once comment-preserving formatting is implemented.
-- The current formatter rejects files that contain comments with a diagnostic instead of rewriting them.
+- Formatter output preserves normal comments and doc comments.
+- Formatting preserves comment kind, exact text, source order, and the declaration to which each
+  documentation comment is attached.
 - Formatter output may adjust surrounding whitespace but must not rewrite comment text.
 - Line comments keep at least one space between code and `//` when they share a line.
-- Block comments keep their internal text unchanged once comment-preserving formatting is implemented.
+- Block comments keep their internal text unchanged.
 - Doc comments keep their doc marker spelling: `///`, `/**`, `//!`, or `/*!`.
 
 The formatter does not reflow comment paragraphs.

@@ -112,8 +112,8 @@ impl SourceInspection {
     ///
     /// # Errors
     ///
-    /// Returns source diagnostics when parsing failed or comments prevent a lossless rewrite, and
-    /// an integrity failure when reparsing the candidate output changes concrete syntax.
+    /// Returns source diagnostics when parsing failed and an integrity failure when reparsing the
+    /// candidate output changes concrete syntax, comment text, or documentation attachment.
     ///
     /// # Panics
     ///

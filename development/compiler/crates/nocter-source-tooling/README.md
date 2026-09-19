@@ -13,6 +13,9 @@ analysis and are not reconstructed here.
 ## Invariants
 
 - Formatting preserves syntax and emits the canonical source style.
+- Comment layout owns trivia ordering and anchoring independently of token layout. Formatting
+  preserves exact comment text, comment kind, source order, and syntax-owned documentation
+  attachment.
 - Formatting preserves authored callable execution and guarantees in their canonical modifier
   positions.
 - Source token classification never invents semantic identity.
