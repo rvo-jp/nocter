@@ -44,6 +44,7 @@ comments.
 | durations, monotonic time, wall-clock time, and UTC calendar values | [Time](time/README.md) | `std/time` |
 | structured asynchronous computation composition | [Structured Asynchronous Tasks](task/README.md) | `std/task` |
 | synchronous processes and process context | [Synchronous Processes](process/README.md) | `std/process` |
+| structured command-line parsing and help | [Command-Line Applications](cli/README.md) | `std/cli` |
 | numeric network addresses and socket I/O | [Network I/O](net/README.md) | `std/net` |
 | authenticated TLS client streams | [Authenticated TLS](tls/README.md) | `std/tls` |
 | absolute HTTP-family URLs and request targets | [URL](url/README.md) | `std/url` |

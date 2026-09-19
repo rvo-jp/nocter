@@ -2,15 +2,18 @@
 
 ## Current State
 
-Nocter v0.61.0 is published and externally audited. The annotated tag, single GitHub Release
-asset, latest-release endpoint, downloaded installed home, and source-identified Pages deployment
-all match the qualified candidate and publication commit.
+Nocter v0.61.0 is published and externally audited. v0.62.0 Structured Command-Line Applications
+has started with a contract-first `std/cli` boundary over the existing raw `std/process` argument
+authority.
 
 ## Next Work
 
-Plan the next milestone from concrete user-facing or standard-library gaps. Preserve the v0.61.0
-tag, release asset, public notes, specification snapshot, and publication audit without
-replacement. Any correction requires a new version and a newly qualified artifact.
+Complete the v0.62.0 schema, parser, presentation, nested-command, and application-adoption phases.
+Keep parsing, result lookup, and help generation dependent on one immutable schema; do not add
+compiler-known CLI declarations, hidden process termination, or a second raw-argument authority.
+
+Preserve the v0.61.0 tag, release asset, public notes, specification snapshot, and publication
+audit without replacement. Any correction requires a new version and a newly qualified artifact.
 
 Preserve every published tag and asset, including v0.49.0.
 

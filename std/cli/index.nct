@@ -1,0 +1,99 @@
+//! Structured command-line schemas, parsing, and presentation.
+//!
+//! `std/process` owns raw operating-system arguments. This module classifies already separated
+//! argument text, retains one owned result, and renders usage and help from the same schema.
+
+use /string.String
+
+see ./errors.nct
+see ./parsing.nct
+see ./presentation.nct
+see ./process.nct
+see ./schema.nct
+see ./storage.nct
+see ./tests.nct
+
+/// One owned command-line schema.
+pub struct Application
+
+/// One owned successful parse result.
+pub struct ParsedArguments
+
+construct Application {
+    /// Creates a schema with one nonempty display name and optional description.
+    pub func new(name: &str, description: &str): Self!
+}
+
+instance Application {
+    /// Adds one Boolean option with a unique long name and optional short name.
+    pub method &+self.add_flag(
+        long: &str,
+        short: char?,
+        description: &str,
+    ): void!
+
+    /// Adds one single-use option that consumes one text value.
+    pub method &+self.add_option(
+        long: &str,
+        short: char?,
+        value_name: &str,
+        description: &str,
+    ): void!
+
+    /// Adds one option that may occur repeatedly and retains every supplied value in order.
+    pub method &+self.add_repeated_option(
+        long: &str,
+        short: char?,
+        value_name: &str,
+        description: &str,
+    ): void!
+
+    /// Adds one positional argument after all earlier positionals.
+    ///
+    /// Required positionals must precede optional positionals.
+    pub method &+self.add_positional(
+        name: &str,
+        required: bool,
+        description: &str,
+    ): void!
+
+    /// Adds one owned subcommand schema.
+    ///
+    /// Commands and positional arguments are mutually exclusive within one schema level.
+    pub method &+self.add_command(command: Application): void!
+
+    /// Parses an argument sequence that excludes the executable spelling.
+    pub method &self.parse(arguments: &[&str]): ParsedArguments!
+
+    /// Reads the current process arguments once and parses everything after argument zero.
+    pub method &self.parse_process(): ParsedArguments!
+
+    /// Renders one compact invocation synopsis from this schema.
+    pub method &self.usage(): String
+
+    /// Renders usage, description, options, and positional documentation from this schema.
+    pub method &self.help(): String
+}
+
+instance ParsedArguments {
+    /// Returns whether the named flag occurred.
+    pub noalloc method &self.flag(long: &str): bool
+
+    /// Borrows the value supplied to the named value option, or `none` when absent or not defined.
+    pub noalloc method &self.option(long: &str): &str? from self
+
+    /// Returns how many values occurred for the named value option.
+    pub noalloc method &self.option_count(long: &str): usize
+
+    /// Borrows one repeated option value in command-line order.
+    pub noalloc method &self.option_at(long: &str, value_index: usize): &str? from self
+
+    /// Borrows the value assigned to the named positional, or `none` when absent or not defined.
+    pub noalloc method &self.positional(name: &str): &str? from self
+
+    /// Borrows the selected immediate subcommand name, or `none` when this level has none.
+    pub noalloc method &self.selected_command(): &str? from self
+
+    /// Borrows the parsed arguments for the selected command when its name matches `name`.
+    pub noalloc method &self.command(name: &str): &ParsedArguments? from self
+}

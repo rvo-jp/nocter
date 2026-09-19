@@ -1,0 +1,194 @@
+//! Schema validation and construction.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /string.String
+use /vec.Vec
+
+noalloc func ascii_lower(value: u8): bool {
+    return value >= 97 && value <= 122
+}
+
+noalloc func ascii_digit(value: u8): bool {
+    return value >= 48 && value <= 57
+}
+
+noalloc func valid_long_name(name: &str): bool {
+    let bytes = name.bytes()
+    if bytes.len() == 0 || !ascii_lower(bytes[0]) { return false }
+    var index: usize = 1
+    var previous_hyphen = false
+    while index < bytes.len() {
+        let value = bytes[index]
+        if ascii_lower(value) || ascii_digit(value) {
+            previous_hyphen = false
+        } else if value == 45 && !previous_hyphen {
+            previous_hyphen = true
+        } else {
+            return false
+        }
+        index += 1
+    }
+    return !previous_hyphen
+}
+
+noalloc func valid_display_name(name: &str): bool {
+    let bytes = name.bytes()
+    if bytes.len() == 0 { return false }
+    var index: usize = 0
+    while index < bytes.len() {
+        if bytes[index] <= 32 || bytes[index] == 127 { return false }
+        index += 1
+    }
+    return true
+}
+
+noalloc func valid_short_name(name: char): bool {
+    let value = name.code_point()
+    return (value >= 65 && value <= 90)
+        || (value >= 97 && value <= 122)
+        || (value >= 48 && value <= 57)
+}
+
+noalloc func valid_optional_short_name(name: char?): bool {
+    let present = name otherwise { return true }
+    return valid_short_name(present)
+}
+
+noalloc func option_name_is_available(
+    application: &Application,
+    long: &str,
+    short: char?,
+): bool {
+    for existing in &application.options {
+        if option_long(existing) == long { return false }
+        let requested = short otherwise { continue }
+        let present = option_short(existing) otherwise { continue }
+        if requested == present { return false }
+    }
+    return true
+}
+
+noalloc func positional_name_is_available(application: &Application, name: &str): bool {
+    for existing in &application.positionals {
+        if positional_name(existing) == name { return false }
+    }
+    return true
+}
+
+construct Application {
+    func new(name: &str, description: &str): Self! {
+        if !valid_display_name(name) { return invalid_application() }
+        return Application {
+            name_text: String.copy(name),
+            description_text: String.copy(description),
+            options: Vec.empty(),
+            positionals: Vec.empty(),
+            commands: Vec.empty(),
+        }
+    }
+}
+
+instance Application {
+    method &+self.add_flag(
+        long: &str,
+        short: char?,
+        description: &str,
+    ): void! {
+        if !valid_long_name(long) { return invalid_option() }
+        if !valid_optional_short_name(short) { return invalid_option() }
+        if !option_name_is_available(self, long, short) { return duplicate_option() }
+        self.options.push(
+            OptionSpec {
+                long_name: String.copy(long),
+                short_name: short,
+                takes_value: false,
+                repeatable_value: false,
+                value_name: String.empty(),
+                description_text: String.copy(description),
+            },
+        )
+        return
+    }
+
+    method &+self.add_option(
+        long: &str,
+        short: char?,
+        value_name: &str,
+        description: &str,
+    ): void! {
+        if !valid_long_name(long) || !valid_display_name(value_name) { return invalid_option() }
+        if !valid_optional_short_name(short) { return invalid_option() }
+        if !option_name_is_available(self, long, short) { return duplicate_option() }
+        self.options.push(
+            OptionSpec {
+                long_name: String.copy(long),
+                short_name: short,
+                takes_value: true,
+                repeatable_value: false,
+                value_name: String.copy(value_name),
+                description_text: String.copy(description),
+            },
+        )
+        return
+    }
+
+    method &+self.add_repeated_option(
+        long: &str,
+        short: char?,
+        value_name: &str,
+        description: &str,
+    ): void! {
+        if !valid_long_name(long) || !valid_display_name(value_name) { return invalid_option() }
+        if !valid_optional_short_name(short) { return invalid_option() }
+        if !option_name_is_available(self, long, short) { return duplicate_option() }
+        self.options.push(
+            OptionSpec {
+                long_name: String.copy(long),
+                short_name: short,
+                takes_value: true,
+                repeatable_value: true,
+                value_name: String.copy(value_name),
+                description_text: String.copy(description),
+            },
+        )
+        return
+    }
+
+    method &+self.add_positional(
+        name: &str,
+        required: bool,
+        description: &str,
+    ): void! {
+        if !valid_display_name(name) { return invalid_positional() }
+        if self.commands.len() != 0 { return command_positional_conflict() }
+        if !positional_name_is_available(self, name) { return duplicate_positional() }
+        if required {
+            for existing in &self.positionals {
+                if !positional_required(existing) { return required_after_optional() }
+            }
+        }
+        self.positionals.push(
+            PositionalSpec {
+                name_text: String.copy(name),
+                required_value: required,
+                description_text: String.copy(description),
+            },
+        )
+        return
+    }
+
+    method &+self.add_command(command: Application): void! {
+        if self.positionals.len() != 0 { return command_positional_conflict() }
+        if !valid_long_name(application_name(&command)) { return invalid_command() }
+        for existing in &self.commands {
+            if application_name(existing) == application_name(&command) {
+                return duplicate_command()
+            }
+        }
+        self.commands.push(move command)
+        return
+    }
+}

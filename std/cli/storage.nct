@@ -1,0 +1,182 @@
+//! Sole owned representation for command-line schemas and parsed results.
+
+see ./index.nct
+
+use /string.String
+use /vec.Vec
+
+struct OptionSpec {
+    long_name: String
+    short_name: char?
+    takes_value: bool
+    repeatable_value: bool
+    value_name: String
+    description_text: String
+}
+
+struct PositionalSpec {
+    name_text: String
+    required_value: bool
+    description_text: String
+}
+
+struct OptionMatch {
+    long_name: String
+    flag_value: bool
+    values: Vec<String>
+}
+
+struct PositionalMatch {
+    name_text: String
+    has_value: bool
+    value_text: String
+}
+
+struct CommandMatch {
+    name_text: String
+    arguments: ParsedArguments
+}
+
+struct Application {
+    name_text: String
+    description_text: String
+    options: Vec<OptionSpec>
+    positionals: Vec<PositionalSpec>
+    commands: Vec<Application>
+}
+
+struct ParsedArguments {
+    options: Vec<OptionMatch>
+    positionals: Vec<PositionalMatch>
+    commands: Vec<CommandMatch>
+}
+
+noalloc func option_long(spec: &OptionSpec): &str {
+    return &spec.long_name
+}
+
+noalloc func option_short(spec: &OptionSpec): char? {
+    return spec.short_name
+}
+
+noalloc func option_takes_value(spec: &OptionSpec): bool {
+    return spec.takes_value
+}
+
+noalloc func option_repeatable(spec: &OptionSpec): bool {
+    return spec.repeatable_value
+}
+
+noalloc func option_value_name(spec: &OptionSpec): &str {
+    return &spec.value_name
+}
+
+noalloc func option_description(spec: &OptionSpec): &str {
+    return &spec.description_text
+}
+
+noalloc func positional_name(spec: &PositionalSpec): &str {
+    return &spec.name_text
+}
+
+noalloc func positional_required(spec: &PositionalSpec): bool {
+    return spec.required_value
+}
+
+noalloc func positional_description(spec: &PositionalSpec): &str {
+    return &spec.description_text
+}
+
+noalloc func application_name(application: &Application): &str {
+    return &application.name_text
+}
+
+noalloc func application_description(application: &Application): &str {
+    return &application.description_text
+}
+
+func empty_matches(application: &Application): ParsedArguments {
+    var options: Vec<OptionMatch> = Vec.with_capacity(application.options.len())
+    for spec in &application.options {
+        options.push(
+            OptionMatch {
+                long_name: String.copy(option_long(spec)),
+                flag_value: false,
+                values: Vec.empty(),
+            },
+        )
+    }
+    var positionals: Vec<PositionalMatch> = Vec.with_capacity(application.positionals.len())
+    for spec in &application.positionals {
+        positionals.push(
+            PositionalMatch {
+                name_text: String.copy(positional_name(spec)),
+                has_value: false,
+                value_text: String.empty(),
+            },
+        )
+    }
+    return ParsedArguments {
+        options: move options,
+        positionals: move positionals,
+        commands: Vec.empty(),
+    }
+}
+
+noalloc func option_match_index(arguments: &ParsedArguments, long: &str): usize? {
+    var index: usize = 0
+    while index < arguments.options.len() {
+        if (&arguments.options[index].long_name as &str) == long { return index }
+        index += 1
+    }
+    return none
+}
+
+noalloc func positional_match_index(arguments: &ParsedArguments, name: &str): usize? {
+    var index: usize = 0
+    while index < arguments.positionals.len() {
+        if (&arguments.positionals[index].name_text as &str) == name { return index }
+        index += 1
+    }
+    return none
+}
+
+instance ParsedArguments {
+    noalloc method &self.flag(long: &str): bool {
+        let index = option_match_index(self, long) otherwise { return false }
+        return self.options[index].flag_value
+    }
+
+    noalloc method &self.option(long: &str): &str? from self {
+        return self.option_at(long, 0)
+    }
+
+    noalloc method &self.option_count(long: &str): usize {
+        let index = option_match_index(self, long) otherwise { return 0 }
+        return self.options[index].values.len()
+    }
+
+    noalloc method &self.option_at(long: &str, value_index: usize): &str? from self {
+        let index = option_match_index(self, long) otherwise { return none }
+        if value_index >= self.options[index].values.len() { return none }
+        return &self.options[index].values[value_index]
+    }
+
+    noalloc method &self.positional(name: &str): &str? from self {
+        let index = positional_match_index(self, name) otherwise { return none }
+        if !self.positionals[index].has_value { return none }
+        return &self.positionals[index].value_text
+    }
+
+    noalloc method &self.selected_command(): &str? from self {
+        if self.commands.len() == 0 { return none }
+        return &self.commands[0].name_text
+    }
+
+    noalloc method &self.command(name: &str): &ParsedArguments? from self {
+        if self.commands.len() == 0 || (&self.commands[0].name_text as &str) != name {
+            return none
+        }
+        return &self.commands[0].arguments
+    }
+}

@@ -1,0 +1,123 @@
+//! Deterministic command-line schema, parsing, and presentation tests.
+
+see ./index.nct
+
+use /vec.Vec
+
+func sample_application(): Application! {
+    var application = Application.new("sample", "Classifies one input.")?
+    application.add_flag("verbose", 'v', "Show detailed progress.")?
+    application.add_option("output", 'o', "PATH", "Write to PATH.")?
+    application.add_positional("input", true, "Input path.")?
+    application.add_positional("label", false, "Optional label.")?
+    return move application
+}
+
+test cli_parses_long_short_and_positional_arguments_once {
+    let application = sample_application()?
+    let supplied: Vec<&str> = Vec ["-v", "--output=result.txt", "source.txt", "nightly"]
+    let parsed = application.parse(&supplied)?
+    if !parsed.flag("verbose") { return error.new("std.cli.test", "short flag was absent") }
+    let output = parsed.option("output") otherwise {
+        return error.new("std.cli.test", "long option value was absent")
+    }
+    let input = parsed.positional("input") otherwise {
+        return error.new("std.cli.test", "required positional was absent")
+    }
+    let label = parsed.positional("label") otherwise {
+        return error.new("std.cli.test", "optional positional was absent")
+    }
+    if output != "result.txt" || input != "source.txt" || label != "nightly" {
+        return error.new("std.cli.test", "parsed values changed spelling")
+    }
+    return
+}
+
+test cli_terminator_preserves_option_shaped_positionals {
+    var application = Application.new("sample", "")?
+    application.add_flag("verbose", 'v', "")?
+    application.add_positional("input", true, "")?
+    let supplied: Vec<&str> = Vec ["--", "--verbose"]
+    let parsed = application.parse(&supplied)?
+    let input = parsed.positional("input") otherwise {
+        return error.new("std.cli.test", "terminator positional was absent")
+    }
+    if parsed.flag("verbose") || input != "--verbose" {
+        return error.new("std.cli.test", "option terminator did not stop recognition")
+    }
+    return
+}
+
+test cli_rejects_invalid_schemas_and_invocations {
+    var application = Application.new("sample", "")?
+    application.add_flag("verbose", 'v', "")?
+    application.add_flag("verbose", none, "") catch failure {
+        if !failure.has_code("std.cli.duplicate_option") { return move failure }
+    }
+    let unknown: Vec<&str> = Vec ["--missing"]
+    let _ = application.parse(&unknown) catch failure {
+        if !failure.has_code("std.cli.unknown_option") { return move failure }
+        return
+    }
+    return error.new("std.cli.test", "unknown option was accepted")
+}
+
+test cli_usage_and_help_share_the_parser_schema {
+    let application = sample_application()?
+    let usage = application.usage()
+    if (&usage as &str) != "Usage: sample [OPTIONS] <input> [label]" {
+        return error.new("std.cli.test", "usage diverged from schema")
+    }
+    let help = application.help()
+    let expected = "Usage: sample [OPTIONS] <input> [label]\n\nClassifies one input.\n\nOptions:\n  -v, --verbose  Show detailed progress.\n  -o, --output <PATH>  Write to PATH.\n\nArguments:\n  input  Input path.\n  label  Optional label.\n"
+    if (&help as &str) != expected {
+        return error.new("std.cli.test", "help diverged from schema")
+    }
+    return
+}
+
+test cli_repeated_values_preserve_command_line_order {
+    var application = Application.new("sample", "")?
+    application.add_repeated_option("header", 'H', "VALUE", "")?
+    let supplied: Vec<&str> = Vec ["--header", "first", "-H", "second"]
+    let parsed = application.parse(&supplied)?
+    let first = parsed.option_at("header", 0) otherwise {
+        return error.new("std.cli.test", "first repeated value was absent")
+    }
+    let second = parsed.option_at("header", 1) otherwise {
+        return error.new("std.cli.test", "second repeated value was absent")
+    }
+    if parsed.option_count("header") != 2 || first != "first" || second != "second" {
+        return error.new("std.cli.test", "repeated option order changed")
+    }
+    return
+}
+
+test cli_nested_commands_reuse_the_same_schema_parser {
+    var leaf = Application.new("add", "Add one value.")?
+    leaf.add_option("tag", 't', "NAME", "")?
+    leaf.add_positional("value", true, "")?
+    var group = Application.new("item", "Manage items.")?
+    group.add_command(move leaf)?
+    var application = Application.new("sample", "")?
+    application.add_flag("verbose", 'v', "")?
+    application.add_command(move group)?
+    let supplied: Vec<&str> = Vec ["-v", "item", "add", "--tag", "nightly", "entry"]
+    let parsed = application.parse(&supplied)?
+    let item = parsed.command("item") otherwise {
+        return error.new("std.cli.test", "first command was absent")
+    }
+    let add = item.command("add") otherwise {
+        return error.new("std.cli.test", "nested command was absent")
+    }
+    let tag = add.option("tag") otherwise {
+        return error.new("std.cli.test", "nested option was absent")
+    }
+    let value = add.positional("value") otherwise {
+        return error.new("std.cli.test", "nested positional was absent")
+    }
+    if !parsed.flag("verbose") || tag != "nightly" || value != "entry" {
+        return error.new("std.cli.test", "nested command classification diverged")
+    }
+    return
+}

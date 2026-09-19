@@ -1,0 +1,167 @@
+//! Single-pass command-line classification against one validated schema.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /string.String
+
+noalloc func option_index_by_long(application: &Application, long: &str): usize? {
+    var index: usize = 0
+    while index < application.options.len() {
+        if option_long(&application.options[index]) == long { return index }
+        index += 1
+    }
+    return none
+}
+
+noalloc func option_index_by_short(application: &Application, short: char): usize? {
+    var index: usize = 0
+    while index < application.options.len() {
+        let present = option_short(&application.options[index]) otherwise {
+            index += 1
+            continue
+        }
+        if present == short { return index }
+        index += 1
+    }
+    return none
+}
+
+noalloc func command_index(application: &Application, name: &str): usize? {
+    var index: usize = 0
+    while index < application.commands.len() {
+        if application_name(&application.commands[index]) == name { return index }
+        index += 1
+    }
+    return none
+}
+
+func record_option(
+    parsed: &+ParsedArguments,
+    option_index: usize,
+    spec: &OptionSpec,
+    supplied_value: &str?,
+): void! {
+    let matched = &+parsed.options[option_index]
+    if matched.flag_value || (matched.values.len() != 0 && !option_repeatable(spec)) {
+        return repeated_option()
+    }
+    if option_takes_value(spec) {
+        let value = supplied_value otherwise { return missing_option_value() }
+        matched.values.push(String.copy(value))
+        return
+    }
+    let _unexpected = supplied_value otherwise {
+        matched.flag_value = true
+        return
+    }
+    return unexpected_option_value()
+}
+
+func record_positional(parsed: &+ParsedArguments, index: usize, value: &str): void! {
+    if index >= parsed.positionals.len() { return unexpected_positional() }
+    parsed.positionals[index].has_value = true
+    parsed.positionals[index].value_text = String.copy(value)
+    return
+}
+
+noalloc func validate_required_positionals(
+    application: &Application,
+    parsed: &ParsedArguments,
+): void! {
+    var index: usize = 0
+    while index < application.positionals.len() {
+        if positional_required(&application.positionals[index])
+            && !parsed.positionals[index].has_value {
+            return missing_positional()
+        }
+        index += 1
+    }
+    return
+}
+
+instance Application {
+    method &self.parse(arguments: &[&str]): ParsedArguments! {
+        var parsed = empty_matches(self)
+        var token_index: usize = 0
+        var positional_index: usize = 0
+        var options_enabled = true
+        while token_index < arguments.len() {
+            let token = arguments[token_index]
+            if options_enabled && token == "--" {
+                options_enabled = false
+                token_index += 1
+                continue
+            }
+            if options_enabled && token.starts_with("--") {
+                let body = token.strip_prefix("--") otherwise { return invalid_option_syntax() }
+                if body.len() == 0 { return invalid_option_syntax() }
+                let (name, value) = body.split_once("=") otherwise {
+                    let selected = option_index_by_long(self, body) otherwise {
+                        return unknown_option()
+                    }
+                    if option_takes_value(&self.options[selected]) {
+                        if token_index + 1 >= arguments.len() { return missing_option_value() }
+                        token_index += 1
+                        record_option(
+                            &+parsed,
+                            selected,
+                            &self.options[selected],
+                            arguments[token_index],
+                        )?
+                    } else {
+                        record_option(&+parsed, selected, &self.options[selected], none)?
+                    }
+                    token_index += 1
+                    continue
+                }
+                let selected = option_index_by_long(self, name) otherwise {
+                    return unknown_option()
+                }
+                record_option(&+parsed, selected, &self.options[selected], value)?
+            } else if options_enabled && token.starts_with("-") && token != "-" {
+                let bytes = token.bytes()
+                if bytes.len() != 2 { return invalid_option_syntax() }
+                let short = char.from_u32(bytes[1] as u32) otherwise {
+                    return invalid_option_syntax()
+                }
+                let selected = option_index_by_short(self, short) otherwise {
+                    return unknown_option()
+                }
+                var supplied: &str? = none
+                if option_takes_value(&self.options[selected]) {
+                    if token_index + 1 >= arguments.len() { return missing_option_value() }
+                    token_index += 1
+                    supplied = arguments[token_index]
+                }
+                record_option(&+parsed, selected, &self.options[selected], supplied)?
+            } else {
+                if self.commands.len() != 0 {
+                    let selected = command_index(self, token) otherwise { return unknown_command() }
+                    let remaining = arguments.get_range(token_index + 1, arguments.len()) otherwise {
+                        return error.new(
+                            "std.cli.invalid_argument_range",
+                            "validated command-line bounds did not produce a trailing range",
+                        )
+                    }
+                    let nested = self.commands[selected].parse(remaining)?
+                    parsed.commands.push(
+                        CommandMatch {
+                            name_text: String.copy(application_name(&self.commands[selected])),
+                            arguments: move nested,
+                        },
+                    )
+                    validate_required_positionals(self, &parsed)?
+                    return move parsed
+                }
+                record_positional(&+parsed, positional_index, token)?
+                positional_index += 1
+            }
+            token_index += 1
+        }
+        if self.commands.len() != 0 { return missing_command() }
+        validate_required_positionals(self, &parsed)?
+        return move parsed
+    }
+}

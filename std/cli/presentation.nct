@@ -1,0 +1,102 @@
+//! Usage and help rendering derived from the parser's schema authority.
+
+see ./index.nct
+see ./storage.nct
+
+use /string.String
+
+func append_option_long_spelling(output: &+String, spec: &OptionSpec): void {
+    output.push_str("--")
+    output.push_str(option_long(spec))
+    if option_takes_value(spec) {
+        output.push(' ')
+        output.push('<')
+        output.push_str(option_value_name(spec))
+        output.push('>')
+    }
+}
+
+func append_option_spelling(output: &+String, spec: &OptionSpec): void {
+    let short = option_short(spec) otherwise {
+        output.push_str("    ")
+        append_option_long_spelling(output, spec)
+        return
+    }
+    output.push('-')
+    output.push(short)
+    output.push_str(", ")
+    append_option_long_spelling(output, spec)
+}
+
+func render_usage(application: &Application): String {
+    var output = String.copy("Usage: ")
+    output.push_str(application_name(application))
+    if application.options.len() != 0 { output.push_str(" [OPTIONS]") }
+    if application.commands.len() != 0 { output.push_str(" <COMMAND>") }
+    for positional in &application.positionals {
+        output.push(' ')
+        if positional_required(positional) {
+            output.push('<')
+            output.push_str(positional_name(positional))
+            output.push('>')
+        } else {
+            output.push('[')
+            output.push_str(positional_name(positional))
+            output.push(']')
+        }
+    }
+    return move output
+}
+
+instance Application {
+    method &self.usage(): String {
+        return render_usage(self)
+    }
+
+    method &self.help(): String {
+        var output = render_usage(self)
+        output.push('\n')
+        if application_description(self).len() != 0 {
+            output.push('\n')
+            output.push_str(application_description(self))
+            output.push('\n')
+        }
+        if self.options.len() != 0 {
+            output.push_str("\nOptions:\n")
+            for option in &self.options {
+                output.push_str("  ")
+                append_option_spelling(&+output, option)
+                if option_description(option).len() != 0 {
+                    output.push_str("  ")
+                    output.push_str(option_description(option))
+                }
+                output.push('\n')
+            }
+        }
+        if self.positionals.len() != 0 {
+            output.push_str("\nArguments:\n")
+            for positional in &self.positionals {
+                output.push_str("  ")
+                output.push_str(positional_name(positional))
+                if positional_description(positional).len() != 0 {
+                    output.push_str("  ")
+                    output.push_str(positional_description(positional))
+                }
+                output.push('\n')
+            }
+        }
+        if self.commands.len() != 0 {
+            output.push_str("\nCommands:\n")
+            for command in &self.commands {
+                output.push_str("  ")
+                output.push_str(application_name(command))
+                if application_description(command).len() != 0 {
+                    output.push_str("  ")
+                    output.push_str(application_description(command))
+                }
+                output.push('\n')
+            }
+        }
+        return move output
+    }
+}

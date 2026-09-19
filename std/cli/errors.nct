@@ -1,0 +1,84 @@
+//! Stable command-line schema and invocation failure categories.
+
+see ./index.nct
+
+noalloc func invalid_application(): error {
+    return error.new("std.cli.invalid_application", "command-line application name is invalid")
+}
+
+noalloc func invalid_option(): error {
+    return error.new("std.cli.invalid_option", "command-line option definition is invalid")
+}
+
+noalloc func duplicate_option(): error {
+    return error.new("std.cli.duplicate_option", "command-line option is already defined")
+}
+
+noalloc func invalid_positional(): error {
+    return error.new("std.cli.invalid_positional", "command-line positional definition is invalid")
+}
+
+noalloc func duplicate_positional(): error {
+    return error.new("std.cli.duplicate_positional", "command-line positional is already defined")
+}
+
+noalloc func required_after_optional(): error {
+    return error.new(
+        "std.cli.required_after_optional",
+        "required command-line positionals must precede optional positionals",
+    )
+}
+
+noalloc func unknown_option(): error {
+    return error.new("std.cli.unknown_option", "command line contains an unknown option")
+}
+
+noalloc func invalid_option_syntax(): error {
+    return error.new("std.cli.invalid_option_syntax", "command line contains invalid option syntax")
+}
+
+noalloc func unexpected_option_value(): error {
+    return error.new(
+        "std.cli.unexpected_option_value",
+        "a command-line flag was supplied a value",
+    )
+}
+
+noalloc func missing_option_value(): error {
+    return error.new("std.cli.missing_option_value", "a command-line option value is missing")
+}
+
+noalloc func repeated_option(): error {
+    return error.new("std.cli.repeated_option", "a command-line option was supplied more than once")
+}
+
+noalloc func missing_positional(): error {
+    return error.new("std.cli.missing_positional", "a required command-line positional is missing")
+}
+
+noalloc func unexpected_positional(): error {
+    return error.new("std.cli.unexpected_positional", "the command line contains a surplus positional")
+}
+
+noalloc func invalid_command(): error {
+    return error.new("std.cli.invalid_command", "command-line command name is invalid")
+}
+
+noalloc func duplicate_command(): error {
+    return error.new("std.cli.duplicate_command", "command-line command is already defined")
+}
+
+noalloc func command_positional_conflict(): error {
+    return error.new(
+        "std.cli.command_positional_conflict",
+        "one command level cannot define both commands and positional arguments",
+    )
+}
+
+noalloc func missing_command(): error {
+    return error.new("std.cli.missing_command", "a command-line subcommand is required")
+}
+
+noalloc func unknown_command(): error {
+    return error.new("std.cli.unknown_command", "command line contains an unknown subcommand")
+}
