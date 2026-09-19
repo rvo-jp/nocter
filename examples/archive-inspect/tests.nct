@@ -123,6 +123,77 @@ func valid_archive(): Vec<u8> {
     ]
 }
 
+func empty_archive(): Vec<u8> {
+    return Vec [
+        u8.truncate(31),
+        u8.truncate(139),
+        u8.truncate(8),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(2),
+        u8.truncate(255),
+        u8.truncate(99),
+        u8.truncate(96),
+        u8.truncate(24),
+        u8.truncate(5),
+        u8.truncate(163),
+        u8.truncate(96),
+        u8.truncate(20),
+        u8.truncate(140),
+        u8.truncate(84),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(46),
+        u8.truncate(175),
+        u8.truncate(181),
+        u8.truncate(239),
+        u8.truncate(0),
+        u8.truncate(4),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+}
+
+func archive_with_trailing_decoded_bytes(): Vec<u8> {
+    return Vec [
+        u8.truncate(31),
+        u8.truncate(139),
+        u8.truncate(8),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(2),
+        u8.truncate(255),
+        u8.truncate(99),
+        u8.truncate(96),
+        u8.truncate(24),
+        u8.truncate(5),
+        u8.truncate(163),
+        u8.truncate(96),
+        u8.truncate(20),
+        u8.truncate(140),
+        u8.truncate(130),
+        u8.truncate(81),
+        u8.truncate(48),
+        u8.truncate(18),
+        u8.truncate(1),
+        u8.truncate(0),
+        u8.truncate(126),
+        u8.truncate(225),
+        u8.truncate(28),
+        u8.truncate(108),
+        u8.truncate(0),
+        u8.truncate(6),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+}
+
 func duplicate_archive(): Vec<u8> {
     return Vec [
         u8.truncate(31),
@@ -578,6 +649,14 @@ test valid_archive_is_published_only_after_complete_validation {
         ArchiveLimits.standard(),
         "std.compress.invalid_gzip",
     )?
+    var truncated = valid_archive()
+    let truncated_len = truncated.len() - 1
+    truncated.truncate(truncated_len)
+    require_failure(
+        move truncated,
+        ArchiveLimits.standard(),
+        "std.compress.invalid_gzip",
+    )?
     return
 }
 
@@ -601,6 +680,18 @@ test every_resource_limit_is_enforced_before_report_publication {
         two_entry_archive(),
         ArchiveLimits.new(67108864, 268435456, 1, 240)?,
         "archive-inspect.entry_limit",
+    )?
+    let empty = inspect_bytes(
+        empty_archive(),
+        ArchiveLimits.new(67108864, 1024, 4096, 240)?,
+    )?
+    if empty.entry_count() != 0 {
+        return error.new("archive-inspect.test", "empty archive published an entry")
+    }
+    require_failure(
+        archive_with_trailing_decoded_bytes(),
+        ArchiveLimits.new(67108864, 1024, 4096, 240)?,
+        "archive-inspect.output_limit",
     )?
     return
 }

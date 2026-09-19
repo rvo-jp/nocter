@@ -142,10 +142,10 @@ nocter run examples/url-inspect.nct
 
 [archive-inspect/index.nct](archive-inspect/index.nct) validates and inspects a gzip-compressed
 POSIX ustar archive without external compression or archive tools. One explicit policy bounds
-compressed input, uncompressed output, entry count, and normalized path length. The application
-rejects traversal, duplicate paths, unsupported entry kinds, and damaged gzip or tar framing. It
-retains only bounded decode storage and entry metadata, and prints nothing until the complete tar
-end marker, gzip trailer, and transport EOF have all been validated.
+compressed input, every decoded transport byte, entry count, and normalized path length. The
+application rejects traversal, duplicate paths, unsupported entry kinds, and damaged gzip or tar
+framing. It retains only bounded decode storage and entry metadata, and prints nothing until the
+complete tar end marker, gzip trailer, and transport EOF have all been validated.
 
 ```sh
 cd examples/archive-inspect

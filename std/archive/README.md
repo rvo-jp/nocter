@@ -16,7 +16,12 @@ ustar capacity are rejected. This lexical validation performs no filesystem acce
 Regular files and directories receive dedicated `TarEntryKind` values. Other type flags remain
 observable as `unsupported(code)` while their declared bodies and padding use the same bounded
 progress rules. Extraction policy decides whether to reject or skip them; parsing does not create
-files, follow links, choose destinations, or publish partial state.
+files, follow links, or choose destinations.
+
+Entry and body events are provisional observations. They are published before the parser can know
+whether later headers, the two-block end marker, or an outer representation are valid. A consumer
+that publishes trusted metadata or filesystem state must retain those observations until the tar
+reader finishes and every composed outer reader reaches validated EOF.
 
 Two consecutive zero blocks terminate an archive. `finish` declares transport EOF so a partial
 header, body, padding region, or single end marker becomes a precise terminal failure. Later calls

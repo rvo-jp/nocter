@@ -43,6 +43,9 @@ pub copy struct ArchiveLimits
 construct ArchiveLimits {
     pub noalloc func standard(): Self
 
+    /// Constructs nonzero limits for compressed input, complete decoded transport bytes, entries,
+    /// and normalized path bytes. Decoded bytes include tar headers, bodies, padding, end markers,
+    /// and bytes following the in-band tar marker while outer gzip integrity is validated.
     pub noalloc func new(
         maximum_input_bytes: usize,
         maximum_output_bytes: u64,
