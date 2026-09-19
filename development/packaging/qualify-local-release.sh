@@ -265,6 +265,11 @@ cmp "$binary_record_expected" "$binary_record_output"
 test ! -s "$binary_record_stdout"
 test ! -s "$binary_record_stderr"
 
+"${environment[@]}" "$home/nocter" test \
+  --root "$repository_root/examples/archive-inspect" \
+  --locked \
+  --offline
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"

@@ -1126,8 +1126,17 @@ fn binary_record_example_runs_with_its_process_contract() {
 
 #[test]
 fn binary_record_example_passes_its_declared_tests() {
+    run_public_example_tests("binary-record", 4);
+}
+
+#[test]
+fn archive_inspect_example_passes_its_declared_tests() {
+    run_public_example_tests("archive-inspect", 3);
+}
+
+fn run_public_example_tests(directory: &str, expected_passes: usize) {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let package_root = compiler_root.join("../../examples/binary-record");
+    let package_root = compiler_root.join("../../examples").join(directory);
     let super::ParsedCommand::Test(parsed) = super::parse_command_arguments([
         "test".into(),
         "--root".into(),
@@ -1147,7 +1156,7 @@ fn binary_record_example_passes_its_declared_tests() {
     .unwrap();
 
     assert!(result.succeeded(), "{result:#?}");
-    assert_eq!(result.summary().passed(), 4);
+    assert_eq!(result.summary().passed(), expected_passes);
     assert_eq!(result.summary().failed(), 0);
 }
 

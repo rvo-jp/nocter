@@ -1,0 +1,38 @@
+see ./index.nct
+
+use std/io.BlockingFile
+use std/io
+use std/path.Utf8Path
+use std/process
+use std/string.String
+
+blocking func print_report(report: &ArchiveReport): void! {
+    var index: usize = 0
+    while index < report.entry_count() {
+        let path = report.entry_path(index) otherwise { return error.new("archive-inspect.invalid_report", "entry path is absent") }
+        let size = report.entry_size(index) otherwise { return error.new("archive-inspect.invalid_report", "entry size is absent") }
+        let directory = report.entry_is_directory(index) otherwise { return error.new("archive-inspect.invalid_report", "entry kind is absent") }
+        let kind = if directory { "directory" } else { "file" }
+        let size_text = size.to_string()
+        let line = String.concat(kind, "\t", &size_text, "\t", path, "\n")
+        io.print(&line)?
+        index += 1
+    }
+    return
+}
+
+blocking func main(): i32 {
+    let requested = process.arg(1) catch _ { return 2 } otherwise {
+        io.eprint("usage: archive-inspect ARCHIVE.tar.gz\n") catch _ {}
+        return 2
+    }
+    if process.arg_count() != 2 {
+        io.eprint("usage: archive-inspect ARCHIVE.tar.gz\n") catch _ {}
+        return 2
+    }
+    let path = Utf8Path.new(requested) catch _ { return 2 }
+    let source = BlockingFile.open(&path) catch _ { return 1 }
+    let report = inspect(move source, ArchiveLimits.standard()) catch _ { return 1 }
+    print_report(&report) catch _ { return 1 }
+    return 0
+}

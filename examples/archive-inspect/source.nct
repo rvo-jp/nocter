@@ -1,0 +1,92 @@
+see ./index.nct
+
+use std/io.BlockingReader
+use std/vec.Vec
+
+const SOURCE_BUFFER_BYTES: usize = 8192
+
+struct LimitedSource<R> {
+    source: R
+    buffer: Vec<u8>
+    next: usize
+    len: usize
+    accepted: usize
+    maximum: usize
+    finished: bool
+    failed: bool
+}
+
+func source_buffer(length: usize): Vec<u8> {
+    var bytes: Vec<u8> = Vec.with_capacity(length)
+    while bytes.len() < length { bytes.push(0) }
+    return move bytes
+}
+
+construct LimitedSource<R> {
+    func new(source: R, maximum: usize): Self where R impl BlockingReader {
+        let capacity = if maximum < SOURCE_BUFFER_BYTES { maximum + 1 } else { SOURCE_BUFFER_BYTES }
+        return LimitedSource<R> {
+            source: move source,
+            buffer: source_buffer(capacity),
+            next: 0,
+            len: 0,
+            accepted: 0,
+            maximum: maximum,
+            finished: false,
+            failed: false,
+        }
+    }
+}
+
+noalloc func source_limit_error(): error {
+    return error.new("archive-inspect.input_limit", "compressed input exceeds its configured limit")
+}
+
+noalloc func invalid_source_progress(): error {
+    return error.new("archive-inspect.invalid_progress", "source reported bytes outside its buffer")
+}
+
+blocking func refill_limited_source<R>(reader: &+LimitedSource<R>): void! where R impl BlockingReader {
+    let remaining = reader.maximum - reader.accepted
+    let requested = if remaining < SOURCE_BUFFER_BYTES { remaining + 1 } else { SOURCE_BUFFER_BYTES }
+    reader.buffer.truncate(requested)
+    while reader.buffer.len() < requested { reader.buffer.push(0) }
+    let received = reader.source.read_blocking(&+reader.buffer) catch failure {
+        reader.failed = true
+        return move failure
+    }
+    if received > requested {
+        reader.failed = true
+        return invalid_source_progress()
+    }
+    if received > remaining {
+        reader.failed = true
+        return source_limit_error()
+    }
+    reader.next = 0
+    reader.len = received
+    reader.accepted += received
+    if received == 0 { reader.finished = true }
+    return
+}
+
+instance LimitedSource<R> where R impl BlockingReader {
+    blocking method &+self.read_blocking(output: &+[u8]): usize! {
+        if self.failed { return invalid_source_progress() }
+        if output.len() == 0 { return 0 }
+        if self.next == self.len {
+            if self.finished { return 0 }
+            refill_limited_source(self)?
+            if self.finished { return 0 }
+        }
+        let available = self.len - self.next
+        let count = if available < output.len() { available } else { output.len() }
+        var offset: usize = 0
+        while offset < count {
+            output[offset] = self.buffer[self.next + offset]
+            offset += 1
+        }
+        self.next += count
+        return count
+    }
+}

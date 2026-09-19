@@ -316,6 +316,19 @@ fn needs_space(
             current_parent,
         );
     }
+    if previous_kind == TokenKind::Punctuation(Punctuation::Greater)
+        && matches!(
+            previous_parent,
+            Some(
+                NodeKind::GenericParameters
+                    | NodeKind::GenericArguments
+                    | NodeKind::PatternArguments
+                    | NodeKind::AssociatedBindings
+            )
+        )
+    {
+        return true;
+    }
     if let TokenKind::Punctuation(punctuation) = previous_kind {
         return space_after_punctuation(punctuation, previous_parent);
     }
@@ -881,6 +894,14 @@ mod tests {
 
         assert_eq!(formatted, expected);
         assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn separates_a_closed_generic_list_from_a_following_where_clause() {
+        assert_eq!(
+            format("instance Source<T>where T impl Reader { impl Consumer }\n"),
+            "instance Source<T> where T impl Reader { impl Consumer }\n"
+        );
     }
 
     #[test]

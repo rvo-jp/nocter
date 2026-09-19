@@ -128,6 +128,34 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "archive-inspect",
+        package_identity: "workspace:archive-inspect",
+        executable: "archive-inspect",
+        fixtures: &[PublicExampleFixture::File {
+            path: "sample.tar.gz",
+            contents: b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\xff\xed\xcd\x31\x0a\x84\x40\x10\x04\xc0\x79\x8a\x2f\x38\x44\x44\xdf\x23\x7a\xa9\xc2\xb9\x82\xcf\x77\x35\x92\xcb\x15\xc4\xaa\xa4\x87\xee\x60\xba\x4f\x5a\x53\x5c\xab\xcc\x9a\xba\x3e\x32\xfb\xcf\x7d\x3d\xdd\x7b\xdf\xb4\x55\x15\x45\x19\x37\x58\xe6\xd4\xfd\xf2\xcb\x78\xa7\xf9\xdb\x4f\xe3\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x3c\xcc\x06\xbd\xf4\xd2\x2f\x00\x28\x00\x00",
+        }],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                stdin: b"",
+                status: 2,
+                stdout: b"",
+                stderr: b"usage: archive-inspect ARCHIVE.tar.gz\n",
+            },
+            PublicExampleRun {
+                name: "validated-inspection",
+                arguments: &[PublicExampleArgument::FixturePath("sample.tar.gz")],
+                stdin: b"",
+                status: 0,
+                stdout: b"file\t6\ta.txt\n",
+                stderr: b"",
+            },
+        ],
+        postconditions: &[],
+    },
+    PublicPackageExample {
         directory: "async-udp",
         package_identity: "workspace:async-udp",
         executable: "async-udp",

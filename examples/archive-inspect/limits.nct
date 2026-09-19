@@ -1,0 +1,44 @@
+see ./index.nct
+
+see ./storage.nct
+
+const STANDARD_INPUT_BYTES: usize = 67108864
+
+const STANDARD_OUTPUT_BYTES: u64 = 268435456
+
+const STANDARD_ENTRIES: usize = 4096
+
+const STANDARD_PATH_BYTES: usize = 240
+
+noalloc func invalid_limits(): error {
+    return error.new("archive-inspect.invalid_limits", "every archive limit must be nonzero")
+}
+
+construct ArchiveLimits {
+    noalloc func standard(): Self {
+        return ArchiveLimits {
+            input_bytes: STANDARD_INPUT_BYTES,
+            output_bytes: STANDARD_OUTPUT_BYTES,
+            entries: STANDARD_ENTRIES,
+            path_bytes: STANDARD_PATH_BYTES,
+        }
+    }
+
+    noalloc func new(
+        maximum_input_bytes: usize,
+        maximum_output_bytes: u64,
+        maximum_entries: usize,
+        maximum_path_bytes: usize,
+    ): Self! {
+        if maximum_input_bytes == 0 || maximum_output_bytes == 0
+        || maximum_entries == 0 || maximum_path_bytes == 0 {
+            return invalid_limits()
+        }
+        return ArchiveLimits {
+            input_bytes: maximum_input_bytes,
+            output_bytes: maximum_output_bytes,
+            entries: maximum_entries,
+            path_bytes: maximum_path_bytes,
+        }
+    }
+}

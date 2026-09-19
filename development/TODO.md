@@ -28,11 +28,11 @@ responsibility boundaries, and completion gates are recorded in
 
 ## Next Work
 
-Continue v0.60.0 Phase 5 from the qualified DEFLATE, gzip, tar, and shared transport cursors. Add
-one complete safe `.tar.gz` inspection or extraction application with explicit input, output,
-entry-count, path, and publication limits. Keep extraction policy outside compression and archive
-representation. Do not reopen v0.59.0; any correction requires a new version, implementation gate,
-qualified archive, tag, and publication audit.
+Continue v0.60.0 Phase 6 from the qualified DEFLATE, gzip, tar, transport, and bounded inspection
+application. Qualify every public and implementation source through compiler and editor surfaces,
+run the complete native, standard-library, documentation, installation, and packaging gates, and
+review representation ownership before release preparation. Do not reopen v0.59.0; any correction
+requires a new version, implementation gate, qualified archive, tag, and publication audit.
 
 Preserve the v0.59.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

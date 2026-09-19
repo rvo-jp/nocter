@@ -1,0 +1,21 @@
+see ./index.nct
+
+use std/string.String
+use std/vec.Vec
+
+copy struct ArchiveLimits {
+    input_bytes: usize
+    output_bytes: u64
+    entries: usize
+    path_bytes: usize
+}
+
+struct InspectedEntry {
+    path: String
+    size: u64
+    directory: bool
+}
+
+struct ArchiveReport {
+    entries: Vec<InspectedEntry>
+}

@@ -1,0 +1,68 @@
+#package: {
+    name: "archive-inspect",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "archive-inspect",
+}
+
+#test: {
+    name: "unit",
+    module: ".",
+}
+
+see ./application.nct
+
+see ./inspection.nct
+
+see ./limits.nct
+
+see ./source.nct
+
+see ./storage.nct
+
+see ./tests.nct
+
+use std/io.BlockingReader
+
+pub(/) struct LimitedSource<R>
+
+instance LimitedSource<R> where R impl BlockingReader {
+    impl BlockingReader
+}
+
+pub(/) struct FragmentedSource
+
+instance FragmentedSource {
+    impl BlockingReader
+}
+
+pub copy struct ArchiveLimits
+
+construct ArchiveLimits {
+    pub noalloc func standard(): Self
+
+    pub noalloc func new(
+        maximum_input_bytes: usize,
+        maximum_output_bytes: u64,
+        maximum_entries: usize,
+        maximum_path_bytes: usize,
+    ): Self!
+}
+
+pub struct ArchiveReport
+
+instance ArchiveReport {
+    pub noalloc method &self.entry_count(): usize
+
+    pub noalloc method &self.entry_path(index: usize): &str? from self
+
+    pub noalloc method &self.entry_size(index: usize): u64?
+
+    pub noalloc method &self.entry_is_directory(index: usize): bool?
+}
+
+pub blocking func inspect<R>(source: R, limits: ArchiveLimits): ArchiveReport! where R impl BlockingReader
+
+pub(/) blocking func main(): i32
