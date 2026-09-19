@@ -4,6 +4,10 @@ see ./index.nct
 
 see ./random.nct
 
+see ./sampling.nct
+
+see ./shuffle.nct
+
 use /internal/entropy.EntropyResult
 use /vec.Vec
 
@@ -66,5 +70,62 @@ test target_entropy_fills_more_than_one_native_request {
         index += 1
     }
     fill(&+output)?
+    return
+}
+
+test bounded_sampling_rejects_the_biased_prefix {
+    let _ = accepted_remainder(0, 3) otherwise {
+        let sampled = accepted_remainder(1, 3) otherwise {
+            return error.new(
+                "std.random.test",
+                "bounded sampling rejected the first unbiased value",
+            )
+        }
+        if sampled != 1 {
+            return error.new("std.random.test", "bounded sampling changed the accepted remainder")
+        }
+        return
+    }
+    return error.new("std.random.test", "bounded sampling accepted the biased prefix")
+}
+
+test empty_bound_fails_before_consuming_randomness {
+    let _ = below_u64(0) catch failure {
+        if !failure.has_code("std.random.empty_range") {
+            return error.new("std.random.test", "empty bound returned the wrong public error")
+        }
+        return
+    }
+    return error.new("std.random.test", "empty random bound completed successfully")
+}
+
+test deterministic_shuffle_uses_fisher_yates_boundaries {
+    var values: Vec<i32> = Vec [10, 20, 30, 40]
+    var remaining = shuffle_step(&+values as &+[i32], 4, 0) otherwise {
+        return error.new("std.random.test", "first shuffle boundary was rejected")
+    }
+    remaining = shuffle_step(&+values as &+[i32], remaining, 1) otherwise {
+        return error.new("std.random.test", "second shuffle boundary was rejected")
+    }
+    remaining = shuffle_step(&+values as &+[i32], remaining, 0) otherwise {
+        return error.new("std.random.test", "third shuffle boundary was rejected")
+    }
+    if values[0] != 30 || values[1] != 40 || values[2] != 20 || values[3] != 10 {
+        return error.new("std.random.test", "shuffle did not apply the sampled permutation")
+    }
+    if remaining != 1 {
+        return error.new("std.random.test", "shuffle did not close at the singleton boundary")
+    }
+    return
+}
+
+test empty_and_singleton_shuffles_consume_no_randomness {
+    var empty: Vec<i32> = Vec []
+    shuffle(&+empty as &+[i32])?
+    var singleton: Vec<i32> = Vec [7]
+    shuffle(&+singleton as &+[i32])?
+    if singleton[0] != 7 {
+        return error.new("std.random.test", "trivial shuffle changed data")
+    }
     return
 }

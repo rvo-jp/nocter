@@ -1,0 +1,28 @@
+//! Unbiased bounded integer sampling.
+
+see ./index.nct
+
+see ./errors.nct
+
+see ./random.nct
+
+noalloc func accepted_remainder(candidate: u64, upper_exclusive: u64): u64? {
+    if upper_exclusive == 0 { return none }
+    let zero: u64 = 0
+    let threshold = zero.wrapping_sub(upper_exclusive) % upper_exclusive
+    if candidate < threshold { return none }
+    return candidate % upper_exclusive
+}
+
+noalloc func below_u64(upper_exclusive: u64): u64! {
+    if upper_exclusive == 0 { return empty_range_error() }
+    loop {
+        let candidate = next_u64()?
+        let accepted = accepted_remainder(candidate, upper_exclusive) otherwise { continue }
+        return accepted
+    }
+}
+
+noalloc func below_usize(upper_exclusive: usize): usize! {
+    return below_u64(upper_exclusive as u64)? as usize
+}

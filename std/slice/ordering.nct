@@ -3,20 +3,8 @@
 see ./index.nct
 
 use /internal/ptr
+use /internal/safety
 use /order.TotalOrder
-
-func swap_elements<T>(values: &+[T], left: usize, right: usize): void {
-    if left == right {
-        return
-    }
-    let pointer = values.ptr()
-    let element_size = ptr.pointee_size(pointer)
-    let left_value: T = ptr.take_value_at_ptr(pointer, left * element_size)
-    let right_value: T = ptr.take_value_at_ptr(pointer, right * element_size)
-    ptr.store_value_to_ptr(pointer, left * element_size, move right_value)
-    ptr.store_value_to_ptr(pointer, right * element_size, move left_value)
-    return
-}
 
 func sift_down<T>(values: &+[T], initial_root: usize, end: usize): void where T impl TotalOrder {
     var root = initial_root
@@ -29,13 +17,13 @@ func sift_down<T>(values: &+[T], initial_root: usize, end: usize): void where T 
         if !(values[root] < values[child]) {
             return
         }
-        swap_elements(values, root, child)
+        if !ptr.swap_slice_values(values, root, child) { return safety.invariant_abort() }
         root = child
     }
     return
 }
 
-instance [T] {
+instance[T] {
     method &+self.sort(): void where T impl TotalOrder {
         if self.len() < 2 {
             return
@@ -50,7 +38,7 @@ instance [T] {
         var end = self.len()
         while end > 1 {
             end -= 1
-            swap_elements(self, 0, end)
+            if !ptr.swap_slice_values(self, 0, end) { return safety.invariant_abort() }
             sift_down(self, 0, end)
         }
         return

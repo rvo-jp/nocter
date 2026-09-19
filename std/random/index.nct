@@ -7,6 +7,10 @@ see ./errors.nct
 
 see ./random.nct
 
+see ./sampling.nct
+
+see ./shuffle.nct
+
 see ./tests.nct
 
 /// Fills the complete destination with cryptographically secure random bytes.
@@ -20,3 +24,18 @@ pub noalloc func next_u64(): u64!
 
 /// Returns one uniformly distributed value over the complete `usize` domain.
 pub noalloc func next_usize(): usize!
+
+/// Returns a uniformly distributed `u64` below the exclusive nonzero bound.
+///
+/// Returns `std.random.empty_range` without consuming entropy when `upper_exclusive` is zero.
+pub noalloc func below_u64(upper_exclusive: u64): u64!
+
+/// Returns a uniformly distributed `usize` below the exclusive nonzero bound.
+///
+/// Returns `std.random.empty_range` without consuming entropy when `upper_exclusive` is zero.
+pub noalloc func below_usize(upper_exclusive: usize): usize!
+
+/// Randomly permutes the complete mutable slice without allocation.
+///
+/// An entropy failure can leave a valid partial permutation and returns `std.random.unavailable`.
+pub noalloc func shuffle<T>(values: &+[T]): void!

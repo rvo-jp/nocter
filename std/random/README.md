@@ -18,13 +18,23 @@ little-endian scalar codec. Every possible bit pattern is accepted, so its outpu
 the complete `u64` domain. `next_usize` uses the complete native `usize` width on the supported
 64-bit target. Neither operation retains hidden generator state.
 
-These functions provide unpredictable bytes and values. They do not provide deterministic random
-streams, bounded distributions, shuffling, password hashing, encryption, signatures, or a general
-cryptographic protocol API.
+`below_u64(upper_exclusive)` and `below_usize(upper_exclusive)` use rejection sampling. A zero
+bound returns `std.random.empty_range` before consuming entropy. Remainder reduction occurs only
+after excluding the biased prefix of the full-width domain.
+
+`shuffle(values)` applies Fisher-Yates to a mutable slice. It does not allocate, does not require
+copyable elements, and consumes no entropy for an empty or singleton slice. If entropy becomes
+unavailable after permutation begins, the function returns `std.random.unavailable`; the slice
+remains fully initialized but may already be partially permuted.
+
+These functions provide unpredictable bytes, values, and permutations. They do not provide
+deterministic random streams, password hashing, encryption, signatures, or a general cryptographic
+protocol API.
 
 ## Responsibility Boundaries
 
 The selected target owns only the native entropy operation and ABI. `std/internal/entropy` owns
-request limits and retry. `std/random` owns public failure, cleanup, and scalar assembly.
+request limits and retry. `std/random` owns public failure, cleanup, scalar assembly, sampling, and
+permutation.
 `std/bytes` remains the sole byte-order implementation, and `std/hash` consumes the same internal
 entropy source without exposing its hash seed.

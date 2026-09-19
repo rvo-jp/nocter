@@ -5,3 +5,7 @@ see ./index.nct
 noalloc func unavailable_error(): error {
     return error.new("std.random.unavailable", "operating-system randomness is unavailable")
 }
+
+noalloc func empty_range_error(): error {
+    return error.new("std.random.empty_range", "a random range requires a nonzero upper bound")
+}

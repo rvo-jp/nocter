@@ -1,0 +1,26 @@
+//! Allocation-free in-place random permutation.
+
+see ./index.nct
+
+see ./sampling.nct
+
+use /internal/ptr
+use /internal/safety
+
+noalloc func shuffle_step<T>(values: &+[T], remaining: usize, selected: usize): usize? {
+    if remaining <= 1 || remaining > values.len() || selected >= remaining { return none }
+    let next = remaining - 1
+    if !ptr.swap_slice_values(values, selected, next) { return safety.invariant_abort() }
+    return next
+}
+
+noalloc func shuffle<T>(values: &+[T]): void! {
+    var remaining = values.len()
+    while remaining > 1 {
+        let selected = below_usize(remaining)?
+        remaining = shuffle_step(values, remaining, selected) otherwise {
+            return safety.invariant_abort()
+        }
+    }
+    return
+}

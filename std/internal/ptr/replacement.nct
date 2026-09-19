@@ -11,6 +11,18 @@ noalloc func replace_value<T>(place: &+T, replacement: T): T {
     return move previous
 }
 
+noalloc func swap_slice_values<T>(values: &+[T], left: usize, right: usize): bool {
+    if left >= values.len() || right >= values.len() { return false }
+    if left == right { return true }
+    let pointer = values.ptr()
+    let element_size = pointee_size(pointer)
+    let left_value: T = take_value_at_ptr(pointer, left * element_size)
+    let right_value: T = take_value_at_ptr(pointer, right * element_size)
+    store_value_to_ptr(pointer, left * element_size, move right_value)
+    store_value_to_ptr(pointer, right * element_size, move left_value)
+    return true
+}
+
 noalloc func copy_value<T>(value: &T): T where copy T {
     let pointer = ptr.from_ref(value)
     let values = slice_from_raw_parts_value(pointer, 1)
