@@ -8,17 +8,26 @@
 }
 
 use std/fs
+use std/cli.Application
 use std/io
 use std/path.Utf8Path
-use std/process
 
 see ./summary.nct
 
 blocking func main(): i32! {
-    let requested: &str = process.arg(1)? otherwise {
-        io.print("usage: file-summary PATH\n")?
+    var application = Application.new("file-summary", "Count lines in one UTF-8 file.")?
+    application.add_positional("PATH", true, "File to read.")?
+    let arguments = application.parse_process() catch failure {
+        if !failure.has_code("std.cli.missing_positional")
+            && !failure.has_code("std.cli.unexpected_positional") {
+            return move failure
+        }
+        let usage = application.usage()
+        io.print(&usage)?
+        io.print("\n")?
         return 2
     }
+    let requested = arguments.positional("PATH") otherwise { return 2 }
     let path = Utf8Path.new(requested)?
     let text = fs.read_to_string_blocking(&path)?
     let lines = count_lines(&text)

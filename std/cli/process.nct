@@ -1,5 +1,6 @@
 //! Narrow adapter from raw process arguments into schema parsing.
 
+see ./errors.nct
 see ./index.nct
 
 use /process
@@ -13,10 +14,7 @@ instance Application {
             return move parsed
         }
         let supplied = complete.get_range(1, complete.len()) otherwise {
-            return error.new(
-                "std.cli.invalid_process_arguments",
-                "process argument storage could not provide its valid trailing range",
-            )
+            return invalid_internal_range()
         }
         let parsed = self.parse(supplied)?
         return move parsed

@@ -2,8 +2,8 @@ see ./index.nct
 
 use std/io.BlockingFile
 use std/io
+use std/cli.Application
 use std/path.Utf8Path
-use std/process
 use std/string.String
 
 blocking func print_report(report: &ArchiveReport): void! {
@@ -22,14 +22,15 @@ blocking func print_report(report: &ArchiveReport): void! {
 }
 
 blocking func main(): i32 {
-    let requested = process.arg(1) catch _ { return 2 } otherwise {
-        io.eprint("usage: archive-inspect ARCHIVE.tar.gz\n") catch _ {}
+    var application = Application.new("archive-inspect", "Inspect one gzip-compressed tar archive.") catch _ { return 2 }
+    application.add_positional("ARCHIVE.tar.gz", true, "Archive path.") catch _ { return 2 }
+    let arguments = application.parse_process() catch _ {
+        let usage = application.usage()
+        io.eprint(&usage) catch _ {}
+        io.eprint("\n") catch _ {}
         return 2
     }
-    if process.arg_count() != 2 {
-        io.eprint("usage: archive-inspect ARCHIVE.tar.gz\n") catch _ {}
-        return 2
-    }
+    let requested = arguments.positional("ARCHIVE.tar.gz") otherwise { return 2 }
     let path = Utf8Path.new(requested) catch _ { return 2 }
     let source = BlockingFile.open(&path) catch _ { return 1 }
     let report = inspect(move source, ArchiveLimits.standard()) catch _ { return 1 }

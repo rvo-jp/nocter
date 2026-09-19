@@ -1,13 +1,21 @@
+use std/cli.Application
 use std/fs
 use std/io
-use std/process
 use std/time.SystemTime
 
 blocking func run(): i32! {
-    let requested: &str = process.arg(1)? otherwise {
-        io.eprintln("usage: wall-clock PATH")?
+    var application = Application.new("wall-clock", "Compare current and file modification time.")?
+    application.add_positional("PATH", true, "Filesystem path to inspect.")?
+    let arguments = application.parse_process() catch failure {
+        if !failure.has_code("std.cli.missing_positional")
+            && !failure.has_code("std.cli.unexpected_positional") {
+            return move failure
+        }
+        let usage = application.usage()
+        io.eprintln(&usage)?
         return 2
     }
+    let requested = arguments.positional("PATH") otherwise { return 2 }
 
     let observed = SystemTime.now()?
     let observed_text = observed.to_rfc3339()?

@@ -57,7 +57,15 @@ test cli_rejects_invalid_schemas_and_invocations {
     let unknown: Vec<&str> = Vec ["--missing"]
     let _ = application.parse(&unknown) catch failure {
         if !failure.has_code("std.cli.unknown_option") { return move failure }
-        return
+        var positional = Application.new("positional", "")?
+        positional.add_positional("optional", false, "")?
+        positional.add_positional("required", true, "") catch ordering_failure {
+            if !ordering_failure.has_code("std.cli.required_after_optional") {
+                return move ordering_failure
+            }
+            return
+        }
+        return error.new("std.cli.test", "required positional followed an optional positional")
     }
     return error.new("std.cli.test", "unknown option was accepted")
 }
@@ -65,11 +73,11 @@ test cli_rejects_invalid_schemas_and_invocations {
 test cli_usage_and_help_share_the_parser_schema {
     let application = sample_application()?
     let usage = application.usage()
-    if (&usage as &str) != "Usage: sample [OPTIONS] <input> [label]" {
+    if (&usage as &str) != "usage: sample [OPTIONS] input [label]" {
         return error.new("std.cli.test", "usage diverged from schema")
     }
     let help = application.help()
-    let expected = "Usage: sample [OPTIONS] <input> [label]\n\nClassifies one input.\n\nOptions:\n  -v, --verbose  Show detailed progress.\n  -o, --output <PATH>  Write to PATH.\n\nArguments:\n  input  Input path.\n  label  Optional label.\n"
+    let expected = "usage: sample [OPTIONS] input [label]\n\nClassifies one input.\n\nOptions:\n  -v, --verbose  Show detailed progress.\n  -o, --output <PATH>  Write to PATH.\n\nArguments:\n  input  Input path.\n  label  Optional label.\n"
     if (&help as &str) != expected {
         return error.new("std.cli.test", "help diverged from schema")
     }

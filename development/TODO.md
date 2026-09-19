@@ -3,14 +3,14 @@
 ## Current State
 
 Nocter v0.61.0 is published and externally audited. v0.62.0 Structured Command-Line Applications
-has started with a contract-first `std/cli` boundary over the existing raw `std/process` argument
-authority.
+has completed its standard-library contract and migrated every public argument-consuming example
+from raw process indexes to explicit schemas. Final responsibility review and qualification remain.
 
 ## Next Work
 
-Complete the v0.62.0 schema, parser, presentation, nested-command, and application-adoption phases.
-Keep parsing, result lookup, and help generation dependent on one immutable schema; do not add
-compiler-known CLI declarations, hidden process termination, or a second raw-argument authority.
+Review and qualify v0.62.0. Confirm that parsing, result lookup, and help generation depend on one
+schema, every accepted token is classified once, raw operating-system argument ownership remains
+in `std/process`, and no hidden output or termination policy entered `std/cli`.
 
 Preserve the v0.61.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

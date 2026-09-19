@@ -1,18 +1,29 @@
+use std/cli.Application
 use std/http.{Client, Request}
 use std/io.{BlockingReader, BlockingWriter}
 use std/io
-use std/process
 use std/time.Duration
 use std/url.Url
 
 blocking func run(): i32 {
-    let source = process.arg(1) catch failure {
+    var application = Application.new("http-get", "Fetch one HTTP or HTTPS URL.") catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
-    } otherwise {
-        report_usage() catch _ { return 2 }
+    }
+    application.add_positional("URL", true, "Absolute URL to fetch.") catch failure {
+        report_failure(&failure) catch _ { return 2 }
         return 2
     }
+    let arguments = application.parse_process() catch failure {
+        if failure.has_code("std.cli.missing_positional")
+            || failure.has_code("std.cli.unexpected_positional") {
+            report_usage(&application) catch _ { return 2 }
+        } else {
+            report_failure(&failure) catch _ { return 2 }
+        }
+        return 2
+    }
+    let source = arguments.positional("URL") otherwise { return 2 }
     fetch(source) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
@@ -35,9 +46,11 @@ blocking func fetch(source: &str): void! {
     return
 }
 
-blocking func report_usage(): void! {
+blocking func report_usage(application: &Application): void! {
     var output = io.stderr()
-    output.write_text_blocking("usage: http-get URL\n")?
+    let usage = application.usage()
+    output.write_text_blocking(&usage)?
+    output.write_text_blocking("\n")?
     return
 }
 

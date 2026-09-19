@@ -1,22 +1,29 @@
+use std/cli.Application
 use std/fs
 use std/io.BlockingWriter
 use std/io
 use std/json
 use std/path.Utf8Path
-use std/process
 
 blocking func run(): i32 {
-    if process.arg_count() != 2 {
-        report_usage() catch _ { return 2 }
-        return 2
-    }
-    let requested = process.arg(1) catch failure {
+    var application = Application.new("json-normalize", "Normalize one JSON document.") catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
-    } otherwise {
-        report_usage() catch _ { return 2 }
+    }
+    application.add_positional("PATH", true, "JSON file to read.") catch failure {
+        report_failure(&failure) catch _ { return 2 }
         return 2
     }
+    let arguments = application.parse_process() catch failure {
+        if failure.has_code("std.cli.missing_positional")
+            || failure.has_code("std.cli.unexpected_positional") {
+            report_usage(&application) catch _ { return 2 }
+        } else {
+            report_failure(&failure) catch _ { return 2 }
+        }
+        return 2
+    }
+    let requested = arguments.positional("PATH") otherwise { return 2 }
     let path = Utf8Path.new(requested) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
@@ -41,9 +48,11 @@ blocking func run(): i32 {
     return 0
 }
 
-blocking func report_usage(): void! {
+blocking func report_usage(application: &Application): void! {
     var output = io.stderr()
-    output.write_text_blocking("usage: json-normalize PATH\n")?
+    let usage = application.usage()
+    output.write_text_blocking(&usage)?
+    output.write_text_blocking("\n")?
     return
 }
 

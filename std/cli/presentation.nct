@@ -13,6 +13,7 @@ func append_option_long_spelling(output: &+String, spec: &OptionSpec): void {
         output.push('<')
         output.push_str(option_value_name(spec))
         output.push('>')
+        if option_repeatable(spec) { output.push_str("...") }
     }
 }
 
@@ -29,16 +30,14 @@ func append_option_spelling(output: &+String, spec: &OptionSpec): void {
 }
 
 func render_usage(application: &Application): String {
-    var output = String.copy("Usage: ")
+    var output = String.copy("usage: ")
     output.push_str(application_name(application))
     if application.options.len() != 0 { output.push_str(" [OPTIONS]") }
-    if application.commands.len() != 0 { output.push_str(" <COMMAND>") }
+    if application.commands.len() != 0 { output.push_str(" COMMAND") }
     for positional in &application.positionals {
         output.push(' ')
         if positional_required(positional) {
-            output.push('<')
             output.push_str(positional_name(positional))
-            output.push('>')
         } else {
             output.push('[')
             output.push_str(positional_name(positional))

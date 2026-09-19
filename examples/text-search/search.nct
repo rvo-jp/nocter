@@ -1,11 +1,11 @@
 see ./index.nct
 
+use std/cli.Application
 use std/fs.FileType
 use std/fs
 use std/io.{BlockingFile, BlockingWriter}
 use std/io
 use std/io/buffer.{BlockingBufReader, BlockingBufWriter}
-use std/process
 use std/string.String
 use std/vec.Vec
 
@@ -20,24 +20,29 @@ instance SearchPath {
 }
 
 blocking func run(): i32 {
-    if process.arg_count() != 3 {
-        report_usage() catch _ { return 2 }
-        return 2
-    }
-    let needle = process.arg(1) catch failure {
+    var application = Application.new("text-search", "Search a directory tree for matching text.") catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
-    } otherwise {
-        report_usage() catch _ { return 2 }
-        return 2
     }
-    let root = process.arg(2) catch failure {
+    application.add_positional("NEEDLE", true, "Substring to search for.") catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
-    } otherwise {
-        report_usage() catch _ { return 2 }
+    }
+    application.add_positional("ROOT", true, "Directory tree to search.") catch failure {
+        report_failure(&failure) catch _ { return 2 }
         return 2
     }
+    let arguments = application.parse_process() catch failure {
+        if failure.has_code("std.cli.missing_positional")
+            || failure.has_code("std.cli.unexpected_positional") {
+            report_usage(&application) catch _ { return 2 }
+        } else {
+            report_failure(&failure) catch _ { return 2 }
+        }
+        return 2
+    }
+    let needle = arguments.positional("NEEDLE") otherwise { return 2 }
+    let root = arguments.positional("ROOT") otherwise { return 2 }
     let matched = search_tree(needle, root) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
@@ -162,9 +167,11 @@ blocking func write_match(
     return
 }
 
-blocking func report_usage(): void! {
+blocking func report_usage(application: &Application): void! {
     var output = io.stderr()
-    output.write_text_blocking("usage: text-search NEEDLE ROOT\n")?
+    let usage = application.usage()
+    output.write_text_blocking(&usage)?
+    output.write_text_blocking("\n")?
     return
 }
 

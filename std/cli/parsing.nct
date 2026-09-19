@@ -137,13 +137,10 @@ instance Application {
                 }
                 record_option(&+parsed, selected, &self.options[selected], supplied)?
             } else {
-                if self.commands.len() != 0 {
+                if options_enabled && self.commands.len() != 0 {
                     let selected = command_index(self, token) otherwise { return unknown_command() }
                     let remaining = arguments.get_range(token_index + 1, arguments.len()) otherwise {
-                        return error.new(
-                            "std.cli.invalid_argument_range",
-                            "validated command-line bounds did not produce a trailing range",
-                        )
+                        return invalid_internal_range()
                     }
                     let nested = self.commands[selected].parse(remaining)?
                     parsed.commands.push(

@@ -1,21 +1,28 @@
+use std/cli.Application
 use std/io.BlockingWriter
 use std/io
 use std/io/buffer.BlockingBufReader
-use std/process
 use std/string.String
 
 blocking func run(): i32 {
-    if process.arg_count() != 2 {
-        report_usage() catch _ { return 2 }
-        return 2
-    }
-    let prefix = process.arg(1) catch failure {
+    var application = Application.new("stdin-prefix", "Prefix every input line.") catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
-    } otherwise {
-        report_usage() catch _ { return 2 }
+    }
+    application.add_positional("PREFIX", true, "Text written before every line.") catch failure {
+        report_failure(&failure) catch _ { return 2 }
         return 2
     }
+    let arguments = application.parse_process() catch failure {
+        if failure.has_code("std.cli.missing_positional")
+            || failure.has_code("std.cli.unexpected_positional") {
+            report_usage(&application) catch _ { return 2 }
+        } else {
+            report_failure(&failure) catch _ { return 2 }
+        }
+        return 2
+    }
+    let prefix = arguments.positional("PREFIX") otherwise { return 2 }
     prefix_lines(prefix) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
@@ -34,8 +41,9 @@ blocking func prefix_lines(prefix: &str): void! {
     return
 }
 
-blocking func report_usage(): void! {
-    io.eprintln("usage: stdin-prefix PREFIX")?
+blocking func report_usage(application: &Application): void! {
+    let usage = application.usage()
+    io.eprintln(&usage)?
     return
 }
 

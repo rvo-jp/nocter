@@ -2,11 +2,11 @@ see ./index.nct
 
 use std/fs.FileType
 use std/fs
+use std/cli.Application
 use std/io.{File, Writer}
 use std/io/buffer.BufWriter
 use std/io/stream.ByteChunks
 use std/iter/asynchronous.AsyncIterator
-use std/process
 use std/string.String
 use std/task
 use std/task.Timeout
@@ -81,11 +81,12 @@ async func remove_temporary(path: &str): void {
 }
 
 async func run(): i32 {
-    if process.arg_count() != 3 {
-        return 2
-    }
-    let root = process.arg(1) catch _ { return 2 } otherwise { return 2 }
-    let output_path = process.arg(2) catch _ { return 2 } otherwise { return 2 }
+    var application = Application.new("async-file-report", "Summarize one directory tree.") catch _ { return 2 }
+    application.add_positional("ROOT", true, "Directory tree to read.") catch _ { return 2 }
+    application.add_positional("OUTPUT", true, "Report path to replace atomically.") catch _ { return 2 }
+    let arguments = application.parse_process() catch _ { return 2 }
+    let root = arguments.positional("ROOT") otherwise { return 2 }
+    let output_path = arguments.positional("OUTPUT") otherwise { return 2 }
     let temporary_path = String.concat(output_path, ".tmp")
     let bounded = await task.with_timeout(
         build_report(root, &temporary_path, output_path),

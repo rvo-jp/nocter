@@ -1,15 +1,19 @@
+use std/cli.Application
 use std/io
-use std/process
 
 blocking func run(): i32! {
-    if process.arg_count() != 2 {
-        io.eprintln("usage: text-banner TEXT")?
+    var application = Application.new("text-banner", "Render normalized text as a banner.")?
+    application.add_positional("TEXT", true, "Text to normalize.")?
+    let arguments = application.parse_process() catch failure {
+        if !failure.has_code("std.cli.missing_positional")
+            && !failure.has_code("std.cli.unexpected_positional") {
+            return move failure
+        }
+        let usage = application.usage()
+        io.eprintln(&usage)?
         return 2
     }
-    let input: &str = process.arg(1)? otherwise {
-        io.eprintln("usage: text-banner TEXT")?
-        return 2
-    }
+    let input = arguments.positional("TEXT") otherwise { return 2 }
     let normalized = input.trim_ascii().replace_all(" ", "-")?
     let rule = "=".repeat(normalized.len())
     let report = "${rule}\ntext: ${normalized}\nbytes: ${normalized.len()}\n${rule}"

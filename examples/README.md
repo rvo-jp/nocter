@@ -243,7 +243,8 @@ nocter run
 ```
 
 [http-get/index.nct](http-get/index.nct) is a synchronous one-request HTTP client. It parses one
-command-line URL, resolves its host through the operating system, applies a finite connection and
+URL from an explicit `std/cli` schema, resolves its host through the operating system, applies a
+finite connection and
 per-operation stream timeout, reads the bounded decoded response body, and writes exact body bytes
 after the response status. `http://` uses a plain connection; `https://` uses authenticated TLS 1.2
 or newer, the operating-system trust store, hostname verification, and HTTP/1.1 ALPN through the
@@ -323,7 +324,8 @@ nocter run
 ```
 
 [text-banner/index.nct](text-banner/index.nct) turns one command-line argument into a compact text
-report. Its [banner.nct](text-banner/banner.nct) implementation composes borrowed ASCII trimming,
+report through an explicit `std/cli` schema. Its
+[banner.nct](text-banner/banner.nct) implementation composes borrowed ASCII trimming,
 owned replacement and repetition, interpolation, integer formatting, and symmetric line output.
 The missing-argument path writes its usage message to standard error.
 
@@ -334,7 +336,8 @@ nocter run -- "  alpha beta  "
 ```
 
 [stdin-prefix/index.nct](stdin-prefix/index.nct) prefixes every logical standard-input line with
-one exact command-line argument. Its [prefix.nct](stdin-prefix/prefix.nct) implementation combines
+one schema-validated command-line argument. Its
+[prefix.nct](stdin-prefix/prefix.nct) implementation combines
 the borrowed `io.stdin()` stream with explicit `BlockingBufReader` state and ordinary
 `BlockingWriter` output;
 there is no global line buffer or input-specific compiler path.
@@ -347,8 +350,9 @@ nocter run -- '> ' < sample.txt
 
 [json-normalize/index.nct](json-normalize/index.nct) reads one UTF-8 JSON file, validates and owns
 its complete value, then writes the shared compact spelling directly to standard output. Its
-[normalize.nct](json-normalize/normalize.nct) implementation composes process arguments, paths,
-filesystem input, JSON parsing, and the public `BlockingWriter` generator without a JSON-specific file or
+[normalize.nct](json-normalize/normalize.nct) implementation composes a structured CLI schema,
+paths, filesystem input, JSON parsing, and the public `BlockingWriter` generator without a
+JSON-specific file or
 operating-system API.
 
 ```sh
@@ -361,7 +365,7 @@ nocter build
 [line-frequency/index.nct](line-frequency/index.nct) counts logical input lines with `Map`,
 tracks distinct lines with `Set`, and reports the frequency of a requested line. Its
 [frequency.nct](line-frequency/frequency.nct) implementation demonstrates the prelude collection
-surface, keyed mapping operations, indexing mutation, ownership transfer, process arguments,
+surface, keyed mapping operations, indexing mutation, ownership transfer, structured arguments,
 fallible file input, and a package root containing only its tiny executable adapter.
 
 ```sh
@@ -371,10 +375,10 @@ nocter build
 ./line-frequency ../../README.md Nocter
 ```
 
-[file-summary/index.nct](file-summary/index.nct) reads a UTF-8 path from the first command-line
-argument and reports the number of newline bytes. Its private
+[file-summary/index.nct](file-summary/index.nct) reads one UTF-8 path selected by its command-line
+schema and reports the number of newline bytes. Its private
 [summary.nct](file-summary/summary.nct) helper demonstrates a direct source-visibility edge without
-creating another namespace. The package also demonstrates process arguments, owned paths,
+creating another namespace. The package also demonstrates `std/cli`, owned paths,
 `std/fs` whole-file UTF-8 input, borrowed byte views, and numeric formatting.
 
 ```sh
@@ -390,7 +394,7 @@ report. Its [report/index.nct](text-report/report/index.nct) child module is a s
 contract; [analysis.nct](text-report/report/analysis.nct) contains the reciprocal private
 representation and implementation. The example combines directory-module imports, direct source
 visibility, opaque public types, borrowed line iteration, string search, owned string construction,
-numeric formatting, process arguments, and fallible file I/O.
+numeric formatting, structured arguments, and fallible file I/O.
 
 ```sh
 cd examples/text-report

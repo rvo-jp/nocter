@@ -9,21 +9,28 @@
 
 use ./report.Report
 use ./report as report_module
+use std/cli.Application
 use std/io.{BlockingFile, BlockingReader}
 use std/io
 use std/path.Utf8Path
-use std/process
 use std/string.String
 
 blocking func main(): i32! {
-    let requested: &str = process.arg(1)? otherwise {
-        io.print("usage: text-report PATH NEEDLE\n")?
+    var application = Application.new("text-report", "Report matching lines in one text file.")?
+    application.add_positional("PATH", true, "UTF-8 file to read.")?
+    application.add_positional("NEEDLE", true, "Substring to search for.")?
+    let arguments = application.parse_process() catch failure {
+        if !failure.has_code("std.cli.missing_positional")
+            && !failure.has_code("std.cli.unexpected_positional") {
+            return move failure
+        }
+        let usage = application.usage()
+        io.print(&usage)?
+        io.print("\n")?
         return 2
     }
-    let needle: &str = process.arg(2)? otherwise {
-        io.print("usage: text-report PATH NEEDLE\n")?
-        return 2
-    }
+    let requested = arguments.positional("PATH") otherwise { return 2 }
+    let needle = arguments.positional("NEEDLE") otherwise { return 2 }
     let path = Utf8Path.new(requested)?
     var file = BlockingFile.open(&path)?
     let text = file.read_to_string_blocking()?

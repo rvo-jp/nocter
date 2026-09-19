@@ -1,11 +1,14 @@
 see ./index.nct
 
 use std/fs
-use std/process
+use std/cli.Application
 use std/vec.Vec
 
 async func run(): i32 {
-    let path = process.arg(1) catch _ { return 2 } otherwise { return 2 }
+    var application = Application.new("binary-record", "Round-trip a binary record log.") catch _ { return 2 }
+    application.add_positional("PATH", true, "Temporary record path.") catch _ { return 2 }
+    let arguments = application.parse_process() catch _ { return 2 }
+    let path = arguments.positional("PATH") otherwise { return 2 }
 
     let records: Vec<Record> = Vec [
         Record.new(42, 3.5),

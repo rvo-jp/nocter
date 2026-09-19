@@ -82,3 +82,10 @@ noalloc func missing_command(): error {
 noalloc func unknown_command(): error {
     return error.new("std.cli.unknown_command", "command line contains an unknown subcommand")
 }
+
+noalloc func invalid_internal_range(): error {
+    return error.new(
+        "std.cli.internal_invariant",
+        "validated command-line bounds did not produce their required range",
+    )
+}
