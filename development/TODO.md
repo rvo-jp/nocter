@@ -3,15 +3,14 @@
 ## Current State
 
 Nocter v0.61.0 is published and externally audited. v0.62.0 Structured Command-Line Applications
-is implementation-complete and qualified. It provides one schema authority for parsing and help,
-owned parsed results, nested commands and repeated options, and structured arguments throughout
-every public argument-consuming example.
+is implementation-complete and has entered release preparation. Release inputs now select
+v0.62.0; final clean-tree verification and deterministic artifact qualification remain.
 
 ## Next Work
 
-Prepare v0.62.0 for release as a separate change. Freeze the qualified implementation, select the
-exact release identity, generate and inspect the distribution from that identity, run the formal
-double-generation qualification, and publish only the resulting verified artifact.
+Commit the v0.62.0 release-content inputs, rerun the complete disposable compiler gate, and run
+clean-tree double-generation qualification. Record the exact retained candidate before requesting
+publication authorization.
 
 Preserve the v0.61.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
