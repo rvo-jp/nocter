@@ -664,9 +664,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::EntropySeedFill => make(
+        PrimitiveRole::EntropyFill => make(
             0,
-            vec![TypeContract::pointer(u64())],
+            vec![byte_pointer(), usize()],
             i32(),
             private,
             arm64_darwin,

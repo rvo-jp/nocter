@@ -145,8 +145,8 @@ closed_role_enum! {
         DatagramLocalAddress,
         /// Copies one datagram socket's peer native address into caller-owned storage.
         DatagramPeerAddress,
-        /// Fills one 64-bit hash seed from the target entropy source.
-        EntropySeedFill,
+        /// Fills one caller-owned byte range from the target entropy source.
+        EntropyFill,
         PointerAddress,
         PointerFromReference,
         PointerFromReadWriteReference,
@@ -406,7 +406,7 @@ impl PrimitiveRole {
             Self::DatagramReceive => "datagram_receive",
             Self::DatagramLocalAddress => "datagram_local_address",
             Self::DatagramPeerAddress => "datagram_peer_address",
-            Self::EntropySeedFill => "entropy_seed_fill",
+            Self::EntropyFill => "entropy_fill",
             Self::PointerAddress => "pointer_address",
             Self::PointerFromReference => "pointer_from_reference",
             Self::PointerFromReadWriteReference => "pointer_from_read_write_reference",

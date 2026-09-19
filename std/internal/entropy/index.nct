@@ -1,0 +1,18 @@
+//! Package-internal operating-system entropy boundary.
+//!
+//! This module alone owns target request limits and repeated native calls. Public modules receive
+//! only the target-independent completion fact below.
+
+see ./darwin.nct
+
+/// Target-independent result of filling one complete caller-owned byte range.
+pub(/) enum EntropyResult {
+    complete
+    unavailable
+}
+
+/// Fills the complete destination or reports that target entropy was unavailable.
+pub(/) noalloc func fill(destination: &+[u8]): EntropyResult
+
+#target: "arm64-darwin"
+noalloc primitive func fill_raw(destination: *u8, len: usize): i32

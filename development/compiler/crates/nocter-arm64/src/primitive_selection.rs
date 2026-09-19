@@ -165,7 +165,7 @@ pub(crate) fn select(
         | PrimitiveRole::DatagramReceive
         | PrimitiveRole::DatagramLocalAddress
         | PrimitiveRole::DatagramPeerAddress
-        | PrimitiveRole::EntropySeedFill
+        | PrimitiveRole::EntropyFill
         | PrimitiveRole::WallClockRead
         | PrimitiveRole::TimeoutWait
         | PrimitiveRole::ProcessExit

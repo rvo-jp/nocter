@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.63.0: Cryptographic Randomness](v0.63.0.md)
 - [v0.62.0: Structured Command-Line Applications](v0.62.0.md)
 - [v0.62.0 Release Preparation](v0.62.0-release-preparation.md)
 - [v0.61.0: Reliable Development and Distribution](v0.61.0.md)

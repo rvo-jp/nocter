@@ -1,0 +1,30 @@
+//! Darwin entropy adapter.
+
+see ./index.nct
+
+use /internal/os/darwin
+use /internal/ptr as internal_ptr
+use /ptr as public_ptr
+
+const MAXIMUM_REQUEST_BYTES: usize = 256
+
+noalloc func requested_bytes(remaining: usize): usize {
+    if remaining < MAXIMUM_REQUEST_BYTES { return remaining }
+    return MAXIMUM_REQUEST_BYTES
+}
+
+noalloc func fill(destination: &+[u8]): EntropyResult {
+    let base = public_ptr.addr(destination.ptr())
+    var offset: usize = 0
+    while offset < destination.len() {
+        let count = requested_bytes(destination.len() - offset)
+        let output: *u8 = internal_ptr.from_addr(base + offset)
+        var errno = fill_raw(output, count)
+        while errno == darwin.ERRNO_INTERRUPTED {
+            errno = fill_raw(output, count)
+        }
+        if errno != 0 { return EntropyResult.unavailable }
+        offset += count
+    }
+    return EntropyResult.complete
+}

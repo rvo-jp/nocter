@@ -463,16 +463,17 @@ fn explicit_u64_mixing_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
-fn target_entropy_boundary_crosses_the_complete_native_pipeline() {
+fn variable_length_entropy_boundary_crosses_the_complete_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os/darwin\n\
+        "use std/internal/entropy\n\
          use std/ptr\n\
-         blocking func main(): i32 {\n\
-             var seed: u64 = 0\n\
-             darwin.fill_seed_for_test(ptr.addr(ptr.from_ref_mut(&+seed)))\n\
+         noalloc func main(): i32 {\n\
+             var bytes: [u8; 17] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n\
+             let status = entropy.fill_for_test(ptr.from_ref_mut(&+bytes[0]), 17)\n\
+             if status != 0 { return 1 }\n\
              return 42\n\
          }\n",
-        &[&["internal", "os", "darwin"], &["ptr"]],
+        &[&["internal", "entropy"], &["ptr"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();

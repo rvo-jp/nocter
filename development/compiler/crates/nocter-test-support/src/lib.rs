@@ -160,9 +160,12 @@ const INTERNAL_MEM_SOURCE: &str = "\
 pub(/) primitive func allocation_abort(): never
 pub func allocation_abort_for_test(): never { allocation_abort() }
 ";
-const INTERNAL_HASH_SOURCE: &str = "\
+const INTERNAL_ENTROPY_SOURCE: &str = "\
 #target: \"arm64-darwin\"
-primitive func fill_seed_raw(destination: *u64): i32
+noalloc primitive func fill_raw(destination: *u8, len: usize): i32
+pub noalloc func fill_for_test(destination: *u8, len: usize): i32 {
+    return fill_raw(destination, len)
+}
 ";
 const PTR_SOURCE: &str = "\
 pub noalloc primitive func addr<T>(pointer: *T): usize
@@ -754,12 +757,6 @@ pub func terminate_for_test(use_unreachable: bool): never {
     if use_unreachable { unreachable() }
     trap()
 }
-#target: \"arm64-darwin\"
-pub blocking func fill_seed_for_test(address: usize): void {
-    let result = syscall2(0x020001f4, address, 8)
-    if result.errno != 0 { return trap() }
-    return
-}
 ";
 
 struct FixtureModule {
@@ -783,7 +780,7 @@ fn fixture_modules(sources: &mut SourceMap) -> Vec<FixtureModule> {
         (&["internal", "character"][..], INTERNAL_CHARACTER_SOURCE),
         (&["mem"][..], MEM_SOURCE),
         (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
-        (&["internal", "hash"][..], INTERNAL_HASH_SOURCE),
+        (&["internal", "entropy"][..], INTERNAL_ENTROPY_SOURCE),
         (&["ptr"][..], PTR_SOURCE),
         (&["internal", "ptr"][..], INTERNAL_PTR_SOURCE),
         (&["string"][..], STRING_SOURCE),

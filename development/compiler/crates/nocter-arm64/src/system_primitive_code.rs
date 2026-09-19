@@ -234,11 +234,10 @@ pub(crate) fn emit_process_exec(
     emit_system_call_result(code)
 }
 
-/// Fills the `u64` addressed by `x0` and returns zero or the Darwin errno in `x0`.
-pub(crate) fn emit_entropy_seed_fill(
+/// Fills the byte range addressed by `x0` with length `x1` and returns zero or errno in `x0`.
+pub(crate) fn emit_entropy_fill(
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    crate::frame_access::load_immediate(code, argument(1), 8, Arm64DataSize::Bits64);
     crate::darwin_kernel_abi::emit_system_call(
         code,
         crate::darwin_kernel_abi::DarwinSystemCall::GetEntropy,

@@ -45,7 +45,7 @@ pub(super) fn select(
         | PrimitiveRole::DatagramReceive
         | PrimitiveRole::DatagramLocalAddress
         | PrimitiveRole::DatagramPeerAddress => select_datagram(operation, target, selected),
-        PrimitiveRole::EntropySeedFill => select_entropy_seed_fill(operation, target, selected),
+        PrimitiveRole::EntropyFill => select_entropy_fill(operation, target, selected),
         PrimitiveRole::WallClockRead => {
             select_wall_clock_read(program, operation, target, selected)
         }
@@ -122,14 +122,14 @@ fn select_timeout_wait(
     Ok(())
 }
 
-fn select_entropy_seed_fill(
+fn select_entropy_fill(
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    validate_ordinary_inputs(operation, target, 1)?;
+    validate_ordinary_inputs(operation, target, 2)?;
     validate_direct_result(operation, target, 1)?;
-    selected.push(Arm64SelectedInstruction::DarwinEntropySeedFill);
+    selected.push(Arm64SelectedInstruction::DarwinEntropyFill);
     Ok(())
 }
 

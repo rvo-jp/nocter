@@ -253,7 +253,7 @@ pub const fn bundled_primitive_source_location(
         Role::DatagramReceive => (DARWIN_NET, "datagram_receive_raw"),
         Role::DatagramLocalAddress => (DARWIN_NET, "datagram_local_address_raw"),
         Role::DatagramPeerAddress => (DARWIN_NET, "datagram_peer_address_raw"),
-        Role::EntropySeedFill => (&["internal", "hash"], "fill_seed_raw"),
+        Role::EntropyFill => (&["internal", "entropy"], "fill_raw"),
         Role::PointerAddress => (&["ptr"], "addr"),
         Role::PointerFromReference => (&["ptr"], "from_ref"),
         Role::PointerFromReadWriteReference => (&["ptr"], "from_ref_mut"),

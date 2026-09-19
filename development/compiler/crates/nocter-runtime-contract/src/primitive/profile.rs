@@ -175,7 +175,7 @@ impl PrimitiveRole {
             | Self::DatagramReceive
             | Self::DatagramLocalAddress
             | Self::DatagramPeerAddress
-            | Self::EntropySeedFill
+            | Self::EntropyFill
             | Self::PointerAddress
             | Self::PointerFromReference
             | Self::PointerFromReadWriteReference

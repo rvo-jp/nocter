@@ -300,8 +300,8 @@ pub enum Arm64SelectedInstruction {
     DarwinProcessExec,
     /// Performs one closed Darwin datagram operation and returns `(value, errno)`.
     DarwinDatagram(crate::DarwinDatagramOperation),
-    /// Fills one 64-bit value from the target entropy source and returns its errno.
-    DarwinEntropySeedFill,
+    /// Fills one caller-owned byte range from the target entropy source and returns its errno.
+    DarwinEntropyFill,
     /// Performs one Darwin `select` timeout and returns zero or its errno.
     DarwinTimeoutWait,
     /// Observes one Darwin wall-clock timeval and returns normalized fields plus errno.

@@ -97,15 +97,16 @@ probing or repair implementation.
 
 ## Seed Boundary
 
-The target entropy operation returns seed material or terminates. It does not return a public
-`error`, allocate, initialize HashState, or choose the algorithm. Standard hash source combines the
-seed with its private state. Each Map retains the resulting seed across reserve and clear; rehash
+The target entropy primitive fills an explicitly bounded caller-owned byte range and returns one
+raw completion fact. `std/internal/entropy` owns native request limits and retry; `std/hash` owns
+the fail-stop policy required by infallible randomized collection construction. Neither layer
+returns a public `error`, allocates, initializes `HashState` on behalf of the hash module, or
+chooses the hash algorithm. Each Map retains the resulting seed across reserve and clear; rehash
 does not request a new seed.
 
 The target operation is justified only because ordinary Nocter source cannot obtain private OS
-entropy without turning Map construction into public file or syscall policy. If a target already
-has a suitable standard-internal entropy source, the hash module must use that source instead of a
-second primitive.
+entropy without turning Map construction into public file or syscall policy. Hashing consumes the
+shared standard-internal source and cannot introduce a seed-specific primitive.
 
 ## Hash Foundation
 
@@ -122,8 +123,9 @@ through type-specific helpers. Text and sequences contribute a length before the
 elements, and owning `String`/`Vec<T>` delegate to their borrowed views. This keeps component
 boundaries in standard source rather than in the target or table.
 
-`std/internal/hash` owns only target entropy acquisition. It returns seed material to `std/hash`
-and cannot construct or finalize `HashState`. The private table consumes the package-only
+`std/internal/entropy` owns target entropy acquisition and request limits. It returns byte-fill
+completion to `std/hash` and cannot construct or finalize `HashState`. The private table consumes
+the package-only
 `HashState` lifecycle; it cannot inspect the seed or algorithm state.
 
 ## Capability Audit

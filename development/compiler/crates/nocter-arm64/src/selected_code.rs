@@ -432,8 +432,8 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinDatagram(operation) => {
             crate::darwin_datagram_code::emit(operation, code)
         }
-        Arm64SelectedInstruction::DarwinEntropySeedFill => {
-            crate::system_primitive_code::emit_entropy_seed_fill(code)
+        Arm64SelectedInstruction::DarwinEntropyFill => {
+            crate::system_primitive_code::emit_entropy_fill(code)
         }
         Arm64SelectedInstruction::DarwinTimeoutWait => {
             crate::darwin_timeout_code::emit_timeout_wait(code)
