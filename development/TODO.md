@@ -4,14 +4,15 @@
 
 Nocter v0.60.0 is published and externally audited. All three v0.61.0 implementation phases are
 complete: repository operability, comment-preserving formatting, and verified local artifact
-installation. Phase 2 still requires the complete disposable compiler gate and clean-tree release
-qualification before v0.61.0 release preparation begins.
+installation. The complete disposable compiler gate and a packaged fresh/replacement installation
+smoke test pass.
 
 ## Next Work
 
-Run the complete v0.61.0 verification and artifact-install qualification, then perform release
-preparation as a separate audited change. Do not treat release checksums or manifest content
-digests as authenticity guarantees.
+Begin v0.61.0 release preparation as a separate audited change: update release metadata, rerun the
+complete gate, and run clean-tree double-generation qualification, which now includes verified
+fresh and replacement installation. Do not treat release checksums or manifest content digests as
+authenticity guarantees.
 
 Preserve the v0.60.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
