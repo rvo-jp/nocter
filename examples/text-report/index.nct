@@ -21,7 +21,7 @@ blocking func main(): i32! {
     application.add_positional("NEEDLE", true, "Substring to search for.")?
     let arguments = application.parse_process() catch failure {
         if !failure.has_code("std.cli.missing_positional")
-            && !failure.has_code("std.cli.unexpected_positional") {
+        && !failure.has_code("std.cli.unexpected_positional") {
             return move failure
         }
         let usage = application.usage()
