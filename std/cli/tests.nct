@@ -45,29 +45,53 @@ test cli_terminator_preserves_option_shaped_positionals {
     if parsed.flag("verbose") || input != "--verbose" {
         return error.new("std.cli.test", "option terminator did not stop recognition")
     }
-    return
+
+    let command = Application.new("run", "")?
+    var command_application = Application.new("sample", "")?
+    command_application.add_command(move command)?
+    let command_shaped_data: Vec<&str> = Vec ["--", "run"]
+    let _ = command_application.parse(&command_shaped_data) catch failure {
+        if !failure.has_code("std.cli.unexpected_positional") { return move failure }
+        return
+    }
+    return error.new("std.cli.test", "option terminator selected a subcommand")
 }
 
-test cli_rejects_invalid_schemas_and_invocations {
+func require_duplicate_option_rejection(): void! {
     var application = Application.new("sample", "")?
     application.add_flag("verbose", 'v', "")?
-    application.add_flag("verbose", none, "") catch failure {
+    let _ = application.add_flag("verbose", none, "") catch failure {
         if !failure.has_code("std.cli.duplicate_option") { return move failure }
+        return
     }
+    return error.new("std.cli.test", "duplicate option was accepted")
+}
+
+func require_unknown_option_rejection(): void! {
+    let application = Application.new("sample", "")?
     let unknown: Vec<&str> = Vec ["--missing"]
     let _ = application.parse(&unknown) catch failure {
         if !failure.has_code("std.cli.unknown_option") { return move failure }
-        var positional = Application.new("positional", "")?
-        positional.add_positional("optional", false, "")?
-        positional.add_positional("required", true, "") catch ordering_failure {
-            if !ordering_failure.has_code("std.cli.required_after_optional") {
-                return move ordering_failure
-            }
-            return
-        }
-        return error.new("std.cli.test", "required positional followed an optional positional")
+        return
     }
     return error.new("std.cli.test", "unknown option was accepted")
+}
+
+func require_positional_order_rejection(): void! {
+    var application = Application.new("sample", "")?
+    application.add_positional("optional", false, "")?
+    let _ = application.add_positional("required", true, "") catch failure {
+        if !failure.has_code("std.cli.required_after_optional") { return move failure }
+        return
+    }
+    return error.new("std.cli.test", "required positional followed an optional positional")
+}
+
+test cli_rejects_invalid_schemas_and_invocations {
+    require_duplicate_option_rejection()?
+    require_unknown_option_rejection()?
+    require_positional_order_rejection()?
+    return
 }
 
 test cli_usage_and_help_share_the_parser_schema {
@@ -97,6 +121,10 @@ test cli_repeated_values_preserve_command_line_order {
     }
     if parsed.option_count("header") != 2 || first != "first" || second != "second" {
         return error.new("std.cli.test", "repeated option order changed")
+    }
+    let help = application.help()
+    if !(&help as &str).contains("--header <VALUE>...") {
+        return error.new("std.cli.test", "repeated option presentation lost its repetition policy")
     }
     return
 }

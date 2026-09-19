@@ -26,12 +26,12 @@ pub struct Application
 pub struct ParsedArguments
 
 construct Application {
-    /// Creates a schema with one nonempty display name and optional description.
+    /// Creates a schema with one nonempty display name containing no ASCII whitespace or controls.
     pub func new(name: &str, description: &str): Self!
 }
 
 instance Application {
-    /// Adds one Boolean option with a unique long name and optional short name.
+    /// Adds one Boolean option with a unique lowercase ASCII long name and optional short name.
     pub method &+self.add_flag(
         long: &str,
         short: char?,
@@ -54,7 +54,7 @@ instance Application {
         description: &str,
     ): void!
 
-    /// Adds one positional argument after all earlier positionals.
+    /// Adds one named positional argument after all earlier positionals.
     ///
     /// Required positionals must precede optional positionals.
     pub method &+self.add_positional(

@@ -34,6 +34,12 @@ value in command-line order; every other duplicate option is rejected. Unknown o
 option values, missing required positionals, and surplus positionals are failures with stable
 `std.cli.*` codes.
 
+A long option name starts with a lowercase ASCII letter and continues with lowercase ASCII
+letters, digits, or isolated hyphens. A short name is one ASCII letter or digit. Subcommand names
+use the long-name grammar. Application display names, positional names, and option value names are
+nonempty and contain no ASCII whitespace or control character. Descriptions are presentation text
+and do not participate in recognition.
+
 One schema level may contain positionals or named subcommands, but not both. A command token selects
 one owned child schema, and every remaining token is classified by that child. Child schemas may
 own further commands, so nesting does not require another parser or representation. Options before
