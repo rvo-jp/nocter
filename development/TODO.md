@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.61.0 is published and externally audited. v0.62.0 Structured Command-Line Applications
-is implementation-complete and qualified. Release-content commit
-`3f6f1eb3f68c96ff36453f9d0d42f349e219731d` passed the complete gate and deterministic artifact
-qualification; the exact retained archive is ready for publication.
+Nocter v0.61.0 is published and externally audited. The exact v0.62.0 Structured Command-Line
+Applications candidate passed the complete compiler gate and formal double-generation
+qualification. Publication is authorized, and public metadata now selects v0.62.0.
 
 ## Next Work
 
-Wait for explicit publication authorization. Publication must reuse the retained
-`dist/nocter-v0.62.0-arm64-darwin.tar.gz` archive with SHA-256
-`39d07ee1a89874c77f096eab9c1c1f5be8f79e0ef737159db86ddfe2bbb296ed` and must not rebuild it.
+Commit this publication metadata, create annotated tag `v0.62.0`, fast-forward `main`, and publish
+the exact retained candidate as the release's single asset without rebuilding it. Then audit the
+public tag, asset, latest-release endpoint, downloaded installed home, and source-identified Pages
+deployment.
 
 Preserve the v0.61.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -20,7 +20,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for v0.62.0 release preparation.
+No implementation, qualification, or authorization blocker remains.
 
 ## Non-negotiable Boundaries
 
