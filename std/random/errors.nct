@@ -1,0 +1,7 @@
+//! Public random-source failures.
+
+see ./index.nct
+
+noalloc func unavailable_error(): error {
+    return error.new("std.random.unavailable", "operating-system randomness is unavailable")
+}

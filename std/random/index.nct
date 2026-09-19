@@ -1,0 +1,22 @@
+//! Cryptographically secure random bytes and unsigned scalar values.
+//!
+//! The operating system supplies entropy. This module owns public failure, output cleanup, and
+//! scalar construction; native request limits remain package-internal.
+
+see ./errors.nct
+
+see ./random.nct
+
+see ./tests.nct
+
+/// Fills the complete destination with cryptographically secure random bytes.
+///
+/// Returns `std.random.unavailable` after clearing the complete destination when the operating
+/// system cannot complete the request.
+pub noalloc func fill(destination: &+[u8]): void!
+
+/// Returns one uniformly distributed value over the complete `u64` domain.
+pub noalloc func next_u64(): u64!
+
+/// Returns one uniformly distributed value over the complete `usize` domain.
+pub noalloc func next_usize(): usize!

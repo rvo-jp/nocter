@@ -21,6 +21,7 @@ mod codecs_and_callables;
 mod http_server;
 mod io_and_async_runtime;
 mod network_and_tls;
+mod random;
 mod recoverable_and_collections;
 mod recovery_and_targets;
 mod standard_and_process;

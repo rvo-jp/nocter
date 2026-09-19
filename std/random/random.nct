@@ -1,0 +1,48 @@
+//! Random byte and scalar implementation.
+
+see ./index.nct
+
+see ./errors.nct
+
+use /bytes as byte_codec
+use /internal/entropy
+use /internal/entropy.EntropyResult
+use /internal/ptr
+use /internal/safety
+use /ptr as public_ptr
+
+noalloc func clear(destination: &+[u8]): void {
+    var index: usize = 0
+    while index < destination.len() {
+        destination[index] = 0
+        index += 1
+    }
+    return
+}
+
+noalloc func finish_fill(destination: &+[u8], result: EntropyResult): void! {
+    if result is EntropyResult.complete { return }
+    clear(destination)
+    return unavailable_error()
+}
+
+noalloc func fill(destination: &+[u8]): void! {
+    let result = entropy.fill(destination)
+    return finish_fill(destination, result)
+}
+
+noalloc func scalar_from_bytes(input: &[u8]): u64 {
+    return byte_codec.decode_u64_le(input) otherwise { return safety.invariant_abort() }
+}
+
+noalloc func next_u64(): u64! {
+    var storage: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0]
+    let first = public_ptr.from_ref_mut(&+storage[0])
+    let output = ptr.slice_from_raw_parts_value_mut(first, 8)
+    fill(output)?
+    return scalar_from_bytes(output)
+}
+
+noalloc func next_usize(): usize! {
+    return next_u64()? as usize
+}
