@@ -143,6 +143,37 @@ pub(crate) fn emit_memory_copy(
     {
         validate_nonoverlapping_copy(function, destination, source, bytes)?;
     }
+    if bytes == 0 {
+        return Ok(());
+    }
+
+    // A copy must retain both roots for its complete duration. In particular, an incoming
+    // indirect argument commonly arrives in x17, while a large stack access also uses x17 to
+    // materialize an otherwise unencodable offset. Keeping an arbitrary selected base live inside
+    // the per-chunk expansion therefore lets address formation silently replace that base midway
+    // through a large copy. Canonicalize both roots into boundary-only registers which neither the
+    // allocator nor the address materializer uses as scratch.
+    let [source_root, destination_root] = copy_address_registers(source, destination);
+    emit_memory_address(
+        function,
+        Arm64SelectedRegister::Fixed(source_root),
+        source,
+        code,
+    )?;
+    emit_memory_address(
+        function,
+        Arm64SelectedRegister::Fixed(destination_root),
+        destination,
+        code,
+    )?;
+    let source = Arm64SelectedMemoryAddress::Register {
+        base: Arm64SelectedRegister::Fixed(source_root),
+        offset: 0,
+    };
+    let destination = Arm64SelectedMemoryAddress::Register {
+        base: Arm64SelectedRegister::Fixed(destination_root),
+        offset: 0,
+    };
     let transfer = Arm64SelectedRegister::Fixed(crate::frame_access::scratch(0));
     for (offset, width) in exact_memory_chunks(bytes) {
         emit_memory_load(
@@ -162,6 +193,41 @@ pub(crate) fn emit_memory_copy(
         )?;
     }
     Ok(())
+}
+
+fn copy_address_registers(
+    source: Arm64SelectedMemoryAddress,
+    destination: Arm64SelectedMemoryAddress,
+) -> [Arm64Register; 2] {
+    let occupied = [fixed_memory_base(source), fixed_memory_base(destination)];
+    let mut available = (4..=7)
+        .map(|index| {
+            Arm64NocterAbi::argument_register(index)
+                .expect("the ABI reserves x4..x7 as materialization boundary registers")
+        })
+        .filter(|register| !occupied.contains(&Some(*register)));
+    [
+        available
+            .next()
+            .expect("four boundary registers avoid at most two memory bases"),
+        available
+            .next()
+            .expect("four boundary registers avoid at most two memory bases"),
+    ]
+}
+
+const fn fixed_memory_base(address: Arm64SelectedMemoryAddress) -> Option<Arm64Register> {
+    match address {
+        Arm64SelectedMemoryAddress::Register {
+            base: Arm64SelectedRegister::Fixed(register),
+            ..
+        } => Some(register),
+        Arm64SelectedMemoryAddress::Stack(_)
+        | Arm64SelectedMemoryAddress::Register {
+            base: Arm64SelectedRegister::Virtual(_),
+            ..
+        } => None,
+    }
 }
 
 fn validate_nonoverlapping_copy(
@@ -417,9 +483,35 @@ const fn load_store_size(bytes: u8) -> Option<Arm64LoadStoreSize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        boundary_register, exact_memory_chunks, memory_fragments, temporary_registers_avoiding,
+        boundary_register, copy_address_registers, exact_memory_chunks, memory_fragments,
+        temporary_registers_avoiding,
     };
-    use crate::Arm64LoadStoreSize;
+    use crate::{
+        Arm64LoadStoreSize, Arm64NocterAbi, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
+    };
+
+    #[test]
+    fn copy_roots_avoid_selected_fixed_bases_and_materialization_scratch() {
+        let x4 = Arm64NocterAbi::argument_register(4).unwrap();
+        let x5 = Arm64NocterAbi::argument_register(5).unwrap();
+        let roots = copy_address_registers(
+            Arm64SelectedMemoryAddress::Register {
+                base: Arm64SelectedRegister::Fixed(x4),
+                offset: 0,
+            },
+            Arm64SelectedMemoryAddress::Register {
+                base: Arm64SelectedRegister::Fixed(x5),
+                offset: 0,
+            },
+        );
+        assert_ne!(roots[0], x4);
+        assert_ne!(roots[0], x5);
+        assert_ne!(roots[1], x4);
+        assert_ne!(roots[1], x5);
+        assert_ne!(roots[0], roots[1]);
+        assert!((4..=7).contains(&roots[0].number()));
+        assert!((4..=7).contains(&roots[1].number()));
+    }
 
     #[test]
     fn decomposes_non_native_direct_widths_without_crossing_the_value_boundary() {

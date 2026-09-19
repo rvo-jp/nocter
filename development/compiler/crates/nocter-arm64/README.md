@@ -28,6 +28,9 @@ source, loader commands, or package state.
 - The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
+- Non-overlapping memory copies stabilize both address roots in boundary-only registers before
+  chunk materialization. Large stack offsets therefore cannot replace an indirect argument or
+  result pointer that the remainder of the copy still needs.
 - A runtime-projected erased-callable address is stabilized before its environment and invoke
   fields are loaded into ABI boundary registers; loading one field cannot invalidate the address
   needed for another.

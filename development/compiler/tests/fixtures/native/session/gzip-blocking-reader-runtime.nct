@@ -1,5 +1,6 @@
 use std/compress.BlockingGzipReader
 use std/io.BlockingReader
+use std/io/buffer.BlockingBufReader
 use std/vec.Vec
 
 struct FragmentedSource {
@@ -36,13 +37,32 @@ instance InvalidSource {
 
 func compressed(): Vec<u8> {
     return Vec [
-        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(0),
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
-        u8.truncate(0), u8.truncate(255), u8.truncate(43), u8.truncate(78),
-        u8.truncate(77), u8.truncate(206), u8.truncate(207), u8.truncate(75),
-        u8.truncate(1), u8.truncate(0), u8.truncate(105), u8.truncate(17),
-        u8.truncate(31), u8.truncate(182), u8.truncate(6), u8.truncate(0),
-        u8.truncate(0), u8.truncate(0),
+        u8.truncate(31),
+        u8.truncate(139),
+        u8.truncate(8),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(255),
+        u8.truncate(43),
+        u8.truncate(78),
+        u8.truncate(77),
+        u8.truncate(206),
+        u8.truncate(207),
+        u8.truncate(75),
+        u8.truncate(1),
+        u8.truncate(0),
+        u8.truncate(105),
+        u8.truncate(17),
+        u8.truncate(31),
+        u8.truncate(182),
+        u8.truncate(6),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
     ]
 }
 
@@ -53,6 +73,13 @@ blocking func main(): i32 {
     var eof: Vec<u8> = Vec [u8.truncate(0)]
     let eof_count = reader.read_blocking(&+eof) catch _ { return 3 }
     if eof_count != 0 { return 4 }
+
+    var wrapped = BlockingBufReader.with_capacity(
+        BlockingGzipReader.with_capacity(FragmentedSource.new(compressed()), 1),
+        1,
+    )
+    let wrapped_decoded = wrapped.read_to_end_blocking() catch _ { return 8 }
+    if (&wrapped_decoded as &[u8]) != "second".bytes() { return 9 }
 
     var corrupt = compressed()
     corrupt[18] = u8.truncate(104)
