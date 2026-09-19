@@ -1707,6 +1707,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-archive-extraction"
+version = "0.0.0"
+dependencies = [
+ "flate2",
+ "tar",
+]
+
+[[package]]
 name = "nocter-arm64"
 version = "0.0.0"
 dependencies = [
@@ -2083,6 +2091,7 @@ version = "0.0.0"
 dependencies = [
  "flate2",
  "gix",
+ "nocter-archive-extraction",
  "nocter-hash",
  "nocter-language",
  "nocter-package",

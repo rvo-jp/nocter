@@ -19,6 +19,7 @@ pub enum PackageAcquisitionError {
         actual: Box<str>,
     },
     InvalidArchive(Box<str>),
+    ArchiveExtraction(nocter_archive_extraction::ArchiveExtractionError),
     InvalidGit {
         operation: &'static str,
         detail: Box<str>,
@@ -85,6 +86,7 @@ impl fmt::Display for PackageAcquisitionError {
                 "package content does not match its lock: expected {expected}, got {actual}"
             ),
             Self::InvalidArchive(reason) => write!(formatter, "invalid package archive: {reason}"),
+            Self::ArchiveExtraction(error) => write!(formatter, "invalid package archive: {error}"),
             Self::InvalidGit { operation, detail } => {
                 write!(formatter, "cannot {operation}: {detail}")
             }
@@ -101,6 +103,7 @@ impl std::error::Error for PackageAcquisitionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Http(error) => Some(error),
+            Self::ArchiveExtraction(error) => Some(error),
             Self::Filesystem { source, .. } => Some(source),
             Self::Unsupported(_)
             | Self::InvalidUrl { .. }

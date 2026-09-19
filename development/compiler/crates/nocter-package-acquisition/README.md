@@ -8,8 +8,9 @@ Fetch and validate exact Git or archive package content under the public acquisi
 
 The crate consumes a resolved acquisition request and produces staged exact content for a
 `nocter-package-state` transaction. It owns HTTPS, Git object traversal, archive decoding, digest
-verification, redirect/resource limits, and unsafe-entry rejection. It does not choose dependency
-versions or publish package state directly.
+verification, transport limits, and the package-root requirement. Physical tar entry safety and
+bounded materialization come from the `nocter-archive-extraction` contract. This crate does not
+choose dependency versions or publish package state directly.
 
 ## Invariants
 
