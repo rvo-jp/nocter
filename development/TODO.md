@@ -2,25 +2,21 @@
 
 ## Current State
 
-Nocter v0.61.0 is published and externally audited. The exact v0.62.0 Structured Command-Line
-Applications candidate passed the complete compiler gate and formal double-generation
-qualification. Publication is authorized, and public metadata now selects v0.62.0.
+Nocter v0.62.0 is published and externally audited. The annotated tag, single GitHub Release
+asset, latest-release endpoint, downloaded installed home, and source-identified Pages deployment
+all match the qualified candidate and publication commit.
 
 ## Next Work
 
-Commit this publication metadata, create annotated tag `v0.62.0`, fast-forward `main`, and publish
-the exact retained candidate as the release's single asset without rebuilding it. Then audit the
-public tag, asset, latest-release endpoint, downloaded installed home, and source-identified Pages
-deployment.
-
-Preserve the v0.61.0 tag, release asset, public notes, specification snapshot, and publication
-audit without replacement. Any correction requires a new version and a newly qualified artifact.
+Plan the next milestone from concrete user-facing or standard-library gaps. Preserve the v0.62.0
+tag, release asset, public notes, specification snapshot, and publication audit without
+replacement. Any correction requires a new version and a newly qualified artifact.
 
 Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No implementation, qualification, or authorization blocker remains.
+No blocker remains for v0.62.0.
 
 ## Non-negotiable Boundaries
 
