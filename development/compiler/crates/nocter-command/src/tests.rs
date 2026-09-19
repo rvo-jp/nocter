@@ -1068,13 +1068,12 @@ fn bundled_async_filesystem_mutations_cross_owned_path_jobs() {
 
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
-        "async.nct" => b"",
         "custom-format.nct" => b"point = (3, 4)\n",
         "elapsed.nct" => b"at least two milliseconds elapsed\n",
         "equality.nct" => b"equality found the point\n",
         "floating-point.nct" => b"0.1 * 3.0 = 0.30000000000000004; JSON = 0.30000000000000004\n",
         "hello.nct" => b"Hello from Nocter\n",
-        "indexing.nct" | "recovery.nct" => b"",
+        "async.nct" | "indexing.nct" | "recovery.nct" => b"",
         "mutable-iteration.nct" => b"mutable iteration updated every element\n",
         "network-address.nct" => b"[::1]:443\n",
         "ordering.nct" => b"strict ordering selected source declarations\n",

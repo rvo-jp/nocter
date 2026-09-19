@@ -1757,6 +1757,168 @@ fn assert_binary_record_source_projection(
     assert!(hints.issue().is_none(), "{:?}", hints.issue());
 }
 
+#[test]
+fn archive_inspection_preserves_compression_archive_and_policy_boundaries_in_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/archive-inspect");
+    let inspection = root.join("inspection.nct");
+    let (mut server, text) = open_package_source(&root, &inspection);
+
+    assert_archive_reader_contract(&mut server, &inspection, &text);
+    assert_archive_stream_contract(&mut server, &inspection, &text);
+    assert_archive_source_projection(&mut server, &root, &inspection, &text);
+}
+
+fn assert_archive_reader_contract(server: &mut super::LanguageServer, source: &Path, text: &str) {
+    let (line, line_source) = source_line(text, "BlockingGzipReader.with_capacity");
+    let character = line_source.find("with_capacity").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        source,
+        line,
+        character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("func BlockingGzipReader<R>.with_capacity"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        source,
+        line,
+        character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/compress/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        source,
+        line,
+        character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(
+        response.contains("/std/compress/blocking_reader.nct"),
+        "{response}"
+    );
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+}
+
+fn assert_archive_stream_contract(server: &mut super::LanguageServer, source: &Path, text: &str) {
+    let (line, line_source) = source_line(text, "archive.next_blocking");
+    let character = line_source.find("next_blocking").unwrap();
+    let hover = server.receive(&position_request(
+        5,
+        "textDocument/hover",
+        source,
+        line,
+        character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("blocking func next_blocking<R>"),
+        "{response}"
+    );
+    assert!(response.contains(": TarStreamStep!"), "{response}");
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        6,
+        "textDocument/definition",
+        source,
+        line,
+        character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/archive/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        7,
+        "textDocument/implementation",
+        source,
+        line,
+        character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(
+        response.contains("/std/archive/blocking_stream.nct"),
+        "{response}"
+    );
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let (entry_line, entry_source) = source_line(text, "tar.entry()");
+    let completion_character = entry_source.find("tar.").unwrap() + "tar.".len();
+    let completion = server.receive(&position_request(
+        8,
+        "textDocument/completion",
+        source,
+        entry_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    assert!(
+        response.contains("\"label\":\"entry\",\"kind\":2"),
+        "{response}"
+    );
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+fn assert_archive_source_projection(
+    server: &mut super::LanguageServer,
+    root: &Path,
+    inspection: &Path,
+    inspection_text: &str,
+) {
+    for (id, source) in [
+        (9, inspection.to_path_buf()),
+        (10, root.join("source.nct")),
+        (11, root.join("application.nct")),
+    ] {
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+            source.display()
+        ));
+        let response = tokens.response().unwrap();
+        assert!(response.contains("\"data\":["), "{response}");
+        assert!(!response.contains("\"data\":[]"), "{response}");
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+    }
+
+    let hints = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{},\"character\":0}}}}}}}}",
+        inspection.display(),
+        inspection_text.lines().count()
+    ));
+    let response = hints.response().unwrap();
+    for inferred in [
+        ": LimitedSource<R>",
+        ": BlockingGzipReader<LimitedSource<R>>",
+        ": TarStream",
+    ] {
+        assert!(
+            response.contains(&format!("\"label\":\"{inferred}\"")),
+            "{response}"
+        );
+    }
+    assert!(hints.issue().is_none(), "{:?}", hints.issue());
+}
+
 fn assert_pipeline_generic_copy_contracts(
     server: &mut super::LanguageServer,
     source: &Path,

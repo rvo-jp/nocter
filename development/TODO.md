@@ -22,17 +22,20 @@ links remain exact. Global sections, local search, page contents, adjacent-page 
 navigation, and accessible hero tabs are derived from the published document set without a second
 page registry or hosted search service.
 
-v0.60.0 development has started with the streaming-compression state foundation. The active scope,
-responsibility boundaries, and completion gates are recorded in
+v0.60.0 implementation is complete. One allocation-free raw-DEFLATE engine, concatenated gzip
+decoder, bounded POSIX ustar reader, shared blocking and asynchronous transport cursors, and the
+bounded `archive-inspect` application have passed native, editor, documentation, and
+whole-repository qualification. The completed scope, responsibility boundaries, and evidence are
+recorded in
 [`v0.60.0: Streaming Compression and Safe Archives`](history/milestones/v0.60.0.md).
 
 ## Next Work
 
-Continue v0.60.0 Phase 6 from the qualified DEFLATE, gzip, tar, transport, and bounded inspection
-application. Qualify every public and implementation source through compiler and editor surfaces,
-run the complete native, standard-library, documentation, installation, and packaging gates, and
-review representation ownership before release preparation. Do not reopen v0.59.0; any correction
-requires a new version, implementation gate, qualified archive, tag, and publication audit.
+Prepare the v0.60.0 release candidate as a separate identity change. Update the sole version input
+and standard-package declaration, write public release notes and the release-preparation record,
+then qualify two byte-identical archives and fresh installed homes before tagging or publishing.
+Do not reopen v0.59.0; any correction requires a new version, implementation gate, qualified
+archive, tag, and publication audit.
 
 Preserve the v0.59.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
