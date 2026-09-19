@@ -1,7 +1,9 @@
 //! Schema validation and construction.
 
 see ./errors.nct
+
 see ./index.nct
+
 see ./storage.nct
 
 use /string.String
@@ -48,8 +50,8 @@ noalloc func valid_display_name(name: &str): bool {
 noalloc func valid_short_name(name: char): bool {
     let value = name.code_point()
     return (value >= 65 && value <= 90)
-        || (value >= 97 && value <= 122)
-        || (value >= 48 && value <= 57)
+    || (value >= 97 && value <= 122)
+    || (value >= 48 && value <= 57)
 }
 
 noalloc func valid_optional_short_name(name: char?): bool {

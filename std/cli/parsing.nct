@@ -1,7 +1,9 @@
 //! Single-pass command-line classification against one validated schema.
 
 see ./errors.nct
+
 see ./index.nct
+
 see ./storage.nct
 
 use /string.String
@@ -73,7 +75,7 @@ noalloc func validate_required_positionals(
     var index: usize = 0
     while index < application.positionals.len() {
         if positional_required(&application.positionals[index])
-            && !parsed.positionals[index].has_value {
+        && !parsed.positionals[index].has_value {
             return missing_positional()
         }
         index += 1
