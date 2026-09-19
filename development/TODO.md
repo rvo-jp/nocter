@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.59.0 is published and externally audited. v0.60.0 qualification is reopened after
-release-candidate review found and corrected complete decoded-byte accounting and an ARM64
+Nocter v0.59.0 is published and externally audited. The corrected v0.60.0 replacement candidate is
+qualified after release-candidate review found complete decoded-byte accounting and an ARM64
 large-copy address-lifetime defect. The earlier candidate and its digest are superseded and must
 not be published. The completed implementation scope is recorded in
 [`v0.60.0: Streaming Compression and Safe Archives`](history/milestones/v0.60.0.md).
 
 ## Next Work
 
-Complete the full compiler and release qualification from a clean replacement release-content
-commit. Replace `dist/nocter-v0.60.0-arm64-darwin.tar.gz`, record its exact identity, and do not
-publish until the replacement compiler, application, editor, installation, immutability, and
-tamper gates pass.
+Publish only the retained qualified `dist/nocter-v0.60.0-arm64-darwin.tar.gz` from release-content
+commit `290960a0959769bb000f315f15271aff84463d33`. Do not rebuild it. After publication, verify the
+remote tag, release asset digest and size, archive layout, installed manifest, and fresh installed
+workflows before recording the publication audit.
 
 Preserve the v0.59.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -22,7 +22,8 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-The replacement v0.60.0 candidate has not yet been qualified.
+No implementation or qualification blocker remains. Publication still requires explicit user
+authorization.
 
 ## Non-negotiable Boundaries
 
