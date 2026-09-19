@@ -318,6 +318,15 @@ cp -R "$home" "$dist/.nocter"
   shasum -a 256 "$archive_name" > SHA256SUMS
 )
 
+# `dist` is a staging area for the current qualified candidate, not a release archive. Published
+# versions are retained by GitHub Releases and immutable release-audit records. Remove older local
+# candidates only after the replacement archive, installed home, and checksum have all succeeded.
+while IFS= read -r -d '' archived_candidate; do
+  if [[ "$archived_candidate" != "$candidate" ]]; then
+    rm -f -- "$archived_candidate"
+  fi
+done < <(find "$dist" -maxdepth 1 -type f -name 'nocter-v*-arm64-darwin.tar.gz' -print0)
+
 digest="$(shasum -a 256 "$candidate" | awk '{print $1}')"
 size="$(stat -f %z "$candidate")"
 standard_files="$(find "$home/std" -type f | wc -l | tr -d ' ')"
