@@ -2,15 +2,15 @@
 
 ## Current State
 
-Nocter v0.62.0 is published and externally audited. v0.63.0 Phases 0 through 2 are complete: one
-variable-length target entropy role feeds transactional byte filling, full-width and unbiased
-bounded integer generation, and allocation-free in-place shuffling through `std/random`.
+Nocter v0.62.0 is published and externally audited. v0.63.0 implementation is complete and
+reviewed: one variable-length target entropy role feeds transactional byte filling, full-width and
+unbiased bounded integer generation, and allocation-free in-place shuffling through `std/random`.
 
 ## Next Work
 
-Complete v0.63.0 Phase 3: add a runnable public example, review the complete compiler and standard
-source for duplicate entropy or sampling authority, then run documentation, installation,
-packaging, and release-qualification gates.
+Prepare v0.63.0 for release. Update the version authorities and release-facing records, build and
+verify a disposable archive, then stop before publication unless publication is explicitly
+requested.
 
 Preserve the v0.62.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

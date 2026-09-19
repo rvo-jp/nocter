@@ -91,10 +91,11 @@ to initialize the ordinary hidden seed terminates construction rather than addin
 recoverable I/O failure to every collection constructor. Hash output and seed values have no
 public accessor and are not persistent data formats.
 
-The target entropy boundary is package-internal standard-library infrastructure. Collection and
-hashing source receives only a `u64` seed; it cannot observe an operating-system handle, syscall
-number, or recoverable I/O result. On Darwin, the adapter obtains all eight seed bytes from
-`getentropy` and terminates if the call fails.
+The target entropy boundary is package-internal standard-library infrastructure. `HashState`
+requests bytes through the shared internal entropy adapter, converts an unavailable result to the
+collection's fail-stop construction policy, and retains the resulting seed. Table storage receives
+only the initialized `HashState`; it cannot observe an operating-system handle, syscall number, or
+recoverable I/O result. On Darwin, the adapter completes the seed request through `getentropy`.
 
 ## Key Stability
 

@@ -34,6 +34,19 @@ func main(): i32! {
     execute_native_status(&image, &package_root.0, "cryptographic-randomness", 0);
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_random_choice_example_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        include_str!("../../../../../../examples/random-choice.nct"),
+    );
+    execute_native_status(&image, &package_root.0, "random-choice", 0);
+}
+
 #[test]
 fn standard_random_contract_crosses_native_tests() {
     let standard_root = nocter_test_support::standard_library_root();

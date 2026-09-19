@@ -1912,16 +1912,16 @@ fn collection_ordering_uses_slice_semantics_for_vec_editor_queries() {
     let (line, source_line) = text
         .lines()
         .enumerate()
-        .find(|(_, line)| line.contains("let element_size = ptr.pointee_size(pointer)"))
+        .find(|(_, line)| line.contains("ptr.swap_slice_values(values, root, child)"))
         .unwrap();
-    let character = source_line.find("element_size").unwrap();
+    let character = source_line.find("swap_slice_values").unwrap();
     let hover = server.receive(&format!(
         "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
         body.display()
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("```nocter\\nlet element_size: usize\\n```"),
+        response.contains("swap_slice_values<T>(values: &+[T], left: usize, right: usize): bool"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());

@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.63.0 Phase 3 Cryptographic-randomness Review](v0.63.0-phase-3.md)
 - [v0.62.0 Phase 5 Structured Command-Line Application Review](v0.62.0-phase-5.md)
 - [v0.61.0 Verified Artifact-installation Review](v0.61.0-artifact-installation.md)
 - [Repository Operability Review after v0.60.0](repository-operability-after-v0.60.0.md)

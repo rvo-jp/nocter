@@ -1,0 +1,14 @@
+//! Samples a six-sided roll and shuffles values with operating-system randomness.
+
+use std/io
+use std/random
+use std/vec.Vec
+
+blocking func main(): i32! {
+    var values: Vec<i32> = Vec [10, 20, 30, 40]
+    random.shuffle(&+values as &+[i32])?
+    let roll = random.below_usize(6)? + 1
+    let output = "roll ${roll}; first shuffled value ${values[0]}\n"
+    io.print(&output)?
+    return 0
+}

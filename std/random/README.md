@@ -1,8 +1,9 @@
 # Cryptographic Randomness
 
-`std/random` exposes bytes supplied by the operating-system cryptographic entropy source. `fill`
-accepts caller-owned mutable storage, allocates nothing, and completes every byte before returning
-success. It accepts an empty destination without contacting the operating system.
+The compiler-checked [`std/random` contract](index.nct) exposes bytes supplied by the
+operating-system cryptographic entropy source. `fill` accepts caller-owned mutable storage,
+allocates nothing, and completes every byte before returning success. It accepts an empty
+destination without contacting the operating system.
 
 Native request-size limits are not part of the public contract. The package-internal entropy
 adapter divides a large destination into bounded requests and retries interrupted operations. The

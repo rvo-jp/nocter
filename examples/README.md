@@ -103,6 +103,15 @@ nocter check examples/elapsed.nct
 nocter run examples/elapsed.nct
 ```
 
+[random-choice.nct](random-choice.nct) shuffles a small collection and samples an unbiased
+exclusive integer range from operating-system cryptographic randomness. Both random operations are
+allocation-free; only the final interpolated output requests storage.
+
+```sh
+nocter check examples/random-choice.nct
+nocter run examples/random-choice.nct
+```
+
 [floating-point.nct](floating-point.nct) parses and calculates a binary64 value, formats it through
 interpolation, converts it to an exact JSON `Number`, and generates compact JSON through the shared
 shortest-decimal authority.

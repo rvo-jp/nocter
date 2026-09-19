@@ -893,12 +893,7 @@ fn every_public_single_file_example_runs_to_success() {
             source.display(),
             executed.status.code()
         );
-        assert_eq!(
-            executed.stdout,
-            expected_example_output(name),
-            "unexpected output from {}",
-            source.display()
-        );
+        single_file_example_output(name).assert_accepts(name, &executed.stdout);
         assert!(
             executed.stderr.is_empty(),
             "unexpected stderr from {}",
@@ -1066,22 +1061,78 @@ fn bundled_async_filesystem_mutations_cross_owned_path_jobs() {
     fs::remove_dir_all(output_directory).unwrap();
 }
 
-fn expected_example_output(name: &str) -> &'static [u8] {
+enum SingleFileExampleOutput {
+    Exact(&'static [u8]),
+    Validated {
+        description: &'static str,
+        accepts: fn(&[u8]) -> bool,
+    },
+}
+
+impl SingleFileExampleOutput {
+    fn assert_accepts(&self, name: &str, output: &[u8]) {
+        match self {
+            Self::Exact(expected) => assert_eq!(
+                output, *expected,
+                "unexpected output from public example {name}"
+            ),
+            Self::Validated {
+                description,
+                accepts,
+            } => assert!(
+                accepts(output),
+                "output from public example {name} does not satisfy {description}: {output:?}"
+            ),
+        }
+    }
+}
+
+fn random_choice_output_is_valid(output: &[u8]) -> bool {
+    let Ok(output) = std::str::from_utf8(output) else {
+        return false;
+    };
+    let Some(output) = output.strip_prefix("roll ") else {
+        return false;
+    };
+    let Some((roll, first)) = output.split_once("; first shuffled value ") else {
+        return false;
+    };
+    let Some(first) = first.strip_suffix('\n') else {
+        return false;
+    };
+    let Ok(roll) = roll.parse::<usize>() else {
+        return false;
+    };
+    let Ok(first) = first.parse::<i32>() else {
+        return false;
+    };
+    (1..=6).contains(&roll) && [10, 20, 30, 40].contains(&first)
+}
+
+fn single_file_example_output(name: &str) -> SingleFileExampleOutput {
+    use SingleFileExampleOutput::{Exact, Validated};
+
     match name {
-        "custom-format.nct" => b"point = (3, 4)\n",
-        "elapsed.nct" => b"at least two milliseconds elapsed\n",
-        "equality.nct" => b"equality found the point\n",
-        "floating-point.nct" => b"0.1 * 3.0 = 0.30000000000000004; JSON = 0.30000000000000004\n",
-        "hello.nct" => b"Hello from Nocter\n",
-        "async.nct" | "indexing.nct" | "recovery.nct" => b"",
-        "mutable-iteration.nct" => b"mutable iteration updated every element\n",
-        "network-address.nct" => b"[::1]:443\n",
-        "ordering.nct" => b"strict ordering selected source declarations\n",
-        "ownership.nct" => b"borrowed: 36, moved: 36\n",
-        "tuples.nct" => b"Nocter structural tuples: v0.33.0\n",
-        "unicode-text.nct" => "ος\nSTRASSE\nA\n".as_bytes(),
+        "custom-format.nct" => Exact(b"point = (3, 4)\n"),
+        "elapsed.nct" => Exact(b"at least two milliseconds elapsed\n"),
+        "equality.nct" => Exact(b"equality found the point\n"),
+        "floating-point.nct" => {
+            Exact(b"0.1 * 3.0 = 0.30000000000000004; JSON = 0.30000000000000004\n")
+        }
+        "hello.nct" => Exact(b"Hello from Nocter\n"),
+        "async.nct" | "indexing.nct" | "recovery.nct" => Exact(b""),
+        "mutable-iteration.nct" => Exact(b"mutable iteration updated every element\n"),
+        "network-address.nct" => Exact(b"[::1]:443\n"),
+        "ordering.nct" => Exact(b"strict ordering selected source declarations\n"),
+        "ownership.nct" => Exact(b"borrowed: 36, moved: 36\n"),
+        "random-choice.nct" => Validated {
+            description: "a roll in 1...6 and one shuffled source value",
+            accepts: random_choice_output_is_valid,
+        },
+        "tuples.nct" => Exact(b"Nocter structural tuples: v0.33.0\n"),
+        "unicode-text.nct" => Exact("ος\nSTRASSE\nA\n".as_bytes()),
         "url-inspect.nct" => {
-            b"http://example.com/status?q=ready#fragment\nexample.com\n/status?q=ready\n"
+            Exact(b"http://example.com/status?q=ready#fragment\nexample.com\n/status?q=ready\n")
         }
         _ => panic!("public example has no output contract: {name}"),
     }
