@@ -1674,6 +1674,7 @@ dependencies = [
 name = "nocter"
 version = "0.0.0"
 dependencies = [
+ "flate2",
  "nocter-command",
  "nocter-content-integrity",
  "nocter-diagnostics",
@@ -1682,6 +1683,7 @@ dependencies = [
  "nocter-package-acquisition",
  "nocter-source",
  "nocter-test-support",
+ "tar",
 ]
 
 [[package]]
@@ -1760,6 +1762,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-discovery",
  "nocter-filesystem",
+ "nocter-installation",
  "nocter-json",
  "nocter-language",
  "nocter-model",
@@ -1963,11 +1966,14 @@ version = "0.0.0"
 name = "nocter-installation"
 version = "0.0.0"
 dependencies = [
+ "flate2",
+ "nocter-archive-extraction",
  "nocter-content-integrity",
  "nocter-json",
  "nocter-language",
  "nocter-model",
  "nocter-package",
+ "tar",
 ]
 
 [[package]]

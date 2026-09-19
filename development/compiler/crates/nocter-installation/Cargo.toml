@@ -7,11 +7,16 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-archive-extraction = { path = "../nocter-archive-extraction" }
 nocter-language = { path = "../nocter-language" }
 nocter-content-integrity = { path = "../nocter-content-integrity" }
 nocter-json = { path = "../nocter-json" }
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
+
+[dev-dependencies]
+flate2 = { version = "1.1.9", default-features = false, features = ["rust_backend"] }
+tar = { version = "0.4.46", default-features = false }
 
 [lints]
 workspace = true

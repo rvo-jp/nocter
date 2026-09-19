@@ -24,7 +24,7 @@ cannot invoke or order semantic stages.
 - one-time `run` compiler/program argument partition and opaque launch transport
 - package versus explicit single-file selection
 - ephemeral compiler-computation lifetime and query-backed package/discovery composition
-- check, build, run, test, format, fetch, graph, and init composition
+- check, build, run, test, format, fetch, graph, init, and verified local-install composition
 - output path and artifact publication plans
 
 ## Invariants

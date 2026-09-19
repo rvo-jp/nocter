@@ -6,6 +6,7 @@ pub(crate) enum CommandKind {
     Help,
     Version,
     Doctor,
+    Install,
     Init,
     Graph,
     Fetch,
@@ -52,6 +53,8 @@ pub(crate) enum CommandOption {
     FormatCheck,
     Name,
     Library,
+    Home,
+    Sha256,
 }
 
 impl CommandOption {
@@ -163,7 +166,7 @@ const RESOLUTION_OPTIONS: u16 = CommandOption::Locked.bit() | CommandOption::Off
 const INPUT_OPTIONS: u16 =
     CommandOption::Root.bit() | CommandOption::File.bit() | CommandOption::Executable.bit();
 
-const OPTIONS: [OptionSchema; 14] = [
+const OPTIONS: [OptionSchema; 16] = [
     OptionSchema {
         option: CommandOption::Help,
         long: "--help",
@@ -262,6 +265,20 @@ const OPTIONS: [OptionSchema; 14] = [
         value: None,
         description: "Initialize a library package instead of an executable.",
     },
+    OptionSchema {
+        option: CommandOption::Home,
+        long: "--home",
+        short: None,
+        value: Some("DIR"),
+        description: "Install into DIR instead of replacing the active Nocter home.",
+    },
+    OptionSchema {
+        option: CommandOption::Sha256,
+        long: "--sha256",
+        short: None,
+        value: Some("DIGEST"),
+        description: "Require the archive to match this trusted SHA-256 digest.",
+    },
 ];
 
 const SOURCE: PositionalSchema = PositionalSchema {
@@ -277,6 +294,11 @@ const DIRECTORY: PositionalSchema = PositionalSchema {
 const HELP_TOPIC: PositionalSchema = PositionalSchema {
     value: "COMMAND",
     description: "An implemented command or global option.",
+};
+
+const ARCHIVE: PositionalSchema = PositionalSchema {
+    value: "ARCHIVE",
+    description: "A local Nocter release .tar.gz archive.",
 };
 
 const RUN_ARGUMENTS: TrailingArgumentsSchema = TrailingArgumentsSchema {
@@ -312,6 +334,16 @@ const DOCTOR: CommandSchema = CommandSchema {
     summary: "Validate and report the active Nocter home.",
     accepted: HELP_OPTION,
     positional: None,
+    trailing_arguments: None,
+};
+
+const INSTALL: CommandSchema = CommandSchema {
+    kind: CommandKind::Install,
+    name: "install",
+    form: CommandForm::Subcommand,
+    summary: "Verify and install one local release archive.",
+    accepted: HELP_OPTION | CommandOption::Home.bit() | CommandOption::Sha256.bit(),
+    positional: Some(ARCHIVE),
     trailing_arguments: None,
 };
 
@@ -442,8 +474,9 @@ const LSP: CommandSchema = CommandSchema {
     trailing_arguments: None,
 };
 
-const COMMANDS: [CommandSchema; 14] = [
-    HELP, VERSION, DOCTOR, INIT, GRAPH, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT, LSP,
+const COMMANDS: [CommandSchema; 15] = [
+    HELP, VERSION, DOCTOR, INSTALL, INIT, GRAPH, FETCH, CHECK, BUILD, RUN, TEST, TOKENS, AST, FMT,
+    LSP,
 ];
 
 /// One pure help selection produced by the public argument parser.

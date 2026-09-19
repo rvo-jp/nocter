@@ -17,6 +17,7 @@ mod graph;
 mod init;
 mod input;
 mod inspection;
+mod install;
 mod output_plan;
 mod package_state;
 mod planning;
@@ -29,11 +30,11 @@ mod test;
 pub use arguments::{
     CommandArgumentError, CommandArgumentFailure, DiagnosticCommand, DiagnosticFormat,
     GraphOutputFormat, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand, ParsedFetchCommand,
-    ParsedFormatCommand, ParsedGraphCommand, ParsedInitCommand, ParsedRunCommand,
-    ParsedSourceInspectionCommand, ParsedTestCommand, PreparedBuildCommand, PreparedCheckCommand,
-    PreparedCommandError, PreparedFetchCommand, PreparedGraphCommand, PreparedRunCommand,
-    PreparedTestCommand, ResolutionOptions, SourceInspectionKind, parse_command_arguments,
-    parse_command_invocation,
+    ParsedFormatCommand, ParsedGraphCommand, ParsedInitCommand, ParsedInstallCommand,
+    ParsedRunCommand, ParsedSourceInspectionCommand, ParsedTestCommand, PreparedBuildCommand,
+    PreparedCheckCommand, PreparedCommandError, PreparedFetchCommand, PreparedGraphCommand,
+    PreparedRunCommand, PreparedTestCommand, ResolutionOptions, SourceInspectionKind,
+    parse_command_arguments, parse_command_invocation,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,
@@ -69,6 +70,7 @@ pub use input::{
 pub use inspection::{
     SourceInspectionCommandError, SourceInspectionCommandResult, execute_source_inspection,
 };
+pub use install::execute_install;
 pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
 pub use package_state::{CommandPackageContext, CommandPackageStateError};
 pub use planning::{

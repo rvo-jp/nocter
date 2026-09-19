@@ -84,6 +84,14 @@ nocter-v<version>-arm64-darwin.tar.gz
 
 The archive root is always `.nocter/`. Users install Nocter by extracting the archive so that `.nocter/` becomes `~/.nocter/`, or by moving the extracted `.nocter/` to another chosen Nocter home, then linking the installed `nocter` binary into a directory already on `PATH`.
 
+After a trusted Nocter home exists,
+[`nocter install`](../tooling/command-line.md#verified-artifact-installation) can verify and install
+a local release archive. The command requires a caller-supplied SHA-256 over the complete
+compressed archive. That digest binds the bytes Nocter validates and extracts; it is not an
+authenticity mechanism. Users obtain the digest through a separately trusted release channel.
+Initial bootstrap remains ordinary archive extraction because no trusted Nocter compiler exists
+yet.
+
 The installed layout is:
 
 ```text
@@ -191,6 +199,8 @@ Rules:
   Symlinks, special files, and non-Unicode paths are invalid.
 - A release `<version>` uses source tag `v<version>`.
 - Its ARM64 macOS asset is `nocter-v<version>-arm64-darwin.tar.gz`.
+- The release checksum authenticates nothing by itself. It supplies content identity only after
+  the user trusts the channel that supplied the checksum.
 
 ## Nocter Home Resolution
 

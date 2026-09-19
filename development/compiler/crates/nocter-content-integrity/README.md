@@ -16,6 +16,7 @@ second hashing implementation.
 ## Invariants
 
 - A regular file digest is SHA-256 over its exact bytes.
+- An in-memory snapshot digest uses the same typed identity without reopening a filesystem path.
 - A tree digest includes normalized relative paths, entry kinds, file lengths, and file bytes in
   deterministic order.
 - Excluded entries are explicit root entries; descendants and pattern-based exclusions do not

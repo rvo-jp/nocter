@@ -2,15 +2,16 @@
 
 ## Current State
 
-Nocter v0.60.0 is published and externally audited. v0.61.0 repository-operability work is
-complete. Comment-preserving formatting is complete and has passed the full compiler, native,
-editor, documentation, and reproducibility gate.
+Nocter v0.60.0 is published and externally audited. All three v0.61.0 implementation phases are
+complete: repository operability, comment-preserving formatting, and verified local artifact
+installation. Phase 2 still requires the complete disposable compiler gate and clean-tree release
+qualification before v0.61.0 release preparation begins.
 
 ## Next Work
 
-Close the verified artifact-installation trust, acquisition, destination, replacement, and
-recovery contracts before implementation begins. Do not treat the current checksum manifest as an
-authenticity guarantee.
+Run the complete v0.61.0 verification and artifact-install qualification, then perform release
+preparation as a separate audited change. Do not treat release checksums or manifest content
+digests as authenticity guarantees.
 
 Preserve the v0.60.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.

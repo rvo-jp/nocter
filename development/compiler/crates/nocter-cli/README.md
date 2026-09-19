@@ -15,7 +15,7 @@ compiler semantics, package resolution, or LSP feature logic.
 
 - exhaustive classification into direct commands and installation-dependent commands
 - direct source tooling and package initialization execution
-- installed toolchain validation and typed command dispatch
+- installed toolchain validation and typed command dispatch, including installation-result rendering
 - process result and diagnostic presentation
 
 ## Invariants

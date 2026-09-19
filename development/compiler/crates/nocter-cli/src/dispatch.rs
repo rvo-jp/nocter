@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use nocter_command::{
     CommandToolchain, HelpRequest, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand,
     ParsedFetchCommand, ParsedFormatCommand, ParsedGraphCommand, ParsedInitCommand,
-    ParsedRunCommand, ParsedSourceInspectionCommand, ParsedTestCommand, ResolvedProgramInput,
-    execute_format, execute_init, execute_prepared_build, execute_prepared_check,
-    execute_prepared_fetch, execute_prepared_graph, execute_prepared_run, execute_prepared_test,
-    execute_source_inspection,
+    ParsedInstallCommand, ParsedRunCommand, ParsedSourceInspectionCommand, ParsedTestCommand,
+    ResolvedProgramInput, execute_format, execute_init, execute_install, execute_prepared_build,
+    execute_prepared_check, execute_prepared_fetch, execute_prepared_graph, execute_prepared_run,
+    execute_prepared_test, execute_source_inspection,
 };
 use nocter_installation::CompilerInstallation;
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
@@ -32,6 +32,7 @@ pub(crate) enum DirectCommand {
 pub(crate) enum InstalledCommand {
     Version,
     Doctor,
+    Install(ParsedInstallCommand),
     Graph(ParsedGraphCommand),
     Fetch(ParsedFetchCommand),
     Check(ParsedCheckCommand),
@@ -53,6 +54,9 @@ pub(crate) fn route(command: ParsedCommand) -> CommandRoute {
         ParsedCommand::Format(command) => CommandRoute::Direct(DirectCommand::Format(command)),
         ParsedCommand::Version => CommandRoute::Installed(InstalledCommand::Version),
         ParsedCommand::Doctor => CommandRoute::Installed(InstalledCommand::Doctor),
+        ParsedCommand::Install(command) => {
+            CommandRoute::Installed(InstalledCommand::Install(command))
+        }
         ParsedCommand::Graph(command) => CommandRoute::Installed(InstalledCommand::Graph(command)),
         ParsedCommand::Fetch(command) => CommandRoute::Installed(InstalledCommand::Fetch(command)),
         ParsedCommand::Check(command) => CommandRoute::Installed(InstalledCommand::Check(command)),
@@ -99,6 +103,13 @@ pub(crate) fn execute_installed_command(
         InstalledCommand::Doctor => Ok(InvocationOutcome::Doctor(DoctorReport::from_installation(
             installation,
         ))),
+        InstalledCommand::Install(command) => {
+            execute_install(command, current_directory, installation)
+                .map(InvocationOutcome::Install)
+                .map_err(|error| {
+                    InvocationError::new(InvocationErrorKind::ArtifactInstall(error), None)
+                })
+        }
         InstalledCommand::Graph(command) => execute_graph(command, current_directory, toolchain),
         InstalledCommand::Fetch(command) => {
             execute_fetch(command, current_directory, toolchain, presentation)

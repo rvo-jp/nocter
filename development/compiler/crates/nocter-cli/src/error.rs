@@ -10,7 +10,7 @@ use nocter_diagnostics::{
     DiagnosticCode, DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
     render_source_diagnostics_json, render_spanless_diagnostic_json,
 };
-use nocter_installation::{InstallationCompatibilityError, NocterHomeError};
+use nocter_installation::{ArtifactInstallError, InstallationCompatibilityError, NocterHomeError};
 use nocter_package_acquisition::PackageAcquisitionError;
 
 use crate::presentation::InvocationDiagnosticPresentation;
@@ -26,6 +26,7 @@ pub enum InvocationErrorKind {
     Arguments(CommandArgumentFailure),
     Installation(NocterHomeError),
     InstallationCompatibility(InstallationCompatibilityError),
+    ArtifactInstall(ArtifactInstallError),
     Init(InitCommandError),
     Graph(GraphCommandError),
     AcquisitionInitialization(PackageAcquisitionError),
@@ -95,7 +96,8 @@ impl InvocationError {
                 ),
             ) => Some(DiagnosticCode::E0700),
             InvocationErrorKind::Installation(_)
-            | InvocationErrorKind::InstallationCompatibility(_) => Some(DiagnosticCode::E0703),
+            | InvocationErrorKind::InstallationCompatibility(_)
+            | InvocationErrorKind::ArtifactInstall(_) => Some(DiagnosticCode::E0703),
             InvocationErrorKind::Graph(error) => Some(error.diagnostic_code()),
             InvocationErrorKind::Preparation(PreparedCommandError::Input(
                 ProgramInputError::PackageRootNotDirectory(_)
@@ -199,6 +201,7 @@ impl InvocationError {
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_)
+            | InvocationErrorKind::ArtifactInstall(_)
             | InvocationErrorKind::Init(_)
             | InvocationErrorKind::Graph(_)
             | InvocationErrorKind::Preparation(_)
@@ -233,6 +236,7 @@ impl InvocationError {
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Installation(_)
             | InvocationErrorKind::InstallationCompatibility(_)
+            | InvocationErrorKind::ArtifactInstall(_)
             | InvocationErrorKind::Init(_)
             | InvocationErrorKind::Graph(_)
             | InvocationErrorKind::AcquisitionInitialization(_)
@@ -250,6 +254,7 @@ impl fmt::Display for InvocationError {
             InvocationErrorKind::Arguments(error) => error.fmt(formatter),
             InvocationErrorKind::Installation(error) => error.fmt(formatter),
             InvocationErrorKind::InstallationCompatibility(error) => error.fmt(formatter),
+            InvocationErrorKind::ArtifactInstall(error) => error.fmt(formatter),
             InvocationErrorKind::Init(error) => error.fmt(formatter),
             InvocationErrorKind::Graph(error) => error.fmt(formatter),
             InvocationErrorKind::AcquisitionInitialization(error) => {
@@ -273,6 +278,7 @@ impl std::error::Error for InvocationError {
             InvocationErrorKind::Arguments(error) => Some(error),
             InvocationErrorKind::Installation(error) => Some(error),
             InvocationErrorKind::InstallationCompatibility(error) => Some(error),
+            InvocationErrorKind::ArtifactInstall(error) => Some(error),
             InvocationErrorKind::Init(error) => Some(error),
             InvocationErrorKind::Graph(error) => Some(error),
             InvocationErrorKind::Preparation(error) => Some(error),

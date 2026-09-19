@@ -111,6 +111,14 @@ pub fn sha256_file(path: &Path) -> Result<ContentDigest, ContentIntegrityError> 
     Ok(ContentDigest::from_bytes(digest.finish()))
 }
 
+/// Hashes one immutable byte snapshot.
+#[must_use]
+pub fn sha256_bytes(bytes: &[u8]) -> ContentDigest {
+    let mut digest = Sha256::new();
+    digest.update(bytes);
+    ContentDigest::from_bytes(digest.finish())
+}
+
 /// Hashes one physical tree using normalized Unicode relative paths and deterministic ordering.
 ///
 /// # Errors
@@ -343,6 +351,10 @@ mod tests {
         assert_eq!(
             sha256_file(&tree.0.join("a")).unwrap().to_string(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            sha256_bytes(b"abc"),
+            sha256_file(&tree.0.join("a")).unwrap()
         );
         let original = sha256_regular_tree(&tree.0, TreeHashOptions::complete()).unwrap();
         fs::rename(tree.0.join("nested/b"), tree.0.join("nested/c")).unwrap();

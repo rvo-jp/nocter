@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use nocter_installation::{CompilerInstallation, NocterHomeOrigin};
+use nocter_installation::{ArtifactInstallResult, CompilerInstallation, NocterHomeOrigin};
 
 #[derive(Debug)]
 struct InstallationIdentity {
@@ -85,4 +85,24 @@ const fn origin_name(origin: NocterHomeOrigin) -> &'static str {
         NocterHomeOrigin::Configured => "NOCTER_HOME",
         NocterHomeOrigin::Executable => "compiler executable",
     }
+}
+
+pub(crate) fn render_installation(result: &ArtifactInstallResult) -> String {
+    let action = if result.replaced() {
+        "replaced active home"
+    } else {
+        "created new home"
+    };
+    let mut output = format!(
+        "Installed Nocter {}\nhome: {}\narchive sha256: {}\naction: {action}\n",
+        result.release(),
+        result.destination().display(),
+        result.archive_digest(),
+    );
+    if let Some(transaction) = result.retained_transaction() {
+        use fmt::Write as _;
+        writeln!(output, "cleanup pending: {}", transaction.display())
+            .expect("writing to String cannot fail");
+    }
+    output
 }

@@ -67,6 +67,7 @@ pub enum ParsedCommand {
     Help(crate::HelpRequest),
     Version,
     Doctor,
+    Install(ParsedInstallCommand),
     Init(ParsedInitCommand),
     Graph(ParsedGraphCommand),
     Fetch(ParsedFetchCommand),
@@ -90,6 +91,7 @@ impl ParsedCommand {
             Self::Help(_)
             | Self::Version
             | Self::Doctor
+            | Self::Install(_)
             | Self::Init(_)
             | Self::Graph(_)
             | Self::Fetch(_)
@@ -97,6 +99,36 @@ impl ParsedCommand {
             | Self::Format(_)
             | Self::Lsp => None,
         }
+    }
+}
+
+/// Pure argument result for one verified local artifact installation.
+#[derive(Debug)]
+pub struct ParsedInstallCommand {
+    archive: PathBuf,
+    digest: Box<str>,
+    home: Option<PathBuf>,
+}
+
+impl ParsedInstallCommand {
+    #[must_use]
+    pub fn archive(&self) -> &Path {
+        &self.archive
+    }
+
+    #[must_use]
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+
+    #[must_use]
+    pub fn home(&self) -> Option<&Path> {
+        self.home.as_deref()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (PathBuf, Box<str>, Option<PathBuf>) {
+        (self.archive, self.digest, self.home)
     }
 }
 
@@ -643,6 +675,9 @@ pub fn parse_command_invocation(
         CommandKind::Doctor => parse_empty_command(arguments.into_iter(), kind.schema())
             .map(|()| ParsedCommand::Doctor)
             .map_err(|failure| failure.for_command(kind)),
+        CommandKind::Install => parse_install(arguments.into_iter())
+            .map(ParsedCommand::Install)
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Init => parse_init(arguments.into_iter())
             .map(ParsedCommand::Init)
             .map_err(|failure| failure.for_command(kind)),
@@ -685,6 +720,26 @@ pub fn parse_command_invocation(
             .map(|()| ParsedCommand::Lsp)
             .map_err(|failure| failure.for_command(kind)),
     }
+}
+
+fn parse_install(
+    arguments: impl Iterator<Item = OsString>,
+) -> Result<ParsedInstallCommand, OptionsParseFailure> {
+    let parsed = parse_options(arguments, CommandKind::Install.schema())?;
+    let archive = parsed
+        .positional
+        .ok_or_else(|| OptionsParseFailure::plain(CommandArgumentError::MissingArchive))?;
+    let digest = parsed.sha256.ok_or_else(|| {
+        OptionsParseFailure::plain(CommandArgumentError::MissingRequiredOption {
+            command: "install",
+            option: "--sha256",
+        })
+    })?;
+    Ok(ParsedInstallCommand {
+        archive,
+        digest,
+        home: parsed.home,
+    })
 }
 
 fn parse_init(
@@ -784,6 +839,8 @@ fn parse_check(
         format_check: _,
         name: _,
         library: _,
+        home: _,
+        sha256: _,
     } = parse_options(arguments, CommandKind::Check.schema())?;
     Ok(ParsedCheckCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -811,6 +868,8 @@ fn parse_fetch(
         format_check: _,
         name: _,
         library: _,
+        home: _,
+        sha256: _,
     } = parse_options(arguments, CommandKind::Fetch.schema())?;
     Ok(ParsedFetchCommand { root, resolution })
 }
@@ -832,6 +891,8 @@ fn parse_build(
         format_check: _,
         name: _,
         library: _,
+        home: _,
+        sha256: _,
     } = parse_options(arguments, CommandKind::Build.schema())?;
     Ok(ParsedBuildCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -859,6 +920,8 @@ fn parse_run(
         format_check: _,
         name: _,
         library: _,
+        home: _,
+        sha256: _,
     } = parse_options(compiler_arguments.into_iter(), CommandKind::Run.schema())?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
@@ -886,6 +949,8 @@ fn parse_test(
         format_check: _,
         name: _,
         library: _,
+        home: _,
+        sha256: _,
     } = parse_options(arguments, CommandKind::Test.schema())?;
     Ok(ParsedTestCommand {
         root,
@@ -911,6 +976,8 @@ struct ParsedOptions {
     format_check: bool,
     name: Option<Box<str>>,
     library: bool,
+    home: Option<PathBuf>,
+    sha256: Option<Box<str>>,
 }
 
 fn parse_options(
@@ -1112,6 +1179,14 @@ fn parse_valued_option(
             CommandArgumentError::NonUnicodePackageName,
             CommandArgumentError::EmptyPackageName,
         ),
+        CommandOption::Home => set_path(&mut parsed.home, value, schema.canonical_name()),
+        CommandOption::Sha256 => set_name(
+            &mut parsed.sha256,
+            value,
+            schema.canonical_name(),
+            CommandArgumentError::NonUnicodeDigest,
+            CommandArgumentError::EmptyDigest,
+        ),
         CommandOption::Help
         | CommandOption::Locked
         | CommandOption::Offline
@@ -1147,7 +1222,9 @@ fn parse_flag_option(
         | CommandOption::Target
         | CommandOption::Test
         | CommandOption::Case
-        | CommandOption::Name => unreachable!("valued option passed the flag-option boundary"),
+        | CommandOption::Name
+        | CommandOption::Home
+        | CommandOption::Sha256 => unreachable!("valued option passed the flag-option boundary"),
     }
 }
 
@@ -1250,6 +1327,13 @@ pub enum CommandArgumentError {
     EmptyCase,
     NonUnicodePackageName(OsString),
     EmptyPackageName,
+    MissingArchive,
+    MissingRequiredOption {
+        command: &'static str,
+        option: &'static str,
+    },
+    NonUnicodeDigest(OsString),
+    EmptyDigest,
 }
 
 /// A pure argument failure plus the output selection completed by the same parse.
@@ -1290,6 +1374,7 @@ impl CommandArgumentFailure {
                 CommandKind::Help
                 | CommandKind::Version
                 | CommandKind::Doctor
+                | CommandKind::Install
                 | CommandKind::Init
                 | CommandKind::Graph
                 | CommandKind::Fetch
@@ -1416,6 +1501,16 @@ impl fmt::Display for CommandArgumentError {
                 name.to_string_lossy()
             ),
             Self::EmptyPackageName => formatter.write_str("package name cannot be empty"),
+            Self::MissingArchive => formatter.write_str("install requires one release archive"),
+            Self::MissingRequiredOption { command, option } => {
+                write!(formatter, "{command} requires {option}")
+            }
+            Self::NonUnicodeDigest(digest) => write!(
+                formatter,
+                "SHA-256 digest is not Unicode: {}",
+                digest.to_string_lossy()
+            ),
+            Self::EmptyDigest => formatter.write_str("SHA-256 digest cannot be empty"),
         }
     }
 }
@@ -1460,6 +1555,51 @@ mod tests {
             CommandArgumentError::OptionNotAccepted {
                 option: "--offline",
                 command: "doctor",
+            }
+        );
+    }
+
+    #[test]
+    fn artifact_install_requires_one_local_archive_and_one_explicit_digest() {
+        let parsed = parse_command_arguments(arguments(&[
+            "install",
+            "nocter.tar.gz",
+            "--sha256",
+            "0123",
+            "--home",
+            "toolchains/current",
+        ]))
+        .unwrap();
+        let ParsedCommand::Install(command) = parsed else {
+            panic!("expected install command")
+        };
+        assert_eq!(command.archive(), Path::new("nocter.tar.gz"));
+        assert_eq!(command.digest(), "0123");
+        assert_eq!(command.home(), Some(Path::new("toolchains/current")));
+
+        assert_eq!(
+            parse_command_arguments(arguments(&["install", "nocter.tar.gz"])).unwrap_err(),
+            CommandArgumentError::MissingRequiredOption {
+                command: "install",
+                option: "--sha256",
+            }
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&["install", "--sha256", "0123"])).unwrap_err(),
+            CommandArgumentError::MissingArchive
+        );
+        assert_eq!(
+            parse_command_arguments(arguments(&[
+                "install",
+                "nocter.tar.gz",
+                "--sha256",
+                "0123",
+                "--offline",
+            ]))
+            .unwrap_err(),
+            CommandArgumentError::OptionNotAccepted {
+                option: "--offline",
+                command: "install",
             }
         );
     }

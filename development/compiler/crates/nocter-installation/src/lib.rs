@@ -16,9 +16,13 @@ use nocter_model::PackageIdentity;
 use nocter_package::StandardPackage;
 
 mod compatibility;
+mod installer;
 mod manifest;
 
 pub use compatibility::{CompilerInstallation, InstallationCompatibilityError};
+pub use installer::{
+    ArtifactInstallError, ArtifactInstallRequest, ArtifactInstallResult, install_artifact,
+};
 pub use manifest::{
     ArchiveMetadata, ArtifactMetadata, ImplementedTarget, InstallationManifest, LicenseMetadata,
     ManifestError,
@@ -84,6 +88,26 @@ impl NocterHome {
             }
         };
         let root = canonicalize("canonicalize Nocter home", &selected)?;
+        let home = Self::validate_root(root, origin)?;
+        let installed_compiler_digest = home.manifest.compiler().digest();
+        let running_compiler_digest = if executable == home.compiler {
+            installed_compiler_digest
+        } else {
+            sha256_file(&executable).map_err(|error| NocterHomeError::ContentIntegrity {
+                name: "running compiler",
+                error,
+            })?
+        };
+        if running_compiler_digest != installed_compiler_digest {
+            return Err(NocterHomeError::CompilerMismatch {
+                running: executable,
+                installed: home.compiler.clone(),
+            });
+        }
+        Ok(home)
+    }
+
+    fn validate_root(root: PathBuf, origin: NocterHomeOrigin) -> Result<Self, NocterHomeError> {
         if !root.is_dir() {
             return Err(NocterHomeError::HomeNotDirectory(root));
         }
@@ -115,20 +139,6 @@ impl NocterHome {
             manifest.compiler().digest(),
             installed_compiler_digest,
         )?;
-        let running_compiler_digest = if executable == compiler {
-            installed_compiler_digest
-        } else {
-            sha256_file(&executable).map_err(|error| NocterHomeError::ContentIntegrity {
-                name: "running compiler",
-                error,
-            })?
-        };
-        if running_compiler_digest != manifest.compiler().digest() {
-            return Err(NocterHomeError::CompilerMismatch {
-                running: executable,
-                installed: compiler,
-            });
-        }
         let standard_root =
             required_relative_directory(&root, "std.path", manifest.standard().path())?;
         required_file(&standard_root, nocter_language::MODULE_ROOT_FILE_NAME)?;

@@ -41,6 +41,11 @@ impl ArchiveLimits {
     pub const fn standard() -> Self {
         Self::new(256 * 1024 * 1024, 100_000, 1024 * 1024 * 1024, 64)
     }
+
+    #[must_use]
+    pub const fn maximum_compressed_bytes(self) -> u64 {
+        self.compressed_bytes
+    }
 }
 
 /// Physical measurements observed while extracting one accepted archive.

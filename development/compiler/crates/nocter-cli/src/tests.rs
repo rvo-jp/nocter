@@ -3,6 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use nocter_content_integrity::{TreeHashOptions, sha256_file, sha256_regular_tree};
 use nocter_diagnostics::DiagnosticCode;
 use nocter_package_acquisition::PackageAcquisitionError;
@@ -125,6 +127,27 @@ fn invocation(
         home.join("nocter"),
         host,
     )
+}
+
+fn release_archive(path: &Path, home: &Path) -> nocter_content_integrity::ContentDigest {
+    let encoder = GzEncoder::new(Vec::new(), Compression::default());
+    let mut builder = tar::Builder::new(encoder);
+    builder.append_dir(".nocter", home).unwrap();
+    builder.append_dir(".nocter/std", home.join("std")).unwrap();
+    for relative in [
+        "VERSION",
+        "nocter",
+        "LICENSE",
+        "NOTICE",
+        "MANIFEST.json",
+        "std/index.nct",
+    ] {
+        builder
+            .append_path_with_name(home.join(relative), Path::new(".nocter").join(relative))
+            .unwrap();
+    }
+    fs::write(path, builder.into_inner().unwrap().finish().unwrap()).unwrap();
+    sha256_file(path).unwrap()
 }
 
 #[test]
@@ -505,6 +528,44 @@ fn doctor_reports_the_exact_validated_home() {
             canonical_home.display()
         )
     );
+}
+
+#[test]
+fn artifact_install_crosses_the_validated_process_boundary() {
+    let tree = TempTree::new("artifact-install");
+    let active = tree.installation("arm64-darwin", false);
+    let candidate_tree = TempTree::new("artifact-candidate");
+    let candidate = candidate_tree.installation("arm64-darwin", false);
+    let archive = tree.0.join("nocter-v0.14.0-arm64-darwin.tar.gz");
+    let digest = release_archive(&archive, &candidate).to_string();
+    let outcome = execute_invocation(invocation(
+        [
+            OsString::from("install"),
+            archive.into_os_string(),
+            OsString::from("--sha256"),
+            OsString::from(digest.clone()),
+            OsString::from("--home"),
+            OsString::from("installed"),
+        ],
+        &tree.0,
+        &active,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    let InvocationOutcome::Install(result) = &outcome else {
+        panic!("expected artifact installation")
+    };
+    assert!(!result.replaced());
+    assert_eq!(result.release(), "0.14.0");
+    assert_eq!(
+        fs::read_to_string(tree.0.join("installed/VERSION")).unwrap(),
+        "0.14.0\n"
+    );
+    let rendered = outcome.render_standard_output().unwrap();
+    assert!(rendered.starts_with("Installed Nocter 0.14.0\n"));
+    assert!(rendered.contains(&format!("archive sha256: {digest}\n")));
+    assert!(rendered.ends_with("action: created new home\n"));
 }
 
 #[test]

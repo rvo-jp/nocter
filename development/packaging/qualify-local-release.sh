@@ -53,6 +53,7 @@ if ! diff -r "$first_extract" "$second_extract" >/dev/null; then
 fi
 
 home="$second_extract/.nocter"
+environment=(env -u NOCTER_HOME)
 mapfile_path="$temporary_root/archive-entries.txt"
 tar -tzf "$second_archive" > "$mapfile_path"
 if grep -Ev '^(\.nocter|\.nocter/[^/].*)/?$' "$mapfile_path" | grep -q .; then
@@ -73,10 +74,25 @@ if [[ "$(file -b "$home/nocter")" != *"Mach-O 64-bit executable arm64"* ]]; then
   exit 1
 fi
 
+archive_digest="$(shasum -a 256 "$second_archive" | awk '{print $1}')"
+verified_home="$temporary_root/verified-home"
+"${environment[@]}" "$home/nocter" install \
+  "$second_archive" \
+  --sha256 "$archive_digest" \
+  --home "$verified_home" \
+  >/dev/null
+diff -r "$home" "$verified_home" >/dev/null
+"${environment[@]}" "$verified_home/nocter" install \
+  "$second_archive" \
+  --sha256 "$archive_digest" \
+  >/dev/null
+"${environment[@]}" "$verified_home/nocter" doctor >/dev/null
+diff -r "$home" "$verified_home" >/dev/null
+test ! -e "$temporary_root/.verified-home.nocter-install"
+
 before_smoke="$temporary_root/before-smoke"
 cp -R "$home" "$before_smoke"
 package="$temporary_root/package"
-environment=(env -u NOCTER_HOME)
 version_output="$("${environment[@]}" "$home/nocter" --version)"
 expected_version_output="$(printf 'Nocter\nrelease: %s\nhost: arm64-darwin\ndefault target: arm64-darwin' "$version")"
 if [[ "$version_output" != "$expected_version_output" ]]; then

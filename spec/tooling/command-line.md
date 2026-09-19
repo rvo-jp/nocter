@@ -96,6 +96,7 @@ nocter help check
 nocter check --help
 nocter --version
 nocter doctor
+nocter install nocter-v0.61.0-arm64-darwin.tar.gz --sha256 <digest>
 nocter init
 nocter graph
 nocter graph --format json
@@ -126,6 +127,49 @@ nocter lsp
 
 A bare source such as `nocter app.nct` is not a command. Use `nocter run app.nct` when single-file
 execution is intended.
+
+## Verified Artifact Installation
+
+`install` verifies and installs one release archive already present on the local filesystem:
+
+```sh
+nocter install nocter-v0.61.0-arm64-darwin.tar.gz --sha256 <digest>
+nocter install nocter-v0.61.0-arm64-darwin.tar.gz --sha256 <digest> --home path/to/.nocter
+```
+
+`--sha256` is required and accepts exactly 64 lowercase hexadecimal digits. It is the caller's
+trust input: Nocter proves that the exact compressed bytes it reads match that value, but it does
+not establish where the value came from or who published the archive. `install` does not accept a
+URL, select a latest release, or perform network acquisition.
+
+Without `--home`, the destination is the active validated Nocter home. An explicit `--home` may
+name an absent destination beneath an existing directory. It may name an existing directory only
+when that directory is the active validated home; `install` never overwrites an unrelated or
+inactive directory. Relative archive and home paths are resolved from the process working
+directory.
+
+Before changing the destination, Nocter:
+
+1. reads one bounded immutable byte snapshot and rejects content above the compressed archive limit;
+2. checks the trusted SHA-256 over that snapshot;
+3. safely extracts the same snapshot into a private same-parent transaction directory;
+4. requires exactly one `.nocter/` archive root;
+5. validates its manifest, compiler digest, complete standard-library tree, required legal files,
+   host, and native default target.
+
+A fresh destination is published by one rename. Replacing the active home first moves the old
+home into the transaction, then publishes the validated candidate. A reported publication failure
+restores the old home when the filesystem permits it. Failure after the new home commits may leave
+only a reported transaction directory containing cleanup data; it does not invalidate the new
+home.
+
+An interrupted replacement can leave the old home at
+`.<home-name>.nocter-install/previous` while the normal executable path is temporarily absent. Run
+that retained `previous/nocter` binary with the same `install` command and an explicit `--home`
+naming the original destination. Nocter validates and restores the previous home first, reports
+that recovery, and requires the install command to be rerun. A marked stale transaction beside an
+already valid destination is removed after validating that destination. An unmarked path at the
+reserved transaction name is never removed automatically.
 
 ## Help
 

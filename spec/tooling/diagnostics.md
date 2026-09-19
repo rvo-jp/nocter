@@ -61,7 +61,7 @@ Spanless CLI diagnostic codes:
 - `E0700`: command-line syntax or unsupported command.
 - `E0701`: target selection failed.
 - `E0702`: filesystem path or permission failure.
-- `E0703`: Nocter home resolution or validation failed.
+- `E0703`: Nocter home resolution, validation, or verified artifact installation failed.
 - `E0704`: temporary executable preparation or execution handoff failed before user code started.
 - `E0800`: package source, package-root, executable declaration, or package target selection failed.
 - `E0900`: an internal compiler consistency or lowering failure occurred.

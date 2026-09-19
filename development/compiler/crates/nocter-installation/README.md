@@ -2,14 +2,15 @@
 
 ## Responsibility
 
-Locate and validate one installed Nocter home and its compiler, manifest, standard package, and
-package-store compatibility.
+Locate and validate one installed Nocter home and install one already acquired, explicitly trusted
+release artifact through a recoverable filesystem transaction.
 
 ## Contract
 
 The crate consumes explicit or process-derived installation paths and returns immutable validated
-installation facts. Command and workspace layers use those facts; compiler stages never inspect the
-environment or installation layout themselves.
+installation facts, or an explicit local artifact-install request and result. Command and workspace
+layers use those contracts; compiler stages never inspect the environment or installation layout
+themselves. This crate neither downloads artifacts nor chooses which digest to trust.
 
 ## Internal Responsibilities
 
@@ -17,6 +18,8 @@ environment or installation layout themselves.
 - exact manifest v2 decoding and component digest validation
 - compiler/standard-package compatibility
 - installed package-root location
+- exact archive-byte verification and candidate-home validation
+- same-parent fresh publication, active-home replacement, and interrupted-transaction recovery
 
 ## Invariants
 
@@ -26,3 +29,7 @@ environment or installation layout themselves.
   compiler digest.
 - Environment and executable-path reads occur at the outer boundary.
 - Invalid, corrupted, or partially updated homes cannot supply a toolchain snapshot.
+- The bytes checked against the caller's digest are the same immutable bytes passed to extraction.
+- A candidate is completely validated before the destination changes.
+- An existing destination can be replaced only when it is the active validated home.
+- Unmarked transaction paths are never treated as installer-owned state.

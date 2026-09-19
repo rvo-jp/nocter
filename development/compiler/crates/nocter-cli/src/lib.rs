@@ -14,6 +14,7 @@ use nocter_command::{
 use nocter_diagnostics::{
     DiagnosticJsonContext, DiagnosticRenderError, render_source_diagnostics_json,
 };
+use nocter_installation::ArtifactInstallResult;
 use nocter_installation::{NocterHome, NocterHomeRequest};
 
 mod dispatch;
@@ -68,6 +69,7 @@ pub enum InvocationOutcome {
     Help(HelpRequest),
     Version(VersionReport),
     Doctor(DoctorReport),
+    Install(ArtifactInstallResult),
     Init(InitCommandResult),
     Graph(GraphCommandResult),
     Fetch(FetchCommandResult),
@@ -87,6 +89,7 @@ impl InvocationOutcome {
             Self::Help(_)
             | Self::Version(_)
             | Self::Doctor(_)
+            | Self::Install(_)
             | Self::Init(_)
             | Self::Graph(_)
             | Self::Fetch(_)
@@ -107,6 +110,7 @@ impl InvocationOutcome {
             Self::Help(request) => Some(request.render()),
             Self::Version(report) => Some(report.render()),
             Self::Doctor(report) => Some(report.render()),
+            Self::Install(result) => Some(report::render_installation(result)),
             Self::Init(result) => Some(result.render()),
             Self::Graph(result) => Some(result.render()),
             Self::Test(result) => test_report::render_test_human(result),
@@ -141,6 +145,7 @@ impl InvocationOutcome {
             Self::Help(_)
             | Self::Version(_)
             | Self::Doctor(_)
+            | Self::Install(_)
             | Self::Init(_)
             | Self::Graph(_)
             | Self::Fetch(_)

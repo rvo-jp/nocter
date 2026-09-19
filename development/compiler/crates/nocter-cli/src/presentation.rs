@@ -45,6 +45,7 @@ impl InvocationDiagnosticPresentation {
             }),
             InstalledCommand::Version
             | InstalledCommand::Doctor
+            | InstalledCommand::Install(_)
             | InstalledCommand::Graph(_)
             | InstalledCommand::Fetch(_)
             | InstalledCommand::Build(_)
