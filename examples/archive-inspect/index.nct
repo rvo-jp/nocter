@@ -48,7 +48,7 @@ construct ArchiveLimits {
     /// and bytes following the in-band tar marker while outer gzip integrity is validated.
     pub noalloc func new(
         maximum_input_bytes: usize,
-        maximum_output_bytes: u64,
+        maximum_decoded_bytes: u64,
         maximum_entries: usize,
         maximum_path_bytes: usize,
     ): Self!

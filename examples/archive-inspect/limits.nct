@@ -18,7 +18,7 @@ construct ArchiveLimits {
     noalloc func standard(): Self {
         return ArchiveLimits {
             input_bytes: STANDARD_INPUT_BYTES,
-            output_bytes: STANDARD_OUTPUT_BYTES,
+            decoded_bytes: STANDARD_OUTPUT_BYTES,
             entries: STANDARD_ENTRIES,
             path_bytes: STANDARD_PATH_BYTES,
         }
@@ -26,17 +26,17 @@ construct ArchiveLimits {
 
     noalloc func new(
         maximum_input_bytes: usize,
-        maximum_output_bytes: u64,
+        maximum_decoded_bytes: u64,
         maximum_entries: usize,
         maximum_path_bytes: usize,
     ): Self! {
-        if maximum_input_bytes == 0 || maximum_output_bytes == 0
+        if maximum_input_bytes == 0 || maximum_decoded_bytes == 0
         || maximum_entries == 0 || maximum_path_bytes == 0 {
             return invalid_limits()
         }
         return ArchiveLimits {
             input_bytes: maximum_input_bytes,
-            output_bytes: maximum_output_bytes,
+            decoded_bytes: maximum_decoded_bytes,
             entries: maximum_entries,
             path_bytes: maximum_path_bytes,
         }

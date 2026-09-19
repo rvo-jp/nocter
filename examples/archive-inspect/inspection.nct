@@ -37,7 +37,7 @@ noalloc func missing_entry_error(): error {
 blocking func inspect<R>(source: R, limits: ArchiveLimits): ArchiveReport! where R impl BlockingReader {
     let compressed = LimitedSource.compressed(move source, limits.input_bytes)
     let gzip = BlockingGzipReader.with_capacity(move compressed, DECODE_BUFFER_BYTES)
-    var decoded = LimitedSource.decoded(move gzip, limits.output_bytes)
+    var decoded = LimitedSource.decoded(move gzip, limits.decoded_bytes)
     var tar = TarStream.with_capacity(DECODE_BUFFER_BYTES)
     var output = source_buffer(DECODE_BUFFER_BYTES)
     var paths: Set<String> = Set.empty()
@@ -54,7 +54,7 @@ blocking func inspect<R>(source: R, limits: ArchiveLimits): ArchiveReport! where
                 if path.len() > limits.path_bytes { return path_limit_error() }
                 let candidate = String.copy(path)
                 if paths.contains(&candidate) { return duplicate_path_error() }
-                if entry.size() > limits.output_bytes - declared_body_bytes {
+                if entry.size() > limits.decoded_bytes - declared_body_bytes {
                     return decoded_output_limit_error()
                 }
                 var directory = false
