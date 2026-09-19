@@ -2,6 +2,35 @@
 
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: development/verification/verify-compiler.sh [--fast|--full]
+
+  --fast  Run the change-feedback gate without the long-running end-to-end suites.
+  --full  Run the complete compiler gate (default).
+EOF
+}
+
+verification_tier="full"
+case "${1-}" in
+  "") ;;
+  --fast) verification_tier="fast" ;;
+  --full) ;;
+  --help|-h)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$#" -gt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+
 script_directory="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 repository_root="$(cd -- "$script_directory/../.." && pwd -P)"
 compiler_root="$repository_root/development/compiler"
@@ -41,9 +70,19 @@ node "$repository_root/development/unicode/test.js"
 node "$repository_root/development/unicode/generate.js" --check
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
-cargo test --locked --workspace --all-targets --exclude nocter-language-server
-cargo test --locked -p nocter-language-server --all-targets -- --test-threads="$test_threads"
-cargo check --locked --workspace --no-default-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --no-deps
+cargo test --locked --workspace --all-targets \
+  --exclude nocter \
+  --exclude nocter-command \
+  --exclude nocter-language-server \
+  --exclude nocter-native-session
 
-echo "Compiler verification passed in disposable target: $CARGO_TARGET_DIR"
+if [[ "$verification_tier" == "full" ]]; then
+  cargo test --locked -p nocter --all-targets
+  cargo test --locked -p nocter-command --all-targets
+  cargo test --locked -p nocter-native-session --all-targets
+  cargo test --locked -p nocter-language-server --all-targets -- --test-threads="$test_threads"
+  cargo check --locked --workspace --no-default-features
+  RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --no-deps
+fi
+
+echo "Compiler $verification_tier verification passed in disposable target: $CARGO_TARGET_DIR"

@@ -70,6 +70,12 @@ Run the complete gate from the repository root:
 development/verification/verify-compiler.sh
 ```
 
+For change feedback before the complete gate, run:
+
+```sh
+development/verification/verify-compiler.sh --fast
+```
+
 The gate shares one temporary external Cargo target across formatting, warnings-denied Clippy,
 workspace tests, no-default-features checking, and Rust documentation, then removes it. Complete
 verification therefore cannot accumulate obsolete hash generations in the workspace.

@@ -13,19 +13,35 @@ their observable editor workflow and assertions.
 
 ## Compiler Verification
 
-Run the complete compiler gate from any directory:
+Run the fast change-feedback gate from any directory:
+
+```sh
+development/verification/verify-compiler.sh --fast
+```
+
+It verifies repository metadata, benchmark helpers, pinned Unicode data, formatting, warnings-denied
+Clippy, and every workspace test except the CLI, command, native-session, and language-server
+end-to-end suites. Those suites repeatedly compile or execute complete Nocter programs and dominate
+test latency; excluding them from the fast tier does not create alternate assertions or
+implementations.
+
+Run the complete compiler gate before closing a phase or qualifying a release:
 
 ```sh
 development/verification/verify-compiler.sh
 ```
 
-The script first verifies that the machine-readable release license, shipped legal files, and all
-Cargo package metadata agree. It checks the performance-runner helpers without executing timing
-scenarios, then verifies the pinned Unicode-data manifest, its mutation guard, and the exact
-generated standard-library tables without network access. Finally, it creates one target under
-`/tmp`, shares it across formatting, warnings-denied Clippy, workspace tests, feature checking, and
-Rust documentation, and removes it on exit. A complete gate therefore cannot add another Cargo hash
-generation to `development/compiler/target/`.
+The full tier is the same entry point with its default `--full` behavior. It adds the CLI, command,
+native-session, and language-server suites, no-default-features checking, and warnings-denied Rust
+documentation. Both tiers first verify that the machine-readable release license, shipped legal
+files, and all Cargo package metadata agree. They check the performance-runner helpers without
+executing timing scenarios, then verify the pinned Unicode-data manifest, its mutation guard, and
+the exact generated standard-library tables without network access.
+
+Every invocation creates one target under `/tmp`, shares it across all selected Cargo operations,
+and removes it on exit. Verification therefore cannot add another Cargo hash generation to
+`development/compiler/target/`. The fast and full tiers differ only in selected consumers of the
+same source, workspace, and tests; neither tier owns independent expected behavior.
 
 Compiler workspace crates use test-profile optimization level 1 because the integration suite
 executes the compiler itself as its dominant workload. Third-party dependencies remain
@@ -50,3 +66,10 @@ cargo clean --manifest-path development/compiler/Cargo.toml
 
 The script intentionally does not clean the workspace target. Verification must not destroy a
 developer's active inner-loop cache as a side effect.
+
+## Automation
+
+The compiler workflow runs the fast tier for pull requests and pushes to `main`. A weekly scheduled
+job and a manually dispatchable job run the complete tier on an ARM64 macOS runner, matching the
+only currently supported native target. The workflow invokes this script rather than copying Cargo
+commands into YAML, so this directory remains the sole verification-command authority.
