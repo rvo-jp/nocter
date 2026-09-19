@@ -223,12 +223,60 @@ fn concatenated_gzip_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn blocking_gzip_reader_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        GZIP_BLOCKING_READER_RUNTIME_TEST_SOURCE,
+    );
+    execute_native_status(&image, &package_root.0, "gzip-blocking-reader-runtime", 0);
+}
+
+#[test]
+fn async_gzip_reader_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        GZIP_ASYNC_READER_RUNTIME_TEST_SOURCE,
+    );
+    execute_native_status(&image, &package_root.0, "gzip-async-reader-runtime", 0);
+}
+
+#[test]
 fn streaming_tar_crosses_the_complete_native_session() {
     let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image =
         compile_single_file_native_source(&package_root, &standard_root, TAR_RUNTIME_TEST_SOURCE);
     execute_native_status(&image, &package_root.0, "tar-runtime", 0);
+}
+
+#[test]
+fn blocking_targz_stream_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        TARGZ_BLOCKING_STREAM_RUNTIME_TEST_SOURCE,
+    );
+    execute_native_status(&image, &package_root.0, "targz-blocking-stream-runtime", 0);
+}
+
+#[test]
+fn async_targz_stream_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        TARGZ_ASYNC_STREAM_RUNTIME_TEST_SOURCE,
+    );
+    execute_native_status(&image, &package_root.0, "targz-async-stream-runtime", 0);
 }
 
 #[test]

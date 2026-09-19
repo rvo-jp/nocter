@@ -21,3 +21,16 @@ files, follow links, choose destinations, or publish partial state.
 Two consecutive zero blocks terminate an archive. `finish` declares transport EOF so a partial
 header, body, padding region, or single end marker becomes a precise terminal failure. Later calls
 to a terminal reader consume zero bytes and reproduce the same classification.
+
+`TarStream` is the bounded transport driver for this parser. The caller supplies either a
+`BlockingReader` to `archive.next_blocking` or a `Reader` to `archive.next`; both operations use the
+same cursor, input buffer, metadata record, and body-range rules. `TarStreamStep.entry` publishes
+metadata through `TarStream.entry`, while `body` reports the initialized prefix of the caller's
+output. A zero-length output is permitted but produces a zero-length body event until capacity is
+provided.
+
+The transport driver continues draining after the two-block archive marker until its source
+reaches EOF. This preserves outer-representation validation: when the source is a gzip reader,
+`finished` is not published until the gzip trailer and transport EOF have also been observed.
+Trailing tar transport bytes are discarded after the in-band archive end marker. Deadlines and
+cancellation remain properties of the supplied reader rather than archive-format state.

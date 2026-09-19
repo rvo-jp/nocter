@@ -4,10 +4,16 @@
 //! std/io, archive structure remains in std/archive, and integrity checks remain in std/checksum.
 
 see ./decoder.nct
+see ./async_reader.nct
+see ./blocking_reader.nct
 see ./gzip_decoder.nct
 see ./gzip_storage.nct
+see ./reader_cursor.nct
+see ./reader_storage.nct
 see ./storage.nct
 see ./tests.nct
+
+use /io.{BlockingReader, Reader}
 
 /// Allocation-free incremental state for one raw DEFLATE stream.
 ///
@@ -48,6 +54,18 @@ pub enum InflateStep {
 /// caller input or output slice. End of input is declared explicitly with `finish` so an absent
 /// next member remains distinct from a truncated member.
 pub struct GzipDecoder
+
+/// An owning synchronous reader that exposes the uncompressed bytes of one gzip sequence.
+///
+/// Compressed input and DEFLATE history use fixed reusable storage. The wrapper never buffers the
+/// complete compressed or uncompressed representation.
+pub struct BlockingGzipReader<R>
+
+/// An owning executor-safe reader that exposes the uncompressed bytes of one gzip sequence.
+///
+/// Cancellation may interrupt an underlying refill, but decoder progress is committed only after
+/// that refill returns. Deadlines remain an outer transport concern and compose through `Reader`.
+pub struct GzipReader<R>
 
 /// One terminal reason that makes the inspected gzip stream invalid.
 pub enum GzipFailure {
@@ -91,6 +109,30 @@ instance InflateDecoder {
 construct GzipDecoder {
     /// Constructs a decoder before the first gzip member.
     pub noalloc func new(): Self
+}
+
+construct BlockingGzipReader<R> {
+    /// Wraps a blocking compressed-byte source with the default bounded input capacity.
+    pub func new(source: R): Self where R impl BlockingReader
+
+    /// Wraps a source and normalizes a zero requested input capacity to one byte.
+    pub func with_capacity(source: R, requested_capacity: usize): Self where R impl BlockingReader
+}
+
+instance BlockingGzipReader<R> where R impl BlockingReader {
+    impl BlockingReader
+}
+
+construct GzipReader<R> {
+    /// Wraps an executor-safe compressed-byte source with the default bounded input capacity.
+    pub func new(source: R): Self where R impl Reader
+
+    /// Wraps a source and normalizes a zero requested input capacity to one byte.
+    pub func with_capacity(source: R, requested_capacity: usize): Self where R impl Reader
+}
+
+instance GzipReader<R> where R impl Reader {
+    impl Reader
 }
 
 instance GzipDecoder {

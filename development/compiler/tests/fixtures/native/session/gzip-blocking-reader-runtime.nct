@@ -1,0 +1,71 @@
+use std/compress.BlockingGzipReader
+use std/io.BlockingReader
+use std/vec.Vec
+
+struct FragmentedSource {
+    bytes: Vec<u8>
+    next: usize
+}
+
+construct FragmentedSource {
+    func new(bytes: Vec<u8>): Self {
+        return FragmentedSource { bytes: move bytes, next: 0 }
+    }
+}
+
+instance FragmentedSource {
+    impl BlockingReader
+
+    blocking method &+self.read_blocking(output: &+[u8]): usize! {
+        if output.len() == 0 || self.next == self.bytes.len() { return 0 }
+        output[0] = self.bytes[self.next]
+        self.next += 1
+        return 1
+    }
+}
+
+struct InvalidSource {}
+
+instance InvalidSource {
+    impl BlockingReader
+
+    blocking method &+self.read_blocking(output: &+[u8]): usize! {
+        return output.len() + 1
+    }
+}
+
+func compressed(): Vec<u8> {
+    return Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(255), u8.truncate(43), u8.truncate(78),
+        u8.truncate(77), u8.truncate(206), u8.truncate(207), u8.truncate(75),
+        u8.truncate(1), u8.truncate(0), u8.truncate(105), u8.truncate(17),
+        u8.truncate(31), u8.truncate(182), u8.truncate(6), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0),
+    ]
+}
+
+blocking func main(): i32 {
+    var reader = BlockingGzipReader.with_capacity(FragmentedSource.new(compressed()), 1)
+    let decoded = reader.read_to_end_blocking() catch _ { return 1 }
+    if (&decoded as &[u8]) != "second".bytes() { return 2 }
+    var eof: Vec<u8> = Vec [u8.truncate(0)]
+    let eof_count = reader.read_blocking(&+eof) catch _ { return 3 }
+    if eof_count != 0 { return 4 }
+
+    var corrupt = compressed()
+    corrupt[18] = u8.truncate(104)
+    var corrupt_reader = BlockingGzipReader.with_capacity(FragmentedSource.new(move corrupt), 1)
+    var output: Vec<u8> = Vec [u8.truncate(0)]
+    var produced: Vec<u8> = Vec.empty()
+    loop {
+        let count = corrupt_reader.read_blocking(&+output) catch failure {
+            if !failure.has_code("std.compress.invalid_gzip") { return 5 }
+            if (&produced as &[u8]) != "second".bytes() { return 6 }
+            return 0
+        }
+        if count == 0 { return 7 }
+        produced.push(output[0])
+    }
+}

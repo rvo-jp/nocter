@@ -1,0 +1,35 @@
+//! Private bounded storage for transport-driven tar observation.
+
+see ./index.nct
+
+use /vec.Vec
+
+const DEFAULT_TAR_INPUT_CAPACITY: usize = 8192
+
+enum TarCursorStatus {
+    active
+    finished
+    failed
+}
+
+enum TarStreamAttempt {
+    event(step: TarStreamStep)
+    input
+    failed
+}
+
+struct TarCursor {
+    reader: TarReader
+    input: Vec<u8>
+    input_next: usize
+    input_len: usize
+    body_next: usize
+    body_end: usize
+    archive_finished: bool
+    source_finished: bool
+    status: TarCursorStatus
+}
+
+struct TarStream {
+    cursor: TarCursor
+}

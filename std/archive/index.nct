@@ -1,13 +1,22 @@
 //! Allocation-free observation of archive entries and their bounded bodies.
 
+see ./async_stream.nct
+see ./blocking_stream.nct
 see ./storage.nct
+see ./stream_cursor.nct
+see ./stream_storage.nct
 see ./tar.nct
+
+use /io.{BlockingReader, Reader}
 
 /// Incremental state for one POSIX ustar byte stream.
 pub struct TarReader
 
 /// Metadata for the current entry, retained by its reader until the next header is accepted.
 pub struct TarEntry
+
+/// Bounded transport-independent state that projects a tar archive into metadata and body events.
+pub struct TarStream
 
 /// The supported interpretation of one ustar type flag.
 pub enum TarEntryKind {
@@ -42,10 +51,47 @@ pub enum TarStep {
     invalid(input_consumed: usize, failure: TarFailure)
 }
 
+/// One transport-driven archive event.
+///
+/// `entry` publishes metadata through the stream's `entry` method. `body` reports the initialized
+/// prefix of the caller's output buffer. `finished` is terminal and repeatable.
+pub enum TarStreamStep {
+    entry
+    body(output_written: usize)
+    finished
+}
+
 construct TarReader {
     /// Constructs a reader before the first 512-byte header block.
     pub noalloc func new(): Self
 }
+
+construct TarStream {
+    /// Constructs a stream with the default bounded transport capacity.
+    pub func new(): Self
+
+    /// Constructs a stream and normalizes a zero requested capacity to one byte.
+    pub func with_capacity(requested_capacity: usize): Self
+}
+
+instance TarStream {
+    /// Borrows the most recently published entry metadata.
+    pub noalloc method &self.entry(): &TarEntry? from self
+}
+
+/// Advances one tar stream from a blocking byte source to one observable event.
+pub blocking func next_blocking<R>(
+    stream: &+TarStream,
+    source: &+R,
+    output: &+[u8],
+): TarStreamStep! where R impl BlockingReader
+
+/// Advances one tar stream from an executor-safe byte source to one observable event.
+pub async func next<R>(
+    stream: &+TarStream,
+    source: &+R,
+    output: &+[u8],
+): TarStreamStep! where R impl Reader
 
 instance TarReader {
     /// Advances the archive with caller-owned bytes.

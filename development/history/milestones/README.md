@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.60.0: Streaming Compression and Safe Archives](v0.60.0.md)
 - [v0.59.0: Integrity-Checked Binary Records](v0.59.0.md)
 - [v0.59.0 Release Preparation](v0.59.0-release-preparation.md)
 - [v0.58.0: Binary Data and Protocol Foundation](v0.58.0.md)

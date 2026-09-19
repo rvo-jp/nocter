@@ -1,0 +1,57 @@
+//! Blocking transport projection for the shared gzip read cursor.
+
+see ./index.nct
+see ./reader_cursor.nct
+see ./reader_storage.nct
+
+use /io.{BlockingReader}
+use /io
+
+construct BlockingGzipReader<R> {
+    func new(source: R): Self where R impl BlockingReader {
+        return BlockingGzipReader.with_capacity(move source, DEFAULT_GZIP_INPUT_CAPACITY)
+    }
+
+    func with_capacity(source: R, requested_capacity: usize): Self where R impl BlockingReader {
+        return BlockingGzipReader<R> {
+            source: move source,
+            cursor: new_gzip_cursor(requested_capacity),
+        }
+    }
+}
+
+blocking func read_blocking_gzip<R>(
+    reader: &+BlockingGzipReader<R>,
+    output: &+[u8],
+): usize! where R impl BlockingReader {
+    loop {
+        match advance_gzip_cursor(&+reader.cursor, output) {
+            GzipReadAttempt.ready(written) { return written }
+            GzipReadAttempt.progress {}
+            GzipReadAttempt.finished { return 0 }
+            GzipReadAttempt.invalid { return invalid_gzip_error() }
+            GzipReadAttempt.failed { return invalid_gzip_progress_error() }
+            GzipReadAttempt.input {
+                let reported = reader.source.read_blocking(gzip_input_buffer(&+reader.cursor))
+                    catch failure {
+                        fail_gzip_cursor(&+reader.cursor)
+                        return move failure
+                    }
+                let received = io.validate_read_count(
+                    reported,
+                    gzip_input_capacity(&reader.cursor),
+                ) catch failure {
+                    fail_gzip_cursor(&+reader.cursor)
+                    return move failure
+                }
+                commit_gzip_input(&+reader.cursor, received)
+            }
+        }
+    }
+}
+
+instance BlockingGzipReader<R> where R impl BlockingReader {
+    blocking method &+self.read_blocking(output: &+[u8]): usize! {
+        return read_blocking_gzip(self, output)?
+    }
+}

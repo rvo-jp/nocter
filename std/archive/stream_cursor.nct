@@ -1,0 +1,181 @@
+//! Transport-independent tar event cursor and bounded body projection.
+
+see ./index.nct
+see ./stream_storage.nct
+
+use /vec.Vec
+
+func initialized_tar_input(requested_capacity: usize): Vec<u8> {
+    let capacity: usize = if requested_capacity == 0 { 1 } else { requested_capacity }
+    var input: Vec<u8> = Vec.with_capacity(capacity)
+    while input.len() < capacity { input.push(0) }
+    return move input
+}
+
+func new_tar_cursor(requested_capacity: usize): TarCursor {
+    return TarCursor {
+        reader: TarReader.new(),
+        input: initialized_tar_input(requested_capacity),
+        input_next: 0,
+        input_len: 0,
+        body_next: 0,
+        body_end: 0,
+        archive_finished: false,
+        source_finished: false,
+        status: TarCursorStatus.active,
+    }
+}
+
+construct TarStream {
+    func new(): Self { return TarStream.with_capacity(DEFAULT_TAR_INPUT_CAPACITY) }
+
+    func with_capacity(requested_capacity: usize): Self {
+        return TarStream { cursor: new_tar_cursor(requested_capacity) }
+    }
+}
+
+noalloc func tar_input_capacity(cursor: &TarCursor): usize { return cursor.input.len() }
+
+noalloc func tar_input_buffer(cursor: &+TarCursor): &+[u8] { return &+cursor.input }
+
+noalloc func commit_tar_input(cursor: &+TarCursor, received: usize): void {
+    cursor.input_next = 0
+    cursor.input_len = received
+    if received == 0 { cursor.source_finished = true }
+    return
+}
+
+noalloc func fail_tar_cursor(cursor: &+TarCursor): void {
+    cursor.status = TarCursorStatus.failed
+    cursor.input_next = 0
+    cursor.input_len = 0
+    cursor.body_next = 0
+    cursor.body_end = 0
+    return
+}
+
+noalloc func consume_tar_input(cursor: &+TarCursor, consumed: usize): bool {
+    if consumed > cursor.input_len - cursor.input_next {
+        fail_tar_cursor(cursor)
+        return false
+    }
+    cursor.input_next += consumed
+    return true
+}
+
+noalloc func compact_tar_input(cursor: &+TarCursor): void {
+    if cursor.input_next == cursor.input_len && cursor.body_next == cursor.body_end {
+        cursor.input_next = 0
+        cursor.input_len = 0
+        cursor.body_next = 0
+        cursor.body_end = 0
+    }
+    return
+}
+
+noalloc func emit_tar_body(cursor: &+TarCursor, output: &+[u8]): TarStreamAttempt {
+    let available = cursor.body_end - cursor.body_next
+    let count = if available < output.len() { available } else { output.len() }
+    var index: usize = 0
+    while index < count {
+        output[index] = cursor.input[cursor.body_next + index]
+        index += 1
+    }
+    cursor.body_next += count
+    compact_tar_input(cursor)
+    return TarStreamAttempt.event(TarStreamStep.body(count))
+}
+
+noalloc func classify_tar_step(
+    cursor: &+TarCursor,
+    step: TarStep,
+    input_base: usize,
+    output: &+[u8],
+): TarStreamAttempt {
+    match step {
+        TarStep.needs_input(consumed) {
+            if !consume_tar_input(cursor, consumed) { return TarStreamAttempt.failed }
+            compact_tar_input(cursor)
+            if cursor.input_len != 0 || cursor.source_finished {
+                fail_tar_cursor(cursor)
+                return TarStreamAttempt.failed
+            }
+            return TarStreamAttempt.input
+        }
+        TarStep.entry(consumed) {
+            if !consume_tar_input(cursor, consumed) { return TarStreamAttempt.failed }
+            compact_tar_input(cursor)
+            return TarStreamAttempt.event(TarStreamStep.entry)
+        }
+        TarStep.body(consumed, body_start, body_len) {
+            if body_start > consumed || body_len > consumed - body_start
+                || !consume_tar_input(cursor, consumed) {
+                fail_tar_cursor(cursor)
+                return TarStreamAttempt.failed
+            }
+            cursor.body_next = input_base + body_start
+            cursor.body_end = cursor.body_next + body_len
+            return emit_tar_body(cursor, output)
+        }
+        TarStep.finished(consumed) {
+            if !consume_tar_input(cursor, consumed) { return TarStreamAttempt.failed }
+            cursor.input_next = cursor.input_len
+            compact_tar_input(cursor)
+            cursor.archive_finished = true
+            if cursor.source_finished {
+                cursor.status = TarCursorStatus.finished
+                return TarStreamAttempt.event(TarStreamStep.finished)
+            }
+            return TarStreamAttempt.input
+        }
+        TarStep.invalid(consumed, _) {
+            if !consume_tar_input(cursor, consumed) { return TarStreamAttempt.failed }
+            fail_tar_cursor(cursor)
+            return TarStreamAttempt.failed
+        }
+    }
+}
+
+noalloc func advance_tar_cursor(cursor: &+TarCursor, output: &+[u8]): TarStreamAttempt {
+    match cursor.status {
+        TarCursorStatus.finished { return TarStreamAttempt.event(TarStreamStep.finished) }
+        TarCursorStatus.failed { return TarStreamAttempt.failed }
+        TarCursorStatus.active {}
+    }
+    if cursor.archive_finished {
+        cursor.input_next = cursor.input_len
+        compact_tar_input(cursor)
+        if cursor.source_finished {
+            cursor.status = TarCursorStatus.finished
+            return TarStreamAttempt.event(TarStreamStep.finished)
+        }
+        return TarStreamAttempt.input
+    }
+    if cursor.body_next != cursor.body_end { return emit_tar_body(cursor, output) }
+
+    loop {
+        compact_tar_input(cursor)
+        if cursor.input_len != 0 {
+            let base = cursor.input_next
+            let all: &[u8] = &cursor.input
+            let available = all.get_range(base, cursor.input_len) otherwise {
+                fail_tar_cursor(cursor)
+                return TarStreamAttempt.failed
+            }
+            let step = cursor.reader.advance(available)
+            let attempt = classify_tar_step(cursor, move step, base, output)
+            return move attempt
+        }
+        if !cursor.source_finished { return TarStreamAttempt.input }
+        let step = cursor.reader.finish()
+        return classify_tar_step(cursor, move step, 0, output)
+    }
+}
+
+noalloc func tar_cursor_entry(cursor: &TarCursor): &TarEntry? from cursor {
+    return cursor.reader.entry()
+}
+
+noalloc func invalid_tar_error(): error {
+    return error.new("std.archive.invalid_tar", "tar stream is invalid")
+}

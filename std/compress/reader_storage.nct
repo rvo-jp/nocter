@@ -1,0 +1,42 @@
+//! Private bounded storage for transport-independent gzip reader progress.
+
+see ./index.nct
+
+use /vec.Vec
+
+const DEFAULT_GZIP_INPUT_CAPACITY: usize = 8192
+
+enum GzipCursorStatus {
+    active
+    finished
+    invalid
+    failed
+}
+
+enum GzipReadAttempt {
+    ready(written: usize)
+    input
+    progress
+    finished
+    invalid
+    failed
+}
+
+struct GzipCursor {
+    decoder: GzipDecoder
+    input: Vec<u8>
+    input_next: usize
+    input_len: usize
+    source_finished: bool
+    status: GzipCursorStatus
+}
+
+struct BlockingGzipReader<R> {
+    source: R
+    cursor: GzipCursor
+}
+
+struct GzipReader<R> {
+    source: R
+    cursor: GzipCursor
+}

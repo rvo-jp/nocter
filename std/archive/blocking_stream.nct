@@ -1,0 +1,44 @@
+//! Blocking transport projection for the shared tar event cursor.
+
+see ./index.nct
+see ./stream_cursor.nct
+see ./stream_storage.nct
+
+use /io.{BlockingReader}
+use /io
+
+blocking func next_blocking_tar<R>(
+    stream: &+TarStream,
+    source: &+R,
+    output: &+[u8],
+): TarStreamStep! where R impl BlockingReader {
+    loop {
+        match advance_tar_cursor(&+stream.cursor, output) {
+            TarStreamAttempt.event(step) { return move step }
+            TarStreamAttempt.failed { return invalid_tar_error() }
+            TarStreamAttempt.input {
+                let reported = source.read_blocking(tar_input_buffer(&+stream.cursor))
+                    catch failure {
+                        fail_tar_cursor(&+stream.cursor)
+                        return move failure
+                    }
+                let received = io.validate_read_count(
+                    reported,
+                    tar_input_capacity(&stream.cursor),
+                ) catch failure {
+                    fail_tar_cursor(&+stream.cursor)
+                    return move failure
+                }
+                commit_tar_input(&+stream.cursor, received)
+            }
+        }
+    }
+}
+
+blocking func next_blocking<R>(
+    stream: &+TarStream,
+    source: &+R,
+    output: &+[u8],
+): TarStreamStep! where R impl BlockingReader {
+    return next_blocking_tar(stream, source, output)?
+}

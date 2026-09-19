@@ -1,0 +1,164 @@
+//! Transport-independent gzip read cursor and progress invariants.
+
+see ./index.nct
+see ./reader_storage.nct
+
+use /vec.Vec
+
+func initialized_gzip_input(requested_capacity: usize): Vec<u8> {
+    let capacity: usize = if requested_capacity == 0 { 1 } else { requested_capacity }
+    var input: Vec<u8> = Vec.with_capacity(capacity)
+    while input.len() < capacity { input.push(0) }
+    return move input
+}
+
+func new_gzip_cursor(requested_capacity: usize): GzipCursor {
+    return GzipCursor {
+        decoder: GzipDecoder.new(),
+        input: initialized_gzip_input(requested_capacity),
+        input_next: 0,
+        input_len: 0,
+        source_finished: false,
+        status: GzipCursorStatus.active,
+    }
+}
+
+noalloc func gzip_input_capacity(cursor: &GzipCursor): usize {
+    return cursor.input.len()
+}
+
+noalloc func gzip_input_buffer(cursor: &+GzipCursor): &+[u8] {
+    return &+cursor.input
+}
+
+noalloc func commit_gzip_input(cursor: &+GzipCursor, received: usize): void {
+    cursor.input_next = 0
+    cursor.input_len = received
+    if received == 0 { cursor.source_finished = true }
+    return
+}
+
+noalloc func fail_gzip_cursor(cursor: &+GzipCursor): void {
+    cursor.status = GzipCursorStatus.failed
+    cursor.input_next = 0
+    cursor.input_len = 0
+    return
+}
+
+noalloc func consume_gzip_input(cursor: &+GzipCursor, consumed: usize): bool {
+    if consumed > cursor.input_len - cursor.input_next {
+        fail_gzip_cursor(cursor)
+        return false
+    }
+    cursor.input_next += consumed
+    if cursor.input_next == cursor.input_len {
+        cursor.input_next = 0
+        cursor.input_len = 0
+    }
+    return true
+}
+
+noalloc func classify_gzip_step(
+    cursor: &+GzipCursor,
+    step: GzipStep,
+    output_capacity: usize,
+): GzipReadAttempt {
+    match step {
+        GzipStep.needs_input(consumed, written) {
+            if !consume_gzip_input(cursor, consumed) { return GzipReadAttempt.failed }
+            if written > output_capacity {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            if written != 0 { return GzipReadAttempt.ready(written) }
+            if cursor.input_len != 0 {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            if cursor.source_finished {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            return GzipReadAttempt.input
+        }
+        GzipStep.needs_output(consumed, written) {
+            if !consume_gzip_input(cursor, consumed) || written == 0
+                || written > output_capacity {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            return GzipReadAttempt.ready(written)
+        }
+        GzipStep.member_finished(consumed, written) {
+            if !consume_gzip_input(cursor, consumed) || written > output_capacity {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            if written != 0 { return GzipReadAttempt.ready(written) }
+            return GzipReadAttempt.progress
+        }
+        GzipStep.finished(consumed, written) {
+            if !consume_gzip_input(cursor, consumed) || written > output_capacity {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            cursor.status = GzipCursorStatus.finished
+            if written != 0 { return GzipReadAttempt.ready(written) }
+            return GzipReadAttempt.finished
+        }
+        GzipStep.invalid(consumed, written, _) {
+            if !consume_gzip_input(cursor, consumed) || written > output_capacity {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            cursor.status = GzipCursorStatus.invalid
+            if written != 0 { return GzipReadAttempt.ready(written) }
+            return GzipReadAttempt.invalid
+        }
+    }
+}
+
+noalloc func advance_gzip_cursor(cursor: &+GzipCursor, output: &+[u8]): GzipReadAttempt {
+    match cursor.status {
+        GzipCursorStatus.finished { return GzipReadAttempt.finished }
+        GzipCursorStatus.invalid { return GzipReadAttempt.invalid }
+        GzipCursorStatus.failed { return GzipReadAttempt.failed }
+        GzipCursorStatus.active {}
+    }
+    if output.len() == 0 { return GzipReadAttempt.ready(0) }
+
+    loop {
+        if cursor.input_len != 0 {
+            let all: &[u8] = &cursor.input
+            let available = all.get_range(cursor.input_next, cursor.input_len) otherwise {
+                fail_gzip_cursor(cursor)
+                return GzipReadAttempt.failed
+            }
+            let step = cursor.decoder.decode(available, output)
+            let attempt = classify_gzip_step(cursor, move step, output.len())
+            match attempt {
+                GzipReadAttempt.ready(_) { return move attempt }
+                GzipReadAttempt.input { return move attempt }
+                GzipReadAttempt.progress {}
+                GzipReadAttempt.finished { return move attempt }
+                GzipReadAttempt.invalid { return move attempt }
+                GzipReadAttempt.failed { return move attempt }
+            }
+        }
+        if !cursor.source_finished { return GzipReadAttempt.input }
+        let step = cursor.decoder.finish(output)
+        let attempt = classify_gzip_step(cursor, move step, output.len())
+        match attempt {
+            GzipReadAttempt.progress {}
+            _ { return move attempt }
+        }
+    }
+}
+
+noalloc func invalid_gzip_error(): error {
+    return error.new("std.compress.invalid_gzip", "gzip stream is invalid")
+}
+
+noalloc func invalid_gzip_progress_error(): error {
+    return error.new("std.compress.invalid_progress", "gzip decoder reported invalid progress")
+}

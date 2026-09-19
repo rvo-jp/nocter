@@ -47,8 +47,16 @@ const INFLATE_RUNTIME_TEST_SOURCE: &str =
     include_str!("../../../tests/fixtures/native/session/inflate-runtime.nct");
 const GZIP_RUNTIME_TEST_SOURCE: &str =
     include_str!("../../../tests/fixtures/native/session/gzip-runtime.nct");
+const GZIP_BLOCKING_READER_RUNTIME_TEST_SOURCE: &str =
+    include_str!("../../../tests/fixtures/native/session/gzip-blocking-reader-runtime.nct");
+const GZIP_ASYNC_READER_RUNTIME_TEST_SOURCE: &str =
+    include_str!("../../../tests/fixtures/native/session/gzip-async-reader-runtime.nct");
 const TAR_RUNTIME_TEST_SOURCE: &str =
     include_str!("../../../tests/fixtures/native/session/tar-runtime.nct");
+const TARGZ_BLOCKING_STREAM_RUNTIME_TEST_SOURCE: &str =
+    include_str!("../../../tests/fixtures/native/session/targz-blocking-stream-runtime.nct");
+const TARGZ_ASYNC_STREAM_RUNTIME_TEST_SOURCE: &str =
+    include_str!("../../../tests/fixtures/native/session/targz-async-stream-runtime.nct");
 
 struct TestDiscoveredUnit {
     computation: nocter_compiler_computation::CompilerComputation,

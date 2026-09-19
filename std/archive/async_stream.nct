@@ -1,0 +1,50 @@
+//! Executor-safe transport projection for the shared tar event cursor.
+
+see ./index.nct
+see ./stream_cursor.nct
+see ./stream_storage.nct
+
+use /io.{Reader}
+use /io
+
+async func next_async_tar<R>(
+    stream: &+TarStream,
+    source: &+R,
+    output: &+[u8],
+): TarStreamStep! where R impl Reader {
+    loop {
+        match advance_tar_cursor(&+stream.cursor, output) {
+            TarStreamAttempt.event(step) { return move step }
+            TarStreamAttempt.failed { return invalid_tar_error() }
+            TarStreamAttempt.input {
+                let reported = await source.read(tar_input_buffer(&+stream.cursor))
+                    catch failure {
+                        fail_tar_cursor(&+stream.cursor)
+                        return move failure
+                    }
+                let received = io.validate_read_count(
+                    reported,
+                    tar_input_capacity(&stream.cursor),
+                ) catch failure {
+                    fail_tar_cursor(&+stream.cursor)
+                    return move failure
+                }
+                commit_tar_input(&+stream.cursor, received)
+            }
+        }
+    }
+}
+
+async func next<R>(
+    stream: &+TarStream,
+    source: &+R,
+    output: &+[u8],
+): TarStreamStep! where R impl Reader {
+    return await next_async_tar(stream, source, output)?
+}
+
+instance TarStream {
+    noalloc method &self.entry(): &TarEntry? from self {
+        return tar_cursor_entry(&self.cursor)
+    }
+}

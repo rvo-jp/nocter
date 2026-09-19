@@ -33,3 +33,14 @@ explicit output and metadata boundary without treating it as end of stream. Gzip
 end marker for the member sequence, so callers declare transport EOF with `finish`. EOF between
 members produces terminal `finished`; EOF inside a header, payload, or trailer produces a precise
 truncation failure.
+
+`BlockingGzipReader` and `GzipReader` project this same decoder cursor through the standard
+blocking and executor-safe byte-reader contracts. Both own one reusable compressed-input buffer;
+neither retains output or reimplements gzip decisions. An asynchronous refill commits no decoder
+or input-range progress until the awaited source read succeeds, so cancellation cannot publish a
+partially accepted fragment. A source wrapped by `io.TimeoutReader` retains its existing per-read
+deadline because compression depends only on `Reader`, not on a concrete transport or timer.
+
+Format damage becomes `std.compress.invalid_gzip` at the I/O boundary. Bytes produced before a
+late trailer failure remain readable first; the failure is reported by the following read rather
+than being allowed to erase an already initialized output prefix.

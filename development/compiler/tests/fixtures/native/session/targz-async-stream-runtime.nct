@@ -1,0 +1,82 @@
+use std/archive
+use std/archive.{TarEntryKind, TarStream, TarStreamStep}
+use std/compress.GzipReader
+use std/io.Reader
+use std/vec.Vec
+
+struct FragmentedSource {
+    bytes: Vec<u8>
+    next: usize
+}
+
+instance FragmentedSource {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        if output.len() == 0 || self.next == self.bytes.len() { return 0 }
+        output[0] = self.bytes[self.next]
+        self.next += 1
+        return 1
+    }
+}
+
+func compressed_archive(): Vec<u8> {
+    return Vec [
+        u8.truncate(31), u8.truncate(139), u8.truncate(8), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(2), u8.truncate(255), u8.truncate(75), u8.truncate(212),
+        u8.truncate(43), u8.truncate(169), u8.truncate(40), u8.truncate(97),
+        u8.truncate(160), u8.truncate(45), u8.truncate(48), u8.truncate(0),
+        u8.truncate(2), u8.truncate(51), u8.truncate(19), u8.truncate(19),
+        u8.truncate(48), u8.truncate(13), u8.truncate(4), u8.truncate(232),
+        u8.truncate(52), u8.truncate(72), u8.truncate(22), u8.truncate(137),
+        u8.truncate(13), u8.truncate(18), u8.truncate(55), u8.truncate(51),
+        u8.truncate(55), u8.truncate(50), u8.truncate(98), u8.truncate(80),
+        u8.truncate(48), u8.truncate(96), u8.truncate(160), u8.truncate(3),
+        u8.truncate(40), u8.truncate(45), u8.truncate(46), u8.truncate(73),
+        u8.truncate(44), u8.truncate(2), u8.truncate(90), u8.truncate(201),
+        u8.truncate(48), u8.truncate(50), u8.truncate(65), u8.truncate(113),
+        u8.truncate(106), u8.truncate(114), u8.truncate(126), u8.truncate(94),
+        u8.truncate(10), u8.truncate(195), u8.truncate(40), u8.truncate(24),
+        u8.truncate(5), u8.truncate(163), u8.truncate(96), u8.truncate(20),
+        u8.truncate(140), u8.truncate(130), u8.truncate(17), u8.truncate(6),
+        u8.truncate(0), u8.truncate(224), u8.truncate(51), u8.truncate(80),
+        u8.truncate(91), u8.truncate(0), u8.truncate(8), u8.truncate(0),
+        u8.truncate(0),
+    ]
+}
+
+async func main(): i32 {
+    let source = FragmentedSource { bytes: compressed_archive(), next: 0 }
+    var gzip = GzipReader.with_capacity(move source, 1)
+    var tar = TarStream.with_capacity(1)
+    var scratch: Vec<u8> = Vec [u8.truncate(0)]
+    var body: Vec<u8> = Vec.empty()
+    var entries: usize = 0
+    loop {
+        let step = await archive.next(&+tar, &+gzip, &+scratch) catch failure {
+            if failure.has_code("std.archive.invalid_tar") { return 11 }
+            if failure.has_code("std.compress.invalid_gzip") { return 12 }
+            return 13
+        }
+        match step {
+            TarStreamStep.entry {
+                let entry = tar.entry() otherwise { return 2 }
+                if entry.path() != "a.txt" || entry.size() != 6 { return 3 }
+                match entry.kind() {
+                    TarEntryKind.file {}
+                    _ { return 4 }
+                }
+                entries += 1
+            }
+            TarStreamStep.body(written) {
+                if written != 1 { return 5 }
+                body.push(scratch[0])
+            }
+            TarStreamStep.finished {
+                if entries != 1 || (&body as &[u8]) != "second".bytes() { return 6 }
+                return 0
+            }
+        }
+    }
+}

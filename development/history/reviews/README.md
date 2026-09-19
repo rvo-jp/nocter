@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.60.0 Phase 4 Transport-composition Review](v0.60.0-phase-4.md)
 - [Repository Documentation Authority Review after v0.59.0](repository-documentation-authority-after-v0.59.0.md)
 - [Repository Structure Review after v0.59.0](repository-structure-after-v0.59.0.md)
 - [v0.59.0 Phase 5 Integrity-Checked Record Review](v0.59.0-phase-5.md)
