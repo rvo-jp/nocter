@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.59.0 is published and externally audited. The corrected v0.60.0 replacement candidate is
-qualified after release-candidate review found complete decoded-byte accounting and an ARM64
-large-copy address-lifetime defect. The earlier candidate and its digest are superseded and must
-not be published. The completed implementation scope is recorded in
-[`v0.60.0: Streaming Compression and Safe Archives`](history/milestones/v0.60.0.md).
+Nocter v0.59.0 is published and externally audited. The corrected v0.60.0 Streaming Compression
+and Safe Archives candidate is qualified, publication is authorized, and public metadata now
+selects v0.60.0. The earlier candidate and its digest are superseded and must not be published.
+The retained replacement archive and measured identities are recorded in the release-preparation
+record.
 
 ## Next Work
 
-Publish only the retained qualified `dist/nocter-v0.60.0-arm64-darwin.tar.gz` from release-content
-commit `290960a0959769bb000f315f15271aff84463d33`. Do not rebuild it. After publication, verify the
-remote tag, release asset digest and size, archive layout, installed manifest, and fresh installed
-workflows before recording the publication audit.
+Commit this publication metadata, create annotated tag `v0.60.0`, fast-forward `main`, and publish
+the retained replacement archive as the release's single asset. Then audit the public tag, asset,
+latest-release endpoint, downloaded installed home, and source-identified Pages deployment. Do
+not rebuild or replace the qualified archive.
 
 Preserve the v0.59.0 tag, release asset, public notes, specification snapshot, and publication audit
 without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -22,8 +22,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No implementation or qualification blocker remains. Publication still requires explicit user
-authorization.
+No implementation, qualification, or authorization blocker remains.
 
 ## Non-negotiable Boundaries
 
