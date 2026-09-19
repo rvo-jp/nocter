@@ -40,10 +40,11 @@ standard library to qualify concurrent generic transfer and observation under on
 builds and runs the bounded asynchronous file report application, checks its exact recursively
 discovered file and byte counts, and proves that its recoverable missing-root path leaves neither
 final nor temporary output. It compiles and runs every declared integrity-checked binary-record
-test, builds the application, and compares its exact 46-byte output. The remaining gates include
-interactive LSP analysis of an initialized user package and installed standard-library contract,
-implementation, fixed and variable byte-codec, checksum, cursor, dynamic-storage, generated
-Unicode table, and Unicode casing sources. It also proves
+test, builds the application, and compares its exact 46-byte output. It also runs every declared
+bounded archive-inspection test through the installed compiler. The remaining gates include
+interactive LSP analysis of an initialized user package and installed standard-library contract
+and implementation sources for compression, archives, fixed and variable byte codecs, checksum,
+cursor, dynamic storage, generated Unicode data, and Unicode casing. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.
 Only after every check passes does it replace the generated candidate outputs in `dist/`.
