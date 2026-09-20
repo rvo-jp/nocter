@@ -567,6 +567,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::ProcessTerminationDescriptor | PrimitiveRole::ProcessTerminationObserve => {
+            make(0, vec![], syscall_result(), private, arm64_darwin, vec![])
+        }
         PrimitiveRole::DescriptorDuplicateCloseOnExec
         | PrimitiveRole::DescriptorStatusFlags
         | PrimitiveRole::DescriptorSuppressBrokenPipe

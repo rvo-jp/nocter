@@ -8,7 +8,8 @@ use crate::{
     Arm64AsyncPrimitiveTargets, Arm64DarwinFilePrimitiveError, Arm64DarwinFilePrimitiveTargets,
     Arm64DarwinNetworkPrimitiveAbis, Arm64DarwinNetworkPrimitiveError,
     Arm64DarwinNetworkPrimitiveTargets, Arm64DarwinProcessServiceError,
-    Arm64DarwinProcessServiceTargets, Arm64ProgramBuilder,
+    Arm64DarwinProcessServiceTargets, Arm64DarwinTerminationError, Arm64DarwinTerminationTargets,
+    Arm64ProgramBuilder,
 };
 
 /// Every native helper family required by one machine program.
@@ -21,6 +22,7 @@ pub(crate) struct Arm64PrimitiveTargets {
     file: Option<Arm64DarwinFilePrimitiveTargets>,
     network: Option<Arm64DarwinNetworkPrimitiveTargets>,
     process: Option<Arm64DarwinProcessServiceTargets>,
+    termination: Option<Arm64DarwinTerminationTargets>,
 }
 
 impl Arm64PrimitiveTargets {
@@ -72,6 +74,7 @@ impl Arm64PrimitiveTargets {
                 builder,
             )?,
             process: Arm64DarwinProcessServiceTargets::declare(&roles, builder)?,
+            termination: Arm64DarwinTerminationTargets::declare(&roles, builder)?,
         })
     }
 
@@ -91,11 +94,19 @@ impl Arm64PrimitiveTargets {
         self.process
     }
 
+    pub(crate) const fn termination(self) -> Option<Arm64DarwinTerminationTargets> {
+        self.termination
+    }
+
     /// Returns target-service finalizers in their fixed process-exit order.
     pub(crate) fn process_finalizers(self) -> impl Iterator<Item = crate::Arm64FunctionId> {
-        [self.file.map(|file| file.root().shutdown())]
-            .into_iter()
-            .flatten()
+        [
+            self.file.map(|file| file.root().shutdown()),
+            self.termination
+                .map(Arm64DarwinTerminationTargets::finalize),
+        ]
+        .into_iter()
+        .flatten()
     }
 }
 
@@ -105,6 +116,7 @@ pub enum Arm64PrimitiveTargetError {
     File(Arm64DarwinFilePrimitiveError),
     Network(Arm64DarwinNetworkPrimitiveError),
     Process(Arm64DarwinProcessServiceError),
+    Termination(Arm64DarwinTerminationError),
 }
 
 impl fmt::Display for Arm64PrimitiveTargetError {
@@ -122,6 +134,7 @@ impl std::error::Error for Arm64PrimitiveTargetError {
             Self::File(error) => Some(error),
             Self::Network(error) => Some(error),
             Self::Process(error) => Some(error),
+            Self::Termination(error) => Some(error),
         }
     }
 }
@@ -141,5 +154,11 @@ impl From<Arm64DarwinNetworkPrimitiveError> for Arm64PrimitiveTargetError {
 impl From<Arm64DarwinProcessServiceError> for Arm64PrimitiveTargetError {
     fn from(error: Arm64DarwinProcessServiceError) -> Self {
         Self::Process(error)
+    }
+}
+
+impl From<Arm64DarwinTerminationError> for Arm64PrimitiveTargetError {
+    fn from(error: Arm64DarwinTerminationError) -> Self {
+        Self::Termination(error)
     }
 }

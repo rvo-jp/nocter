@@ -47,6 +47,10 @@ source, loader commands, or package state.
   neither derives a loader symbol nor encodes a dylib command.
 - Imported calls use the same preplanned scalar transport as other runtime calls, then load and
   branch through the machine import identity's pointer slot.
+- Compiler-generated helpers treat allocation and process context registers as volatile across a
+  foreign ABI call. A helper that consumes either context afterward must retain or reload it from
+  owned frame state before dereferencing it; loader functions are never assumed to preserve the
+  Nocter-only context lanes.
 - Darwin native blocks use one runtime-owned layout schema and typed descriptor identity. The
   admitted materializer creates only a one-pointer, non-owning capture record; callers cannot pair
   an arbitrary data object or capture count with that record.

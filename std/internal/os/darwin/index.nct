@@ -4,6 +4,7 @@ use /internal/os.{OSError, OSErrorKind, Platform}
 see ./implementation.nct
 see ./resolver.nct
 see ./descriptor.nct
+see ./termination.nct
 
 #target: "arm64-darwin"
 pub(/) copy struct SyscallResult {
@@ -72,6 +73,24 @@ pub(/) enum DescriptorWriteAttempt {
     failed(errno: i32)
     malformed
 }
+
+/// Classified progress from the process-owned termination event source.
+#target: "arm64-darwin"
+pub(/) enum TerminationObservationAttempt {
+    ready(signal: usize)
+    pending
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+/// Opens or returns the process-owned termination event descriptor.
+#target: "arm64-darwin"
+pub(/) noalloc func process_termination_descriptor(): SyscallResult
+
+/// Performs one nonblocking termination observation.
+#target: "arm64-darwin"
+pub(/) noalloc func try_observe_process_termination(): TerminationObservationAttempt
 
 /// Creates one close-on-exec descriptor pair or closes every partially created descriptor.
 #target: "arm64-darwin"

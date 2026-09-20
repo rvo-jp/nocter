@@ -17,6 +17,7 @@ pub struct DarwinEventAbiSchema {
     read_filter: i16,
     write_filter: i16,
     process_filter: i16,
+    signal_filter: i16,
     add_flag: u16,
     delete_flag: u16,
     one_shot_flag: u16,
@@ -42,6 +43,7 @@ impl DarwinEventAbiSchema {
         read_filter: -1,
         write_filter: -2,
         process_filter: -5,
+        signal_filter: -6,
         add_flag: 0x0001,
         delete_flag: 0x0002,
         one_shot_flag: 0x0010,
@@ -115,6 +117,11 @@ impl DarwinEventAbiSchema {
     }
 
     #[must_use]
+    pub const fn signal_filter(self) -> i16 {
+        self.signal_filter
+    }
+
+    #[must_use]
     pub const fn add_flag(self) -> u16 {
         self.add_flag
     }
@@ -166,6 +173,7 @@ mod tests {
         assert_ne!(schema.read_filter(), schema.write_filter());
         assert_ne!(schema.read_filter(), schema.process_filter());
         assert_ne!(schema.write_filter(), schema.process_filter());
+        assert_ne!(schema.signal_filter(), schema.process_filter());
         assert_eq!(schema.add_flag() & schema.delete_flag(), 0);
         assert_eq!(schema.add_flag() & schema.one_shot_flag(), 0);
         assert_eq!(schema.error_flag() & schema.one_shot_flag(), 0);

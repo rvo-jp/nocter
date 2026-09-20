@@ -18,6 +18,7 @@ mod darwin_network_import;
 mod darwin_network_operation;
 mod darwin_network_owner;
 mod darwin_process_import;
+mod darwin_termination_import;
 mod darwin_tls;
 mod darwin_tls_import;
 mod environment;
@@ -72,6 +73,7 @@ pub use darwin_network_owner::{
     DarwinNetworkOwnerResourceFamily,
 };
 pub use darwin_process_import::DarwinProcessServiceFunction;
+pub use darwin_termination_import::DarwinTerminationFunction;
 pub use darwin_tls::{
     DarwinTlsCallbackRole, DarwinTlsConfigurationAbiSchema, DarwinTlsTrustAnchorAbiSchema,
 };

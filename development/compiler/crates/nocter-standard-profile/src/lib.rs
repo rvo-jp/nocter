@@ -237,6 +237,14 @@ pub const fn bundled_primitive_source_location(
         Role::MemoryUnmap => (&["mem"], "unmap_pages_raw"),
         Role::DescriptorClose => (&["internal", "os", "darwin"], "close_descriptor"),
         Role::DescriptorPipeCreate => (&["internal", "os", "darwin"], "create_pipe_raw"),
+        Role::ProcessTerminationDescriptor => (
+            &["internal", "os", "darwin"],
+            "process_termination_descriptor_raw",
+        ),
+        Role::ProcessTerminationObserve => (
+            &["internal", "os", "darwin"],
+            "process_termination_observe_raw",
+        ),
         Role::DescriptorDuplicateCloseOnExec => {
             (&["internal", "os", "darwin"], "duplicate_cloexec_raw")
         }

@@ -24,6 +24,7 @@ mod network_and_tls;
 mod random;
 mod recoverable_and_collections;
 mod recovery_and_targets;
+mod service;
 mod standard_and_process;
 mod text_and_filesystem;
 

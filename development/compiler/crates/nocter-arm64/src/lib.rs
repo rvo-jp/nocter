@@ -70,6 +70,7 @@ mod darwin_network_owner_event;
 mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
 mod darwin_process_service;
+mod darwin_termination_service;
 mod darwin_timeout_code;
 mod darwin_tls_adapter;
 mod darwin_tls_callback;
@@ -232,6 +233,7 @@ pub use darwin_network_primitive_targets::{
 pub use darwin_process_service::{
     Arm64DarwinProcessServiceError, Arm64DarwinProcessServiceTargets,
 };
+pub use darwin_termination_service::{Arm64DarwinTerminationError, Arm64DarwinTerminationTargets};
 pub use darwin_tls_adapter::Arm64DarwinTlsAdapterImports;
 pub use darwin_tls_callback::{Arm64DarwinTlsCallbackError, add_darwin_tls_configuration_callback};
 pub use darwin_tls_connection::{

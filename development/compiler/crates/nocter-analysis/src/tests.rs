@@ -1704,6 +1704,48 @@ fn associative_collection_misuse_is_reported_at_the_public_source_operation() {
     );
 }
 
+#[test]
+fn service_scope_contract_composes_admission_cancellation_and_joining() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        concat!(
+            "use std/service.{ServiceAdmission, ServiceCompletion, ServiceScope}\n",
+            "use std/service\n",
+            "use std/sync.CancellationToken\n",
+            "async func worker(token: CancellationToken): void! {\n",
+            "    await token.cancelled()\n",
+            "    return\n",
+            "}\n",
+            "async func observe_termination(): void! {\n",
+            "    let _ = await service.termination_requested()?\n",
+            "    return\n",
+            "}\n",
+            "async func serve(): void! {\n",
+            "    var scope = ServiceScope.new()?\n",
+            "    let token = scope.token()\n",
+            "    match scope.add(worker(move token)) {\n",
+            "        ServiceAdmission.accepted {}\n",
+            "        ServiceAdmission.stopped(_) { return error.new(\"test\", \"stopped\") }\n",
+            "    }\n",
+            "    match await scope.shutdown() {\n",
+            "        ServiceCompletion.completed {}\n",
+            "        ServiceCompletion.failed(failure) { return move failure }\n",
+            "    }\n",
+            "    return\n",
+            "}\n",
+        ),
+        GenerationId::new(63),
+    );
+
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "service scope diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+}
+
 fn declared_bundled_snapshot(tree: &TempTree, generation: GenerationId) -> AnalysisSnapshot {
     let package = PackageIdentity::new("workspace:app");
     let standard = PackageIdentity::new("toolchain:std");

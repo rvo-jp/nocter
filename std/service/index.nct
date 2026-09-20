@@ -1,0 +1,67 @@
+//! Structured ownership and shutdown for long-running services.
+
+use /sync.CancellationToken
+
+see ./scope.nct
+see ./termination_darwin.nct
+
+/// One structured owner of service child computations and their shared cancellation request.
+///
+/// A scope accepts work until `stop` or `shutdown` begins. Every accepted computation is retained
+/// until its outcome is observed, and destroying the scope cancels every computation still owned
+/// by it.
+pub struct ServiceScope
+
+/// The result of offering one computation to a service scope.
+pub enum ServiceAdmission {
+    accepted
+    stopped(computation: future void!)
+}
+
+/// One observed service computation outcome.
+pub enum ServiceCompletion {
+    completed
+    failed(failure: error)
+}
+
+/// One process termination request observed from the host operating system.
+pub enum TerminationSignal {
+    interrupt
+    terminate
+}
+
+/// Waits for the first process termination request without blocking the executor.
+///
+/// The observation is process-wide and sticky. Concurrent callers share one compiler-owned event
+/// source and receive the same first request.
+pub async func termination_requested(): TerminationSignal!
+
+construct ServiceScope {
+    /// Creates an accepting scope with a fresh cancellation domain.
+    pub func new(): Self!
+}
+
+instance ServiceScope {
+    /// Creates a cancellation observer for work admitted to this scope.
+    pub noalloc method &self.token(): CancellationToken
+
+    /// Reports whether this scope still accepts new work.
+    pub noalloc method &self.is_accepting(): bool
+
+    /// Transfers one lazy computation into the scope, or returns it unchanged after stop.
+    pub method &+self.add(computation: future void!): ServiceAdmission
+
+    /// Stops admission and requests cancellation once.
+    pub method &+self.stop(): bool
+
+    /// Drives retained work and removes one completed outcome.
+    ///
+    /// Absence means that the scope owns no remaining child computations.
+    pub async method &+self.next(): ServiceCompletion?
+
+    /// Stops admission, requests cancellation, and joins every retained child.
+    ///
+    /// The first failed outcome is returned after every child has been observed. Later failures are
+    /// still joined but do not replace it.
+    pub async method &+self.shutdown(): ServiceCompletion
+}

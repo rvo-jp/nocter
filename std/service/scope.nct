@@ -1,0 +1,80 @@
+//! Service-scope state transitions over public task and cancellation contracts.
+
+see ./index.nct
+
+use /sync.{CancellationSource, CancellationToken}
+use /task.TaskGroup
+use /fixed.FixedVec
+
+struct ServiceScope {
+    cancellation: CancellationSource
+    tasks: TaskGroup<ServiceCompletion>
+    accepting: bool
+}
+
+async func observe_service_computation(computation: future void!): ServiceCompletion {
+    await computation catch failure {
+        return ServiceCompletion.failed(move failure)
+    }
+    return ServiceCompletion.completed
+}
+
+construct ServiceScope {
+    func new(): Self! {
+        return ServiceScope {
+            cancellation: CancellationSource.new()?,
+            tasks: TaskGroup<ServiceCompletion>.empty(),
+            accepting: true,
+        }
+    }
+}
+
+instance ServiceScope {
+    noalloc method &self.token(): CancellationToken {
+        return self.cancellation.token()
+    }
+
+    noalloc method &self.is_accepting(): bool {
+        return self.accepting
+    }
+
+    method &+self.add(computation: future void!): ServiceAdmission {
+        if !self.accepting {
+            return ServiceAdmission.stopped(move computation)
+        }
+        self.tasks.add(observe_service_computation(move computation))
+        return ServiceAdmission.accepted
+    }
+
+    method &+self.stop(): bool {
+        if !self.accepting { return false }
+        self.accepting = false
+        let _ = self.cancellation.cancel()
+        return true
+    }
+
+    async method &+self.next(): ServiceCompletion? {
+        return await self.tasks.next()
+    }
+
+    async method &+self.shutdown(): ServiceCompletion {
+        let _ = self.stop()
+        var failures: FixedVec<error, 1> = FixedVec.empty()
+        while !self.tasks.is_empty() {
+            let completion = await self.tasks.next() otherwise { break }
+            match move completion {
+                ServiceCompletion.completed {}
+                ServiceCompletion.failed(failure) {
+                    let _later_failure = failures.try_push(move failure)
+                }
+            }
+        }
+        let failure = failures.pop() otherwise { return ServiceCompletion.completed }
+        return ServiceCompletion.failed(move failure)
+    }
+}
+
+drop ServiceScope(&+self) {
+    let _ = self.stop()
+    return
+}

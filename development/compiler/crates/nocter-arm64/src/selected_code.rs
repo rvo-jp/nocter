@@ -576,6 +576,16 @@ pub(crate) fn emit_instruction(
             .process()
             .map(|targets| code.call(targets.abandon()))
             .ok_or(Arm64MaterializationError::MissingProcessPrimitiveTarget),
+        Arm64SelectedInstruction::CallDarwinTerminationDescriptor => context
+            .primitives
+            .termination()
+            .map(|targets| code.call(targets.descriptor()))
+            .ok_or(Arm64MaterializationError::MissingTerminationPrimitiveTarget),
+        Arm64SelectedInstruction::CallDarwinTerminationObserve => context
+            .primitives
+            .termination()
+            .map(|targets| code.call(targets.observe()))
+            .ok_or(Arm64MaterializationError::MissingTerminationPrimitiveTarget),
         Arm64SelectedInstruction::ExitProcess { status } => {
             crate::system_primitive_code::emit_exit(function, Some(status), code)
         }
@@ -1374,6 +1384,7 @@ pub enum Arm64MaterializationError {
     MissingNetworkPrimitiveTarget,
     MissingFilePrimitiveTarget,
     MissingProcessPrimitiveTarget,
+    MissingTerminationPrimitiveTarget,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),
 }

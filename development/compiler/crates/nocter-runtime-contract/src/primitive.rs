@@ -125,6 +125,10 @@ closed_role_enum! {
         /// Performs one write attempt on a descriptor whose owner proves nonblocking mode and
         /// broken-pipe signal suppression.
         DescriptorWrite,
+        /// Opens or returns the process-owned Darwin termination event descriptor.
+        ProcessTerminationDescriptor,
+        /// Performs one nonblocking observation of the process termination event source.
+        ProcessTerminationObserve,
         /// Opens one Darwin datagram socket for a selected logical address family.
         DatagramSocketOpen,
         /// Applies the compiler-owned nonblocking descriptor policy to one datagram socket.
@@ -398,6 +402,8 @@ impl PrimitiveRole {
             Self::DescriptorSuppressBrokenPipe => "descriptor_suppress_broken_pipe",
             Self::DescriptorRead => "descriptor_read",
             Self::DescriptorWrite => "descriptor_write",
+            Self::ProcessTerminationDescriptor => "process_termination_descriptor",
+            Self::ProcessTerminationObserve => "process_termination_observe",
             Self::DatagramSocketOpen => "datagram_socket_open",
             Self::DatagramSocketConfigure => "datagram_socket_configure",
             Self::DatagramBind => "datagram_bind",
@@ -963,6 +969,8 @@ mod tests {
         assert_eq!(
             process,
             vec![
+                PrimitiveRole::ProcessTerminationDescriptor,
+                PrimitiveRole::ProcessTerminationObserve,
                 PrimitiveRole::ProcessArgumentCount,
                 PrimitiveRole::ProcessArgument,
                 PrimitiveRole::ProcessEnvironmentCount,

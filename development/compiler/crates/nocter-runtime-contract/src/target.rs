@@ -85,6 +85,10 @@ pub struct RuntimeProcessContextAbiSchema {
     environment_vector_offset: u64,
     environment_count_offset: u64,
     blocking_service_pointer_offset: u64,
+    termination_descriptor_offset: u64,
+    termination_interrupt_handler_offset: u64,
+    termination_terminate_handler_offset: u64,
+    termination_observed_signal_offset: u64,
     size: u64,
     alignment: u64,
 }
@@ -203,7 +207,11 @@ impl RuntimeAbiIdentity {
                     environment_vector_offset: 16,
                     environment_count_offset: 24,
                     blocking_service_pointer_offset: 32,
-                    size: 40,
+                    termination_descriptor_offset: 40,
+                    termination_interrupt_handler_offset: 48,
+                    termination_terminate_handler_offset: 56,
+                    termination_observed_signal_offset: 64,
+                    size: 72,
                     alignment: 8,
                 },
             },
@@ -336,6 +344,30 @@ impl RuntimeProcessContextAbiSchema {
     #[must_use]
     pub const fn blocking_service_pointer_offset(self) -> u64 {
         self.blocking_service_pointer_offset
+    }
+
+    /// Descriptor of the process-owned termination event queue, or the closed sentinel.
+    #[must_use]
+    pub const fn termination_descriptor_offset(self) -> u64 {
+        self.termination_descriptor_offset
+    }
+
+    /// Signal disposition replaced while observing interactive interruption.
+    #[must_use]
+    pub const fn termination_interrupt_handler_offset(self) -> u64 {
+        self.termination_interrupt_handler_offset
+    }
+
+    /// Signal disposition replaced while observing graceful termination.
+    #[must_use]
+    pub const fn termination_terminate_handler_offset(self) -> u64 {
+        self.termination_terminate_handler_offset
+    }
+
+    /// Sticky observed termination signal, or zero before an event is consumed.
+    #[must_use]
+    pub const fn termination_observed_signal_offset(self) -> u64 {
+        self.termination_observed_signal_offset
     }
 
     #[must_use]
@@ -777,7 +809,11 @@ mod tests {
         assert_eq!(process.environment_vector_offset(), 16);
         assert_eq!(process.environment_count_offset(), 24);
         assert_eq!(process.blocking_service_pointer_offset(), 32);
-        assert_eq!(process.size(), 40);
+        assert_eq!(process.termination_descriptor_offset(), 40);
+        assert_eq!(process.termination_interrupt_handler_offset(), 48);
+        assert_eq!(process.termination_terminate_handler_offset(), 56);
+        assert_eq!(process.termination_observed_signal_offset(), 64);
+        assert_eq!(process.size(), 72);
         assert_eq!(process.alignment(), 8);
     }
 

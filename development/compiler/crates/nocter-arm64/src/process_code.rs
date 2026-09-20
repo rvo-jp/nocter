@@ -43,6 +43,26 @@ pub(crate) fn emit_initialize(
         argument(0),
         checked_add(offset, layout.blocking_service_pointer_offset())?,
     );
+    load_immediate(argument(0), u64::MAX, code);
+    crate::frame_access::store_at_stack_offset(
+        code,
+        Arm64LoadStoreSize::Double,
+        argument(0),
+        checked_add(offset, layout.termination_descriptor_offset())?,
+    );
+    load_immediate(argument(0), 0, code);
+    for field in [
+        layout.termination_interrupt_handler_offset(),
+        layout.termination_terminate_handler_offset(),
+        layout.termination_observed_signal_offset(),
+    ] {
+        crate::frame_access::store_at_stack_offset(
+            code,
+            Arm64LoadStoreSize::Double,
+            argument(0),
+            checked_add(offset, field)?,
+        );
+    }
     crate::frame_access::form_stack_address(
         code,
         Arm64NocterAbi::process_context_register(),
