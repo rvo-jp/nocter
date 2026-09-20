@@ -2,15 +2,15 @@
 
 ## Current State
 
-Nocter v0.62.0 is published and externally audited. v0.63.0 implementation is complete and
-reviewed: one variable-length target entropy role feeds transactional byte filling, full-width and
-unbiased bounded integer generation, and allocation-free in-place shuffling through `std/random`.
+Nocter v0.62.0 is published and externally audited. v0.63.0 Cryptographic Randomness is
+implementation-complete and has entered release preparation. Release inputs now select v0.63.0;
+final clean-tree verification and deterministic artifact qualification remain.
 
 ## Next Work
 
-Prepare v0.63.0 for release. Update the version authorities and release-facing records, build and
-verify a disposable archive, then stop before publication unless publication is explicitly
-requested.
+Commit the v0.63.0 release-content inputs, rerun the complete disposable compiler gate, and run
+clean-tree double-generation qualification. Record the exact retained candidate before publishing
+the explicitly authorized release.
 
 Preserve the v0.62.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -19,7 +19,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for v0.62.0.
+No blocker remains for v0.63.0 release qualification.
 
 ## Non-negotiable Boundaries
 
