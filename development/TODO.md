@@ -2,15 +2,16 @@
 
 ## Current State
 
-Nocter v0.62.0 is published and externally audited. v0.63.0 Cryptographic Randomness is
-implementation-complete, fully verified, and deterministically qualified. The exact retained
-archive is ready for the explicitly authorized publication.
+Nocter v0.62.0 is published and externally audited. The exact v0.63.0 Cryptographic Randomness
+candidate passed the complete compiler gate and formal double-generation qualification.
+Publication is authorized, and public metadata now selects v0.63.0.
 
 ## Next Work
 
-Commit the v0.63.0 qualification evidence, update publication metadata, and publish the exact
-retained archive without rebuilding it. Audit the remote tag, release asset, latest endpoint,
-downloaded installed home, workflows, and source-identified Pages deployment afterward.
+Commit this publication metadata, create annotated tag `v0.63.0`, fast-forward `main`, and publish
+the exact retained candidate as the release's single asset without rebuilding it. Then audit the
+public tag, asset, latest-release endpoint, downloaded installed home, workflows, and
+source-identified Pages deployment.
 
 Preserve the v0.62.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -19,7 +20,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for v0.63.0 publication.
+No implementation, qualification, or authorization blocker remains.
 
 ## Non-negotiable Boundaries
 
