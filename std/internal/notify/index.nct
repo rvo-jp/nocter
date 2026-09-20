@@ -1,0 +1,45 @@
+//! Package-internal readiness notification over one nonblocking descriptor pair.
+//!
+//! Notification bytes are wake hints only. Consumers retain their semantic state separately and
+//! recheck it after every wake.
+
+see ./darwin.nct
+see ./shared.nct
+
+/// Unique ownership of one readiness notification descriptor pair.
+pub(/) struct Notification
+
+/// One clonable package-internal handle to a readiness notification.
+pub(/) struct NotificationHandle
+
+construct Notification {
+    /// Creates and configures both nonblocking endpoints.
+    pub(/) noalloc func new(): Self!
+}
+
+instance Notification {
+    /// Returns the descriptor used only with `wait` while this owner remains live.
+    pub(/) noalloc method &self.wait_descriptor(): usize
+
+    /// Adds a wake hint. A full pipe already represents a pending wake and is successful.
+    pub(/) noalloc method &self.signal(): void!
+
+    /// Adds a wake hint from an infallible cleanup path.
+    pub(/) noalloc method &self.signal_best_effort(): void
+}
+
+construct NotificationHandle {
+    /// Creates one shared handle and its underlying descriptor pair.
+    pub(/) func new(): Self!
+}
+
+instance NotificationHandle {
+    /// Creates another owner of the same notification without allocating.
+    pub(/) noalloc method &self.share(): Self
+
+    /// Adds one best-effort wake hint.
+    pub(/) method &self.signal_best_effort(): void
+
+    /// Waits for and consumes at most one wake hint.
+    pub(/) async method &self.wait(): void!
+}

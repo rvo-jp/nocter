@@ -85,7 +85,8 @@ pub(crate) fn select(
         | PrimitiveRole::CopyPointerToPointer
         | PrimitiveRole::StoreByteToPointer
         | PrimitiveRole::StoreValueToPointer
-        | PrimitiveRole::TakeValueAtPointer => {
+        | PrimitiveRole::TakeValueAtPointer
+        | PrimitiveRole::TakeValueAtPointerFromOwner => {
             super::primitive_memory_selection::select(program, operation, target, selected)
         }
         PrimitiveRole::DropValueAtPointer => select_noop_destruction(operation, target),

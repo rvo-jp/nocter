@@ -99,7 +99,7 @@ noalloc func write_launch_failure_and_exit(
     let address = ptr.addr(ptr.from_ref(&payload))
     var offset: usize = 0
     while offset < LAUNCH_REPORT_BYTES {
-        let result = write_pipe_descriptor(
+        let result = darwin.write_descriptor_raw(
             pipe_write_fd(report),
             address + offset,
             LAUNCH_REPORT_BYTES - offset,
@@ -152,7 +152,7 @@ noalloc func try_read_launch_report(
 ): LaunchReportReadAttempt {
     let remaining = LAUNCH_REPORT_BYTES - offset
     return classify_launch_report_read(
-        read_pipe_descriptor(
+        darwin.read_descriptor_raw(
             pipe_read_fd(report),
             ptr.addr(ptr.from_ref_mut(payload)) + offset,
             remaining,

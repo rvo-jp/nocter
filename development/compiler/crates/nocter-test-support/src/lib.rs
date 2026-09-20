@@ -184,6 +184,11 @@ pub(/) noalloc primitive func store_u8_to_ptr(destination: *u8, offset: usize, v
 pub(/) noalloc primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
 pub(/) noalloc primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+pub(/) noalloc primitive func take_value_at_ptr_from_owner<T, O>(
+    pointer: *T,
+    offset: usize,
+    owner: &O,
+): T from owner
 pub(/) noalloc func replace_value<T>(place: &+T, replacement: T): T {
     let pointer = ptr.from_ref_mut(place)
     let previous = take_value_at_ptr(pointer, 0)
@@ -223,6 +228,13 @@ pub func drop_value_at_ptr_for_test<T>(pointer: *T, offset: usize): void {
 }
 pub func take_u64_at_ptr_for_test(pointer: *u64, offset: usize): u64 {
     return take_value_at_ptr(pointer, offset)
+}
+pub func take_u64_at_ptr_from_owner_for_test<O>(
+    pointer: *u64,
+    offset: usize,
+    owner: &O,
+): u64 {
+    return take_value_at_ptr_from_owner(pointer, offset, owner)
 }
 pub func take_three_u64_at_ptr_for_test(pointer: *[u64; 3], offset: usize): [u64; 3] {
     return take_value_at_ptr(pointer, offset)
@@ -352,16 +364,6 @@ use /internal/os/darwin.{SyscallPairResult, SyscallResult}
 #target: \"arm64-darwin\"
 noalloc primitive func exit_raw(code: i32): never
 #target: \"arm64-darwin\"
-noalloc primitive func create_pipe_raw(): SyscallPairResult
-#target: \"arm64-darwin\"
-noalloc primitive func duplicate_cloexec_raw(fd: usize): SyscallResult
-#target: \"arm64-darwin\"
-noalloc primitive func descriptor_status_flags_raw(fd: usize): SyscallResult
-#target: \"arm64-darwin\"
-noalloc primitive func set_descriptor_status_flags_raw(fd: usize, flags: usize): SyscallResult
-#target: \"arm64-darwin\"
-noalloc primitive func suppress_broken_pipe_raw(fd: usize): SyscallResult
-#target: \"arm64-darwin\"
 noalloc primitive func fork_process_raw(): SyscallPairResult
 #target: \"arm64-darwin\"
 noalloc primitive func open_null_raw(address: usize, writable: usize): SyscallResult
@@ -379,10 +381,6 @@ noalloc primitive func observe_process_raw(pid: usize, status: *i32): SyscallRes
 noalloc primitive func terminate_process_raw(pid: usize): SyscallResult
 #target: \"arm64-darwin\"
 noalloc primitive func kill_process_raw(pid: usize): SyscallResult
-#target: \"arm64-darwin\"
-noalloc primitive func read_pipe_descriptor(fd: usize, address: usize, capacity: usize): SyscallResult
-#target: \"arm64-darwin\"
-noalloc primitive func write_pipe_descriptor(fd: usize, address: usize, length: usize): SyscallResult
 #target: \"arm64-darwin\"
 primitive func arg_count_raw(): usize
 #target: \"arm64-darwin\"
@@ -717,6 +715,20 @@ pub(/) copy struct SyscallPairResult {
 }
 #target: \"arm64-darwin\"
 pub(/) noalloc primitive func close_descriptor(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func create_pipe_raw(): SyscallPairResult
+#target: \"arm64-darwin\"
+noalloc primitive func duplicate_cloexec_raw(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func descriptor_status_flags_raw(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func set_descriptor_status_flags_raw(fd: usize, flags: usize): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func suppress_broken_pipe_raw(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func read_descriptor_raw(fd: usize, address: usize, capacity: usize): SyscallResult
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func write_descriptor_raw(fd: usize, address: usize, length: usize): SyscallResult
 #target: \"arm64-darwin\"
 blocking primitive func syscall0(number: usize): SyscallResult
 #target: \"arm64-darwin\"

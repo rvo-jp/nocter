@@ -500,6 +500,131 @@ fn bundled_standard_noalloc_contract_is_usable_from_an_application() {
 }
 
 #[test]
+fn cooperative_mutex_contract_is_usable_from_an_application() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        concat!(
+            "use std/sync.Mutex\n",
+            "struct Counter { value: i32 }\n",
+            "async func increment(): i32! {\n",
+            "    var value = Mutex<Counter>.new(Counter { value: 41 })?\n",
+            "    let guard = await value.lock()\n",
+            "    return 42\n",
+            "}\n",
+        ),
+        GenerationId::new(75),
+    );
+
+    let diagnostic_sources = snapshot
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            let source = snapshot
+                .sources()
+                .get(diagnostic.primary().source())
+                .unwrap()
+                .name()
+                .as_str();
+            (
+                source,
+                diagnostic.code(),
+                diagnostic.message(),
+                diagnostic.primary().span().range(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "mutex fixture diagnostic sources: {diagnostic_sources:?}"
+    );
+}
+
+#[test]
+fn bounded_channel_contract_is_usable_from_an_application() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        concat!(
+            "use std/sync.{Channel, Receive, Send}\n",
+            "async func round_trip(): i32! {\n",
+            "    let channel = Channel<i32, 2>.bounded()?\n",
+            "    let endpoints = channel.split()\n",
+            "    let sender = move endpoints.0\n",
+            "    let receiver = move endpoints.1\n",
+            "    match await sender.send(42) {\n",
+            "        Send.sent {}\n",
+            "        Send.closed(_) { return error.new(\"test.closed\", \"receiver closed\") }\n",
+            "    }\n",
+            "    match await receiver.receive() {\n",
+            "        Receive.value(value) { return value }\n",
+            "        Receive.closed { return error.new(\"test.closed\", \"sender closed\") }\n",
+            "    }\n",
+            "}\n",
+        ),
+        GenerationId::new(76),
+    );
+
+    let diagnostic_sources = snapshot
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            let source = snapshot
+                .sources()
+                .get(diagnostic.primary().source())
+                .unwrap()
+                .name()
+                .as_str();
+            (source, diagnostic.code(), diagnostic.message())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "channel fixture diagnostic sources: {diagnostic_sources:?}"
+    );
+}
+
+#[test]
+fn cancellation_contract_is_usable_from_an_application() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        concat!(
+            "use std/sync.CancellationSource\n",
+            "async func observe(): bool! {\n",
+            "    let source = CancellationSource.new()?\n",
+            "    let token = source.token()\n",
+            "    let changed = source.cancel()\n",
+            "    await token.cancelled()\n",
+            "    return changed && token.is_cancelled()\n",
+            "}\n",
+        ),
+        GenerationId::new(77),
+    );
+
+    let diagnostic_sources = snapshot
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            let source = snapshot
+                .sources()
+                .get(diagnostic.primary().source())
+                .unwrap()
+                .name()
+                .as_str();
+            (source, diagnostic.code(), diagnostic.message())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "cancellation fixture diagnostic sources: {diagnostic_sources:?}"
+    );
+}
+
+#[test]
 fn blocking_callable_contract_is_presented_from_semantic_authority() {
     let tree = TempTree::new();
     let source_text = "pub noalloc blocking func wait(): void { return }\n";

@@ -3,6 +3,7 @@
 use /internal/os.{OSError, OSErrorKind, Platform}
 see ./implementation.nct
 see ./resolver.nct
+see ./descriptor.nct
 
 #target: "arm64-darwin"
 pub(/) copy struct SyscallResult {
@@ -21,6 +22,96 @@ pub(/) copy struct SyscallPairResult {
 /// Closes one descriptor through the target-owned Darwin ABI boundary.
 #target: "arm64-darwin"
 pub(/) noalloc primitive func close_descriptor(fd: usize): SyscallResult
+
+/// Reads once from a descriptor whose owner established its blocking policy.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func read_descriptor_raw(
+    fd: usize,
+    address: usize,
+    capacity: usize,
+): SyscallResult
+
+/// Writes once to a descriptor whose owner established its blocking and signal policy.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func write_descriptor_raw(
+    fd: usize,
+    address: usize,
+    length: usize,
+): SyscallResult
+
+/// Result of creating one normalized close-on-exec descriptor pipe.
+#target: "arm64-darwin"
+pub(/) enum DescriptorPairAttempt {
+    ready(read_fd: usize, write_fd: usize)
+    failed(errno: i32)
+}
+
+/// Result of configuring one descriptor for an owning adapter.
+#target: "arm64-darwin"
+pub(/) enum DescriptorConfigurationAttempt {
+    ready
+    failed(errno: i32)
+}
+
+/// Classified progress from one nonblocking descriptor read.
+#target: "arm64-darwin"
+pub(/) enum DescriptorReadAttempt {
+    ready(count: usize)
+    would_block
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+/// Classified progress from one nonblocking descriptor write.
+#target: "arm64-darwin"
+pub(/) enum DescriptorWriteAttempt {
+    ready(count: usize)
+    would_block
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+/// Creates one close-on-exec descriptor pair or closes every partially created descriptor.
+#target: "arm64-darwin"
+pub(/) noalloc func create_cloexec_descriptor_pipe(): DescriptorPairAttempt
+
+/// Duplicates one descriptor into the private close-on-exec range, retrying interruption.
+#target: "arm64-darwin"
+pub(/) noalloc func duplicate_cloexec_descriptor(fd: usize): SyscallResult
+
+/// Closes one descriptor exactly once; close failures are intentionally not retried.
+#target: "arm64-darwin"
+pub(/) noalloc func close_descriptor_once(fd: usize): void
+
+/// Enables nonblocking status while retaining every existing descriptor flag.
+#target: "arm64-darwin"
+pub(/) noalloc func configure_descriptor_nonblocking(
+    fd: usize,
+): DescriptorConfigurationAttempt
+
+/// Suppresses broken-pipe process termination and enables nonblocking writes.
+#target: "arm64-darwin"
+pub(/) noalloc func configure_notification_writer(
+    fd: usize,
+): DescriptorConfigurationAttempt
+
+/// Reads once and validates progress against the supplied capacity.
+#target: "arm64-darwin"
+pub(/) noalloc func try_read_descriptor(
+    fd: usize,
+    address: usize,
+    capacity: usize,
+): DescriptorReadAttempt
+
+/// Writes once and validates progress against the supplied available length.
+#target: "arm64-darwin"
+pub(/) noalloc func try_write_descriptor(
+    fd: usize,
+    address: usize,
+    available: usize,
+): DescriptorWriteAttempt
 
 #target: "arm64-darwin"
 pub(/) copy struct Errno {

@@ -1,0 +1,227 @@
+//! Fixed-capacity channel state, endpoint ownership, and asynchronous backpressure.
+
+see ./index.nct
+
+use /internal/notify.NotificationHandle
+use /internal/ptr as internal_ptr
+use /internal/safety
+use /internal/shared.SharedCell
+use /ptr
+
+struct Channel<T, const N: usize> {
+    sender: Sender<T, N>
+    receiver: Receiver<T, N>
+}
+
+struct ChannelState<T, const N: usize> {
+    slots: [T?; N]
+    head: usize
+    len: usize
+    sender_count: usize
+    receiver_count: usize
+}
+
+struct Sender<T, const N: usize> {
+    state: SharedCell<ChannelState<T, N>>
+    readable: NotificationHandle
+    writable: NotificationHandle
+}
+
+struct Receiver<T, const N: usize> {
+    state: SharedCell<ChannelState<T, N>>
+    readable: NotificationHandle
+    writable: NotificationHandle
+}
+
+func invalid_channel_capacity(): error {
+    return error.new("std.sync.invalid_capacity", "channel capacity must be greater than zero")
+}
+
+instance ChannelState<T, N> {
+    method &+self.enqueue(value: T): void {
+        if self.len >= N { return safety.invariant_abort() }
+        let index = (self.head + self.len) % N
+        let initialized: T? = move value
+        let slot = ptr.from_ref_mut(&+self.slots[index])
+        let previous: T? = internal_ptr.take_value_at_ptr(slot, 0)
+        internal_ptr.store_value_to_ptr(slot, 0, move initialized)
+        let _unexpected = move previous otherwise {
+            self.len += 1
+            return
+        }
+        return safety.invariant_abort()
+    }
+
+    method &+self.dequeue<O>(owner: &O): T? from owner {
+        if self.len == 0 { return none }
+        let index = self.head
+        let slot = ptr.from_ref_mut(&+self.slots[index])
+        let previous: T? = internal_ptr.take_value_at_ptr_from_owner(slot, 0, owner)
+        internal_ptr.store_value_to_ptr(slot, 0, none)
+        self.head = (self.head + 1) % N
+        self.len -= 1
+        return move previous?
+    }
+}
+
+construct Channel<T, N> {
+    func bounded(): Self! {
+        if N == 0 { return invalid_channel_capacity() }
+
+        let readable = NotificationHandle.new()?
+        let writable = NotificationHandle.new()?
+
+        let state = SharedCell<ChannelState<T, N>>.new(ChannelState<T, N> {
+            slots: [none; N],
+            head: 0,
+            len: 0,
+            sender_count: 1,
+            receiver_count: 1,
+        })
+
+        let receiver = Receiver<T, N> {
+            state: state.share(),
+            readable: readable.share(),
+            writable: writable.share(),
+        }
+        let sender = Sender<T, N> {
+            state: move state,
+            readable: move readable,
+            writable: move writable,
+        }
+        return Channel<T, N> {
+            sender: move sender,
+            receiver: move receiver,
+        }
+    }
+}
+
+instance Channel<T, N> {
+    noalloc method self.split(): (Sender<T, N>, Receiver<T, N>) {
+        return (move self.sender, move self.receiver)
+    }
+}
+
+instance Sender<T, N> {
+    method &self.share(): Self {
+        var state = self.state.try_write() otherwise {
+            return safety.invariant_abort()
+        }
+        let writable = state.write()
+        writable.sender_count += 1
+        state.unlock()
+        return Sender<T, N> {
+            state: self.state.share(),
+            readable: self.readable.share(),
+            writable: self.writable.share(),
+        }
+    }
+
+    method &self.try_send(value: T from self): TrySend<T> from self {
+        var state = self.state.try_write() otherwise {
+            return safety.invariant_abort()
+        }
+        if state.read().receiver_count == 0 {
+            state.unlock()
+            return TrySend.closed(move value)
+        }
+        if state.read().len == N {
+            state.unlock()
+            return TrySend.full(move value)
+        }
+        let writable = state.write()
+        writable.enqueue(move value)
+        state.unlock()
+        self.readable.signal_best_effort()
+        return TrySend.sent
+    }
+
+    async method &self.send(value: T from self): Send<T> from self {
+        var pending = move value
+        loop {
+            match self.try_send(move pending) {
+                TrySend.sent { return Send.sent }
+                TrySend.closed(unsent) { return Send.closed(move unsent) }
+                TrySend.full(unsent) {
+                    pending = move unsent
+                    await self.writable.wait() catch _ {
+                        return safety.invariant_abort()
+                    }
+                }
+            }
+        }
+    }
+}
+
+instance Receiver<T, N> {
+    method &self.share(): Self {
+        var state = self.state.try_write() otherwise {
+            return safety.invariant_abort()
+        }
+        let writable = state.write()
+        writable.receiver_count += 1
+        state.unlock()
+        return Receiver<T, N> {
+            state: self.state.share(),
+            readable: self.readable.share(),
+            writable: self.writable.share(),
+        }
+    }
+
+    method &self.try_receive(): TryReceive<T> from self {
+        var state = self.state.try_write() otherwise {
+            return safety.invariant_abort()
+        }
+        let writable = state.write()
+        let value = writable.dequeue(self)
+        let received = move value otherwise {
+            let closed = state.read().sender_count == 0
+            state.unlock()
+            if closed { return TryReceive.closed }
+            return TryReceive.empty
+        }
+        state.unlock()
+        self.writable.signal_best_effort()
+        return TryReceive.value(move received)
+    }
+
+    async method &self.receive(): Receive<T> from self {
+        loop {
+            match self.try_receive() {
+                TryReceive.value(value) { return Receive.value(move value) }
+                TryReceive.closed { return Receive.closed }
+                TryReceive.empty {
+                    await self.readable.wait() catch _ {
+                        return safety.invariant_abort()
+                    }
+                }
+            }
+        }
+    }
+}
+
+drop Sender<T, N>(&+self) {
+    var state = self.state.try_write() otherwise {
+        return safety.invariant_abort()
+    }
+    if state.read().sender_count == 0 { return safety.invariant_abort() }
+    let writable = state.write()
+    writable.sender_count -= 1
+    let closed = state.read().sender_count == 0
+    state.unlock()
+    if closed { self.readable.signal_best_effort() }
+    return
+}
+
+drop Receiver<T, N>(&+self) {
+    var state = self.state.try_write() otherwise {
+        return safety.invariant_abort()
+    }
+    if state.read().receiver_count == 0 { return safety.invariant_abort() }
+    let writable = state.write()
+    writable.receiver_count -= 1
+    let closed = state.read().receiver_count == 0
+    state.unlock()
+    if closed { self.writable.signal_best_effort() }
+    return
+}

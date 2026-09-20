@@ -1,0 +1,135 @@
+//! Shared ownership and cooperative asynchronous synchronization.
+//!
+//! Sync values coordinate tasks on Nocter's single-threaded executor. They do not promise atomic
+//! access from foreign threads or a future multithreaded executor.
+
+see ./mutex.nct
+see ./channel.nct
+see ./cancellation.nct
+
+/// The unique capability that requests cancellation and cancels on destruction.
+pub struct CancellationSource
+
+/// One clonable observer of a cancellation request.
+pub struct CancellationToken
+
+construct CancellationSource {
+    /// Creates one uncancelled source and its shared notification.
+    pub func new(): Self!
+}
+
+instance CancellationSource {
+    /// Creates an observer whose lifetime is independent of this source handle.
+    pub noalloc method &self.token(): CancellationToken
+
+    /// Requests cancellation once and reports whether this call changed the state.
+    pub method &self.cancel(): bool
+
+    /// Reports whether cancellation has been requested.
+    pub method &self.is_cancelled(): bool
+}
+
+instance CancellationToken {
+    /// Creates another observer without allocating.
+    pub noalloc method &self.share(): Self
+
+    /// Reports whether cancellation has been requested.
+    pub method &self.is_cancelled(): bool
+
+    /// Completes after cancellation without blocking the executor.
+    pub async method &self.cancelled(): void
+}
+
+/// A newly created bounded channel that has not yet been split into endpoints.
+pub struct Channel<T, const N: usize>
+
+/// One clonable sending endpoint for a bounded channel.
+pub struct Sender<T, const N: usize>
+
+/// One clonable receiving endpoint for a bounded channel.
+pub struct Receiver<T, const N: usize>
+
+/// Immediate outcome of a non-waiting send attempt.
+pub enum TrySend<T> {
+    sent
+    full(value: T)
+    closed(value: T)
+}
+
+/// Terminal outcome of an asynchronous send.
+pub enum Send<T> {
+    sent
+    closed(value: T)
+}
+
+/// Immediate outcome of a non-waiting receive attempt.
+pub enum TryReceive<T> {
+    value(value: T)
+    empty
+    closed
+}
+
+/// Terminal outcome of an asynchronous receive.
+pub enum Receive<T> {
+    value(value: T)
+    closed
+}
+
+construct Channel<T, N> {
+    /// Creates one bounded channel of positive capacity N.
+    pub func bounded(): Self!
+}
+
+instance Channel<T, N> {
+    /// Consumes this new channel and returns its initial sending and receiving endpoints.
+    pub noalloc method self.split(): (Sender<T, N>, Receiver<T, N>)
+}
+
+instance Sender<T, N> {
+    /// Creates another sender for the same channel without allocating.
+    pub method &self.share(): Self
+
+    /// Attempts one send without waiting and preserves the value on failure.
+    pub method &self.try_send(value: T from self): TrySend<T> from self
+
+    /// Waits for capacity without blocking the executor and preserves the value on closure.
+    pub async method &self.send(value: T from self): Send<T> from self
+}
+
+instance Receiver<T, N> {
+    /// Creates another receiver for the same channel without allocating.
+    pub method &self.share(): Self
+
+    /// Attempts one receive without waiting.
+    pub method &self.try_receive(): TryReceive<T> from self
+
+    /// Waits for a value without blocking the executor, or reports final sender closure.
+    pub async method &self.receive(): Receive<T> from self
+}
+
+/// One clonable owner of a value protected by cooperative mutual exclusion.
+pub struct Mutex<T>
+
+/// The sole mutable capability for one locked Mutex value.
+pub struct MutexGuard<T>
+
+construct Mutex<T> {
+    /// Moves a value into shared page-backed storage and creates its readiness notification.
+    pub func new(value: T): Self!
+}
+
+instance Mutex<T> {
+    /// Creates another owner of the same mutex without allocating.
+    pub noalloc method &self.share(): Self
+
+    /// Waits without blocking the executor and returns the sole mutable capability.
+    pub async method &self.lock(): MutexGuard<T>
+}
+
+instance MutexGuard<T> {
+    /// Borrows the protected value immutably for the lifetime of this guard.
+    pub noalloc coerce &self as &T
+
+    /// Borrows the protected value mutably for the lifetime of this guard.
+    pub noalloc coerce &+self as &+T
+}

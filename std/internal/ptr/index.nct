@@ -23,6 +23,15 @@ pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
 
 pub(/) noalloc primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
 
+/// Moves one initialized value whose retained storage is bounded by `owner`.
+///
+/// The caller must prove that the addressed slot belongs to storage represented by `owner`.
+pub(/) noalloc primitive func take_value_at_ptr_from_owner<T, O>(
+    pointer: *T,
+    offset: usize,
+    owner: &O,
+): T from owner
+
 /// Replaces one initialized value without exposing an uninitialized place to its caller.
 pub(/) noalloc func replace_value<T>(place: &+T, replacement: T): T
 

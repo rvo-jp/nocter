@@ -236,13 +236,22 @@ pub const fn bundled_primitive_source_location(
         Role::MemoryMap => (&["mem"], "map_pages_raw"),
         Role::MemoryUnmap => (&["mem"], "unmap_pages_raw"),
         Role::DescriptorClose => (&["internal", "os", "darwin"], "close_descriptor"),
-        Role::DescriptorPipeCreate => (&["process"], "create_pipe_raw"),
-        Role::DescriptorDuplicateCloseOnExec => (&["process"], "duplicate_cloexec_raw"),
-        Role::DescriptorStatusFlags => (&["process"], "descriptor_status_flags_raw"),
-        Role::DescriptorSetStatusFlags => (&["process"], "set_descriptor_status_flags_raw"),
-        Role::DescriptorSuppressBrokenPipe => (&["process"], "suppress_broken_pipe_raw"),
-        Role::DescriptorRead => (&["process"], "read_pipe_descriptor"),
-        Role::DescriptorWrite => (&["process"], "write_pipe_descriptor"),
+        Role::DescriptorPipeCreate => (&["internal", "os", "darwin"], "create_pipe_raw"),
+        Role::DescriptorDuplicateCloseOnExec => {
+            (&["internal", "os", "darwin"], "duplicate_cloexec_raw")
+        }
+        Role::DescriptorStatusFlags => {
+            (&["internal", "os", "darwin"], "descriptor_status_flags_raw")
+        }
+        Role::DescriptorSetStatusFlags => (
+            &["internal", "os", "darwin"],
+            "set_descriptor_status_flags_raw",
+        ),
+        Role::DescriptorSuppressBrokenPipe => {
+            (&["internal", "os", "darwin"], "suppress_broken_pipe_raw")
+        }
+        Role::DescriptorRead => (&["internal", "os", "darwin"], "read_descriptor_raw"),
+        Role::DescriptorWrite => (&["internal", "os", "darwin"], "write_descriptor_raw"),
         Role::DatagramSocketOpen => (DARWIN_NET, "datagram_socket_open_raw"),
         Role::DatagramSocketConfigure => (DARWIN_NET, "datagram_socket_configure_raw"),
         Role::DatagramBind => (DARWIN_NET, "datagram_bind_raw"),
@@ -266,6 +275,7 @@ pub const fn bundled_primitive_source_location(
         Role::StoreValueToPointer => (&["internal", "ptr"], "store_value_to_ptr"),
         Role::DropValueAtPointer => (&["internal", "ptr"], "drop_value_at_ptr"),
         Role::TakeValueAtPointer => (&["internal", "ptr"], "take_value_at_ptr"),
+        Role::TakeValueAtPointerFromOwner => (&["internal", "ptr"], "take_value_at_ptr_from_owner"),
         Role::StringFromRawParts => (&["internal", "ptr"], "str_from_raw_parts"),
         Role::ByteSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts"),
         Role::MutableByteSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts_mut"),

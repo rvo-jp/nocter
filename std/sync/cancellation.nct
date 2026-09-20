@@ -1,0 +1,118 @@
+//! Explicit cooperative cancellation state, observation, and wakeup ownership.
+
+see ./index.nct
+
+use /internal/notify.NotificationHandle
+use /internal/safety
+use /internal/shared.SharedCell
+
+struct CancellationState {
+    cancelled: bool
+}
+
+struct CancellationSource {
+    state: SharedCell<CancellationState>
+    notification: NotificationHandle
+}
+
+struct CancellationToken {
+    state: SharedCell<CancellationState>
+    notification: NotificationHandle
+}
+
+func cancellation_state(state: &SharedCell<CancellationState>): bool {
+    var access = state.try_write() otherwise {
+        return safety.invariant_abort()
+    }
+    let cancelled = access.read().cancelled
+    access.unlock()
+    return cancelled
+}
+
+func request_cancellation(
+    state: &SharedCell<CancellationState>,
+    notification: &NotificationHandle,
+): bool {
+    var access = state.try_write() otherwise {
+        return safety.invariant_abort()
+    }
+    if access.read().cancelled {
+        access.unlock()
+        return false
+    }
+    access.write().cancelled = true
+    access.unlock()
+    notification.signal_best_effort()
+    return true
+}
+
+construct CancellationSource {
+    func new(): Self! {
+        return CancellationSource {
+            state: SharedCell<CancellationState>.new(CancellationState { cancelled: false }),
+            notification: NotificationHandle.new()?,
+        }
+    }
+}
+
+instance CancellationSource {
+    noalloc method &self.token(): CancellationToken {
+        return CancellationToken {
+            state: self.state.share(),
+            notification: self.notification.share(),
+        }
+    }
+
+    method &self.cancel(): bool {
+        return request_cancellation(&self.state, &self.notification)
+    }
+
+    method &self.is_cancelled(): bool {
+        return cancellation_state(&self.state)
+    }
+}
+
+instance CancellationToken {
+    noalloc method &self.share(): Self {
+        return CancellationToken {
+            state: self.state.share(),
+            notification: self.notification.share(),
+        }
+    }
+
+    method &self.is_cancelled(): bool {
+        return cancellation_state(&self.state)
+    }
+
+    async method &self.cancelled(): void {
+        loop {
+            if cancellation_state(&self.state) { return }
+            await self.notification.wait() catch _ {
+                return safety.invariant_abort()
+            }
+        }
+    }
+}
+
+drop CancellationSource(&+self) {
+    let _ = request_cancellation(&self.state, &self.notification)
+    return
+}
+
+test cancellation_is_idempotent_and_shared {
+    let source = CancellationSource.new()?
+    let token = source.token()
+    if source.is_cancelled() || token.is_cancelled() {
+        return error.new("std.sync.test", "new cancellation state was already cancelled")
+    }
+    if !source.cancel() {
+        return error.new("std.sync.test", "first cancellation request was not observed")
+    }
+    if source.cancel() {
+        return error.new("std.sync.test", "cancellation changed state more than once")
+    }
+    if !token.is_cancelled() {
+        return error.new("std.sync.test", "shared token did not observe cancellation")
+    }
+    return
+}

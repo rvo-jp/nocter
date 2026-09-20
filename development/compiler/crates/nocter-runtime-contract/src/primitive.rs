@@ -159,6 +159,8 @@ closed_role_enum! {
         StoreValueToPointer,
         DropValueAtPointer,
         TakeValueAtPointer,
+        /// Moves a value from raw storage while preserving one explicit owner as its provenance.
+        TakeValueAtPointerFromOwner,
         StringFromRawParts,
         ByteSliceFromRawParts,
         MutableByteSliceFromRawParts,
@@ -419,6 +421,7 @@ impl PrimitiveRole {
             Self::StoreValueToPointer => "store_value_to_pointer",
             Self::DropValueAtPointer => "drop_value_at_pointer",
             Self::TakeValueAtPointer => "take_value_at_pointer",
+            Self::TakeValueAtPointerFromOwner => "take_value_at_pointer_from_owner",
             Self::StringFromRawParts => "string_from_raw_parts",
             Self::ByteSliceFromRawParts => "byte_slice_from_raw_parts",
             Self::MutableByteSliceFromRawParts => "mutable_byte_slice_from_raw_parts",

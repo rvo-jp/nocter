@@ -23,7 +23,7 @@ pub(super) fn select(
         PrimitiveRole::StoreValueToPointer => {
             select_value_store(program, operation, target, selected)
         }
-        PrimitiveRole::TakeValueAtPointer => {
+        PrimitiveRole::TakeValueAtPointer | PrimitiveRole::TakeValueAtPointerFromOwner => {
             select_value_take(program, operation, target, selected)
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
@@ -157,9 +157,13 @@ fn select_value_take(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let layout = value_layout(program, operation, target)?;
-    validate_common_abi(operation, target, 2)?;
+    let anchored = target.role() == PrimitiveRole::TakeValueAtPointerFromOwner;
+    validate_common_abi(operation, target, if anchored { 3 } else { 2 })?;
     require_register_argument(operation, target.abi().arguments()[0], 0, direct(1))?;
     require_register_argument(operation, target.abi().arguments()[1], 1, direct(1))?;
+    if anchored {
+        require_register_argument(operation, target.abi().arguments()[2], 2, direct(1))?;
+    }
     let result = match target.abi().result() {
         MachineResultAbi::Value(result) if result.ty() == target.type_arguments()[0] => result,
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
@@ -228,7 +232,12 @@ fn value_layout<'program>(
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
 ) -> Result<&'program MachineLayout, Arm64SelectionError> {
-    super::primitive_selection::validate_type_arguments(operation, target, 1)?;
+    let arguments = if target.role() == PrimitiveRole::TakeValueAtPointerFromOwner {
+        2
+    } else {
+        1
+    };
+    super::primitive_selection::validate_type_arguments(operation, target, arguments)?;
     program
         .layouts()
         .get(target.type_arguments()[0])

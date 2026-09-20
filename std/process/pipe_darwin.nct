@@ -5,8 +5,11 @@
 
 see ./index.nct
 
-use /internal/os/darwin.SyscallPairResult
-use /internal/os/darwin.SyscallResult
+use /internal/os/darwin.{
+    DescriptorConfigurationAttempt,
+    DescriptorPairAttempt,
+    SyscallResult,
+}
 use /internal/os/darwin
 
 #target: "arm64-darwin"
@@ -36,29 +39,6 @@ enum DescriptorInstallAttempt {
     invalid
 }
 
-/// Creates one raw pipe without exposing the target syscall identity.
-#target: "arm64-darwin"
-noalloc primitive func create_pipe_raw(): SyscallPairResult
-
-/// Duplicates one descriptor into the private close-on-exec range.
-#target: "arm64-darwin"
-noalloc primitive func duplicate_cloexec_raw(fd: usize): SyscallResult
-
-/// Reads one descriptor's current status flags.
-#target: "arm64-darwin"
-noalloc primitive func descriptor_status_flags_raw(fd: usize): SyscallResult
-
-/// Replaces one descriptor's status flags.
-#target: "arm64-darwin"
-noalloc primitive func set_descriptor_status_flags_raw(
-    fd: usize,
-    flags: usize,
-): SyscallResult
-
-/// Prevents a broken pipe from terminating the process while this descriptor is used.
-#target: "arm64-darwin"
-noalloc primitive func suppress_broken_pipe_raw(fd: usize): SyscallResult
-
 /// Installs one descriptor at an exact child-side destination.
 #target: "arm64-darwin"
 noalloc primitive func install_descriptor_raw(
@@ -68,49 +48,28 @@ noalloc primitive func install_descriptor_raw(
 
 #target: "arm64-darwin"
 noalloc func duplicate_cloexec(fd: usize): SyscallResult {
-    var result = duplicate_cloexec_raw(fd)
-    while result.errno == darwin.ERRNO_INTERRUPTED {
-        result = duplicate_cloexec_raw(fd)
-    }
-    return result
+    return darwin.duplicate_cloexec_descriptor(fd)
 }
 
 #target: "arm64-darwin"
 noalloc func close_raw_fd(fd: usize): void {
-    // A failed close is never retried. Darwin may already have consumed the descriptor, and a
-    // retry could close an unrelated descriptor allocated in the meantime.
-    let _ = darwin.close_descriptor(fd)
+    darwin.close_descriptor_once(fd)
     return
 }
 
 #target: "arm64-darwin"
 noalloc func create_cloexec_pipe(): PipeAttempt {
-    let raw = create_pipe_raw()
-    if raw.errno != 0 { return PipeAttempt.failed(raw.errno) }
-
-    let normalized_read = duplicate_cloexec(raw.first)
-    if normalized_read.errno != 0 {
-        close_raw_fd(raw.first)
-        close_raw_fd(raw.second)
-        return PipeAttempt.failed(normalized_read.errno)
+    match darwin.create_cloexec_descriptor_pipe() {
+        DescriptorPairAttempt.ready(read_fd, write_fd) {
+            return PipeAttempt.ready(OwnedPipe {
+                read_fd: read_fd,
+                write_fd: write_fd,
+                read_open: true,
+                write_open: true,
+            })
+        }
+        DescriptorPairAttempt.failed(errno) { return PipeAttempt.failed(errno) }
     }
-
-    let normalized_write = duplicate_cloexec(raw.second)
-    if normalized_write.errno != 0 {
-        close_raw_fd(normalized_read.value)
-        close_raw_fd(raw.first)
-        close_raw_fd(raw.second)
-        return PipeAttempt.failed(normalized_write.errno)
-    }
-
-    close_raw_fd(raw.first)
-    close_raw_fd(raw.second)
-    return PipeAttempt.ready(OwnedPipe {
-        read_fd: normalized_read.value,
-        write_fd: normalized_write.value,
-        read_open: true,
-        write_open: true,
-    })
 }
 
 #target: "arm64-darwin"
@@ -143,21 +102,14 @@ noalloc func close_pipe_write(pipe: &+OwnedPipe): void {
 
 #target: "arm64-darwin"
 noalloc func configure_descriptor_nonblocking(fd: usize): PipeConfigurationAttempt {
-    var flags = descriptor_status_flags_raw(fd)
-    while flags.errno == darwin.ERRNO_INTERRUPTED {
-        flags = descriptor_status_flags_raw(fd)
+    match darwin.configure_descriptor_nonblocking(fd) {
+        DescriptorConfigurationAttempt.ready {
+            return PipeConfigurationAttempt.ready
+        }
+        DescriptorConfigurationAttempt.failed(errno) {
+            return PipeConfigurationAttempt.failed(errno)
+        }
     }
-    if flags.errno != 0 { return PipeConfigurationAttempt.failed(flags.errno) }
-    var configured_flags = flags.value
-    if configured_flags / darwin.O_NONBLOCK % 2 == 0 {
-        configured_flags += darwin.O_NONBLOCK
-    }
-    var result = set_descriptor_status_flags_raw(fd, configured_flags)
-    while result.errno == darwin.ERRNO_INTERRUPTED {
-        result = set_descriptor_status_flags_raw(fd, configured_flags)
-    }
-    if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
-    return PipeConfigurationAttempt.ready
 }
 
 #target: "arm64-darwin"
@@ -167,12 +119,14 @@ noalloc func configure_pipe_reader_for_async_io(pipe: &OwnedPipe): PipeConfigura
 
 #target: "arm64-darwin"
 noalloc func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): PipeConfigurationAttempt {
-    var result = suppress_broken_pipe_raw(pipe_write_fd(pipe))
-    while result.errno == darwin.ERRNO_INTERRUPTED {
-        result = suppress_broken_pipe_raw(pipe_write_fd(pipe))
+    match darwin.configure_notification_writer(pipe_write_fd(pipe)) {
+        DescriptorConfigurationAttempt.ready {
+            return PipeConfigurationAttempt.ready
+        }
+        DescriptorConfigurationAttempt.failed(errno) {
+            return PipeConfigurationAttempt.failed(errno)
+        }
     }
-    if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
-    return configure_descriptor_nonblocking(pipe_write_fd(pipe))
 }
 
 #target: "arm64-darwin"

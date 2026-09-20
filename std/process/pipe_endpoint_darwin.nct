@@ -5,49 +5,15 @@ see ./pipe_darwin.nct
 see ./pipe_readiness_darwin.nct
 
 use /internal/io
-use /internal/os/darwin.SyscallResult
+use /internal/os/darwin.{DescriptorReadAttempt, DescriptorWriteAttempt}
 use /internal/os/darwin
 use /internal/task
 use /ptr
-
-/// Reads once from a pipe endpoint whose owner established nonblocking mode.
-#target: "arm64-darwin"
-noalloc primitive func read_pipe_descriptor(
-    fd: usize,
-    address: usize,
-    capacity: usize,
-): SyscallResult
-
-/// Writes once from a pipe endpoint whose owner established nonblocking mode and SIGPIPE suppression.
-#target: "arm64-darwin"
-noalloc primitive func write_pipe_descriptor(
-    fd: usize,
-    address: usize,
-    length: usize,
-): SyscallResult
 
 #target: "arm64-darwin"
 struct PipeEndpoint {
     fd: usize
     open: bool
-}
-
-#target: "arm64-darwin"
-enum EndpointReadAttempt {
-    ready(count: usize)
-    would_block
-    interrupted
-    failed(errno: i32)
-    malformed
-}
-
-#target: "arm64-darwin"
-enum EndpointWriteAttempt {
-    ready(count: usize)
-    would_block
-    interrupted
-    failed(errno: i32)
-    malformed
 }
 
 #target: "arm64-darwin"
@@ -74,34 +40,14 @@ noalloc func close_pipe_endpoint(endpoint: &+PipeEndpoint): void {
 }
 
 #target: "arm64-darwin"
-noalloc func classify_endpoint_read(
-    result: SyscallResult,
-    capacity: usize,
-): EndpointReadAttempt {
-    if result.errno == darwin.ERRNO_INTERRUPTED { return EndpointReadAttempt.interrupted }
-    if result.errno == darwin.ERRNO_WOULD_BLOCK { return EndpointReadAttempt.would_block }
-    if result.errno != 0 { return EndpointReadAttempt.failed(result.errno) }
-    if result.value > capacity { return EndpointReadAttempt.malformed }
-    return EndpointReadAttempt.ready(result.value)
-}
-
-#target: "arm64-darwin"
-noalloc func classify_endpoint_write(
-    result: SyscallResult,
-    available: usize,
-): EndpointWriteAttempt {
-    if result.errno == darwin.ERRNO_INTERRUPTED { return EndpointWriteAttempt.interrupted }
-    if result.errno == darwin.ERRNO_WOULD_BLOCK { return EndpointWriteAttempt.would_block }
-    if result.errno != 0 { return EndpointWriteAttempt.failed(result.errno) }
-    if result.value == 0 || result.value > available { return EndpointWriteAttempt.malformed }
-    return EndpointWriteAttempt.ready(result.value)
-}
-
-#target: "arm64-darwin"
-noalloc func try_endpoint_read(endpoint: &PipeEndpoint, buffer: &+[u8]): EndpointReadAttempt {
-    if buffer.len() == 0 { return EndpointReadAttempt.ready(0) }
-    return classify_endpoint_read(
-        read_pipe_descriptor(endpoint.fd, ptr.addr(buffer.ptr()), buffer.len()),
+noalloc func try_endpoint_read(
+    endpoint: &PipeEndpoint,
+    buffer: &+[u8],
+): DescriptorReadAttempt {
+    if buffer.len() == 0 { return DescriptorReadAttempt.ready(0) }
+    return darwin.try_read_descriptor(
+        endpoint.fd,
+        ptr.addr(buffer.ptr()),
         buffer.len(),
     )
 }
@@ -111,14 +57,11 @@ noalloc func try_endpoint_write(
     endpoint: &PipeEndpoint,
     value: &[u8],
     offset: usize,
-): EndpointWriteAttempt {
-    if offset >= value.len() { return EndpointWriteAttempt.malformed }
-    return classify_endpoint_write(
-        write_pipe_descriptor(
-            endpoint.fd,
-            ptr.addr(value.ptr()) + offset,
-            value.len() - offset,
-        ),
+): DescriptorWriteAttempt {
+    if offset >= value.len() { return DescriptorWriteAttempt.malformed }
+    return darwin.try_write_descriptor(
+        endpoint.fd,
+        ptr.addr(value.ptr()) + offset,
         value.len() - offset,
     )
 }
@@ -138,13 +81,13 @@ async func read_endpoint(endpoint: &+PipeEndpoint, buffer: &+[u8]): usize! {
     if !endpoint.open { return io.closed_stream_error() }
     loop {
         match try_endpoint_read(endpoint, buffer) {
-            EndpointReadAttempt.ready(count) { return count }
-            EndpointReadAttempt.interrupted {}
-            EndpointReadAttempt.would_block {
+            DescriptorReadAttempt.ready(count) { return count }
+            DescriptorReadAttempt.interrupted {}
+            DescriptorReadAttempt.would_block {
                 await task.wait_descriptor_ready(endpoint.fd, false)
             }
-            EndpointReadAttempt.failed(errno) { return endpoint_error(errno) }
-            EndpointReadAttempt.malformed { return malformed_endpoint_error() }
+            DescriptorReadAttempt.failed(errno) { return endpoint_error(errno) }
+            DescriptorReadAttempt.malformed { return malformed_endpoint_error() }
         }
     }
 }
@@ -157,9 +100,9 @@ noalloc blocking func read_endpoint_blocking(
     if !endpoint.open { return io.closed_stream_error() }
     loop {
         match try_endpoint_read(endpoint, buffer) {
-            EndpointReadAttempt.ready(count) { return count }
-            EndpointReadAttempt.interrupted {}
-            EndpointReadAttempt.would_block {
+            DescriptorReadAttempt.ready(count) { return count }
+            DescriptorReadAttempt.interrupted {}
+            DescriptorReadAttempt.would_block {
                 match poll_descriptor_once(endpoint.fd, false) {
                     DescriptorPollAttempt.ready {}
                     DescriptorPollAttempt.interrupted {}
@@ -167,8 +110,8 @@ noalloc blocking func read_endpoint_blocking(
                     DescriptorPollAttempt.malformed { return malformed_endpoint_error() }
                 }
             }
-            EndpointReadAttempt.failed(errno) { return endpoint_error(errno) }
-            EndpointReadAttempt.malformed { return malformed_endpoint_error() }
+            DescriptorReadAttempt.failed(errno) { return endpoint_error(errno) }
+            DescriptorReadAttempt.malformed { return malformed_endpoint_error() }
         }
     }
 }
@@ -179,13 +122,13 @@ async func write_endpoint(endpoint: &+PipeEndpoint, value: &[u8]): void! {
     var offset: usize = 0
     while offset < value.len() {
         match try_endpoint_write(endpoint, value, offset) {
-            EndpointWriteAttempt.ready(count) { offset += count }
-            EndpointWriteAttempt.interrupted {}
-            EndpointWriteAttempt.would_block {
+            DescriptorWriteAttempt.ready(count) { offset += count }
+            DescriptorWriteAttempt.interrupted {}
+            DescriptorWriteAttempt.would_block {
                 await task.wait_descriptor_ready(endpoint.fd, true)
             }
-            EndpointWriteAttempt.failed(errno) { return endpoint_error(errno) }
-            EndpointWriteAttempt.malformed { return malformed_endpoint_error() }
+            DescriptorWriteAttempt.failed(errno) { return endpoint_error(errno) }
+            DescriptorWriteAttempt.malformed { return malformed_endpoint_error() }
         }
     }
     return
@@ -200,9 +143,9 @@ noalloc blocking func write_endpoint_blocking(
     var offset: usize = 0
     while offset < value.len() {
         match try_endpoint_write(endpoint, value, offset) {
-            EndpointWriteAttempt.ready(count) { offset += count }
-            EndpointWriteAttempt.interrupted {}
-            EndpointWriteAttempt.would_block {
+            DescriptorWriteAttempt.ready(count) { offset += count }
+            DescriptorWriteAttempt.interrupted {}
+            DescriptorWriteAttempt.would_block {
                 match poll_descriptor_once(endpoint.fd, true) {
                     DescriptorPollAttempt.ready {}
                     DescriptorPollAttempt.interrupted {}
@@ -210,8 +153,8 @@ noalloc blocking func write_endpoint_blocking(
                     DescriptorPollAttempt.malformed { return malformed_endpoint_error() }
                 }
             }
-            EndpointWriteAttempt.failed(errno) { return endpoint_error(errno) }
-            EndpointWriteAttempt.malformed { return malformed_endpoint_error() }
+            DescriptorWriteAttempt.failed(errno) { return endpoint_error(errno) }
+            DescriptorWriteAttempt.malformed { return malformed_endpoint_error() }
         }
     }
     return
@@ -219,17 +162,5 @@ noalloc blocking func write_endpoint_blocking(
 
 noalloc drop PipeEndpoint(&+self) {
     close_pipe_endpoint(self)
-    return
-}
-
-test endpoint_attempts_reject_invalid_progress {
-    match classify_endpoint_read(SyscallResult { value: 2, errno: 0 }, 1) {
-        EndpointReadAttempt.malformed {}
-        _ { return error.new("std.process.test", "oversized read progress was accepted") }
-    }
-    match classify_endpoint_write(SyscallResult { value: 0, errno: 0 }, 1) {
-        EndpointWriteAttempt.malformed {}
-        _ { return error.new("std.process.test", "zero write progress was accepted") }
-    }
     return
 }

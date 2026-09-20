@@ -1,0 +1,213 @@
+//! Shared allocation layout, ownership, projection, and destruction.
+
+see ./index.nct
+
+use /internal/mem as internal_mem
+use /internal/ptr
+use /internal/safety
+use /mem
+
+struct SharedHeader {
+    owner_count: usize
+    write_locked: bool
+}
+
+struct SharedCell<T> {
+    mapping_address: usize
+    mapping_size: usize
+    header: *SharedHeader
+    value: *T
+    active: bool
+}
+
+struct SharedWrite<T> {
+    owner: SharedCell<T>
+    active: bool
+}
+
+struct SharedProbe {
+    value: i32
+}
+
+noalloc func align_address(address: usize, align: usize): usize {
+    let remainder = address % align
+    if remainder == 0 { return address }
+    return internal_mem.checked_add(address, align - remainder) otherwise {
+        return safety.invariant_abort()
+    }
+}
+
+noalloc func header_view<T>(owner: &SharedCell<T>): &SharedHeader {
+    return &ptr.slice_from_raw_parts_value(owner.header, 1)[0]
+}
+
+noalloc func header_view_mut<T>(owner: &SharedCell<T>): &+SharedHeader {
+    return &+ptr.slice_from_raw_parts_value_mut(owner.header, 1)[0]
+}
+
+noalloc func value_view<T>(owner: &SharedCell<T>): &T {
+    return &ptr.slice_from_raw_parts_value(owner.value, 1)[0]
+}
+
+noalloc func value_view_mut<T>(owner: &SharedCell<T>): &+T {
+    return &+ptr.slice_from_raw_parts_value_mut(owner.value, 1)[0]
+}
+
+func new_shared<T>(value: T): SharedCell<T> {
+    let header_pointer: *SharedHeader = ptr.from_addr(1)
+    let value_pointer: *T = ptr.from_addr(1)
+    let header_size = ptr.pointee_size(header_pointer)
+    let value_size = ptr.pointee_size(value_pointer)
+    let value_align = ptr.pointee_align(value_pointer)
+    let header_and_padding: usize = internal_mem.checked_add(header_size, value_align) otherwise {
+        return safety.invariant_abort()
+    }
+    let mapping_size: usize = internal_mem.checked_add(header_and_padding, value_size) otherwise {
+        return safety.invariant_abort()
+    }
+    let mapping_address = mem.alloc_shared_pages(mapping_size) catch allocation_error {
+        return internal_mem.allocation_abort()
+    }
+    let stored_header: *SharedHeader = ptr.from_addr(mapping_address)
+    let unaligned_value: usize = internal_mem.checked_add(mapping_address, header_size) otherwise {
+        return safety.invariant_abort()
+    }
+    let stored_value: *T = ptr.from_addr(align_address(unaligned_value, value_align))
+    ptr.store_value_to_ptr(stored_header, 0, SharedHeader {
+        owner_count: 1,
+        write_locked: false,
+    })
+    ptr.store_value_to_ptr(stored_value, 0, move value)
+    return SharedCell<T> {
+        mapping_address: mapping_address,
+        mapping_size: mapping_size,
+        header: stored_header,
+        value: stored_value,
+        active: true,
+    }
+}
+
+noalloc func share<T>(owner: &SharedCell<T>): SharedCell<T> {
+    if !owner.active { return safety.invariant_abort() }
+    let header = header_view_mut(owner)
+    header.owner_count = internal_mem.checked_add(header.owner_count, 1) otherwise {
+        return safety.invariant_abort()
+    }
+    return SharedCell<T> {
+        mapping_address: owner.mapping_address,
+        mapping_size: owner.mapping_size,
+        header: owner.header,
+        value: owner.value,
+        active: true,
+    }
+}
+
+noalloc func try_write<T>(owner: &SharedCell<T>): SharedWrite<T>? from owner {
+    if !owner.active { return safety.invariant_abort() }
+    let header = header_view_mut(owner)
+    if header.write_locked { return none }
+    header.write_locked = true
+    return SharedWrite<T> { owner: share(owner), active: true }
+}
+
+noalloc func unlock<T>(write: &+SharedWrite<T>): void {
+    if !write.active { return }
+    let header = header_view_mut(&write.owner)
+    if !header.write_locked { return safety.invariant_abort() }
+    header.write_locked = false
+    write.active = false
+    return
+}
+
+func release<T>(owner: &+SharedCell<T>): void {
+    if !owner.active { return }
+    owner.active = false
+    let header = header_view_mut(owner)
+    if header.owner_count == 0 { return safety.invariant_abort() }
+    if header.owner_count > 1 {
+        header.owner_count -= 1
+        return
+    }
+    if header.write_locked { return safety.invariant_abort() }
+    ptr.drop_value_at_ptr(owner.value, 0)
+    ptr.drop_value_at_ptr(owner.header, 0)
+    mem.free_shared_pages(owner.mapping_address, owner.mapping_size)
+    return
+}
+
+construct SharedCell<T> {
+    func new(value: T): Self {
+        return new_shared(move value)
+    }
+}
+
+instance SharedCell<T> {
+    noalloc method &self.share(): Self {
+        return share(self)
+    }
+
+    noalloc method &self.try_write(): SharedWrite<T>? from self {
+        return try_write(self)?
+    }
+
+    noalloc method &self.owner_count(): usize {
+        if !self.active { return safety.invariant_abort() }
+        return header_view(self).owner_count
+    }
+}
+
+instance SharedWrite<T> {
+    noalloc method &self.read(): &T from self {
+        if !self.active { return safety.invariant_abort() }
+        return value_view(&self.owner)
+    }
+
+    noalloc method &+self.write(): &+T from self {
+        if !self.active { return safety.invariant_abort() }
+        return value_view_mut(&self.owner)
+    }
+
+    noalloc method &+self.unlock(): void {
+        unlock(self)
+        return
+    }
+}
+
+drop SharedWrite<T>(&+self) {
+    unlock(self)
+    return
+}
+
+drop SharedCell<T>(&+self) {
+    release(self)
+    return
+}
+
+test shared_owner_count_and_write_exclusion {
+    var first = SharedCell<SharedProbe>.new(SharedProbe { value: 41 })
+    var second = first.share()
+    if first.owner_count() != 2 {
+        return error.new("std.internal.shared.test", "share did not retain one owner")
+    }
+    var write = first.try_write() otherwise {
+        return error.new("std.internal.shared.test", "first write projection was rejected")
+    }
+    if first.owner_count() != 3 {
+        return error.new("std.internal.shared.test", "write projection did not retain storage")
+    }
+    let blocked = second.try_write()
+    let _unexpected = move blocked otherwise {
+        let value = write.write()
+        value.value += 1
+        write.unlock()
+        var next = second.try_write() otherwise {
+            return error.new("std.internal.shared.test", "released write projection remained locked")
+        }
+        if next.read().value != 42 {
+            return error.new("std.internal.shared.test", "shared mutation was not retained")
+        }
+        next.unlock()
+        return
+    }
+    return error.new("std.internal.shared.test", "overlapping write projection was accepted")
+}

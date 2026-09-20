@@ -1,0 +1,138 @@
+//! Darwin notification ownership and readiness integration.
+
+see ./index.nct
+
+use /internal/io
+use /internal/os/darwin
+use /internal/os/darwin.{
+    DescriptorConfigurationAttempt,
+    DescriptorPairAttempt,
+    DescriptorReadAttempt,
+    DescriptorWriteAttempt,
+}
+use /internal/task
+use /ptr as public_ptr
+
+#target: "arm64-darwin"
+struct Notification {
+    read_fd: usize
+    write_fd: usize
+    read_open: bool
+    write_open: bool
+}
+
+#target: "arm64-darwin"
+noalloc func notification_error(errno: i32): error {
+    return io.io_error_from_os(darwin.error_from_errno(darwin.errno(errno)))
+}
+
+#target: "arm64-darwin"
+noalloc func invalid_notification_progress(): error {
+    return error.new("std.sync.invalid_notification", "notification descriptor made invalid progress")
+}
+
+#target: "arm64-darwin"
+noalloc func close_notification(notification: &+Notification): void {
+    if notification.read_open {
+        darwin.close_descriptor_once(notification.read_fd)
+        notification.read_open = false
+    }
+    if notification.write_open {
+        darwin.close_descriptor_once(notification.write_fd)
+        notification.write_open = false
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func new_notification(): Notification! {
+    match darwin.create_cloexec_descriptor_pipe() {
+        DescriptorPairAttempt.failed(errno) { return notification_error(errno) }
+        DescriptorPairAttempt.ready(read_fd, write_fd) {
+            var result = Notification {
+                read_fd: read_fd,
+                write_fd: write_fd,
+                read_open: true,
+                write_open: true,
+            }
+            match darwin.configure_descriptor_nonblocking(read_fd) {
+                DescriptorConfigurationAttempt.failed(errno) {
+                    close_notification(&+result)
+                    return notification_error(errno)
+                }
+                DescriptorConfigurationAttempt.ready {}
+            }
+            match darwin.configure_notification_writer(write_fd) {
+                DescriptorConfigurationAttempt.failed(errno) {
+                    close_notification(&+result)
+                    return notification_error(errno)
+                }
+                DescriptorConfigurationAttempt.ready {}
+            }
+            return move result
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func signal_notification(notification: &Notification): void! {
+    if !notification.write_open { return error.new("std.sync.closed", "notification is closed") }
+    let byte: u8 = 1
+    let address = public_ptr.addr(public_ptr.from_ref(&byte))
+    loop {
+        match darwin.try_write_descriptor(notification.write_fd, address, 1) {
+            DescriptorWriteAttempt.ready(_) { return }
+            DescriptorWriteAttempt.would_block { return }
+            DescriptorWriteAttempt.interrupted {}
+            DescriptorWriteAttempt.failed(errno) { return notification_error(errno) }
+            DescriptorWriteAttempt.malformed { return invalid_notification_progress() }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+async func wait(descriptor: usize): void! {
+    var byte: [u8; 1] = [0]
+    let address = public_ptr.addr(public_ptr.from_ref_mut(&+byte[0]))
+    loop {
+        match darwin.try_read_descriptor(descriptor, address, 1) {
+            DescriptorReadAttempt.ready(count) {
+                if count == 1 { return }
+                return invalid_notification_progress()
+            }
+            DescriptorReadAttempt.would_block {
+                await task.wait_descriptor_ready(descriptor, false)
+            }
+            DescriptorReadAttempt.interrupted {}
+            DescriptorReadAttempt.failed(errno) { return notification_error(errno) }
+            DescriptorReadAttempt.malformed { return invalid_notification_progress() }
+        }
+    }
+}
+
+construct Notification {
+    noalloc func new(): Self! {
+        return new_notification()?
+    }
+}
+
+instance Notification {
+    noalloc method &self.wait_descriptor(): usize {
+        return self.read_fd
+    }
+
+    noalloc method &self.signal(): void! {
+        signal_notification(self)?
+        return
+    }
+
+    noalloc method &self.signal_best_effort(): void {
+        signal_notification(self) catch _ { return }
+        return
+    }
+}
+
+noalloc drop Notification(&+self) {
+    close_notification(self)
+    return
+}

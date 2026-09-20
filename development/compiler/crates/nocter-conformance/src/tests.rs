@@ -1291,10 +1291,11 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
              second: u64\n\
              third: u64\n\
          }\n\
-         struct LargePair {\n\
-             first: Large\n\
-             second: Large\n\
-         }\n\
+	         struct LargePair {\n\
+	             first: Large\n\
+	             second: Large\n\
+	         }\n\
+	         struct OwnedWord { value: u64 }\n\
          func main(): i32 {\n\
              var bytes = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
              internal_ptr.copy_str_to_ptr_for_test(ptr.from_ref_mut(&+bytes.a), 0, \"hello\")\n\
@@ -1313,7 +1314,14 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
              let replacement = Large { first: 40, second: 41, third: 42 }\n\
              let large_pointer = ptr.from_ref_mut(&+pair.first)\n\
              internal_ptr.store_value_to_ptr_for_test(large_pointer, 24, move replacement)\n\
-             let recovered = internal_ptr.take_u64_at_ptr_for_test(ptr.from_ref(&pair.second.third), 0)\n\
+	             let recovered = internal_ptr.take_u64_at_ptr_for_test(ptr.from_ref(&pair.second.third), 0)\n\
+	             var owned_word = OwnedWord { value: 42 }\n\
+	             let owned_pointer = ptr.from_ref_mut(&+owned_word.value)\n\
+	             let anchored = internal_ptr.take_u64_at_ptr_from_owner_for_test(\n\
+	                 owned_pointer,\n\
+	                 0,\n\
+	                 &owned_word,\n\
+	             )\n\
              var arrays: [[u64; 3]; 2] = [[1, 2, 3], [40, 41, 42]]\n\
              let recovered_array = internal_ptr.take_three_u64_at_ptr_for_test(\n\
                  ptr.from_ref_mut(&+arrays[0]),\n\
@@ -1327,8 +1335,10 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
                                  if copied.d == 121 {\n\
                                      if copied.e == 111 {\n\
                                          if recovered == 42 {\n\
-                                             if recovered_array[2] == 42 {\n\
-                                                 return 42\n\
+	                                         if recovered_array[2] == 42 {\n\
+	                                             if anchored == 42 {\n\
+	                                                 return 42\n\
+	                                             }\n\
                                              }\n\
                                          }\n\
                                      }\n\

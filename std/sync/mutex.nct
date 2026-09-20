@@ -1,0 +1,67 @@
+//! Cooperative mutex ownership, waiting, projection, and release.
+
+see ./index.nct
+
+use /internal/notify.NotificationHandle
+use /internal/safety
+use /internal/shared.{SharedCell, SharedWrite}
+
+struct Mutex<T> {
+    value: SharedCell<T>
+    notification: NotificationHandle
+}
+
+struct MutexGuard<T> {
+    value: SharedWrite<T>
+    notification: NotificationHandle
+}
+
+construct Mutex<T> {
+    func new(value: T): Self! {
+        return Mutex<T> {
+            value: SharedCell<T>.new(move value),
+            notification: NotificationHandle.new()?,
+        }
+    }
+}
+
+instance Mutex<T> {
+    noalloc method &self.share(): Self {
+        return Mutex<T> {
+            value: self.value.share(),
+            notification: self.notification.share(),
+        }
+    }
+
+    async method &self.lock(): MutexGuard<T> {
+        loop {
+            let acquired = self.value.try_write()
+            let value = move acquired otherwise {
+                await self.notification.wait() catch _ {
+                    return safety.invariant_abort()
+                }
+                continue
+            }
+            return MutexGuard<T> {
+                value: move value,
+                notification: self.notification.share(),
+            }
+        }
+    }
+}
+
+instance MutexGuard<T> {
+    noalloc coerce &self as &T {
+        return self.value.read()
+    }
+
+    noalloc coerce &+self as &+T {
+        return self.value.write()
+    }
+}
+
+drop MutexGuard<T>(&+self) {
+    self.value.unlock()
+    self.notification.signal_best_effort()
+    return
+}

@@ -45,6 +45,12 @@ pub(/) noalloc func empty_unbound_buffer(align: usize): RawBuffer
 
 pub(/) noalloc func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
+/// Allocates page-backed storage that package-internal shared owners release explicitly.
+pub(/) func alloc_shared_pages(size: usize): usize!
+
+/// Releases one complete page-backed shared-storage mapping.
+pub(/) noalloc func free_shared_pages(address: usize, size: usize): void
+
 construct Layout {
     /// Validates `size` and power-of-two `align` as one allocation request.
     pub noalloc func new(size: usize, align: usize): Self!

@@ -187,6 +187,7 @@ impl PrimitiveRole {
             | Self::StoreByteToPointer
             | Self::StoreValueToPointer
             | Self::TakeValueAtPointer
+            | Self::TakeValueAtPointerFromOwner
             | Self::StringFromRawParts
             | Self::ByteSliceFromRawParts
             | Self::MutableByteSliceFromRawParts

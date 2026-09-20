@@ -1,0 +1,155 @@
+//! Shared Darwin descriptor creation, configuration, transfer, and close policy.
+
+see ./index.nct
+
+#target: "arm64-darwin"
+noalloc primitive func create_pipe_raw(): SyscallPairResult
+
+#target: "arm64-darwin"
+noalloc primitive func duplicate_cloexec_raw(fd: usize): SyscallResult
+
+#target: "arm64-darwin"
+noalloc primitive func descriptor_status_flags_raw(fd: usize): SyscallResult
+
+#target: "arm64-darwin"
+noalloc primitive func set_descriptor_status_flags_raw(
+    fd: usize,
+    flags: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
+noalloc primitive func suppress_broken_pipe_raw(fd: usize): SyscallResult
+
+#target: "arm64-darwin"
+noalloc func duplicate_cloexec(fd: usize): SyscallResult {
+    var result = duplicate_cloexec_raw(fd)
+    while result.errno == ERRNO_INTERRUPTED {
+        result = duplicate_cloexec_raw(fd)
+    }
+    return result
+}
+
+#target: "arm64-darwin"
+noalloc func duplicate_cloexec_descriptor(fd: usize): SyscallResult {
+    return duplicate_cloexec(fd)
+}
+
+#target: "arm64-darwin"
+noalloc func close_descriptor_once(fd: usize): void {
+    // Darwin may already have consumed the descriptor after a failed close. Retrying could close a
+    // different descriptor that another owner acquired in the meantime.
+    let _ = close_descriptor(fd)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func create_cloexec_descriptor_pipe(): DescriptorPairAttempt {
+    let raw = create_pipe_raw()
+    if raw.errno != 0 { return DescriptorPairAttempt.failed(raw.errno) }
+
+    let normalized_read = duplicate_cloexec(raw.first)
+    if normalized_read.errno != 0 {
+        close_descriptor_once(raw.first)
+        close_descriptor_once(raw.second)
+        return DescriptorPairAttempt.failed(normalized_read.errno)
+    }
+
+    let normalized_write = duplicate_cloexec(raw.second)
+    if normalized_write.errno != 0 {
+        close_descriptor_once(normalized_read.value)
+        close_descriptor_once(raw.first)
+        close_descriptor_once(raw.second)
+        return DescriptorPairAttempt.failed(normalized_write.errno)
+    }
+
+    close_descriptor_once(raw.first)
+    close_descriptor_once(raw.second)
+    return DescriptorPairAttempt.ready(normalized_read.value, normalized_write.value)
+}
+
+#target: "arm64-darwin"
+noalloc func configure_descriptor_nonblocking(
+    fd: usize,
+): DescriptorConfigurationAttempt {
+    var flags = descriptor_status_flags_raw(fd)
+    while flags.errno == ERRNO_INTERRUPTED {
+        flags = descriptor_status_flags_raw(fd)
+    }
+    if flags.errno != 0 { return DescriptorConfigurationAttempt.failed(flags.errno) }
+    var configured_flags = flags.value
+    if configured_flags / O_NONBLOCK % 2 == 0 {
+        configured_flags += O_NONBLOCK
+    }
+    var result = set_descriptor_status_flags_raw(fd, configured_flags)
+    while result.errno == ERRNO_INTERRUPTED {
+        result = set_descriptor_status_flags_raw(fd, configured_flags)
+    }
+    if result.errno != 0 { return DescriptorConfigurationAttempt.failed(result.errno) }
+    return DescriptorConfigurationAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func configure_notification_writer(
+    fd: usize,
+): DescriptorConfigurationAttempt {
+    var result = suppress_broken_pipe_raw(fd)
+    while result.errno == ERRNO_INTERRUPTED {
+        result = suppress_broken_pipe_raw(fd)
+    }
+    if result.errno != 0 { return DescriptorConfigurationAttempt.failed(result.errno) }
+    return configure_descriptor_nonblocking(fd)
+}
+
+#target: "arm64-darwin"
+noalloc func try_read_descriptor(
+    fd: usize,
+    address: usize,
+    capacity: usize,
+): DescriptorReadAttempt {
+    return classify_descriptor_read(read_descriptor_raw(fd, address, capacity), capacity)
+}
+
+#target: "arm64-darwin"
+noalloc func classify_descriptor_read(
+    result: SyscallResult,
+    capacity: usize,
+): DescriptorReadAttempt {
+    if result.errno == ERRNO_INTERRUPTED { return DescriptorReadAttempt.interrupted }
+    if result.errno == ERRNO_WOULD_BLOCK { return DescriptorReadAttempt.would_block }
+    if result.errno != 0 { return DescriptorReadAttempt.failed(result.errno) }
+    if result.value > capacity { return DescriptorReadAttempt.malformed }
+    return DescriptorReadAttempt.ready(result.value)
+}
+
+#target: "arm64-darwin"
+noalloc func try_write_descriptor(
+    fd: usize,
+    address: usize,
+    available: usize,
+): DescriptorWriteAttempt {
+    return classify_descriptor_write(write_descriptor_raw(fd, address, available), available)
+}
+
+#target: "arm64-darwin"
+noalloc func classify_descriptor_write(
+    result: SyscallResult,
+    available: usize,
+): DescriptorWriteAttempt {
+    if result.errno == ERRNO_INTERRUPTED { return DescriptorWriteAttempt.interrupted }
+    if result.errno == ERRNO_WOULD_BLOCK { return DescriptorWriteAttempt.would_block }
+    if result.errno != 0 { return DescriptorWriteAttempt.failed(result.errno) }
+    if result.value == 0 || result.value > available { return DescriptorWriteAttempt.malformed }
+    return DescriptorWriteAttempt.ready(result.value)
+}
+
+test descriptor_progress_classification {
+    match classify_descriptor_read(SyscallResult { value: 2, errno: 0 }, 1) {
+        DescriptorReadAttempt.malformed {}
+        _ { return error.new("std.internal.os.test", "oversized read progress was accepted") }
+    }
+    match classify_descriptor_write(SyscallResult { value: 0, errno: 0 }, 1) {
+        DescriptorWriteAttempt.malformed {}
+        _ { return error.new("std.internal.os.test", "zero write progress was accepted") }
+    }
+    return
+}

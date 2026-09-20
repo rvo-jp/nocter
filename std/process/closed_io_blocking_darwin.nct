@@ -10,6 +10,7 @@ see ./pipe_endpoint_darwin.nct
 see ./pipe_readiness_darwin.nct
 
 use /internal/os/darwin
+use /internal/os/darwin.{DescriptorReadAttempt, DescriptorWriteAttempt}
 use /mem.RawBuffer
 use /mem
 use /vec.Vec
@@ -113,18 +114,18 @@ noalloc func advance_blocking_input(channel: &+BlockingInputChannel): bool {
         BlockingInputChannel.active(state) {
             let bytes: &[u8] = &state.input
             match try_endpoint_write(&state.stream.endpoint, bytes, state.offset) {
-                EndpointWriteAttempt.ready(count) {
+                DescriptorWriteAttempt.ready(count) {
                     state.offset += count
                     if state.offset == bytes.len() { state.stream.close() }
                     return true
                 }
-                EndpointWriteAttempt.would_block { return true }
-                EndpointWriteAttempt.interrupted { return true }
-                EndpointWriteAttempt.failed(errno) {
+                DescriptorWriteAttempt.would_block { return true }
+                DescriptorWriteAttempt.interrupted { return true }
+                DescriptorWriteAttempt.failed(errno) {
                     state.stream.close()
                     return errno == darwin.ERRNO_BROKEN_PIPE
                 }
-                EndpointWriteAttempt.malformed {
+                DescriptorWriteAttempt.malformed {
                     state.stream.close()
                     return false
                 }
@@ -165,7 +166,7 @@ noalloc func close_blocking_stderr(state: &+BlockingClosedIo): void {
 #target: "arm64-darwin"
 func advance_blocking_stdout(state: &+BlockingClosedIo): bool {
     match try_endpoint_read(&state.stdout.endpoint, state.scratch.bytes_mut()) {
-        EndpointReadAttempt.ready(count) {
+        DescriptorReadAttempt.ready(count) {
             if count == 0 {
                 close_blocking_stdout(state)
             } else {
@@ -173,13 +174,13 @@ func advance_blocking_stdout(state: &+BlockingClosedIo): bool {
             }
             return true
         }
-        EndpointReadAttempt.would_block { return true }
-        EndpointReadAttempt.interrupted { return true }
-        EndpointReadAttempt.failed(_) {
+        DescriptorReadAttempt.would_block { return true }
+        DescriptorReadAttempt.interrupted { return true }
+        DescriptorReadAttempt.failed(_) {
             close_blocking_stdout(state)
             return false
         }
-        EndpointReadAttempt.malformed {
+        DescriptorReadAttempt.malformed {
             close_blocking_stdout(state)
             return false
         }
@@ -189,7 +190,7 @@ func advance_blocking_stdout(state: &+BlockingClosedIo): bool {
 #target: "arm64-darwin"
 func advance_blocking_stderr(state: &+BlockingClosedIo): bool {
     match try_endpoint_read(&state.stderr.endpoint, state.scratch.bytes_mut()) {
-        EndpointReadAttempt.ready(count) {
+        DescriptorReadAttempt.ready(count) {
             if count == 0 {
                 close_blocking_stderr(state)
             } else {
@@ -197,13 +198,13 @@ func advance_blocking_stderr(state: &+BlockingClosedIo): bool {
             }
             return true
         }
-        EndpointReadAttempt.would_block { return true }
-        EndpointReadAttempt.interrupted { return true }
-        EndpointReadAttempt.failed(_) {
+        DescriptorReadAttempt.would_block { return true }
+        DescriptorReadAttempt.interrupted { return true }
+        DescriptorReadAttempt.failed(_) {
             close_blocking_stderr(state)
             return false
         }
-        EndpointReadAttempt.malformed {
+        DescriptorReadAttempt.malformed {
             close_blocking_stderr(state)
             return false
         }

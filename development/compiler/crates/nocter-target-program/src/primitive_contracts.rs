@@ -567,10 +567,10 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::MemoryMap
-        | PrimitiveRole::DescriptorDuplicateCloseOnExec
+        PrimitiveRole::DescriptorDuplicateCloseOnExec
         | PrimitiveRole::DescriptorStatusFlags
         | PrimitiveRole::DescriptorSuppressBrokenPipe
+        | PrimitiveRole::MemoryMap
         | PrimitiveRole::ProcessChangeDirectory
         | PrimitiveRole::ProcessTerminate
         | PrimitiveRole::ProcessKill => make(
@@ -581,8 +581,8 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::MemoryUnmap
-        | PrimitiveRole::DescriptorSetStatusFlags
+        PrimitiveRole::DescriptorSetStatusFlags
+        | PrimitiveRole::MemoryUnmap
         | PrimitiveRole::ProcessInstallDescriptor
         | PrimitiveRole::ProcessOpenNull => make(
             0,
@@ -592,9 +592,15 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::DescriptorRead
-        | PrimitiveRole::DescriptorWrite
-        | PrimitiveRole::ProcessExec => make(
+        PrimitiveRole::DescriptorRead | PrimitiveRole::DescriptorWrite => make(
+            0,
+            vec![usize(), usize(), usize()],
+            syscall_result(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::ProcessExec => make(
             0,
             vec![usize(), usize(), usize()],
             syscall_result(),
@@ -763,6 +769,18 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             package,
             None,
             vec![0],
+        ),
+        PrimitiveRole::TakeValueAtPointerFromOwner => make(
+            2,
+            vec![
+                TypeContract::pointer(TypeContract::Generic(0)),
+                usize(),
+                TypeContract::readonly(TypeContract::Generic(1)),
+            ],
+            TypeContract::Generic(0),
+            package,
+            None,
+            vec![2],
         ),
         PrimitiveRole::StringFromRawParts => make(
             0,

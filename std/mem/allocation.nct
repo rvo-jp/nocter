@@ -30,6 +30,15 @@ noalloc func free_pages(address: usize, size: usize): void {
     return
 }
 
+func alloc_shared_pages(size: usize): usize! {
+    return alloc_pages(size)?
+}
+
+noalloc func free_shared_pages(address: usize, size: usize): void {
+    free_pages(address, size)
+    return
+}
+
 func region_alloc_pages(
     state: usize,
     size: usize,

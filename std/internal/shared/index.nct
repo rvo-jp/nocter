@@ -1,0 +1,39 @@
+//! Package-internal page-backed shared ownership.
+//!
+//! This module is the sole standard-library authority for reference counts, exclusive shared-value
+//! projection, and final destruction. No public API exposes these representation types.
+
+see ./storage.nct
+
+/// One clonable owner of a page-backed value used by package-internal coordination types.
+pub(/) struct SharedCell<T>
+
+/// One exclusive shared-value projection that releases itself on every exit path.
+pub(/) struct SharedWrite<T>
+
+construct SharedCell<T> {
+    /// Moves one value into page-backed shared storage.
+    pub(/) func new(value: T): Self
+}
+
+instance SharedCell<T> {
+    /// Creates another owner without allocating.
+    pub(/) noalloc method &self.share(): Self
+
+    /// Acquires the sole exclusive projection, or returns none while another projection exists.
+    pub(/) noalloc method &self.try_write(): SharedWrite<T>? from self
+
+    /// Returns the current owner count for package-internal invariant tests.
+    pub(/) noalloc method &self.owner_count(): usize
+}
+
+instance SharedWrite<T> {
+    /// Borrows the protected value immutably while this projection remains live.
+    pub(/) noalloc method &self.read(): &T from self
+
+    /// Borrows the protected value mutably while this projection remains live.
+    pub(/) noalloc method &+self.write(): &+T from self
+
+    /// Releases exclusivity before this projection's fields are destroyed.
+    pub(/) noalloc method &+self.unlock(): void
+}
