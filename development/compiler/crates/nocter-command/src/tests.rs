@@ -1109,10 +1109,52 @@ fn random_choice_output_is_valid(output: &[u8]) -> bool {
     (1..=6).contains(&roll) && [10, 20, 30, 40].contains(&first)
 }
 
+fn content_identity_output_is_valid(output: &[u8]) -> bool {
+    let Ok(output) = std::str::from_utf8(output) else {
+        return false;
+    };
+    if !output.ends_with('\n') {
+        return false;
+    }
+    let mut lines = output.lines();
+    if lines.next()
+        != Some("content 817c147052aa37607aa2edf81f1d542b1ed4d8c0cada1818155e17f41aff2272")
+    {
+        return false;
+    }
+    let Some(uuid) = lines.next().and_then(|line| line.strip_prefix("request ")) else {
+        return false;
+    };
+    let Some(token) = lines.next().and_then(|line| line.strip_prefix("token ")) else {
+        return false;
+    };
+    if lines.next().is_some() {
+        return false;
+    }
+
+    let uuid = uuid.as_bytes();
+    let canonical_uuid = uuid.len() == 36
+        && uuid.iter().enumerate().all(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => *byte == b'-',
+            _ => byte.is_ascii_digit() || (b'a'..=b'f').contains(byte),
+        })
+        && uuid[14] == b'4'
+        && matches!(uuid[19], b'8' | b'9' | b'a' | b'b');
+    let canonical_token = token.len() == 32
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'));
+    canonical_uuid && canonical_token
+}
+
 fn single_file_example_output(name: &str) -> SingleFileExampleOutput {
     use SingleFileExampleOutput::{Exact, Validated};
 
     match name {
+        "content-identity.nct" => Validated {
+            description: "the SHA-256 content digest, a version-4 UUID, and a 24-byte URL token",
+            accepts: content_identity_output_is_valid,
+        },
         "custom-format.nct" => Exact(b"point = (3, 4)\n"),
         "elapsed.nct" => Exact(b"at least two milliseconds elapsed\n"),
         "equality.nct" => Exact(b"equality found the point\n"),

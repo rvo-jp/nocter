@@ -43,7 +43,7 @@ fn standard_text_codecs_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 6);
+    assert_eq!(case_count, 7);
 }
 
 #[test]
