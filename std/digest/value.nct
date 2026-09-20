@@ -1,0 +1,57 @@
+//! Canonical SHA-256 digest storage and text conversion.
+
+see ./index.nct
+
+use /hex
+use /internal/ptr
+use /ptr as public_ptr
+use /string.String
+
+copy struct Sha256Digest {
+    bytes_value: [u8; 32]
+}
+
+construct Sha256Digest {
+    noalloc func from_bytes(bytes: [u8; 32]): Self {
+        return Sha256Digest { bytes_value: bytes }
+    }
+
+    noalloc func parse(text: &str): Self? {
+        var bytes: [u8; 32] = [0; 32]
+        let first = public_ptr.from_ref_mut(&+bytes[0])
+        let output = ptr.slice_from_raw_parts_value_mut(first, 32)
+        let written = hex.decode_into(text, output) catch _ { return none }
+        if written != 32 { return none }
+        return Sha256Digest.from_bytes(bytes)
+    }
+}
+
+instance Sha256Digest {
+    noalloc method &self.bytes(): [u8; 32] {
+        return self.bytes_value
+    }
+
+    method self.to_string(): String {
+        let input = ptr.slice_from_raw_parts_value(public_ptr.from_ref(&self.bytes_value[0]), 32)
+        return hex.encode(input)
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        var index: usize = 0
+        while index < 32 {
+            if self.bytes_value[index] != other.bytes_value[index] { return false }
+            index += 1
+        }
+        return true
+    }
+
+    noalloc operator (&self < other: &Self): bool {
+        var index: usize = 0
+        while index < 32 {
+            if self.bytes_value[index] < other.bytes_value[index] { return true }
+            if other.bytes_value[index] < self.bytes_value[index] { return false }
+            index += 1
+        }
+        return false
+    }
+}

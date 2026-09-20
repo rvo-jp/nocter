@@ -1,0 +1,62 @@
+//! Cryptographic message digests with explicit algorithms and fixed-size values.
+
+see ./sha256.nct
+see ./value.nct
+see ./contracts.nct
+see ./tests.nct
+
+use /fmt.Format
+use /hash.Hash
+use /order.TotalOrder
+use /string.String
+
+/// Incremental SHA-256 computation state.
+pub struct Sha256
+
+/// One copyable 256-bit SHA-256 result.
+pub copy struct Sha256Digest
+
+construct Sha256 {
+    /// Starts an empty SHA-256 computation.
+    pub noalloc func new(): Self
+}
+
+instance Sha256 {
+    /// Adds one byte to the message.
+    pub noalloc method &+self.update_byte(value: u8): void
+
+    /// Adds one exact byte sequence to the message.
+    pub noalloc method &+self.update(input: &[u8]): void
+
+    /// Consumes the state and returns the completed digest.
+    pub noalloc method self.finish(): Sha256Digest
+}
+
+construct Sha256Digest {
+    /// Creates a digest from its 32 bytes in display order.
+    pub noalloc func from_bytes(bytes: [u8; 32]): Self
+
+    /// Parses exactly 64 canonical lowercase hexadecimal digits.
+    pub noalloc func parse(text: &str): Self?
+}
+
+instance Sha256Digest {
+    impl Format
+    impl Hash
+    impl TotalOrder
+
+    /// Returns the 32 digest bytes in display order.
+    pub noalloc method &self.bytes(): [u8; 32]
+
+    /// Returns exactly 64 canonical lowercase hexadecimal digits.
+    pub method self.to_string(): String
+
+    /// Compares every digest byte.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders digest bytes lexicographically.
+    pub noalloc operator (&self < other: &Self): bool
+}
+
+/// Computes SHA-256 for one complete byte sequence.
+pub noalloc func sha256(input: &[u8]): Sha256Digest

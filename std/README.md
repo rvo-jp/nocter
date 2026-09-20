@@ -29,6 +29,7 @@ comments.
 | fixed-width binary scalar encoding | [Binary Scalar Codecs](bytes/README.md) | `std/bytes` |
 | canonical hexadecimal bytes | [Hexadecimal Bytes](hex/README.md) | `std/hex` |
 | standard and URL-safe Base64 bytes | [Base64 Bytes](base64/README.md) | `std/base64` |
+| cryptographic content digests | [Cryptographic Digests](digest/README.md) | `std/digest` |
 | accidental-corruption checksums | [CRC-32 Checksums](checksum/README.md) | `std/checksum` |
 | streaming compressed representations | [Streaming Compression](compress/README.md) | `std/compress` |
 | streaming archive entries and safe relative paths | [Streaming Tar Archives](archive/README.md) | `std/archive` |

@@ -1,0 +1,131 @@
+//! SHA-256 contract tests.
+
+see ./index.nct
+
+use /hash.HashState
+use /string.String
+
+func require_digest(input: &[u8], expected: &str): void! {
+    let digest = sha256(input)
+    let rendered = digest.to_string()
+    if (&rendered as &str) != expected {
+        return error.new("std.digest.test", "SHA-256 vector changed")
+    }
+    let parsed = Sha256Digest.parse(expected) otherwise {
+        return error.new("std.digest.test", "canonical digest text was rejected")
+    }
+    if parsed != digest {
+        return error.new("std.digest.test", "digest value round trip changed bytes")
+    }
+    return
+}
+
+test sha256_matches_published_vectors {
+    require_digest(
+        "".bytes(),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    )?
+    require_digest(
+        "abc".bytes(),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    )?
+    require_digest(
+        "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".bytes(),
+        "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+    )?
+    return
+}
+
+func repeated_a_digest(length: usize): Sha256Digest {
+    var state = Sha256.new()
+    var index: usize = 0
+    while index < length {
+        state.update_byte(u8.truncate(97))
+        index += 1
+    }
+    return state.finish()
+}
+
+func require_repeated_a(length: usize, expected: &str): void! {
+    let digest = repeated_a_digest(length)
+    let rendered = digest.to_string()
+    if (&rendered as &str) != expected {
+        return error.new("std.digest.test", "SHA-256 padding boundary changed")
+    }
+    return
+}
+
+test sha256_covers_every_padding_and_block_boundary {
+    require_repeated_a(
+        55,
+        "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f734318",
+    )?
+    require_repeated_a(
+        56,
+        "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a",
+    )?
+    require_repeated_a(
+        63,
+        "7d3e74a05d7db15bce4ad9ec0658ea98e3f06eeecf16b4c6fff2da457ddc2f34",
+    )?
+    require_repeated_a(
+        64,
+        "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb",
+    )?
+    require_repeated_a(
+        65,
+        "635361c48bb9eab14198e76ea8ab7f1a41685d6ad62aa9146d301d4f17eb0ae0",
+    )?
+    return
+}
+
+test sha256_chunking_does_not_change_the_message {
+    var state = Sha256.new()
+    state.update("ab".bytes())
+    state.update_byte(u8.truncate(99))
+    let streamed = state.finish()
+    let complete = sha256("abc".bytes())
+    if streamed != complete {
+        return error.new("std.digest.test", "SHA-256 chunking changed the digest")
+    }
+    return
+}
+
+func require_rejected_digest(text: &str): void! {
+    let _parsed = Sha256Digest.parse(text) otherwise { return }
+    return error.new("std.digest.test", "noncanonical digest text was accepted")
+}
+
+test sha256_digest_parsing_is_canonical {
+    require_rejected_digest(
+        "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
+    )?
+    require_rejected_digest("ba7816bf")?
+    return
+}
+
+test sha256_digest_shared_contracts_follow_stored_bytes {
+    let first = sha256("a".bytes())
+    let second = sha256("b".bytes())
+    if !(second < first) {
+        return error.new("std.digest.test", "digest byte ordering changed")
+    }
+    let observed = first.bytes()
+    if observed[0] != 202 || observed[31] != 187 {
+        return error.new("std.digest.test", "digest byte observation changed")
+    }
+    var rendered = String.empty()
+    first.try_format_into(&+rendered)?
+    if (&rendered as &str) != "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb" {
+        return error.new("std.digest.test", "digest formatting changed")
+    }
+    let template = HashState.fresh()
+    var first_hash = template.restart()
+    var equal_hash = template.restart()
+    first.hash_into(&+first_hash)
+    first.hash_into(&+equal_hash)
+    if first_hash.finish() != equal_hash.finish() {
+        return error.new("std.digest.test", "equal digest hashing changed")
+    }
+    return
+}
