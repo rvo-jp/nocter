@@ -2,14 +2,16 @@
 
 ## Current State
 
-Nocter v0.64.0 Application Encoding and Identity is published and externally audited. Annotated tag
-`v0.64.0` resolves to publication commit `fd7df74721f29e8fa650b3527e94923321671839`, and the
-public single asset matches the retained qualified candidate byte for byte.
+Nocter v0.65.0 Practical Stateful Services is active. Phase 0 owns the shared-allocation and
+readiness-notification foundations required by every later service API. The previous v0.64.0
+Application Encoding and Identity release is published and externally audited.
 
 ## Next Work
 
-Choose the next milestone from practical application needs. Preserve the newly established codec,
-digest, UUID, and entropy ownership boundaries instead of adding parallel representation helpers.
+Complete Phase 0 without creating a second scheduler model: generic descriptor primitives belong to
+the target OS adapter, `std/internal/notify` owns task-notification descriptors, and
+`std/internal/shared` owns page-backed shared storage. Then implement bounded coordination before
+HTTP or service-lifecycle adoption.
 
 Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -18,7 +20,9 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains from v0.64.0.
+No external blocker is known. Phase 0 must prove that shared handles cannot inherit region storage
+and that notification cleanup remains correct under future cancellation before the public sync API
+is admitted.
 
 ## Non-negotiable Boundaries
 
