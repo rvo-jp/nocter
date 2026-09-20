@@ -2,24 +2,23 @@
 
 ## Current State
 
-Nocter v0.63.0 Cryptographic Randomness is published and externally audited. The exact v0.64.0
-Application Encoding and Identity candidate from release-content commit
-`a5944bbea8c6ed7ba691a78df46b2dae77e4edb1` passed the complete compiler gate and deterministic
-artifact qualification. Public metadata now selects v0.64.0; publication and external audit remain.
+Nocter v0.64.0 Application Encoding and Identity is published and externally audited. Annotated tag
+`v0.64.0` resolves to publication commit `fd7df74721f29e8fa650b3527e94923321671839`, and the
+public single asset matches the retained qualified candidate byte for byte.
 
 ## Next Work
 
-Publish annotated tag `v0.64.0` and the exact retained qualified archive, then audit the public tag,
-single release asset, downloaded installation, Actions runs, and source-identified Pages deployment.
+Choose the next milestone from practical application needs. Preserve the newly established codec,
+digest, UUID, and entropy ownership boundaries instead of adding parallel representation helpers.
 
-Preserve the v0.63.0 tag, release asset, public notes, specification snapshot, and publication
+Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
 
 Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for v0.64.0 publication.
+No blocker remains from v0.64.0.
 
 ## Non-negotiable Boundaries
 
