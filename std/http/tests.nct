@@ -23,9 +23,10 @@ use /hash.HashState
 use /vec.Vec
 
 async func discard_route_test_request(
+    _state: &usize,
     request: IncomingRequest,
     _route: RouteMatch,
-): ServerConnection?! from request | _route {
+): ServerConnection?! from _state | request | _route {
     request.close()
     return none
 }
@@ -716,16 +717,19 @@ test route_patterns_reject_invalid_and_equal_precedence_overlaps {
         if !failure.has_code("std.http.invalid_route_pattern") {
             return error.new("std.http.test", "invalid route pattern failure changed")
         }
-        var router = Router.empty()
-        let first: Handler = (request, route) {
-            discard_route_test_request(move request, move route)
+        var router: Router<usize> = Router<usize>.new(7)
+        let first: Handler<usize> = (state, request, route) {
+            discard_route_test_request(state, move request, move route)
         }
         router.get("/users/:id", move first)?
-        let second: Handler = (request, route) {
-            discard_route_test_request(move request, move route)
+        let second: Handler<usize> = (state, request, route) {
+            discard_route_test_request(state, move request, move route)
         }
         router.get("/users/:name", move second) catch overlap_failure {
-            if overlap_failure.has_code("std.http.ambiguous_route") { return }
+            if overlap_failure.has_code("std.http.ambiguous_route") {
+                let state = router.into_state()
+                if state == 7 { return }
+            }
             return error.new("std.http.test", "ambiguous route failure changed")
         }
         return error.new("std.http.test", "ambiguous route was accepted")

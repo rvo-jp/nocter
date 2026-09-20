@@ -125,9 +125,9 @@ func match_route_pattern(pattern: &RoutePattern, target: &RequestTarget): RouteM
     return RouteMatch { parameters: move parameters }
 }
 
-construct Router {
-    noalloc func empty(): Self {
-        return Router { routes: Vec.empty() }
+construct Router<State> {
+    noalloc func new(state: State): Self {
+        return Router<State> { state_value: move state, routes: Vec.empty() }
     }
 }
 
@@ -162,8 +162,20 @@ instance RouteMatch {
     }
 }
 
-instance Router {
-    method &+self.add(request_method: Method, pattern: &str, handler: Handler): void! {
+instance Router<State> {
+    noalloc method &self.state(): &State from self {
+        return &self.state_value
+    }
+
+    method self.into_state(): State {
+        return move self.state_value
+    }
+
+    method &+self.add(
+        request_method: Method,
+        pattern: &str,
+        handler: Handler<State>,
+    ): void! {
         let parsed = parse_route_pattern(pattern)?
         var index: usize = 0
         while index < self.routes.len() {
@@ -175,7 +187,7 @@ instance Router {
             }
             index += 1
         }
-        self.routes.push(Route {
+        self.routes.push(Route<State> {
             request_method: move request_method,
             pattern: move parsed,
             handler: move handler,
@@ -183,12 +195,12 @@ instance Router {
         return
     }
 
-    method &+self.get(pattern: &str, handler: Handler): void! {
+    method &+self.get(pattern: &str, handler: Handler<State>): void! {
         self.add(Method.get(), pattern, move handler)?
         return
     }
 
-    method &+self.post(pattern: &str, handler: Handler): void! {
+    method &+self.post(pattern: &str, handler: Handler<State>): void! {
         self.add(Method.post(), pattern, move handler)?
         return
     }
@@ -224,7 +236,7 @@ instance Router {
         }
         let route = &self.routes[route_index]
         let matched = match_route_pattern(&route.pattern, owner.target())?
-        let connection = await route.handler(move owner, move matched)?
+        let connection = await route.handler(&self.state_value, move owner, move matched)?
         return RouteDispatch.handled(move connection)
     }
 }

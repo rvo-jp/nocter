@@ -127,10 +127,18 @@ selection independent of insertion order while still allowing `/users/me` to tak
 accepted by no pattern yields `RouteDispatch.not_found`. Both variants return the still-owned
 `IncomingRequest`, so application policy—not the router—decides how to finish or close it.
 
-`Handler` is one `any &func` contract. The router can retain heterogeneous closures and invoke the
-selected handler repeatedly through readonly erasure. Calling a handler creates a `future`; the
-future owns its request and route match until it is awaited or cancelled. `Router.dispatch` awaits
-that computation directly. It creates no task, executor, responder, timeout, or connection
+`Router<State>` owns exactly the application state supplied to `Router.new`. Every selected
+`Handler<State>` receives a readonly borrow of that same value; registration and dispatch never
+clone it or obtain state from a global. Applications choose the state contract explicitly. An
+immutable configuration may be stored directly, while shared mutation can be represented by a
+public synchronization value such as `Mutex<T>`. `state` exposes the retained value by borrow and
+`into_state` recovers it when the router lifecycle ends.
+
+`Handler<State>` is one `any &func` contract. The router can retain heterogeneous closures and
+invoke the selected handler repeatedly through readonly erasure. Calling a handler creates a
+`future`; that future borrows the router state and owns its request and route match until it is
+awaited or cancelled. `Router.dispatch` awaits the computation directly, so the state borrow ends
+before dispatch returns. It creates no task, clone, executor, responder, timeout, or connection
 registry, and it does not reinterpret HTTP framing or persistence.
 
 ## Application Response Policy

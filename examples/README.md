@@ -229,7 +229,9 @@ nocter run
 ```
 
 [http-service/index.nct](http-service/index.nct) runs seven loopback connections through a
-service-owned, two-slot `TaskGroup` and a deterministic `Router` of heterogeneous `Handler` values.
+service-owned, two-slot `TaskGroup` and a deterministic `Router<ServiceState>` of heterogeneous
+`Handler<ServiceState>` values. The router owns one explicit timeout policy and lends that exact
+state to each selected handler without a global or hidden clone.
 The application handles a decoded path parameter and a query pair lent directly from the retained
 request target and decoder scratch; it compares that pair before the next decoder advance without
 creating an owned query copy. It also exercises explicit 404 and 405 policy, an intentional handler

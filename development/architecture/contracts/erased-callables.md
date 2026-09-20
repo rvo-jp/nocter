@@ -124,12 +124,18 @@ frozen environment-destruction target, when present, and then releases the compi
 The first standard-library consumer stores readonly repeatable request handlers:
 
 ```nct
-type Handler = any &func(IncomingRequest, RouteMatch): future ServerConnection?!
+type Handler<State> = any &func(
+    state: &State,
+    request: IncomingRequest,
+    route: RouteMatch,
+): future ServerConnection?! from state | request | route
 ```
 
 Readonly invocation permits concurrent requests without granting hidden mutable access to handler
-state. Applications that need shared mutation must capture an explicit concurrency-safe owner;
-the router does not serialize handlers or own a task registry.
+state. `Router<State>` owns one explicit application-state value and supplies the borrow at the
+invocation boundary. Applications that need shared mutation place an explicit concurrency-safe
+owner in that value; the router neither clones state nor serializes handlers and owns no task
+registry.
 
 Routing selects method and validated request-target structure synchronously. Invocation produces a
 future which remains owned by the application and may be inserted into its `TaskGroup`. The router

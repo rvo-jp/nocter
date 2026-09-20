@@ -518,7 +518,7 @@ fn assert_http_router_editor_features(
     let response = hover.response().unwrap();
     assert!(
         response.contains(concat!(
-            "pub async method &Router.dispatch(",
+            "pub async method &Router<State>.dispatch(",
             "request: IncomingRequest): RouteDispatch!"
         )),
         "{response}"
@@ -550,7 +550,10 @@ fn assert_http_router_editor_features(
         handler_character,
     ));
     let response = hover.response().unwrap();
-    assert!(response.contains("type Handler = any &func("), "{response}");
+    assert!(
+        response.contains("type Handler<State> = any &func("),
+        "{response}"
+    );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
 
     let definition = server.receive(&position_request(
@@ -573,11 +576,13 @@ fn assert_http_router_editor_features(
         completion_character,
     ));
     let response = completion.response().unwrap();
-    assert!(
-        response.contains("\"label\":\"dispatch\",\"kind\":2"),
-        "{response}"
-    );
-    for unavailable in ["add", "get", "post"] {
+    for available in ["dispatch", "state"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{available}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    for unavailable in ["add", "get", "into_state", "post"] {
         assert!(!response.contains(&format!("\"label\":\"{unavailable}\"")));
     }
     assert!(completion.issue().is_none(), "{:?}", completion.issue());

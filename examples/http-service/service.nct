@@ -17,6 +17,20 @@ const LARGE_BODY_BYTES: usize = 32768
 
 const TRANSFER_BYTES: usize = 1024
 
+struct ServiceState {
+    request_timeout: Duration
+}
+
+construct ServiceState {
+    noalloc func new(request_timeout: Duration): Self {
+        return ServiceState { request_timeout: request_timeout }
+    }
+}
+
+instance ServiceState {
+    noalloc method &self.timeout(): Duration { return self.request_timeout }
+}
+
 func loopback(): SocketAddress {
     return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
 }
@@ -71,11 +85,12 @@ async func read_large_request(
 }
 
 async func handle_large_route(
+    state: &ServiceState,
     request: IncomingRequest,
     _route: RouteMatch,
 ): ServerConnection?! {
     var request_owner = move request
-    let timeout = Duration.from_seconds(1)
+    let timeout = state.timeout()
     if !await read_large_request(&+request_owner, timeout) {
         request_owner.close()
         return error.new("http-service.large_body", "large request body changed")
@@ -85,10 +100,11 @@ async func handle_large_route(
 }
 
 async func handle_close_route(
+    state: &ServiceState,
     request: IncomingRequest,
     _route: RouteMatch,
 ): ServerConnection?! {
-    let timeout = Duration.from_seconds(1)
+    let timeout = state.timeout()
     var responder = await request.finish_body_with_timeout(timeout)?
     responder.close_after_response()
     let response = OutgoingResponse.text(Status.ok(), "done")?
@@ -96,10 +112,11 @@ async func handle_close_route(
 }
 
 async func handle_user_route(
+    state: &ServiceState,
     request: IncomingRequest,
     route: RouteMatch,
 ): ServerConnection?! {
-    let timeout = Duration.from_seconds(1)
+    let timeout = state.timeout()
     let user = route.parameter("id") otherwise {
         let response = OutgoingResponse.text(Status.bad_request(), "missing user")?
         return await request.respond_with_timeout(
@@ -130,38 +147,39 @@ async func handle_user_route(
 }
 
 async func handle_failure_route(
+    _state: &ServiceState,
     _request: IncomingRequest,
     _route: RouteMatch,
 ): ServerConnection?! {
     return error.new("http-service.handler_failed", "intentional handler failure")
 }
 
-func build_router(): Router! {
-    var router = Router.empty()
-    let large: Handler = (request, route) {
-        handle_large_route(move request, move route)
+func build_router(request_timeout: Duration): Router<ServiceState>! {
+    var router = Router.new(ServiceState.new(request_timeout))
+    let large: Handler<ServiceState> = (state, request, route) {
+        handle_large_route(state, move request, move route)
     }
     router.post("/large", move large)?
-    let close: Handler = (request, route) {
-        handle_close_route(move request, move route)
+    let close: Handler<ServiceState> = (state, request, route) {
+        handle_close_route(state, move request, move route)
     }
     router.get("/close", move close)?
-    let user: Handler = (request, route) {
-        handle_user_route(move request, move route)
+    let user: Handler<ServiceState> = (state, request, route) {
+        handle_user_route(state, move request, move route)
     }
     router.get("/users/:id", move user)?
-    let failure: Handler = (request, route) {
-        handle_failure_route(move request, move route)
+    let failure: Handler<ServiceState> = (state, request, route) {
+        handle_failure_route(state, move request, move route)
     }
     router.get("/fail", move failure)?
     return move router
 }
 
 async func handle_connection(
-    router: &Router,
+    router: &Router<ServiceState>,
     connection: ServerConnection,
-    timeout: Duration,
 ): bool {
+    let timeout = router.state().timeout()
     var owner = move connection
     loop {
         let request = await owner.read_request_with_timeout(timeout) catch failure {
@@ -241,7 +259,7 @@ async func serve_bounded(
     shutdown_deadline: Duration,
 ): (usize, usize)! {
     var owner = move server
-    let router = build_router()?
+    let router = build_router(request_timeout)?
     var handlers: TaskGroup<bool> = TaskGroup.empty()
     var accepted: usize = 0
     var succeeded: usize = 0
@@ -255,7 +273,7 @@ async func serve_bounded(
             }
         }
         let connection = await owner.accept_with_timeout(shutdown_deadline)?
-        handlers.add(handle_connection(&router, move connection, request_timeout))
+        handlers.add(handle_connection(&router, move connection))
         accepted += 1
     }
     owner.close()

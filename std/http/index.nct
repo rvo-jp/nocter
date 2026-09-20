@@ -673,11 +673,12 @@ instance ServerConnection {
     pub method self.close(): void
 }
 
-/// One heterogeneous readonly request handler retained by a router.
-pub type Handler = any &func(
+/// One heterogeneous readonly request handler over explicitly borrowed application state.
+pub type Handler<State> = any &func(
+    state: &State,
     request: IncomingRequest,
     route: RouteMatch,
-): future ServerConnection?! from request | route
+): future ServerConnection?! from state | request | route
 
 /// One decoded named path parameter.
 pub struct RouteParameter
@@ -716,23 +717,33 @@ pub enum RouteDispatch {
     method_not_allowed(request: IncomingRequest)
 }
 
-/// An ordered set of validated, non-ambiguous method and path-pattern handlers.
-pub struct Router
+/// Explicit application state and an ordered set of validated, non-ambiguous handlers.
+pub struct Router<State>
 
-construct Router {
-    /// Creates a router without registered routes or allocation.
-    pub noalloc func empty(): Self
+construct Router<State> {
+    /// Moves application state into a router without registered routes or allocation.
+    pub noalloc func new(state: State): Self
 }
 
-instance Router {
+instance Router<State> {
+    /// Borrows the exact application state passed to every selected handler.
+    pub noalloc method &self.state(): &State from self
+
+    /// Consumes the router and recovers its application state.
+    pub method self.into_state(): State
+
     /// Adds one method and path pattern, rejecting duplicates and equal-precedence overlap.
-    pub method &+self.add(request_method: Method, pattern: &str, handler: Handler): void!
+    pub method &+self.add(
+        request_method: Method,
+        pattern: &str,
+        handler: Handler<State>,
+    ): void!
 
     /// Adds one GET route.
-    pub method &+self.get(pattern: &str, handler: Handler): void!
+    pub method &+self.get(pattern: &str, handler: Handler<State>): void!
 
     /// Adds one POST route.
-    pub method &+self.post(pattern: &str, handler: Handler): void!
+    pub method &+self.post(pattern: &str, handler: Handler<State>): void!
 
     /// Selects and awaits one handler, retaining unmatched requests for application policy.
     pub async method &self.dispatch(request: IncomingRequest): RouteDispatch!
