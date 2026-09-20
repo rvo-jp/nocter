@@ -2,16 +2,15 @@
 
 ## Current State
 
-Nocter v0.63.0 Cryptographic Randomness is published and externally audited. v0.64.0 Application
-Encoding and Identity is implementation-complete and has entered release preparation. Release
-inputs now select v0.64.0; final clean-tree verification and deterministic artifact qualification
-remain.
+Nocter v0.63.0 Cryptographic Randomness is published and externally audited. The exact v0.64.0
+Application Encoding and Identity candidate from release-content commit
+`a5944bbea8c6ed7ba691a78df46b2dae77e4edb1` passed the complete compiler gate and deterministic
+artifact qualification. Public metadata now selects v0.64.0; publication and external audit remain.
 
 ## Next Work
 
-Commit the v0.64.0 release-content inputs, rerun the complete disposable compiler gate, and run
-clean-tree double-generation qualification. Record and publish only the exact retained candidate
-authorized by the user.
+Publish annotated tag `v0.64.0` and the exact retained qualified archive, then audit the public tag,
+single release asset, downloaded installation, Actions runs, and source-identified Pages deployment.
 
 Preserve the v0.63.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -20,7 +19,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for v0.64.0 release qualification.
+No blocker remains for v0.64.0 publication.
 
 ## Non-negotiable Boundaries
 
