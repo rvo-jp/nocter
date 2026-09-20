@@ -112,6 +112,16 @@ nocter check examples/random-choice.nct
 nocter run examples/random-choice.nct
 ```
 
+[content-identity.nct](content-identity.nct) computes a canonical SHA-256 content fingerprint,
+creates a version-4 UUID, and encodes 24 bytes of cryptographic entropy as one unpadded URL-safe
+token. Each representation is owned by its standard module rather than application-local text
+conversion.
+
+```sh
+nocter check examples/content-identity.nct
+nocter run examples/content-identity.nct
+```
+
 [floating-point.nct](floating-point.nct) parses and calculates a binary64 value, formats it through
 interpolation, converts it to an exact JSON `Number`, and generates compact JSON through the shared
 shortest-decimal authority.

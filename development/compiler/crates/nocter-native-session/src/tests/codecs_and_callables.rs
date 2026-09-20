@@ -126,6 +126,19 @@ fn standard_uuid_contract_crosses_native_tests() {
     }
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_content_identity_example_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        include_str!("../../../../../../examples/content-identity.nct"),
+    );
+    execute_native_status(&image, &package_root.0, "content-identity", 0);
+}
+
 #[test]
 fn public_byte_codecs_cross_the_complete_native_session() {
     let standard_root = nocter_test_support::standard_library_root();

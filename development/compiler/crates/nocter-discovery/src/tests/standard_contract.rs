@@ -128,6 +128,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("hex", "string"),
     ("hex", "vec"),
     ("http", "hash"),
+    ("http", "internal/ascii"),
     ("http", "internal/safety"),
     ("http", "internal/utf8"),
     ("http", "io"),

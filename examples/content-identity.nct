@@ -1,0 +1,16 @@
+//! Computes content identity and creates opaque application identifiers.
+
+use std/digest
+use std/io
+use std/random
+use std/uuid.Uuid
+
+blocking func main(): i32! {
+    let content = "Nocter application data"
+    let fingerprint = digest.sha256(content.bytes())
+    let request_id = Uuid.v4()?
+    let bearer = random.url_token(24)?
+    let output = "content ${fingerprint}\nrequest ${request_id}\ntoken ${bearer}\n"
+    io.print(&output)?
+    return 0
+}
