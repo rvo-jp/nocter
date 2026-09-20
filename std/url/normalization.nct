@@ -3,6 +3,7 @@
 see ./failure.nct
 
 use /internal/ascii
+use /internal/percent
 use /mem.TryAllocator
 use /string.String
 
@@ -72,11 +73,11 @@ func normalized_component(
             return invalid_url()
         }
         if byte == 37 {
-            if offset + 2 >= bytes.len() { return invalid_url() }
-            let high = ascii.hex_value(bytes[offset + 1]) otherwise { return invalid_url() }
-            let low = ascii.hex_value(bytes[offset + 2]) otherwise { return invalid_url() }
+            if bytes.len() - offset < 3 { return invalid_url() }
+            let decoded = percent.decoded_value(bytes[offset + 1], bytes[offset + 2]) otherwise {
+                return invalid_url()
+            }
             if component == HOST_COMPONENT {
-                let decoded = high * 16 + low
                 if decoded >= 128 { return non_ascii_host() }
                 if !allowed_component_byte(decoded, HOST_COMPONENT) { return invalid_url() }
                 var normalized = decoded
@@ -90,10 +91,10 @@ func normalized_component(
             output.try_push('%') catch failure {
                 return UrlAttempt.allocation(move failure)
             }
-            output.try_push(ascii_char(ascii.uppercase_hex_digit(high))) catch failure {
+            output.try_push(ascii_char(ascii.uppercase_hex_digit(decoded / 16))) catch failure {
                 return UrlAttempt.allocation(move failure)
             }
-            output.try_push(ascii_char(ascii.uppercase_hex_digit(low))) catch failure {
+            output.try_push(ascii_char(ascii.uppercase_hex_digit(decoded % 16))) catch failure {
                 return UrlAttempt.allocation(move failure)
             }
             offset += 3

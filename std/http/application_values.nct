@@ -1,0 +1,49 @@
+//! Shared finite bounds for application-level HTTP values.
+
+see ./errors.nct
+see ./index.nct
+
+use /internal/mem
+
+copy struct ApplicationLimits {
+    item_count: usize
+    value_bytes: usize
+    decoded_bytes: usize
+}
+
+noalloc func checked_application_size(
+    current: usize,
+    additional: usize,
+    limit: usize,
+): usize! {
+    let next = mem.checked_add(current, additional) otherwise {
+        return application_value_limit()
+    }
+    if next > limit { return application_value_limit() }
+    return next
+}
+
+construct ApplicationLimits {
+    noalloc func standard(): Self {
+        return ApplicationLimits {
+            item_count: 128,
+            value_bytes: 8192,
+            decoded_bytes: 65536,
+        }
+    }
+
+    noalloc func new(
+        max_items: usize,
+        max_value_bytes: usize,
+        max_decoded_bytes: usize,
+    ): Self! {
+        if max_items == 0 || max_value_bytes == 0 || max_decoded_bytes == 0 {
+            return invalid_application_limits()
+        }
+        return ApplicationLimits {
+            item_count: max_items,
+            value_bytes: max_value_bytes,
+            decoded_bytes: max_decoded_bytes,
+        }
+    }
+}

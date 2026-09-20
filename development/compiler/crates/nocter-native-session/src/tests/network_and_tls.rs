@@ -86,7 +86,7 @@ fn standard_http_framing_contract_crosses_native_tests() {
             compiled.targets()[0].outcome()
         )
     };
-    assert_eq!(cases.len(), 47);
+    assert_eq!(cases.len(), 57);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

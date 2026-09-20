@@ -1,0 +1,124 @@
+//! Bounded application/x-www-form-urlencoded decoding.
+
+see ./application_values.nct
+see ./errors.nct
+see ./index.nct
+
+use /internal/percent
+use /scan.TextCursor
+use /string.String
+use /vec.Vec
+
+struct FormParameter {
+    name_value: String
+    value_value: String
+}
+
+struct Form {
+    values: Vec<FormParameter>
+}
+
+func decode_form_component(
+    text: &str,
+    start: usize,
+    end: usize,
+    limit: usize,
+): String! {
+    let source_size = end - start
+    let capacity = if source_size < limit { source_size } else { limit }
+    var bytes: Vec<u8> = Vec.with_capacity(capacity)
+    let cursor = TextCursor.new(text)
+    var offset = start
+    while offset < end {
+        if bytes.len() == limit { return application_value_limit() }
+        if text[offset] == 43 {
+            let space: u8 = 32
+            bytes.push(space)
+            offset += 1
+            continue
+        }
+        let step = percent.decoded_text_byte(&cursor, offset, end) otherwise {
+            return invalid_form()
+        }
+        bytes.push(step.0)
+        offset = step.1
+    }
+    let byte_view: &[u8] = &bytes
+    let decoded = String.from_utf8(byte_view) catch _ { return invalid_form() }
+    return move decoded
+}
+
+func retain_form_pair(
+    values: &+Vec<FormParameter>,
+    text: &str,
+    start: usize,
+    end: usize,
+    limits: ApplicationLimits,
+    decoded_bytes: usize,
+): usize! {
+    if start == end { return decoded_bytes }
+    if values.len() == limits.item_count { return application_item_limit() }
+    var separator = start
+    while separator < end && text[separator] != 61 { separator += 1 }
+    let value_start = if separator < end { separator + 1 } else { separator }
+    let name = decode_form_component(text, start, separator, limits.value_bytes)?
+    let value = decode_form_component(text, value_start, end, limits.value_bytes)?
+    let with_name = checked_application_size(decoded_bytes, name.len(), limits.decoded_bytes)?
+    let next_decoded_bytes = checked_application_size(with_name, value.len(), limits.decoded_bytes)?
+    values.push(FormParameter { name_value: move name, value_value: move value })
+    return next_decoded_bytes
+}
+
+construct Form {
+    func parse(text: &str): Self! {
+        return Form.parse_with_limits(text, ApplicationLimits.standard())?
+    }
+
+    func parse_with_limits(text: &str, limits: ApplicationLimits): Self! {
+        var values: Vec<FormParameter> = Vec.empty()
+        var decoded_bytes: usize = 0
+        var start: usize = 0
+        while start < text.len() {
+            var end = start
+            while end < text.len() && text[end] != 38 { end += 1 }
+            decoded_bytes = retain_form_pair(&+values, text, start, end, limits, decoded_bytes)?
+            start = end + 1
+        }
+        return Form { values: move values }
+    }
+}
+
+instance FormParameter {
+    noalloc method &self.name(): &str from self { return &self.name_value as &str }
+
+    noalloc method &self.value(): &str from self { return &self.value_value as &str }
+}
+
+instance Form {
+    noalloc method &self.len(): usize { return self.values.len() }
+
+    noalloc method &self.at(index: usize): &FormParameter? from self {
+        if index >= self.values.len() { return none }
+        return &self.values[index]
+    }
+
+    noalloc method &self.first(name: &str): &str? from self {
+        var index: usize = 0
+        while index < self.values.len() {
+            let value = &self.values[index]
+            if value.name() == name { return value.value() }
+            index += 1
+        }
+        return none
+    }
+
+    noalloc method &self.count(name: &str): usize {
+        var count: usize = 0
+        var index: usize = 0
+        while index < self.values.len() {
+            if self.values[index].name() == name { count += 1 }
+            index += 1
+        }
+        return count
+    }
+}

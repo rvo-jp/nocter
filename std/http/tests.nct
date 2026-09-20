@@ -499,6 +499,203 @@ test request_target_query_iteration_distinguishes_absence_and_rejects_invalid_ut
     return error.new("std.http.test", "query-less target yielded a parameter")
 }
 
+test application_data_limits_reject_zero_dimensions {
+    let _items = ApplicationLimits.new(0, 1, 1) catch item_failure {
+        if !item_failure.has_code("std.http.invalid_application_limits") {
+            return error.new("std.http.test", "application item limit failure changed")
+        }
+        let _value = ApplicationLimits.new(1, 0, 1) catch value_failure {
+            if !value_failure.has_code("std.http.invalid_application_limits") {
+                return error.new("std.http.test", "application value limit failure changed")
+            }
+            let _aggregate = ApplicationLimits.new(1, 1, 0) catch aggregate_failure {
+                if aggregate_failure.has_code("std.http.invalid_application_limits") { return }
+                return error.new("std.http.test", "application aggregate limit failure changed")
+            }
+            return error.new("std.http.test", "zero application aggregate limit was accepted")
+        }
+        return error.new("std.http.test", "zero application value limit was accepted")
+    }
+    return error.new("std.http.test", "zero application item limit was accepted")
+}
+
+test forms_decode_strictly_and_preserve_duplicate_source_order {
+    let form = Form.parse("name=Alice+Smith&tag=one&tag=%E2%9C%93&&empty")?
+    if form.len() != 4 || form.count("tag") != 2 {
+        return error.new("std.http.test", "form pair retention changed")
+    }
+    let name = form.first("name") otherwise {
+        return error.new("std.http.test", "form name was lost")
+    }
+    let first_tag = form.first("tag") otherwise {
+        return error.new("std.http.test", "form tag was lost")
+    }
+    let second_tag = form.at(2) otherwise {
+        return error.new("std.http.test", "second form tag was lost")
+    }
+    let empty = form.first("empty") otherwise {
+        return error.new("std.http.test", "empty form value was lost")
+    }
+    if name != "Alice Smith"
+        || first_tag != "one"
+        || second_tag.name() != "tag"
+        || second_tag.value() != "✓"
+        || empty != "" {
+        return error.new("std.http.test", "form decoding changed")
+    }
+    return
+}
+
+test forms_reject_malformed_encoding_before_construction {
+    let _escape = Form.parse("name=%2") catch escape_failure {
+        if !escape_failure.has_code("std.http.invalid_form") {
+            return error.new("std.http.test", "malformed form escape failure changed")
+        }
+        let _utf8 = Form.parse("name=%FF") catch utf8_failure {
+            if utf8_failure.has_code("std.http.invalid_form") { return }
+            return error.new("std.http.test", "malformed form UTF-8 failure changed")
+        }
+        return error.new("std.http.test", "malformed form UTF-8 was accepted")
+    }
+    return error.new("std.http.test", "malformed form escape was accepted")
+}
+
+test forms_apply_item_value_and_aggregate_limits_before_growth {
+    let item_limits = ApplicationLimits.new(1, 8, 16)?
+    let _items = Form.parse_with_limits("a=1&b=2", item_limits) catch item_failure {
+        if !item_failure.has_code("std.http.application_item_limit") {
+            return error.new("std.http.test", "form item limit failure changed")
+        }
+        let value_limits = ApplicationLimits.new(2, 3, 16)?
+        let _value = Form.parse_with_limits("name=value", value_limits) catch value_failure {
+            if !value_failure.has_code("std.http.application_value_limit") {
+                return error.new("std.http.test", "form value limit failure changed")
+            }
+            let aggregate_limits = ApplicationLimits.new(2, 8, 3)?
+            let _aggregate = Form.parse_with_limits("a=1&&b=2", aggregate_limits) catch aggregate_failure {
+                if aggregate_failure.has_code("std.http.application_value_limit") { return }
+                return error.new("std.http.test", "form aggregate limit failure changed")
+            }
+            return error.new("std.http.test", "form aggregate limit was ignored")
+        }
+        return error.new("std.http.test", "form value limit was ignored")
+    }
+    return error.new("std.http.test", "form item limit was ignored")
+}
+
+test media_types_have_one_canonical_bounded_representation {
+    let media = MediaType.parse("Text/HTML; Charset=\"utf-8\"; boundary=simple")?
+    let charset = media.parameter("CHARSET") otherwise {
+        return error.new("std.http.test", "media charset was lost")
+    }
+    let boundary = media.parameter("boundary") otherwise {
+        return error.new("std.http.test", "media boundary was lost")
+    }
+    if !media.matches("TEXT", "html")
+        || media.type_name() != "text"
+        || media.subtype() != "html"
+        || media.parameter_count() != 2
+        || charset != "utf-8"
+        || boundary != "simple" {
+        return error.new("std.http.test", "media type canonicalization changed")
+    }
+    return
+}
+
+test media_types_reject_ambiguous_or_unbounded_parameters {
+    let _duplicate = MediaType.parse("text/plain; A=one; a=two") catch duplicate_failure {
+        if !duplicate_failure.has_code("std.http.invalid_media_type") {
+            return error.new("std.http.test", "duplicate media parameter failure changed")
+        }
+        let limits = ApplicationLimits.new(1, 3, 32)?
+        let _large = MediaType.parse_with_limits("text/plain; name=value", limits) catch limit_failure {
+            if limit_failure.has_code("std.http.application_value_limit") { return }
+            return error.new("std.http.test", "media parameter limit failure changed")
+        }
+        return error.new("std.http.test", "media parameter value limit was ignored")
+    }
+    return error.new("std.http.test", "duplicate media parameter was accepted")
+}
+
+test media_types_reject_malformed_quoted_values_and_bound_base_identity {
+    let _quoted = MediaType.parse("text/plain; note=\"unfinished") catch quoted_failure {
+        if !quoted_failure.has_code("std.http.invalid_media_type") {
+            return error.new("std.http.test", "quoted media failure changed")
+        }
+        let aggregate_limits = ApplicationLimits.new(2, 8, 8)?
+        let _aggregate = MediaType.parse_with_limits("text/plain", aggregate_limits) catch limit_failure {
+            if limit_failure.has_code("std.http.application_value_limit") { return }
+            return error.new("std.http.test", "base media limit failure changed")
+        }
+        return error.new("std.http.test", "base media aggregate limit was ignored")
+    }
+    return error.new("std.http.test", "unterminated media parameter was accepted")
+}
+
+test cookies_preserve_validated_pairs_and_duplicate_source_order {
+    let cookies = Cookies.parse("session=abc; theme=\"dark\"; session=def")?
+    if cookies.len() != 3 || cookies.count("session") != 2 {
+        return error.new("std.http.test", "cookie pair retention changed")
+    }
+    let session = cookies.first("session") otherwise {
+        return error.new("std.http.test", "session cookie was lost")
+    }
+    let theme = cookies.at(1) otherwise {
+        return error.new("std.http.test", "theme cookie was lost")
+    }
+    let rendered = theme.render()
+    if session != "abc"
+        || theme.name() != "theme"
+        || theme.value() != "dark"
+        || rendered != "theme=dark" {
+        return error.new("std.http.test", "cookie parsing or rendering changed")
+    }
+    return
+}
+
+test cookies_reject_invalid_syntax_and_apply_finite_limits {
+    let _syntax = Cookies.parse("bad name=value") catch syntax_failure {
+        if !syntax_failure.has_code("std.http.invalid_cookie") {
+            return error.new("std.http.test", "invalid cookie failure changed")
+        }
+        let item_limits = ApplicationLimits.new(1, 8, 16)?
+        let _items = Cookies.parse_with_limits("a=1; b=2", item_limits) catch item_failure {
+            if !item_failure.has_code("std.http.application_item_limit") {
+                return error.new("std.http.test", "cookie item limit failure changed")
+            }
+            let value_limits = ApplicationLimits.new(2, 2, 16)?
+            let _value = Cookies.parse_with_limits("name=value", value_limits) catch value_failure {
+                if value_failure.has_code("std.http.application_value_limit") { return }
+                return error.new("std.http.test", "cookie value limit failure changed")
+            }
+            return error.new("std.http.test", "cookie value limit was ignored")
+        }
+        return error.new("std.http.test", "cookie item limit was ignored")
+    }
+    return error.new("std.http.test", "invalid cookie name was accepted")
+}
+
+test cookies_reject_forbidden_octets_trailing_pairs_and_aggregate_growth {
+    let _octet = Cookies.parse("name=a,b") catch octet_failure {
+        if !octet_failure.has_code("std.http.invalid_cookie") {
+            return error.new("std.http.test", "cookie-octet failure changed")
+        }
+        let _trailing = Cookies.parse("name=value;") catch trailing_failure {
+            if !trailing_failure.has_code("std.http.invalid_cookie") {
+                return error.new("std.http.test", "trailing cookie pair failure changed")
+            }
+            let aggregate_limits = ApplicationLimits.new(2, 8, 2)?
+            let _aggregate = Cookies.parse_with_limits("a=12", aggregate_limits) catch limit_failure {
+                if limit_failure.has_code("std.http.application_value_limit") { return }
+                return error.new("std.http.test", "cookie aggregate limit failure changed")
+            }
+            return error.new("std.http.test", "cookie aggregate limit was ignored")
+        }
+        return error.new("std.http.test", "trailing empty cookie pair was accepted")
+    }
+    return error.new("std.http.test", "forbidden cookie octet was accepted")
+}
+
 test route_patterns_select_named_parameters_without_rescanning_the_target {
     let pattern = parse_route_pattern("/users/:id/files/:name")?
     let target = RequestTarget.parse("/users/alice/files/report%20one?download=1")?

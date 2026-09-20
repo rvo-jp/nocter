@@ -1,0 +1,158 @@
+//! Bounded request-cookie parsing and validated pair rendering.
+
+see ./application_values.nct
+see ./errors.nct
+see ./index.nct
+see ./values.nct
+
+use /string.String
+use /vec.Vec
+
+struct Cookie {
+    name_value: String
+    value_value: String
+}
+
+struct Cookies {
+    values: Vec<Cookie>
+}
+
+noalloc func valid_cookie_value_byte(value: u8): bool {
+    if value == 33 { return true }
+    if value >= 35 && value <= 43 { return true }
+    if value >= 45 && value <= 58 { return true }
+    if value >= 60 && value <= 91 { return true }
+    return value >= 93 && value <= 126
+}
+
+noalloc func valid_cookie_value(text: &str): bool {
+    var offset: usize = 0
+    while offset < text.len() {
+        if !valid_cookie_value_byte(text[offset]) { return false }
+        offset += 1
+    }
+    return true
+}
+
+noalloc func trim_cookie_ows_start(text: &str, start: usize, end: usize): usize {
+    var offset = start
+    while offset < end && (text[offset] == 32 || text[offset] == 9) { offset += 1 }
+    return offset
+}
+
+noalloc func trim_cookie_ows_end(text: &str, start: usize, end: usize): usize {
+    var offset = end
+    while offset > start && (text[offset - 1] == 32 || text[offset - 1] == 9) { offset -= 1 }
+    return offset
+}
+
+func cookie_from_range(
+    text: &str,
+    start: usize,
+    end: usize,
+    limits: ApplicationLimits,
+): Cookie! {
+    let first = trim_cookie_ows_start(text, start, end)
+    let last = trim_cookie_ows_end(text, first, end)
+    if first == last { return invalid_cookie() }
+    var separator = first
+    while separator < last && text[separator] != 61 { separator += 1 }
+    if separator == first || separator == last { return invalid_cookie() }
+    let name = text.get_range(first, separator) otherwise { return invalid_cookie() }
+    if !valid_token(name) { return invalid_cookie() }
+    if name.len() > limits.value_bytes { return application_value_limit() }
+
+    var value_start = separator + 1
+    var value_end = last
+    if value_start < value_end && text[value_start] == 34 {
+        if value_end - value_start < 2 || text[value_end - 1] != 34 { return invalid_cookie() }
+        value_start += 1
+        value_end -= 1
+    }
+    let value = text.get_range(value_start, value_end) otherwise { return invalid_cookie() }
+    if value.len() > limits.value_bytes { return application_value_limit() }
+    if !valid_cookie_value(value) { return invalid_cookie() }
+    return Cookie { name_value: String.copy(name), value_value: String.copy(value) }
+}
+
+construct Cookie {
+    func new(name: &str, value: &str): Self! {
+        if !valid_token(name) || !valid_cookie_value(value) { return invalid_cookie() }
+        return Cookie { name_value: String.copy(name), value_value: String.copy(value) }
+    }
+}
+
+instance Cookie {
+    noalloc method &self.name(): &str from self { return &self.name_value as &str }
+
+    noalloc method &self.value(): &str from self { return &self.value_value as &str }
+
+    method &self.render(): String {
+        var result = String.copy(self.name())
+        result.push('=')
+        result.push_str(self.value())
+        return move result
+    }
+}
+
+construct Cookies {
+    func parse(text: &str): Self! {
+        return Cookies.parse_with_limits(text, ApplicationLimits.standard())?
+    }
+
+    func parse_with_limits(text: &str, limits: ApplicationLimits): Self! {
+        var values: Vec<Cookie> = Vec.empty()
+        var decoded_bytes: usize = 0
+        if text.len() == 0 { return Cookies { values: move values } }
+        var start: usize = 0
+        loop {
+            var end = start
+            while end < text.len() && text[end] != 59 { end += 1 }
+            if values.len() == limits.item_count { return application_item_limit() }
+            let cookie = cookie_from_range(text, start, end, limits)?
+            decoded_bytes = checked_application_size(
+                decoded_bytes,
+                cookie.name().len(),
+                limits.decoded_bytes,
+            )?
+            decoded_bytes = checked_application_size(
+                decoded_bytes,
+                cookie.value().len(),
+                limits.decoded_bytes,
+            )?
+            values.push(move cookie)
+            if end == text.len() { break }
+            start = end + 1
+        }
+        return Cookies { values: move values }
+    }
+}
+
+instance Cookies {
+    noalloc method &self.len(): usize { return self.values.len() }
+
+    noalloc method &self.at(index: usize): &Cookie? from self {
+        if index >= self.values.len() { return none }
+        return &self.values[index]
+    }
+
+    noalloc method &self.first(name: &str): &str? from self {
+        var index: usize = 0
+        while index < self.values.len() {
+            let cookie = &self.values[index]
+            if cookie.name() == name { return cookie.value() }
+            index += 1
+        }
+        return none
+    }
+
+    noalloc method &self.count(name: &str): usize {
+        var count: usize = 0
+        var index: usize = 0
+        while index < self.values.len() {
+            if self.values[index].name() == name { count += 1 }
+            index += 1
+        }
+        return count
+    }
+}

@@ -1,0 +1,15 @@
+//! Package-only percent-triplet decoding shared by textual protocols.
+
+use /scan.TextCursor
+
+see ./decoding.nct
+
+/// Decodes two hexadecimal bytes from one percent triplet.
+pub(/) noalloc func decoded_value(high: u8, low: u8): u8?
+
+/// Decodes one source byte or percent triplet and returns its value and next offset.
+pub(/) noalloc func decoded_text_byte(
+    cursor: &TextCursor,
+    offset: usize,
+    end: usize,
+): (u8, usize)?

@@ -5,7 +5,7 @@ see ./index.nct
 see ./storage.nct
 
 use /scan.TextCursor
-use /internal/ascii
+use /internal/percent
 use /internal/safety
 use /internal/utf8
 use /str as text_module
@@ -32,9 +32,10 @@ noalloc func valid_request_target_range(bytes: &[u8], start: usize, end: usize):
     while offset < end {
         let value = bytes[offset]
         if value == 37 {
-            if offset + 2 >= end { return false }
-            let _high = ascii.hex_value(bytes[offset + 1]) otherwise { return false }
-            let _low = ascii.hex_value(bytes[offset + 2]) otherwise { return false }
+            if end - offset < 3 { return false }
+            let _decoded = percent.decoded_value(bytes[offset + 1], bytes[offset + 2]) otherwise {
+                return false
+            }
             offset += 3
         } else {
             let alpha = (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
@@ -89,38 +90,15 @@ func decode_target_component(encoded: &str): String! {
     let cursor = TextCursor.new(encoded)
     var offset: usize = 0
     while offset < encoded.len() {
-        let step = decoded_query_byte(&cursor, offset, encoded.len())?
-        bytes.push(step.value)
-        offset = step.next_offset
+        let step = percent.decoded_text_byte(&cursor, offset, encoded.len()) otherwise {
+            return invalid_target()
+        }
+        bytes.push(step.0)
+        offset = step.1
     }
     let byte_view: &[u8] = &bytes
     let decoded = String.from_utf8(byte_view) catch _ { return invalid_target_encoding() }
     return move decoded
-}
-
-copy struct DecodedQueryByte {
-    value: u8
-    next_offset: usize
-}
-
-noalloc func decoded_query_byte(
-    cursor: &TextCursor,
-    offset: usize,
-    end: usize,
-): DecodedQueryByte! {
-    let source = cursor.byte_at(offset) otherwise { return invalid_target() }
-    if source != 37 {
-        return DecodedQueryByte { value: source, next_offset: offset + 1 }
-    }
-    if offset + 2 >= end { return invalid_target() }
-    let high_source = cursor.byte_at(offset + 1) otherwise { return invalid_target() }
-    let low_source = cursor.byte_at(offset + 2) otherwise { return invalid_target() }
-    let high = ascii.hex_value(high_source) otherwise { return invalid_target() }
-    let low = ascii.hex_value(low_source) otherwise { return invalid_target() }
-    return DecodedQueryByte {
-        value: high * 16 + low,
-        next_offset: offset + 3,
-    }
 }
 
 noalloc func query_item_separator(
@@ -160,9 +138,11 @@ func validate_decoded_query_component(
     var validator = utf8.StreamingValidator.new()
     var offset = start
     while offset < end {
-        let step = decoded_query_byte(cursor, offset, end)?
-        if !validator.push(step.value) { return invalid_target_encoding() }
-        offset = step.next_offset
+        let step = percent.decoded_text_byte(cursor, offset, end) otherwise {
+            return invalid_target()
+        }
+        if !validator.push(step.0) { return invalid_target_encoding() }
+        offset = step.1
     }
     if !validator.is_complete() { return invalid_target_encoding() }
     return
@@ -299,22 +279,22 @@ instance QueryIter {
             self.name_scratch.clear()
             var offset = name_start
             while offset < name_end {
-                let step = decoded_query_byte(&self.cursor, offset, name_end) catch _ {
+                let step = percent.decoded_text_byte(&self.cursor, offset, name_end) otherwise {
                     return safety.invariant_abort()
                 }
-                self.name_scratch.push(step.value)
-                offset = step.next_offset
+                self.name_scratch.push(step.0)
+                offset = step.1
             }
         }
         if value_encoded {
             self.value_scratch.clear()
             var offset = value_start
             while offset < item_end {
-                let step = decoded_query_byte(&self.cursor, offset, item_end) catch _ {
+                let step = percent.decoded_text_byte(&self.cursor, offset, item_end) otherwise {
                     return safety.invariant_abort()
                 }
-                self.value_scratch.push(step.value)
-                offset = step.next_offset
+                self.value_scratch.push(step.0)
+                offset = step.1
             }
         }
 

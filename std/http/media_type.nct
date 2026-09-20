@@ -1,0 +1,171 @@
+//! Bounded media-type parsing with one canonical parameter representation.
+
+see ./application_values.nct
+see ./errors.nct
+see ./index.nct
+see ./values.nct
+
+use /string.String
+use /vec.Vec
+
+struct MediaParameter {
+    name: String
+    value: String
+}
+
+struct MediaType {
+    type_value: String
+    subtype_value: String
+    parameters: Vec<MediaParameter>
+}
+
+noalloc func skip_optional_whitespace(text: &str, start: usize): usize {
+    var offset = start
+    while offset < text.len() && (text[offset] == 32 || text[offset] == 9) { offset += 1 }
+    return offset
+}
+
+noalloc func token_end(text: &str, start: usize): usize {
+    var offset = start
+    while offset < text.len() && is_token_byte(text[offset]) { offset += 1 }
+    return offset
+}
+
+func lowercase_token(text: &str, start: usize, end: usize): String {
+    var result = String.with_capacity(end - start)
+    var offset = start
+    while offset < end {
+        result.push(ascii_char(ascii_lower(text[offset])))
+        offset += 1
+    }
+    return move result
+}
+
+func parse_media_parameter_value(
+    text: &str,
+    start: usize,
+    limit: usize,
+): (String, usize)! {
+    if start >= text.len() { return invalid_media_type() }
+    if text[start] != 34 {
+        let end = token_end(text, start)
+        if end == start { return invalid_media_type() }
+        if end - start > limit { return application_value_limit() }
+        let value = text.get_range(start, end) otherwise { return invalid_media_type() }
+        return (String.copy(value), end)
+    }
+
+    var bytes: Vec<u8> = Vec.empty()
+    var offset = start + 1
+    while offset < text.len() {
+        let value = text[offset]
+        if value == 34 {
+            let decoded = String.from_utf8(&bytes as &[u8]) catch _ { return invalid_media_type() }
+            return (move decoded, offset + 1)
+        }
+        if bytes.len() == limit { return application_value_limit() }
+        if value == 92 {
+            offset += 1
+            if offset == text.len() { return invalid_media_type() }
+            let escaped = text[offset]
+            if escaped == 127 || (escaped < 32 && escaped != 9) { return invalid_media_type() }
+            bytes.push(escaped)
+        } else {
+            if value == 127 || (value < 32 && value != 9) { return invalid_media_type() }
+            bytes.push(value)
+        }
+        offset += 1
+    }
+    return invalid_media_type()
+}
+
+construct MediaType {
+    func parse(text: &str): Self! {
+        return MediaType.parse_with_limits(text, ApplicationLimits.standard())?
+    }
+
+    func parse_with_limits(text: &str, limits: ApplicationLimits): Self! {
+        let type_end = token_end(text, 0)
+        if type_end == 0 || type_end >= text.len() || text[type_end] != 47 {
+            return invalid_media_type()
+        }
+        let subtype_start = type_end + 1
+        let subtype_end = token_end(text, subtype_start)
+        if subtype_end == subtype_start { return invalid_media_type() }
+        if type_end > limits.value_bytes || subtype_end - subtype_start > limits.value_bytes {
+            return application_value_limit()
+        }
+
+        let type_value = lowercase_token(text, 0, type_end)
+        let subtype_value = lowercase_token(text, subtype_start, subtype_end)
+        var decoded_bytes = checked_application_size(
+            type_value.len(),
+            subtype_value.len(),
+            limits.decoded_bytes,
+        )?
+        var parameters: Vec<MediaParameter> = Vec.empty()
+        var offset = skip_optional_whitespace(text, subtype_end)
+        while offset < text.len() {
+            if parameters.len() == limits.item_count { return application_item_limit() }
+            if text[offset] != 59 { return invalid_media_type() }
+            offset = skip_optional_whitespace(text, offset + 1)
+            let name_end = token_end(text, offset)
+            if name_end == offset { return invalid_media_type() }
+            if name_end - offset > limits.value_bytes { return application_value_limit() }
+            let name = lowercase_token(text, offset, name_end)
+            offset = skip_optional_whitespace(text, name_end)
+            if offset == text.len() || text[offset] != 61 { return invalid_media_type() }
+            offset = skip_optional_whitespace(text, offset + 1)
+            let parsed = parse_media_parameter_value(text, offset, limits.value_bytes)?
+            let value = move parsed.0
+            offset = skip_optional_whitespace(text, parsed.1)
+            var previous: usize = 0
+            while previous < parameters.len() {
+                let earlier = &parameters[previous]
+                if (&earlier.name as &str) == (&name as &str) { return invalid_media_type() }
+                previous += 1
+            }
+            decoded_bytes = checked_application_size(
+                decoded_bytes,
+                name.len(),
+                limits.decoded_bytes,
+            )?
+            decoded_bytes = checked_application_size(
+                decoded_bytes,
+                value.len(),
+                limits.decoded_bytes,
+            )?
+            parameters.push(MediaParameter { name: move name, value: move value })
+        }
+        return MediaType {
+            type_value: move type_value,
+            subtype_value: move subtype_value,
+            parameters: move parameters,
+        }
+    }
+}
+
+instance MediaType {
+    noalloc method &self.type_name(): &str from self { return &self.type_value as &str }
+
+    noalloc method &self.subtype(): &str from self { return &self.subtype_value as &str }
+
+    noalloc method &self.matches(type_name: &str, subtype: &str): bool {
+        return ascii_case_equal(self.type_name(), type_name)
+            && ascii_case_equal(self.subtype(), subtype)
+    }
+
+    noalloc method &self.parameter_count(): usize { return self.parameters.len() }
+
+    noalloc method &self.parameter(name: &str): &str? from self {
+        var index: usize = 0
+        while index < self.parameters.len() {
+            let parameter = &self.parameters[index]
+            if ascii_case_equal(&parameter.name as &str, name) {
+                return &parameter.value as &str
+            }
+            index += 1
+        }
+        return none
+    }
+}

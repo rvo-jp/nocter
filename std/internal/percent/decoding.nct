@@ -1,0 +1,26 @@
+//! Percent-triplet byte decoding implementation.
+
+see ./index.nct
+
+use /internal/ascii
+use /scan.TextCursor
+
+noalloc func decoded_value(high: u8, low: u8): u8? {
+    let high_value = ascii.hex_value(high)?
+    let low_value = ascii.hex_value(low)?
+    return high_value * 16 + low_value
+}
+
+noalloc func decoded_text_byte(
+    cursor: &TextCursor,
+    offset: usize,
+    end: usize,
+): (u8, usize)? {
+    if offset >= end { return none }
+    let source = cursor.byte_at(offset)?
+    if source != 37 { return (source, offset + 1) }
+    if end - offset < 3 { return none }
+    let high = cursor.byte_at(offset + 1)?
+    let low = cursor.byte_at(offset + 2)?
+    return (decoded_value(high, low)?, offset + 3)
+}

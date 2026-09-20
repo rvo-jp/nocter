@@ -12,6 +12,7 @@ use /vec.Vec
 
 see ./async_client.nct
 see ./application_response.nct
+see ./application_values.nct
 see ./body.nct
 see ./body_cursor.nct
 see ./body_cursor_tests.nct
@@ -22,10 +23,13 @@ see ./client_transport.nct
 see ./codec.nct
 see ./connection_input.nct
 see ./connection_policy.nct
+see ./cookie.nct
 see ./errors.nct
 see ./exchange.nct
 see ./encoding.nct
 see ./field_codec.nct
+see ./form.nct
+see ./media_type.nct
 see ./request.nct
 see ./request_head.nct
 see ./request_convenience.nct
@@ -256,6 +260,129 @@ pub struct QueryIter
 
 instance QueryIter {
     impl LendingIterator { .Item = QueryParameter }
+}
+
+/// Finite bounds for application-level HTTP value decoding.
+pub copy struct ApplicationLimits
+
+construct ApplicationLimits {
+    /// Returns conservative limits for ordinary forms, media parameters, and cookies.
+    pub noalloc func standard(): Self
+
+    /// Constructs nonzero item, per-value, and aggregate decoded-byte limits.
+    pub noalloc func new(
+        max_items: usize,
+        max_value_bytes: usize,
+        max_decoded_bytes: usize,
+    ): Self!
+}
+
+/// One owned application/x-www-form-urlencoded name/value pair.
+pub struct FormParameter
+
+instance FormParameter {
+    /// Borrows the decoded parameter name.
+    pub noalloc method &self.name(): &str from self
+
+    /// Borrows the decoded parameter value.
+    pub noalloc method &self.value(): &str from self
+}
+
+/// One bounded, ordered application/x-www-form-urlencoded value.
+pub struct Form
+
+construct Form {
+    /// Decodes percent escapes and `+` spaces while preserving pair and duplicate order.
+    pub func parse(text: &str): Self!
+
+    /// Decodes with explicit item, per-value, and aggregate limits.
+    pub func parse_with_limits(text: &str, limits: ApplicationLimits): Self!
+}
+
+instance Form {
+    /// Returns the retained pair count.
+    pub noalloc method &self.len(): usize
+
+    /// Borrows one pair by source order.
+    pub noalloc method &self.at(index: usize): &FormParameter? from self
+
+    /// Borrows the first value with the exact decoded name.
+    pub noalloc method &self.first(name: &str): &str? from self
+
+    /// Counts values with the exact decoded name.
+    pub noalloc method &self.count(name: &str): usize
+}
+
+/// One parsed media type with canonical lowercase type, subtype, and parameter names.
+pub struct MediaType
+
+construct MediaType {
+    /// Parses one bounded media type, including token and quoted parameter values.
+    pub func parse(text: &str): Self!
+
+    /// Parses with explicit parameter, per-value, and aggregate limits.
+    pub func parse_with_limits(text: &str, limits: ApplicationLimits): Self!
+}
+
+instance MediaType {
+    /// Borrows the canonical lowercase top-level type.
+    pub noalloc method &self.type_name(): &str from self
+
+    /// Borrows the canonical lowercase subtype.
+    pub noalloc method &self.subtype(): &str from self
+
+    /// Returns whether the canonical type and subtype match ASCII-insensitively.
+    pub noalloc method &self.matches(type_name: &str, subtype: &str): bool
+
+    /// Returns the retained parameter count.
+    pub noalloc method &self.parameter_count(): usize
+
+    /// Borrows the first parameter value with the ASCII-insensitive name.
+    pub noalloc method &self.parameter(name: &str): &str? from self
+}
+
+/// One validated request-cookie name/value pair.
+pub struct Cookie
+
+construct Cookie {
+    /// Validates and copies one cookie pair.
+    pub func new(name: &str, value: &str): Self!
+}
+
+instance Cookie {
+    /// Borrows the cookie name.
+    pub noalloc method &self.name(): &str from self
+
+    /// Borrows the cookie value.
+    pub noalloc method &self.value(): &str from self
+
+    /// Renders the canonical `name=value` request-cookie spelling.
+    pub method &self.render(): String
+}
+
+/// One bounded, ordered request `Cookie` field value.
+pub struct Cookies
+
+construct Cookies {
+    /// Parses semicolon-separated cookie pairs while preserving duplicates and source order.
+    pub func parse(text: &str): Self!
+
+    /// Parses with explicit pair, per-value, and aggregate limits.
+    pub func parse_with_limits(text: &str, limits: ApplicationLimits): Self!
+}
+
+instance Cookies {
+    /// Returns the retained cookie count.
+    pub noalloc method &self.len(): usize
+
+    /// Borrows one cookie by source order.
+    pub noalloc method &self.at(index: usize): &Cookie? from self
+
+    /// Borrows the first value with the exact cookie name.
+    pub noalloc method &self.first(name: &str): &str? from self
+
+    /// Counts cookies with the exact name.
+    pub noalloc method &self.count(name: &str): usize
 }
 
 /// A validated outbound HTTP/1.1 request head.

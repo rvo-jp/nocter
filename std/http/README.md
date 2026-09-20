@@ -154,6 +154,40 @@ the connection closes through ordinary linear destruction. Handlers that want an
 must catch application failures while they still own the appropriate request or responder state.
 This prevents a router-level error hook from guessing whether response bytes were already sent.
 
+## Application Data
+
+`ApplicationLimits` is the shared finite policy for form pairs, media-type parameters, and request
+cookies. It bounds retained item count, each decoded name or value, and total decoded bytes. Its
+standard policy permits 128 items, 8 KiB per value, and 64 KiB in aggregate. Each `parse` operation
+selects that policy; `parse_with_limits` is the explicit policy variant. A parser never sizes
+temporary decoded storage from an untrusted source component beyond its selected per-value limit.
+Syntax failures and limit failures have distinct stable codes.
+
+`Form.parse` implements strict `application/x-www-form-urlencoded` decoding. It splits on `&`,
+uses the first `=` in each nonempty item, turns `+` into a space, decodes only complete hexadecimal
+percent triplets, and rejects decoded bytes that are not UTF-8. Empty split items are ignored; an
+item without `=` has an empty value. Pairs and duplicate names remain in source order. `first`
+selects the first exact decoded name and `count` exposes multiplicity, so the parser does not hide
+a first-wins, last-wins, or map-combining policy.
+
+URI query decoding remains deliberately distinct: `RequestTarget.query_pairs` preserves `+` as a
+literal plus because URI query syntax does not imply form encoding. Both parsers use the same
+private percent-triplet decoder for bounds and hexadecimal conversion; form decoding applies its
+plus-to-space rule before invoking that narrower authority.
+
+`MediaType.parse` accepts one token type, `/`, one token subtype, and zero or more semicolon-delimited
+parameters. It stores the type, subtype, and parameter names in lowercase, preserves parameter
+values, supports token and quoted-string values, and rejects duplicate parameter names
+case-insensitively. `matches` and `parameter` compare ASCII-insensitively without reparsing the
+source.
+
+`Cookies.parse` accepts the request `Cookie` field's semicolon-separated cookie pairs, trims only
+HTTP optional whitespace around each pair, validates token names and the cookie-octet value
+alphabet, and accepts the standard quoted value wrapper without treating it as a general escape
+language. It preserves pair and duplicate order. `Cookie.new` validates a single explicit pair;
+`Cookie.render` emits the canonical unquoted `name=value` spelling, which is safe because stored
+values already satisfy the unquoted cookie-octet grammar.
+
 ## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a

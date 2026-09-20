@@ -71,6 +71,42 @@ noalloc func invalid_limits(): error {
     return error.new("std.http.invalid_limits", "HTTP limits must be nonzero and internally consistent")
 }
 
+noalloc func invalid_application_limits(): error {
+    return error.new(
+        "std.http.invalid_application_limits",
+        "HTTP application-data limits must be nonzero",
+    )
+}
+
+noalloc func application_item_limit(): error {
+    return error.new(
+        "std.http.application_item_limit",
+        "HTTP application data exceeds the configured item limit",
+    )
+}
+
+noalloc func application_value_limit(): error {
+    return error.new(
+        "std.http.application_value_limit",
+        "HTTP application data exceeds the configured decoded-byte limit",
+    )
+}
+
+noalloc func invalid_form(): error {
+    return error.new(
+        "std.http.invalid_form",
+        "application/x-www-form-urlencoded data is invalid",
+    )
+}
+
+noalloc func invalid_media_type(): error {
+    return error.new("std.http.invalid_media_type", "HTTP media type is invalid")
+}
+
+noalloc func invalid_cookie(): error {
+    return error.new("std.http.invalid_cookie", "HTTP request cookie is invalid")
+}
+
 noalloc func invalid_syntax(): error {
     return error.new("std.http.invalid_syntax", "HTTP/1.1 message syntax is invalid")
 }
