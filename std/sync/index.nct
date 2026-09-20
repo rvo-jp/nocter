@@ -23,10 +23,10 @@ instance CancellationSource {
     pub noalloc method &self.token(): CancellationToken
 
     /// Requests cancellation once and reports whether this call changed the state.
-    pub method &self.cancel(): bool
+    pub noalloc method &self.cancel(): bool
 
     /// Reports whether cancellation has been requested.
-    pub method &self.is_cancelled(): bool
+    pub noalloc method &self.is_cancelled(): bool
 }
 
 instance CancellationToken {
@@ -34,7 +34,7 @@ instance CancellationToken {
     pub noalloc method &self.share(): Self
 
     /// Reports whether cancellation has been requested.
-    pub method &self.is_cancelled(): bool
+    pub noalloc method &self.is_cancelled(): bool
 
     /// Completes after cancellation without blocking the executor.
     pub async method &self.cancelled(): void
@@ -87,10 +87,10 @@ instance Channel<T, N> {
 
 instance Sender<T, N> {
     /// Creates another sender for the same channel without allocating.
-    pub method &self.share(): Self
+    pub noalloc method &self.share(): Self
 
     /// Attempts one send without waiting and preserves the value on failure.
-    pub method &self.try_send(value: T from self): TrySend<T> from self
+    pub noalloc method &self.try_send(value: T from self): TrySend<T> from self
 
     /// Waits for capacity without blocking the executor and preserves the value on closure.
     pub async method &self.send(value: T from self): Send<T> from self
@@ -98,10 +98,10 @@ instance Sender<T, N> {
 
 instance Receiver<T, N> {
     /// Creates another receiver for the same channel without allocating.
-    pub method &self.share(): Self
+    pub noalloc method &self.share(): Self
 
     /// Attempts one receive without waiting.
-    pub method &self.try_receive(): TryReceive<T> from self
+    pub noalloc method &self.try_receive(): TryReceive<T> from self
 
     /// Waits for a value without blocking the executor, or reports final sender closure.
     pub async method &self.receive(): Receive<T> from self

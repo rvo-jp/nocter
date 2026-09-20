@@ -2,19 +2,20 @@
 
 ## Current State
 
-Nocter v0.65.0 Practical Stateful Services is active. Phases 0 through 5 completed page-backed
-shared ownership, descriptor notification, mutexes, bounded channels, cooperative cancellation,
-structured service ownership, process-wide termination observation, and bounded HTTP application
-data, explicitly stateful routing, opaque session identifiers, fixed HTTP session transport, and
-structured redacted events. The previous v0.64.0 Application Encoding and Identity release is
-published and externally audited.
+Nocter v0.65.0 Practical Stateful Services is implementation-complete. Phases 0 through 6 carry
+page-backed shared ownership and descriptor notification through mutexes, bounded channels,
+cooperative cancellation, structured service ownership, process-wide termination observation,
+bounded HTTP application data, explicitly stateful routing, opaque sessions, and structured
+redacted operational output in one complete installed-standard-library service. The previous
+v0.64.0 Application Encoding and Identity release is published and externally audited.
 
 ## Next Work
 
-Complete Phase 6 as one application and review closure. Exercise startup, concurrent stateful
-requests, session transport, operational events, shutdown, and state recovery in the complete
-service; then run the full compiler, editor, native, standard-library, documentation, example, and
-packaging validation matrix and review authority boundaries before release preparation.
+Prepare the exact v0.65.0 release inputs. Bump the sole authored version and standard-package
+version together, write public release notes, commit the release content, then run deterministic
+artifact construction, fresh-install, installed-home, public-example, interactive-LSP, and
+immutability qualification from that clean commit. Do not rebuild between qualification and
+publication.
 
 Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -23,8 +24,8 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No external blocker is known. Phase 6 must not add a second session store, logging sink registry,
-or service lifecycle merely to make the complete example convenient.
+No external blocker is known. Release preparation must preserve the reviewed shared ownership,
+notification, parser, router, session, logging, and service-lifecycle authorities.
 
 ## Non-negotiable Boundaries
 

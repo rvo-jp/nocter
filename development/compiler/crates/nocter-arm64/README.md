@@ -38,6 +38,9 @@ source, loader commands, or package state.
 - Darwin kernel syscall numbers, trap encoding, and compiler-owned native records and OS constants
   have one backend-local authority. Source-owned target adapters retain their own native records;
   emitters accept only their typed pointer ABI and cannot reinterpret standard-library data.
+- A kernel syscall emitter initializes every argument named by that backend-local ABI, including
+  kernel-only output pointers absent from a public C wrapper. Ambient register contents never cross
+  the syscall boundary as an accidental argument.
 - Closed datagram lowering owns fixed socket calls and invocation flags. The target-specific
   standard adapter owns socket-address and message-header construction, malformed-record checks,
   retry policy, and descriptor cleanup after a configuration failure.

@@ -27,3 +27,8 @@ clonable observer, `cancel` is idempotent, and destroying the source requests ca
 remaining token cannot wait forever for an owner that no longer exists. `cancelled` uses the same
 executor readiness path as mutex and channel waits. Cancellation is a cooperative request: it does
 not interrupt code, detach a task, or suppress ordinary owned-value destruction.
+
+The checked contract marks handle cloning, cancellation state changes and inspection, and
+non-waiting channel attempts as `noalloc`. Construction owns every mapping and descriptor needed by
+those operations. Asynchronous waits still construct ordinary owning computations, but driving one
+does not grow the channel buffer or create a second notification authority.

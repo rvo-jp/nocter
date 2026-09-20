@@ -4,20 +4,22 @@ see ./index.nct
 see ./darwin.nct
 
 use /internal/shared.SharedCell
-use /internal/safety
 
 struct NotificationHandle {
     notification: SharedCell<Notification>
     wait_descriptor: usize
+    signal_descriptor: usize
 }
 
 construct NotificationHandle {
     func new(): Self! {
         let notification = Notification.new()?
         let wait_descriptor = notification.wait_descriptor()
+        let signal_descriptor = notification.signal_descriptor()
         return NotificationHandle {
             notification: SharedCell<Notification>.new(move notification),
             wait_descriptor: wait_descriptor,
+            signal_descriptor: signal_descriptor,
         }
     }
 }
@@ -27,15 +29,12 @@ instance NotificationHandle {
         return NotificationHandle {
             notification: self.notification.share(),
             wait_descriptor: self.wait_descriptor,
+            signal_descriptor: self.signal_descriptor,
         }
     }
 
-    method &self.signal_best_effort(): void {
-        var notification = self.notification.try_write() otherwise {
-            return safety.invariant_abort()
-        }
-        notification.read().signal_best_effort()
-        notification.unlock()
+    noalloc method &self.signal_best_effort(): void {
+        signal_notification_descriptor_best_effort(self.signal_descriptor)
         return
     }
 

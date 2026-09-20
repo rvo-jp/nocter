@@ -46,7 +46,7 @@ instance ServiceScope {
         return ServiceAdmission.accepted
     }
 
-    method &+self.stop(): bool {
+    noalloc method &+self.stop(): bool {
         if !self.accepting { return false }
         self.accepting = false
         let _ = self.cancellation.cancel()

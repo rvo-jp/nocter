@@ -21,7 +21,8 @@ struct SharedCell<T> {
 }
 
 struct SharedWrite<T> {
-    owner: SharedCell<T>
+    header: *SharedHeader
+    value: *T
     active: bool
 }
 
@@ -37,20 +38,8 @@ noalloc func align_address(address: usize, align: usize): usize {
     }
 }
 
-noalloc func header_view<T>(owner: &SharedCell<T>): &SharedHeader {
-    return &ptr.slice_from_raw_parts_value(owner.header, 1)[0]
-}
-
 noalloc func header_view_mut<T>(owner: &SharedCell<T>): &+SharedHeader {
     return &+ptr.slice_from_raw_parts_value_mut(owner.header, 1)[0]
-}
-
-noalloc func value_view<T>(owner: &SharedCell<T>): &T {
-    return &ptr.slice_from_raw_parts_value(owner.value, 1)[0]
-}
-
-noalloc func value_view_mut<T>(owner: &SharedCell<T>): &+T {
-    return &+ptr.slice_from_raw_parts_value_mut(owner.value, 1)[0]
 }
 
 func new_shared<T>(value: T): SharedCell<T> {
@@ -107,12 +96,12 @@ noalloc func try_write<T>(owner: &SharedCell<T>): SharedWrite<T>? from owner {
     let header = header_view_mut(owner)
     if header.write_locked { return none }
     header.write_locked = true
-    return SharedWrite<T> { owner: share(owner), active: true }
+    return SharedWrite<T> { header: owner.header, value: owner.value, active: true }
 }
 
 noalloc func unlock<T>(write: &+SharedWrite<T>): void {
     if !write.active { return }
-    let header = header_view_mut(&write.owner)
+    let header = &+ptr.slice_from_raw_parts_value_mut(write.header, 1)[0]
     if !header.write_locked { return safety.invariant_abort() }
     header.write_locked = false
     write.active = false
@@ -149,22 +138,17 @@ instance SharedCell<T> {
     noalloc method &self.try_write(): SharedWrite<T>? from self {
         return try_write(self)?
     }
-
-    noalloc method &self.owner_count(): usize {
-        if !self.active { return safety.invariant_abort() }
-        return header_view(self).owner_count
-    }
 }
 
 instance SharedWrite<T> {
     noalloc method &self.read(): &T from self {
         if !self.active { return safety.invariant_abort() }
-        return value_view(&self.owner)
+        return &ptr.slice_from_raw_parts_value(self.value, 1)[0]
     }
 
     noalloc method &+self.write(): &+T from self {
         if !self.active { return safety.invariant_abort() }
-        return value_view_mut(&self.owner)
+        return &+ptr.slice_from_raw_parts_value_mut(self.value, 1)[0]
     }
 
     noalloc method &+self.unlock(): void {
@@ -173,7 +157,7 @@ instance SharedWrite<T> {
     }
 }
 
-drop SharedWrite<T>(&+self) {
+noalloc drop SharedWrite<T>(&+self) {
     unlock(self)
     return
 }
@@ -183,17 +167,11 @@ drop SharedCell<T>(&+self) {
     return
 }
 
-test shared_owner_count_and_write_exclusion {
+test shared_clone_and_write_exclusion {
     var first = SharedCell<SharedProbe>.new(SharedProbe { value: 41 })
     var second = first.share()
-    if first.owner_count() != 2 {
-        return error.new("std.internal.shared.test", "share did not retain one owner")
-    }
     var write = first.try_write() otherwise {
         return error.new("std.internal.shared.test", "first write projection was rejected")
-    }
-    if first.owner_count() != 3 {
-        return error.new("std.internal.shared.test", "write projection did not retain storage")
     }
     let blocked = second.try_write()
     let _unexpected = move blocked otherwise {

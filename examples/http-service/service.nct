@@ -297,7 +297,7 @@ async func serve_bounded(
     server: Server,
     request_timeout: Duration,
     shutdown_deadline: Duration,
-): (usize, usize, usize)! {
+): (usize, usize, String)! {
     var owner = move server
     let router = build_router(request_timeout)?
     var handlers: TaskGroup<bool> = TaskGroup.empty()
@@ -322,8 +322,11 @@ async func serve_bounded(
     let event_store = state.event_store()
     var events = await event_store.lock()
     let stored_events: &Vec<Event> = &events as &Vec<Event>
-    let event_count = stored_events.len()
-    return (succeeded + drained.0, failed + drained.1, event_count)
+    if stored_events.len() != 1 {
+        return error.new("http-service.events", "structured event count changed")
+    }
+    let event_output = stored_events[0].to_json_line()?
+    return (succeeded + drained.0, failed + drained.1, move event_output)
 }
 
 async func read_until_eof(
@@ -412,8 +415,8 @@ async func routed_parameter_exchange(address: SocketAddress, timeout: Duration):
     ) catch _ { return false }
     let response = await read_response_text(&+stream, timeout) catch _ { return false }
     return (&response as &str).contains("{\"user\":\"alice\"}")
-        && (&response as &str).contains("set-cookie: session=")
-        && (&response as &str).contains("HttpOnly; SameSite=Lax")
+    && (&response as &str).contains("set-cookie: session=")
+    && (&response as &str).contains("HttpOnly; SameSite=Lax")
 }
 
 async func missing_route_exchange(address: SocketAddress, timeout: Duration): bool {
@@ -481,8 +484,11 @@ async func run_service_example(): i32! {
     if service.1 != 0 {
         return error.new("http-service.handlers", "failed handler count changed")
     }
-    if service.2 != 1 {
-        return error.new("http-service.events", "structured event count changed")
+    let event_output: &str = &service.2
+    if !event_output.contains("\"event\":\"request.complete\"")
+    || !event_output.contains("\"session\":\"[redacted]\"")
+    || event_output.contains("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") {
+        return error.new("http-service.events", "structured operational output changed")
     }
     if clients != REQUEST_COUNT {
         return error.new("http-service.clients", "successful client count changed")

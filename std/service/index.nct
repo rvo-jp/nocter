@@ -52,7 +52,7 @@ instance ServiceScope {
     pub method &+self.add(computation: future void!): ServiceAdmission
 
     /// Stops admission and requests cancellation once.
-    pub method &+self.stop(): bool
+    pub noalloc method &+self.stop(): bool
 
     /// Drives retained work and removes one completed outcome.
     ///

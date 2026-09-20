@@ -507,6 +507,9 @@ fn cooperative_mutex_contract_is_usable_from_an_application() {
         concat!(
             "use std/sync.Mutex\n",
             "struct Counter { value: i32 }\n",
+            "noalloc func share_counter(value: &Mutex<Counter>): Mutex<Counter> {\n",
+            "    return value.share()\n",
+            "}\n",
             "async func increment(): i32! {\n",
             "    var value = Mutex<Counter>.new(Counter { value: 41 })?\n",
             "    let guard = await value.lock()\n",
@@ -542,12 +545,54 @@ fn cooperative_mutex_contract_is_usable_from_an_application() {
 }
 
 #[test]
+fn cooperative_mutex_guard_keeps_its_shared_owner_live() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        concat!(
+            "use std/sync.Mutex\n",
+            "struct Counter { value: i32 }\n",
+            "async func invalid(): i32! {\n",
+            "    var owner = Mutex<Counter>.new(Counter { value: 41 })?\n",
+            "    let guard = await owner.lock()\n",
+            "    drop owner\n",
+            "    let value: &Counter = &guard as &Counter\n",
+            "    return value.value\n",
+            "}\n",
+        ),
+        GenerationId::new(78),
+    );
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0397"),
+        "mutex owner move was not rejected: {:#?}",
+        snapshot.diagnostics()
+    );
+}
+
+#[test]
 fn bounded_channel_contract_is_usable_from_an_application() {
     let tree = TempTree::new();
     let (_, snapshot) = bundled_snapshot(
         &tree,
         concat!(
-            "use std/sync.{Channel, Receive, Send}\n",
+            "use std/sync.{Channel, Receive, Receiver, Send, Sender, TryReceive, TrySend}\n",
+            "noalloc func share_sender(value: &Sender<i32, 2>): Sender<i32, 2> {\n",
+            "    return value.share()\n",
+            "}\n",
+            "noalloc func share_receiver(value: &Receiver<i32, 2>): Receiver<i32, 2> {\n",
+            "    return value.share()\n",
+            "}\n",
+            "noalloc func send_now(value: &Sender<i32, 2>, item: i32): TrySend<i32> {\n",
+            "    return value.try_send(item)\n",
+            "}\n",
+            "noalloc func receive_now(value: &Receiver<i32, 2>): TryReceive<i32> from value {\n",
+            "    return value.try_receive()\n",
+            "}\n",
             "async func round_trip(): i32! {\n",
             "    let channel = Channel<i32, 2>.bounded()?\n",
             "    let endpoints = channel.split()\n",
@@ -592,7 +637,16 @@ fn cancellation_contract_is_usable_from_an_application() {
     let (_, snapshot) = bundled_snapshot(
         &tree,
         concat!(
-            "use std/sync.CancellationSource\n",
+            "use std/sync.{CancellationSource, CancellationToken}\n",
+            "noalloc func cancel_now(source: &CancellationSource): bool {\n",
+            "    return source.cancel()\n",
+            "}\n",
+            "noalloc func source_cancelled(source: &CancellationSource): bool {\n",
+            "    return source.is_cancelled()\n",
+            "}\n",
+            "noalloc func cancelled_now(token: &CancellationToken): bool {\n",
+            "    return token.is_cancelled()\n",
+            "}\n",
             "async func observe(): bool! {\n",
             "    let source = CancellationSource.new()?\n",
             "    let token = source.token()\n",
@@ -1720,6 +1774,9 @@ fn service_scope_contract_composes_admission_cancellation_and_joining() {
             "async func observe_termination(): void! {\n",
             "    let _ = await service.termination_requested()?\n",
             "    return\n",
+            "}\n",
+            "noalloc func stop_now(scope: &+ServiceScope): bool {\n",
+            "    return scope.stop()\n",
             "}\n",
             "async func serve(): void! {\n",
             "    var scope = ServiceScope.new()?\n",

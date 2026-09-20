@@ -26,6 +26,7 @@ mod recoverable_and_collections;
 mod recovery_and_targets;
 mod service;
 mod standard_and_process;
+mod synchronization;
 mod text_and_filesystem;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);

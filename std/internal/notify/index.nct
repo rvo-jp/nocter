@@ -21,11 +21,8 @@ instance Notification {
     /// Returns the descriptor used only with `wait` while this owner remains live.
     pub(/) noalloc method &self.wait_descriptor(): usize
 
-    /// Adds a wake hint. A full pipe already represents a pending wake and is successful.
-    pub(/) noalloc method &self.signal(): void!
-
-    /// Adds a wake hint from an infallible cleanup path.
-    pub(/) noalloc method &self.signal_best_effort(): void
+    /// Returns the descriptor used only to add wake hints while this owner remains live.
+    pub(/) noalloc method &self.signal_descriptor(): usize
 }
 
 construct NotificationHandle {
@@ -38,7 +35,7 @@ instance NotificationHandle {
     pub(/) noalloc method &self.share(): Self
 
     /// Adds one best-effort wake hint.
-    pub(/) method &self.signal_best_effort(): void
+    pub(/) noalloc method &self.signal_best_effort(): void
 
     /// Waits for and consumes at most one wake hint.
     pub(/) async method &self.wait(): void!

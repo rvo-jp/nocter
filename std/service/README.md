@@ -20,6 +20,8 @@ the scope no longer accepts work, so rejection never silently drops an owned ope
 
 `stop` closes admission and requests the scope's shared cancellation token exactly once. Service
 work should receive a token before admission and use it to leave waits cooperatively.
+The transition is `noalloc`; it mutates the existing scope and notification state without creating
+shutdown storage.
 
 `shutdown` performs the same transition and then joins every retained child. It reports the first
 failed child only after all children have been observed; later failures do not prevent draining.

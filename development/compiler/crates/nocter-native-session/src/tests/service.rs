@@ -63,23 +63,62 @@ fn execute_after_process_signal(
 ) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     let executable = root.join(name);
+    let launcher_ready = root.join(format!("{name}.launcher-ready"));
     fs::write(&executable, image.bytes()).unwrap();
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
-    let mut child = Command::new(&executable).current_dir(root).spawn().unwrap();
-    // Compilation tests may run under heavy parallel load. Delay signal delivery until the root
-    // computation has installed the process-owned source; the child then proves readiness-driven
-    // observation rather than startup timing.
-    std::thread::sleep(Duration::from_secs(1));
-    let delivery = Command::new("/bin/kill")
-        .arg(format!("-{signal}"))
-        .arg(child.id().to_string())
-        .status()
+    let mut child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("trap '' \"$1\"; : > \"$2\"; exec \"$3\"")
+        .arg("nocter-service-signal-launcher")
+        .arg(signal)
+        .arg(&launcher_ready)
+        .arg(&executable)
+        .current_dir(root)
+        .spawn()
         .unwrap();
-    assert!(delivery.success(), "could not deliver SIG{signal}");
-    let status = child.wait().unwrap();
+
+    // The launcher makes the selected disposition harmless before exec. Signals sent before the
+    // Nocter process installs its kqueue source are ignored; repeating delivery then synchronizes
+    // on observable process completion instead of a host-load-dependent startup delay.
+    let launcher_deadline = Instant::now() + Duration::from_secs(5);
+    while !launcher_ready.exists() {
+        if let Some(status) = child.try_wait().unwrap() {
+            panic!("signal-test launcher exited before readiness with {status:?}");
+        }
+        if Instant::now() >= launcher_deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("signal-test launcher did not become ready");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    let observation_deadline = Instant::now() + Duration::from_secs(5);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        let delivery = Command::new("/bin/kill")
+            .arg(format!("-{signal}"))
+            .arg(child.id().to_string())
+            .status()
+            .unwrap();
+        if !delivery.success() {
+            if let Some(status) = child.try_wait().unwrap() {
+                break status;
+            }
+            panic!("could not deliver SIG{signal}");
+        }
+        if Instant::now() >= observation_deadline {
+            let _ = child.kill();
+            let status = child.wait().unwrap();
+            panic!("service did not observe SIG{signal} before timeout: {status:?}");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
     assert_eq!(
         status.code(),
         Some(expected),

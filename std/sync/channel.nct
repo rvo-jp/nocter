@@ -3,6 +3,7 @@
 see ./index.nct
 
 use /internal/notify.NotificationHandle
+use /internal/mem
 use /internal/ptr as internal_ptr
 use /internal/safety
 use /internal/shared.SharedCell
@@ -103,12 +104,14 @@ instance Channel<T, N> {
 }
 
 instance Sender<T, N> {
-    method &self.share(): Self {
+    noalloc method &self.share(): Self {
         var state = self.state.try_write() otherwise {
             return safety.invariant_abort()
         }
         let writable = state.write()
-        writable.sender_count += 1
+        writable.sender_count = mem.checked_add(writable.sender_count, 1) otherwise {
+            return safety.invariant_abort()
+        }
         state.unlock()
         return Sender<T, N> {
             state: self.state.share(),
@@ -117,7 +120,7 @@ instance Sender<T, N> {
         }
     }
 
-    method &self.try_send(value: T from self): TrySend<T> from self {
+    noalloc method &self.try_send(value: T from self): TrySend<T> from self {
         var state = self.state.try_write() otherwise {
             return safety.invariant_abort()
         }
@@ -154,12 +157,14 @@ instance Sender<T, N> {
 }
 
 instance Receiver<T, N> {
-    method &self.share(): Self {
+    noalloc method &self.share(): Self {
         var state = self.state.try_write() otherwise {
             return safety.invariant_abort()
         }
         let writable = state.write()
-        writable.receiver_count += 1
+        writable.receiver_count = mem.checked_add(writable.receiver_count, 1) otherwise {
+            return safety.invariant_abort()
+        }
         state.unlock()
         return Receiver<T, N> {
             state: self.state.share(),
@@ -168,7 +173,7 @@ instance Receiver<T, N> {
         }
     }
 
-    method &self.try_receive(): TryReceive<T> from self {
+    noalloc method &self.try_receive(): TryReceive<T> from self {
         var state = self.state.try_write() otherwise {
             return safety.invariant_abort()
         }

@@ -75,12 +75,11 @@ noalloc func new_notification(): Notification! {
 }
 
 #target: "arm64-darwin"
-noalloc func signal_notification(notification: &Notification): void! {
-    if !notification.write_open { return error.new("std.sync.closed", "notification is closed") }
+noalloc func signal_notification_descriptor(descriptor: usize): void! {
     let byte: u8 = 1
     let address = public_ptr.addr(public_ptr.from_ref(&byte))
     loop {
-        match darwin.try_write_descriptor(notification.write_fd, address, 1) {
+        match darwin.try_write_descriptor(descriptor, address, 1) {
             DescriptorWriteAttempt.ready(_) { return }
             DescriptorWriteAttempt.would_block { return }
             DescriptorWriteAttempt.interrupted {}
@@ -88,6 +87,12 @@ noalloc func signal_notification(notification: &Notification): void! {
             DescriptorWriteAttempt.malformed { return invalid_notification_progress() }
         }
     }
+}
+
+#target: "arm64-darwin"
+noalloc func signal_notification_descriptor_best_effort(descriptor: usize): void {
+    signal_notification_descriptor(descriptor) catch _ { return }
+    return
 }
 
 #target: "arm64-darwin"
@@ -121,14 +126,8 @@ instance Notification {
         return self.read_fd
     }
 
-    noalloc method &self.signal(): void! {
-        signal_notification(self)?
-        return
-    }
-
-    noalloc method &self.signal_best_effort(): void {
-        signal_notification(self) catch _ { return }
-        return
+    noalloc method &self.signal_descriptor(): usize {
+        return self.write_fd
     }
 }
 

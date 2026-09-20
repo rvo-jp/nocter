@@ -20,7 +20,7 @@ struct CancellationToken {
     notification: NotificationHandle
 }
 
-func cancellation_state(state: &SharedCell<CancellationState>): bool {
+noalloc func cancellation_state(state: &SharedCell<CancellationState>): bool {
     var access = state.try_write() otherwise {
         return safety.invariant_abort()
     }
@@ -29,7 +29,7 @@ func cancellation_state(state: &SharedCell<CancellationState>): bool {
     return cancelled
 }
 
-func request_cancellation(
+noalloc func request_cancellation(
     state: &SharedCell<CancellationState>,
     notification: &NotificationHandle,
 ): bool {
@@ -63,11 +63,11 @@ instance CancellationSource {
         }
     }
 
-    method &self.cancel(): bool {
+    noalloc method &self.cancel(): bool {
         return request_cancellation(&self.state, &self.notification)
     }
 
-    method &self.is_cancelled(): bool {
+    noalloc method &self.is_cancelled(): bool {
         return cancellation_state(&self.state)
     }
 }
@@ -80,7 +80,7 @@ instance CancellationToken {
         }
     }
 
-    method &self.is_cancelled(): bool {
+    noalloc method &self.is_cancelled(): bool {
         return cancellation_state(&self.state)
     }
 

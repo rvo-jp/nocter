@@ -8,7 +8,7 @@ see ./storage.nct
 /// One clonable owner of a page-backed value used by package-internal coordination types.
 pub(/) struct SharedCell<T>
 
-/// One exclusive shared-value projection that releases itself on every exit path.
+/// One borrow-bounded exclusive projection that never owns or finalizes the shared value.
 pub(/) struct SharedWrite<T>
 
 construct SharedCell<T> {
@@ -22,9 +22,6 @@ instance SharedCell<T> {
 
     /// Acquires the sole exclusive projection, or returns none while another projection exists.
     pub(/) noalloc method &self.try_write(): SharedWrite<T>? from self
-
-    /// Returns the current owner count for package-internal invariant tests.
-    pub(/) noalloc method &self.owner_count(): usize
 }
 
 instance SharedWrite<T> {
