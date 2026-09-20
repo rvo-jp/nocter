@@ -196,6 +196,15 @@ language. It preserves pair and duplicate order. `Cookie.new` validates a single
 `Cookie.render` emits the canonical unquoted `name=value` spelling, which is safe because stored
 values already satisfy the unquoted cookie-octet grammar.
 
+`SessionCookie` is the explicit boundary between opaque `std/session.SessionId` values and HTTP
+fields. Its policy fixes one validated cookie name and absolute path. Set values are canonical
+URL-safe unpadded Base64 and always carry `HttpOnly` and `SameSite=Lax`; `Secure` is selected at
+policy construction. Clear values repeat the same path and security policy and add `Max-Age=0`.
+`read_headers` rejects multiple `Cookie` fields rather than applying an implicit combination rule,
+then parses the sole field through the ordinary bounded cookie authority. `read` accepts an already
+parsed `Cookies` value when the application owns a separate field-combination policy. Both reject
+duplicate session names and malformed identifier spellings.
+
 ## Client Lifecycle
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a

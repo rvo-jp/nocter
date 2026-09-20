@@ -1,0 +1,110 @@
+//! Explicit transport policy between opaque session identifiers and HTTP cookies.
+
+see ./cookie.nct
+see ./errors.nct
+see ./index.nct
+see ./values.nct
+
+use /session.SessionId
+use /str as text_module
+use /string.String
+
+struct SessionCookie {
+    name_value: String
+    path_value: String
+    secure_value: bool
+}
+
+noalloc func valid_cookie_path(path: &str): bool {
+    if path.len() == 0 || path[0] != 47 { return false }
+    var offset: usize = 0
+    while offset < path.len() {
+        let value = path[offset]
+        if value < 32 || value == 59 || value > 126 { return false }
+        offset += 1
+    }
+    return true
+}
+
+func session_set_cookie_value(
+    policy: &SessionCookie,
+    identifier: &SessionId?,
+): String {
+    var value = String.copy(&policy.name_value)
+    value.push('=')
+    let present = identifier otherwise {
+        value.push_str("; Path=")
+        value.push_str(&policy.path_value)
+        value.push_str("; Max-Age=0; HttpOnly; SameSite=Lax")
+        if policy.secure_value { value.push_str("; Secure") }
+        return move value
+    }
+    let revealed = present.reveal()
+    value.push_str(&revealed)
+    value.push_str("; Path=")
+    value.push_str(&policy.path_value)
+    value.push_str("; HttpOnly; SameSite=Lax")
+    if policy.secure_value { value.push_str("; Secure") }
+    return move value
+}
+
+func session_header(value: String): Header! {
+    return Header.new(
+        HeaderName.parse("set-cookie")?,
+        HeaderValue.from_text(&value)?,
+    )
+}
+
+construct SessionCookie {
+    func new(name: &str, path: &str, secure: bool): Self! {
+        if !valid_token(name) || !valid_cookie_path(path) { return invalid_session_cookie() }
+        return SessionCookie {
+            name_value: String.copy(name),
+            path_value: String.copy(path),
+            secure_value: secure,
+        }
+    }
+}
+
+instance SessionCookie {
+    method &self.read_headers(headers: &Headers): SessionId?! {
+        var found: &HeaderValue? = none
+        var index: usize = 0
+        while index < headers.len() {
+            let header = headers.at(index) otherwise { return invalid_session_cookie() }
+            if header.name().text() == "cookie" {
+                let _existing = found otherwise {
+                    found = header.value()
+                    index += 1
+                    continue
+                }
+                return invalid_session_cookie()
+            }
+            index += 1
+        }
+        let value = found otherwise { return none }
+        let text = text_module.from_utf8(value.bytes()) catch _ { return invalid_session_cookie() }
+        let cookies = Cookies.parse(text) catch _ { return invalid_session_cookie() }
+        return self.read(&cookies)?
+    }
+
+    noalloc method &self.read(cookies: &Cookies): SessionId?! {
+        let name: &str = &self.name_value
+        let count = cookies.count(name)
+        if count == 0 { return none }
+        if count != 1 { return invalid_session_cookie() }
+        let value = cookies.first(name) otherwise { return invalid_session_cookie() }
+        let parsed = SessionId.parse(value) otherwise { return invalid_session_cookie() }
+        return parsed
+    }
+
+    method &self.set_header(identifier: &SessionId): Header! {
+        let present: &SessionId? = identifier
+        return session_header(session_set_cookie_value(self, present))?
+    }
+
+    method &self.clear_header(): Header! {
+        let absent: &SessionId? = none
+        return session_header(session_set_cookie_value(self, absent))?
+    }
+}

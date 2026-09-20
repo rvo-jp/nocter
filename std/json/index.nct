@@ -18,6 +18,12 @@ see ./string_decoding.nct
 pub struct Number
 
 construct Number {
+    /// Creates a canonical JSON number from one signed integer.
+    pub func from_i64(value: i64): Self
+
+    /// Creates a canonical JSON number from one unsigned integer.
+    pub func from_u64(value: u64): Self
+
     /// Validates and copies exactly one JSON number token.
     pub func parse(text: &str): Self!
 

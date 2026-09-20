@@ -102,6 +102,9 @@ This exact token model deliberately does not define equality between `Number` va
 equivalence, such as whether `1`, `1.0`, and `1e0` compare equal, requires a separate explicit
 contract. The current `Value` contract therefore has no implicit recursive equality operation.
 
+`Number.from_i64` and `Number.from_u64` create the canonical base-10 spelling of an integer
+directly. They cannot fail because every value in either integer domain is a valid JSON number.
+
 ### Floating-Point Conversion
 
 `Number.from_f32` and `Number.from_f64` accept every finite value and retain the standard shortest

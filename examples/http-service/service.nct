@@ -1,12 +1,15 @@
 see ./index.nct
 
-use std/http.{Handler, IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, RouteDispatch, RouteMatch, Router, Server, ServerConnection, Status}
+use std/http.{Handler, IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, RouteDispatch, RouteMatch, Router, Server, ServerConnection, SessionCookie, Status}
+use std/log.{Event, Field, Level}
 use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpStream}
+use std/session.SessionId
 use std/string.String
+use std/sync.Mutex
 use std/task
 use std/task.{TaskGroup, Timeout}
-use std/time.Duration
+use std/time.{Duration, SystemTime}
 use std/vec.Vec
 
 const CONNECTION_LIMIT: usize = 2
@@ -19,16 +22,28 @@ const TRANSFER_BYTES: usize = 1024
 
 struct ServiceState {
     request_timeout: Duration
+    session_cookie: SessionCookie
+    event_records: Mutex<Vec<Event>>
 }
 
 construct ServiceState {
-    noalloc func new(request_timeout: Duration): Self {
-        return ServiceState { request_timeout: request_timeout }
+    func new(request_timeout: Duration): Self! {
+        return ServiceState {
+            request_timeout: request_timeout,
+            session_cookie: SessionCookie.new("session", "/", false)?,
+            event_records: Mutex<Vec<Event>>.new(Vec<Event>.empty())?,
+        }
     }
 }
 
 instance ServiceState {
     noalloc method &self.timeout(): Duration { return self.request_timeout }
+
+    noalloc method &self.cookie(): &SessionCookie from self { return &self.session_cookie }
+
+    noalloc method &self.event_store(): &Mutex<Vec<Event>> from self {
+        return &self.event_records
+    }
 }
 
 func loopback(): SocketAddress {
@@ -111,12 +126,25 @@ async func handle_close_route(
     return await responder.respond_with_timeout(move response, timeout)?
 }
 
+async func record_event(state: &ServiceState, event: Event): void {
+    let event_store = state.event_store()
+    var events = await event_store.lock()
+    events.push(move event)
+    return
+}
+
+func session_for_request(state: &ServiceState, request: &IncomingRequest): SessionId! {
+    let session = state.cookie().read_headers(request.headers())?
+    return session otherwise { return SessionId.issue()? }
+}
+
 async func handle_user_route(
     state: &ServiceState,
     request: IncomingRequest,
     route: RouteMatch,
 ): ServerConnection?! {
     let timeout = state.timeout()
+    let identifier = session_for_request(state, &request)?
     let user = route.parameter("id") otherwise {
         let response = OutgoingResponse.text(Status.bad_request(), "missing user")?
         return await request.respond_with_timeout(
@@ -139,7 +167,19 @@ async func handle_user_route(
             timeout,
         )?
     }
-    let response = OutgoingResponse.json(Status.ok(), "{\"user\":\"alice\"}")?
+    let timestamp = SystemTime.now()?
+    var event = Event.new(timestamp, Level.info, "request.complete")?
+    let route_field = Field.text("route", "user")?
+    event.add(move route_field)?
+    let status_field = Field.unsigned("status", 200)?
+    event.add(move status_field)?
+    let session_field = Field.redacted("session")?
+    event.add(move session_field)?
+    await record_event(state, move event)
+    var response = OutgoingResponse.json(Status.ok(), "{\"user\":\"alice\"}")?
+    let cookie_policy = state.cookie()
+    let session_header = cookie_policy.set_header(&identifier)?
+    response.append_header(move session_header)
     return await request.respond_with_timeout(
         move response,
         timeout,
@@ -155,7 +195,7 @@ async func handle_failure_route(
 }
 
 func build_router(request_timeout: Duration): Router<ServiceState>! {
-    var router = Router.new(ServiceState.new(request_timeout))
+    var router = Router.new(ServiceState.new(request_timeout)?)
     let large: Handler<ServiceState> = (state, request, route) {
         handle_large_route(state, move request, move route)
     }
@@ -257,7 +297,7 @@ async func serve_bounded(
     server: Server,
     request_timeout: Duration,
     shutdown_deadline: Duration,
-): (usize, usize)! {
+): (usize, usize, usize)! {
     var owner = move server
     let router = build_router(request_timeout)?
     var handlers: TaskGroup<bool> = TaskGroup.empty()
@@ -278,7 +318,12 @@ async func serve_bounded(
     }
     owner.close()
     let drained = await drain_handlers_before(move handlers, shutdown_deadline)?
-    return (succeeded + drained.0, failed + drained.1)
+    let state = router.into_state()
+    let event_store = state.event_store()
+    var events = await event_store.lock()
+    let stored_events: &Vec<Event> = &events as &Vec<Event>
+    let event_count = stored_events.len()
+    return (succeeded + drained.0, failed + drained.1, event_count)
 }
 
 async func read_until_eof(
@@ -360,12 +405,15 @@ async func timed_out_exchange(address: SocketAddress, timeout: Duration): bool {
 }
 
 async func routed_parameter_exchange(address: SocketAddress, timeout: Duration): bool {
-    return await text_exchange(
-        address,
+    var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
+    await stream.write_with_timeout(
+        "GET /users/alice?view=full HTTP/1.1\r\nHost: localhost\r\nCookie: session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\r\nConnection: close\r\n\r\n".bytes(),
         timeout,
-        "GET /users/alice?view=full HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
-        "{\"user\":\"alice\"}",
-    )
+    ) catch _ { return false }
+    let response = await read_response_text(&+stream, timeout) catch _ { return false }
+    return (&response as &str).contains("{\"user\":\"alice\"}")
+        && (&response as &str).contains("set-cookie: session=")
+        && (&response as &str).contains("HttpOnly; SameSite=Lax")
 }
 
 async func missing_route_exchange(address: SocketAddress, timeout: Duration): bool {
@@ -427,8 +475,17 @@ async func run_service_example(): i32! {
     )
     let service = move completed.0?
     let clients = move completed.1?
-    if service.0 != REQUEST_COUNT || service.1 != 0 || clients != REQUEST_COUNT {
-        return error.new("http-service.result", "bounded service outcomes changed")
+    if service.0 != REQUEST_COUNT {
+        return error.new("http-service.handlers", "successful handler count changed")
+    }
+    if service.1 != 0 {
+        return error.new("http-service.handlers", "failed handler count changed")
+    }
+    if service.2 != 1 {
+        return error.new("http-service.events", "structured event count changed")
+    }
+    if clients != REQUEST_COUNT {
+        return error.new("http-service.clients", "successful client count changed")
     }
     return 0
 }

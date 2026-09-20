@@ -325,6 +325,18 @@ func generated_number_shape(text: &str): NumberShape {
 }
 
 construct Number {
+    func from_i64(value: i64): Self {
+        let source = value.to_string()
+        let shape = generated_number_shape(&source)
+        return Number { source: move source, shape: shape }
+    }
+
+    func from_u64(value: u64): Self {
+        let source = value.to_string()
+        let shape = generated_number_shape(&source)
+        return Number { source: move source, shape: shape }
+    }
+
     func parse(text: &str): Self! {
         return parse_number(text)?
     }
@@ -411,6 +423,13 @@ func number_projects_u64(text: &str): bool {
 }
 
 test number_preserves_exact_text_and_projects_integer_boundaries {
+    let constructed_minimum = Number.from_i64(-9223372036854775808)
+    let constructed_maximum = Number.from_u64(18446744073709551615)
+    if constructed_minimum.text() != "-9223372036854775808"
+        || constructed_maximum.text() != "18446744073709551615" {
+        return error.new("std.json.number", "integer construction was not canonical")
+    }
+
     let decimal = Number.parse("-12.3400e2")?
     let decimal_value = decimal.as_i64() otherwise {
         return error.new("std.json.number", "integral decimal did not project to i64")

@@ -1,0 +1,80 @@
+//! Sole byte representation, parser, issuer, and transport spelling for session identifiers.
+
+see ./index.nct
+
+use /base64
+use /internal/ptr
+use /internal/safety
+use /ptr as public_ptr
+use /random
+use /str as text_module
+use /string.String
+
+copy struct SessionId {
+    bytes_value: [u8; 32]
+}
+
+noalloc func session_bytes(value: &+[u8; 32]): &+[u8] from value {
+    let first = public_ptr.from_ref_mut(&+value[0])
+    return ptr.slice_from_raw_parts_value_mut(first, 32)
+}
+
+noalloc func session_bytes_view(value: &[u8; 32]): &[u8] from value {
+    let first = public_ptr.from_ref(&value[0])
+    return ptr.slice_from_raw_parts_value(first, 32)
+}
+
+construct SessionId {
+    noalloc func from_bytes(bytes: [u8; 32]): Self {
+        return SessionId { bytes_value: bytes }
+    }
+
+    noalloc func parse(text: &str): Self? {
+        if text.len() != 43 { return none }
+        var bytes: [u8; 32] = [0; 32]
+        let written = base64.decode_url_into(text, session_bytes(&+bytes)) catch _ { return none }
+        if written != 32 { return none }
+        return SessionId.from_bytes(bytes)
+    }
+
+    noalloc func issue(): Self! {
+        var bytes: [u8; 32] = [0; 32]
+        random.fill(session_bytes(&+bytes))?
+        return SessionId.from_bytes(bytes)
+    }
+}
+
+instance SessionId {
+    noalloc method &self.bytes(): [u8; 32] { return self.bytes_value }
+
+    method &self.reveal(): String {
+        var encoded: [u8; 43] = [0; 43]
+        let first = public_ptr.from_ref_mut(&+encoded[0])
+        let output = ptr.slice_from_raw_parts_value_mut(first, 43)
+        let written = base64.encode_url_into(session_bytes_view(&self.bytes_value), output)
+        catch _ { return safety.invariant_abort() }
+        if written != 43 { return safety.invariant_abort() }
+        let text = text_module.from_utf8(output) catch _ { return safety.invariant_abort() }
+        return String.copy(text)
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        var index: usize = 0
+        var equal = true
+        while index < 32 {
+            if self.bytes_value[index] != other.bytes_value[index] { equal = false }
+            index += 1
+        }
+        return equal
+    }
+
+    noalloc operator (&self < other: &Self): bool {
+        var index: usize = 0
+        while index < 32 {
+            if self.bytes_value[index] < other.bytes_value[index] { return true }
+            if other.bytes_value[index] < self.bytes_value[index] { return false }
+            index += 1
+        }
+        return false
+    }
+}

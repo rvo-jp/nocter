@@ -1,5 +1,27 @@
 use super::*;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn wall_clock_result_crosses_an_async_entry_point() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        concat!(
+            "use std/time.SystemTime\n",
+            "async func main(): i32! {\n",
+            "    let observed = SystemTime.now()?\n",
+            "    if observed.unix_seconds() <= 0 {\n",
+            "        return error.new(\"async-time.invalid\", \"wall clock was not positive\")\n",
+            "    }\n",
+            "    return 0\n",
+            "}\n",
+        ),
+    );
+    execute_native_status(&image, &package_root.0, "async-wall-clock", 0);
+}
+
 #[test]
 fn standard_io_descriptor_contract_crosses_native_tests() {
     let standard_root = nocter_test_support::standard_library_root();

@@ -1,0 +1,164 @@
+//! Sole event representation, validation, JSON projection, and output driver.
+
+see ./index.nct
+
+use /io.BlockingWriter
+use /json.{Number, Value}
+use /json
+use /map.Map
+use /internal/ptr
+use /string.String
+use /time.SystemTime
+use /vec.Vec
+
+enum FieldValue {
+    text(value: String)
+    signed(value: i64)
+    unsigned(value: u64)
+    boolean(value: bool)
+    redacted
+}
+
+struct Field {
+    name_value: String
+    value_value: FieldValue
+}
+
+struct Event {
+    timestamp_value: SystemTime
+    level_value: Level
+    name_value: String
+    fields: Vec<Field>
+}
+
+noalloc func valid_name(name: &str): bool {
+    if name.len() == 0 { return false }
+    var offset: usize = 0
+    while offset < name.len() {
+        let byte = name[offset]
+        if byte < 32 || byte == 127 { return false }
+        offset += 1
+    }
+    return true
+}
+
+func invalid_name(): error {
+    return error.new("std.log.invalid_name", "event and field names must be nonempty text without control bytes")
+}
+
+func duplicate_field(): error {
+    return error.new("std.log.duplicate_field", "an event field name may occur only once")
+}
+
+noalloc func level_text(level: Level): &str {
+    match level {
+        Level.debug { return "debug" }
+        Level.info { return "info" }
+        Level.warning { return "warning" }
+        Level.error { return "error" }
+    }
+}
+
+func field_json(field: &Field): Value {
+    match &field.value_value {
+        FieldValue.text(value) { return Value.string(String.copy(value)) }
+        FieldValue.signed(value) { return Value.number(Number.from_i64(ptr.copy_value(value))) }
+        FieldValue.unsigned(value) { return Value.number(Number.from_u64(ptr.copy_value(value))) }
+        FieldValue.boolean(value) { return Value.boolean(ptr.copy_value(value)) }
+        FieldValue.redacted { return Value.string(String.copy("[redacted]")) }
+    }
+}
+
+construct Field {
+    func text(name: &str, value: &str): Self! {
+        if !valid_name(name) { return invalid_name() }
+        return Field {
+            name_value: String.copy(name),
+            value_value: FieldValue.text(String.copy(value)),
+        }
+    }
+
+    func signed(name: &str, value: i64): Self! {
+        if !valid_name(name) { return invalid_name() }
+        return Field { name_value: String.copy(name), value_value: FieldValue.signed(value) }
+    }
+
+    func unsigned(name: &str, value: u64): Self! {
+        if !valid_name(name) { return invalid_name() }
+        return Field { name_value: String.copy(name), value_value: FieldValue.unsigned(value) }
+    }
+
+    func boolean(name: &str, value: bool): Self! {
+        if !valid_name(name) { return invalid_name() }
+        return Field { name_value: String.copy(name), value_value: FieldValue.boolean(value) }
+    }
+
+    func redacted(name: &str): Self! {
+        if !valid_name(name) { return invalid_name() }
+        return Field { name_value: String.copy(name), value_value: FieldValue.redacted }
+    }
+}
+
+instance Field {
+    noalloc method &self.name(): &str from self { return &self.name_value as &str }
+}
+
+construct Event {
+    func new(timestamp: SystemTime, level: Level, name: &str): Self! {
+        if !valid_name(name) { return invalid_name() }
+        return Event {
+            timestamp_value: timestamp,
+            level_value: level,
+            name_value: String.copy(name),
+            fields: Vec.empty(),
+        }
+    }
+}
+
+instance Event {
+    method &+self.add(field: Field): void! {
+        var index: usize = 0
+        while index < self.fields.len() {
+            if self.fields[index].name() == field.name() { return duplicate_field() }
+            index += 1
+        }
+        self.fields.push(move field)
+        return
+    }
+
+    method &self.to_json(): Value! {
+        var fields: Map<String, Value> = Map.with_capacity(self.fields.len())
+        var index: usize = 0
+        while index < self.fields.len() {
+            let field = &self.fields[index]
+            let _replaced = fields.insert(String.copy(field.name()), field_json(field))
+            index += 1
+        }
+
+        var root: Map<String, Value> = Map.with_capacity(4)
+        let timestamp = self.timestamp_value.to_rfc3339()?
+        let _timestamp = root.insert(String.copy("timestamp"), Value.string(move timestamp))
+        let _level = root.insert(
+            String.copy("level"),
+            Value.string(String.copy(level_text(self.level_value))),
+        )
+        let _event = root.insert(
+            String.copy("event"),
+            Value.string(String.copy(&self.name_value)),
+        )
+        let _fields = root.insert(String.copy("fields"), Value.object(move fields))
+        return Value.object(move root)
+    }
+
+    method &self.to_json_line(): String! {
+        let value = self.to_json()?
+        return json.stringify(&value)
+    }
+
+    blocking method &self.write_json_line<W>(destination: &+W): void! where W impl BlockingWriter {
+        let value = self.to_json()?
+        json.write(destination, &value)?
+        destination.write_text_blocking("\n")?
+        return
+    }
+}

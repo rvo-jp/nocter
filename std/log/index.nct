@@ -1,0 +1,63 @@
+//! Structured operational events with explicit time, destination, and redaction.
+
+use /io.BlockingWriter
+use /json.Value
+use /string.String
+use /time.SystemTime
+see ./event.nct
+see ./tests.nct
+
+/// Operational severity attached to one event.
+pub enum Level {
+    debug
+    info
+    warning
+    error
+}
+
+/// One named, typed event field.
+pub struct Field
+
+construct Field {
+    /// Copies one textual field value.
+    pub func text(name: &str, value: &str): Self!
+
+    /// Stores one signed integer field value.
+    pub func signed(name: &str, value: i64): Self!
+
+    /// Stores one unsigned integer field value.
+    pub func unsigned(name: &str, value: u64): Self!
+
+    /// Stores one Boolean field value.
+    pub func boolean(name: &str, value: bool): Self!
+
+    /// Records a field whose secret value is deliberately not retained.
+    pub func redacted(name: &str): Self!
+}
+
+instance Field {
+    /// Returns the field name.
+    pub noalloc method &self.name(): &str from self
+}
+
+/// One owning structured event with an explicit wall-clock timestamp.
+pub struct Event
+
+construct Event {
+    /// Creates an event without reading a clock or process-global context.
+    pub func new(timestamp: SystemTime, level: Level, name: &str): Self!
+}
+
+instance Event {
+    /// Adds one field, rejecting a duplicate field name.
+    pub method &+self.add(field: Field): void!
+
+    /// Builds the structured JSON value for this event.
+    pub method &self.to_json(): Value!
+
+    /// Generates one compact JSON record without a trailing line feed.
+    pub method &self.to_json_line(): String!
+
+    /// Writes one compact JSON record followed by exactly one line feed.
+    pub blocking method &self.write_json_line<W>(destination: &+W): void! where W impl BlockingWriter
+}

@@ -20,6 +20,7 @@ see ./transport_buffer.nct
 see ./values.nct
 
 use /hash.HashState
+use /session.SessionId
 use /vec.Vec
 
 async func discard_route_test_request(
@@ -695,6 +696,97 @@ test cookies_reject_forbidden_octets_trailing_pairs_and_aggregate_growth {
         return error.new("std.http.test", "trailing empty cookie pair was accepted")
     }
     return error.new("std.http.test", "forbidden cookie octet was accepted")
+}
+
+test session_cookie_transport_is_canonical_and_explicitly_reveals_identity {
+    let policy = SessionCookie.new("session", "/app", true)?
+    let identifier = SessionId.from_bytes([0; 32])
+    let header = policy.set_header(&identifier)?
+    if header.name().text() != "set-cookie"
+        || !bytes_equal(
+            header.value().bytes(),
+            "session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/app; HttpOnly; SameSite=Lax; Secure".bytes(),
+        ) {
+        return error.new("std.http.test", "session Set-Cookie policy changed")
+    }
+    let cookies = Cookies.parse("session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")?
+    let parsed = policy.read(&cookies)? otherwise {
+        return error.new("std.http.test", "session cookie was not found")
+    }
+    if parsed != identifier { return error.new("std.http.test", "session identity changed") }
+    return
+}
+
+test session_cookie_transport_rejects_ambiguity_and_clears_with_matching_policy {
+    let policy = SessionCookie.new("session", "/", false)?
+    let duplicates = Cookies.parse(
+        "session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    )?
+    let _ambiguous = policy.read(&duplicates) catch failure {
+        if !failure.has_code("std.http.invalid_session_cookie") {
+            return error.new("std.http.test", "session ambiguity failure changed")
+        }
+        let cleared = policy.clear_header()?
+        if bytes_equal(
+            cleared.value().bytes(),
+            "session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax".bytes(),
+        ) { return }
+        return error.new("std.http.test", "session clearing policy changed")
+    }
+    return error.new("std.http.test", "ambiguous session cookie was accepted")
+}
+
+test session_cookie_transport_rejects_duplicate_cookie_fields {
+    let policy = SessionCookie.new("session", "/", false)?
+    var headers = Headers.empty()
+    headers.append(Header.new(
+        HeaderName.parse("cookie")?,
+        HeaderValue.from_text("session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")?,
+    ))
+    headers.append(Header.new(
+        HeaderName.parse("Cookie")?,
+        HeaderValue.from_text("session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")?,
+    ))
+    let _value = policy.read_headers(&headers) catch failure {
+        if failure.has_code("std.http.invalid_session_cookie") { return }
+        return error.new("std.http.test", "duplicate cookie field failure changed")
+    }
+    return error.new("std.http.test", "duplicate Cookie fields were accepted")
+}
+
+test session_cookie_policy_requires_a_token_name_and_ascii_absolute_path {
+    let _name = SessionCookie.new("not a token", "/", false) catch name_failure {
+        if !name_failure.has_code("std.http.invalid_session_cookie") {
+            return error.new("std.http.test", "session name failure changed")
+        }
+        let _relative = SessionCookie.new("session", "relative", false) catch path_failure {
+            if !path_failure.has_code("std.http.invalid_session_cookie") {
+                return error.new("std.http.test", "relative session path failure changed")
+            }
+            let _unicode = SessionCookie.new("session", "/é", false) catch unicode_failure {
+                if unicode_failure.has_code("std.http.invalid_session_cookie") { return }
+                return error.new("std.http.test", "non-ASCII session path failure changed")
+            }
+            return error.new("std.http.test", "non-ASCII session path was accepted")
+        }
+        return error.new("std.http.test", "relative session path was accepted")
+    }
+    return error.new("std.http.test", "invalid session name was accepted")
+}
+
+test session_cookie_transport_reads_one_complete_request_field_set {
+    let policy = SessionCookie.new("session", "/", false)?
+    var headers = Headers.empty()
+    headers.append(Header.new(
+        HeaderName.parse("cookie")?,
+        HeaderValue.from_text("session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")?,
+    ))
+    let parsed = policy.read_headers(&headers)? otherwise {
+        return error.new("std.http.test", "session field was not found")
+    }
+    let expected = SessionId.from_bytes([0; 32])
+    if parsed != expected { return error.new("std.http.test", "session field identity changed") }
+    return
 }
 
 test route_patterns_select_named_parameters_without_rescanning_the_target {

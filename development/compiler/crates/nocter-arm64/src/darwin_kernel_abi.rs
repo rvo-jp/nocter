@@ -199,6 +199,10 @@ impl DarwinSelectAbi {
 pub(crate) struct DarwinTimevalAbi;
 
 impl DarwinTimevalAbi {
+    /// The Darwin kernel entry extends the public two-argument C API with an optional
+    /// `uint64_t *mach_absolute_time` output in the third argument register. Callers that do not
+    /// request that observation must still pass null rather than leaking an ambient register.
+    pub(crate) const ARGUMENT_COUNT: u8 = 3;
     pub(crate) const SIZE: u64 = 16;
     pub(crate) const SECONDS_OFFSET: u64 = 0;
     /// Offset of a signed 32-bit count followed by four padding bytes. The backend zeroes the

@@ -36,6 +36,7 @@ pub(crate) fn emit_wall_clock_read(
     );
     crate::frame_access::form_stack_address(code, argument(0), 0);
     crate::frame_access::load_immediate(code, argument(1), 0, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(code, argument(2), 0, Arm64DataSize::Bits64);
     crate::darwin_kernel_abi::emit_system_call(
         code,
         crate::darwin_kernel_abi::DarwinSystemCall::GetTimeOfDay,
@@ -99,5 +100,6 @@ fn move_register(code: &mut Arm64CodeBuilder, destination: Arm64Register, source
 }
 
 fn argument(index: u8) -> Arm64Register {
+    debug_assert!(index < crate::darwin_kernel_abi::DarwinTimevalAbi::ARGUMENT_COUNT);
     Arm64NocterAbi::argument_register(index).expect("Darwin wall-clock calls use ABI arguments")
 }

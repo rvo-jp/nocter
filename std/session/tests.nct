@@ -1,0 +1,45 @@
+//! Native qualification for opaque session identifiers.
+
+see ./index.nct
+
+use /hash.HashState
+
+test session_identifiers_round_trip_one_canonical_transport_spelling {
+    let bytes: [u8; 32] = [0; 32]
+    let identifier = SessionId.from_bytes(bytes)
+    let text = identifier.reveal()
+    if (&text as &str) != "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" {
+        return error.new("std.session.test", "session spelling changed")
+    }
+    let parsed = SessionId.parse(&text) otherwise {
+        return error.new("std.session.test", "canonical session spelling was rejected")
+    }
+    if parsed != identifier { return error.new("std.session.test", "session identity changed") }
+    return
+}
+
+test session_identifiers_reject_noncanonical_or_wrong_width_text {
+    let _short = SessionId.parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") otherwise {
+        let _alphabet = SessionId.parse("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+") otherwise {
+            return
+        }
+        return error.new("std.session.test", "standard Base64 alphabet was accepted")
+    }
+    return error.new("std.session.test", "short session identifier was accepted")
+}
+
+test issued_session_identifiers_preserve_value_contracts {
+    let identifier = SessionId.issue()?
+    let text = identifier.reveal()
+    let reparsed = SessionId.parse(&text) otherwise {
+        return error.new("std.session.test", "issued identifier did not round trip")
+    }
+    var left = HashState.fresh()
+    var right = left.restart()
+    identifier.hash_into(&+left)
+    reparsed.hash_into(&+right)
+    if identifier != reparsed || left.finish() != right.finish() {
+        return error.new("std.session.test", "session value contracts diverged")
+    }
+    return
+}

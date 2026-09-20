@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.65.0 Phase 5 Sessions-and-observability Review](v0.65.0-phase-5.md)
 - [v0.65.0 Phase 4 Stateful-routing Review](v0.65.0-phase-4.md)
 - [v0.65.0 Phase 3 HTTP Application-data Review](v0.65.0-phase-3.md)
 - [v0.64.0 Phase 4 Application Encoding and Identity Review](v0.64.0-phase-4.md)

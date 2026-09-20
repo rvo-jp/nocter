@@ -1,0 +1,40 @@
+//! Opaque cryptographic session identifiers without transport or storage policy.
+
+see ./identifier.nct
+see ./contracts.nct
+see ./tests.nct
+
+use /hash.Hash
+use /order.TotalOrder
+use /string.String
+
+/// One opaque 256-bit session identifier.
+pub copy struct SessionId
+
+construct SessionId {
+    /// Constructs an identifier from its exact 32-byte identity.
+    pub noalloc func from_bytes(bytes: [u8; 32]): Self
+
+    /// Parses one canonical URL-safe unpadded Base64 spelling.
+    pub noalloc func parse(text: &str): Self?
+
+    /// Issues an identifier from 32 bytes of operating-system cryptographic randomness.
+    pub noalloc func issue(): Self!
+}
+
+instance SessionId {
+    impl Hash
+    impl TotalOrder
+
+    /// Returns the exact 32-byte identity.
+    pub noalloc method &self.bytes(): [u8; 32]
+
+    /// Explicitly reveals the canonical transport spelling.
+    pub method &self.reveal(): String
+
+    /// Compares every identity byte.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders identity bytes lexicographically.
+    pub noalloc operator (&self < other: &Self): bool
+}

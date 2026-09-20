@@ -4,6 +4,7 @@ use /hash.{Hash, HashState}
 use /iter.{Iterator, LendingIterator}
 use /io.{BlockingReader, Reader, TimedReader, TimedWriter, Writer}
 use /net.SocketAddress
+use /session.SessionId
 use /string.String
 use /time.Duration
 use /tls.TrustAnchor
@@ -39,6 +40,7 @@ see ./response_collection.nct
 see ./response_head.nct
 see ./response_plan.nct
 see ./response_writer.nct
+see ./session_cookie.nct
 see ./server.nct
 see ./server_storage.nct
 see ./server_values.nct
@@ -383,6 +385,28 @@ instance Cookies {
 
     /// Counts cookies with the exact name.
     pub noalloc method &self.count(name: &str): usize
+}
+
+/// One fixed, HttpOnly session-cookie transport policy.
+pub struct SessionCookie
+
+construct SessionCookie {
+    /// Validates one cookie name and absolute cookie path.
+    pub func new(name: &str, path: &str, secure: bool): Self!
+}
+
+instance SessionCookie {
+    /// Reads one unambiguous session identifier from the complete request fields.
+    pub method &self.read_headers(headers: &Headers): SessionId?!
+
+    /// Reads one unambiguous canonical session identifier from request cookies.
+    pub noalloc method &self.read(cookies: &Cookies): SessionId?!
+
+    /// Creates one `Set-Cookie` header using HttpOnly and SameSite=Lax.
+    pub method &self.set_header(identifier: &SessionId): Header!
+
+    /// Creates one matching `Set-Cookie` header that expires the browser value.
+    pub method &self.clear_header(): Header!
 }
 
 /// A validated outbound HTTP/1.1 request head.

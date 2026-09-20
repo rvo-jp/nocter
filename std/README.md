@@ -45,7 +45,9 @@ comments.
 | hashing and unordered collections | [Associative Collections](map/README.md) | `std/hash`, `std/map`, `std/set` |
 | cryptographically secure random bytes and scalars | [Cryptographic Randomness](random/README.md) | `std/random` |
 | canonical UUID values and version-4 generation | [Universally Unique Identifiers](uuid/README.md) | `std/uuid` |
+| opaque session identifiers | [Opaque Session Identifiers](session/README.md) | `std/session` |
 | JSON values, parsing, and generation | [JSON Values and Text](json/README.md) | `std/json` |
+| structured operational events and redaction | [Structured Operational Logging](log/README.md) | `std/log` |
 | durations, monotonic time, wall-clock time, and UTC calendar values | [Time](time/README.md) | `std/time` |
 | structured asynchronous computation composition | [Structured Asynchronous Tasks](task/README.md) | `std/task` |
 | cooperative shared ownership and synchronization | [Cooperative Synchronization](sync/README.md) | `std/sync` |

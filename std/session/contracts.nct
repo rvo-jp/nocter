@@ -1,0 +1,13 @@
+//! Hashing for the exact bytes that define session identity.
+
+see ./index.nct
+see ./identifier.nct
+
+use /hash.HashState
+
+instance SessionId {
+    noalloc method &self.hash_into(state: &+HashState): void {
+        state.write(session_bytes_view(&self.bytes_value))
+        return
+    }
+}

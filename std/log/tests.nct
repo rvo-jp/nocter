@@ -1,0 +1,120 @@
+//! Native contract tests for structured operational events.
+
+see ./index.nct
+
+use /json.Value
+use /internal/ptr
+use /string.String
+use /testing
+use /time.SystemTime
+
+test event_preserves_typed_fields_and_discards_redacted_values {
+    var event = Event.new(SystemTime.from_unix_seconds(0), Level.info, "request.complete")?
+    event.add(Field.text("method", "GET")?)?
+    event.add(Field.signed("status", 200)?)?
+    event.add(Field.unsigned("bytes", 42)?)?
+    event.add(Field.boolean("cached", false)?)?
+    event.add(Field.redacted("session")?)?
+
+    let projected = event.to_json()?
+    match move projected {
+        Value.object(root) {
+            let timestamp_key = String.copy("timestamp")
+            let timestamp = root.get(&timestamp_key) otherwise {
+                return error.new("std.log.test", "timestamp was absent")
+            }
+            match timestamp {
+                Value.string(value) {
+                    testing.assert((value as &str) == "1970-01-01T00:00:00Z")?
+                }
+                _ { return error.new("std.log.test", "timestamp was not text") }
+            }
+            let level_key = String.copy("level")
+            let level = root.get(&level_key) otherwise {
+                return error.new("std.log.test", "level was absent")
+            }
+            match level {
+                Value.string(value) { testing.assert((value as &str) == "info")? }
+                _ { return error.new("std.log.test", "level was not text") }
+            }
+            let event_key = String.copy("event")
+            let event_value = root.get(&event_key) otherwise {
+                return error.new("std.log.test", "event name was absent")
+            }
+            match event_value {
+                Value.string(value) { testing.assert((value as &str) == "request.complete")? }
+                _ { return error.new("std.log.test", "event name was not text") }
+            }
+            let fields_name = "fields"
+            let fields_key = String.copy(fields_name)
+            let field_value = root.get(&fields_key) otherwise {
+                return error.new("std.log.test", "fields object was absent")
+            }
+            match field_value {
+                Value.object(fields) {
+                    let method_name = String.copy("method")
+                    let method_value = fields.get(&method_name) otherwise {
+                        return error.new("std.log.test", "text field was absent")
+                    }
+                    match method_value {
+                        Value.string(value) { testing.assert((value as &str) == "GET")? }
+                        _ { return error.new("std.log.test", "text field changed type") }
+                    }
+                    let status_name = String.copy("status")
+                    let status = fields.get(&status_name) otherwise {
+                        return error.new("std.log.test", "signed field was absent")
+                    }
+                    match status {
+                        Value.number(value) {
+                            testing.assert((value.as_i64() otherwise { -1 }) == 200)?
+                        }
+                        _ { return error.new("std.log.test", "signed field changed type") }
+                    }
+                    let bytes_name = String.copy("bytes")
+                    let bytes = fields.get(&bytes_name) otherwise {
+                        return error.new("std.log.test", "unsigned field was absent")
+                    }
+                    match bytes {
+                        Value.number(value) {
+                            testing.assert((value.as_u64() otherwise { 0 }) == 42)?
+                        }
+                        _ { return error.new("std.log.test", "unsigned field changed type") }
+                    }
+                    let cached_name = String.copy("cached")
+                    let cached = fields.get(&cached_name) otherwise {
+                        return error.new("std.log.test", "boolean field was absent")
+                    }
+                    match cached {
+                        Value.boolean(value) { testing.assert(!ptr.copy_value(value))? }
+                        _ { return error.new("std.log.test", "boolean field changed type") }
+                    }
+                    let secret_name = String.copy("session")
+                    let secret = fields.get(&secret_name) otherwise {
+                        return error.new("std.log.test", "redacted field was absent")
+                    }
+                    match secret {
+                        Value.string(value) { testing.assert((value as &str) == "[redacted]")? }
+                        _ { return error.new("std.log.test", "redacted field was not text") }
+                    }
+                }
+                _ { return error.new("std.log.test", "fields was not an object") }
+            }
+        }
+        _ { return error.new("std.log.test", "event projection was not an object") }
+    }
+    return
+}
+
+test event_rejects_duplicate_names_and_generates_one_json_value {
+    var event = Event.new(SystemTime.from_unix_seconds(0), Level.warning, "request.failed")?
+    event.add(Field.text("reason", "timeout")?)?
+    event.add(Field.text("reason", "other")?) catch failure {
+        testing.assert(failure.has_code("std.log.duplicate_field"))?
+        let text = event.to_json_line()?
+        testing.assert(text.len() > 1)?
+        testing.assert(text[0] == 123)?
+        testing.assert(text[text.len() - 1] == 125)?
+        return
+    }
+    return error.new("std.log.test", "duplicate event field was accepted")
+}

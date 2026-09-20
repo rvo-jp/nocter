@@ -107,6 +107,13 @@ noalloc func invalid_cookie(): error {
     return error.new("std.http.invalid_cookie", "HTTP request cookie is invalid")
 }
 
+noalloc func invalid_session_cookie(): error {
+    return error.new(
+        "std.http.invalid_session_cookie",
+        "HTTP session cookie is ambiguous, malformed, or has invalid policy",
+    )
+}
+
 noalloc func invalid_syntax(): error {
     return error.new("std.http.invalid_syntax", "HTTP/1.1 message syntax is invalid")
 }
