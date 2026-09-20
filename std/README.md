@@ -44,6 +44,7 @@ comments.
 | pointers and addresses | [Pointer and Address Conversion](ptr/README.md) | `std/ptr` |
 | hashing and unordered collections | [Associative Collections](map/README.md) | `std/hash`, `std/map`, `std/set` |
 | cryptographically secure random bytes and scalars | [Cryptographic Randomness](random/README.md) | `std/random` |
+| canonical UUID values and version-4 generation | [Universally Unique Identifiers](uuid/README.md) | `std/uuid` |
 | JSON values, parsing, and generation | [JSON Values and Text](json/README.md) | `std/json` |
 | durations, monotonic time, wall-clock time, and UTC calendar values | [Time](time/README.md) | `std/time` |
 | structured asynchronous computation composition | [Structured Asynchronous Tasks](task/README.md) | `std/task` |

@@ -1,0 +1,19 @@
+//! URL-safe random-token composition.
+
+see ./index.nct
+see ./random.nct
+
+use /base64
+use /string.String
+use /vec.Vec
+
+func url_token(entropy_bytes: usize): String! {
+    var storage: Vec<u8> = Vec.with_capacity(entropy_bytes)
+    var index: usize = 0
+    while index < entropy_bytes {
+        storage.push(0)
+        index += 1
+    }
+    fill(&+storage as &+[u8])?
+    return base64.encode_url(&storage)
+}

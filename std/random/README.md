@@ -33,6 +33,11 @@ copyable elements, and consumes no entropy for an empty or singleton slice. If e
 unavailable after permutation begins, the function returns `std.random.unavailable`; the slice
 remains fully initialized but may already be partially permuted.
 
+`url_token(entropy_bytes)` obtains exactly the requested number of random bytes through `fill` and
+encodes them with `std/base64`'s canonical URL-safe unpadded profile. The argument measures entropy
+bytes rather than output characters; for example, 16 bytes produce 22 characters. The operation
+uses ordinary aborting allocation policy and returns recoverable entropy-source failure.
+
 These functions provide unpredictable bytes, values, and permutations. They do not provide
 deterministic random streams, password hashing, encryption, signatures, or a general cryptographic
 protocol API.
@@ -42,5 +47,6 @@ protocol API.
 The selected target owns only the native entropy operation and ABI. `std/internal/entropy` owns
 request limits and retry. `std/random` owns public failure, cleanup, scalar assembly, sampling, and
 permutation.
-`std/bytes` remains the sole byte-order implementation, and `std/hash` consumes the same internal
-entropy source without exposing its hash seed.
+`std/bytes` remains the sole byte-order implementation, `std/base64` remains the sole token-text
+encoding authority, and `std/hash` consumes the same internal entropy source without exposing its
+hash seed.

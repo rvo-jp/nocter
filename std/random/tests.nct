@@ -9,6 +9,7 @@ see ./sampling.nct
 see ./shuffle.nct
 
 use /internal/entropy.EntropyResult
+use /base64
 use /vec.Vec
 
 test failed_fill_clears_the_complete_destination {
@@ -126,6 +127,18 @@ test empty_and_singleton_shuffles_consume_no_randomness {
     shuffle(&+singleton as &+[i32])?
     if singleton[0] != 7 {
         return error.new("std.random.test", "trivial shuffle changed data")
+    }
+    return
+}
+
+test url_token_composes_entropy_with_the_canonical_base64_profile {
+    let token = url_token(16)?
+    if token.len() != 22 {
+        return error.new("std.random.test", "URL token encoded width changed")
+    }
+    let decoded = base64.decode_url(&token)?
+    if decoded.len() != 16 {
+        return error.new("std.random.test", "URL token changed its requested entropy width")
     }
     return
 }

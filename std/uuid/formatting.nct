@@ -1,0 +1,42 @@
+//! Sole canonical UUID text generator.
+
+see ./index.nct
+see ./value.nct
+
+use /hex
+use /internal/mem
+use /internal/ptr
+use /internal/safety
+use /ptr as public_ptr
+use /str as text_module
+use /string.String
+
+func try_write_uuid(output: &+String, value: &Uuid): void! {
+    let input = ptr.slice_from_raw_parts_value(public_ptr.from_ref(&value.bytes_value[0]), 16)
+    var encoded: [u8; 32] = [0; 32]
+    let encoded_first = public_ptr.from_ref_mut(&+encoded[0])
+    let encoded_output = ptr.slice_from_raw_parts_value_mut(encoded_first, 32)
+    let written = hex.encode_into(input, encoded_output) catch _ {
+        return safety.invariant_abort()
+    }
+    if written != 32 { return safety.invariant_abort() }
+    let text = text_module.from_utf8(encoded_output) catch _ { return safety.invariant_abort() }
+    output.try_push_str(text.get_range(0, 8) otherwise { return safety.invariant_abort() })?
+    output.try_push('-')?
+    output.try_push_str(text.get_range(8, 12) otherwise { return safety.invariant_abort() })?
+    output.try_push('-')?
+    output.try_push_str(text.get_range(12, 16) otherwise { return safety.invariant_abort() })?
+    output.try_push('-')?
+    output.try_push_str(text.get_range(16, 20) otherwise { return safety.invariant_abort() })?
+    output.try_push('-')?
+    output.try_push_str(text.get_range(20, 32) otherwise { return safety.invariant_abort() })?
+    return
+}
+
+instance Uuid {
+    method self.to_string(): String {
+        var output = String.with_capacity(36)
+        try_write_uuid(&+output, &self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+}

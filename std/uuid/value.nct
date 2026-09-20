@@ -1,0 +1,111 @@
+//! UUID storage, parsing, observation, and version-4 construction.
+
+see ./index.nct
+
+use /hex
+use /internal/ptr
+use /ptr as public_ptr
+use /random
+use /str as text_module
+
+copy struct Uuid {
+    bytes_value: [u8; 16]
+}
+
+noalloc func mutable_bytes(value: &+[u8; 16]): &+[u8] from value {
+    let first = public_ptr.from_ref_mut(&+value[0])
+    return ptr.slice_from_raw_parts_value_mut(first, 16)
+}
+
+construct Uuid {
+    noalloc func from_bytes(bytes: [u8; 16]): Self {
+        return Uuid { bytes_value: bytes }
+    }
+
+    noalloc func parse(text: &str): Self? {
+        if text.len() != 36 { return none }
+        let source = text.bytes()
+        var compact: [u8; 32] = [0; 32]
+        var source_offset: usize = 0
+        var compact_offset: usize = 0
+        while source_offset < 36 {
+            if source_offset == 8
+                || source_offset == 13
+                || source_offset == 18
+                || source_offset == 23 {
+                if source[source_offset] != 45 { return none }
+            } else {
+                compact[compact_offset] = source[source_offset]
+                compact_offset += 1
+            }
+            source_offset += 1
+        }
+        let compact_first = public_ptr.from_ref(&compact[0])
+        let compact_bytes = ptr.slice_from_raw_parts_value(compact_first, 32)
+        let compact_text = text_module.from_utf8(compact_bytes) catch _ { return none }
+        var bytes: [u8; 16] = [0; 16]
+        let written = hex.decode_into(compact_text, mutable_bytes(&+bytes)) catch _ { return none }
+        if written != 16 { return none }
+        return Uuid.from_bytes(bytes)
+    }
+
+    noalloc func nil(): Self {
+        return Uuid.from_bytes([0; 16])
+    }
+
+    noalloc func v4(): Self! {
+        var bytes: [u8; 16] = [0; 16]
+        random.fill(mutable_bytes(&+bytes))?
+        let version = (bytes[6] as u64).bit_and(15).bit_or(64)
+        let variant = (bytes[8] as u64).bit_and(63).bit_or(128)
+        bytes[6] = u8.truncate(version)
+        bytes[8] = u8.truncate(variant)
+        return Uuid.from_bytes(bytes)
+    }
+}
+
+instance Uuid {
+    noalloc method &self.bytes(): [u8; 16] {
+        return self.bytes_value
+    }
+
+    noalloc method &self.version(): u8 {
+        return self.bytes_value[6] / 16
+    }
+
+    noalloc method &self.variant(): UuidVariant {
+        let marker = self.bytes_value[8]
+        if marker < 128 { return UuidVariant.ncs }
+        if marker < 192 { return UuidVariant.rfc4122 }
+        if marker < 224 { return UuidVariant.microsoft }
+        return UuidVariant.reserved
+    }
+
+    noalloc method &self.is_nil(): bool {
+        var index: usize = 0
+        while index < 16 {
+            if self.bytes_value[index] != 0 { return false }
+            index += 1
+        }
+        return true
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        var index: usize = 0
+        while index < 16 {
+            if self.bytes_value[index] != other.bytes_value[index] { return false }
+            index += 1
+        }
+        return true
+    }
+
+    noalloc operator (&self < other: &Self): bool {
+        var index: usize = 0
+        while index < 16 {
+            if self.bytes_value[index] < other.bytes_value[index] { return true }
+            if other.bytes_value[index] < self.bytes_value[index] { return false }
+            index += 1
+        }
+        return false
+    }
+}

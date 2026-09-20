@@ -3,14 +3,14 @@
 ## Current State
 
 Nocter v0.63.0 Cryptographic Randomness is published and externally audited. v0.64.0 Application
-Encoding and Identity has completed strict hexadecimal, Base64, and incremental SHA-256 contracts
-and is now in Phase 3, canonical UUID values. Release inputs remain on v0.63.0 while the new
-standard-library contracts are developed.
+Encoding and Identity has completed hexadecimal, Base64, SHA-256, UUID, and URL-safe random-token
+contracts and is now in Phase 4 adoption, review, and qualification. Release inputs remain on
+v0.63.0 while the new standard-library contracts are developed.
 
 ## Next Work
 
-Implement canonical UUID values and version-4 generation, then practical adoption and the complete
-review matrix before release preparation.
+Add practical public adoption, review the complete responsibility and behavior surface, and run
+the full qualification matrix before release preparation.
 
 Preserve the v0.63.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

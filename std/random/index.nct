@@ -11,7 +11,11 @@ see ./sampling.nct
 
 see ./shuffle.nct
 
+see ./tokens.nct
+
 see ./tests.nct
+
+use /string.String
 
 /// Fills the complete destination with cryptographically secure random bytes.
 ///
@@ -39,3 +43,6 @@ pub noalloc func below_usize(upper_exclusive: usize): usize!
 ///
 /// An entropy failure can leave a valid partial permutation and returns `std.random.unavailable`.
 pub noalloc func shuffle<T>(values: &+[T]): void!
+
+/// Returns `entropy_bytes` of cryptographic randomness as unpadded URL-safe Base64.
+pub func url_token(entropy_bytes: usize): String!

@@ -1,0 +1,63 @@
+//! Canonical UUID values and cryptographically random version-4 construction.
+
+see ./value.nct
+see ./formatting.nct
+see ./contracts.nct
+see ./tests.nct
+
+use /fmt.Format
+use /hash.Hash
+use /order.TotalOrder
+use /string.String
+
+/// The variant encoded by one UUID value.
+pub enum UuidVariant {
+    ncs
+    rfc4122
+    microsoft
+    reserved
+}
+
+/// One copyable 128-bit universally unique identifier.
+pub copy struct Uuid
+
+construct Uuid {
+    /// Creates a UUID from its 16 bytes in canonical display order.
+    pub noalloc func from_bytes(bytes: [u8; 16]): Self
+
+    /// Parses exactly one canonical lowercase hyphenated UUID spelling.
+    pub noalloc func parse(text: &str): Self?
+
+    /// Creates the all-zero UUID.
+    pub noalloc func nil(): Self
+
+    /// Creates a cryptographically random RFC 9562 version-4 UUID.
+    pub noalloc func v4(): Self!
+}
+
+instance Uuid {
+    impl Format
+    impl Hash
+    impl TotalOrder
+
+    /// Returns the 16 UUID bytes in canonical display order.
+    pub noalloc method &self.bytes(): [u8; 16]
+
+    /// Returns the four-bit version field.
+    pub noalloc method &self.version(): u8
+
+    /// Returns the variant selected by the leading bits of octet 8.
+    pub noalloc method &self.variant(): UuidVariant
+
+    /// Reports whether every UUID byte is zero.
+    pub noalloc method &self.is_nil(): bool
+
+    /// Returns the canonical lowercase hyphenated spelling.
+    pub method self.to_string(): String
+
+    /// Compares every UUID byte.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders UUID bytes lexicographically.
+    pub noalloc operator (&self < other: &Self): bool
+}

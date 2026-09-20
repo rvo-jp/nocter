@@ -1,0 +1,91 @@
+//! UUID value and generation contract tests.
+
+see ./index.nct
+
+use /hash.HashState
+use /string.String
+
+test uuid_parsing_and_formatting_share_canonical_bytes {
+    let parsed = Uuid.parse("00112233-4455-4677-8899-aabbccddeeff") otherwise {
+        return error.new("std.uuid.test", "canonical UUID text was rejected")
+    }
+    let bytes = parsed.bytes()
+    if bytes[0] != 0
+        || bytes[1] != 17
+        || bytes[6] != 70
+        || bytes[8] != 136
+        || bytes[15] != 255 {
+        return error.new("std.uuid.test", "UUID parsing changed byte order")
+    }
+    if parsed.version() != 4 {
+        return error.new("std.uuid.test", "UUID fields changed interpretation")
+    }
+    if parsed.variant() is UuidVariant.rfc4122 {} else {
+        return error.new("std.uuid.test", "UUID fields changed interpretation")
+    }
+    let rendered = parsed.to_string()
+    if (&rendered as &str) != "00112233-4455-4677-8899-aabbccddeeff" {
+        return error.new("std.uuid.test", "UUID canonical rendering changed")
+    }
+    return
+}
+
+func require_rejected_uuid(text: &str): void! {
+    let _parsed = Uuid.parse(text) otherwise { return }
+    return error.new("std.uuid.test", "noncanonical UUID text was accepted")
+}
+
+test uuid_parser_rejects_noncanonical_spellings {
+    require_rejected_uuid("00112233445546778899aabbccddeeff")?
+    require_rejected_uuid("00112233-4455-4677-8899-AABBCCDDEEFF")?
+    require_rejected_uuid("00112233_4455-4677-8899-aabbccddeeff")?
+    return
+}
+
+test nil_and_shared_uuid_contracts_follow_stored_bytes {
+    let nil = Uuid.nil()
+    if !nil.is_nil() || nil.version() != 0 {
+        return error.new("std.uuid.test", "nil UUID fields changed")
+    }
+    if nil.variant() is UuidVariant.ncs {} else {
+        return error.new("std.uuid.test", "nil UUID fields changed")
+    }
+    let following = Uuid.parse("00000000-0000-0000-0000-000000000001") otherwise {
+        return error.new("std.uuid.test", "ordered UUID fixture was rejected")
+    }
+    if !(nil < following) {
+        return error.new("std.uuid.test", "UUID byte ordering changed")
+    }
+    var formatted = String.empty()
+    nil.try_format_into(&+formatted)?
+    if (&formatted as &str) != "00000000-0000-0000-0000-000000000000" {
+        return error.new("std.uuid.test", "UUID formatting changed")
+    }
+    let template = HashState.fresh()
+    var left = template.restart()
+    var right = template.restart()
+    nil.hash_into(&+left)
+    nil.hash_into(&+right)
+    if left.finish() != right.finish() {
+        return error.new("std.uuid.test", "equal UUID hashing changed")
+    }
+    return
+}
+
+test uuid_v4_sets_version_and_variant_bits {
+    let generated = Uuid.v4()?
+    if generated.version() != 4 {
+        return error.new("std.uuid.test", "UUID v4 construction did not set required bits")
+    }
+    if generated.variant() is UuidVariant.rfc4122 {} else {
+        return error.new("std.uuid.test", "UUID v4 construction did not set required bits")
+    }
+    let rendered = generated.to_string()
+    let reparsed = Uuid.parse(&rendered) otherwise {
+        return error.new("std.uuid.test", "generated UUID did not render canonically")
+    }
+    if reparsed != generated {
+        return error.new("std.uuid.test", "generated UUID did not round trip")
+    }
+    return
+}

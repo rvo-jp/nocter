@@ -1,0 +1,23 @@
+//! Shared formatting and hashing implementations for UUID values.
+
+see ./index.nct
+see ./formatting.nct
+see ./value.nct
+
+use /hash.HashState
+use /internal/ptr
+use /ptr as public_ptr
+use /string.String
+
+instance Uuid {
+    method &self.try_format_into(output: &+String): void! {
+        try_write_uuid(output, self)?
+        return
+    }
+
+    noalloc method &self.hash_into(state: &+HashState): void {
+        let bytes = ptr.slice_from_raw_parts_value(public_ptr.from_ref(&self.bytes_value[0]), 16)
+        state.write(bytes)
+        return
+    }
+}
