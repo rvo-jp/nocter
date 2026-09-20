@@ -1,0 +1,27 @@
+//! ASCII digit implementation.
+
+see ./index.nct
+
+noalloc func lowercase_hex_value(byte: u8): u8? {
+    if byte >= 48 && byte <= 57 { return byte - 48 }
+    if byte >= 97 && byte <= 102 { return byte - 97 + 10 }
+    return none
+}
+
+noalloc func hex_value(byte: u8): u8? {
+    let lowercase = lowercase_hex_value(byte) otherwise {
+        if byte >= 65 && byte <= 70 { return byte - 65 + 10 }
+        return none
+    }
+    return lowercase
+}
+
+noalloc func lowercase_hex_digit(value: u8): u8 {
+    if value < 10 { return value + 48 }
+    return value - 10 + 97
+}
+
+noalloc func uppercase_hex_digit(value: u8): u8 {
+    if value < 10 { return value + 48 }
+    return value - 10 + 65
+}

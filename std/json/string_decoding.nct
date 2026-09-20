@@ -4,31 +4,19 @@ see ./cursor.nct
 see ./errors.nct
 see ./failure.nct
 
+use /internal/ascii
 use /mem.TryAllocator
 use /mem
 use /string.String
-
-func hex_value(byte: u8): u32? {
-    if byte >= 48 && byte <= 57 {
-        return (byte - 48) as u32
-    }
-    if byte >= 65 && byte <= 70 {
-        return (byte - 65 + 10) as u32
-    }
-    if byte >= 97 && byte <= 102 {
-        return (byte - 97 + 10) as u32
-    }
-    return none
-}
 
 func read_hex_quad(cursor: &+Cursor): u32? {
     var value: u32 = 0
     var count: usize = 0
     while count < 4 {
         let byte = cursor.peek() otherwise { return none }
-        let digit = hex_value(byte) otherwise { return none }
+        let digit = ascii.hex_value(byte) otherwise { return none }
         let _consumed = cursor.advance() otherwise { return none }
-        value = value * 16 + digit
+        value = value * 16 + digit as u32
         count += 1
     }
     return value

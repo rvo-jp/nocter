@@ -1,0 +1,30 @@
+//! Canonical lowercase hexadecimal encoding and strict decoding.
+
+see ./codec.nct
+see ./errors.nct
+see ./tests.nct
+
+use /string.String
+use /vec.Vec
+
+/// Returns the exact encoded width for `byte_len` bytes.
+pub noalloc func encoded_len(byte_len: usize): usize!
+
+/// Returns the decoded width of a valid canonical lowercase spelling.
+pub noalloc func decoded_len(text: &str): usize!
+
+/// Encodes bytes as canonical lowercase hexadecimal text.
+pub func encode(input: &[u8]): String
+
+/// Encodes into the start of `output` and returns the written width.
+///
+/// Insufficient output returns `std.hex.output_too_small` without changing any byte.
+pub noalloc func encode_into(input: &[u8], output: &+[u8]): usize!
+
+/// Strictly decodes canonical lowercase hexadecimal text.
+pub func decode(text: &str): Vec<u8>!
+
+/// Strictly decodes into the start of `output` and returns the written width.
+///
+/// Invalid input or insufficient output leaves every output byte unchanged.
+pub noalloc func decode_into(text: &str, output: &+[u8]): usize!

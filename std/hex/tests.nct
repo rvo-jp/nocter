@@ -1,0 +1,58 @@
+//! Hexadecimal contract tests.
+
+see ./index.nct
+
+use /vec.Vec
+
+test canonical_hex_round_trips_complete_bytes {
+    let input: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(1),
+        u8.truncate(15),
+        u8.truncate(16),
+        u8.truncate(127),
+        u8.truncate(128),
+        u8.truncate(255),
+    ]
+    let text = encode(&input)
+    if (&text as &str) != "00010f107f80ff" {
+        return error.new("std.hex.test", "canonical hexadecimal encoding changed")
+    }
+    let decoded = decode(&text)?
+    if decoded.len() != input.len() {
+        return error.new("std.hex.test", "hexadecimal decoding changed length")
+    }
+    var index: usize = 0
+    while index < input.len() {
+        if decoded[index] != input[index] {
+            return error.new("std.hex.test", "hexadecimal round trip changed a byte")
+        }
+        index += 1
+    }
+    return
+}
+
+test hexadecimal_decoding_is_strict_and_transactional {
+    var destination: Vec<u8> = Vec [u8.truncate(9), u8.truncate(9), u8.truncate(9)]
+    let _ = decode_into("0A", &+destination as &+[u8]) catch failure {
+        if !failure.has_code("std.hex.invalid_digit") || destination[0] != 9 {
+            return error.new("std.hex.test", "invalid hexadecimal input changed output")
+        }
+        let _ = decode_into("00010203", &+destination as &+[u8]) catch capacity_failure {
+            if !capacity_failure.has_code("std.hex.output_too_small") || destination[0] != 9 {
+                return error.new("std.hex.test", "short hexadecimal output was not transactional")
+            }
+            return
+        }
+        return error.new("std.hex.test", "short hexadecimal output completed")
+    }
+    return error.new("std.hex.test", "uppercase hexadecimal input was accepted")
+}
+
+test hexadecimal_rejects_an_incomplete_pair {
+    let _ = decoded_len("abc") catch failure {
+        if failure.has_code("std.hex.invalid_length") { return }
+        return error.new("std.hex.test", "odd hexadecimal width returned the wrong failure")
+    }
+    return error.new("std.hex.test", "odd hexadecimal width was accepted")
+}

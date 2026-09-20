@@ -2,6 +2,7 @@
 
 see ./failure.nct
 
+use /internal/ascii
 use /mem.TryAllocator
 use /string.String
 
@@ -49,18 +50,6 @@ const noalloc func allowed_component_byte(value: u8, component: u8): bool {
     return false
 }
 
-noalloc func hex_value(value: u8): u8? {
-    if value >= 48 && value <= 57 { return value - 48 }
-    if value >= 65 && value <= 70 { return value - 65 + 10 }
-    if value >= 97 && value <= 102 { return value - 97 + 10 }
-    return none
-}
-
-const noalloc func uppercase_hex(value: u8): u8 {
-    if value >= 97 && value <= 102 { return value - 32 }
-    return value
-}
-
 noalloc func ascii_char(value: u8): char {
     return char.from_u32(value as u32) otherwise { return '\u{0}' }
 }
@@ -84,8 +73,8 @@ func normalized_component(
         }
         if byte == 37 {
             if offset + 2 >= bytes.len() { return invalid_url() }
-            let high = hex_value(bytes[offset + 1]) otherwise { return invalid_url() }
-            let low = hex_value(bytes[offset + 2]) otherwise { return invalid_url() }
+            let high = ascii.hex_value(bytes[offset + 1]) otherwise { return invalid_url() }
+            let low = ascii.hex_value(bytes[offset + 2]) otherwise { return invalid_url() }
             if component == HOST_COMPONENT {
                 let decoded = high * 16 + low
                 if decoded >= 128 { return non_ascii_host() }
@@ -101,10 +90,10 @@ func normalized_component(
             output.try_push('%') catch failure {
                 return UrlAttempt.allocation(move failure)
             }
-            output.try_push(ascii_char(uppercase_hex(bytes[offset + 1]))) catch failure {
+            output.try_push(ascii_char(ascii.uppercase_hex_digit(high))) catch failure {
                 return UrlAttempt.allocation(move failure)
             }
-            output.try_push(ascii_char(uppercase_hex(bytes[offset + 2]))) catch failure {
+            output.try_push(ascii_char(ascii.uppercase_hex_digit(low))) catch failure {
                 return UrlAttempt.allocation(move failure)
             }
             offset += 3

@@ -1,0 +1,238 @@
+//! Shared strict Base64 profile implementation.
+
+see ./index.nct
+see ./errors.nct
+
+use /internal/mem
+use /internal/safety
+use /string.String
+use /vec.Vec
+
+noalloc func standard_digit(value: u8): u8 {
+    if value < 26 { return value + 65 }
+    if value < 52 { return value - 26 + 97 }
+    if value < 62 { return value - 52 + 48 }
+    if value == 62 { return 43 }
+    return 47
+}
+
+noalloc func url_digit(value: u8): u8 {
+    if value == 62 { return 45 }
+    if value == 63 { return 95 }
+    return standard_digit(value)
+}
+
+noalloc func digit(value: u8, url: bool): u8 {
+    if url { return url_digit(value) }
+    return standard_digit(value)
+}
+
+noalloc func digit_value(byte: u8, url: bool): u8? {
+    if byte >= 65 && byte <= 90 { return byte - 65 }
+    if byte >= 97 && byte <= 122 { return byte - 97 + 26 }
+    if byte >= 48 && byte <= 57 { return byte - 48 + 52 }
+    if url {
+        if byte == 45 { return 62 }
+        if byte == 95 { return 63 }
+    } else {
+        if byte == 43 { return 62 }
+        if byte == 47 { return 63 }
+    }
+    return none
+}
+
+noalloc func standard_encoded_len(input_len: usize): usize! {
+    let rounded = mem.checked_add(input_len, 2) otherwise { return length_overflow() }
+    let groups: usize = rounded / 3
+    let result = mem.checked_multiply(groups, 4) otherwise { return length_overflow() }
+    return result
+}
+
+noalloc func url_encoded_len(input_len: usize): usize! {
+    let groups: usize = input_len / 3
+    let prefix: usize = mem.checked_multiply(groups, 4) otherwise { return length_overflow() }
+    let tail: usize = input_len % 3
+    let suffix: usize = if tail == 0 { 0 } else if tail == 1 { 2 } else { 3 }
+    let result = mem.checked_add(prefix, suffix) otherwise { return length_overflow() }
+    return result
+}
+
+noalloc func encoded_len(input_len: usize, url: bool): usize! {
+    if url { return url_encoded_len(input_len)? }
+    return standard_encoded_len(input_len)?
+}
+
+noalloc func validate_standard(text: &[u8]): usize! {
+    if text.len() % 4 != 0 { return invalid_length() }
+    if text.len() == 0 { return 0 }
+    var padding: usize = 0
+    if text[text.len() - 1] == 61 { padding = 1 }
+    if text[text.len() - 2] == 61 { padding = 2 }
+    let content_len = text.len() - padding
+    var index: usize = 0
+    while index < content_len {
+        let _ = digit_value(text[index], false) otherwise { return invalid_digit() }
+        index += 1
+    }
+    while index < text.len() {
+        if text[index] != 61 { return invalid_padding() }
+        index += 1
+    }
+    if padding == 1 {
+        let final_value = digit_value(text[content_len - 1], false) otherwise { return invalid_digit() }
+        if final_value % 4 != 0 { return invalid_padding() }
+    }
+    if padding == 2 {
+        let final_value = digit_value(text[content_len - 1], false) otherwise { return invalid_digit() }
+        if final_value % 16 != 0 { return invalid_padding() }
+    }
+    return text.len() / 4 * 3 - padding
+}
+
+noalloc func validate_url(text: &[u8]): usize! {
+    let remainder = text.len() % 4
+    if remainder == 1 { return invalid_length() }
+    var index: usize = 0
+    while index < text.len() {
+        let _ = digit_value(text[index], true) otherwise { return invalid_digit() }
+        index += 1
+    }
+    if remainder == 2 {
+        let final_value = digit_value(text[text.len() - 1], true) otherwise { return invalid_digit() }
+        if final_value % 16 != 0 { return invalid_padding() }
+    }
+    if remainder == 3 {
+        let final_value = digit_value(text[text.len() - 1], true) otherwise { return invalid_digit() }
+        if final_value % 4 != 0 { return invalid_padding() }
+    }
+    return text.len() / 4 * 3 + if remainder == 0 { 0 } else { remainder - 1 }
+}
+
+noalloc func validated_decoded_len(text: &str, url: bool): usize! {
+    if url { return validate_url(text.bytes())? }
+    return validate_standard(text.bytes())?
+}
+
+noalloc func write_encoded(input: &[u8], output: &+[u8], url: bool): usize {
+    var input_offset: usize = 0
+    var output_offset: usize = 0
+    while input_offset + 3 <= input.len() {
+        let first = input[input_offset]
+        let second = input[input_offset + 1]
+        let third = input[input_offset + 2]
+        output[output_offset] = digit(first / 4, url)
+        output[output_offset + 1] = digit((first % 4) * 16 + second / 16, url)
+        output[output_offset + 2] = digit((second % 16) * 4 + third / 64, url)
+        output[output_offset + 3] = digit(third % 64, url)
+        input_offset += 3
+        output_offset += 4
+    }
+    let remaining = input.len() - input_offset
+    if remaining == 1 {
+        let first = input[input_offset]
+        output[output_offset] = digit(first / 4, url)
+        output[output_offset + 1] = digit((first % 4) * 16, url)
+        output_offset += 2
+        if !url {
+            output[output_offset] = 61
+            output[output_offset + 1] = 61
+            output_offset += 2
+        }
+    }
+    if remaining == 2 {
+        let first = input[input_offset]
+        let second = input[input_offset + 1]
+        output[output_offset] = digit(first / 4, url)
+        output[output_offset + 1] = digit((first % 4) * 16 + second / 16, url)
+        output[output_offset + 2] = digit((second % 16) * 4, url)
+        output_offset += 3
+        if !url {
+            output[output_offset] = 61
+            output_offset += 1
+        }
+    }
+    return output_offset
+}
+
+noalloc func write_decoded(text: &[u8], output: &+[u8], output_len: usize, url: bool): void {
+    var input_offset: usize = 0
+    var output_offset: usize = 0
+    while output_offset < output_len {
+        let first = digit_value(text[input_offset], url) otherwise { return safety.invariant_abort() }
+        let second = digit_value(text[input_offset + 1], url) otherwise {
+            return safety.invariant_abort()
+        }
+        output[output_offset] = first * 4 + second / 16
+        output_offset += 1
+        if output_offset < output_len {
+            let third = digit_value(text[input_offset + 2], url) otherwise {
+                return safety.invariant_abort()
+            }
+            output[output_offset] = (second % 16) * 16 + third / 4
+            output_offset += 1
+            if output_offset < output_len {
+                let fourth = digit_value(text[input_offset + 3], url) otherwise {
+                    return safety.invariant_abort()
+                }
+                output[output_offset] = (third % 4) * 64 + fourth
+                output_offset += 1
+            }
+        }
+        input_offset += 4
+    }
+    return
+}
+
+noalloc func encode_profile_into(input: &[u8], output: &+[u8], url: bool): usize! {
+    let required = encoded_len(input.len(), url)?
+    if output.len() < required { return output_too_small() }
+    return write_encoded(input, output, url)
+}
+
+func encode_profile(input: &[u8], url: bool): String {
+    let required = encoded_len(input.len(), url) catch _ { return mem.allocation_abort() }
+    var bytes: Vec<u8> = Vec.with_capacity(required)
+    var index: usize = 0
+    while index < required {
+        bytes.push(0)
+        index += 1
+    }
+    let _ = write_encoded(input, &+bytes as &+[u8], url)
+    return String.from_utf8(&bytes) catch _ { return safety.invariant_abort() }
+}
+
+noalloc func decode_profile_into(text: &str, output: &+[u8], url: bool): usize! {
+    let required = validated_decoded_len(text, url)?
+    if output.len() < required { return output_too_small() }
+    write_decoded(text.bytes(), output, required, url)
+    return required
+}
+
+func decode_profile(text: &str, url: bool): Vec<u8>! {
+    let required = validated_decoded_len(text, url)?
+    var output: Vec<u8> = Vec.with_capacity(required)
+    var index: usize = 0
+    while index < required {
+        output.push(0)
+        index += 1
+    }
+    write_decoded(text.bytes(), &+output as &+[u8], required, url)
+    return move output
+}
+
+func encode(input: &[u8]): String { return encode_profile(input, false) }
+noalloc func encode_into(input: &[u8], output: &+[u8]): usize! {
+    return encode_profile_into(input, output, false)?
+}
+func decode(text: &str): Vec<u8>! { return decode_profile(text, false)? }
+noalloc func decode_into(text: &str, output: &+[u8]): usize! {
+    return decode_profile_into(text, output, false)?
+}
+func encode_url(input: &[u8]): String { return encode_profile(input, true) }
+noalloc func encode_url_into(input: &[u8], output: &+[u8]): usize! {
+    return encode_profile_into(input, output, true)?
+}
+func decode_url(text: &str): Vec<u8>! { return decode_profile(text, true)? }
+noalloc func decode_url_into(text: &str, output: &+[u8]): usize! {
+    return decode_profile_into(text, output, true)?
+}

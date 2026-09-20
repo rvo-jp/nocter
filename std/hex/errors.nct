@@ -1,0 +1,19 @@
+//! Stable hexadecimal codec failures.
+
+see ./index.nct
+
+noalloc func invalid_length(): error {
+    return error.new("std.hex.invalid_length", "hexadecimal text must contain complete byte pairs")
+}
+
+noalloc func invalid_digit(): error {
+    return error.new("std.hex.invalid_digit", "hexadecimal text must use lowercase ASCII digits")
+}
+
+noalloc func output_too_small(): error {
+    return error.new("std.hex.output_too_small", "hexadecimal output storage is too small")
+}
+
+noalloc func length_overflow(): error {
+    return error.new("std.hex.length_overflow", "hexadecimal encoded length is not representable")
+}

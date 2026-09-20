@@ -1,0 +1,32 @@
+//! Strict RFC 4648 Base64 encoding for standard and URL-safe profiles.
+
+see ./codec.nct
+see ./errors.nct
+see ./tests.nct
+
+use /string.String
+use /vec.Vec
+
+/// Encodes bytes using the standard alphabet with required `=` padding.
+pub func encode(input: &[u8]): String
+
+/// Encodes the standard padded profile into caller-owned output.
+pub noalloc func encode_into(input: &[u8], output: &+[u8]): usize!
+
+/// Strictly decodes the standard alphabet with required canonical padding.
+pub func decode(text: &str): Vec<u8>!
+
+/// Strictly decodes the standard padded profile into caller-owned output.
+pub noalloc func decode_into(text: &str, output: &+[u8]): usize!
+
+/// Encodes bytes using the URL-safe alphabet without padding.
+pub func encode_url(input: &[u8]): String
+
+/// Encodes the URL-safe unpadded profile into caller-owned output.
+pub noalloc func encode_url_into(input: &[u8], output: &+[u8]): usize!
+
+/// Strictly decodes the URL-safe alphabet without padding.
+pub func decode_url(text: &str): Vec<u8>!
+
+/// Strictly decodes the URL-safe unpadded profile into caller-owned output.
+pub noalloc func decode_url_into(text: &str, output: &+[u8]): usize!

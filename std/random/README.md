@@ -5,6 +5,11 @@ operating-system cryptographic entropy source. `fill` accepts caller-owned mutab
 allocates nothing, and completes every byte before returning success. It accepts an empty
 destination without contacting the operating system.
 
+On the supported Darwin target, the bounded kernel entropy operation is a nonblocking callable in
+Nocter's effect model: it does not wait for caller-controlled external progress. Random operations
+therefore retain `noalloc` without carrying `blocking`. This is independent of ordinary execution
+latency and does not weaken failure reporting.
+
 Native request-size limits are not part of the public contract. The package-internal entropy
 adapter divides a large destination into bounded requests and retries interrupted operations. The
 public module never exposes native error numbers.

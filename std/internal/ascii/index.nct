@@ -1,0 +1,15 @@
+//! Package-only ASCII digit decisions shared by textual byte formats.
+
+see ./digits.nct
+
+/// Returns one lowercase hexadecimal digit, or none for another byte.
+pub(/) noalloc func lowercase_hex_value(byte: u8): u8?
+
+/// Returns one case-insensitive hexadecimal digit, or none for another byte.
+pub(/) noalloc func hex_value(byte: u8): u8?
+
+/// Returns the lowercase ASCII hexadecimal byte for a value below sixteen.
+pub(/) noalloc func lowercase_hex_digit(value: u8): u8
+
+/// Returns the uppercase ASCII hexadecimal byte for a value below sixteen.
+pub(/) noalloc func uppercase_hex_digit(value: u8): u8

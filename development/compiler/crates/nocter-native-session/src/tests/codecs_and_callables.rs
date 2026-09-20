@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn standard_text_codecs_cross_native_tests() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"hex\", module: \"./hex\" }\n");
+    root_source.push_str("#test: { name: \"base64\", module: \"./base64\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["hex"]),
+            ModuleIdentity::new(standard_package.clone(), ["base64"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 2);
+    let output = TempPackage::new();
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard text codec tests failed native compilation")
+        };
+        for case in cases {
+            case_count += 1;
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
+    }
+    assert_eq!(case_count, 6);
+}
+
+#[test]
 fn public_byte_codecs_cross_the_complete_native_session() {
     let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();

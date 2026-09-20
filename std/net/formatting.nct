@@ -4,6 +4,7 @@ see ./index.nct
 see ./values.nct
 
 use /fmt.Format
+use /internal/ascii
 use /internal/mem
 use /mem.TryAllocator
 use /string.String
@@ -20,10 +21,8 @@ func try_write_ipv4(output: &+String, address: &Ipv4Address): void! {
 }
 
 noalloc func hex_digit(value: u16): char {
-    if value < 10 {
-        return char.from_u32((value + 48) as u32) otherwise { return '0' }
-    }
-    return char.from_u32((value - 10 + 97) as u32) otherwise { return 'a' }
+    let narrowed = u8.from_u64(value as u64) otherwise { return '0' }
+    return char.from_u32(ascii.lowercase_hex_digit(narrowed) as u32) otherwise { return '0' }
 }
 
 func try_write_hex_segment(output: &+String, value: u16): void! {

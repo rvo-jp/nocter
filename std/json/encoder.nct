@@ -4,6 +4,7 @@ see ./index.nct
 
 use /internal/ptr
 use /internal/safety
+use /internal/ascii
 use /map.Map
 use /mem.TryAllocator
 use /ptr as ptr_module
@@ -40,11 +41,6 @@ enum EncoderChunk {
     empty
     borrowed(bytes: &[u8])
     scratch
-}
-
-noalloc func hexadecimal_digit(value: u8): u8 {
-    if value < 10 { return 48 + value }
-    return 65 + value - 10
 }
 
 func try_encoder(
@@ -110,8 +106,8 @@ instance Encoder {
         self.scratch[1] = 117
         self.scratch[2] = 48
         self.scratch[3] = 48
-        self.scratch[4] = hexadecimal_digit(byte / 16)
-        self.scratch[5] = hexadecimal_digit(byte % 16)
+        self.scratch[4] = ascii.uppercase_hex_digit(byte / 16)
+        self.scratch[5] = ascii.uppercase_hex_digit(byte % 16)
         self.scratch_len = 6
         return
     }

@@ -1,0 +1,23 @@
+//! Stable Base64 codec failures.
+
+see ./index.nct
+
+noalloc func invalid_length(): error {
+    return error.new("std.base64.invalid_length", "Base64 text has an invalid encoded length")
+}
+
+noalloc func invalid_digit(): error {
+    return error.new("std.base64.invalid_digit", "Base64 text contains a digit outside its profile")
+}
+
+noalloc func invalid_padding(): error {
+    return error.new("std.base64.invalid_padding", "Base64 padding is not canonical")
+}
+
+noalloc func output_too_small(): error {
+    return error.new("std.base64.output_too_small", "Base64 output storage is too small")
+}
+
+noalloc func length_overflow(): error {
+    return error.new("std.base64.length_overflow", "Base64 encoded length is not representable")
+}

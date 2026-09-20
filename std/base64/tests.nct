@@ -1,0 +1,75 @@
+//! Base64 profile contract tests.
+
+see ./index.nct
+
+use /vec.Vec
+
+test standard_base64_matches_rfc_4648_vectors {
+    let empty = encode("".bytes())
+    let one = encode("f".bytes())
+    let two = encode("fo".bytes())
+    let three = encode("foo".bytes())
+    let six = encode("foobar".bytes())
+    if (&empty as &str) != ""
+        || (&one as &str) != "Zg=="
+        || (&two as &str) != "Zm8="
+        || (&three as &str) != "Zm9v"
+        || (&six as &str) != "Zm9vYmFy" {
+        return error.new("std.base64.test", "standard Base64 vectors changed")
+    }
+    let decoded = decode("Zm9vYmFy")?
+    if decoded.len() != 6
+        || decoded[0] != 102
+        || decoded[1] != 111
+        || decoded[2] != 111
+        || decoded[3] != 98
+        || decoded[4] != 97
+        || decoded[5] != 114 {
+        return error.new("std.base64.test", "standard Base64 decoding changed")
+    }
+    return
+}
+
+test url_base64_uses_an_explicit_unpadded_profile {
+    let input: Vec<u8> = Vec [u8.truncate(251), u8.truncate(255)]
+    let standard = encode(&input)
+    let url = encode_url(&input)
+    if (&standard as &str) != "+/8=" || (&url as &str) != "-_8" {
+        return error.new("std.base64.test", "Base64 profile alphabets changed")
+    }
+    let decoded = decode_url("-_8")?
+    if decoded.len() != 2 || decoded[0] != 251 || decoded[1] != 255 {
+        return error.new("std.base64.test", "URL-safe Base64 decoding changed")
+    }
+    return
+}
+
+test base64_rejects_cross_profile_and_noncanonical_input {
+    var output: Vec<u8> = Vec [u8.truncate(9), u8.truncate(9), u8.truncate(9)]
+    let _ = decode_into("-_8=", &+output as &+[u8]) catch alphabet_failure {
+        if !alphabet_failure.has_code("std.base64.invalid_digit") || output[0] != 9 {
+            return error.new("std.base64.test", "cross-profile failure changed output")
+        }
+        let _ = decode_url("Zg==") catch url_failure {
+            if !url_failure.has_code("std.base64.invalid_digit") {
+                return error.new("std.base64.test", "URL-safe padding returned the wrong failure")
+            }
+            let _ = decode("Zh==") catch padding_failure {
+                if padding_failure.has_code("std.base64.invalid_padding") { return }
+                return error.new("std.base64.test", "noncanonical bits returned the wrong failure")
+            }
+            return error.new("std.base64.test", "noncanonical Base64 bits were accepted")
+        }
+        return error.new("std.base64.test", "URL-safe decoder accepted padding")
+    }
+    return error.new("std.base64.test", "standard decoder accepted URL-safe digits")
+}
+
+test base64_output_capacity_is_checked_before_mutation {
+    var output: Vec<u8> = Vec [u8.truncate(7)]
+    let _ = encode_into("foo".bytes(), &+output as &+[u8]) catch failure {
+        if failure.has_code("std.base64.output_too_small") && output[0] == 7 { return }
+        return error.new("std.base64.test", "short Base64 output was not transactional")
+    }
+    return error.new("std.base64.test", "short Base64 output completed")
+}

@@ -4,6 +4,7 @@ see ./index.nct
 see ./values.nct
 
 use /internal/bytes as codec
+use /internal/ascii
 
 noalloc func parse_ipv4_bytes(text: &str): [u8; 4]? {
     let bytes = text.bytes()
@@ -43,13 +44,6 @@ noalloc func parse_ipv4_bytes(text: &str): [u8; 4]? {
     if digits > 1 && first_is_zero { return none }
     result[3] = u8.from_u64(value as u64)?
     return result
-}
-
-noalloc func hex_value(byte: u8): u16? {
-    if byte >= 48 && byte <= 57 { return (byte - 48) as u16 }
-    if byte >= 65 && byte <= 70 { return (byte - 65 + 10) as u16 }
-    if byte >= 97 && byte <= 102 { return (byte - 97 + 10) as u16 }
-    return none
 }
 
 noalloc func ipv6_from_parsed_segments(
@@ -125,9 +119,9 @@ noalloc func parse_ipv6(text: &str): Ipv6Address? {
                 embedded_ipv4 = true
                 break
             }
-            let digit = hex_value(bytes[offset]) otherwise { return none }
+            let digit = ascii.hex_value(bytes[offset]) otherwise { return none }
             if digits == 4 { return none }
-            value = value * 16 + digit
+            value = value * 16 + digit as u16
             digits += 1
             offset += 1
         }
