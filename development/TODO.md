@@ -2,15 +2,15 @@
 
 ## Current State
 
-Nocter v0.63.0 Cryptographic Randomness is published and externally audited. Its annotated tag,
-single release asset, latest-release endpoint, downloaded installed home, Compiler and
-Documentation workflows, and source-identified Pages deployment all match the qualified source
-and artifact.
+Nocter v0.63.0 Cryptographic Randomness is published and externally audited. v0.64.0 Application
+Encoding and Identity has started at Phase 0. Release inputs remain on v0.63.0 while the new
+standard-library contracts are developed.
 
 ## Next Work
 
-Define the next milestone from concrete language or standard-library needs before changing release
-inputs. Preserve the v0.63.0 source and artifact identities as immutable evidence.
+Complete the v0.64.0 contract and correctness foundation, including the random-effect audit. Then
+implement strict hexadecimal and Base64 codecs, incremental SHA-256, canonical UUID values, and
+practical adoption before release preparation.
 
 Preserve the v0.63.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
