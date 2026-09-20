@@ -3,14 +3,15 @@
 ## Current State
 
 Nocter v0.63.0 Cryptographic Randomness is published and externally audited. v0.64.0 Application
-Encoding and Identity has completed hexadecimal, Base64, SHA-256, UUID, URL-safe random-token,
-public-adoption, design-review, and source-tree qualification work. Release inputs remain on
-v0.63.0 until an explicit release-preparation step begins.
+Encoding and Identity is implementation-complete and has entered release preparation. Release
+inputs now select v0.64.0; final clean-tree verification and deterministic artifact qualification
+remain.
 
 ## Next Work
 
-Prepare the exact v0.64.0 release inputs, qualify the installed archive, and publish only after an
-explicit release request.
+Commit the v0.64.0 release-content inputs, rerun the complete disposable compiler gate, and run
+clean-tree double-generation qualification. Record and publish only the exact retained candidate
+authorized by the user.
 
 Preserve the v0.63.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -19,7 +20,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No release blocker remains.
+No blocker remains for v0.64.0 release qualification.
 
 ## Non-negotiable Boundaries
 
