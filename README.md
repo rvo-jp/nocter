@@ -21,7 +21,7 @@ See the [language specification](spec/README.md) and
 
 ## One Directory Install
 
-[Download nocter-v0.65.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.65.0/nocter-v0.65.0-arm64-darwin.tar.gz)
+[Download nocter-v0.66.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.66.0/nocter-v0.66.0-arm64-darwin.tar.gz)
 
 Nocter compiles source directly to native executables without requiring LLVM,
 `clang`, `as`, `ld`, Xcode Command Line Tools, or an external runtime library
@@ -47,7 +47,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.65.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.66.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -56,8 +56,8 @@ A validated Nocter compiler that already supports `install` can verify and repla
 from the downloaded local archive:
 
 ```sh
-nocter install nocter-v0.65.0-arm64-darwin.tar.gz \
-  --sha256 24fa1607f6faf1ea2e0efee21885dde20d7a4e5648fb86d4a7f8d67e2dce65de
+nocter install nocter-v0.66.0-arm64-darwin.tar.gz \
+  --sha256 d5476913c5bf8033f6b9e2b6844a42615b166a3af98b02e95af34043539cf87c
 ```
 
 The digest identifies exact archive content; trust it only when obtained through a channel you
@@ -127,7 +127,7 @@ module, use package mode as demonstrated by
 
 ## Current Release
 
-The v0.65.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
+The v0.66.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
 emits ARM64 Mach-O executables directly. Unsupported runtime forms are rejected with source-backed
 diagnostics before machine code is emitted.
 

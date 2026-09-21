@@ -2,18 +2,17 @@
 
 ## Current State
 
-Nocter v0.65.0 Practical Stateful Services is published and externally audited. v0.66.0 Durable
-Local Application State has completed implementation, review, the complete compiler gate, and
-deterministic artifact qualification. Its release-content commit is
-`e3f499b5d38d87073fde1c06e1c474772a1c7752`.
+Nocter v0.65.0 Practical Stateful Services is published and externally audited. The exact v0.66.0
+Durable Local Application State candidate from release-content commit
+`e3f499b5d38d87073fde1c06e1c474772a1c7752` passed the complete compiler gate and deterministic
+artifact qualification. Public metadata now selects v0.66.0; publication and external audit remain.
 
 ## Next Work
 
-Publish `dist/nocter-v0.66.0-arm64-darwin.tar.gz` with SHA-256
-`d5476913c5bf8033f6b9e2b6844a42615b166a3af98b02e95af34043539cf87c` without rebuilding it. Then
-verify the annotated tag, single GitHub Release asset, latest-release endpoint, downloaded
-installed home, push-triggered workflows, and source-identified Pages deployment in a release
-audit.
+Publish annotated tag `v0.66.0` and the exact retained qualified archive with SHA-256
+`d5476913c5bf8033f6b9e2b6844a42615b166a3af98b02e95af34043539cf87c`, without rebuilding it. Then
+audit the public tag, single release asset, downloaded installation, Actions runs, latest-release
+endpoint, and source-identified Pages deployment.
 
 Preserve the v0.65.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
