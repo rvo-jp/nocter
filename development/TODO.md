@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.65.0 Practical Stateful Services is implementation-complete and has entered release
-preparation. Release inputs now select v0.65.0; final clean-tree verification and deterministic
-artifact qualification remain. The previous v0.64.0 Application Encoding and Identity release is
-published and externally audited.
+Nocter v0.65.0 Practical Stateful Services is implementation-complete and has a deterministically
+qualified `arm64-darwin` release candidate retained under `dist/`. The release-content commit is
+`8744a1ecf8ea13a9369b61a366c6c343afddd355`. The previous v0.64.0 Application Encoding and Identity
+release remains the latest published release and is externally audited.
 
 ## Next Work
 
-Commit the exact v0.65.0 release-content inputs, rerun the complete disposable compiler gate, and
-run clean-tree double-generation qualification. Record the retained candidate evidence, then stop
-before publication unless the user explicitly authorizes it. Do not rebuild between qualification
-and publication.
+Wait for explicit publication authorization. Publication must reuse
+`dist/nocter-v0.65.0-arm64-darwin.tar.gz` with SHA-256
+`24fa1607f6faf1ea2e0efee21885dde20d7a4e5648fb86d4a7f8d67e2dce65de`; do not rebuild it. After
+publication, verify the annotated tag, GitHub Release asset, latest-release endpoint, downloaded
+installed home, and source-identified Pages deployment in a release audit.
 
 Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -21,7 +22,8 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for v0.65.0 release qualification.
+Publication is intentionally blocked on explicit user authorization. No qualification blocker
+remains.
 
 ## Non-negotiable Boundaries
 
