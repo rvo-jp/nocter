@@ -19,6 +19,9 @@ primitive func file_open_read_raw(path: &str): future FileCompletion from static
 primitive func file_open_create_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func file_open_create_new_raw(path: &str): future FileCompletion from static
+
+#target: "arm64-darwin"
 primitive func file_open_append_raw(path: &str): future FileCompletion from static
 
 #target: "arm64-darwin"
@@ -184,6 +187,9 @@ pub(/) func file_open_read(path: &str): future FileCompletion from static
 
 /// Constructs one generated local-file create-or-truncate computation.
 pub(/) func file_open_create(path: &str): future FileCompletion from static
+
+/// Constructs one generated local-file exclusive-create computation.
+pub(/) func file_open_create_new(path: &str): future FileCompletion from static
 
 /// Constructs one generated local-file append computation.
 pub(/) func file_open_append(path: &str): future FileCompletion from static

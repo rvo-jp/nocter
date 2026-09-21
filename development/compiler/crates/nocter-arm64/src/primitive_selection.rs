@@ -221,6 +221,7 @@ pub(crate) fn select(
         }
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
+        | PrimitiveRole::FileOpenCreateNew
         | PrimitiveRole::FileOpenAppend
         | PrimitiveRole::FileOpenCopyDestination
         | PrimitiveRole::DirectoryOpen

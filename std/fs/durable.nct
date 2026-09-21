@@ -1,0 +1,154 @@
+//! Durable whole-file replacement over the canonical file and path authorities.
+
+see ./index.nct
+
+use /io.{BlockingFile, BlockingWriter, File, Writer}
+use /path.Utf8Path
+use /random
+use /string.String
+
+const TEMPORARY_NAME_ATTEMPTS: usize = 16
+
+noalloc func invalid_durable_destination(): error {
+    return error.new(
+        "std.fs.invalid_durable_destination",
+        "durable replacement requires a path with a final file name",
+    )
+}
+
+noalloc func temporary_name_exhausted(): error {
+    return error.new(
+        "std.fs.temporary_name_exhausted",
+        "could not create an exclusive sibling file for durable replacement",
+    )
+}
+
+func durable_destination(path: &str): Utf8Path! {
+    if path.len() == 0 || path[path.len() - 1] == 47 {
+        return invalid_durable_destination()
+    }
+    let destination = Utf8Path.new(path)?
+    let _name = destination.file_name() otherwise { return invalid_durable_destination() }
+    return move destination
+}
+
+func temporary_path(parent: &Utf8Path): Utf8Path! {
+    let token = random.url_token(18)?
+    let name = String.concat(
+        ".nocter-",
+        &token,
+        ".tmp",
+    )
+    return parent.join(&name)?
+}
+
+async func create_temporary_file(
+    parent: &Utf8Path,
+): (File, Utf8Path)! {
+    var attempt: usize = 0
+    while attempt < TEMPORARY_NAME_ATTEMPTS {
+        let candidate = temporary_path(parent)?
+        let file = await File.create_new(&candidate) catch failure {
+            if failure.has_code("std.io.already_exists") {
+                attempt += 1
+                continue
+            }
+            return move failure
+        }
+        return (move file, move candidate)
+    }
+    return temporary_name_exhausted()
+}
+
+blocking func create_temporary_file_blocking(
+    parent: &Utf8Path,
+): (BlockingFile, Utf8Path)! {
+    var attempt: usize = 0
+    while attempt < TEMPORARY_NAME_ATTEMPTS {
+        let candidate = temporary_path(parent)?
+        let file = BlockingFile.create_new(&candidate) catch failure {
+            if failure.has_code("std.io.already_exists") {
+                attempt += 1
+                continue
+            }
+            return move failure
+        }
+        return (move file, move candidate)
+    }
+    return temporary_name_exhausted()
+}
+
+async func discard_temporary(file: File, path: &str): void {
+    var owner = move file
+    await owner.close() catch _ {}
+    await remove_file(path) catch _ {}
+    return
+}
+
+blocking func discard_temporary_blocking(file: BlockingFile, path: &str): void {
+    var owner = move file
+    owner.close()
+    remove_file_blocking(path) catch _ {}
+    return
+}
+
+async func write_durable(path: &str, value: &[u8]): void! {
+    let destination = durable_destination(path)?
+    let parent = Utf8Path.new(destination.parent() otherwise { "." })?
+    let (created, temporary_path_value) = await create_temporary_file(&parent)?
+    var temporary = move created
+    await temporary.write(value) catch failure {
+        await discard_temporary(move temporary, &temporary_path_value)
+        return move failure
+    }
+    await temporary.sync() catch failure {
+        await discard_temporary(move temporary, &temporary_path_value)
+        return move failure
+    }
+    await temporary.close() catch failure {
+        await remove_file(&temporary_path_value) catch _ {}
+        return move failure
+    }
+    await rename(&temporary_path_value, &destination) catch failure {
+        await remove_file(&temporary_path_value) catch _ {}
+        return move failure
+    }
+    var directory = await File.open_directory(&parent)?
+    await directory.sync()?
+    await directory.close()?
+    return
+}
+
+async func write_text_durable(path: &str, text: &str): void! {
+    await write_durable(path, text.bytes())?
+    return
+}
+
+blocking func write_durable_blocking(path: &str, value: &[u8]): void! {
+    let destination = durable_destination(path)?
+    let parent = Utf8Path.new(destination.parent() otherwise { "." })?
+    let (created, temporary_path_value) = create_temporary_file_blocking(&parent)?
+    var temporary = move created
+    temporary.write_blocking(value) catch failure {
+        discard_temporary_blocking(move temporary, &temporary_path_value)
+        return move failure
+    }
+    temporary.sync_blocking() catch failure {
+        discard_temporary_blocking(move temporary, &temporary_path_value)
+        return move failure
+    }
+    temporary.close()
+    rename_blocking(&temporary_path_value, &destination) catch failure {
+        remove_file_blocking(&temporary_path_value) catch _ {}
+        return move failure
+    }
+    var directory = BlockingFile.open_directory(&parent)?
+    directory.sync_blocking()?
+    directory.close()
+    return
+}
+
+blocking func write_text_durable_blocking(path: &str, text: &str): void! {
+    write_durable_blocking(path, text.bytes())?
+    return
+}

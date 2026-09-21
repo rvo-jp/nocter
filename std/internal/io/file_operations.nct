@@ -10,6 +10,10 @@ func file_open_create(path: &str): future FileCompletion from static {
     return file_open_create_raw(path)
 }
 
+func file_open_create_new(path: &str): future FileCompletion from static {
+    return file_open_create_new_raw(path)
+}
+
 func file_open_append(path: &str): future FileCompletion from static {
     return file_open_append_raw(path)
 }

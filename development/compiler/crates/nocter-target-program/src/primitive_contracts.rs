@@ -1005,6 +1005,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::FileOpenRead
         | PrimitiveRole::FileOpenCreate
+        | PrimitiveRole::FileOpenCreateNew
         | PrimitiveRole::FileOpenAppend
         | PrimitiveRole::FileOpenCopyDestination
         | PrimitiveRole::DirectoryOpen

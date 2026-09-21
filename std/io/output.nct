@@ -112,6 +112,14 @@ noalloc blocking func write(file: &+BlockingFile, bytes: &[u8]): void! {
     return
 }
 
+noalloc blocking func synchronize_blocking_file(file: &+BlockingFile): void! {
+    require_open(file)?
+    if file.state is BlockingFileState.owned_open {
+        flush_fd(file.fd)?
+    }
+    return
+}
+
 instance BlockingFile {
     noalloc blocking method &+self.write_blocking(bytes: &[u8]): void! {
         write(self, bytes)?
@@ -119,10 +127,12 @@ instance BlockingFile {
     }
 
     noalloc blocking method &+self.flush_blocking(): void! {
-        require_open(self)?
-        if self.state is BlockingFileState.owned_open {
-            flush_fd(self.fd)?
-        }
+        synchronize_blocking_file(self)?
+        return
+    }
+
+    noalloc blocking method &+self.sync_blocking(): void! {
+        synchronize_blocking_file(self)?
         return
     }
 

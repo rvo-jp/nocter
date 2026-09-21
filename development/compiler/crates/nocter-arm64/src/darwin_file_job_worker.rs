@@ -369,6 +369,7 @@ fn execute_open(
     let retry = code.create_label();
     let read = code.create_label();
     let create = code.create_label();
+    let create_new = code.create_label();
     let append = code.create_label();
     let directory = code.create_label();
     let copy_destination = code.create_label();
@@ -378,6 +379,8 @@ fn execute_open(
     code.branch_conditional(read, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Create.code()));
     code.branch_conditional(create, Arm64BranchCondition::Equal);
+    compare_immediate(code, x(20), u64::from(DarwinFileAccess::CreateNew.code()));
+    code.branch_conditional(create_new, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Append.code()));
     code.branch_conditional(append, Arm64BranchCondition::Equal);
     compare_immediate(code, x(20), u64::from(DarwinFileAccess::Directory.code()));
@@ -394,6 +397,9 @@ fn execute_open(
     code.branch(invoke, false);
     code.bind(create)?;
     immediate(code, x(21), DarwinFileAbi::CREATE_TRUNCATE_WRITE_ONLY);
+    code.branch(invoke, false);
+    code.bind(create_new)?;
+    immediate(code, x(21), DarwinFileAbi::CREATE_NEW_WRITE_ONLY);
     code.branch(invoke, false);
     code.bind(append)?;
     immediate(code, x(21), DarwinFileAbi::CREATE_APPEND_WRITE_ONLY);

@@ -489,6 +489,8 @@ primitive func file_open_read_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_open_create_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
+primitive func file_open_create_new_raw(path: &str): future FileCompletion from static
+#target: \"arm64-darwin\"
 primitive func file_open_append_raw(path: &str): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_open_copy_destination_raw(path: &str): future FileCompletion from static

@@ -225,6 +225,7 @@ impl DarwinFileMetadataKind {
 pub enum DarwinFileAccess {
     Read,
     Create,
+    CreateNew,
     Append,
     Directory,
     CopyDestination,
@@ -234,6 +235,7 @@ impl DarwinFileAccess {
     pub const ALL: &'static [Self] = &[
         Self::Read,
         Self::Create,
+        Self::CreateNew,
         Self::Append,
         Self::Directory,
         Self::CopyDestination,
@@ -244,9 +246,10 @@ impl DarwinFileAccess {
         match self {
             Self::Read => 0,
             Self::Create => 1,
-            Self::Append => 2,
-            Self::Directory => 3,
-            Self::CopyDestination => 4,
+            Self::CreateNew => 2,
+            Self::Append => 3,
+            Self::Directory => 4,
+            Self::CopyDestination => 5,
         }
     }
 
@@ -255,9 +258,10 @@ impl DarwinFileAccess {
         match code {
             0 => Some(Self::Read),
             1 => Some(Self::Create),
-            2 => Some(Self::Append),
-            3 => Some(Self::Directory),
-            4 => Some(Self::CopyDestination),
+            2 => Some(Self::CreateNew),
+            3 => Some(Self::Append),
+            4 => Some(Self::Directory),
+            5 => Some(Self::CopyDestination),
             _ => None,
         }
     }

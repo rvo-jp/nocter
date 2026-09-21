@@ -24,6 +24,11 @@ blocking func create_fd(path: &str): usize! {
 }
 
 #target: "arm64-darwin"
+blocking func create_new_fd(path: &str): usize! {
+    return open_fd(path, darwin.OPEN_CREATE_NEW)?
+}
+
+#target: "arm64-darwin"
 blocking func append_fd(path: &str): usize! {
     return open_fd(path, darwin.OPEN_CREATE_APPEND)?
 }
@@ -31,6 +36,11 @@ blocking func append_fd(path: &str): usize! {
 #target: "arm64-darwin"
 blocking func copy_destination_fd(path: &str): usize! {
     return open_fd(path, darwin.OPEN_COPY_DESTINATION)?
+}
+
+#target: "arm64-darwin"
+blocking func open_directory_fd(path: &str): usize! {
+    return open_fd(path, darwin.OPEN_DIRECTORY_ONLY)?
 }
 
 #target: "arm64-darwin"
@@ -215,6 +225,11 @@ construct BlockingFile {
         return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
     }
 
+    blocking func create_new(path: &str): Self! {
+        let fd = create_new_fd(path)?
+        return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
+    }
+
     blocking func append(path: &str): Self! {
         let fd = append_fd(path)?
         return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
@@ -222,6 +237,11 @@ construct BlockingFile {
 
     blocking func open_copy_destination(path: &str): Self! {
         let fd = copy_destination_fd(path)?
+        return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
+    }
+
+    blocking func open_directory(path: &str): Self! {
+        let fd = open_directory_fd(path)?
         return BlockingFile { fd: fd, state: BlockingFileState.owned_open }
     }
 }

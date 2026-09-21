@@ -366,6 +366,7 @@ pub const fn bundled_primitive_source_location(
         Role::TaskGroupReady => (&["internal", "task"], "task_group_ready_raw"),
         Role::FileOpenRead => (&["internal", "io"], "file_open_read_raw"),
         Role::FileOpenCreate => (&["internal", "io"], "file_open_create_raw"),
+        Role::FileOpenCreateNew => (&["internal", "io"], "file_open_create_new_raw"),
         Role::FileOpenAppend => (&["internal", "io"], "file_open_append_raw"),
         Role::FileOpenCopyDestination => (&["internal", "io"], "file_open_copy_destination_raw"),
         Role::DirectoryOpen => (&["internal", "io"], "directory_open_raw"),

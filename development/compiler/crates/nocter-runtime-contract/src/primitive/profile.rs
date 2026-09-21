@@ -127,6 +127,7 @@ impl PrimitiveRole {
             | Self::TaskGroupReady => ALLOCATING_FUTURE_WITH_ALLOCATION_CONTEXT,
             Self::FileOpenRead
             | Self::FileOpenCreate
+            | Self::FileOpenCreateNew
             | Self::FileOpenAppend
             | Self::FileOpenCopyDestination
             | Self::DirectoryOpen

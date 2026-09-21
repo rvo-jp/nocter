@@ -4,6 +4,7 @@
 //! paths, errno values, syscalls, and metadata layout remain in `std/internal/os`.
 
 see ./filesystem.nct
+see ./durable.nct
 see ./directory.nct
 see ./directory_mutation.nct
 see ./directory_prefix.nct
@@ -127,6 +128,12 @@ pub async func write(path: &str, value: &[u8]): void!
 /// Creates or truncates a file and writes the UTF-8 text.
 pub async func write_text(path: &str, text: &str): void!
 
+/// Durably replaces one file with complete bytes through an exclusive sibling and atomic rename.
+pub async func write_durable(path: &str, value: &[u8]): void!
+
+/// Durably replaces one file with complete UTF-8 text.
+pub async func write_text_durable(path: &str, text: &str): void!
+
 /// Synchronously reads an entire file into independently owned byte storage.
 pub blocking func read_blocking(path: &str): Vec<u8>!
 
@@ -138,6 +145,12 @@ pub blocking func write_blocking(path: &str, value: &[u8]): void!
 
 /// Synchronously creates or truncates a file and writes the UTF-8 text.
 pub blocking func write_text_blocking(path: &str, text: &str): void!
+
+/// Synchronously and durably replaces one file with complete bytes.
+pub blocking func write_durable_blocking(path: &str, value: &[u8]): void!
+
+/// Synchronously and durably replaces one file with complete UTF-8 text.
+pub blocking func write_text_durable_blocking(path: &str, text: &str): void!
 
 /// Asynchronously returns target metadata after following symbolic links.
 pub async func metadata(path: &str): Metadata!

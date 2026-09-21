@@ -79,6 +79,7 @@ impl Arm64DarwinFilePrimitive {
         match role {
             PrimitiveRole::FileOpenRead => Some(Self::Open(DarwinFileAccess::Read)),
             PrimitiveRole::FileOpenCreate => Some(Self::Open(DarwinFileAccess::Create)),
+            PrimitiveRole::FileOpenCreateNew => Some(Self::Open(DarwinFileAccess::CreateNew)),
             PrimitiveRole::FileOpenAppend => Some(Self::Open(DarwinFileAccess::Append)),
             PrimitiveRole::FileOpenCopyDestination => {
                 Some(Self::Open(DarwinFileAccess::CopyDestination))
@@ -244,33 +245,7 @@ impl Arm64DarwinFilePrimitiveTargets {
         let retirement = Arm64DarwinFileRetirementTargets::declare(program, &imports)?;
         let root = Arm64DarwinFileServiceRootTargets::declare(program, &imports, retirement)?;
         let jobs = Arm64DarwinFileJobTargets::declare(program, &imports, root, retirement)?;
-        let open = [
-            declare_open_adapter(
-                program,
-                jobs.constructor(DarwinFileOperation::Open),
-                DarwinFileAccess::Read,
-            )?,
-            declare_open_adapter(
-                program,
-                jobs.constructor(DarwinFileOperation::Open),
-                DarwinFileAccess::Create,
-            )?,
-            declare_open_adapter(
-                program,
-                jobs.constructor(DarwinFileOperation::Open),
-                DarwinFileAccess::Append,
-            )?,
-            declare_open_adapter(
-                program,
-                jobs.constructor(DarwinFileOperation::Open),
-                DarwinFileAccess::Directory,
-            )?,
-            declare_open_adapter(
-                program,
-                jobs.constructor(DarwinFileOperation::Open),
-                DarwinFileAccess::CopyDestination,
-            )?,
-        ];
+        let open = declare_open_adapters(program, jobs)?;
         let seek = [
             declare_seek_adapter(
                 program,
@@ -393,6 +368,21 @@ impl Arm64DarwinFilePrimitiveTargets {
             }
         }
     }
+}
+
+fn declare_open_adapters(
+    program: &mut Arm64ProgramBuilder,
+    jobs: Arm64DarwinFileJobTargets,
+) -> Result<[Arm64FunctionId; DarwinFileAccess::ALL.len()], Arm64DarwinFilePrimitiveError> {
+    let constructor = jobs.constructor(DarwinFileOperation::Open);
+    Ok([
+        declare_open_adapter(program, constructor, DarwinFileAccess::Read)?,
+        declare_open_adapter(program, constructor, DarwinFileAccess::Create)?,
+        declare_open_adapter(program, constructor, DarwinFileAccess::CreateNew)?,
+        declare_open_adapter(program, constructor, DarwinFileAccess::Append)?,
+        declare_open_adapter(program, constructor, DarwinFileAccess::Directory)?,
+        declare_open_adapter(program, constructor, DarwinFileAccess::CopyDestination)?,
+    ])
 }
 
 fn declare_open_adapter(

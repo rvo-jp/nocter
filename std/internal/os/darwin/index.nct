@@ -255,6 +255,9 @@ pub(/) const OPEN_DIRECTORY_ONLY: usize
 pub(/) const OPEN_CREATE_TRUNCATE: usize
 
 #target: "arm64-darwin"
+pub(/) const OPEN_CREATE_NEW: usize
+
+#target: "arm64-darwin"
 pub(/) const OPEN_CREATE_APPEND: usize
 
 #target: "arm64-darwin"

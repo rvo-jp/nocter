@@ -110,6 +110,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("fs", "mem"),
     ("fs", "path"),
     ("fs", "ptr"),
+    ("fs", "random"),
     ("fs", "string"),
     ("fs", "testing"),
     ("fs", "time"),

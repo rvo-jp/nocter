@@ -203,6 +203,48 @@ fn copy_destination_open_preserves_existing_bytes_before_identity_check() {
 }
 
 #[test]
+fn exclusive_create_never_reuses_or_truncates_an_existing_path() {
+    let temporary = tempfile::tempdir().unwrap();
+    let path = temporary.path().join("state");
+    std::fs::write(&path, b"preserved").unwrap();
+    let mut service = service();
+
+    let conflicting = service
+        .submit(DarwinFileJob::open(
+            service.reserve_file().unwrap(),
+            path.clone(),
+            FileAccess::CreateNew,
+        ))
+        .unwrap();
+    wait_for_job(&service, conflicting);
+    let JobOutcome::Completed(DarwinFileOutcome::Open(result)) =
+        service.consume(conflicting).unwrap()
+    else {
+        panic!("exclusive create returned the wrong outcome")
+    };
+    assert!(result.is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), b"preserved");
+
+    let fresh = temporary.path().join("fresh");
+    let created = service
+        .submit(DarwinFileJob::open(
+            service.reserve_file().unwrap(),
+            fresh.clone(),
+            FileAccess::CreateNew,
+        ))
+        .unwrap();
+    wait_for_job(&service, created);
+    let JobOutcome::Completed(DarwinFileOutcome::Open(result)) = service.consume(created).unwrap()
+    else {
+        panic!("fresh exclusive create returned the wrong outcome")
+    };
+    drop(result.unwrap());
+    wait_until(|| service.retirement_snapshot().drained());
+    assert_eq!(std::fs::read(fresh).unwrap(), b"");
+    service.shutdown().unwrap();
+}
+
+#[test]
 fn directory_open_rejects_a_symbolic_link_in_the_final_position() {
     let temporary = tempfile::tempdir().unwrap();
     let target = temporary.path().join("target");

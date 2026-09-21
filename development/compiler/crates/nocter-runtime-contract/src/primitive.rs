@@ -270,6 +270,8 @@ closed_role_enum! {
         FileOpenRead,
         /// Constructs one generated local-file create-or-truncate computation.
         FileOpenCreate,
+        /// Constructs one generated local-file exclusive-create computation.
+        FileOpenCreateNew,
         /// Constructs one generated local-file append computation.
         FileOpenAppend,
         /// Opens or creates a destination without truncating it before identity validation.
@@ -508,6 +510,7 @@ impl PrimitiveRole {
             Self::TaskGroupReady => "task_group_ready",
             Self::FileOpenRead => "file_open_read",
             Self::FileOpenCreate => "file_open_create",
+            Self::FileOpenCreateNew => "file_open_create_new",
             Self::FileOpenAppend => "file_open_append",
             Self::FileOpenCopyDestination => "file_open_copy_destination",
             Self::DirectoryOpen => "directory_open",
@@ -810,6 +813,7 @@ mod tests {
                 PrimitiveRole::TaskGroupReady,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenCreateNew,
                 PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
@@ -886,6 +890,7 @@ mod tests {
                 PrimitiveRole::TaskGroupReady,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenCreateNew,
                 PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
@@ -935,6 +940,7 @@ mod tests {
                 PrimitiveRole::TaskGroupReady,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenCreateNew,
                 PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,
@@ -978,6 +984,7 @@ mod tests {
                 PrimitiveRole::ProcessEnvironmentValue,
                 PrimitiveRole::FileOpenRead,
                 PrimitiveRole::FileOpenCreate,
+                PrimitiveRole::FileOpenCreateNew,
                 PrimitiveRole::FileOpenAppend,
                 PrimitiveRole::FileOpenCopyDestination,
                 PrimitiveRole::DirectoryOpen,

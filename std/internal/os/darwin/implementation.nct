@@ -183,6 +183,10 @@ const OPEN_DIRECTORY_ONLY: usize = 0x01100100
 const OPEN_CREATE_TRUNCATE: usize = 0x01000601
 
 #target: "arm64-darwin"
+// O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC
+const OPEN_CREATE_NEW: usize = 0x01000a01
+
+#target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
 const OPEN_CREATE_APPEND: usize = 0x01000209
 

@@ -257,6 +257,58 @@ async func main(): i32 {
 }
 
 #[test]
+fn durable_file_replacement_crosses_the_complete_native_session() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/fs
+use std/io.{File, Writer}
+
+async func exclusive_create_rejected(): bool {
+    let _file = await File.create_new("exclusive") catch failure {
+        return failure.has_code("std.io.already_exists")
+    }
+    return false
+}
+
+async func main(): i32 {
+    var exclusive = await File.create_new("exclusive") catch _ { return 1 }
+    await exclusive.write("preserved".bytes()) catch _ { return 2 }
+    await exclusive.close() catch _ { return 3 }
+    if !await exclusive_create_rejected() { return 4 }
+    let exclusive_text = await fs.read_to_string("exclusive") catch _ { return 5 }
+    if &exclusive_text != "preserved" { return 6 }
+    await fs.write_text_durable("durable.txt", "first") catch _ { return 7 }
+    await fs.write_text_durable("durable.txt", "second") catch _ { return 8 }
+    let durable = await fs.read_to_string("durable.txt") catch _ { return 9 }
+    if &durable != "second" { return 10 }
+    var invalid_path_rejected = false
+    await fs.write_text_durable("", "never") catch failure {
+        invalid_path_rejected = failure.has_code("std.fs.invalid_durable_destination")
+    }
+    if !invalid_path_rejected { return 11 }
+    await fs.remove_file("exclusive") catch _ { return 12 }
+    await fs.remove_file("durable.txt") catch _ { return 13 }
+    return 0
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "durable-file-replacement");
+}
+
+#[test]
 fn standard_symbolic_link_targets_cross_the_complete_native_session() {
     let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
@@ -269,7 +321,6 @@ fn standard_symbolic_link_targets_cross_the_complete_native_session() {
     package_root.source(
         "main.nct",
         r#"use std/fs
-
 async func main(): i32 {
     await fs.write_text("item", "value") catch _ { return 1 }
     await fs.create_dir("target") catch _ { return 9 }
@@ -363,6 +414,11 @@ blocking func main(): i32! {
     let parent = target.parent() otherwise { return 1 }
     fs.create_dir_all_blocking(parent)?
     fs.write_text_blocking(&target, "value")?
+    fs.write_text_durable_blocking("durable.txt", "first")?
+    fs.write_text_durable_blocking("durable.txt", "second")?
+    let durable = fs.read_to_string_blocking("durable.txt")?
+    if &durable != "second" { return 20 }
+    fs.remove_file_blocking("durable.txt")?
 
     let file_name = target.file_name() otherwise { return 2 }
     let stem = target.file_stem() otherwise { return 3 }

@@ -570,7 +570,7 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
             let result = owner
                 .0
                 .resource_mut()
-                .flush()
+                .sync_all()
                 .map_err(|error| file_failure(&error));
             DarwinFileOutcome::Flush { owner, result }
         }
@@ -746,6 +746,7 @@ fn open_file(path: &PathBuf, access: FileAccess) -> io::Result<File> {
             .create(true)
             .truncate(true)
             .open(path),
+        FileAccess::CreateNew => OpenOptions::new().write(true).create_new(true).open(path),
         FileAccess::Append => OpenOptions::new().append(true).create(true).open(path),
         FileAccess::CopyDestination => OpenOptions::new()
             .write(true)

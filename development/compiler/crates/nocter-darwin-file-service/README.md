@@ -29,12 +29,13 @@ executables do not link it.
 ## Invariants
 
 - A retirement permit is acquired before open can produce a host file owner.
+- Exclusive creation either publishes one new owner or leaves every existing path byte unchanged.
 - Read output owns only its initialized prefix; write output records the exact completed prefix even
   when a later write fails.
 - Positioned read and write preserve the shared cursor while retaining the same initialized-prefix
   and partial-progress rules as their cursor-changing counterparts.
-- Seek, truncate, flush, read, and write always return the file owner before public error policy can
-  inspect their operation fact.
+- Seek, truncate, durable synchronization, read, and write always return the file owner before
+  public error policy can inspect their operation fact.
 - Job cancellation drops all immediately available ownership and never asks a caller to select a
   cleanup path.
 - Explicit close uses one exact retirement identity; ordinary owner destruction uses the same

@@ -2,15 +2,15 @@
 
 ## Current State
 
-Nocter v0.65.0 Practical Stateful Services is published and externally audited. Annotated tag
-`v0.65.0` resolves to publication commit `f470855968f8047c79880aa98d57acabac2324cf`, and the public
-single asset matches the retained qualified candidate byte for byte.
+Nocter v0.65.0 Practical Stateful Services is published and externally audited. v0.66.0 Durable
+Local Application State is active; Phase 0 established the durable filesystem authority.
 
 ## Next Work
 
-Choose the next milestone from practical application needs. Preserve the shared-storage,
-notification, bounded-coordination, service-lifecycle, application-data, routing, session, and
-logging ownership boundaries instead of adding parallel authorities.
+Implement v0.66.0 Phase 1: define one bounded, versioned, length-delimited, checksummed journal
+record; append and synchronize complete records; replay them deterministically; accept only an
+incomplete final record; and reject earlier corruption. Reuse the existing file lifecycle, binary
+codec, checksum, and durable replacement authorities rather than creating parallel implementations.
 
 Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

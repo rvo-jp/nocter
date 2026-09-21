@@ -163,11 +163,17 @@ construct File {
     /// Creates or truncates a file for writing.
     pub async func create(path: &str): Self!
 
+    /// Creates a new file for writing and fails when the path already exists.
+    pub async func create_new(path: &str): Self!
+
     /// Opens or creates a file and positions writes at its end.
     pub async func append(path: &str): Self!
 
     /// Opens or creates a destination without truncating it before a copy identity check.
     pub(/) async func open_copy_destination(path: &str): Self!
+
+    /// Opens one directory for package-internal metadata synchronization.
+    pub(/) async func open_directory(path: &str): Self!
 }
 
 construct BlockingFile {
@@ -177,11 +183,17 @@ construct BlockingFile {
     /// Creates or truncates a file for synchronous writing.
     pub blocking func create(path: &str): Self!
 
+    /// Creates a new file for synchronous writing and fails when the path already exists.
+    pub blocking func create_new(path: &str): Self!
+
     /// Opens or creates a file for synchronous append.
     pub blocking func append(path: &str): Self!
 
     /// Opens or creates a destination without truncating it before a copy identity check.
     pub(/) blocking func open_copy_destination(path: &str): Self!
+
+    /// Opens one directory for package-internal metadata synchronization.
+    pub(/) blocking func open_directory(path: &str): Self!
 }
 
 /// Compares the identities of two already-open executor-safe files.
@@ -196,6 +208,8 @@ pub(/) blocking func blocking_files_share_identity(
 instance File {
     /// Makes this owner terminal and waits for its descriptor retirement.
     pub async method &+self.close(): void!
+    /// Synchronizes this file or directory through the target durability boundary.
+    pub async method &+self.sync(): void!
     /// Returns the current shared cursor position.
     pub async method &+self.position(): usize!
     /// Changes and returns the shared cursor position.
@@ -213,6 +227,8 @@ instance File {
 instance BlockingFile {
     /// Makes this wrapper terminal and closes its descriptor only when it owns it.
     pub noalloc method &+self.close(): void
+    /// Synchronizes this file or directory through the target durability boundary.
+    pub noalloc blocking method &+self.sync_blocking(): void!
     /// Returns the current shared cursor position.
     pub noalloc blocking method &+self.position_blocking(): usize!
     /// Changes and returns the shared cursor position.

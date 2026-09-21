@@ -105,6 +105,7 @@ pub(crate) struct DarwinFileAbi;
 impl DarwinFileAbi {
     pub(crate) const READ_ONLY: u64 = 0x0100_0000;
     pub(crate) const CREATE_TRUNCATE_WRITE_ONLY: u64 = 0x0100_0601;
+    pub(crate) const CREATE_NEW_WRITE_ONLY: u64 = 0x0100_0a01;
     pub(crate) const CREATE_APPEND_WRITE_ONLY: u64 = 0x0100_0209;
     pub(crate) const COPY_DESTINATION: u64 = 0x0100_0201;
     pub(crate) const DIRECTORY_ONLY: u64 = 0x0110_0100;

@@ -7,10 +7,10 @@ and ABI encoding belong to their target adapters.
 
 ## Execution Surfaces
 
-`File` is the canonical executor-safe owning file. Its open, create, append, read, write, flush,
-position, seek, truncate, and explicit close operations are asynchronous. It implements `Reader`
-and `Writer`. No `File` operation calls a public blocking wrapper or performs a potentially blocking
-filesystem operation on the executor thread.
+`File` is the canonical executor-safe owning file. Its open, create, exclusive create, append, read,
+write, synchronize, position, seek, truncate, and explicit close operations are asynchronous. It
+implements `Reader` and `Writer`. No `File` operation calls a public blocking wrapper or performs a
+potentially blocking filesystem operation on the executor thread.
 
 `BlockingFile` is the explicit synchronous twin. It implements `BlockingReader` and
 `BlockingWriter`, and its operation names retain `_blocking` where the interface requires them.
@@ -232,3 +232,13 @@ The closed worker-operation, access-mode, and seek-origin vocabularies are owned
 `nocter-runtime-contract`. Host conformance and generated target code consume those tags. Standard
 source calls separate semantic open and seek primitives and therefore cannot construct or duplicate
 a target tag.
+
+Exclusive creation is an `Open` access mode rather than a second operation lifecycle. The runtime
+contract owns its access tag, target adapters map it to create-with-exclusion, and standard source
+receives the ordinary retained owner or portable already-exists failure. This keeps temporary-file
+policy in `std/fs` while making accidental truncation impossible at the target boundary.
+
+`std/fs` durable replacement composes these existing operations: exclusive sibling creation,
+complete write, file synchronization, close, one rename, package-internal directory open, and
+directory synchronization. The file service knows none of the naming or replacement policy, while
+filesystem policy cannot inspect descriptors, access tags, jobs, or target errno values.

@@ -46,12 +46,20 @@ construct File {
         return await open_file(io.file_open_create(path))?
     }
 
+    async func create_new(path: &str): Self! {
+        return await open_file(io.file_open_create_new(path))?
+    }
+
     async func append(path: &str): Self! {
         return await open_file(io.file_open_append(path))?
     }
 
     async func open_copy_destination(path: &str): Self! {
         return await open_file(io.file_open_copy_destination(path))?
+    }
+
+    async func open_directory(path: &str): Self! {
+        return await open_file(io.directory_open(path))?
     }
 }
 
@@ -72,6 +80,14 @@ async func files_share_identity(left: &+File, right: &+File): bool! {
     return same_file_identity(left_identity, right_identity)
 }
 
+async func synchronize_file(file: &+File): void! {
+    let owner = take_file_owner(file)?
+    var completion = await io.file_flush(move owner)
+    restore_file_owner(file, &+completion)
+    io.validate_file_completion(&completion)?
+    return
+}
+
 instance File {
     async method &+self.read(buffer: &+[u8]): usize! {
         let owner = take_file_owner(self)?
@@ -90,10 +106,12 @@ instance File {
     }
 
     async method &+self.flush(): void! {
-        let owner = take_file_owner(self)?
-        var completion = await io.file_flush(move owner)
-        restore_file_owner(self, &+completion)
-        io.validate_file_completion(&completion)?
+        await synchronize_file(self)?
+        return
+    }
+
+    async method &+self.sync(): void! {
+        await synchronize_file(self)?
         return
     }
 

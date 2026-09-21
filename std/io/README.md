@@ -52,10 +52,12 @@ terminal-state behavior remain exactly the common `BlockingBufReader` contract.
 
 ## Local Files
 
-`File` is the canonical executor-safe local-file owner. Its `open`, `create`, and `append`
-construction functions and its read, write, flush, position, seek, truncate, positioned-I/O, and
-close methods are asynchronous. Each call owns the operating-system input while a bounded worker
-performs the blocking operation; no worker retains an authored path or caller byte view.
+`File` is the canonical executor-safe local-file owner. Its `open`, `create`, `create_new`, and
+`append` construction functions and its read, write, flush, sync, position, seek, truncate,
+positioned-I/O, and close methods are asynchronous. `create_new` uses target-exclusive creation: an
+existing path fails with `std.io.already_exists` and is never opened or truncated. Each call owns
+the operating-system input while a bounded worker performs the blocking operation; no worker
+retains an authored path or caller byte view.
 Every library-opened local descriptor is close-on-exec, so successful process replacement cannot
 inherit a file solely because a `File` or `BlockingFile` remains live.
 
@@ -70,12 +72,15 @@ observable.
 `SeekFrom.current` accept signed `i64` displacement. A negative start position fails with
 `std.io.offset_out_of_range`. Positioned reads and writes leave the shared cursor unchanged.
 
-`BlockingFile` is the explicit synchronous twin. It shares path validation, cursor semantics,
-descriptor close-once ownership, and public error classification with `File`, while executing the
-target operation in the calling thread. Standard streams return borrowed `BlockingFile` wrappers;
-closing or dropping one does not close the process-global descriptor. Flushing an owning file
-requests target synchronization; flushing a borrowed unbuffered standard stream is a no-op because
-the wrapper retains no output and a pipe or terminal does not admit file synchronization.
+`BlockingFile` is the explicit synchronous twin. It shares path validation, exclusive creation,
+cursor semantics, descriptor close-once ownership, and public error classification with `File`,
+while executing the target operation in the calling thread. Standard streams return borrowed
+`BlockingFile` wrappers; closing or dropping one does not close the process-global descriptor.
+`sync` and `sync_blocking` explicitly request target synchronization for an owning file or the
+package-internal directory owner. File implementations of the generic `flush` contracts use the
+same synchronization authority. Flushing or synchronizing a borrowed unbuffered standard stream is
+a no-op because the wrapper retains no output and a pipe or terminal does not admit file
+synchronization.
 
 ## Byte I/O and Buffering
 

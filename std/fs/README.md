@@ -67,6 +67,28 @@ a second descriptor-I/O algorithm. `read_blocking`, `read_to_string_blocking`, `
 and `write_text_blocking` provide the same whole-file policy through `BlockingFile`,
 `BlockingReader`, and `BlockingWriter`.
 
+`write_durable` and `write_text_durable` replace one destination through a newly and exclusively
+created sibling file. The operation writes the complete content, synchronizes that file, closes it,
+renames it to the destination exactly once, opens the containing directory without following a
+final symbolic link, and synchronizes the directory. The `_blocking` forms apply the same ordering
+through `BlockingFile`. Success therefore reports both synchronized content and synchronized
+destination-directory metadata; ordinary `write` deliberately makes no such promise.
+
+The fixed-length temporary name contains a cryptographically random token, so a destination at the
+target's maximum component length does not become invalid merely because replacement needs a
+sibling. A name collision retries with fresh entropy up to a fixed bound and never opens or
+truncates the existing entry. Failure before rename attempts to remove the temporary entry while
+preserving the original failure. Cancellation or process termination may leave an uncommitted
+sibling temporary entry, but it cannot make that entry the destination without the one rename
+attempt. A failure after rename means the new destination may be visible without a completed
+durability promise. As with the other path APIs, concurrent namespace mutation remains an ordinary
+path race; this is not a capability-secure directory-relative interface.
+
+The destination must have a final lexical file name. A root spelling, an empty spelling, or a path
+ending without a selectable file component fails with `std.fs.invalid_durable_destination` before
+mutation. Exhausting the fixed exclusive-name attempts fails with
+`std.fs.temporary_name_exhausted`.
+
 `copy` and `copy_blocking` transfer one regular byte stream through the shared `std/io.copy`
 algorithm and return the checked byte count. They open the destination without truncating it,
 compare the device and inode identities of the actual opened descriptors, and only then truncate
