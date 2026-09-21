@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Recent Milestones
 
 - [v0.65.0: Practical Stateful Services](v0.65.0.md)
+- [v0.65.0 Release Preparation](v0.65.0-release-preparation.md)
 - [v0.64.0: Application Encoding and Identity](v0.64.0.md)
 - [v0.64.0 Release Preparation](v0.64.0-release-preparation.md)
 - [v0.63.0: Cryptographic Randomness](v0.63.0.md)

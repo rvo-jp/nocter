@@ -2,20 +2,17 @@
 
 ## Current State
 
-Nocter v0.65.0 Practical Stateful Services is implementation-complete. Phases 0 through 6 carry
-page-backed shared ownership and descriptor notification through mutexes, bounded channels,
-cooperative cancellation, structured service ownership, process-wide termination observation,
-bounded HTTP application data, explicitly stateful routing, opaque sessions, and structured
-redacted operational output in one complete installed-standard-library service. The previous
-v0.64.0 Application Encoding and Identity release is published and externally audited.
+Nocter v0.65.0 Practical Stateful Services is implementation-complete and has entered release
+preparation. Release inputs now select v0.65.0; final clean-tree verification and deterministic
+artifact qualification remain. The previous v0.64.0 Application Encoding and Identity release is
+published and externally audited.
 
 ## Next Work
 
-Prepare the exact v0.65.0 release inputs. Bump the sole authored version and standard-package
-version together, write public release notes, commit the release content, then run deterministic
-artifact construction, fresh-install, installed-home, public-example, interactive-LSP, and
-immutability qualification from that clean commit. Do not rebuild between qualification and
-publication.
+Commit the exact v0.65.0 release-content inputs, rerun the complete disposable compiler gate, and
+run clean-tree double-generation qualification. Record the retained candidate evidence, then stop
+before publication unless the user explicitly authorizes it. Do not rebuild between qualification
+and publication.
 
 Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -24,8 +21,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No external blocker is known. Release preparation must preserve the reviewed shared ownership,
-notification, parser, router, session, logging, and service-lifecycle authorities.
+No blocker remains for v0.65.0 release qualification.
 
 ## Non-negotiable Boundaries
 
