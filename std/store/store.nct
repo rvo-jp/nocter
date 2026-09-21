@@ -5,7 +5,9 @@ see ./index.nct
 see ./journal.nct
 
 use /fixed.ByteBuffer
+use /hash.{Hash, HashState}
 use /internal/safety
+use /map.Map
 use /scan.ByteCursor
 use /vec.Vec
 
@@ -125,6 +127,12 @@ noalloc func keys_equal(left: &[u8], right: &[u8]): bool {
     return true
 }
 
+noalloc func store_key_hash(seed: &HashState, key: &[u8]): u64 {
+    var state = seed.restart()
+    key.hash_into(&+state)
+    return state.finish()
+}
+
 noalloc func find_entry(entries: &[StoreEntry], key: &[u8]): usize? {
     var index: usize = 0
     while index < entries.len() {
@@ -132,11 +140,6 @@ noalloc func find_entry(entries: &[StoreEntry], key: &[u8]): usize? {
         index += 1
     }
     return none
-}
-
-noalloc func contains_entry(entries: &[StoreEntry], key: &[u8]): bool {
-    let _index = find_entry(entries, key) otherwise { return false }
-    return true
 }
 
 noalloc func checked_snapshot_growth(current: usize, additional: usize, maximum: usize): usize! {
@@ -223,7 +226,12 @@ func decode_snapshot(input: &[u8], limits: StoreLimits): (Vec<StoreEntry>, usize
         return corrupt_snapshot()
     }
     let entry_count = entry_count_u64 as usize
+    let maximum_physical_entries = (input.len() - SNAPSHOT_HEADER_BYTES)
+    / SNAPSHOT_ENTRY_HEADER_BYTES
+    if entry_count > maximum_physical_entries { return corrupt_snapshot() }
     var entries: Vec<StoreEntry> = Vec.with_capacity(entry_count)
+    let key_hash_seed = HashState.fresh()
+    var seen: Map<u64, Vec<usize>> = Map.with_capacity(entry_count)
     while entries.len() < entry_count {
         let key_len_u64 = cursor.take_u64_le() otherwise { return corrupt_snapshot() }
         let value_len_u64 = cursor.take_u64_le() otherwise { return corrupt_snapshot() }
@@ -234,7 +242,22 @@ func decode_snapshot(input: &[u8], limits: StoreLimits): (Vec<StoreEntry>, usize
         let key_len = key_len_u64 as usize
         let value_len = value_len_u64 as usize
         let entry = decode_snapshot_entry(cursor.remaining(), key_len, value_len)?
-        if contains_entry(&entries, &entry.key) { return corrupt_snapshot() }
+        let key_hash = store_key_hash(&key_hash_seed, &entry.key)
+        if seen.contains_key(&key_hash) {
+            let bucket = seen.get_mut(&key_hash) otherwise { return safety.invariant_abort() }
+            var candidate: usize = 0
+            while candidate < bucket.len() {
+                if keys_equal(&entries[bucket[candidate]].key, &entry.key) {
+                    return corrupt_snapshot()
+                }
+                candidate += 1
+            }
+            bucket.push(entries.len())
+        } else {
+            var bucket: Vec<usize> = Vec.with_capacity(1)
+            bucket.push(entries.len())
+            let _ = seen.insert(key_hash, move bucket)
+        }
         let _entry_bytes = cursor.take(key_len + value_len) otherwise {
             return safety.invariant_abort()
         }
@@ -245,17 +268,26 @@ func decode_snapshot(input: &[u8], limits: StoreLimits): (Vec<StoreEntry>, usize
 }
 
 async func open_store(path: &str, limits: StoreLimits): Store! {
-    let (journal, records) = await open_journal(path, journal_limits(limits)?)?
+    let (journal, recovered) = await open_journal(path, journal_limits(limits)?)?
     var entries: Vec<StoreEntry> = Vec.empty()
     var snapshot_bytes: usize = SNAPSHOT_HEADER_BYTES
     var committed_sequence: u64 = 0
-    for record in move records {
-        let sequence = journal_record_sequence(&record)
-        let (decoded, decoded_bytes) = decode_snapshot(journal_record_body(&record), limits)?
-        entries = move decoded
-        snapshot_bytes = decoded_bytes
-        committed_sequence = sequence
+    let record = move recovered otherwise {
+        return Store {
+            journal: move journal,
+            entries: move entries,
+            limits: limits,
+            snapshot_bytes: snapshot_bytes,
+            committed_sequence_value: committed_sequence,
+            dirty: false,
+            writable: true,
+        }
     }
+    let sequence = journal_record_sequence(&record)
+    let (decoded, decoded_bytes) = decode_snapshot(journal_record_body(&record), limits)?
+    entries = move decoded
+    snapshot_bytes = decoded_bytes
+    committed_sequence = sequence
     return Store {
         journal: move journal,
         entries: move entries,

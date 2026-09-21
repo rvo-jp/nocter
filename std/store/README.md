@@ -39,8 +39,18 @@ must increment it by exactly one.
 
 Recovery accepts a partial final header, or a valid final header whose complete body and checksum
 do not reach the observed end, as an interrupted commit and truncates that tail before append.
-Invalid complete magic, version, flags, sequence, checksum, configured length, duplicate snapshot
-key, or sequence continuity is corruption and never becomes visible state.
+Invalid complete journal magic, version, flags, sequence, checksum, configured length, or sequence
+continuity is corruption. An invalid final snapshot, including a duplicate key, is likewise
+corruption and never becomes visible state.
+
+Recovery verifies the header, sequence, bounds, and checksum of every complete journal record, but
+retains and decodes only the final complete snapshot. Superseded snapshot bodies are not copied
+into a second recovery collection and are never reconstructed as obsolete application states.
+
+Recovery builds one temporary seeded hash index while decoding, so duplicate validation compares
+only equal-hash candidates rather than scanning every prior persisted key. The index retains only
+hashes and entry positions and is discarded after the authoritative insertion-ordered state has
+been reconstructed.
 
 ## Commit, Compaction, and Failure
 

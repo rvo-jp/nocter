@@ -34,7 +34,8 @@ struct JournalRecord {
 }
 
 struct JournalRecovery {
-    records: Vec<JournalRecord>
+    last_record: JournalRecord?
+    record_count: usize
     complete_len: usize
     next_sequence: u64
     sequence_exhausted: bool
@@ -109,29 +110,6 @@ noalloc func journal_record_body(record: &JournalRecord): &[u8] from record {
     return &record.body
 }
 
-noalloc func journal_recovery_record_count(recovery: &JournalRecovery): usize {
-    return recovery.records.len()
-}
-
-noalloc func journal_recovery_committed_byte_len(recovery: &JournalRecovery): usize {
-    return recovery.complete_len
-}
-
-noalloc func journal_recovery_next_sequence(recovery: &JournalRecovery): u64 {
-    return recovery.next_sequence
-}
-
-noalloc func journal_recovery_sequence_is_exhausted(recovery: &JournalRecovery): bool {
-    return recovery.sequence_exhausted
-}
-
-noalloc func journal_recovery_record(
-    recovery: &JournalRecovery,
-    index: usize,
-): &JournalRecord? from recovery {
-    return recovery.records.get(index)?
-}
-
 noalloc func append_header(
     output: &+ByteBuffer<24>,
     sequence: u64,
@@ -185,12 +163,11 @@ noalloc func header_magic_is_valid(header: &[u8]): bool {
     && header[3] == 74
 }
 
-func decode_complete_record(
+noalloc func validate_complete_record(
     header: &[u8],
     remaining: &[u8],
-    sequence: u64,
     body_len: usize,
-): JournalRecord! {
+): void! {
     let body = remaining.get_range(0, body_len) otherwise {
         return safety.invariant_abort()
     }
@@ -204,18 +181,17 @@ func decode_complete_record(
     checksum.update(header)
     checksum.update(body)
     if stored_checksum != checksum.value() { return corrupt_journal() }
-    return JournalRecord {
-        sequence: sequence,
-        body: Vec.from_slice(body),
-    }
+    return
 }
 
 func recover_journal_bytes(input: &[u8], limits: JournalLimits): JournalRecovery! {
     if input.len() > limits.maximum_journal_bytes { return journal_too_large() }
     var cursor = ByteCursor.new(input)
-    var records: Vec<JournalRecord> = Vec.empty()
+    var record_count: usize = 0
     var has_previous_sequence: bool = false
     var previous_sequence: u64 = 0
+    var last_body_offset: usize = 0
+    var last_body_len: usize = 0
     var complete_len: usize = 0
 
     while !cursor.is_finished() {
@@ -243,7 +219,6 @@ func recover_journal_bytes(input: &[u8], limits: JournalLimits): JournalRecovery
         if body_len > limits.maximum_journal_bytes - JOURNAL_RECORD_OVERHEAD {
             return journal_too_large()
         }
-        if records.len() == limits.maximum_records { return too_many_records() }
         if has_previous_sequence {
             if previous_sequence == 18446744073709551615
             || sequence != previous_sequence + 1 {
@@ -253,16 +228,18 @@ func recover_journal_bytes(input: &[u8], limits: JournalLimits): JournalRecovery
         if cursor.remaining_len() < body_len + JOURNAL_TRAILER_BYTES {
             break
         }
-        let record = decode_complete_record(
+        if record_count == limits.maximum_records { return too_many_records() }
+        validate_complete_record(
             header_bytes,
             cursor.remaining(),
-            sequence,
             body_len,
         )?
+        last_body_offset = cursor.offset()
+        last_body_len = body_len
         let _record_bytes = cursor.take(body_len + JOURNAL_TRAILER_BYTES) otherwise {
             return safety.invariant_abort()
         }
-        records.push(move record)
+        record_count += 1
         complete_len = cursor.offset()
         has_previous_sequence = true
         previous_sequence = sequence
@@ -277,8 +254,19 @@ func recover_journal_bytes(input: &[u8], limits: JournalLimits): JournalRecovery
             next_sequence = previous_sequence + 1
         }
     }
+    var last_record: JournalRecord? = none
+    if has_previous_sequence {
+        let body = input.get_range(last_body_offset, last_body_offset + last_body_len) otherwise {
+            return safety.invariant_abort()
+        }
+        last_record = JournalRecord {
+            sequence: previous_sequence,
+            body: Vec.from_slice(body),
+        }
+    }
     return JournalRecovery {
-        records: move records,
+        last_record: move last_record,
+        record_count: record_count,
         complete_len: complete_len,
         next_sequence: next_sequence,
         sequence_exhausted: exhausted,
@@ -330,13 +318,13 @@ async func recover_journal_file(
 async func open_journal(
     path: &str,
     limits: JournalLimits,
-): (Journal, Vec<JournalRecord>)! {
+): (Journal, JournalRecord?)! {
     let (recovery, observed_len) = await recover_journal_file(path, limits)?
     if recovery.sequence_exhausted { return sequence_exhausted() }
     let next_sequence = recovery.next_sequence
     let complete_len = recovery.complete_len
-    let record_count = recovery.records.len()
-    let records = move recovery.records
+    let record_count = recovery.record_count
+    let last_record = move recovery.last_record
     var file = await File.append(path)?
     if complete_len != observed_len {
         await file.truncate(complete_len)?
@@ -351,7 +339,7 @@ async func open_journal(
             record_count: record_count,
             usable: true,
         },
-        move records,
+        move last_record,
     )
 }
 
@@ -410,17 +398,6 @@ async func compact_journal(
     committed_sequence: u64,
 ): void! {
     if !journal.usable { return journal_unusable() }
-    if committed_sequence == 0 {
-        journal.usable = false
-        await journal.file.close()?
-        await fs.write_durable(&journal.path, "".bytes())?
-        journal.file = await File.append(&journal.path)?
-        journal.next_sequence = 1
-        journal.byte_len = 0
-        journal.record_count = 0
-        journal.usable = true
-        return
-    }
     let encoded = encode_journal_record(journal.limits, committed_sequence, body)?
     await replace_journal_record(journal, &encoded, committed_sequence)?
     return
