@@ -3,16 +3,17 @@
 ## Current State
 
 Nocter v0.65.0 Practical Stateful Services is published and externally audited. v0.66.0 Durable
-Local Application State has entered release preparation after completing Phases 0–5 and their
-implementation review. Release identity now selects v0.66.0; the clean release-content commit and
-deterministic artifact qualification remain.
+Local Application State has completed implementation, review, the complete compiler gate, and
+deterministic artifact qualification. Its release-content commit is
+`e3f499b5d38d87073fde1c06e1c474772a1c7752`.
 
 ## Next Work
 
-Commit the exact v0.66.0 release-content inputs, rerun the complete disposable compiler gate, and
-run clean-tree double-generation qualification. Record the retained candidate evidence, then
-publish that exact archive without rebuilding it and complete the external publication audit. The
-[release-preparation record](history/milestones/v0.66.0-release-preparation.md) owns these gates.
+Publish `dist/nocter-v0.66.0-arm64-darwin.tar.gz` with SHA-256
+`d5476913c5bf8033f6b9e2b6844a42615b166a3af98b02e95af34043539cf87c` without rebuilding it. Then
+verify the annotated tag, single GitHub Release asset, latest-release endpoint, downloaded
+installed home, push-triggered workflows, and source-identified Pages deployment in a release
+audit.
 
 Preserve the v0.65.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
@@ -21,7 +22,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains from v0.65.0.
+No qualification blocker remains for v0.66.0 publication.
 
 ## Non-negotiable Boundaries
 
