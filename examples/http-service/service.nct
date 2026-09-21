@@ -1,11 +1,13 @@
 see ./index.nct
 
 use std/http.{Handler, IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, RouteDispatch, RouteMatch, Router, Server, ServerConnection, SessionCookie, Status}
+use std/fs
 use std/log.{Event, Field, Level}
 use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpStream}
 use std/session.SessionId
 use std/string.String
+use std/store.Store
 use std/sync.Mutex
 use std/task
 use std/task.{TaskGroup, Timeout}
@@ -326,7 +328,28 @@ async func serve_bounded(
         return error.new("http-service.events", "structured event count changed")
     }
     let event_output = stored_events[0].to_json_line()?
+    await persist_and_recover_event(&event_output)?
     return (succeeded + drained.0, failed + drained.1, move event_output)
+}
+
+async func persist_and_recover_event(event_output: &str): void! {
+    let path: &str = ".http-service-state"
+    var state = await Store.open(path)?
+    state.set("last-event".bytes(), event_output.bytes())?
+    let committed_sequence = await state.commit()?
+    await state.close()?
+
+    var restarted = await Store.open(path)?
+    let recovered = restarted.get("last-event".bytes()) otherwise {
+        return error.new("http-service.state", "committed event was not recovered")
+    }
+    if recovered != event_output.bytes()
+    || restarted.committed_sequence() != committed_sequence {
+        return error.new("http-service.state", "restarted state changed")
+    }
+    await restarted.close()?
+    await fs.remove_file(path)?
+    return
 }
 
 async func read_until_eof(

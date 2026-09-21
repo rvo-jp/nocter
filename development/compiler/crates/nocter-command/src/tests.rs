@@ -1217,6 +1217,16 @@ fn binary_record_example_runs_with_its_process_contract() {
 }
 
 #[test]
+fn http_service_example_runs_with_its_process_and_cleanup_contract() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let contract = PUBLIC_PACKAGE_EXAMPLES
+        .iter()
+        .find(|contract| contract.directory() == "http-service")
+        .expect("http-service public example contract");
+    run_public_package_example(&compiler_root, *contract);
+}
+
+#[test]
 fn binary_record_example_passes_its_declared_tests() {
     run_public_example_tests("binary-record", 4);
 }

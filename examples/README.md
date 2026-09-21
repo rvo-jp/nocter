@@ -250,6 +250,12 @@ handler, detached task, hidden server registry, concurrent pipeline executor, or
 parser. Every accept, request read, response write, client operation, and complete shutdown drain
 has a finite deadline.
 
+Only after the handler group drains successfully, the service commits its structured event to one
+bounded `std/store.Store`, closes the owner, reopens the journal to simulate process restart, and
+verifies the exact committed bytes and sequence. It then closes the recovered owner and removes the
+example state file. Failed or cancelled request handling therefore cannot publish an in-memory
+event as durable application state.
+
 ```sh
 cd examples/http-service
 nocter check

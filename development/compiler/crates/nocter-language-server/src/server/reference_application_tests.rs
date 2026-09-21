@@ -273,7 +273,82 @@ fn http_service_uses_public_server_typestate_across_editor_features() {
     assert_http_connection_editor_features(&mut server, &source, &text);
     assert_http_router_editor_features(&mut server, &source, &text);
     assert_http_lending_query_editor_features(&mut server, &source, &text);
+    assert_http_durable_store_editor_features(&mut server, &source, &text);
     assert_http_request_and_shutdown_editor_features(&mut server, &source, &text);
+}
+
+fn assert_http_durable_store_editor_features(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (open_line, open_source) = source_line(text, "Store.open(path)");
+    let open_character = open_source.find("open").unwrap();
+    let hover = server.receive(&position_request(
+        50,
+        "textDocument/hover",
+        source,
+        open_line,
+        open_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub async func Store.open(path: &str): Store!"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        51,
+        "textDocument/definition",
+        source,
+        open_line,
+        open_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/store/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        52,
+        "textDocument/implementation",
+        source,
+        open_line,
+        open_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/store/store.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let (set_line, set_source) = source_line(text, "state.set(");
+    let completion_character = set_source.find("state.").unwrap() + "state.".len();
+    let completion = server.receive(&position_request(
+        53,
+        "textDocument/completion",
+        source,
+        set_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in [
+        "close",
+        "commit",
+        "compact",
+        "get",
+        "has_uncommitted_changes",
+        "remove",
+        "set",
+    ] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
 }
 
 fn assert_http_connection_editor_features(

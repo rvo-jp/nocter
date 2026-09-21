@@ -3,15 +3,15 @@
 ## Current State
 
 Nocter v0.65.0 Practical Stateful Services is published and externally audited. v0.66.0 Durable
-Local Application State is active; Phases 0–3 established durable filesystem replacement, the
-recoverable journal, the byte-oriented store, and bounded compaction.
+Local Application State is active; Phases 0–4 established durable filesystem replacement, the
+recoverable journal, the byte-oriented store, bounded compaction, and persistent HTTP service
+shutdown/restart behavior.
 
 ## Next Work
 
-Implement v0.66.0 Phase 4: extend the complete HTTP service example with bounded durable
-application state, commit only after its structured handler drain, close the store, reopen it, and
-verify that the same committed state survives restart. Keep application serialization and
-concurrent-task synchronization above the byte-store contract.
+Implement v0.66.0 Phase 5: complete editor coverage, adversarial interruption and corruption probes,
+installed-home qualification, deterministic packaging, and the final authority review. Do not
+publish or advance release identity until the complete compiler and documentation gates pass.
 
 Preserve the v0.64.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

@@ -198,7 +198,9 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             stdout: b"",
             stderr: b"",
         }],
-        postconditions: &[],
+        postconditions: &[PublicExamplePostcondition::Absent {
+            path: ".http-service-state",
+        }],
     },
     PublicPackageExample {
         directory: "async-file-report",
