@@ -37,6 +37,7 @@ comments.
 | value formatting | [Formatting](fmt/README.md) | `std/fmt` |
 | byte streams and buffering | [I/O](io/README.md) | `std/io`, `std/io/buffer` |
 | paths and filesystem operations | [Filesystem](fs/README.md) | `std/path`, `std/fs` |
+| durable local byte storage | [Durable Local Byte Storage](store/README.md) | `std/store` |
 | numeric values and text conversion | [Numeric Values](num/README.md) | `std/num` |
 | total ordering and comparison results | [Total Ordering](order/README.md) | `std/order` |
 | allocation and storage failure | [Allocation and Failure](mem/README.md) | `std/mem` |

@@ -1,0 +1,383 @@
+//! Public single-writer state over the package-private recoverable journal.
+
+see ./index.nct
+
+see ./journal.nct
+
+use /fixed.ByteBuffer
+use /internal/safety
+use /scan.ByteCursor
+use /vec.Vec
+
+const SNAPSHOT_HEADER_BYTES: usize = 16
+
+const SNAPSHOT_ENTRY_HEADER_BYTES: usize = 16
+
+const SNAPSHOT_VERSION: u16 = 1
+
+copy struct StoreLimits {
+    maximum_key_bytes: usize
+    maximum_value_bytes: usize
+    maximum_entries: usize
+    maximum_snapshot_bytes: usize
+    maximum_journal_bytes: usize
+    maximum_journal_records: usize
+}
+
+struct StoreEntry {
+    key: Vec<u8>
+    value: Vec<u8>
+}
+
+struct Store {
+    journal: Journal
+    entries: Vec<StoreEntry>
+    limits: StoreLimits
+    snapshot_bytes: usize
+    committed_sequence_value: u64
+    dirty: bool
+    writable: bool
+}
+
+noalloc func invalid_store_limits(): error {
+    return error.new("std.store.invalid_limits", "store limits are internally inconsistent")
+}
+
+noalloc func key_too_large(): error {
+    return error.new("std.store.key_too_large", "key exceeds the configured byte limit")
+}
+
+noalloc func value_too_large(): error {
+    return error.new("std.store.value_too_large", "value exceeds the configured byte limit")
+}
+
+noalloc func too_many_entries(): error {
+    return error.new("std.store.too_many_entries", "store exceeds the configured entry limit")
+}
+
+noalloc func snapshot_too_large(): error {
+    return error.new("std.store.snapshot_too_large", "state exceeds the configured snapshot limit")
+}
+
+noalloc func corrupt_snapshot(): error {
+    return error.new("std.store.corrupt_snapshot", "journal contains an invalid store snapshot")
+}
+
+noalloc func store_unusable(): error {
+    return error.new("std.store.unusable", "store must be reopened after a failed commit")
+}
+
+construct StoreLimits {
+    noalloc func standard(): Self {
+        return StoreLimits {
+            maximum_key_bytes: 65536,
+            maximum_value_bytes: 1048576,
+            maximum_entries: 65536,
+            maximum_snapshot_bytes: 16777216,
+            maximum_journal_bytes: 268435456,
+            maximum_journal_records: 4096,
+        }
+    }
+
+    noalloc func bounded(
+        maximum_key_bytes: usize,
+        maximum_value_bytes: usize,
+        maximum_entries: usize,
+        maximum_snapshot_bytes: usize,
+        maximum_journal_bytes: usize,
+        maximum_journal_records: usize,
+    ): Self! {
+        if maximum_snapshot_bytes < SNAPSHOT_HEADER_BYTES
+        || maximum_key_bytes > maximum_snapshot_bytes - SNAPSHOT_HEADER_BYTES
+        || maximum_value_bytes > maximum_snapshot_bytes - SNAPSHOT_HEADER_BYTES
+        || maximum_entries == 0
+        || maximum_journal_records == 0
+        || maximum_journal_bytes < JOURNAL_RECORD_OVERHEAD
+        || maximum_snapshot_bytes > maximum_journal_bytes - JOURNAL_RECORD_OVERHEAD {
+            return invalid_store_limits()
+        }
+        return StoreLimits {
+            maximum_key_bytes: maximum_key_bytes,
+            maximum_value_bytes: maximum_value_bytes,
+            maximum_entries: maximum_entries,
+            maximum_snapshot_bytes: maximum_snapshot_bytes,
+            maximum_journal_bytes: maximum_journal_bytes,
+            maximum_journal_records: maximum_journal_records,
+        }
+    }
+}
+
+noalloc func journal_limits(limits: StoreLimits): JournalLimits! {
+    return JournalLimits.new(
+        limits.maximum_snapshot_bytes,
+        limits.maximum_journal_bytes,
+        limits.maximum_journal_records,
+    )?
+}
+
+noalloc func keys_equal(left: &[u8], right: &[u8]): bool {
+    if left.len() != right.len() { return false }
+    var index: usize = 0
+    while index < left.len() {
+        if left[index] != right[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+noalloc func find_entry(entries: &[StoreEntry], key: &[u8]): usize? {
+    var index: usize = 0
+    while index < entries.len() {
+        if keys_equal(&entries[index].key, key) { return index }
+        index += 1
+    }
+    return none
+}
+
+noalloc func contains_entry(entries: &[StoreEntry], key: &[u8]): bool {
+    let _index = find_entry(entries, key) otherwise { return false }
+    return true
+}
+
+noalloc func checked_snapshot_growth(current: usize, additional: usize, maximum: usize): usize! {
+    if current > maximum || additional > maximum - current { return snapshot_too_large() }
+    return current + additional
+}
+
+noalloc func append_snapshot_header(output: &+ByteBuffer<16>, entry_count: usize): void {
+    if output.append("NCTS".bytes()) != 4
+    || !output.try_push_u16_le(SNAPSHOT_VERSION)
+    || !output.try_push_u16_le(0)
+    || !output.try_push_u64_le(entry_count as u64)
+    || !output.is_full() {
+        return safety.invariant_abort()
+    }
+    return
+}
+
+noalloc func append_entry_header(
+    output: &+ByteBuffer<16>,
+    key_len: usize,
+    value_len: usize,
+): void {
+    if !output.try_push_u64_le(key_len as u64)
+    || !output.try_push_u64_le(value_len as u64)
+    || !output.is_full() {
+        return safety.invariant_abort()
+    }
+    return
+}
+
+func encode_snapshot(entries: &[StoreEntry], snapshot_bytes: usize): Vec<u8> {
+    var encoded: Vec<u8> = Vec.with_capacity(snapshot_bytes)
+    var header: ByteBuffer<16> = ByteBuffer<16>.empty()
+    append_snapshot_header(&+header, entries.len())
+    let header_bytes: &[u8] = &header
+    encoded.extend_from_slice(header_bytes)
+    var index: usize = 0
+    while index < entries.len() {
+        let entry = &entries[index]
+        var entry_header: ByteBuffer<16> = ByteBuffer<16>.empty()
+        append_entry_header(&+entry_header, entry.key.len(), entry.value.len())
+        let entry_header_bytes: &[u8] = &entry_header
+        encoded.extend_from_slice(entry_header_bytes)
+        encoded.extend_from_slice(&entry.key)
+        encoded.extend_from_slice(&entry.value)
+        index += 1
+    }
+    if encoded.len() != snapshot_bytes { return safety.invariant_abort() }
+    return move encoded
+}
+
+func decode_snapshot_entry(
+    remaining: &[u8],
+    key_len: usize,
+    value_len: usize,
+): StoreEntry! {
+    if key_len > remaining.len() || value_len > remaining.len() - key_len {
+        return corrupt_snapshot()
+    }
+    let key = remaining.get_range(0, key_len) otherwise { return safety.invariant_abort() }
+    let value = remaining.get_range(key_len, key_len + value_len) otherwise {
+        return safety.invariant_abort()
+    }
+    return StoreEntry {
+        key: Vec.from_slice(key),
+        value: Vec.from_slice(value),
+    }
+}
+
+func decode_snapshot(input: &[u8], limits: StoreLimits): (Vec<StoreEntry>, usize)! {
+    if input.len() < SNAPSHOT_HEADER_BYTES || input.len() > limits.maximum_snapshot_bytes {
+        return corrupt_snapshot()
+    }
+    var cursor = ByteCursor.new(input)
+    let magic = cursor.take(4) otherwise { return safety.invariant_abort() }
+    if magic.bytes() != "NCTS".bytes() { return corrupt_snapshot() }
+    let version = cursor.take_u16_le() otherwise { return safety.invariant_abort() }
+    let flags = cursor.take_u16_le() otherwise { return safety.invariant_abort() }
+    let entry_count_u64 = cursor.take_u64_le() otherwise { return safety.invariant_abort() }
+    if version != SNAPSHOT_VERSION
+    || flags != 0
+    || entry_count_u64 > limits.maximum_entries as u64 {
+        return corrupt_snapshot()
+    }
+    let entry_count = entry_count_u64 as usize
+    var entries: Vec<StoreEntry> = Vec.with_capacity(entry_count)
+    while entries.len() < entry_count {
+        let key_len_u64 = cursor.take_u64_le() otherwise { return corrupt_snapshot() }
+        let value_len_u64 = cursor.take_u64_le() otherwise { return corrupt_snapshot() }
+        if key_len_u64 > limits.maximum_key_bytes as u64
+        || value_len_u64 > limits.maximum_value_bytes as u64 {
+            return corrupt_snapshot()
+        }
+        let key_len = key_len_u64 as usize
+        let value_len = value_len_u64 as usize
+        let entry = decode_snapshot_entry(cursor.remaining(), key_len, value_len)?
+        if contains_entry(&entries, &entry.key) { return corrupt_snapshot() }
+        let _entry_bytes = cursor.take(key_len + value_len) otherwise {
+            return safety.invariant_abort()
+        }
+        entries.push(move entry)
+    }
+    if !cursor.is_finished() { return corrupt_snapshot() }
+    return (move entries, input.len())
+}
+
+async func open_store(path: &str, limits: StoreLimits): Store! {
+    let (journal, records) = await open_journal(path, journal_limits(limits)?)?
+    var entries: Vec<StoreEntry> = Vec.empty()
+    var snapshot_bytes: usize = SNAPSHOT_HEADER_BYTES
+    var committed_sequence: u64 = 0
+    for record in move records {
+        let sequence = journal_record_sequence(&record)
+        let (decoded, decoded_bytes) = decode_snapshot(journal_record_body(&record), limits)?
+        entries = move decoded
+        snapshot_bytes = decoded_bytes
+        committed_sequence = sequence
+    }
+    return Store {
+        journal: move journal,
+        entries: move entries,
+        limits: limits,
+        snapshot_bytes: snapshot_bytes,
+        committed_sequence_value: committed_sequence,
+        dirty: false,
+        writable: true,
+    }
+}
+
+construct Store {
+    async func open(path: &str): Self! {
+        return await open_store(path, StoreLimits.standard())?
+    }
+
+    async func open_with_limits(path: &str, limits: StoreLimits): Self! {
+        return await open_store(path, limits)?
+    }
+}
+
+instance Store {
+    noalloc method &self.len(): usize { return self.entries.len() }
+
+    noalloc method &self.is_empty(): bool { return self.entries.len() == 0 }
+
+    noalloc method &self.get(key: &[u8]): &[u8]? from self {
+        let index = find_entry(&self.entries, key)?
+        return &self.entries[index].value
+    }
+
+    method &+self.set(key: &[u8], value: &[u8]): void! {
+        if !self.writable { return store_unusable() }
+        if key.len() > self.limits.maximum_key_bytes { return key_too_large() }
+        if value.len() > self.limits.maximum_value_bytes { return value_too_large() }
+        let existing = find_entry(&self.entries, key)
+        let index = existing otherwise {
+            if self.entries.len() == self.limits.maximum_entries { return too_many_entries() }
+            var next = checked_snapshot_growth(
+                self.snapshot_bytes,
+                SNAPSHOT_ENTRY_HEADER_BYTES,
+                self.limits.maximum_snapshot_bytes,
+            )?
+            next = checked_snapshot_growth(next, key.len(), self.limits.maximum_snapshot_bytes)?
+            next = checked_snapshot_growth(next, value.len(), self.limits.maximum_snapshot_bytes)?
+            self.entries.push(
+                StoreEntry {
+                    key: Vec.from_slice(key),
+                    value: Vec.from_slice(value),
+                },
+            )
+            self.snapshot_bytes = next
+            self.dirty = true
+            return
+        }
+        let old_value_len = self.entries[index].value.len()
+        let retained = self.snapshot_bytes - old_value_len
+        let next = checked_snapshot_growth(
+            retained,
+            value.len(),
+            self.limits.maximum_snapshot_bytes,
+        )?
+        self.entries[index].value = Vec.from_slice(value)
+        self.snapshot_bytes = next
+        self.dirty = true
+        return
+    }
+
+    method &+self.remove(key: &[u8]): bool! {
+        if !self.writable { return store_unusable() }
+        let index = find_entry(&self.entries, key) otherwise { return false }
+        let removed = self.entries.remove(index) otherwise { return safety.invariant_abort() }
+        self.snapshot_bytes -= SNAPSHOT_ENTRY_HEADER_BYTES + removed.key.len() + removed.value.len()
+        self.dirty = true
+        return true
+    }
+
+    noalloc method &self.has_uncommitted_changes(): bool { return self.dirty }
+
+    noalloc method &self.committed_sequence(): u64 {
+        return self.committed_sequence_value
+    }
+
+    async method &+self.commit(): u64! {
+        if !self.writable { return store_unusable() }
+        if !self.dirty { return self.committed_sequence_value }
+        let snapshot = encode_snapshot(&self.entries, self.snapshot_bytes)
+        self.writable = false
+        let sequence = await commit_journal(&+self.journal, &snapshot) catch failure {
+            return move failure
+        }
+        self.writable = true
+        self.committed_sequence_value = sequence
+        self.dirty = false
+        return sequence
+    }
+
+    async method &+self.compact(): void! {
+        if !self.writable { return store_unusable() }
+        if self.dirty {
+            return error.new(
+                "std.store.uncommitted_changes",
+                "commit or discard current changes before compacting the store",
+            )
+        }
+        if self.committed_sequence_value == 0 { return }
+        let snapshot = encode_snapshot(&self.entries, self.snapshot_bytes)
+        self.writable = false
+        await compact_journal(
+            &+self.journal,
+            &snapshot,
+            self.committed_sequence_value,
+        ) catch failure {
+            return move failure
+        }
+        self.writable = true
+        return
+    }
+
+    async method &+self.close(): void! {
+        self.writable = false
+        await close_journal(&+self.journal)?
+        return
+    }
+}

@@ -4,20 +4,35 @@
 //! paths, errno values, syscalls, and metadata layout remain in `std/internal/os`.
 
 see ./filesystem.nct
+
 see ./durable.nct
+
 see ./directory.nct
+
 see ./directory_mutation.nct
+
 see ./directory_prefix.nct
+
 see ./async_recursive_mutation.nct
+
 see ./async_mutation.nct
+
 see ./async_metadata.nct
+
 see ./links.nct
+
 see ./path_output.nct
+
 see ./canonicalization.nct
+
 see ./recursive_policy.nct
+
 see ./recursive_removal.nct
+
 see ./recursive_traversal.nct
+
 see ./directory_mutation_tests.nct
+
 see ./recursive_tests.nct
 
 use /iter/asynchronous.AsyncIterator
@@ -133,6 +148,9 @@ pub async func write_durable(path: &str, value: &[u8]): void!
 
 /// Durably replaces one file with complete UTF-8 text.
 pub async func write_text_durable(path: &str, text: &str): void!
+
+/// Creates an absent file and synchronizes its directory entry, or refreshes an existing entry.
+pub(/) async func prepare_durable_file(path: &str): void!
 
 /// Synchronously reads an entire file into independently owned byte storage.
 pub blocking func read_blocking(path: &str): Vec<u8>!

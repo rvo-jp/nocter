@@ -74,6 +74,11 @@ final symbolic link, and synchronizes the directory. The `_blocking` forms apply
 through `BlockingFile`. Success therefore reports both synchronized content and synchronized
 destination-directory metadata; ordinary `write` deliberately makes no such promise.
 
+The package-internal durable-file preparation used by `std/store` exclusively creates an absent
+file, synchronizes it, and synchronizes its containing directory. Reopening an existing path still
+synchronizes that directory, allowing recovery after an earlier indeterminate creation without
+moving journal policy into `std/fs`.
+
 The fixed-length temporary name contains a cryptographically random token, so a destination at the
 target's maximum component length does not become invalid merely because replacement needs a
 sibling. A name collision retries with fresh entropy up to a fixed bound and never opens or

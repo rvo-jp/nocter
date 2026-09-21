@@ -1,0 +1,68 @@
+//! Durable local byte storage with explicit commit and bounded recovery.
+
+see ./journal.nct
+
+see ./store.nct
+
+see ./tests.nct
+
+/// Resource limits applied before retained state is allocated or published.
+pub copy struct StoreLimits
+
+construct StoreLimits {
+    /// Returns the ordinary bounded local-store policy.
+    pub noalloc func standard(): Self
+
+    /// Constructs an explicit policy or rejects internally inconsistent limits.
+    pub noalloc func bounded(
+        maximum_key_bytes: usize,
+        maximum_value_bytes: usize,
+        maximum_entries: usize,
+        maximum_snapshot_bytes: usize,
+        maximum_journal_bytes: usize,
+        maximum_journal_records: usize,
+    ): Self!
+}
+
+/// One single-writer byte-keyed local store.
+pub struct Store
+
+construct Store {
+    /// Opens or creates a store with the ordinary bounded policy and replays committed state.
+    pub async func open(path: &str): Self!
+
+    /// Opens or creates a store with explicit limits and replays committed state.
+    pub async func open_with_limits(path: &str, limits: StoreLimits): Self!
+}
+
+instance Store {
+    /// Returns the number of current key/value entries.
+    pub noalloc method &self.len(): usize
+
+    /// Returns whether no current entry exists.
+    pub noalloc method &self.is_empty(): bool
+
+    /// Returns the current value for an exact byte key.
+    pub noalloc method &self.get(key: &[u8]): &[u8]? from self
+
+    /// Copies a key and value into current state without committing it.
+    pub method &+self.set(key: &[u8], value: &[u8]): void!
+
+    /// Removes an exact byte key from current state without committing it.
+    pub method &+self.remove(key: &[u8]): bool!
+
+    /// Returns whether current state differs from the last successful commit.
+    pub noalloc method &self.has_uncommitted_changes(): bool
+
+    /// Returns the last recovered or successfully committed sequence, or zero for none.
+    pub noalloc method &self.committed_sequence(): u64
+
+    /// Appends and synchronizes one complete snapshot when state has changed.
+    pub async method &+self.commit(): u64!
+
+    /// Replaces committed history with its latest complete snapshot.
+    pub async method &+self.compact(): void!
+
+    /// Makes this owner terminal and waits for its journal descriptor retirement.
+    pub async method &+self.close(): void!
+}

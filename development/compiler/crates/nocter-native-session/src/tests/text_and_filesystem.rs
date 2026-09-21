@@ -309,6 +309,83 @@ async func main(): i32 {
 }
 
 #[test]
+fn durable_store_recovers_committed_state_across_reopen() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/fs
+use std/io.{File, Writer}
+use std/store.{Store, StoreLimits}
+
+async func main(): i32 {
+    let limits = StoreLimits.bounded(64, 64, 8, 1024, 2048, 1) catch _ { return 1 }
+    var initial = await Store.open_with_limits("state.nct", limits) catch _ { return 2 }
+    if !initial.is_empty() || initial.committed_sequence() != 0 { return 3 }
+    initial.set("name".bytes(), "Nocter".bytes()) catch _ { return 4 }
+    initial.set("generation".bytes(), "first".bytes()) catch _ { return 5 }
+    if !initial.has_uncommitted_changes() { return 6 }
+    let first_sequence = await initial.commit() catch _ { return 7 }
+    if first_sequence != 1 || initial.has_uncommitted_changes() { return 8 }
+    await initial.close() catch _ { return 9 }
+
+    var recovered = await Store.open_with_limits("state.nct", limits) catch _ { return 10 }
+    let name = recovered.get("name".bytes()) otherwise { return 11 }
+    let generation = recovered.get("generation".bytes()) otherwise { return 12 }
+    if name != "Nocter".bytes() || generation != "first".bytes() { return 13 }
+    if recovered.len() != 2 || recovered.committed_sequence() != 1 { return 14 }
+    recovered.set("generation".bytes(), "second".bytes()) catch _ { return 15 }
+    let removed = recovered.remove("name".bytes()) catch _ { return 16 }
+    if !removed { return 17 }
+    let second_sequence = await recovered.commit() catch _ { return 18 }
+    if second_sequence != 2 { return 19 }
+    await recovered.close() catch _ { return 20 }
+
+    var interrupted_tail = await File.append("state.nct") catch _ { return 21 }
+    await interrupted_tail.write("NCT".bytes()) catch _ { return 22 }
+    await interrupted_tail.close() catch _ { return 23 }
+
+    var final_state = await Store.open_with_limits("state.nct", limits) catch _ { return 24 }
+    let final_generation = final_state.get("generation".bytes()) otherwise { return 25 }
+    if final_generation != "second".bytes() { return 26 }
+    let _removed_name = final_state.get("name".bytes()) otherwise {
+        if final_state.committed_sequence() != 2 || final_state.len() != 1 { return 27 }
+        await final_state.compact() catch _ { return 28 }
+        await final_state.close() catch _ { return 29 }
+        var compacted = await Store.open_with_limits("state.nct", limits) catch _ { return 30 }
+        let compacted_generation = compacted.get("generation".bytes()) otherwise { return 31 }
+        if compacted_generation != "second".bytes() || compacted.committed_sequence() != 2 {
+            return 32
+        }
+        await compacted.close() catch _ { return 33 }
+        await fs.remove_file("state.nct") catch _ { return 34 }
+        return 0
+    }
+    return 35
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "durable store fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "durable-store");
+}
+
+#[test]
 fn standard_symbolic_link_targets_cross_the_complete_native_session() {
     let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();

@@ -1,0 +1,153 @@
+//! Journal format, recovery, and limit tests.
+
+see ./index.nct
+
+see ./journal.nct
+
+see ./store.nct
+
+use /vec.Vec
+
+func test_limits(): JournalLimits! {
+    return JournalLimits.new(128, 1024, 8)?
+}
+
+test journal_records_round_trip_with_one_sequence_authority {
+    let limits = test_limits()?
+    let first = encode_journal_record(limits, 7, "alpha".bytes())?
+    let second = encode_journal_record(limits, 8, "beta".bytes())?
+    var bytes: Vec<u8> = Vec.empty()
+    bytes.extend_from_slice(&first)
+    bytes.extend_from_slice(&second)
+    let recovery = recover_journal_bytes(&bytes, limits)?
+    if journal_recovery_record_count(&recovery) != 2
+    || journal_recovery_committed_byte_len(&recovery) != bytes.len()
+    || journal_recovery_sequence_is_exhausted(&recovery)
+    || journal_recovery_next_sequence(&recovery) != 9 {
+        return error.new("std.store.test", "journal recovery facts changed")
+    }
+    let first_record = journal_recovery_record(&recovery, 0) otherwise {
+        return error.new("std.store.test", "first journal record is absent")
+    }
+    let second_record = journal_recovery_record(&recovery, 1) otherwise {
+        return error.new("std.store.test", "second journal record is absent")
+    }
+    if journal_record_sequence(first_record) != 7
+    || journal_record_body(first_record) != "alpha".bytes()
+    || journal_record_sequence(second_record) != 8
+    || journal_record_body(second_record) != "beta".bytes() {
+        return error.new("std.store.test", "journal record contents changed")
+    }
+    return
+}
+
+test only_an_incomplete_final_record_is_ignored {
+    let limits = test_limits()?
+    let first = encode_journal_record(limits, 1, "complete".bytes())?
+    let second = encode_journal_record(limits, 2, "tail".bytes())?
+    var joined: Vec<u8> = Vec.empty()
+    joined.extend_from_slice(&first)
+    joined.extend_from_slice(&second)
+    var retained = first.len()
+    while retained < joined.len() {
+        let prefix = joined.get_range(0, retained) otherwise {
+            return error.new("std.store.test", "valid journal prefix is absent")
+        }
+        let recovery = recover_journal_bytes(prefix, limits)?
+        if journal_recovery_record_count(&recovery) != 1
+        || journal_recovery_committed_byte_len(&recovery) != first.len()
+        || journal_recovery_sequence_is_exhausted(&recovery)
+        || journal_recovery_next_sequence(&recovery) != 2 {
+            return error.new("std.store.test", "incomplete tail changed complete recovery")
+        }
+        retained += 1
+    }
+    return
+}
+
+test a_complete_tail_header_must_preserve_sequence_continuity {
+    let limits = test_limits()?
+    let first = encode_journal_record(limits, 1, "complete".bytes())?
+    let wrong = encode_journal_record(limits, 3, "unfinished".bytes())?
+    let wrong_header = wrong.get_range(0, JOURNAL_HEADER_BYTES) otherwise {
+        return error.new("std.store.test", "journal header is absent")
+    }
+    var joined: Vec<u8> = Vec.empty()
+    joined.extend_from_slice(&first)
+    joined.extend_from_slice(wrong_header)
+    let _recovery = recover_journal_bytes(&joined, limits) catch failure {
+        if failure.has_code("std.store.corrupt_journal") { return }
+        return error.new("std.store.test", "sequence discontinuity used the wrong error")
+    }
+    return error.new("std.store.test", "invalid complete tail header was ignored")
+}
+
+test complete_corruption_and_limit_violations_are_rejected {
+    let limits = test_limits()?
+    var corrupt = encode_journal_record(limits, 1, "value".bytes())?
+    corrupt[corrupt.len() - 1] += 1
+    let _checksum = recover_journal_bytes(&corrupt, limits) catch failure {
+        if !failure.has_code("std.store.corrupt_journal") {
+            return error.new("std.store.test", "checksum failure used the wrong error")
+        }
+        var invalid_magic = encode_journal_record(limits, 1, "value".bytes())?
+        invalid_magic[0] = 0
+        let _magic = recover_journal_bytes(&invalid_magic, limits) catch magic_failure {
+            if !magic_failure.has_code("std.store.corrupt_journal") {
+                return error.new("std.store.test", "magic failure used the wrong error")
+            }
+            let narrow = JournalLimits.new(2, 128, 2)?
+            let _large = encode_journal_record(narrow, 1, "abc".bytes()) catch limit_failure {
+                if !limit_failure.has_code("std.store.record_too_large") {
+                    return error.new("std.store.test", "record limit used the wrong error")
+                }
+                return
+            }
+            return error.new("std.store.test", "oversized record was accepted")
+        }
+        return error.new("std.store.test", "invalid journal magic was accepted")
+    }
+    return error.new("std.store.test", "invalid journal checksum was accepted")
+}
+
+test store_snapshots_round_trip_and_reject_duplicate_keys {
+    let limits = StoreLimits.bounded(32, 64, 4, 256, 512, 4)?
+    var entries: Vec<StoreEntry> = Vec.empty()
+    entries.push(
+        StoreEntry {
+            key: Vec.from_slice("first".bytes()),
+            value: Vec.from_slice("one".bytes()),
+        },
+    )
+    entries.push(
+        StoreEntry {
+            key: Vec.from_slice("second".bytes()),
+            value: Vec.from_slice("two".bytes()),
+        },
+    )
+    let snapshot_bytes = SNAPSHOT_HEADER_BYTES
+    + SNAPSHOT_ENTRY_HEADER_BYTES * 2
+    + "first".len()
+    + "one".len()
+    + "second".len()
+    + "two".len()
+    let encoded = encode_snapshot(&entries, snapshot_bytes)
+    let (decoded, decoded_bytes) = decode_snapshot(&encoded, limits)?
+    if decoded_bytes != snapshot_bytes
+    || decoded.len() != 2
+    || decoded[0].key != "first".bytes()
+    || decoded[0].value != "one".bytes()
+    || decoded[1].key != "second".bytes()
+    || decoded[1].value != "two".bytes() {
+        return error.new("std.store.test", "snapshot round trip changed state")
+    }
+
+    entries[1].key = Vec.from_slice("first".bytes())
+    let duplicate_bytes = snapshot_bytes - "second".len() + "first".len()
+    let duplicate = encode_snapshot(&entries, duplicate_bytes)
+    let _decoded_duplicate = decode_snapshot(&duplicate, limits) catch failure {
+        if failure.has_code("std.store.corrupt_snapshot") { return }
+        return error.new("std.store.test", "duplicate key used the wrong error")
+    }
+    return error.new("std.store.test", "duplicate snapshot key was accepted")
+}

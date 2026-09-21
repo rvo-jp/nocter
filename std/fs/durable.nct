@@ -85,6 +85,33 @@ async func discard_temporary(file: File, path: &str): void {
     return
 }
 
+async func synchronize_parent_directory(parent: &Utf8Path): void! {
+    var directory = await File.open_directory(parent)?
+    await directory.sync()?
+    await directory.close()?
+    return
+}
+
+async func prepare_durable_file(path: &str): void! {
+    let destination = durable_destination(path)?
+    let parent = Utf8Path.new(destination.parent() otherwise { "." })?
+    let created = await File.create_new(&destination) catch failure {
+        if failure.has_code("std.io.already_exists") {
+            await synchronize_parent_directory(&parent)?
+            return
+        }
+        return move failure
+    }
+    var file = move created
+    await file.sync() catch failure {
+        await file.close() catch _ {}
+        return move failure
+    }
+    await file.close()?
+    await synchronize_parent_directory(&parent)?
+    return
+}
+
 blocking func discard_temporary_blocking(file: BlockingFile, path: &str): void {
     var owner = move file
     owner.close()
@@ -113,9 +140,7 @@ async func write_durable(path: &str, value: &[u8]): void! {
         await remove_file(&temporary_path_value) catch _ {}
         return move failure
     }
-    var directory = await File.open_directory(&parent)?
-    await directory.sync()?
-    await directory.close()?
+    await synchronize_parent_directory(&parent)?
     return
 }
 
