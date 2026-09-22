@@ -1,0 +1,15 @@
+//! Explicit projection of current process environment variables into configuration candidates.
+
+use /config.Source
+
+see ./projection.nct
+see ./tests.nct
+
+/// Adds the current value of `variable` as a textual candidate named `field`.
+///
+/// An absent environment variable adds nothing, preserving values from earlier sources.
+pub func add(
+    destination: &+Source,
+    field: &str,
+    variable: &str,
+): void!

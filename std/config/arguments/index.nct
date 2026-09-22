@@ -1,0 +1,34 @@
+//! Explicit projection of structured command-line results into configuration candidates.
+
+use /cli.ParsedArguments
+use /config.Source
+
+see ./projection.nct
+see ./tests.nct
+
+/// Adds `value` as a Boolean candidate when `option` occurred as a flag.
+pub func add_flag(
+    destination: &+Source,
+    arguments: &ParsedArguments,
+    field: &str,
+    option: &str,
+    value: bool,
+): void!
+
+/// Adds the single textual value supplied to `option`, or nothing when it was absent.
+///
+/// A repeated option is rejected because one configuration field accepts one candidate per source.
+pub func add_option(
+    destination: &+Source,
+    arguments: &ParsedArguments,
+    field: &str,
+    option: &str,
+): void!
+
+/// Adds the textual value supplied to `positional`, or nothing when it was absent.
+pub func add_positional(
+    destination: &+Source,
+    arguments: &ParsedArguments,
+    field: &str,
+    positional: &str,
+): void!

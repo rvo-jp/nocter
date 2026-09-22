@@ -1,0 +1,60 @@
+//! Scalar JSON-object projection without schema interpretation or precedence policy.
+
+see ./index.nct
+
+use /config.Source
+use /internal/ptr
+use /json.Value
+
+noalloc func expected_json_object(): error {
+    return error.new(
+        "std.config.json.expected_object",
+        "a configuration JSON source must be one object",
+    )
+}
+
+noalloc func unsupported_json_value(): error {
+    return error.new(
+        "std.config.json.unsupported_value",
+        "configuration JSON object values must be strings, numbers, or Booleans",
+    )
+}
+
+func add_json_candidate(destination: &+Source, name: &str, value: &Value): void! {
+    match value {
+        Value.boolean(state) {
+            destination.add_boolean(name, ptr.copy_value(state))?
+            return
+        }
+        Value.number(number) {
+            destination.add_text(name, number.text())?
+            return
+        }
+        Value.string(text) {
+            destination.add_text(name, text)?
+            return
+        }
+        _ { return unsupported_json_value() }
+    }
+}
+
+func from_object(name: &str, value: &Value): Source! {
+    var source = Source.new(name)?
+    match value {
+        Value.object(entries) {
+            var index: usize = 0
+            while index < entries.len() {
+                let entry = entries.entry_at(index) otherwise {
+                    return error.new(
+                        "std.config.json.internal_invariant",
+                        "JSON object traversal ended before its declared length",
+                    )
+                }
+                add_json_candidate(&+source, entry.key, entry.value)?
+                index += 1
+            }
+            return move source
+        }
+        _ { return expected_json_object() }
+    }
+}

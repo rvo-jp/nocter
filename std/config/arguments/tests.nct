@@ -1,0 +1,58 @@
+//! Structured command-line configuration adapter tests.
+
+see ./index.nct
+
+use /cli.Application
+use /config.{Builder, Field, Schema, Source}
+use /vec.Vec
+
+test parsed_arguments_add_only_explicit_candidates {
+    var application = Application.new("sample", "")?
+    application.add_flag("disable", none, "")?
+    application.add_option("port", none, "PORT", "")?
+    application.add_positional("host", false, "")?
+    let supplied: Vec<&str> = Vec ["--disable", "--port", "8443", "localhost"]
+    let arguments = application.parse(&supplied)?
+
+    var source = Source.new("command line")?
+    add_flag(&+source, &arguments, "enabled", "disable", false)?
+    add_option(&+source, &arguments, "port", "port")?
+    add_positional(&+source, &arguments, "host", "host")?
+    add_option(&+source, &arguments, "untouched", "absent")?
+
+    var schema = Schema.empty()
+    schema.add(Field.boolean("enabled")?)?
+    schema.add(Field.unsigned("port")?)?
+    schema.add(Field.text("host")?)?
+    schema.add(Field.text("untouched")?)?
+    var builder = Builder.new(move schema)
+    builder.apply(move source)?
+    let configuration = builder.finish()?
+    let enabled = configuration.boolean("enabled")? otherwise {
+        return error.new("std.config.arguments.test", "flag value was absent")
+    }
+    let port = configuration.unsigned("port")? otherwise {
+        return error.new("std.config.arguments.test", "option value was absent")
+    }
+    let host = configuration.text("host")? otherwise {
+        return error.new("std.config.arguments.test", "positional value was absent")
+    }
+    if enabled || port != 8443 || host != "localhost" {
+        return error.new("std.config.arguments.test", "argument projection changed")
+    }
+    let _unexpected = configuration.text("untouched")? otherwise { return }
+    return error.new("std.config.arguments.test", "absent argument was added")
+}
+
+test repeated_options_are_not_collapsed_into_one_candidate {
+    var application = Application.new("sample", "")?
+    application.add_repeated_option("tag", none, "TAG", "")?
+    let supplied: Vec<&str> = Vec ["--tag", "first", "--tag", "second"]
+    let arguments = application.parse(&supplied)?
+    var source = Source.new("command line")?
+    add_option(&+source, &arguments, "tag", "tag") catch failure {
+        if failure.has_code("std.config.arguments.repeated_value") { return }
+        return move failure
+    }
+    return error.new("std.config.arguments.test", "repeated option was collapsed")
+}

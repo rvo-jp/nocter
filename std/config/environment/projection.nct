@@ -1,0 +1,16 @@
+//! Process-environment observation without naming transformations or precedence policy.
+
+see ./index.nct
+
+use /config.Source
+use /process
+
+func add(
+    destination: &+Source,
+    field: &str,
+    variable: &str,
+): void! {
+    let value = process.env(variable)? otherwise { return }
+    destination.add_text(field, value)?
+    return
+}

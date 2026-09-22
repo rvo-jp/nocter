@@ -1,0 +1,14 @@
+//! Projection of scalar JSON object members into one source-neutral configuration source.
+
+use /config.Source
+use /json.Value
+
+see ./projection.nct
+see ./tests.nct
+
+/// Converts one JSON object into a named configuration source.
+///
+/// Object names become exact configuration field names. Strings and numbers remain textual
+/// candidates so the schema remains the sole type authority; Booleans remain typed. Null,
+/// arrays, objects below the root, and a non-object root are rejected.
+pub func from_object(name: &str, value: &Value): Source!

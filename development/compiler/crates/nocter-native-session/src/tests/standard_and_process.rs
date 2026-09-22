@@ -138,6 +138,10 @@ fn standard_config_contract_crosses_native_tests() {
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str("\n#test: { name: \"config\", module: \"./config\" }\n");
+    root_source.push_str("#test: { name: \"config-arguments\", module: \"./config/arguments\" }\n");
+    root_source
+        .push_str("#test: { name: \"config-environment\", module: \"./config/environment\" }\n");
+    root_source.push_str("#test: { name: \"config-json\", module: \"./config/json\" }\n");
     let mut overlay = SourceOverlay::builder();
     overlay
         .insert_source(
@@ -154,6 +158,9 @@ fn standard_config_contract_crosses_native_tests() {
         vec![
             ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(standard_package.clone(), ["config"]),
+            ModuleIdentity::new(standard_package.clone(), ["config", "arguments"]),
+            ModuleIdentity::new(standard_package.clone(), ["config", "environment"]),
+            ModuleIdentity::new(standard_package.clone(), ["config", "json"]),
         ],
         bundled_standard_toolchain(&standard_package),
     ))
@@ -161,15 +168,89 @@ fn standard_config_contract_crosses_native_tests() {
 
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
-    assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard configuration tests failed native compilation")
-    };
-    assert_eq!(cases.len(), 7);
+    assert_eq!(compiled.targets().len(), 4);
     let output = TempPackage::new();
-    for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard configuration tests failed native compilation")
+        };
+        for case in cases {
+            case_count += 1;
+            execute_config_test(case.image(), &output.0, case.identity().name());
+        }
     }
+    assert_eq!(case_count, 12);
+}
+
+#[test]
+fn configuration_sources_compose_in_caller_authored_order() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        r#"use std/cli.Application
+use std/config.{Builder, Field, Schema, Source}
+use std/config/arguments as config_arguments
+use std/config/environment as config_environment
+use std/config/json as config_json
+use std/json
+
+func main(): i32 {
+    var schema = Schema.empty()
+    let host = Field.text("host") catch _ { return 1 }
+    schema.add(host.required()) catch _ { return 2 }
+    let port = Field.unsigned("port") catch _ { return 3 }
+    schema.add(port.required()) catch _ { return 4 }
+    let secure = Field.boolean("secure") catch _ { return 5 }
+    schema.add(move secure) catch _ { return 6 }
+    var builder = Builder.new(move schema)
+
+    var defaults = Source.new("authored defaults") catch _ { return 7 }
+    defaults.add_text("host", "default.example") catch _ { return 8 }
+    defaults.add_unsigned("port", 80) catch _ { return 9 }
+    defaults.add_boolean("secure", false) catch _ { return 10 }
+    builder.apply(move defaults) catch _ { return 11 }
+
+    let file_value = json.parse("{\"host\":\"file.example\",\"port\":8080}") catch _ { return 12 }
+    let file = config_json.from_object("configuration file", &file_value) catch _ { return 13 }
+    builder.apply(move file) catch _ { return 14 }
+
+    var environment = Source.new("process environment") catch _ { return 15 }
+    config_environment.add(
+        &+environment,
+        "host",
+        "NOCTER_CONFIG_APPLICATION_HOST",
+    ) catch _ { return 16 }
+    builder.apply(move environment) catch _ { return 17 }
+
+    var application = Application.new("configuration-sources", "") catch _ { return 18 }
+    application.add_flag("secure", none, "") catch _ { return 19 }
+    application.add_option("port", none, "PORT", "") catch _ { return 20 }
+    let parsed = application.parse_process() catch _ { return 21 }
+    var command_line = Source.new("command line") catch _ { return 22 }
+    config_arguments.add_flag(&+command_line, &parsed, "secure", "secure", true)
+        catch _ { return 23 }
+    config_arguments.add_option(&+command_line, &parsed, "port", "port")
+        catch _ { return 24 }
+    builder.apply(move command_line) catch _ { return 25 }
+
+    let configuration = builder.finish() catch _ { return 26 }
+    let host_value = configuration.text("host") catch _ { return 27 } otherwise { return 28 }
+    let port_value = configuration.unsigned("port") catch _ { return 29 } otherwise { return 30 }
+    let secure_value = configuration.boolean("secure") catch _ { return 31 } otherwise { return 32 }
+    let host_source = configuration.source("host") catch _ { return 33 } otherwise { return 34 }
+    let port_source = configuration.source("port") catch _ { return 35 } otherwise { return 36 }
+    if host_value != "environment.example" || port_value != 9443 || !secure_value {
+        return 37
+    }
+    if host_source != "process environment" || port_source != "command line" { return 38 }
+    return 0
+}
+"#,
+    );
+    execute_config_application(&image, &package_root.0);
 }
 
 #[test]

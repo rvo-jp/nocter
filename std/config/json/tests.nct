@@ -1,0 +1,51 @@
+//! JSON configuration adapter tests.
+
+see ./index.nct
+
+use /config.{Builder, Field, Schema}
+use /json
+
+test json_object_values_flow_through_the_schema_authority {
+    let value = json.parse("{\"host\":\"localhost\",\"port\":8080,\"enabled\":true}")?
+    let source = from_object("configuration file", &value)?
+
+    var schema = Schema.empty()
+    let host_field = Field.text("host")?
+    schema.add(host_field.required())?
+    let port_field = Field.unsigned("port")?
+    schema.add(port_field.required())?
+    schema.add(Field.boolean("enabled")?)?
+    var builder = Builder.new(move schema)
+    builder.apply(move source)?
+    let configuration = builder.finish()?
+    let host = configuration.text("host")? otherwise {
+        return error.new("std.config.json.test", "host was absent")
+    }
+    let port = configuration.unsigned("port")? otherwise {
+        return error.new("std.config.json.test", "port was absent")
+    }
+    let enabled = configuration.boolean("enabled")? otherwise {
+        return error.new("std.config.json.test", "enabled was absent")
+    }
+    if host != "localhost" || port != 8080 || !enabled {
+        return error.new("std.config.json.test", "JSON projection changed a scalar value")
+    }
+    return
+}
+
+test json_configuration_rejects_non_objects_and_nested_values {
+    let array = json.parse("[]")?
+    let _array_source = from_object("file", &array) catch failure {
+        if !failure.has_code("std.config.json.expected_object") { return move failure }
+
+        let nested = json.parse("{\"value\":[]}")?
+        let _nested_source = from_object("file", &nested) catch nested_failure {
+            if !nested_failure.has_code("std.config.json.unsupported_value") {
+                return move nested_failure
+            }
+            return
+        }
+        return error.new("std.config.json.test", "nested JSON value was accepted")
+    }
+    return error.new("std.config.json.test", "non-object JSON root was accepted")
+}

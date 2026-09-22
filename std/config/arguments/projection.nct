@@ -1,0 +1,55 @@
+//! Parsed-argument projection without reparsing tokens or choosing source precedence.
+
+see ./index.nct
+
+use /cli.ParsedArguments
+use /config.Source
+
+noalloc func repeated_argument_value(): error {
+    return error.new(
+        "std.config.arguments.repeated_value",
+        "a repeated command-line option cannot supply one configuration field",
+    )
+}
+
+func add_flag(
+    destination: &+Source,
+    arguments: &ParsedArguments,
+    field: &str,
+    option: &str,
+    value: bool,
+): void! {
+    if !arguments.flag(option) { return }
+    destination.add_boolean(field, value)?
+    return
+}
+
+func add_option(
+    destination: &+Source,
+    arguments: &ParsedArguments,
+    field: &str,
+    option: &str,
+): void! {
+    let count = arguments.option_count(option)
+    if count == 0 { return }
+    if count != 1 { return repeated_argument_value() }
+    let value = arguments.option(option) otherwise {
+        return error.new(
+            "std.config.arguments.internal_invariant",
+            "one parsed option value was not available",
+        )
+    }
+    destination.add_text(field, value)?
+    return
+}
+
+func add_positional(
+    destination: &+Source,
+    arguments: &ParsedArguments,
+    field: &str,
+    positional: &str,
+): void! {
+    let value = arguments.positional(positional) otherwise { return }
+    destination.add_text(field, value)?
+    return
+}

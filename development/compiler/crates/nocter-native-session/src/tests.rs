@@ -333,6 +333,50 @@ fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_config_test(image: &NativeImage, root: &Path, name: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join(name);
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .env("NOCTER_CONFIG_TEST_HOST", "from-environment")
+        .env_remove("NOCTER_CONFIG_TEST_ABSENT")
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "configuration test {name} exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_config_application(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("configuration-sources");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .arg("--secure")
+        .arg("--port")
+        .arg("9443")
+        .env("NOCTER_CONFIG_APPLICATION_HOST", "environment.example")
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "configuration source application exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_subprocess_contract(image: &NativeImage, root: &Path) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
@@ -653,6 +697,12 @@ fn execute_standard_input(_image: &NativeImage, _root: &Path, _input: &[u8], _ex
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_config_test(_image: &NativeImage, _root: &Path, _name: &str) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_config_application(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_contract(_image: &NativeImage, _root: &Path) {}

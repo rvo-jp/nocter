@@ -1,0 +1,30 @@
+//! Current-process environment configuration adapter tests.
+
+see ./index.nct
+
+use /config.{Builder, Field, Schema, Source}
+
+test present_environment_values_are_text_candidates_and_absent_values_do_not_override {
+    var defaults = Source.new("defaults")?
+    defaults.add_text("host", "default")?
+    var environment = Source.new("process environment")?
+    add(&+environment, "host", "NOCTER_CONFIG_TEST_HOST")?
+    add(&+environment, "unchanged", "NOCTER_CONFIG_TEST_ABSENT")?
+
+    var schema = Schema.empty()
+    let host_field = Field.text("host")?
+    schema.add(host_field.required())?
+    schema.add(Field.text("unchanged")?)?
+    var builder = Builder.new(move schema)
+    builder.apply(move defaults)?
+    builder.apply(move environment)?
+    let configuration = builder.finish()?
+    let host = configuration.text("host")? otherwise {
+        return error.new("std.config.environment.test", "environment host was absent")
+    }
+    if host != "from-environment" {
+        return error.new("std.config.environment.test", "environment projection changed")
+    }
+    let _unexpected = configuration.text("unchanged")? otherwise { return }
+    return error.new("std.config.environment.test", "absent environment value was added")
+}

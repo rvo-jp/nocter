@@ -34,6 +34,32 @@ label but never candidate bytes. Direct typed access remains available because a
 must be able to use a configured credential; callers that expose such a value outside the
 configuration API remain responsible for that explicit disclosure.
 
-JSON, environment, and CLI adapters are separate responsibilities. They may construct a `Source`,
-but they must not implement their own precedence, schema validation, constraints, provenance, or
-redaction rules.
+## Source Adapters
+
+The child modules [`config/json`](json/index.nct),
+[`config/environment`](environment/index.nct), and
+[`config/arguments`](arguments/index.nct) project existing standard-library values into the same
+`Source` vocabulary. They never receive a schema or builder, so they cannot choose precedence,
+validate a field kind, publish provenance independently, or bypass redaction.
+
+`config/json.from_object` requires one JSON object. Exact member names become field names. JSON
+strings and exact number tokens become textual candidates, leaving signed-versus-unsigned and
+constraint decisions to the schema; Booleans remain typed. Null, nested objects, arrays, and a
+non-object root are rejected. JSON object order has no configuration meaning.
+
+`config/environment.add` performs one explicit field-to-variable mapping against the current
+process environment. It applies no case conversion, prefix stripping, or other naming convention.
+An absent variable adds no candidate. Process environment storage is immutable and process-lived
+from Nocter code, so separately selected values observe the same process snapshot.
+
+`config/arguments.add_flag`, `add_option`, and `add_positional` read an already validated
+`ParsedArguments`; they never reparse token text. Only explicitly present arguments add candidates.
+The caller supplies the Boolean produced by an occurring flag, allowing either enabling or
+disabling flags. A repeated option cannot collapse into one scalar candidate and is rejected.
+The underlying `ParsedArguments` API treats an undefined name like an absent name, so applications
+should keep adapter mappings next to their command-line schema; required configuration fields still
+detect a missing required mapping at finalization.
+
+Authored defaults use `Source` directly. A typical application applies defaults, a JSON source,
+selected environment variables, and selected command-line arguments in that authored order. No
+adapter kind has an intrinsic precedence.
