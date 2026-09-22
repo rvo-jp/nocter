@@ -22,9 +22,15 @@ value, 65,536 entries, a 16 MiB snapshot, a 256 MiB journal, and 4,096 records b
 The authoritative state preserves deterministic insertion order while a retained seeded hash index
 maps each observed hash to exact-key candidate slots. Exact lookup, replacement, and removal have
 expected constant cost and always confirm the complete key after hashing. Removed slots join a free
-list and can be reused without shifting later entries or changing insertion order. Encoding one
-commit remains linear in total retained state. The hash index is transient: it neither determines
-observable order nor appears in the durable format.
+list and can be reused without shifting later entries or changing insertion order. An ordinary
+commit encodes only the staged mutations. A checkpoint is linear in total retained state. The hash
+index is transient: it neither determines observable order nor appears in the durable format.
+
+One in-memory mutation batch records changes since the last successful commit. Its encoded size is
+bounded by the complete-record limit. If another change would exceed that bound, the batch releases
+its accumulated copies and remembers only that the next commit requires a checkpoint. Retained
+entries remain the sole current-state authority in either case; the batch is publication intent,
+not a second state representation.
 
 `entries()` returns an allocation-free lending cursor over the authoritative insertion order. Each
 yield borrows the retained key and value without copying them, and the borrow ends before the cursor
@@ -34,40 +40,54 @@ runtime.
 
 ## Snapshot and Journal Formats
 
-Each committed payload is a complete snapshot. A snapshot starts with the four-byte `NCTS` magic,
-little-endian version and zero flags, and a 64-bit entry count. Each following entry contains 64-bit
-key and value lengths followed by their exact bytes. The current snapshot version is `1`. Duplicate
-keys, trailing bytes, unsupported flags or versions, and configured-limit violations are
+A checkpoint payload is a complete snapshot. A snapshot starts with the four-byte `NCTS` magic,
+little-endian version and zero flags, and a 64-bit entry count. Each following entry contains
+64-bit key and value lengths followed by their exact bytes. The current snapshot version is `1`.
+Duplicate keys, trailing bytes, unsupported flags or versions, and configured-limit violations are
 corruption.
 
-Each journal record contains the four-byte `NCTJ` magic, little-endian version and zero flags, a
-nonzero 64-bit commit sequence, a 64-bit payload length, the snapshot payload, and an ISO-HDLC
-CRC-32 of the complete header and payload. The current journal version is `1`. The first retained
-sequence may be greater than one so compaction preserves global commit identity; every later record
-must increment it by exactly one.
+Each journal record contains the four-byte `NCTJ` magic, little-endian version and flags, a nonzero
+64-bit commit sequence, a 64-bit payload length, the payload, and an ISO-HDLC CRC-32 of the complete
+header and payload. Journal version `2` is current. Flag `1` identifies a complete checkpoint whose
+payload is the snapshot format above. Flag `2` identifies an atomic mutation batch. The first
+retained sequence may be greater than one because checkpoint replacement preserves global commit
+identity; every later record must increment it by exactly one.
+
+A mutation batch starts with the four-byte `NCTM` magic, little-endian version `1`, zero flags, and a
+64-bit operation count. Each operation has a one-byte kind, seven zero reserved bytes, 64-bit key
+and value lengths, and the exact key and value bytes. Set is kind `1`. Remove is kind `2` and must
+have a zero value length. Recovery applies operations in authored order only after the outer record
+is complete and its checksum is valid, so a batch is entirely visible or entirely absent.
 
 Recovery accepts a partial final header, or a valid final header whose complete body and checksum
 do not reach the observed end, as an interrupted commit and truncates that tail before append.
-Invalid complete journal magic, version, flags, sequence, checksum, configured length, or sequence
-continuity is corruption. An invalid final snapshot, including a duplicate key, is likewise
-corruption and never becomes visible state.
+Invalid complete journal magic, version, flags, sequence, checksum, configured length, sequence
+continuity, snapshot, or mutation encoding is corruption and never becomes visible state. A current
+journal cannot mix current and legacy records.
 
-Recovery verifies the header, sequence, bounds, and checksum of every complete journal record, but
-retains and decodes only the final complete snapshot. Superseded snapshot bodies are not copied
-into a second recovery collection and are never reconstructed as obsolete application states.
+Version `1` is the published v0.66.0 legacy format: zero flags and one complete snapshot in every
+record. Recovery validates every complete legacy record, retains only the final snapshot, and then
+durably replaces the file with one version `2` checkpoint at the same committed sequence. The
+writer never appends a current record to a legacy file and never guesses a version from payload
+bytes. Version classification is owned by journal framing; Store replay sees an explicit record
+kind.
 
-Recovery constructs the authoritative insertion-ordered state and its retained seeded hash index
-together. Duplicate validation therefore compares only equal-hash candidates rather than scanning
-every prior persisted key. Recovered lookup uses that same index; recovery does not build and then
-discard a second representation.
+Current recovery starts from an empty state or a checkpoint and applies each later complete mutation
+batch once. A first mutation record is valid only at sequence one, where its base is the empty
+store. A checkpoint replaces, rather than supplements, earlier retained state. Recovery constructs
+the authoritative insertion-ordered state and its retained seeded hash index together. Duplicate
+snapshot validation therefore compares only equal-hash candidates rather than scanning every prior
+persisted key. Recovered lookup uses that same index; recovery does not build and then discard a
+second representation.
 
 ## Commit, Compaction, and Failure
 
 Opening an absent path durably creates its directory entry before retaining one append owner. A
-commit frames the complete current snapshot, writes every byte, synchronizes the file, and only then
-advances the visible committed sequence. When the next record would exceed the configured journal
-byte or record bound, commit closes the append owner and durably replaces the journal with that one
-new record. `compact` performs the same replacement for clean state without advancing its sequence;
+normal commit frames the complete staged mutation batch, writes every byte, synchronizes the file,
+and only then advances the visible committed sequence. If staging exceeded the complete-record
+bound, or appending would exceed the journal byte or record bound, commit deterministically encodes
+the authoritative state and durably replaces the journal with one checkpoint at the new sequence.
+`compact` performs the same checkpoint replacement for clean state without advancing its sequence;
 it rejects uncommitted changes.
 
 Any cancellation, write failure, synchronization failure, or indeterminate replacement makes the

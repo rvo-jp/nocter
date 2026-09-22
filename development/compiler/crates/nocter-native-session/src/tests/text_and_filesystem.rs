@@ -341,7 +341,7 @@ fn standard_store_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard store tests failed native compilation")
     };
-    assert_eq!(cases.len(), 9);
+    assert_eq!(cases.len(), 11);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -434,6 +434,43 @@ async func main(): i32 {
 }
 "#;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn crc32_iso_hdlc(input: &[u8]) -> u32 {
+    let mut state = u32::MAX;
+    for byte in input {
+        state ^= u32::from(*byte);
+        for _ in 0..8 {
+            let reflected_polynomial = 0xedb8_8320 & 0u32.wrapping_sub(state & 1);
+            state = (state >> 1) ^ reflected_polynomial;
+        }
+    }
+    state ^ u32::MAX
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn legacy_store_journal(sequence: u64, key: &[u8], value: &[u8]) -> Vec<u8> {
+    let mut snapshot = Vec::new();
+    snapshot.extend_from_slice(b"NCTS");
+    snapshot.extend_from_slice(&1u16.to_le_bytes());
+    snapshot.extend_from_slice(&0u16.to_le_bytes());
+    snapshot.extend_from_slice(&1u64.to_le_bytes());
+    snapshot.extend_from_slice(&(key.len() as u64).to_le_bytes());
+    snapshot.extend_from_slice(&(value.len() as u64).to_le_bytes());
+    snapshot.extend_from_slice(key);
+    snapshot.extend_from_slice(value);
+
+    let mut journal = Vec::new();
+    journal.extend_from_slice(b"NCTJ");
+    journal.extend_from_slice(&1u16.to_le_bytes());
+    journal.extend_from_slice(&0u16.to_le_bytes());
+    journal.extend_from_slice(&sequence.to_le_bytes());
+    journal.extend_from_slice(&(snapshot.len() as u64).to_le_bytes());
+    journal.extend_from_slice(&snapshot);
+    let checksum = crc32_iso_hdlc(&journal);
+    journal.extend_from_slice(&checksum.to_le_bytes());
+    journal
+}
+
 #[test]
 fn durable_store_recovers_committed_state_across_reopen() {
     let standard_root = nocter_test_support::standard_library_root();
@@ -457,6 +494,59 @@ fn durable_store_recovers_committed_state_across_reopen() {
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_test(image.image(), &package_root.0, "durable-store");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn legacy_store_journal_is_normalized_on_open() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/store.Store
+
+async func main(): i32 {
+    var store = await Store.open("state.nct") catch _ { return 1 }
+    if store.committed_sequence() != 7 || store.len() != 1 { return 2 }
+    let value = store.get("name".bytes()) otherwise { return 3 }
+    if value != "Nocter".bytes() { return 4 }
+    await store.close() catch _ { return 5 }
+    return 0
+}
+"#,
+    );
+    fs::write(
+        package_root.0.join("state.nct"),
+        legacy_store_journal(7, b"name", b"Nocter"),
+    )
+    .unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "legacy-store-migration");
+
+    let normalized = fs::read(package_root.0.join("state.nct")).unwrap();
+    assert_eq!(&normalized[0..4], b"NCTJ");
+    assert_eq!(u16::from_le_bytes(normalized[4..6].try_into().unwrap()), 2);
+    assert_eq!(u16::from_le_bytes(normalized[6..8].try_into().unwrap()), 1);
+    assert_eq!(u64::from_le_bytes(normalized[8..16].try_into().unwrap()), 7);
+    let body_len =
+        usize::try_from(u64::from_le_bytes(normalized[16..24].try_into().unwrap())).unwrap();
+    assert_eq!(normalized.len(), 24 + body_len + 4);
+    let stored_checksum =
+        u32::from_le_bytes(normalized[normalized.len() - 4..].try_into().unwrap());
+    assert_eq!(
+        stored_checksum,
+        crc32_iso_hdlc(&normalized[..normalized.len() - 4])
+    );
 }
 
 #[test]

@@ -4,6 +4,10 @@ see ./index.nct
 
 see ./journal.nct
 
+see ./journal_format.nct
+
+see ./mutations.nct
+
 see ./store.nct
 
 see ./state.nct
@@ -21,23 +25,24 @@ func test_limits(): JournalLimits! {
 
 test journal_records_round_trip_with_one_sequence_authority {
     let limits = test_limits()?
-    let first = encode_journal_record(limits, 7, "alpha".bytes())?
-    let second = encode_journal_record(limits, 8, "beta".bytes())?
+    let first = encode_legacy_journal_record(limits, 7, "alpha".bytes())?
+    let second = encode_legacy_journal_record(limits, 8, "beta".bytes())?
     var bytes: Vec<u8> = Vec.empty()
     bytes.extend_from_slice(&first)
     bytes.extend_from_slice(&second)
-    var recovery = recover_journal_bytes(&bytes, limits)?
+    let recovery = recover_journal_bytes(&bytes, limits)?
     if recovery.record_count != 2
     || recovery.complete_len != bytes.len()
     || recovery.sequence_exhausted
     || recovery.next_sequence != 9 {
         return error.new("std.store.test", "journal recovery facts changed")
     }
-    let last_record = move recovery.last_record otherwise {
+    if recovery.records.len() != 1 {
         return error.new("std.store.test", "last journal record is absent")
     }
-    if journal_record_sequence(&last_record) != 8
-    || journal_record_body(&last_record) != "beta".bytes() {
+    let last_record = &recovery.records[0]
+    if journal_record_sequence(last_record) != 8
+    || journal_record_body(last_record) != "beta".bytes() {
         return error.new("std.store.test", "last journal record changed")
     }
     return
@@ -45,8 +50,8 @@ test journal_records_round_trip_with_one_sequence_authority {
 
 test only_an_incomplete_final_record_is_ignored {
     let limits = test_limits()?
-    let first = encode_journal_record(limits, 1, "complete".bytes())?
-    let second = encode_journal_record(limits, 2, "tail".bytes())?
+    let first = encode_legacy_journal_record(limits, 1, "complete".bytes())?
+    let second = encode_legacy_journal_record(limits, 2, "tail".bytes())?
     var joined: Vec<u8> = Vec.empty()
     joined.extend_from_slice(&first)
     joined.extend_from_slice(&second)
@@ -69,8 +74,8 @@ test only_an_incomplete_final_record_is_ignored {
 
 test an_incomplete_tail_does_not_consume_the_complete_record_limit {
     let limits = JournalLimits.new(128, 1024, 1)?
-    let first = encode_journal_record(limits, 1, "complete".bytes())?
-    let second = encode_journal_record(limits, 2, "tail".bytes())?
+    let first = encode_legacy_journal_record(limits, 1, "complete".bytes())?
+    let second = encode_legacy_journal_record(limits, 2, "tail".bytes())?
     let partial_second = second.get_range(0, JOURNAL_HEADER_BYTES) otherwise {
         return error.new("std.store.test", "journal header is absent")
     }
@@ -88,8 +93,8 @@ test an_incomplete_tail_does_not_consume_the_complete_record_limit {
 
 test a_complete_tail_header_must_preserve_sequence_continuity {
     let limits = test_limits()?
-    let first = encode_journal_record(limits, 1, "complete".bytes())?
-    let wrong = encode_journal_record(limits, 3, "unfinished".bytes())?
+    let first = encode_legacy_journal_record(limits, 1, "complete".bytes())?
+    let wrong = encode_legacy_journal_record(limits, 3, "unfinished".bytes())?
     let wrong_header = wrong.get_range(0, JOURNAL_HEADER_BYTES) otherwise {
         return error.new("std.store.test", "journal header is absent")
     }
@@ -105,20 +110,20 @@ test a_complete_tail_header_must_preserve_sequence_continuity {
 
 test complete_corruption_and_limit_violations_are_rejected {
     let limits = test_limits()?
-    var corrupt = encode_journal_record(limits, 1, "value".bytes())?
+    var corrupt = encode_legacy_journal_record(limits, 1, "value".bytes())?
     corrupt[corrupt.len() - 1] += 1
     let _checksum = recover_journal_bytes(&corrupt, limits) catch failure {
         if !failure.has_code("std.store.corrupt_journal") {
             return error.new("std.store.test", "checksum failure used the wrong error")
         }
-        var invalid_magic = encode_journal_record(limits, 1, "value".bytes())?
+        var invalid_magic = encode_legacy_journal_record(limits, 1, "value".bytes())?
         invalid_magic[0] = 0
         let _magic = recover_journal_bytes(&invalid_magic, limits) catch magic_failure {
             if !magic_failure.has_code("std.store.corrupt_journal") {
                 return error.new("std.store.test", "magic failure used the wrong error")
             }
             let narrow = JournalLimits.new(2, 128, 2)?
-            let _large = encode_journal_record(narrow, 1, "abc".bytes()) catch limit_failure {
+            let _large = encode_legacy_journal_record(narrow, 1, "abc".bytes()) catch limit_failure {
                 if !limit_failure.has_code("std.store.record_too_large") {
                     return error.new("std.store.test", "record limit used the wrong error")
                 }
@@ -129,6 +134,87 @@ test complete_corruption_and_limit_violations_are_rejected {
         return error.new("std.store.test", "invalid journal magic was accepted")
     }
     return error.new("std.store.test", "invalid journal checksum was accepted")
+}
+
+test current_journal_retains_checkpoint_and_mutation_records {
+    let limits = test_limits()?
+    let checkpoint = encode_current_journal_record(
+        limits,
+        JournalRecordKind.checkpoint,
+        5,
+        "base".bytes(),
+    )?
+    let mutations = encode_current_journal_record(
+        limits,
+        JournalRecordKind.mutations,
+        6,
+        "delta".bytes(),
+    )?
+    var joined: Vec<u8> = Vec.empty()
+    joined.extend_from_slice(&checkpoint)
+    joined.extend_from_slice(&mutations)
+    let recovery = recover_journal_bytes(&joined, limits)?
+    if recovery.records.len() != 2
+    || recovery.record_count != 2
+    || recovery.next_sequence != 7 {
+        return error.new("std.store.test", "current journal replay records changed")
+    }
+    match journal_record_kind(&recovery.records[0]) {
+        JournalRecordKind.checkpoint {}
+        _ { return error.new("std.store.test", "checkpoint kind was not retained") }
+    }
+    match journal_record_kind(&recovery.records[1]) {
+        JournalRecordKind.mutations {}
+        _ { return error.new("std.store.test", "mutation kind was not retained") }
+    }
+    if journal_record_sequence(&recovery.records[1]) != 6
+    || journal_record_body(&recovery.records[1]) != "delta".bytes() {
+        return error.new("std.store.test", "current mutation record changed")
+    }
+
+    var mixed: Vec<u8> = Vec.empty()
+    let legacy = encode_legacy_journal_record(limits, 5, "base".bytes())?
+    mixed.extend_from_slice(&legacy)
+    mixed.extend_from_slice(&mutations)
+    let _mixed = recover_journal_bytes(&mixed, limits) catch failure {
+        if failure.has_code("std.store.corrupt_journal") { return }
+        return error.new("std.store.test", "mixed journal versions used the wrong error")
+    }
+    return error.new("std.store.test", "mixed journal versions were accepted")
+}
+
+test mutation_batches_replay_in_authored_order_and_remain_bounded {
+    let limits = StoreLimits.bounded(32, 64, 4, 256, 512, 8)?
+    var batch = new_store_mutation_batch()
+    record_store_set(&+batch, "alpha".bytes(), "one".bytes(), 256)
+    record_store_set(&+batch, "beta".bytes(), "two".bytes(), 256)
+    record_store_remove(&+batch, "alpha".bytes(), 256)
+    let encoded = encode_store_mutations(&batch)
+    var state = new_store_state(0)
+    let snapshot_bytes = apply_store_mutations(
+        &+state,
+        SNAPSHOT_HEADER_BYTES,
+        &encoded,
+        limits,
+    )?
+    let beta = store_state_value(&state, "beta".bytes()) otherwise {
+        return error.new("std.store.test", "mutation replay omitted beta")
+    }
+    if store_state_len(&state) != 1
+    || beta != "two".bytes()
+    || snapshot_bytes != SNAPSHOT_HEADER_BYTES
+        + SNAPSHOT_ENTRY_HEADER_BYTES
+        + "beta".len()
+        + "two".len() {
+        return error.new("std.store.test", "mutation replay changed final state")
+    }
+
+    reset_store_mutation_batch(&+batch)
+    record_store_set(&+batch, "large".bytes(), "0123456789".bytes(), 20)
+    if !store_mutation_batch_requires_checkpoint(&batch) {
+        return error.new("std.store.test", "oversized staged mutations remained unbounded")
+    }
+    return
 }
 
 test store_snapshots_round_trip_and_reject_duplicate_keys {

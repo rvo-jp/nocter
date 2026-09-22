@@ -1,0 +1,309 @@
+//! Bounded staged Store mutations and deterministic replay.
+
+see ./index.nct
+see ./state.nct
+see ./store.nct
+
+use /fixed.ByteBuffer
+use /internal/safety
+use /scan.ByteCursor
+use /vec.Vec
+
+const MUTATION_BATCH_HEADER_BYTES: usize = 16
+
+const MUTATION_ENTRY_HEADER_BYTES: usize = 24
+
+const MUTATION_BATCH_VERSION: u16 = 1
+
+const MUTATION_SET_KIND: u8 = 1
+
+const MUTATION_REMOVE_KIND: u8 = 2
+
+enum StoreMutation {
+    set(key: Vec<u8>, value: Vec<u8>)
+    remove(key: Vec<u8>)
+}
+
+struct StoreMutationBatch {
+    mutations: Vec<StoreMutation>
+    encoded_bytes: usize
+    checkpoint_required: bool
+}
+
+func new_store_mutation_batch(): StoreMutationBatch {
+    return StoreMutationBatch {
+        mutations: Vec.empty(),
+        encoded_bytes: MUTATION_BATCH_HEADER_BYTES,
+        checkpoint_required: false,
+    }
+}
+
+noalloc func store_mutation_batch_requires_checkpoint(batch: &StoreMutationBatch): bool {
+    return batch.checkpoint_required
+}
+
+func reset_store_mutation_batch(batch: &+StoreMutationBatch): void {
+    batch.mutations.clear()
+    batch.encoded_bytes = MUTATION_BATCH_HEADER_BYTES
+    batch.checkpoint_required = false
+    return
+}
+
+func require_store_checkpoint(batch: &+StoreMutationBatch): void {
+    batch.mutations.clear()
+    batch.encoded_bytes = MUTATION_BATCH_HEADER_BYTES
+    batch.checkpoint_required = true
+    return
+}
+
+noalloc func mutation_fits(
+    batch: &StoreMutationBatch,
+    key_len: usize,
+    value_len: usize,
+    maximum: usize,
+): bool {
+    if batch.checkpoint_required || batch.encoded_bytes > maximum { return false }
+    if MUTATION_ENTRY_HEADER_BYTES > maximum - batch.encoded_bytes { return false }
+    let after_header = batch.encoded_bytes + MUTATION_ENTRY_HEADER_BYTES
+    if key_len > maximum - after_header { return false }
+    let after_key = after_header + key_len
+    return value_len <= maximum - after_key
+}
+
+func record_store_set(
+    batch: &+StoreMutationBatch,
+    key: &[u8],
+    value: &[u8],
+    maximum: usize,
+): void {
+    if !mutation_fits(batch, key.len(), value.len(), maximum) {
+        require_store_checkpoint(batch)
+        return
+    }
+    batch.encoded_bytes += MUTATION_ENTRY_HEADER_BYTES + key.len() + value.len()
+    batch.mutations.push(
+        StoreMutation.set(
+            Vec.from_slice(key),
+            Vec.from_slice(value),
+        ),
+    )
+    return
+}
+
+func record_store_remove(
+    batch: &+StoreMutationBatch,
+    key: &[u8],
+    maximum: usize,
+): void {
+    if !mutation_fits(batch, key.len(), 0, maximum) {
+        require_store_checkpoint(batch)
+        return
+    }
+    batch.encoded_bytes += MUTATION_ENTRY_HEADER_BYTES + key.len()
+    batch.mutations.push(StoreMutation.remove(Vec.from_slice(key)))
+    return
+}
+
+noalloc func append_mutation_batch_header(
+    output: &+ByteBuffer<16>,
+    count: usize,
+): void {
+    if output.append("NCTM".bytes()) != 4
+    || !output.try_push_u16_le(MUTATION_BATCH_VERSION)
+    || !output.try_push_u16_le(0)
+    || !output.try_push_u64_le(count as u64)
+    || !output.is_full() {
+        return safety.invariant_abort()
+    }
+    return
+}
+
+noalloc func append_mutation_entry_header(
+    output: &+ByteBuffer<24>,
+    kind: u8,
+    key_len: usize,
+    value_len: usize,
+): void {
+    if !output.try_push(kind)
+    || !output.try_push(0)
+    || !output.try_push(0)
+    || !output.try_push(0)
+    || !output.try_push(0)
+    || !output.try_push(0)
+    || !output.try_push(0)
+    || !output.try_push(0)
+    || !output.try_push_u64_le(key_len as u64)
+    || !output.try_push_u64_le(value_len as u64)
+    || !output.is_full() {
+        return safety.invariant_abort()
+    }
+    return
+}
+
+func encode_store_mutations(batch: &StoreMutationBatch): Vec<u8> {
+    if batch.checkpoint_required { return safety.invariant_abort() }
+    var encoded: Vec<u8> = Vec.with_capacity(batch.encoded_bytes)
+    var header: ByteBuffer<16> = ByteBuffer<16>.empty()
+    append_mutation_batch_header(&+header, batch.mutations.len())
+    let header_bytes: &[u8] = &header
+    encoded.extend_from_slice(header_bytes)
+    var index: usize = 0
+    while index < batch.mutations.len() {
+        match &batch.mutations[index] {
+            StoreMutation.set(key, value) {
+                var entry: ByteBuffer<24> = ByteBuffer<24>.empty()
+                append_mutation_entry_header(
+                    &+entry,
+                    MUTATION_SET_KIND,
+                    key.len(),
+                    value.len(),
+                )
+                let entry_bytes: &[u8] = &entry
+                encoded.extend_from_slice(entry_bytes)
+                encoded.extend_from_slice(key)
+                encoded.extend_from_slice(value)
+            }
+            StoreMutation.remove(key) {
+                var entry: ByteBuffer<24> = ByteBuffer<24>.empty()
+                append_mutation_entry_header(
+                    &+entry,
+                    MUTATION_REMOVE_KIND,
+                    key.len(),
+                    0,
+                )
+                let entry_bytes: &[u8] = &entry
+                encoded.extend_from_slice(entry_bytes)
+                encoded.extend_from_slice(key)
+            }
+        }
+        index += 1
+    }
+    if encoded.len() != batch.encoded_bytes { return safety.invariant_abort() }
+    return move encoded
+}
+
+noalloc func mutation_reserved_bytes_are_zero(bytes: &[u8]): bool {
+    var index: usize = 0
+    while index < bytes.len() {
+        if bytes[index] != 0 { return false }
+        index += 1
+    }
+    return true
+}
+
+func apply_store_set(
+    state: &+StoreState,
+    snapshot_bytes: usize,
+    key: &[u8],
+    value: &[u8],
+    limits: StoreLimits,
+): usize! {
+    let current = store_state_value(state, key)
+    let existing = current otherwise {
+        if store_state_len(state) == limits.maximum_entries { return corrupt_snapshot() }
+        var next = checked_snapshot_growth(
+            snapshot_bytes,
+            SNAPSHOT_ENTRY_HEADER_BYTES,
+            limits.maximum_snapshot_bytes,
+        )?
+        next = checked_snapshot_growth(next, key.len(), limits.maximum_snapshot_bytes)?
+        next = checked_snapshot_growth(next, value.len(), limits.maximum_snapshot_bytes)?
+        if !insert_store_entry(
+            state,
+            StoreEntry {
+                key: Vec.from_slice(key),
+                value: Vec.from_slice(value),
+            },
+        ) {
+            return corrupt_snapshot()
+        }
+        return next
+    }
+    let retained = snapshot_bytes - existing.len()
+    let next = checked_snapshot_growth(retained, value.len(), limits.maximum_snapshot_bytes)?
+    let previous = replace_store_value(state, key, Vec.from_slice(value)) otherwise {
+        return corrupt_snapshot()
+    }
+    drop previous
+    return next
+}
+
+func apply_store_remove(
+    state: &+StoreState,
+    snapshot_bytes: usize,
+    key: &[u8],
+): usize! {
+    let removed = remove_store_entry(state, key) otherwise { return corrupt_snapshot() }
+    return snapshot_bytes - SNAPSHOT_ENTRY_HEADER_BYTES - removed.key.len() - removed.value.len()
+}
+
+func apply_store_mutations(
+    state: &+StoreState,
+    snapshot_bytes: usize,
+    input: &[u8],
+    limits: StoreLimits,
+): usize! {
+    if input.len() < MUTATION_BATCH_HEADER_BYTES
+    || input.len() > limits.maximum_snapshot_bytes {
+        return corrupt_snapshot()
+    }
+    var cursor = ByteCursor.new(input)
+    let magic = cursor.take(4) otherwise { return safety.invariant_abort() }
+    if magic.bytes() != "NCTM".bytes() { return corrupt_snapshot() }
+    let version = cursor.take_u16_le() otherwise { return safety.invariant_abort() }
+    let flags = cursor.take_u16_le() otherwise { return safety.invariant_abort() }
+    let count_u64 = cursor.take_u64_le() otherwise { return safety.invariant_abort() }
+    if version != MUTATION_BATCH_VERSION || flags != 0 { return corrupt_snapshot() }
+    let maximum_physical = (input.len() - MUTATION_BATCH_HEADER_BYTES)
+    / MUTATION_ENTRY_HEADER_BYTES
+    if count_u64 > maximum_physical as u64 { return corrupt_snapshot() }
+    let count = count_u64 as usize
+    var next_snapshot_bytes = snapshot_bytes
+    var index: usize = 0
+    while index < count {
+        let kind_bytes = cursor.take(1) otherwise { return corrupt_snapshot() }
+        let kind = kind_bytes.bytes()[0]
+        let reserved = cursor.take(7) otherwise { return corrupt_snapshot() }
+        if !mutation_reserved_bytes_are_zero(reserved.bytes()) { return corrupt_snapshot() }
+        let key_len_u64 = cursor.take_u64_le() otherwise { return corrupt_snapshot() }
+        let value_len_u64 = cursor.take_u64_le() otherwise { return corrupt_snapshot() }
+        if key_len_u64 > limits.maximum_key_bytes as u64
+        || value_len_u64 > limits.maximum_value_bytes as u64 {
+            return corrupt_snapshot()
+        }
+        let key_len = key_len_u64 as usize
+        let value_len = value_len_u64 as usize
+        if key_len > cursor.remaining_len()
+        || value_len > cursor.remaining_len() - key_len {
+            return corrupt_snapshot()
+        }
+        let remaining = cursor.remaining()
+        let key = remaining.get_range(0, key_len) otherwise { return safety.invariant_abort() }
+        let value = remaining.get_range(key_len, key_len + value_len) otherwise {
+            return safety.invariant_abort()
+        }
+        if kind == MUTATION_SET_KIND {
+            next_snapshot_bytes = apply_store_set(
+                state,
+                next_snapshot_bytes,
+                key,
+                value,
+                limits,
+            )?
+        } else if kind == MUTATION_REMOVE_KIND && value_len == 0 {
+            next_snapshot_bytes = apply_store_remove(
+                state,
+                next_snapshot_bytes,
+                key,
+            )?
+        } else {
+            return corrupt_snapshot()
+        }
+        let _payload = cursor.take(key_len + value_len) otherwise {
+            return safety.invariant_abort()
+        }
+        index += 1
+    }
+    if !cursor.is_finished() { return corrupt_snapshot() }
+    return next_snapshot_bytes
+}

@@ -4,9 +4,13 @@ see ./index.nct
 
 see ./journal.nct
 
+see ./journal_format.nct
+
 see ./state.nct
 
 see ./iteration.nct
+
+see ./mutations.nct
 
 use /fixed.ByteBuffer
 use /internal/safety
@@ -34,11 +38,19 @@ struct Store {
     lock: File
     journal: Journal
     state: StoreState
+    pending: StoreMutationBatch
     limits: StoreLimits
     snapshot_bytes: usize
     committed_sequence_value: u64
     dirty: bool
     writable: bool
+}
+
+struct StoreRecovery {
+    state: StoreState
+    snapshot_bytes: usize
+    committed_sequence: u64
+    legacy: bool
 }
 
 noalloc func invalid_store_limits(): error {
@@ -247,44 +259,94 @@ func decode_snapshot(input: &[u8], limits: StoreLimits): (StoreState, usize)! {
     return (move state, input.len())
 }
 
+func recover_store_state(recovery: JournalRecovery, limits: StoreLimits): StoreRecovery! {
+    let legacy = match recovery.format {
+        JournalFormat.legacy { true }
+        _ { false }
+    }
+    var records = move recovery.records
+    var state = new_store_state(0)
+    var snapshot_bytes: usize = SNAPSHOT_HEADER_BYTES
+    var committed_sequence: u64 = 0
+    var has_base: bool = false
+    var index: usize = 0
+    while index < records.len() {
+        let record = &records[index]
+        let sequence = journal_record_sequence(record)
+        match journal_record_kind(record) {
+            JournalRecordKind.legacy_snapshot {
+                if index != 0 || records.len() != 1 { return corrupt_journal() }
+                let (decoded, decoded_bytes) = decode_snapshot(
+                    journal_record_body(record),
+                    limits,
+                )?
+                state = move decoded
+                snapshot_bytes = decoded_bytes
+                has_base = true
+            }
+            JournalRecordKind.checkpoint {
+                let (decoded, decoded_bytes) = decode_snapshot(
+                    journal_record_body(record),
+                    limits,
+                )?
+                state = move decoded
+                snapshot_bytes = decoded_bytes
+                has_base = true
+            }
+            JournalRecordKind.mutations {
+                if !has_base && sequence != 1 { return corrupt_journal() }
+                snapshot_bytes = apply_store_mutations(
+                    &+state,
+                    snapshot_bytes,
+                    journal_record_body(record),
+                    limits,
+                )?
+                has_base = true
+            }
+        }
+        committed_sequence = sequence
+        index += 1
+    }
+    return StoreRecovery {
+        state: move state,
+        snapshot_bytes: snapshot_bytes,
+        committed_sequence: committed_sequence,
+        legacy: legacy,
+    }
+}
+
 async func open_store(path: &str, limits: StoreLimits): Store! {
     var lock = await acquire_store_lock(path)?
-    let (journal, recovered) = await open_journal(path, journal_limits(limits)?) catch failure {
+    let (journal, recovery) = await open_journal(path, journal_limits(limits)?) catch failure {
         await lock.close() catch _ {}
         return move failure
     }
     var opened_journal = move journal
-    var state = new_store_state(0)
-    var snapshot_bytes: usize = SNAPSHOT_HEADER_BYTES
-    var committed_sequence: u64 = 0
-    let record = move recovered otherwise {
-        return Store {
-            lock: move lock,
-            journal: move opened_journal,
-            state: move state,
-            limits: limits,
-            snapshot_bytes: snapshot_bytes,
-            committed_sequence_value: committed_sequence,
-            dirty: false,
-            writable: true,
-        }
-    }
-    let sequence = journal_record_sequence(&record)
-    let (decoded, decoded_bytes) = decode_snapshot(journal_record_body(&record), limits) catch failure {
+    let recovered = recover_store_state(move recovery, limits) catch failure {
         await close_journal(&+opened_journal) catch _ {}
         await lock.close() catch _ {}
         return move failure
     }
-    state = move decoded
-    snapshot_bytes = decoded_bytes
-    committed_sequence = sequence
+    var opened = move recovered
+    if opened.legacy {
+        let checkpoint = encode_snapshot(&opened.state, opened.snapshot_bytes)
+        await normalize_legacy_journal(
+            &+opened_journal,
+            &checkpoint,
+            opened.committed_sequence,
+        ) catch failure {
+            await lock.close() catch _ {}
+            return move failure
+        }
+    }
     return Store {
         lock: move lock,
         journal: move opened_journal,
-        state: move state,
+        state: move opened.state,
+        pending: new_store_mutation_batch(),
         limits: limits,
-        snapshot_bytes: snapshot_bytes,
-        committed_sequence_value: committed_sequence,
+        snapshot_bytes: opened.snapshot_bytes,
+        committed_sequence_value: opened.committed_sequence,
         dirty: false,
         writable: true,
     }
@@ -338,6 +400,12 @@ instance Store {
             )
             if !inserted { return safety.invariant_abort() }
             self.snapshot_bytes = next
+            record_store_set(
+                &+self.pending,
+                key,
+                value,
+                self.limits.maximum_snapshot_bytes,
+            )
             self.dirty = true
             return
         }
@@ -353,6 +421,12 @@ instance Store {
         }
         drop previous
         self.snapshot_bytes = next
+        record_store_set(
+            &+self.pending,
+            key,
+            value,
+            self.limits.maximum_snapshot_bytes,
+        )
         self.dirty = true
         return
     }
@@ -361,6 +435,11 @@ instance Store {
         if !self.writable { return store_unusable() }
         let removed = remove_store_entry(&+self.state, key) otherwise { return false }
         self.snapshot_bytes -= SNAPSHOT_ENTRY_HEADER_BYTES + removed.key.len() + removed.value.len()
+        record_store_remove(
+            &+self.pending,
+            &removed.key,
+            self.limits.maximum_snapshot_bytes,
+        )
         self.dirty = true
         return true
     }
@@ -374,14 +453,38 @@ instance Store {
     async method &+self.commit(): u64! {
         if !self.writable { return store_unusable() }
         if !self.dirty { return self.committed_sequence_value }
-        let snapshot = encode_snapshot(&self.state, self.snapshot_bytes)
+        if store_mutation_batch_requires_checkpoint(&self.pending) {
+            let snapshot = encode_snapshot(&self.state, self.snapshot_bytes)
+            self.writable = false
+            let sequence = await commit_journal_checkpoint(&+self.journal, &snapshot) catch failure {
+                return move failure
+            }
+            self.writable = true
+            self.committed_sequence_value = sequence
+            self.dirty = false
+            reset_store_mutation_batch(&+self.pending)
+            return sequence
+        }
+        let mutations = encode_store_mutations(&self.pending)
         self.writable = false
-        let sequence = await commit_journal(&+self.journal, &snapshot) catch failure {
+        let plan = await commit_journal_mutations(&+self.journal, &mutations) catch failure {
             return move failure
+        }
+        let sequence = match plan {
+            JournalCommitPlan.committed(committed) { committed }
+            JournalCommitPlan.checkpoint_required(expected) {
+                let snapshot = encode_snapshot(&self.state, self.snapshot_bytes)
+                let committed = await commit_journal_checkpoint(&+self.journal, &snapshot) catch failure {
+                    return move failure
+                }
+                if committed != expected { return safety.invariant_abort() }
+                committed
+            }
         }
         self.writable = true
         self.committed_sequence_value = sequence
         self.dirty = false
+        reset_store_mutation_batch(&+self.pending)
         return sequence
     }
 

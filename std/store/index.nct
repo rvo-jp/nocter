@@ -4,6 +4,10 @@ use /iter.LendingIterator
 
 see ./journal.nct
 
+see ./journal_format.nct
+
+see ./mutations.nct
+
 see ./store.nct
 
 see ./state.nct
@@ -89,7 +93,7 @@ instance Store {
     /// Returns the last recovered or successfully committed sequence, or zero for none.
     pub noalloc method &self.committed_sequence(): u64
 
-    /// Appends and synchronizes one complete snapshot when state has changed.
+    /// Atomically publishes the bounded staged mutations when state has changed.
     pub async method &+self.commit(): u64!
 
     /// Replaces committed history with its latest complete snapshot.

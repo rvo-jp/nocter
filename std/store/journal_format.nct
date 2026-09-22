@@ -1,0 +1,338 @@
+//! Versioned journal framing, checksums, and recovery classification.
+
+see ./index.nct
+
+use /bytes
+use /checksum.Crc32
+use /fixed.ByteBuffer
+use /internal/safety
+use /scan.ByteCursor
+use /vec.Vec
+
+const JOURNAL_HEADER_BYTES: usize = 24
+
+const JOURNAL_TRAILER_BYTES: usize = 4
+
+const JOURNAL_RECORD_OVERHEAD: usize = JOURNAL_HEADER_BYTES + JOURNAL_TRAILER_BYTES
+
+const LEGACY_JOURNAL_VERSION: u16 = 1
+
+const CURRENT_JOURNAL_VERSION: u16 = 2
+
+const JOURNAL_CHECKPOINT_FLAGS: u16 = 1
+
+const JOURNAL_MUTATIONS_FLAGS: u16 = 2
+
+enum JournalRecordKind {
+    legacy_snapshot
+    checkpoint
+    mutations
+}
+
+enum JournalFormat {
+    empty
+    legacy
+    current
+}
+
+copy struct JournalLimits {
+    maximum_record_bytes: usize
+    maximum_journal_bytes: usize
+    maximum_records: usize
+}
+
+struct JournalRecord {
+    kind: JournalRecordKind
+    sequence: u64
+    body: Vec<u8>
+}
+
+struct JournalRecovery {
+    records: Vec<JournalRecord>
+    format: JournalFormat
+    record_count: usize
+    complete_len: usize
+    next_sequence: u64
+    sequence_exhausted: bool
+}
+
+noalloc func invalid_limits(): error {
+    return error.new("std.store.invalid_limits", "journal limits are internally inconsistent")
+}
+
+noalloc func record_too_large(): error {
+    return error.new("std.store.record_too_large", "journal record exceeds its configured limit")
+}
+
+noalloc func journal_too_large(): error {
+    return error.new("std.store.journal_too_large", "journal exceeds its configured byte limit")
+}
+
+noalloc func too_many_records(): error {
+    return error.new("std.store.too_many_records", "journal exceeds its configured record limit")
+}
+
+noalloc func corrupt_journal(): error {
+    return error.new("std.store.corrupt_journal", "journal contains an invalid complete record")
+}
+
+noalloc func sequence_exhausted(): error {
+    return error.new("std.store.sequence_exhausted", "journal commit sequence is exhausted")
+}
+
+construct JournalLimits {
+    noalloc func new(
+        maximum_record_bytes: usize,
+        maximum_journal_bytes: usize,
+        maximum_records: usize,
+    ): Self! {
+        if maximum_journal_bytes < JOURNAL_RECORD_OVERHEAD
+        || maximum_record_bytes > maximum_journal_bytes - JOURNAL_RECORD_OVERHEAD
+        || maximum_records == 0 {
+            return invalid_limits()
+        }
+        return JournalLimits {
+            maximum_record_bytes: maximum_record_bytes,
+            maximum_journal_bytes: maximum_journal_bytes,
+            maximum_records: maximum_records,
+        }
+    }
+}
+
+noalloc func journal_record_kind(record: &JournalRecord): JournalRecordKind {
+    return match &record.kind {
+        JournalRecordKind.legacy_snapshot { JournalRecordKind.legacy_snapshot }
+        JournalRecordKind.checkpoint { JournalRecordKind.checkpoint }
+        JournalRecordKind.mutations { JournalRecordKind.mutations }
+    }
+}
+
+noalloc func journal_record_sequence(record: &JournalRecord): u64 {
+    return record.sequence
+}
+
+noalloc func journal_record_body(record: &JournalRecord): &[u8] from record {
+    return &record.body
+}
+
+noalloc func append_journal_header(
+    output: &+ByteBuffer<24>,
+    version: u16,
+    flags: u16,
+    sequence: u64,
+    body_len: usize,
+): void {
+    if output.append("NCTJ".bytes()) != 4
+    || !output.try_push_u16_le(version)
+    || !output.try_push_u16_le(flags)
+    || !output.try_push_u64_le(sequence)
+    || !output.try_push_u64_le(body_len as u64)
+    || !output.is_full() {
+        return safety.invariant_abort()
+    }
+    return
+}
+
+func encode_framed_journal_record(
+    limits: JournalLimits,
+    version: u16,
+    flags: u16,
+    sequence: u64,
+    body: &[u8],
+): Vec<u8>! {
+    if sequence == 0 { return corrupt_journal() }
+    if body.len() > limits.maximum_record_bytes { return record_too_large() }
+    if body.len() > limits.maximum_journal_bytes - JOURNAL_RECORD_OVERHEAD {
+        return journal_too_large()
+    }
+    let encoded_len = JOURNAL_RECORD_OVERHEAD + body.len()
+    var header: ByteBuffer<24> = ByteBuffer<24>.empty()
+    append_journal_header(&+header, version, flags, sequence, body.len())
+
+    var checksum = Crc32.new()
+    let header_bytes: &[u8] = &header
+    checksum.update(header_bytes)
+    checksum.update(body)
+    var trailer: ByteBuffer<4> = ByteBuffer<4>.empty()
+    if !trailer.try_push_u32_le(checksum.value()) { return safety.invariant_abort() }
+
+    var encoded: Vec<u8> = Vec.with_capacity(encoded_len)
+    encoded.extend_from_slice(header_bytes)
+    encoded.extend_from_slice(body)
+    let trailer_bytes: &[u8] = &trailer
+    encoded.extend_from_slice(trailer_bytes)
+    return move encoded
+}
+
+func encode_legacy_journal_record(
+    limits: JournalLimits,
+    sequence: u64,
+    body: &[u8],
+): Vec<u8>! {
+    return encode_framed_journal_record(
+        limits,
+        LEGACY_JOURNAL_VERSION,
+        0,
+        sequence,
+        body,
+    )?
+}
+
+func encode_current_journal_record(
+    limits: JournalLimits,
+    kind: JournalRecordKind,
+    sequence: u64,
+    body: &[u8],
+): Vec<u8>! {
+    let flags = match kind {
+        JournalRecordKind.checkpoint { JOURNAL_CHECKPOINT_FLAGS }
+        JournalRecordKind.mutations { JOURNAL_MUTATIONS_FLAGS }
+        JournalRecordKind.legacy_snapshot { return safety.invariant_abort() }
+    }
+    return encode_framed_journal_record(
+        limits,
+        CURRENT_JOURNAL_VERSION,
+        flags,
+        sequence,
+        body,
+    )?
+}
+
+noalloc func header_magic_is_valid(header: &[u8]): bool {
+    return header.len() == JOURNAL_HEADER_BYTES
+    && header[0] == 78
+    && header[1] == 67
+    && header[2] == 84
+    && header[3] == 74
+}
+
+noalloc func classify_journal_record(version: u16, flags: u16): JournalRecordKind! {
+    if version == LEGACY_JOURNAL_VERSION {
+        if flags != 0 { return corrupt_journal() }
+        return JournalRecordKind.legacy_snapshot
+    }
+    if version != CURRENT_JOURNAL_VERSION { return corrupt_journal() }
+    if flags == JOURNAL_CHECKPOINT_FLAGS { return JournalRecordKind.checkpoint }
+    if flags == JOURNAL_MUTATIONS_FLAGS { return JournalRecordKind.mutations }
+    return corrupt_journal()
+}
+
+noalloc func record_kind_is_legacy(kind: JournalRecordKind): bool {
+    return match kind {
+        JournalRecordKind.legacy_snapshot { true }
+        _ { false }
+    }
+}
+
+noalloc func validate_complete_record(
+    header: &[u8],
+    remaining: &[u8],
+    body_len: usize,
+): void! {
+    let body = remaining.get_range(0, body_len) otherwise {
+        return safety.invariant_abort()
+    }
+    let trailer = remaining.get_range(body_len, body_len + JOURNAL_TRAILER_BYTES) otherwise {
+        return safety.invariant_abort()
+    }
+    let stored_checksum = bytes.decode_u32_le(trailer) otherwise {
+        return safety.invariant_abort()
+    }
+    var checksum = Crc32.new()
+    checksum.update(header)
+    checksum.update(body)
+    if stored_checksum != checksum.value() { return corrupt_journal() }
+    return
+}
+
+func recover_journal_bytes(input: &[u8], limits: JournalLimits): JournalRecovery! {
+    if input.len() > limits.maximum_journal_bytes { return journal_too_large() }
+    var cursor = ByteCursor.new(input)
+    var records: Vec<JournalRecord> = Vec.empty()
+    var record_count: usize = 0
+    var has_previous_sequence: bool = false
+    var previous_sequence: u64 = 0
+    var has_format: bool = false
+    var legacy_format: bool = false
+    var complete_len: usize = 0
+
+    while !cursor.is_finished() {
+        if cursor.remaining_len() < JOURNAL_HEADER_BYTES { break }
+        let header = cursor.take(JOURNAL_HEADER_BYTES) otherwise {
+            return safety.invariant_abort()
+        }
+        let header_bytes = header.bytes()
+        if !header_magic_is_valid(header_bytes) { return corrupt_journal() }
+        var fields = ByteCursor.new(header_bytes)
+        let _magic = fields.take(4) otherwise { return safety.invariant_abort() }
+        let version = fields.take_u16_le() otherwise { return safety.invariant_abort() }
+        let flags = fields.take_u16_le() otherwise { return safety.invariant_abort() }
+        let sequence = fields.take_u64_le() otherwise { return safety.invariant_abort() }
+        let body_len_u64 = fields.take_u64_le() otherwise { return safety.invariant_abort() }
+        let kind = classify_journal_record(version, flags)?
+        let current_is_legacy = record_kind_is_legacy(kind)
+        if has_format && current_is_legacy != legacy_format { return corrupt_journal() }
+        if !has_format {
+            has_format = true
+            legacy_format = current_is_legacy
+        }
+        if sequence == 0 { return corrupt_journal() }
+        if body_len_u64 > limits.maximum_record_bytes as u64 { return record_too_large() }
+        let body_len = body_len_u64 as usize
+        if body_len > limits.maximum_journal_bytes - JOURNAL_RECORD_OVERHEAD {
+            return journal_too_large()
+        }
+        if has_previous_sequence {
+            if previous_sequence == 18446744073709551615
+            || sequence != previous_sequence + 1 {
+                return corrupt_journal()
+            }
+        }
+        if cursor.remaining_len() < body_len + JOURNAL_TRAILER_BYTES { break }
+        if record_count == limits.maximum_records { return too_many_records() }
+        validate_complete_record(header_bytes, cursor.remaining(), body_len)?
+        let body = cursor.remaining().get_range(0, body_len) otherwise {
+            return safety.invariant_abort()
+        }
+        if current_is_legacy { records.clear() }
+        records.push(
+            JournalRecord {
+                kind: kind,
+                sequence: sequence,
+                body: Vec.from_slice(body),
+            },
+        )
+        let _record_bytes = cursor.take(body_len + JOURNAL_TRAILER_BYTES) otherwise {
+            return safety.invariant_abort()
+        }
+        record_count += 1
+        complete_len = cursor.offset()
+        has_previous_sequence = true
+        previous_sequence = sequence
+    }
+
+    var next_sequence: u64 = 1
+    var exhausted: bool = false
+    if has_previous_sequence {
+        if previous_sequence == 18446744073709551615 {
+            exhausted = true
+        } else {
+            next_sequence = previous_sequence + 1
+        }
+    }
+    let format = if record_count == 0 {
+        JournalFormat.empty
+    } else if legacy_format {
+        JournalFormat.legacy
+    } else {
+        JournalFormat.current
+    }
+    return JournalRecovery {
+        records: move records,
+        format: format,
+        record_count: record_count,
+        complete_len: complete_len,
+        next_sequence: next_sequence,
+        sequence_exhausted: exhausted,
+    }
+}
