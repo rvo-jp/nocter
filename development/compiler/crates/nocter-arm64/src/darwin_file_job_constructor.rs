@@ -131,7 +131,9 @@ fn stage_inputs(
             move_register(code, x(20), x(2));
             immediate(code, x(22), 0);
         }
-        DarwinFileOperation::Flush => stage_owner_only(code, 0),
+        DarwinFileOperation::Flush | DarwinFileOperation::LockExclusive => {
+            stage_owner_only(code, 0);
+        }
         DarwinFileOperation::Identity => {
             stage_owner_only(code, DarwinFileAbi::STAT_BUFFER_SIZE);
         }
@@ -313,6 +315,7 @@ fn initialize_operands(
         }
         DarwinFileOperation::Write
         | DarwinFileOperation::Flush
+        | DarwinFileOperation::LockExclusive
         | DarwinFileOperation::RemoveFile
         | DarwinFileOperation::CreateDirectory
         | DarwinFileOperation::RemoveDirectory
@@ -473,6 +476,7 @@ fn initialize_owned_bytes(
         DarwinFileOperation::Read
         | DarwinFileOperation::ReadDirectory
         | DarwinFileOperation::Flush
+        | DarwinFileOperation::LockExclusive
         | DarwinFileOperation::Seek
         | DarwinFileOperation::Truncate
         | DarwinFileOperation::ReadAt

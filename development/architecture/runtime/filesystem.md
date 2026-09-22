@@ -8,9 +8,10 @@ and ABI encoding belong to their target adapters.
 ## Execution Surfaces
 
 `File` is the canonical executor-safe owning file. Its open, create, exclusive create, append, read,
-write, synchronize, position, seek, truncate, and explicit close operations are asynchronous. It
-implements `Reader` and `Writer`. No `File` operation calls a public blocking wrapper or performs a
-potentially blocking filesystem operation on the executor thread.
+write, synchronize, non-waiting exclusive lock, position, seek, truncate, and explicit close
+operations are asynchronous. The lock operation is package-visible infrastructure rather than a
+public filesystem policy. `File` implements `Reader` and `Writer`. No operation calls a public
+blocking wrapper or performs a potentially blocking filesystem operation on the executor thread.
 
 `BlockingFile` is the explicit synchronous twin. It implements `BlockingReader` and
 `BlockingWriter`, and its operation names retain `_blocking` where the interface requires them.
@@ -90,18 +91,21 @@ Those facts use the closed `DarwinFileFailure` and `DarwinFileWriteFact` runtime
 conformance adapter reduces `std::io::Error` to a positive Darwin errno or an explicit adapter
 failure before publication; generated code never receives a Rust error object. Zero-progress and
 position-overflow failures have their own variants and are not disguised as target errno.
-Every operation and explicit close publishes the same five-word completion record: retained owner,
-transferred byte count, resulting position, closed failure kind, and target errno. Fields unused by
-an operation are zero. A zero owner is the empty moved-from representation and is required for
-failed open and terminal close. Within the failure pair, zero kind and zero errno mean success;
-only the Darwin-target kind admits a positive errno. Every other encoding is invalid, so standard
-source never guesses whether a numeric word is an errno or an adapter classification.
+Every operation publishes the same fixed completion record. It contains the retained owner,
+transfer and position facts, metadata and identity facts, and the closed failure pair; fields unused
+by an operation are zero. Explicit close uses its dedicated preallocated retirement computation. A
+zero owner is the empty moved-from representation and is required for failed open and terminal
+close. Within the failure pair, zero kind and zero errno mean success; only the Darwin-target kind
+admits a positive errno. Every other encoding is invalid, so standard source never guesses whether
+a numeric word is an errno or an adapter classification.
 
-A failed read, positioned read, seek, truncate, or flush restores the file owner before returning
-its error. A write or positioned-write failure restores the owner but retains an observable
-completed prefix; retrying the whole input is not implied. Positioned operations leave the shared
-cursor unchanged. Close is terminal whether its target operation succeeds or fails. A malformed
-target fact is an internal target-contract failure rather than a fabricated filesystem result.
+A failed read, positioned read, seek, truncate, flush, or lock attempt restores the file owner
+before returning its error. Lock acquisition never waits; host and native adapters normalize
+contention to one closed runtime failure fact before `std/io` maps it to `std.io.lock_contended`. A write or positioned-write
+failure restores the owner but retains an observable completed prefix; retrying the whole input is
+not implied. Positioned operations leave the shared cursor unchanged. Close is terminal whether
+its target operation succeeds or fails. A malformed target fact is an internal target-contract
+failure rather than a fabricated filesystem result.
 
 ## Dependency Direction
 

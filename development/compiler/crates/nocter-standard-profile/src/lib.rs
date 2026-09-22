@@ -374,6 +374,7 @@ pub const fn bundled_primitive_source_location(
         Role::DirectoryRead => (&["internal", "io"], "directory_read_raw"),
         Role::FileWrite => (&["internal", "io"], "file_write_raw"),
         Role::FileFlush => (&["internal", "io"], "file_flush_raw"),
+        Role::FileLockExclusive => (&["internal", "io"], "file_lock_exclusive_raw"),
         Role::FileSeekStart => (&["internal", "io"], "file_seek_start_raw"),
         Role::FileSeekEnd => (&["internal", "io"], "file_seek_end_raw"),
         Role::FileSeekCurrent => (&["internal", "io"], "file_seek_current_raw"),

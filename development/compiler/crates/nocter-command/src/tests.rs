@@ -19,8 +19,9 @@ use nocter_package_state::{
 use nocter_session::{ExecutableCompileRequest, ExecutableSelector};
 use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_test_support::{
-    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture,
-    PublicExamplePostcondition, PublicPackageExample, repository_release_version,
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExamplePostcondition,
+    PublicPackageExample, materialize_public_example_fixtures, public_example_fixture_path,
+    repository_release_version,
 };
 
 use super::artifact::persist_bytes;
@@ -1290,7 +1291,7 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
         for argument in run.arguments() {
             match argument {
                 PublicExampleArgument::FixturePath(path) => {
-                    assert_fixture_relative_path(path);
+                    let _ = public_example_fixture_path(&output_directory, path);
                     command.arg(path);
                 }
                 PublicExampleArgument::Text(value) => {
@@ -1363,7 +1364,7 @@ fn assert_public_example_postconditions(
     for postcondition in postconditions {
         match postcondition {
             PublicExamplePostcondition::File { path, contents } => {
-                let source = fixture_destination(root, path);
+                let source = public_example_fixture_path(root, path);
                 let actual = fs::read(&source).unwrap_or_else(|error| {
                     panic!(
                         "failed to read expected example output {}: {error}",
@@ -1378,7 +1379,7 @@ fn assert_public_example_postconditions(
                 );
             }
             PublicExamplePostcondition::Absent { path } => {
-                let source = fixture_destination(root, path);
+                let source = public_example_fixture_path(root, path);
                 assert!(
                     !source.exists(),
                     "unexpected example output at {}",
@@ -1387,65 +1388,6 @@ fn assert_public_example_postconditions(
             }
         }
     }
-}
-
-fn materialize_public_example_fixtures(root: &Path, fixtures: &[PublicExampleFixture]) {
-    for fixture in fixtures {
-        match fixture {
-            PublicExampleFixture::File { path, contents } => {
-                let destination = fixture_destination(root, path);
-                if let Some(parent) = destination.parent() {
-                    fs::create_dir_all(parent).unwrap();
-                }
-                fs::write(destination, contents).unwrap();
-            }
-            PublicExampleFixture::ExecutableFile { path, contents } => {
-                let destination = fixture_destination(root, path);
-                if let Some(parent) = destination.parent() {
-                    fs::create_dir_all(parent).unwrap();
-                }
-                fs::write(&destination, contents).unwrap();
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-
-                    fs::set_permissions(destination, fs::Permissions::from_mode(0o755)).unwrap();
-                }
-                #[cfg(not(unix))]
-                panic!("public executable-file fixtures require a Unix host");
-            }
-            PublicExampleFixture::Directory { path } => {
-                fs::create_dir_all(fixture_destination(root, path)).unwrap();
-            }
-            PublicExampleFixture::Symlink { path, target } => {
-                let destination = fixture_destination(root, path);
-                if let Some(parent) = destination.parent() {
-                    fs::create_dir_all(parent).unwrap();
-                }
-                #[cfg(unix)]
-                std::os::unix::fs::symlink(target, destination).unwrap();
-                #[cfg(not(unix))]
-                panic!("public example symlink fixtures require a Unix host");
-            }
-        }
-    }
-}
-
-fn fixture_destination(root: &Path, relative: &str) -> PathBuf {
-    assert_fixture_relative_path(relative);
-    root.join(relative)
-}
-
-fn assert_fixture_relative_path(relative: &str) {
-    use std::path::Component;
-
-    let path = Path::new(relative);
-    assert!(!relative.is_empty(), "fixture path must not be empty");
-    assert!(
-        path.components()
-            .all(|component| matches!(component, Component::Normal(_))),
-        "fixture path must remain below its temporary root: {relative}"
-    );
 }
 
 #[test]

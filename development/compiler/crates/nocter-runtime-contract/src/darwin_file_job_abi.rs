@@ -286,7 +286,9 @@ impl DarwinFileOperation {
                 Operand::None,
                 Result::TransferredByteCount,
             ),
-            Self::Flush => (Bytes::None, Retirement::Live, Operand::None, Result::None),
+            Self::Flush | Self::LockExclusive => {
+                (Bytes::None, Retirement::Live, Operand::None, Result::None)
+            }
             Self::Seek => (
                 Bytes::None,
                 Retirement::Live,
@@ -606,6 +608,13 @@ mod tests {
                 Retirement::Live,
                 Operand::None,
                 Result::Identity,
+            ),
+            (
+                DarwinFileOperation::LockExclusive,
+                Bytes::None,
+                Retirement::Live,
+                Operand::None,
+                Result::None,
             ),
         ];
 

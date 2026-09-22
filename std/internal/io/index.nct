@@ -46,6 +46,9 @@ primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompl
 primitive func file_flush_raw(owner: FileOwner): future FileCompletion from static
 
 #target: "arm64-darwin"
+primitive func file_lock_exclusive_raw(owner: FileOwner): future FileCompletion from static
+
+#target: "arm64-darwin"
 primitive func file_seek_start_raw(
     owner: FileOwner,
     displacement: i64,
@@ -210,6 +213,9 @@ pub(/) func directory_read(
 pub(/) func file_write(owner: FileOwner, source: &[u8]): future FileCompletion from static
 
 pub(/) func file_flush(owner: FileOwner): future FileCompletion from static
+
+/// Constructs one generated non-waiting exclusive-lock computation.
+pub(/) func file_lock_exclusive(owner: FileOwner): future FileCompletion from static
 
 pub(/) func file_seek_start(
     owner: FileOwner,

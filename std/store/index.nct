@@ -24,14 +24,14 @@ construct StoreLimits {
     ): Self!
 }
 
-/// One single-writer byte-keyed local store.
+/// One process-exclusive byte-keyed local store.
 pub struct Store
 
 construct Store {
-    /// Opens or creates a store with the ordinary bounded policy and replays committed state.
+    /// Opens or creates a store, acquires exclusive ownership, and replays committed state.
     pub async func open(path: &str): Self!
 
-    /// Opens or creates a store with explicit limits and replays committed state.
+    /// Opens or creates an exclusively owned store with explicit limits.
     pub async func open_with_limits(path: &str, limits: StoreLimits): Self!
 }
 

@@ -210,6 +210,8 @@ instance File {
     pub async method &+self.close(): void!
     /// Synchronizes this file or directory through the target durability boundary.
     pub async method &+self.sync(): void!
+    /// Acquires an exclusive lock immediately or fails when another owner retains it.
+    pub(/) async method &+self.try_lock_exclusive(): void!
     /// Returns the current shared cursor position.
     pub async method &+self.position(): usize!
     /// Changes and returns the shared cursor position.

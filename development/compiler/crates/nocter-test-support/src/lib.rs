@@ -7,6 +7,7 @@ mod public_examples;
 pub use public_examples::{
     PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture,
     PublicExamplePostcondition, PublicExampleRun, PublicPackageExample,
+    materialize_public_example_fixtures, public_example_fixture_path,
 };
 
 /// Returns the release identity from the repository's sole authored packaging input.
@@ -504,6 +505,8 @@ primitive func directory_read_raw(owner: FileOwner, destination: &+[u8]): future
 primitive func file_write_raw(owner: FileOwner, source: &[u8]): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_flush_raw(owner: FileOwner): future FileCompletion from static
+#target: \"arm64-darwin\"
+primitive func file_lock_exclusive_raw(owner: FileOwner): future FileCompletion from static
 #target: \"arm64-darwin\"
 primitive func file_seek_start_raw(owner: FileOwner, displacement: i64): future FileCompletion from static
 #target: \"arm64-darwin\"

@@ -29,8 +29,8 @@ public source-level imports.
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI
 - the fixed Darwin Blocks ABI subset admitted by compiler-owned native adapters
-- the closed Darwin file-operation, raw-failure, partial-write, exclusive-create access, seek, capacity, and loader
-  dependency vocabularies
+- the closed Darwin file-operation, raw-failure, partial-write, exclusive-create access,
+  non-waiting lock, seek, capacity, and loader dependency vocabularies
 - the generated Darwin file-job and pre-reserved retirement ownership state machines
 - the generated Darwin file-service root, operation-job frame, and pre-reserved close-record ABI
 - the fixed Darwin network callback-event record, payload ownership table, provider state codes,

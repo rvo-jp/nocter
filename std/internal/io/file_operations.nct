@@ -45,6 +45,10 @@ func file_flush(owner: FileOwner): future FileCompletion from static {
     return file_flush_raw(move owner)
 }
 
+func file_lock_exclusive(owner: FileOwner): future FileCompletion from static {
+    return file_lock_exclusive_raw(move owner)
+}
+
 func file_seek_start(
     owner: FileOwner,
     displacement: i64,

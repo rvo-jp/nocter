@@ -286,6 +286,8 @@ closed_role_enum! {
         FileWrite,
         /// Constructs one generated local-file flush computation.
         FileFlush,
+        /// Constructs one generated non-waiting exclusive-lock computation.
+        FileLockExclusive,
         /// Constructs one generated local-file absolute seek computation.
         FileSeekStart,
         /// Constructs one generated local-file end-relative seek computation.
@@ -518,6 +520,7 @@ impl PrimitiveRole {
             Self::DirectoryRead => "directory_read",
             Self::FileWrite => "file_write",
             Self::FileFlush => "file_flush",
+            Self::FileLockExclusive => "file_lock_exclusive",
             Self::FileSeekStart => "file_seek_start",
             Self::FileSeekEnd => "file_seek_end",
             Self::FileSeekCurrent => "file_seek_current",
@@ -821,6 +824,7 @@ mod tests {
                 PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
+                PrimitiveRole::FileLockExclusive,
                 PrimitiveRole::FileSeekStart,
                 PrimitiveRole::FileSeekEnd,
                 PrimitiveRole::FileSeekCurrent,
@@ -898,6 +902,7 @@ mod tests {
                 PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
+                PrimitiveRole::FileLockExclusive,
                 PrimitiveRole::FileSeekStart,
                 PrimitiveRole::FileSeekEnd,
                 PrimitiveRole::FileSeekCurrent,
@@ -948,6 +953,7 @@ mod tests {
                 PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
+                PrimitiveRole::FileLockExclusive,
                 PrimitiveRole::FileSeekStart,
                 PrimitiveRole::FileSeekEnd,
                 PrimitiveRole::FileSeekCurrent,
@@ -992,6 +998,7 @@ mod tests {
                 PrimitiveRole::DirectoryRead,
                 PrimitiveRole::FileWrite,
                 PrimitiveRole::FileFlush,
+                PrimitiveRole::FileLockExclusive,
                 PrimitiveRole::FileSeekStart,
                 PrimitiveRole::FileSeekEnd,
                 PrimitiveRole::FileSeekCurrent,

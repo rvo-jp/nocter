@@ -229,6 +229,7 @@ pub(crate) fn select(
         | PrimitiveRole::DirectoryRead
         | PrimitiveRole::FileWrite
         | PrimitiveRole::FileFlush
+        | PrimitiveRole::FileLockExclusive
         | PrimitiveRole::FileSeekStart
         | PrimitiveRole::FileSeekEnd
         | PrimitiveRole::FileSeekCurrent

@@ -13,6 +13,7 @@ const FILE_FAILURE_ZERO_PROGRESS: usize = 4
 const FILE_FAILURE_INVALID_PROGRESS: usize = 5
 const FILE_FAILURE_UNCLASSIFIED: usize = 6
 const FILE_FAILURE_SERVICE_CLOSED: usize = 7
+const FILE_FAILURE_LOCK_CONTENDED: usize = 8
 
 noalloc func io_error_from_os(os_error: OSError): error {
     return io_error_from_kind(os_error.kind)
@@ -88,6 +89,9 @@ noalloc func validate_file_completion(completion: &FileCompletion): void! {
     }
     if kind == FILE_FAILURE_SERVICE_CLOSED {
         return closed_stream_error()
+    }
+    if kind == FILE_FAILURE_LOCK_CONTENDED {
+        return error.new("std.io.lock_contended", "file is exclusively locked")
     }
     return invalid_file_completion()
 }

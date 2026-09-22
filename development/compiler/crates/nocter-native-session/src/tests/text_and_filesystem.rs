@@ -318,10 +318,20 @@ fn durable_store_recovers_committed_state_across_reopen() {
 use std/io.{File, Writer}
 use std/store.{Store, StoreLimits}
 
+async func second_store_open_is_rejected(limits: StoreLimits): bool {
+    let unexpected = await Store.open_with_limits("state.nct", limits) catch failure {
+        return failure.has_code("std.store.already_open")
+    }
+    var opened = move unexpected
+    await opened.close() catch _ {}
+    return false
+}
+
 async func main(): i32 {
     let limits = StoreLimits.bounded(64, 64, 8, 1024, 2048, 1) catch _ { return 1 }
     var initial = await Store.open_with_limits("state.nct", limits) catch _ { return 2 }
     if !initial.is_empty() || initial.committed_sequence() != 0 { return 3 }
+    if !await second_store_open_is_rejected(limits) { return 36 }
     initial.set("name".bytes(), "Nocter".bytes()) catch _ { return 4 }
     initial.set("generation".bytes(), "first".bytes()) catch _ { return 5 }
     if !initial.has_uncommitted_changes() { return 6 }

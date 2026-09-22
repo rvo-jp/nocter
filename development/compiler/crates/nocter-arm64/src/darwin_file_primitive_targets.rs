@@ -22,6 +22,7 @@ pub enum Arm64DarwinFilePrimitive {
     ReadDirectory,
     Write,
     Flush,
+    LockExclusive,
     Seek(DarwinFileSeekOrigin),
     Truncate,
     ReadAt,
@@ -89,6 +90,7 @@ impl Arm64DarwinFilePrimitive {
             PrimitiveRole::DirectoryRead => Some(Self::ReadDirectory),
             PrimitiveRole::FileWrite => Some(Self::Write),
             PrimitiveRole::FileFlush => Some(Self::Flush),
+            PrimitiveRole::FileLockExclusive => Some(Self::LockExclusive),
             PrimitiveRole::FileSeekStart => Some(Self::Seek(DarwinFileSeekOrigin::Start)),
             PrimitiveRole::FileSeekEnd => Some(Self::Seek(DarwinFileSeekOrigin::End)),
             PrimitiveRole::FileSeekCurrent => Some(Self::Seek(DarwinFileSeekOrigin::Current)),
@@ -135,6 +137,7 @@ impl Arm64DarwinFilePrimitive {
             Self::ReadDirectory => Some(DarwinFileOperation::ReadDirectory),
             Self::Write => Some(DarwinFileOperation::Write),
             Self::Flush => Some(DarwinFileOperation::Flush),
+            Self::LockExclusive => Some(DarwinFileOperation::LockExclusive),
             Self::Truncate => Some(DarwinFileOperation::Truncate),
             Self::ReadAt => Some(DarwinFileOperation::ReadAt),
             Self::WriteAt => Some(DarwinFileOperation::WriteAt),
@@ -179,6 +182,7 @@ impl Arm64DarwinFilePrimitive {
             | Self::SymlinkMetadata => (&[2][..], 1),
             Self::Read | Self::ReadDirectory | Self::Write => (&[1, 2][..], 1),
             Self::Flush
+            | Self::LockExclusive
             | Self::Identity
             | Self::Close
             | Self::CompletionTakeOwner
@@ -350,6 +354,7 @@ impl Arm64DarwinFilePrimitiveTargets {
             | Arm64DarwinFilePrimitive::ReadDirectory
             | Arm64DarwinFilePrimitive::Write
             | Arm64DarwinFilePrimitive::Flush
+            | Arm64DarwinFilePrimitive::LockExclusive
             | Arm64DarwinFilePrimitive::Truncate
             | Arm64DarwinFilePrimitive::ReadAt
             | Arm64DarwinFilePrimitive::WriteAt

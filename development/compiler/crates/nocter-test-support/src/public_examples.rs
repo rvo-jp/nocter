@@ -125,6 +125,72 @@ impl PublicPackageExample {
     }
 }
 
+/// Resolves one repository-authored fixture path below its isolated execution root.
+///
+/// # Panics
+///
+/// Panics when `relative` is empty, absolute, or contains a traversal component. Public example
+/// contracts are static repository data, so an invalid path is a broken test contract rather than
+/// a recoverable runtime condition.
+#[must_use]
+pub fn public_example_fixture_path(root: &Path, relative: &str) -> PathBuf {
+    let path = Path::new(relative);
+    assert!(!relative.is_empty(), "fixture path must not be empty");
+    assert!(
+        path.components()
+            .all(|component| matches!(component, Component::Normal(_))),
+        "fixture path must remain below its temporary root: {relative}"
+    );
+    root.join(relative)
+}
+
+/// Materializes one public example's declared execution fixtures below an isolated root.
+///
+/// # Panics
+///
+/// Panics when a repository-owned fixture contract is invalid or cannot be materialized.
+pub fn materialize_public_example_fixtures(root: &Path, fixtures: &[PublicExampleFixture]) {
+    for fixture in fixtures {
+        match fixture {
+            PublicExampleFixture::File { path, contents } => {
+                let destination = public_example_fixture_path(root, path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                fs::write(destination, contents).unwrap();
+            }
+            PublicExampleFixture::ExecutableFile { path, contents } => {
+                let destination = public_example_fixture_path(root, path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                fs::write(&destination, contents).unwrap();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+
+                    fs::set_permissions(destination, fs::Permissions::from_mode(0o755)).unwrap();
+                }
+                #[cfg(not(unix))]
+                panic!("public executable-file fixtures require a Unix host");
+            }
+            PublicExampleFixture::Directory { path } => {
+                fs::create_dir_all(public_example_fixture_path(root, path)).unwrap();
+            }
+            PublicExampleFixture::Symlink { path, target } => {
+                let destination = public_example_fixture_path(root, path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                #[cfg(unix)]
+                std::os::unix::fs::symlink(target, destination).unwrap();
+                #[cfg(not(unix))]
+                panic!("public example symlink fixtures require a Unix host");
+            }
+        }
+    }
+}
+
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
@@ -728,3 +794,5 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         postconditions: &[],
     },
 ];
+use std::fs;
+use std::path::{Component, Path, PathBuf};

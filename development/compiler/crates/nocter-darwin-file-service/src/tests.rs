@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 use nocter_blocking_runtime::{
@@ -111,6 +112,135 @@ fn open_for_read(service: &DarwinFileService, path: &std::path::Path) -> DarwinF
         panic!("open job returned the wrong outcome")
     };
     result.unwrap()
+}
+
+fn open_for_append(service: &DarwinFileService, path: &std::path::Path) -> DarwinFileOwner {
+    let job = service
+        .submit(DarwinFileJob::open(
+            service.reserve_file().unwrap(),
+            path.to_path_buf(),
+            FileAccess::Append,
+        ))
+        .unwrap();
+    wait_for_job(service, job);
+    let JobOutcome::Completed(DarwinFileOutcome::Open(result)) = service.consume(job).unwrap()
+    else {
+        panic!("append open job returned the wrong outcome")
+    };
+    result.unwrap()
+}
+
+#[test]
+fn exclusive_lock_rejects_another_owner_and_releases_on_retirement() {
+    let temporary = NamedTempFile::new().unwrap();
+    let mut service = service();
+    let first = open_for_append(&service, temporary.path());
+    let second = open_for_append(&service, temporary.path());
+
+    let lock = service
+        .submit(DarwinFileJob::lock_exclusive(first))
+        .unwrap();
+    wait_for_job(&service, lock);
+    let JobOutcome::Completed(DarwinFileOutcome::LockExclusive {
+        owner: first,
+        result,
+    }) = service.consume(lock).unwrap()
+    else {
+        panic!("first lock job returned the wrong outcome")
+    };
+    result.unwrap();
+
+    let conflict = service
+        .submit(DarwinFileJob::lock_exclusive(second))
+        .unwrap();
+    wait_for_job(&service, conflict);
+    let JobOutcome::Completed(DarwinFileOutcome::LockExclusive {
+        owner: second,
+        result,
+    }) = service.consume(conflict).unwrap()
+    else {
+        panic!("conflicting lock job returned the wrong outcome")
+    };
+    assert_eq!(result.unwrap_err(), FileOperationError::LOCK_CONTENDED);
+
+    let retirement = first.retire().unwrap();
+    wait_until(|| service.retirement_status(retirement) == Some(RetirementStatus::Completed));
+    service.consume_retirement(retirement).unwrap();
+
+    let retry = service
+        .submit(DarwinFileJob::lock_exclusive(second))
+        .unwrap();
+    wait_for_job(&service, retry);
+    let JobOutcome::Completed(DarwinFileOutcome::LockExclusive { owner, result }) =
+        service.consume(retry).unwrap()
+    else {
+        panic!("lock retry returned the wrong outcome")
+    };
+    result.unwrap();
+    drop(owner);
+    wait_until(|| service.retirement_snapshot().drained());
+    service.shutdown().unwrap();
+}
+
+#[test]
+fn exclusive_lock_cross_process_helper() {
+    let Some(path) = std::env::var_os("NOCTER_FILE_LOCK_HELPER_PATH") else {
+        return;
+    };
+    let ready = std::env::var_os("NOCTER_FILE_LOCK_HELPER_READY")
+        .expect("lock helper ready path is present");
+    let file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
+    file.lock().unwrap();
+    std::fs::write(ready, b"ready").unwrap();
+    std::thread::sleep(Duration::from_secs(30));
+}
+
+#[test]
+fn exclusive_lock_rejects_another_process_and_process_exit_releases_it() {
+    let temporary = tempfile::tempdir().unwrap();
+    let path = temporary.path().join("lock-target");
+    let ready = temporary.path().join("ready");
+    std::fs::write(&path, b"").unwrap();
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "tests::exclusive_lock_cross_process_helper",
+            "--nocapture",
+        ])
+        .env("NOCTER_FILE_LOCK_HELPER_PATH", &path)
+        .env("NOCTER_FILE_LOCK_HELPER_READY", &ready)
+        .spawn()
+        .unwrap();
+    wait_until(|| ready.exists());
+
+    let mut service = service();
+    let owner = open_for_append(&service, &path);
+    let conflict = service
+        .submit(DarwinFileJob::lock_exclusive(owner))
+        .unwrap();
+    wait_for_job(&service, conflict);
+    let JobOutcome::Completed(DarwinFileOutcome::LockExclusive { owner, result }) =
+        service.consume(conflict).unwrap()
+    else {
+        panic!("cross-process lock job returned the wrong outcome")
+    };
+    assert_eq!(result.unwrap_err(), FileOperationError::LOCK_CONTENDED);
+
+    child.kill().unwrap();
+    child.wait().unwrap();
+    let retry = service
+        .submit(DarwinFileJob::lock_exclusive(owner))
+        .unwrap();
+    wait_for_job(&service, retry);
+    let JobOutcome::Completed(DarwinFileOutcome::LockExclusive { owner, result }) =
+        service.consume(retry).unwrap()
+    else {
+        panic!("post-exit lock job returned the wrong outcome")
+    };
+    result.unwrap();
+    drop(owner);
+    wait_until(|| service.retirement_snapshot().drained());
+    service.shutdown().unwrap();
 }
 
 #[test]

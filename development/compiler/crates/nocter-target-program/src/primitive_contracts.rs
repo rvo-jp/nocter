@@ -1053,7 +1053,10 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::FileFlush | PrimitiveRole::FileClose | PrimitiveRole::FileIdentity => make(
+        PrimitiveRole::FileFlush
+        | PrimitiveRole::FileLockExclusive
+        | PrimitiveRole::FileClose
+        | PrimitiveRole::FileIdentity => make(
             0,
             vec![file_owner()],
             TypeContract::asynchronous(file_completion()),

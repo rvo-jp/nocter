@@ -7,8 +7,10 @@ see ./journal.nct
 use /fixed.ByteBuffer
 use /hash.{Hash, HashState}
 use /internal/safety
+use /io.File
 use /map.Map
 use /scan.ByteCursor
+use /string.String
 use /vec.Vec
 
 const SNAPSHOT_HEADER_BYTES: usize = 16
@@ -32,6 +34,7 @@ struct StoreEntry {
 }
 
 struct Store {
+    lock: File
     journal: Journal
     entries: Vec<StoreEntry>
     limits: StoreLimits
@@ -67,6 +70,30 @@ noalloc func corrupt_snapshot(): error {
 
 noalloc func store_unusable(): error {
     return error.new("std.store.unusable", "store must be reopened after a failed commit")
+}
+
+noalloc func store_already_open(): error {
+    return error.new(
+        "std.store.already_open",
+        "another process or owner already has this store open",
+    )
+}
+
+func store_lock_path(path: &str): String {
+    var result = String.copy(path)
+    result.push_str(".lock")
+    return move result
+}
+
+async func acquire_store_lock(path: &str): File! {
+    let lock_path = store_lock_path(path)
+    var lock = await File.append(&lock_path)?
+    await lock.try_lock_exclusive() catch failure {
+        await lock.close() catch _ {}
+        if failure.has_code("std.io.lock_contended") { return store_already_open() }
+        return move failure
+    }
+    return move lock
 }
 
 construct StoreLimits {
@@ -268,13 +295,19 @@ func decode_snapshot(input: &[u8], limits: StoreLimits): (Vec<StoreEntry>, usize
 }
 
 async func open_store(path: &str, limits: StoreLimits): Store! {
-    let (journal, recovered) = await open_journal(path, journal_limits(limits)?)?
+    var lock = await acquire_store_lock(path)?
+    let (journal, recovered) = await open_journal(path, journal_limits(limits)?) catch failure {
+        await lock.close() catch _ {}
+        return move failure
+    }
+    var opened_journal = move journal
     var entries: Vec<StoreEntry> = Vec.empty()
     var snapshot_bytes: usize = SNAPSHOT_HEADER_BYTES
     var committed_sequence: u64 = 0
     let record = move recovered otherwise {
         return Store {
-            journal: move journal,
+            lock: move lock,
+            journal: move opened_journal,
             entries: move entries,
             limits: limits,
             snapshot_bytes: snapshot_bytes,
@@ -284,12 +317,17 @@ async func open_store(path: &str, limits: StoreLimits): Store! {
         }
     }
     let sequence = journal_record_sequence(&record)
-    let (decoded, decoded_bytes) = decode_snapshot(journal_record_body(&record), limits)?
+    let (decoded, decoded_bytes) = decode_snapshot(journal_record_body(&record), limits) catch failure {
+        await close_journal(&+opened_journal) catch _ {}
+        await lock.close() catch _ {}
+        return move failure
+    }
     entries = move decoded
     snapshot_bytes = decoded_bytes
     committed_sequence = sequence
     return Store {
-        journal: move journal,
+        lock: move lock,
+        journal: move opened_journal,
         entries: move entries,
         limits: limits,
         snapshot_bytes: snapshot_bytes,
@@ -409,7 +447,11 @@ instance Store {
 
     async method &+self.close(): void! {
         self.writable = false
-        await close_journal(&+self.journal)?
+        await close_journal(&+self.journal) catch failure {
+            await self.lock.close() catch _ {}
+            return move failure
+        }
+        await self.lock.close()?
         return
     }
 }

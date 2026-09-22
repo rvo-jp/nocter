@@ -88,6 +88,14 @@ async func synchronize_file(file: &+File): void! {
     return
 }
 
+async func lock_file_exclusive(file: &+File): void! {
+    let owner = take_file_owner(file)?
+    var completion = await io.file_lock_exclusive(move owner)
+    restore_file_owner(file, &+completion)
+    io.validate_file_completion(&completion)?
+    return
+}
+
 instance File {
     async method &+self.read(buffer: &+[u8]): usize! {
         let owner = take_file_owner(self)?
@@ -112,6 +120,11 @@ instance File {
 
     async method &+self.sync(): void! {
         await synchronize_file(self)?
+        return
+    }
+
+    async method &+self.try_lock_exclusive(): void! {
+        await lock_file_exclusive(self)?
         return
     }
 

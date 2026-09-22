@@ -27,6 +27,7 @@ pub(crate) fn execute_operation(
         DarwinFileOperation::ReadDirectory => execute_directory_read(code, job),
         DarwinFileOperation::Write => execute_write(code, job, false, imports),
         DarwinFileOperation::Flush => execute_flush(code, job, imports),
+        DarwinFileOperation::LockExclusive => execute_lock_exclusive(code, job),
         DarwinFileOperation::Seek => execute_seek(code, job, imports),
         DarwinFileOperation::Truncate => execute_truncate(code, job, imports),
         DarwinFileOperation::ReadAt => execute_read(code, job, true, imports),
@@ -43,6 +44,32 @@ pub(crate) fn execute_operation(
         DarwinFileOperation::Canonicalize => execute_canonicalize(code, job),
         DarwinFileOperation::Identity => execute_identity(code, job),
     }
+}
+
+fn execute_lock_exclusive(
+    code: &mut Arm64CodeBuilder,
+    job: crate::Arm64Register,
+) -> Result<(), crate::Arm64DarwinFileJobError> {
+    let retry = code.create_label();
+    code.bind(retry)?;
+    load_descriptor(code, x(0), job);
+    immediate(code, x(1), DarwinFileAbi::EXCLUSIVE_LOCK_NONBLOCKING);
+    emit_system_call(code, DarwinSystemCall::Flock);
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    compare_immediate(code, x(0), DarwinErrorAbi::INTERRUPTED);
+    code.branch_conditional(retry, Arm64BranchCondition::Equal);
+    let contended = code.create_label();
+    compare_immediate(code, x(0), DarwinErrorAbi::WOULD_BLOCK);
+    code.branch_conditional(contended, Arm64BranchCondition::Equal);
+    store_target_failure(code, job);
+    let finished = code.create_label();
+    code.branch(finished, false);
+    code.bind(contended)?;
+    store_failure(code, job, DarwinFileFailureKind::LockContended, 0);
+    code.bind(success)?;
+    code.bind(finished)?;
+    Ok(())
 }
 
 fn execute_identity(

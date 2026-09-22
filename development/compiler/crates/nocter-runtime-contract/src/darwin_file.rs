@@ -24,6 +24,7 @@ pub enum DarwinFileOperation {
     ReadLink,
     Canonicalize,
     Identity,
+    LockExclusive,
 }
 
 /// Fixed output capacity required by Darwin canonical-path queries.
@@ -125,6 +126,7 @@ impl DarwinFileOperation {
         Self::ReadLink,
         Self::Canonicalize,
         Self::Identity,
+        Self::LockExclusive,
     ];
 
     /// Returns the compact target-service tag for this operation.
@@ -150,6 +152,7 @@ impl DarwinFileOperation {
             Self::ReadLink => 16,
             Self::Canonicalize => 17,
             Self::Identity => 18,
+            Self::LockExclusive => 19,
         }
     }
 
@@ -176,6 +179,7 @@ impl DarwinFileOperation {
             16 => Some(Self::ReadLink),
             17 => Some(Self::Canonicalize),
             18 => Some(Self::Identity),
+            19 => Some(Self::LockExclusive),
             _ => None,
         }
     }
@@ -285,6 +289,7 @@ pub enum DarwinFileFailureKind {
     InvalidProgress,
     Unclassified,
     ServiceClosed,
+    LockContended,
 }
 
 impl DarwinFileFailureKind {
@@ -297,6 +302,7 @@ impl DarwinFileFailureKind {
         Self::InvalidProgress,
         Self::Unclassified,
         Self::ServiceClosed,
+        Self::LockContended,
     ];
 
     /// Returns the non-zero raw fact tag for this failure class.
@@ -310,6 +316,7 @@ impl DarwinFileFailureKind {
             Self::InvalidProgress => 5,
             Self::Unclassified => 6,
             Self::ServiceClosed => 7,
+            Self::LockContended => 8,
         }
     }
 
@@ -324,6 +331,7 @@ impl DarwinFileFailureKind {
             5 => Some(Self::InvalidProgress),
             6 => Some(Self::Unclassified),
             7 => Some(Self::ServiceClosed),
+            8 => Some(Self::LockContended),
             _ => None,
         }
     }
@@ -344,6 +352,7 @@ impl DarwinFileFailure {
     pub const OFFSET_OVERFLOW: Self = Self::without_errno(DarwinFileFailureKind::OffsetOverflow);
     pub const ZERO_PROGRESS: Self = Self::without_errno(DarwinFileFailureKind::ZeroProgress);
     pub const INVALID_PROGRESS: Self = Self::without_errno(DarwinFileFailureKind::InvalidProgress);
+    pub const LOCK_CONTENDED: Self = Self::without_errno(DarwinFileFailureKind::LockContended);
     /// A target adapter reported failure without a classifiable Darwin errno.
     pub const UNCLASSIFIED: Self = Self::without_errno(DarwinFileFailureKind::Unclassified);
 
@@ -647,6 +656,7 @@ mod tests {
             DarwinFileFailure::ZERO_PROGRESS,
             DarwinFileFailure::INVALID_PROGRESS,
             DarwinFileFailure::UNCLASSIFIED,
+            DarwinFileFailure::LOCK_CONTENDED,
         ] {
             let [kind, errno] = abi.encode(Some(failure));
             assert_eq!(

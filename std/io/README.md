@@ -54,7 +54,9 @@ terminal-state behavior remain exactly the common `BlockingBufReader` contract.
 
 `File` is the canonical executor-safe local-file owner. Its `open`, `create`, `create_new`, and
 `append` construction functions and its read, write, flush, sync, position, seek, truncate,
-positioned-I/O, and close methods are asynchronous. `create_new` uses target-exclusive creation: an
+positioned-I/O, and close methods are asynchronous. A package-visible non-waiting lock operation
+supports policies such as process-exclusive durable stores without exposing descriptors or target
+lock constants. `create_new` uses target-exclusive creation: an
 existing path fails with `std.io.already_exists` and is never opened or truncated. Each call owns
 the operating-system input while a bounded worker performs the blocking operation; no worker
 retains an authored path or caller byte view.

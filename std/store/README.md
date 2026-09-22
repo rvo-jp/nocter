@@ -1,14 +1,16 @@
 # Durable Local Byte Storage
 
 The compiler-checked [`store` module contract](index.nct) is the sole authority for the public
-surface. `Store` is one owning, byte-keyed local state container. It copies keys and values on
-`set`, lends retained values from `get`, stages removal in memory, and changes durable state only
-when `commit` succeeds. Closing a dirty store discards its uncommitted in-memory changes.
+surface. `Store` is one process-exclusive, owning byte-keyed local state container. It copies keys
+and values on `set`, lends retained values from `get`, stages removal in memory, and changes durable
+state only when `commit` succeeds. Closing a dirty store discards its uncommitted in-memory changes.
 
 `Store` is deliberately not a database abstraction. Application code owns serialization, schema
-evolution, concurrent-task synchronization, and transaction boundaries. One store has one writer;
-opening the same path more than once, using it from multiple processes, or mutating its file through
-another API is unsupported.
+evolution, concurrent-task synchronization, and transaction boundaries. Opening a path acquires a
+non-waiting operating-system lock on its stable `.lock` sibling. A second owner in the same or
+another process fails with `std.store.already_open`; closing the store or terminating its process
+releases ownership. The sibling may remain on disk because its bytes do not represent ownership.
+Mutating the journal or lock sibling through another API remains unsupported.
 
 ## Bounds and Cost
 

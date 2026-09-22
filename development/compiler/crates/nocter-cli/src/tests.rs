@@ -1114,6 +1114,12 @@ fn public_system_examples_run_through_the_installed_standard_library() {
             .join("../../../../examples")
             .join(name);
         let output = tree.0.join(name);
+        let execution_root = tree.0.join(format!("{name}-run"));
+        fs::create_dir(&execution_root).unwrap();
+        nocter_test_support::materialize_public_example_fixtures(
+            &execution_root,
+            contract.fixtures(),
+        );
         let outcome = execute_invocation(invocation(
             [
                 OsString::from("build"),
@@ -1128,7 +1134,7 @@ fn public_system_examples_run_through_the_installed_standard_library() {
 
         assert!(matches!(&outcome, InvocationOutcome::Build(_)));
         let executed = std::process::Command::new(&output)
-            .current_dir(&example)
+            .current_dir(&execution_root)
             .output()
             .unwrap();
         assert_eq!(

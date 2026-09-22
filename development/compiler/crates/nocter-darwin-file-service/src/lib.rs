@@ -1,7 +1,7 @@
 //! Typed host conformance for executor-safe Darwin file operations.
 
 use std::fmt;
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, TryLockError};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::{FileExt, MetadataExt, OpenOptionsExt};
 use std::path::PathBuf;
@@ -97,6 +97,7 @@ enum FileJobPayload {
         bytes: Box<[u8]>,
     },
     Flush(DarwinFileOwner),
+    LockExclusive(DarwinFileOwner),
     Seek {
         owner: DarwinFileOwner,
         position: FilePosition,
@@ -186,6 +187,13 @@ impl DarwinFileJob {
     pub fn flush(owner: DarwinFileOwner) -> Self {
         Self {
             payload: FileJobPayload::Flush(owner),
+        }
+    }
+
+    #[must_use]
+    pub fn lock_exclusive(owner: DarwinFileOwner) -> Self {
+        Self {
+            payload: FileJobPayload::LockExclusive(owner),
         }
     }
 
@@ -308,6 +316,7 @@ impl DarwinFileJob {
             FileJobPayload::Read { .. } => FileJobKind::Read,
             FileJobPayload::Write { .. } => FileJobKind::Write,
             FileJobPayload::Flush(_) => FileJobKind::Flush,
+            FileJobPayload::LockExclusive(_) => FileJobKind::LockExclusive,
             FileJobPayload::Seek { .. } => FileJobKind::Seek,
             FileJobPayload::Truncate { .. } => FileJobKind::Truncate,
             FileJobPayload::ReadAt { .. } => FileJobKind::ReadAt,
@@ -338,6 +347,10 @@ pub enum DarwinFileOutcome {
         fact: FileWriteFact,
     },
     Flush {
+        owner: DarwinFileOwner,
+        result: Result<(), FileOperationError>,
+    },
+    LockExclusive {
         owner: DarwinFileOwner,
         result: Result<(), FileOperationError>,
     },
@@ -574,6 +587,10 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
                 .map_err(|error| file_failure(&error));
             DarwinFileOutcome::Flush { owner, result }
         }
+        FileJobPayload::LockExclusive(mut owner) => {
+            let result = lock_file_exclusive(owner.0.resource_mut());
+            DarwinFileOutcome::LockExclusive { owner, result }
+        }
         FileJobPayload::Seek {
             mut owner,
             position,
@@ -641,6 +658,14 @@ fn execute_job(job: DarwinFileJob) -> DarwinFileOutcome {
         FileJobPayload::Canonicalize { path, maximum } => {
             DarwinFileOutcome::Canonicalize(canonical_path(path, maximum))
         }
+    }
+}
+
+fn lock_file_exclusive(file: &mut File) -> Result<(), FileOperationError> {
+    match file.try_lock() {
+        Ok(()) => Ok(()),
+        Err(TryLockError::Error(error)) => Err(file_failure(&error)),
+        Err(TryLockError::WouldBlock) => Err(FileOperationError::LOCK_CONTENDED),
     }
 }
 

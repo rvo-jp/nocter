@@ -37,6 +37,7 @@ darwin_system_calls! {
     TruncateFile => 0x0200_00c9,
     Unlink => 0x0200_000a,
     Rename => 0x0200_0080,
+    Flock => 0x0200_0083,
     MakeDirectory => 0x0200_0088,
     RemoveDirectory => 0x0200_0089,
     Stat64 => 0x0200_0152,
@@ -129,6 +130,7 @@ impl DarwinFileAbi {
     pub(crate) const SEEK_FROM_END: u64 = 2;
     pub(crate) const MAXIMUM_TRANSFER: u64 = i64::MAX as u64;
     pub(crate) const MAXIMUM_OFFSET: u64 = i64::MAX as u64;
+    pub(crate) const EXCLUSIVE_LOCK_NONBLOCKING: u64 = 6;
 }
 
 /// Emits a compiler-selected Darwin system call after its arguments have been prepared.
@@ -184,6 +186,7 @@ pub(crate) struct DarwinErrorAbi;
 impl DarwinErrorAbi {
     pub(crate) const INTERRUPTED: u64 = 4;
     pub(crate) const MISSING_PROCESS: u64 = 3;
+    pub(crate) const WOULD_BLOCK: u64 = 35;
 }
 
 /// Darwin's five-argument `select` timeout ABI.

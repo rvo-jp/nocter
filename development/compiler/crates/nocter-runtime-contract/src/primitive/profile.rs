@@ -135,6 +135,7 @@ impl PrimitiveRole {
             | Self::DirectoryRead
             | Self::FileWrite
             | Self::FileFlush
+            | Self::FileLockExclusive
             | Self::FileSeekStart
             | Self::FileSeekEnd
             | Self::FileSeekCurrent
