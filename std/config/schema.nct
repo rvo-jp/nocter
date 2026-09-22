@@ -1,0 +1,107 @@
+//! Field construction and ordered schema validation.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /string.String
+use /vec.Vec
+
+func new_field(name: &str, kind: FieldKind): Field! {
+    if !valid_config_name(name) { return invalid_config_name(name) }
+    return Field {
+        name_value: String.copy(name),
+        kind: kind,
+        constraint: FieldConstraint.unconstrained,
+        required_value: false,
+        secret_value: false,
+    }
+}
+
+noalloc func schema_field_index(schema: &Schema, name: &str): usize? {
+    var index: usize = 0
+    while index < schema.fields.len() {
+        if field_name(&schema.fields[index]) == name { return index }
+        index += 1
+    }
+    return none
+}
+
+construct Field {
+    func text(name: &str): Self! { return new_field(name, FieldKind.text)? }
+
+    func boolean(name: &str): Self! { return new_field(name, FieldKind.boolean)? }
+
+    func signed(name: &str): Self! { return new_field(name, FieldKind.signed)? }
+
+    func unsigned(name: &str): Self! { return new_field(name, FieldKind.unsigned)? }
+}
+
+instance Field {
+    method self.required(): Self {
+        var field = move self
+        field.required_value = true
+        return move field
+    }
+
+    method self.secret(): Self {
+        var field = move self
+        field.secret_value = true
+        return move field
+    }
+
+    method self.text_length(minimum: usize, maximum: usize): Self! {
+        let name = String.copy(field_name(&self))
+        match &self.kind {
+            FieldKind.text {
+                if minimum > maximum { return invalid_config_constraint(&name) }
+            }
+            _ { return invalid_config_constraint(&name) }
+        }
+        var field = move self
+        field.constraint = FieldConstraint.text_length(minimum, maximum)
+        return move field
+    }
+
+    method self.signed_range(minimum: i64, maximum: i64): Self! {
+        let name = String.copy(field_name(&self))
+        match &self.kind {
+            FieldKind.signed {
+                if minimum > maximum { return invalid_config_constraint(&name) }
+            }
+            _ { return invalid_config_constraint(&name) }
+        }
+        var field = move self
+        field.constraint = FieldConstraint.signed_range(minimum, maximum)
+        return move field
+    }
+
+    method self.unsigned_range(minimum: u64, maximum: u64): Self! {
+        let name = String.copy(field_name(&self))
+        match &self.kind {
+            FieldKind.unsigned {
+                if minimum > maximum { return invalid_config_constraint(&name) }
+            }
+            _ { return invalid_config_constraint(&name) }
+        }
+        var field = move self
+        field.constraint = FieldConstraint.unsigned_range(minimum, maximum)
+        return move field
+    }
+}
+
+construct Schema {
+    func empty(): Self { return Schema { fields: Vec.empty() } }
+}
+
+instance Schema {
+    method &+self.add(field: Field): void! {
+        let _existing = schema_field_index(self, field_name(&field)) otherwise {
+            self.fields.push(move field)
+            return
+        }
+        return duplicate_config_field(field_name(&field))
+    }
+
+    noalloc method &self.len(): usize { return self.fields.len() }
+}

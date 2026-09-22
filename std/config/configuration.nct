@@ -1,0 +1,99 @@
+//! Typed immutable observation and secret-safe value presentation.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /internal/ptr
+use /string.String
+
+func configuration_slot_index(configuration: &Configuration, name: &str): usize! {
+    var index: usize = 0
+    while index < configuration.slots.len() {
+        if field_name(&configuration.slots[index].field) == name { return index }
+        index += 1
+    }
+    return wrong_config_accessor(name)
+}
+
+instance Configuration {
+    method &self.text(name: &str): &str?! from self {
+        let index = configuration_slot_index(self, name)?
+        match &self.slots[index].configured {
+            SlotValue.absent { return none }
+            SlotValue.present(configured) {
+                match &configured.value {
+                    SourceValue.text(value) { return value as &str }
+                    _ { return wrong_config_accessor(name) }
+                }
+            }
+        }
+    }
+
+    method &self.boolean(name: &str): bool?! {
+        let index = configuration_slot_index(self, name)?
+        match &self.slots[index].configured {
+            SlotValue.absent { return none }
+            SlotValue.present(configured) {
+                match &configured.value {
+                    SourceValue.boolean(value) { return ptr.copy_value(value) }
+                    _ { return wrong_config_accessor(name) }
+                }
+            }
+        }
+    }
+
+    method &self.signed(name: &str): i64?! {
+        let index = configuration_slot_index(self, name)?
+        match &self.slots[index].configured {
+            SlotValue.absent { return none }
+            SlotValue.present(configured) {
+                match &configured.value {
+                    SourceValue.signed(value) { return ptr.copy_value(value) }
+                    _ { return wrong_config_accessor(name) }
+                }
+            }
+        }
+    }
+
+    method &self.unsigned(name: &str): u64?! {
+        let index = configuration_slot_index(self, name)?
+        match &self.slots[index].configured {
+            SlotValue.absent { return none }
+            SlotValue.present(configured) {
+                match &configured.value {
+                    SourceValue.unsigned(value) { return ptr.copy_value(value) }
+                    _ { return wrong_config_accessor(name) }
+                }
+            }
+        }
+    }
+
+    method &self.source(name: &str): &str?! from self {
+        let index = configuration_slot_index(self, name)?
+        match &self.slots[index].configured {
+            SlotValue.absent { return none }
+            SlotValue.present(configured) { return &configured.source_name as &str }
+        }
+    }
+
+    method &self.display(name: &str): String?! {
+        let index = configuration_slot_index(self, name)?
+        let slot = &self.slots[index]
+        match &slot.configured {
+            SlotValue.absent { return none }
+            SlotValue.present(configured) {
+                if field_is_secret(&slot.field) { return String.copy("[redacted]") }
+                match &configured.value {
+                    SourceValue.text(value) { return String.copy(value) }
+                    SourceValue.boolean(value) {
+                        if ptr.copy_value(value) { return String.copy("true") }
+                        return String.copy("false")
+                    }
+                    SourceValue.signed(value) { return ptr.copy_value(value).to_string() }
+                    SourceValue.unsigned(value) { return ptr.copy_value(value).to_string() }
+                }
+            }
+        }
+    }
+}

@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.67.0 Phase 4 Source-neutral Configuration Review](v0.67.0-phase-4.md)
 - [v0.67.0 Phase 3 Incremental-journal Review](v0.67.0-phase-3.md)
 - [v0.67.0 Phase 2 Indexed Store-state Review](v0.67.0-phase-2.md)
 - [v0.66.0 Phase 5 Durable Local-state Review](v0.66.0-phase-5.md)

@@ -1,0 +1,58 @@
+//! Source-neutral owned candidate construction with source-local uniqueness.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /string.String
+use /vec.Vec
+
+noalloc func source_entry_index(source: &Source, name: &str): usize? {
+    var index: usize = 0
+    while index < source.entries.len() {
+        if source_entry_name(&source.entries[index]) == name { return index }
+        index += 1
+    }
+    return none
+}
+
+func add_source_value(source: &+Source, name: &str, value: SourceValue): void! {
+    if !valid_config_name(name) { return invalid_config_name(name) }
+    let _existing = source_entry_index(source, name) otherwise {
+        source.entries.push(
+            SourceEntry {
+                name_value: String.copy(name),
+                value: move value,
+            },
+        )
+        return
+    }
+    return duplicate_source_input(name)
+}
+
+construct Source {
+    func new(name: &str): Self! {
+        if !valid_config_name(name) { return invalid_config_name(name) }
+        return Source { name_value: String.copy(name), entries: Vec.empty() }
+    }
+}
+
+instance Source {
+    method &+self.add_text(name: &str, value: &str): void! {
+        return add_source_value(self, name, SourceValue.text(String.copy(value)))?
+    }
+
+    method &+self.add_boolean(name: &str, value: bool): void! {
+        return add_source_value(self, name, SourceValue.boolean(value))?
+    }
+
+    method &+self.add_signed(name: &str, value: i64): void! {
+        return add_source_value(self, name, SourceValue.signed(value))?
+    }
+
+    method &+self.add_unsigned(name: &str, value: u64): void! {
+        return add_source_value(self, name, SourceValue.unsigned(value))?
+    }
+
+    noalloc method &self.len(): usize { return self.entries.len() }
+}

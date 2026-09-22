@@ -1,0 +1,125 @@
+//! Source-neutral configuration schemas, overlays, validation, and redacted presentation.
+
+use /string.String
+
+see ./builder.nct
+see ./configuration.nct
+see ./errors.nct
+see ./schema.nct
+see ./source.nct
+see ./storage.nct
+see ./tests.nct
+
+/// One configuration field declaration.
+pub struct Field
+
+construct Field {
+    /// Declares an optional unconstrained UTF-8 text field.
+    pub func text(name: &str): Self!
+
+    /// Declares an optional Boolean field.
+    pub func boolean(name: &str): Self!
+
+    /// Declares an optional signed 64-bit integer field.
+    pub func signed(name: &str): Self!
+
+    /// Declares an optional unsigned 64-bit integer field.
+    pub func unsigned(name: &str): Self!
+}
+
+instance Field {
+    /// Returns this declaration with presence required at finalization.
+    pub method self.required(): Self
+
+    /// Returns this declaration with values redacted by configuration presentation.
+    pub method self.secret(): Self
+
+    /// Applies inclusive UTF-8 byte-length bounds to a text declaration.
+    pub method self.text_length(minimum: usize, maximum: usize): Self!
+
+    /// Applies inclusive value bounds to a signed declaration.
+    pub method self.signed_range(minimum: i64, maximum: i64): Self!
+
+    /// Applies inclusive value bounds to an unsigned declaration.
+    pub method self.unsigned_range(minimum: u64, maximum: u64): Self!
+}
+
+/// One ordered configuration schema.
+pub struct Schema
+
+construct Schema {
+    /// Constructs an empty schema.
+    pub func empty(): Self
+}
+
+instance Schema {
+    /// Adds one uniquely named field declaration.
+    pub method &+self.add(field: Field): void!
+
+    /// Returns the number of declared fields.
+    pub noalloc method &self.len(): usize
+}
+
+/// One named, source-neutral set of candidate values.
+pub struct Source
+
+construct Source {
+    /// Constructs an empty source with one diagnostic provenance label.
+    pub func new(name: &str): Self!
+}
+
+instance Source {
+    /// Adds one uniquely named textual candidate.
+    pub method &+self.add_text(name: &str, value: &str): void!
+
+    /// Adds one uniquely named Boolean candidate.
+    pub method &+self.add_boolean(name: &str, value: bool): void!
+
+    /// Adds one uniquely named signed candidate.
+    pub method &+self.add_signed(name: &str, value: i64): void!
+
+    /// Adds one uniquely named unsigned candidate.
+    pub method &+self.add_unsigned(name: &str, value: u64): void!
+
+    /// Returns the number of candidate values.
+    pub noalloc method &self.len(): usize
+}
+
+/// One mutable overlay transaction over an owned schema.
+pub struct Builder
+
+construct Builder {
+    /// Starts an empty candidate configuration from `schema`.
+    pub func new(schema: Schema): Self
+}
+
+instance Builder {
+    /// Atomically applies every value from `source`; later sources replace earlier values.
+    pub method &+self.apply(source: Source): void!
+
+    /// Validates required fields and transfers one immutable configuration.
+    pub method self.finish(): Configuration!
+}
+
+/// One immutable, typed, finalized configuration.
+pub struct Configuration
+
+instance Configuration {
+    /// Returns a text value, none when optional and absent, or an accessor mismatch error.
+    pub method &self.text(name: &str): &str?! from self
+
+    /// Returns a Boolean value, none when optional and absent, or an accessor mismatch error.
+    pub method &self.boolean(name: &str): bool?!
+
+    /// Returns a signed value, none when optional and absent, or an accessor mismatch error.
+    pub method &self.signed(name: &str): i64?!
+
+    /// Returns an unsigned value, none when optional and absent, or an accessor mismatch error.
+    pub method &self.unsigned(name: &str): u64?!
+
+    /// Borrows the provenance label of a present value, or none when optional and absent.
+    pub method &self.source(name: &str): &str?! from self
+
+    /// Returns a canonical presentation of one value, redacting a secret value.
+    pub method &self.display(name: &str): String?!
+}

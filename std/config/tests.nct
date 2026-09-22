@@ -1,0 +1,167 @@
+//! Source-neutral configuration behavior and failure-atomicity tests.
+
+see ./builder.nct
+see ./configuration.nct
+see ./index.nct
+see ./schema.nct
+see ./source.nct
+see ./storage.nct
+
+func application_schema(): Schema! {
+    var schema = Schema.empty()
+    let host = Field.text("host")?
+    let required_host = host.required()
+    schema.add(required_host.text_length(1, 64)?)?
+    let port = Field.unsigned("port")?
+    let required_port = port.required()
+    schema.add(required_port.unsigned_range(1, 65535)?)?
+    schema.add(Field.boolean("enabled")?)?
+    let token = Field.text("token")?
+    let secret_token = token.secret()
+    schema.add(secret_token.text_length(1, 128)?)?
+    return move schema
+}
+
+test overlays_are_typed_ordered_immutable_and_redacted {
+    let schema = application_schema()?
+    var builder = Builder.new(move schema)
+    var defaults = Source.new("authored defaults")?
+    defaults.add_text("host", "127.0.0.1")?
+    defaults.add_unsigned("port", 8080)?
+    defaults.add_boolean("enabled", false)?
+    builder.apply(move defaults)?
+
+    var environment = Source.new("process environment")?
+    environment.add_text("port", "9090")?
+    environment.add_text("enabled", "true")?
+    environment.add_text("token", "do-not-render")?
+    builder.apply(move environment)?
+    let configuration = builder.finish()?
+
+    let host = configuration.text("host")? otherwise {
+        return error.new("std.config.test", "required host is absent")
+    }
+    let port = configuration.unsigned("port")? otherwise {
+        return error.new("std.config.test", "required port is absent")
+    }
+    let enabled = configuration.boolean("enabled")? otherwise {
+        return error.new("std.config.test", "configured Boolean is absent")
+    }
+    let source = configuration.source("port")? otherwise {
+        return error.new("std.config.test", "configured provenance is absent")
+    }
+    let token = configuration.display("token")? otherwise {
+        return error.new("std.config.test", "configured secret is absent")
+    }
+    if host != "127.0.0.1"
+    || port != 9090
+    || !enabled
+    || source != "process environment"
+    || (&token as &str) != "[redacted]" {
+        return error.new("std.config.test", "final configuration changed")
+    }
+    return
+}
+
+test failed_sources_are_atomic_and_never_render_secret_values {
+    let schema = application_schema()?
+    var builder = Builder.new(move schema)
+    var initial = Source.new("initial")?
+    initial.add_text("host", "stable")?
+    initial.add_unsigned("port", 80)?
+    builder.apply(move initial)?
+
+    var invalid = Source.new("broken file")?
+    invalid.add_text("host", "changed")?
+    invalid.add_text("unknown", "value")?
+    builder.apply(move invalid) catch failure {
+        if !failure.has_code("std.config.unknown_field") {
+            return error.new("std.config.test", "unknown input used the wrong error")
+        }
+        let configuration = builder.finish()?
+        let host = configuration.text("host")? otherwise {
+            return error.new("std.config.test", "prior host is absent")
+        }
+        if host != "stable" {
+            return error.new("std.config.test", "failed source partially changed the builder")
+        }
+        return
+    }
+    return error.new("std.config.test", "unknown input was accepted")
+}
+
+test duplicate_schema_fields_are_rejected {
+    var duplicate_schema = Schema.empty()
+    duplicate_schema.add(Field.text("name")?)?
+    duplicate_schema.add(Field.text("name")?) catch failure {
+        if !failure.has_code("std.config.duplicate_field") {
+            return error.new("std.config.test", "duplicate field used the wrong error")
+        }
+        return
+    }
+    return error.new("std.config.test", "duplicate field was accepted")
+}
+
+test duplicate_source_inputs_are_rejected {
+    var duplicate_source = Source.new("file")?
+    duplicate_source.add_text("name", "first")?
+    duplicate_source.add_text("name", "second") catch failure {
+        if !failure.has_code("std.config.duplicate_input") {
+            return error.new("std.config.test", "duplicate input used the wrong error")
+        }
+        return
+    }
+    return error.new("std.config.test", "duplicate input was accepted")
+}
+
+test required_fields_are_checked_after_all_sources {
+    let schema = application_schema()?
+    var missing = Builder.new(move schema)
+    var partial = Source.new("partial")?
+    partial.add_text("host", "localhost")?
+    missing.apply(move partial)?
+    let _configuration = missing.finish() catch failure {
+        if !failure.has_code("std.config.missing_field") {
+            return error.new("std.config.test", "missing field used the wrong error")
+        }
+        return
+    }
+    return error.new("std.config.test", "missing required field was accepted")
+}
+
+test modifiers_preserve_constraints_and_validation_hides_secret_values {
+    var schema = Schema.empty()
+    let token = Field.text("token")?
+    let constrained = token.text_length(1, 3)?
+    let required = constrained.required()
+    schema.add(required.secret())?
+
+    var builder = Builder.new(move schema)
+    var source = Source.new("secret source")?
+    source.add_text("token", "never-include-this-secret")?
+    builder.apply(move source) catch failure {
+        if !failure.has_code("std.config.invalid_value")
+        || failure.message().contains("never-include-this-secret") {
+            return error.new("std.config.test", "invalid value exposed secret data")
+        }
+        return
+    }
+    return error.new("std.config.test", "constrained secret value was accepted")
+}
+
+test typed_accessors_reject_schema_mismatches {
+    let schema = application_schema()?
+    var builder = Builder.new(move schema)
+    var values = Source.new("valid")?
+    values.add_text("host", "localhost")?
+    values.add_unsigned("port", 443)?
+    builder.apply(move values)?
+    let configuration = builder.finish()?
+    let _wrong = configuration.text("port") catch failure {
+        if !failure.has_code("std.config.wrong_accessor") {
+            return error.new("std.config.test", "wrong accessor used the wrong error")
+        }
+        return
+    }
+    return error.new("std.config.test", "wrong typed accessor was accepted")
+}

@@ -1,0 +1,103 @@
+//! Stable configuration failures that never render candidate values.
+
+use /string.String
+
+noalloc func valid_config_name(name: &str): bool {
+    if name.len() == 0 { return false }
+    var index: usize = 0
+    while index < name.len() {
+        let value = name[index]
+        if value < 32 || value == 127 { return false }
+        index += 1
+    }
+    return true
+}
+
+func named_config_error(code: &str, prefix: &str, name: &str): error {
+    var message = String.copy(prefix)
+    message.push_str(" `")
+    message.push_str(name)
+    message.push('`')
+    return error.new(code, &message)
+}
+
+func sourced_config_error(
+    code: &str,
+    prefix: &str,
+    field: &str,
+    source: &str,
+): error {
+    var message = String.copy(prefix)
+    message.push_str(" `")
+    message.push_str(field)
+    message.push_str("` from `")
+    message.push_str(source)
+    message.push('`')
+    return error.new(code, &message)
+}
+
+func invalid_config_name(name: &str): error {
+    return named_config_error(
+        "std.config.invalid_name",
+        "configuration names must be nonempty text without control bytes:",
+        name,
+    )
+}
+
+func duplicate_config_field(name: &str): error {
+    return named_config_error(
+        "std.config.duplicate_field",
+        "configuration field is declared more than once:",
+        name,
+    )
+}
+
+func duplicate_source_input(name: &str): error {
+    return named_config_error(
+        "std.config.duplicate_input",
+        "configuration source contains a duplicate field:",
+        name,
+    )
+}
+
+func unknown_config_field(name: &str, source: &str): error {
+    return sourced_config_error(
+        "std.config.unknown_field",
+        "unknown configuration field",
+        name,
+        source,
+    )
+}
+
+func invalid_config_value(name: &str, source: &str): error {
+    return sourced_config_error(
+        "std.config.invalid_value",
+        "invalid configuration value for",
+        name,
+        source,
+    )
+}
+
+func missing_config_field(name: &str): error {
+    return named_config_error(
+        "std.config.missing_field",
+        "required configuration field is absent:",
+        name,
+    )
+}
+
+func wrong_config_accessor(name: &str): error {
+    return named_config_error(
+        "std.config.wrong_accessor",
+        "configuration field was read with the wrong typed accessor:",
+        name,
+    )
+}
+
+func invalid_config_constraint(name: &str): error {
+    return named_config_error(
+        "std.config.invalid_constraint",
+        "configuration constraint does not match the field or has reversed bounds:",
+        name,
+    )
+}

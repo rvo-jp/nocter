@@ -1,0 +1,179 @@
+//! Failure-atomic overlay validation and immutable finalization.
+
+see ./errors.nct
+see ./index.nct
+see ./schema.nct
+see ./storage.nct
+
+use /string.String
+use /vec.Vec
+use /internal/ptr
+
+noalloc func builder_slot_index(builder: &Builder, name: &str): usize? {
+    var index: usize = 0
+    while index < builder.slots.len() {
+        if field_name(&builder.slots[index].field) == name { return index }
+        index += 1
+    }
+    return none
+}
+
+func missing_required_field(builder: &Builder): String? {
+    var index: usize = 0
+    while index < builder.slots.len() {
+        let slot = &builder.slots[index]
+        if field_is_required(&slot.field) {
+            match &slot.configured {
+                SlotValue.absent { return String.copy(field_name(&slot.field)) }
+                SlotValue.present(_) {}
+            }
+        }
+        index += 1
+    }
+    return none
+}
+
+noalloc func text_value_is_valid(field: &Field, value: &str): bool {
+    match &field.constraint {
+        FieldConstraint.unconstrained { return true }
+        FieldConstraint.text_length(minimum, maximum) {
+            return value.len() >= ptr.copy_value(minimum)
+            && value.len() <= ptr.copy_value(maximum)
+        }
+        _ { return false }
+    }
+}
+
+noalloc func signed_value_is_valid(field: &Field, value: i64): bool {
+    match &field.constraint {
+        FieldConstraint.unconstrained { return true }
+        FieldConstraint.signed_range(minimum, maximum) {
+            return value >= ptr.copy_value(minimum) && value <= ptr.copy_value(maximum)
+        }
+        _ { return false }
+    }
+}
+
+noalloc func unsigned_value_is_valid(field: &Field, value: u64): bool {
+    match &field.constraint {
+        FieldConstraint.unconstrained { return true }
+        FieldConstraint.unsigned_range(minimum, maximum) {
+            return value >= ptr.copy_value(minimum) && value <= ptr.copy_value(maximum)
+        }
+        _ { return false }
+    }
+}
+
+func normalize_text_value(field: &Field, value: &str, source: &str): SourceValue! {
+    match &field.kind {
+        FieldKind.text {
+            if !text_value_is_valid(field, value) {
+                return invalid_config_value(field_name(field), source)
+            }
+            return SourceValue.text(String.copy(value))
+        }
+        FieldKind.boolean {
+            if value == "true" { return SourceValue.boolean(true) }
+            if value == "false" { return SourceValue.boolean(false) }
+        }
+        FieldKind.signed {
+            let parsed = i64.parse(value) otherwise {
+                return invalid_config_value(field_name(field), source)
+            }
+            if signed_value_is_valid(field, parsed) { return SourceValue.signed(parsed) }
+        }
+        FieldKind.unsigned {
+            let parsed = u64.parse(value) otherwise {
+                return invalid_config_value(field_name(field), source)
+            }
+            if unsigned_value_is_valid(field, parsed) { return SourceValue.unsigned(parsed) }
+        }
+    }
+    return invalid_config_value(field_name(field), source)
+}
+
+func normalize_source_value(
+    field: &Field,
+    candidate: &SourceValue,
+    source: &str,
+): SourceValue! {
+    match candidate {
+        SourceValue.text(value) { return normalize_text_value(field, value, source)? }
+        SourceValue.boolean(value) {
+            match &field.kind {
+                FieldKind.boolean { return SourceValue.boolean(ptr.copy_value(value)) }
+                _ { return invalid_config_value(field_name(field), source) }
+            }
+        }
+        SourceValue.signed(value) {
+            let candidate_value = ptr.copy_value(value)
+            match &field.kind {
+                FieldKind.signed {
+                    if signed_value_is_valid(field, candidate_value) {
+                        return SourceValue.signed(candidate_value)
+                    }
+                }
+                _ {}
+            }
+            return invalid_config_value(field_name(field), source)
+        }
+        SourceValue.unsigned(value) {
+            let candidate_value = ptr.copy_value(value)
+            match &field.kind {
+                FieldKind.unsigned {
+                    if unsigned_value_is_valid(field, candidate_value) {
+                        return SourceValue.unsigned(candidate_value)
+                    }
+                }
+                _ {}
+            }
+            return invalid_config_value(field_name(field), source)
+        }
+    }
+}
+
+construct Builder {
+    func new(schema: Schema): Self {
+        var slots: Vec<ConfigSlot> = Vec.with_capacity(schema.fields.len())
+        for field in move schema.fields {
+            slots.push(ConfigSlot { field: move field, configured: SlotValue.absent })
+        }
+        return Builder { slots: move slots }
+    }
+}
+
+instance Builder {
+    method &+self.apply(source: Source): void! {
+        let applied_source_name = String.copy(source_name(&source))
+        let entries = move source.entries
+        var prepared: Vec<PreparedInput> = Vec.with_capacity(entries.len())
+        for entry in move entries {
+            let slot = builder_slot_index(self, source_entry_name(&entry)) otherwise {
+                return unknown_config_field(source_entry_name(&entry), &applied_source_name)
+            }
+            let value = normalize_source_value(
+                &self.slots[slot].field,
+                &entry.value,
+                &applied_source_name,
+            )?
+            prepared.push(PreparedInput { slot: slot, value: move value })
+        }
+        for input in move prepared {
+            let slot = input.slot
+            self.slots[slot].configured = SlotValue.present(
+                ConfiguredValue {
+                    value: move input.value,
+                    source_name: String.copy(&applied_source_name),
+                },
+            )
+        }
+        return
+    }
+
+    method self.finish(): Configuration! {
+        let missing = missing_required_field(&self) otherwise {
+            return Configuration { slots: move self.slots }
+        }
+        return missing_config_field(&missing)
+    }
+}

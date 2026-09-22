@@ -1,0 +1,89 @@
+//! Sole owned representation for configuration declarations, candidates, and finalized values.
+
+see ./index.nct
+
+use /string.String
+use /vec.Vec
+
+enum FieldKind {
+    text
+    boolean
+    signed
+    unsigned
+}
+
+enum FieldConstraint {
+    unconstrained
+    text_length(minimum: usize, maximum: usize)
+    signed_range(minimum: i64, maximum: i64)
+    unsigned_range(minimum: u64, maximum: u64)
+}
+
+struct Field {
+    name_value: String
+    kind: FieldKind
+    constraint: FieldConstraint
+    required_value: bool
+    secret_value: bool
+}
+
+struct Schema {
+    fields: Vec<Field>
+}
+
+enum SourceValue {
+    text(value: String)
+    boolean(value: bool)
+    signed(value: i64)
+    unsigned(value: u64)
+}
+
+struct SourceEntry {
+    name_value: String
+    value: SourceValue
+}
+
+struct Source {
+    name_value: String
+    entries: Vec<SourceEntry>
+}
+
+struct ConfiguredValue {
+    value: SourceValue
+    source_name: String
+}
+
+enum SlotValue {
+    absent
+    present(value: ConfiguredValue)
+}
+
+struct ConfigSlot {
+    field: Field
+    configured: SlotValue
+}
+
+struct Builder {
+    slots: Vec<ConfigSlot>
+}
+
+struct Configuration {
+    slots: Vec<ConfigSlot>
+}
+
+struct PreparedInput {
+    slot: usize
+    value: SourceValue
+}
+
+noalloc func field_name(field: &Field): &str { return &field.name_value as &str }
+
+noalloc func field_is_required(field: &Field): bool { return field.required_value }
+
+noalloc func field_is_secret(field: &Field): bool { return field.secret_value }
+
+noalloc func source_name(source: &Source): &str { return &source.name_value as &str }
+
+noalloc func source_entry_name(entry: &SourceEntry): &str {
+    return &entry.name_value as &str
+}
