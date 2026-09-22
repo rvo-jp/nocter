@@ -132,4 +132,7 @@ instance MutexGuard<T> {
 
     /// Borrows the protected value mutably for the lifetime of this guard.
     pub noalloc coerce &+self as &+T
+
+    /// Replaces the protected value and returns its previous value.
+    pub noalloc method &+self.replace(value: T): T
 }

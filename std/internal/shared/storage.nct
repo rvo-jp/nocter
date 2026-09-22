@@ -1,4 +1,4 @@
-//! Shared allocation layout, ownership, projection, and destruction.
+//! Shared allocation layout, immutable and mutable ownership, projection, and destruction.
 
 see ./index.nct
 
@@ -12,12 +12,20 @@ struct SharedHeader {
     write_locked: bool
 }
 
-struct SharedCell<T> {
+struct SharedStorage<T> {
     mapping_address: usize
     mapping_size: usize
     header: *SharedHeader
     value: *T
     active: bool
+}
+
+struct SharedCell<T> {
+    storage: SharedStorage<T>
+}
+
+struct SharedValue<T> {
+    storage: SharedStorage<T>
 }
 
 struct SharedWrite<T> {
@@ -38,11 +46,11 @@ noalloc func align_address(address: usize, align: usize): usize {
     }
 }
 
-noalloc func header_view_mut<T>(owner: &SharedCell<T>): &+SharedHeader {
+noalloc func header_view_mut<T>(owner: &SharedStorage<T>): &+SharedHeader {
     return &+ptr.slice_from_raw_parts_value_mut(owner.header, 1)[0]
 }
 
-func new_shared<T>(value: T): SharedCell<T> {
+func new_shared_storage<T>(value: T): SharedStorage<T> {
     let header_pointer: *SharedHeader = ptr.from_addr(1)
     let value_pointer: *T = ptr.from_addr(1)
     let header_size = ptr.pointee_size(header_pointer)
@@ -67,7 +75,7 @@ func new_shared<T>(value: T): SharedCell<T> {
         write_locked: false,
     })
     ptr.store_value_to_ptr(stored_value, 0, move value)
-    return SharedCell<T> {
+    return SharedStorage<T> {
         mapping_address: mapping_address,
         mapping_size: mapping_size,
         header: stored_header,
@@ -76,13 +84,13 @@ func new_shared<T>(value: T): SharedCell<T> {
     }
 }
 
-noalloc func share<T>(owner: &SharedCell<T>): SharedCell<T> {
+noalloc func share_storage<T>(owner: &SharedStorage<T>): SharedStorage<T> {
     if !owner.active { return safety.invariant_abort() }
     let header = header_view_mut(owner)
     header.owner_count = internal_mem.checked_add(header.owner_count, 1) otherwise {
         return safety.invariant_abort()
     }
-    return SharedCell<T> {
+    return SharedStorage<T> {
         mapping_address: owner.mapping_address,
         mapping_size: owner.mapping_size,
         header: owner.header,
@@ -91,7 +99,7 @@ noalloc func share<T>(owner: &SharedCell<T>): SharedCell<T> {
     }
 }
 
-noalloc func try_write<T>(owner: &SharedCell<T>): SharedWrite<T>? from owner {
+noalloc func try_write<T>(owner: &SharedStorage<T>): SharedWrite<T>? from owner {
     if !owner.active { return safety.invariant_abort() }
     let header = header_view_mut(owner)
     if header.write_locked { return none }
@@ -108,7 +116,12 @@ noalloc func unlock<T>(write: &+SharedWrite<T>): void {
     return
 }
 
-func release<T>(owner: &+SharedCell<T>): void {
+noalloc func read_storage<T>(owner: &SharedStorage<T>): &T from owner {
+    if !owner.active { return safety.invariant_abort() }
+    return &ptr.slice_from_raw_parts_value(owner.value, 1)[0]
+}
+
+func release_storage<T>(owner: &+SharedStorage<T>): void {
     if !owner.active { return }
     owner.active = false
     let header = header_view_mut(owner)
@@ -126,17 +139,33 @@ func release<T>(owner: &+SharedCell<T>): void {
 
 construct SharedCell<T> {
     func new(value: T): Self {
-        return new_shared(move value)
+        return SharedCell<T> { storage: new_shared_storage(move value) }
+    }
+}
+
+construct SharedValue<T> {
+    func new(value: T): Self {
+        return SharedValue<T> { storage: new_shared_storage(move value) }
     }
 }
 
 instance SharedCell<T> {
     noalloc method &self.share(): Self {
-        return share(self)
+        return SharedCell<T> { storage: share_storage(&self.storage) }
     }
 
     noalloc method &self.try_write(): SharedWrite<T>? from self {
-        return try_write(self)?
+        return try_write(&self.storage)?
+    }
+}
+
+instance SharedValue<T> {
+    noalloc method &self.share(): Self {
+        return SharedValue<T> { storage: share_storage(&self.storage) }
+    }
+
+    noalloc method &self.read(): &T from self {
+        return read_storage(&self.storage)
     }
 }
 
@@ -163,7 +192,12 @@ noalloc drop SharedWrite<T>(&+self) {
 }
 
 drop SharedCell<T>(&+self) {
-    release(self)
+    release_storage(&+self.storage)
+    return
+}
+
+drop SharedValue<T>(&+self) {
+    release_storage(&+self.storage)
     return
 }
 
@@ -188,4 +222,13 @@ test shared_clone_and_write_exclusion {
         return
     }
     return error.new("std.internal.shared.test", "overlapping write projection was accepted")
+}
+
+test immutable_shared_values_keep_one_value_alive_across_clones {
+    var first = SharedValue<SharedProbe>.new(SharedProbe { value: 41 })
+    let second = first.share()
+    if first.read().value != 41 || second.read().value != 41 {
+        return error.new("std.internal.shared.test", "immutable shared value changed")
+    }
+    return
 }

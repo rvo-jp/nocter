@@ -731,9 +731,9 @@ noalloc primitive func set_descriptor_status_flags_raw(fd: usize, flags: usize):
 #target: \"arm64-darwin\"
 noalloc primitive func suppress_broken_pipe_raw(fd: usize): SyscallResult
 #target: \"arm64-darwin\"
-noalloc primitive func process_termination_descriptor_raw(): SyscallResult
+noalloc primitive func process_lifecycle_descriptor_raw(): SyscallResult
 #target: \"arm64-darwin\"
-noalloc primitive func process_termination_observe_raw(): SyscallResult
+noalloc primitive func process_lifecycle_observe_raw(): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) noalloc primitive func read_descriptor_raw(fd: usize, address: usize, capacity: usize): SyscallResult
 #target: \"arm64-darwin\"

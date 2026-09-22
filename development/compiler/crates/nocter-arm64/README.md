@@ -69,6 +69,10 @@ source, loader commands, or package state.
 - Whole-program lowering scans Machine primitive calls once. Closed role usage and the exact ABI
   targets needed for source wrappers are passed to helper families; those families cannot
   rediscover dependencies by walking Machine independently.
+- The generated process-lifecycle service owns one Darwin `kqueue` signal source for reload,
+  interrupt, and termination. It consumes reload events, preserves the first termination request
+  in the runtime-owned context, restores all replaced dispositions at process finalization, and
+  exposes only descriptor and classified-observation targets to source wrappers.
 - Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
   release are production callable targets. Native qualification calls those targets and cannot
   carry a parallel lifecycle implementation; quiescence commits only after `dispatch_sync_f`

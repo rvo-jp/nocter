@@ -1,12 +1,12 @@
 use crate::{RuntimeFunctionImport, RuntimeLibraryIdentity};
 
-/// Function dependencies admitted by process-owned Darwin termination observation.
+/// Function dependencies admitted by process-owned Darwin lifecycle observation.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum DarwinTerminationFunction {
+pub enum DarwinLifecycleFunction {
     Signal,
 }
 
-impl DarwinTerminationFunction {
+impl DarwinLifecycleFunction {
     pub const ALL: &'static [Self] = &[Self::Signal];
 
     #[must_use]
@@ -23,15 +23,15 @@ impl DarwinTerminationFunction {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::DarwinTerminationFunction;
+    use super::DarwinLifecycleFunction;
 
     #[test]
-    fn termination_imports_are_complete_and_unique() {
-        let imports = DarwinTerminationFunction::ALL
+    fn lifecycle_imports_are_complete_and_unique() {
+        let imports = DarwinLifecycleFunction::ALL
             .iter()
             .copied()
-            .map(DarwinTerminationFunction::import)
+            .map(DarwinLifecycleFunction::import)
             .collect::<BTreeSet<_>>();
-        assert_eq!(imports.len(), DarwinTerminationFunction::ALL.len());
+        assert_eq!(imports.len(), DarwinLifecycleFunction::ALL.len());
     }
 }

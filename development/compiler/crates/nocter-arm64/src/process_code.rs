@@ -48,13 +48,14 @@ pub(crate) fn emit_initialize(
         code,
         Arm64LoadStoreSize::Double,
         argument(0),
-        checked_add(offset, layout.termination_descriptor_offset())?,
+        checked_add(offset, layout.lifecycle_descriptor_offset())?,
     );
     load_immediate(argument(0), 0, code);
     for field in [
-        layout.termination_interrupt_handler_offset(),
-        layout.termination_terminate_handler_offset(),
-        layout.termination_observed_signal_offset(),
+        layout.lifecycle_reload_handler_offset(),
+        layout.lifecycle_interrupt_handler_offset(),
+        layout.lifecycle_terminate_handler_offset(),
+        layout.lifecycle_sticky_termination_offset(),
     ] {
         crate::frame_access::store_at_stack_offset(
             code,

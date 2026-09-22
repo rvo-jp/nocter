@@ -4,6 +4,7 @@ use /string.String
 
 see ./builder.nct
 see ./configuration.nct
+see ./publication.nct
 see ./errors.nct
 see ./schema.nct
 see ./source.nct
@@ -103,6 +104,35 @@ instance Builder {
 
 /// One immutable, typed, finalized configuration.
 pub struct Configuration
+
+/// One clonable owner of the currently published valid configuration.
+pub struct PublishedConfiguration
+
+/// One borrow-bounded view of a published configuration.
+pub struct ConfigurationView
+
+construct PublishedConfiguration {
+    /// Publishes the initial already validated configuration.
+    pub func new(configuration: Configuration): Self!
+}
+
+instance PublishedConfiguration {
+    /// Creates another owner of the same publication without allocating.
+    pub noalloc method &self.share(): Self
+
+    /// Returns a view owning the currently published immutable generation.
+    pub async method &self.current(): ConfigurationView
+
+    /// Atomically replaces the current generation with an already validated candidate.
+    ///
+    /// Existing views retain their previous generation.
+    pub async method &self.publish(configuration: Configuration): void
+}
+
+instance ConfigurationView {
+    /// Borrows the configuration for the lifetime of this view.
+    pub noalloc coerce &self as &Configuration
+}
 
 instance Configuration {
     /// Returns a text value, none when optional and absent, or an accessor mismatch error.

@@ -336,10 +336,10 @@ pub enum Arm64SelectedInstruction {
     CallDarwinFilePrimitive(crate::Arm64DarwinFilePrimitive),
     /// Transfers one exact unreaped child to the compiler-owned abandonment service.
     CallDarwinProcessAbandon,
-    /// Opens or returns the process-owned termination event descriptor.
-    CallDarwinTerminationDescriptor,
-    /// Performs one nonblocking process termination observation.
-    CallDarwinTerminationObserve,
+    /// Opens or returns the process-owned lifecycle event descriptor.
+    CallDarwinLifecycleDescriptor,
+    /// Performs one nonblocking process lifecycle observation.
+    CallDarwinLifecycleObserve,
     ExitProcess {
         status: Arm64SelectedRegister,
     },

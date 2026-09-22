@@ -32,11 +32,16 @@ The scope does not force arbitrary I/O to become cancellable. A child must compo
 with the supplied token, or use an API whose own cancellation contract closes the wait when its
 future is destroyed.
 
-## Process Termination
+## Process Lifecycle
 
-`termination_requested` waits for the first host interrupt or graceful-termination signal through
-the executor's existing descriptor-readiness path. The compiler-owned process context creates one
-event source, retains the original signal dispositions, shares the first observation between
-callers, and restores the dispositions during process finalization. The standard module sees only
-the target adapter's descriptor and classified observation contract; it does not own global signal
-state or reproduce native event-record layout.
+`lifecycle_requested` waits for configuration reload, interactive interrupt, or graceful
+termination through the executor's existing descriptor-readiness path. On Darwin these requests
+correspond to `SIGHUP`, `SIGINT`, and `SIGTERM`. A reload observation is consumed so a service can
+return to waiting for a later reload. Interrupt and termination observations become sticky because
+shutdown cannot be withdrawn; every later caller observes the same request.
+
+The compiler-owned process context creates one event source, retains all three original signal
+dispositions, and restores them during process finalization. The standard module sees only the
+target adapter's descriptor and classified observation contract; it does not own global signal
+state or reproduce native event-record layout. Signal observation does not read, validate, or
+publish configuration. Application code performs those steps after receiving a reload request.

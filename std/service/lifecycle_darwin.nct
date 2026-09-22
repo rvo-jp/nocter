@@ -1,0 +1,47 @@
+//! Darwin lifecycle observation over the process-owned target adapter.
+
+see ./index.nct
+
+use /internal/os/darwin
+use /internal/os/darwin.LifecycleObservationAttempt
+use /internal/task
+
+#target: "arm64-darwin"
+async func lifecycle_requested(): LifecycleRequest! {
+    let descriptor = darwin.process_lifecycle_descriptor()
+    if descriptor.errno != 0 {
+        return error.new(
+            "std.service.lifecycle_unavailable",
+            "process lifecycle observation could not be initialized",
+        )
+    }
+    loop {
+        match darwin.try_observe_process_lifecycle() {
+            LifecycleObservationAttempt.ready(signal) {
+                if signal == 1 { return LifecycleRequest.reload }
+                if signal == 2 { return LifecycleRequest.interrupt }
+                if signal == 15 { return LifecycleRequest.terminate }
+                return error.new(
+                    "std.service.lifecycle_invalid",
+                    "the process lifecycle source returned an invalid signal",
+                )
+            }
+            LifecycleObservationAttempt.pending {
+                await task.wait_descriptor_ready(descriptor.value, false)
+            }
+            LifecycleObservationAttempt.interrupted {}
+            LifecycleObservationAttempt.failed(_) {
+                return error.new(
+                    "std.service.lifecycle_failed",
+                    "the process lifecycle source could not be observed",
+                )
+            }
+            LifecycleObservationAttempt.malformed {
+                return error.new(
+                    "std.service.lifecycle_invalid",
+                    "the process lifecycle source returned malformed progress",
+                )
+            }
+        }
+    }
+}

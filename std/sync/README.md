@@ -12,6 +12,9 @@ returned handle participates in the lifetime of one page-backed value.
 executor thread. The returned `MutexGuard<T>` is the only public capability that exposes the value,
 and its destruction releases the mutex on ordinary return, failure propagation, and future
 cancellation. Notification bytes only prompt another state check; they never represent lock state.
+The guard's `replace` operation moves one complete replacement into the protected place and returns
+the previous value while exclusivity is still held. Higher-level publishers can therefore expose
+atomic replacement without importing pointer operations or the mutex representation.
 
 `Channel<T, N>.bounded()` creates a queue whose positive capacity `N` is part of its type. Calling
 `split` consumes that new channel and returns its initial sending and receiving endpoints.

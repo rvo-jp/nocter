@@ -38,6 +38,8 @@ public source-level imports.
 - the closed Darwin network adapter import catalog, callback signatures, and complete-transfer
   classification
 - closed async lifecycle-state tag sequences
+- one fixed process-lifecycle context layout retaining the Darwin event descriptor, three original
+  signal dispositions, and only the sticky termination observation
 - target-independent descriptor, monotonic-timer, and process-completion wait interests
 - target runtime capability requirements
 - closed runtime environment schemas
@@ -53,6 +55,9 @@ public source-level imports.
   cannot be selected from user source.
 - A target-service binding owns its closed descriptor; later stages cannot reconstruct the
   descriptor from its role or declaration spelling.
+- Process lifecycle observation has one runtime context authority. Reload remains a consumed event,
+  while interrupt or termination becomes sticky; neither source wrappers nor ARM64 selection may
+  invent a parallel process-global state layout.
 - A runtime-storage role has one declaration binding and one ABI-selected layout; source cannot
   supply its fields, size, or alignment. Native owners and ownership-bearing callback events keep
   distinct roles even where their current layouts happen to have equal dimensions.

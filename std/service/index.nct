@@ -3,7 +3,7 @@
 use /sync.CancellationToken
 
 see ./scope.nct
-see ./termination_darwin.nct
+see ./lifecycle_darwin.nct
 
 /// One structured owner of service child computations and their shared cancellation request.
 ///
@@ -24,17 +24,18 @@ pub enum ServiceCompletion {
     failed(failure: error)
 }
 
-/// One process termination request observed from the host operating system.
-pub enum TerminationSignal {
+/// One process lifecycle request observed from the host operating system.
+pub enum LifecycleRequest {
+    reload
     interrupt
     terminate
 }
 
-/// Waits for the first process termination request without blocking the executor.
+/// Waits for the next process lifecycle request without blocking the executor.
 ///
-/// The observation is process-wide and sticky. Concurrent callers share one compiler-owned event
-/// source and receive the same first request.
-pub async func termination_requested(): TerminationSignal!
+/// Reload requests are consumed observations. Interrupt and termination requests are process-wide
+/// and sticky, so every later caller observes the same request.
+pub async func lifecycle_requested(): LifecycleRequest!
 
 construct ServiceScope {
     /// Creates an accepting scope with a fresh cancellation domain.

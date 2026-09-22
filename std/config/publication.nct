@@ -1,0 +1,48 @@
+//! Shared publication of complete validated configuration values.
+
+see ./index.nct
+
+use /internal/shared.SharedValue
+use /sync.Mutex
+
+struct PublishedConfiguration {
+    configuration: Mutex<SharedValue<Configuration>>
+}
+
+struct ConfigurationView {
+    configuration: SharedValue<Configuration>
+}
+
+construct PublishedConfiguration {
+    func new(configuration: Configuration): Self! {
+        return PublishedConfiguration {
+            configuration: Mutex<SharedValue<Configuration>>.new(
+                SharedValue<Configuration>.new(move configuration),
+            )?,
+        }
+    }
+}
+
+instance PublishedConfiguration {
+    noalloc method &self.share(): Self {
+        return PublishedConfiguration { configuration: self.configuration.share() }
+    }
+
+    async method &self.current(): ConfigurationView {
+        let current = await self.configuration.lock()
+        return ConfigurationView { configuration: current.share() }
+    }
+
+    async method &self.publish(configuration: Configuration): void {
+        let replacement = SharedValue<Configuration>.new(move configuration)
+        var current = await self.configuration.lock()
+        let previous = current.replace(move replacement)
+        return
+    }
+}
+
+instance ConfigurationView {
+    noalloc coerce &self as &Configuration {
+        return self.configuration.read()
+    }
+}

@@ -205,15 +205,15 @@ pub(crate) fn select(
             selected.push(Arm64SelectedInstruction::CallDarwinProcessAbandon);
             Ok(())
         }
-        PrimitiveRole::ProcessTerminationDescriptor | PrimitiveRole::ProcessTerminationObserve => {
+        PrimitiveRole::ProcessLifecycleDescriptor | PrimitiveRole::ProcessLifecycleObserve => {
             validate_type_arguments(operation, target, 0)?;
             validate_register_abi(operation, target, &[], 2)?;
             selected.push(match target.role() {
-                PrimitiveRole::ProcessTerminationDescriptor => {
-                    Arm64SelectedInstruction::CallDarwinTerminationDescriptor
+                PrimitiveRole::ProcessLifecycleDescriptor => {
+                    Arm64SelectedInstruction::CallDarwinLifecycleDescriptor
                 }
-                PrimitiveRole::ProcessTerminationObserve => {
-                    Arm64SelectedInstruction::CallDarwinTerminationObserve
+                PrimitiveRole::ProcessLifecycleObserve => {
+                    Arm64SelectedInstruction::CallDarwinLifecycleObserve
                 }
                 _ => unreachable!(),
             });

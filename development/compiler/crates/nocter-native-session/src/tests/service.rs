@@ -33,22 +33,30 @@ fn public_service_scope_cancels_and_joins_owned_work() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn public_termination_observation_reports_process_signals() {
+fn public_lifecycle_observation_reports_reload_and_termination_signals() {
     let standard_root = nocter_test_support::standard_library_root();
     let package_root = TempPackage::new();
     let image = compile_single_file_native_source(
         &package_root,
         &standard_root,
         "use std/service\n\
-         use std/service.TerminationSignal\n\
+         use std/service.LifecycleRequest\n\
          async func main(): i32! {\n\
-             match await service.termination_requested()? {\n\
-                 TerminationSignal.interrupt { return 42 }\n\
-                 TerminationSignal.terminate { return 43 }\n\
+             match await service.lifecycle_requested()? {\n\
+                 LifecycleRequest.reload {\n\
+                     match await service.lifecycle_requested()? {\n\
+                         LifecycleRequest.reload { return 41 }\n\
+                         LifecycleRequest.interrupt { return 52 }\n\
+                         LifecycleRequest.terminate { return 53 }\n\
+                     }\n\
+                 }\n\
+                 LifecycleRequest.interrupt { return 42 }\n\
+                 LifecycleRequest.terminate { return 43 }\n\
              }\n\
          }\n",
     );
 
+    execute_after_process_signal(&image, &package_root.0, "service-reload", "HUP", 41);
     execute_after_process_signal(&image, &package_root.0, "service-interrupt", "INT", 42);
     execute_after_process_signal(&image, &package_root.0, "service-terminate", "TERM", 43);
 }

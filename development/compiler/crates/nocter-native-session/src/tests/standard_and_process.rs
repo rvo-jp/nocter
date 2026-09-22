@@ -191,13 +191,20 @@ fn configuration_sources_compose_in_caller_authored_order() {
         &package_root,
         &standard_root,
         r#"use std/cli.Application
-use std/config.{Builder, Field, Schema, Source}
+use std/config.{Builder, Configuration, Field, PublishedConfiguration, Schema, Source}
 use std/config/arguments as config_arguments
 use std/config/environment as config_environment
 use std/config/json as config_json
 use std/json
 
-func main(): i32 {
+async func published_host_is(published: &PublishedConfiguration, expected: &str): bool {
+    let current = await published.current()
+    let value: &Configuration = &current as &Configuration
+    let host = value.display("host") catch _ { return false } otherwise { return false }
+    return &host == expected
+}
+
+async func main(): i32 {
     var schema = Schema.empty()
     let host = Field.text("host") catch _ { return 1 }
     schema.add(host.required()) catch _ { return 2 }
@@ -246,6 +253,38 @@ func main(): i32 {
         return 37
     }
     if host_source != "process environment" || port_source != "command line" { return 38 }
+
+    let published = PublishedConfiguration.new(move configuration) catch _ { return 39 }
+    let reader = published.share()
+    if !await published_host_is(&reader, "environment.example") { return 40 }
+
+    var rejected_schema = Schema.empty()
+    let rejected_port = Field.unsigned("port") catch _ { return 41 }
+    rejected_schema.add(rejected_port.required()) catch _ { return 42 }
+    var rejected_builder = Builder.new(move rejected_schema)
+    var rejected_source = Source.new("invalid reload") catch _ { return 43 }
+    rejected_source.add_text("port", "not-a-number") catch _ { return 44 }
+    var rejected = false
+    rejected_builder.apply(move rejected_source) catch _ { rejected = true }
+    if !rejected { return 45 }
+    if !await published_host_is(&reader, "environment.example") { return 46 }
+
+    var replacement_schema = Schema.empty()
+    let replacement_host = Field.text("host") catch _ { return 47 }
+    replacement_schema.add(replacement_host.required()) catch _ { return 48 }
+    var replacement_builder = Builder.new(move replacement_schema)
+    var replacement_source = Source.new("reload") catch _ { return 49 }
+    replacement_source.add_text("host", "reloaded.example") catch _ { return 50 }
+    replacement_builder.apply(move replacement_source) catch _ { return 51 }
+    let replacement = replacement_builder.finish() catch _ { return 52 }
+    let previous_view = await reader.current()
+    await published.publish(move replacement)
+    if !await published_host_is(&reader, "reloaded.example") { return 53 }
+    let previous_value: &Configuration = &previous_view as &Configuration
+    let previous_host = previous_value.display("host")
+        catch _ { return 54 }
+        otherwise { return 55 }
+    if &previous_host != "environment.example" { return 56 }
     return 0
 }
 "#,

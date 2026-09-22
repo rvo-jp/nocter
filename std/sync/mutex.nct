@@ -3,6 +3,7 @@
 see ./index.nct
 
 use /internal/notify.NotificationHandle
+use /internal/ptr
 use /internal/safety
 use /internal/shared.{SharedCell, SharedWrite}
 
@@ -57,6 +58,10 @@ instance MutexGuard<T> {
 
     noalloc coerce &+self as &+T {
         return self.value.write()
+    }
+
+    noalloc method &+self.replace(value: T): T {
+        return ptr.replace_value(self.value.write(), move value)
     }
 }
 

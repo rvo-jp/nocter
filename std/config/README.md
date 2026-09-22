@@ -26,6 +26,15 @@ typed candidates must match the declared kind exactly. Constraints are checked a
 `Configuration`. Typed accessors distinguish an absent optional value from an unknown field or a
 wrong accessor. Each present value retains the label of the source that last supplied it.
 
+`PublishedConfiguration` owns one current valid `Configuration` as an immutable shared snapshot.
+`current` briefly locks only the snapshot owner and returns a view that keeps that exact generation
+alive without retaining the lock. `publish` prepares a new immutable owner before atomically
+replacing the current owner. Existing views continue reading the previous generation, while later
+views read the replacement. A `Builder`, invalid source, or partially decoded candidate cannot
+enter published state because publication accepts only a completed `Configuration`. Candidate
+reading and validation remain outside the publication lock; a failed reload leaves the previous
+value unchanged without rollback logic.
+
 ## Secret Safety
 
 Secret classification belongs to the schema, not to a source adapter. `display` always returns

@@ -116,8 +116,8 @@ impl PrimitiveRole {
             | Self::ProcessEnvironmentCount
             | Self::ProcessEnvironmentName
             | Self::ProcessEnvironmentValue
-            | Self::ProcessTerminationDescriptor
-            | Self::ProcessTerminationObserve => PROCESS_CONTEXT,
+            | Self::ProcessLifecycleDescriptor
+            | Self::ProcessLifecycleObserve => PROCESS_CONTEXT,
             Self::DescriptorReadiness
             | Self::DescriptorReadinessOrDeadline
             | Self::MonotonicDeadline

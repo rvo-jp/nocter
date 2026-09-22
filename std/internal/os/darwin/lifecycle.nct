@@ -1,0 +1,26 @@
+//! Process-owned Darwin lifecycle event observation.
+
+see ./index.nct
+
+#target: "arm64-darwin"
+noalloc primitive func process_lifecycle_descriptor_raw(): SyscallResult
+
+#target: "arm64-darwin"
+noalloc primitive func process_lifecycle_observe_raw(): SyscallResult
+
+#target: "arm64-darwin"
+noalloc func process_lifecycle_descriptor(): SyscallResult {
+    return process_lifecycle_descriptor_raw()
+}
+
+#target: "arm64-darwin"
+noalloc func try_observe_process_lifecycle(): LifecycleObservationAttempt {
+    let result = process_lifecycle_observe_raw()
+    if result.errno == ERRNO_INTERRUPTED { return LifecycleObservationAttempt.interrupted }
+    if result.errno == ERRNO_WOULD_BLOCK { return LifecycleObservationAttempt.pending }
+    if result.errno != 0 { return LifecycleObservationAttempt.failed(result.errno) }
+    if result.value == 1 || result.value == 2 || result.value == 15 {
+        return LifecycleObservationAttempt.ready(result.value)
+    }
+    return LifecycleObservationAttempt.malformed
+}

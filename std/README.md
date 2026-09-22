@@ -38,7 +38,7 @@ comments.
 | byte streams and buffering | [I/O](io/README.md) | `std/io`, `std/io/buffer` |
 | paths and filesystem operations | [Filesystem](fs/README.md) | `std/path`, `std/fs` |
 | durable local byte storage | [Durable Local Byte Storage](store/README.md) | `std/store` |
-| source-neutral configuration and input adapters | [Source-Neutral Configuration](config/README.md) | `std/config`, `std/config/arguments`, `std/config/environment`, `std/config/json` |
+| source-neutral configuration, publication, and input adapters | [Source-Neutral Configuration](config/README.md) | `std/config`, `std/config/arguments`, `std/config/environment`, `std/config/json` |
 | numeric values and text conversion | [Numeric Values](num/README.md) | `std/num` |
 | total ordering and comparison results | [Total Ordering](order/README.md) | `std/order` |
 | allocation and storage failure | [Allocation and Failure](mem/README.md) | `std/mem` |
@@ -53,7 +53,7 @@ comments.
 | durations, monotonic time, wall-clock time, and UTC calendar values | [Time](time/README.md) | `std/time` |
 | structured asynchronous computation composition | [Structured Asynchronous Tasks](task/README.md) | `std/task` |
 | cooperative shared ownership and synchronization | [Cooperative Synchronization](sync/README.md) | `std/sync` |
-| long-running task ownership and graceful shutdown | [Service Lifecycle](service/README.md) | `std/service` |
+| long-running task ownership, reload, and graceful shutdown | [Service Lifecycle](service/README.md) | `std/service` |
 | synchronous processes and process context | [Synchronous Processes](process/README.md) | `std/process` |
 | structured command-line parsing and help | [Command-Line Applications](cli/README.md) | `std/cli` |
 | numeric network addresses and socket I/O | [Network I/O](net/README.md) | `std/net` |
