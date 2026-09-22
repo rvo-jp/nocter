@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.66.0 Durable Local Application State is published and externally audited. Its exact
-release-content commit passed the complete compiler gate and deterministic artifact qualification;
-the public tag, single asset, downloaded installed home, latest-release endpoint, Actions runs,
-and source-identified Pages deployment all agree on the published identity.
+Nocter v0.67.0 Operational Local Applications is active. Phase 0 has fixed the milestone's
+responsibility boundaries, invariants, migration rule, and completion gates. v0.66.0 remains the
+published and externally audited release boundary.
 
 ## Next Work
 
-Define the next application milestone from current user priorities before changing the published
-contract. Preserve the v0.66.0 release boundary and begin new behavior under a new versioned
-milestone rather than extending the completed record.
+Implement Phase 1 as one ownership slice: add a target-backed non-waiting exclusive operation to the
+file-owner contract, retain a stable sibling lock owner for the full `Store` lifetime, and prove
+same-process, cross-process, close, and process-exit behavior. Do not encode ownership through
+replaceable journal inode identity or persistent marker contents.
 
 Preserve the v0.66.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

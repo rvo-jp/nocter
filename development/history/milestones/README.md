@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.67.0: Operational Local Applications](v0.67.0.md)
 - [v0.66.0: Durable Local Application State](v0.66.0.md)
 - [v0.66.0 Release Preparation](v0.66.0-release-preparation.md)
 - [v0.65.0: Practical Stateful Services](v0.65.0.md)
