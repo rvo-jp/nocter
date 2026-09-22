@@ -1,0 +1,239 @@
+//! Transient seeded hash-to-slot index for Store state.
+
+use /hash.HashState
+use /internal/mem
+use /internal/ptr
+use /internal/safety
+use /vec.Vec
+
+enum StoreIndexBucket {
+    empty
+    deleted
+    occupied(hash: u64, slots: Vec<usize>)
+}
+
+enum StoreIndexProbe {
+    found(bucket_index: usize)
+    vacant(bucket_index: usize)
+}
+
+struct StoreIndex {
+    buckets: Vec<StoreIndexBucket>
+    usable_capacity: usize
+    hashes: usize
+    tombstones: usize
+    seed: HashState
+}
+
+noalloc func store_index_usable_capacity(bucket_count: usize): usize {
+    return bucket_count - bucket_count / 4
+}
+
+func store_index_bucket_count(minimum: usize): usize {
+    if minimum == 0 { return 0 }
+    var bucket_count: usize = 8
+    while store_index_usable_capacity(bucket_count) < minimum {
+        bucket_count = mem.checked_add(bucket_count, bucket_count) otherwise {
+            return mem.allocation_abort()
+        }
+    }
+    return bucket_count
+}
+
+func fill_store_index_buckets(buckets: &+Vec<StoreIndexBucket>, count: usize): void {
+    var index: usize = 0
+    while index < count {
+        buckets.push(StoreIndexBucket.empty)
+        index += 1
+    }
+    return
+}
+
+func new_store_index(minimum: usize): StoreIndex {
+    let bucket_count = store_index_bucket_count(minimum)
+    var buckets: Vec<StoreIndexBucket> = Vec.with_capacity(bucket_count)
+    fill_store_index_buckets(&+buckets, bucket_count)
+    return StoreIndex {
+        buckets: move buckets,
+        usable_capacity: if bucket_count == 0 {
+            0
+        } else {
+            store_index_usable_capacity(bucket_count)
+        },
+        hashes: 0,
+        tombstones: 0,
+        seed: HashState.fresh(),
+    }
+}
+
+noalloc func store_index_next(index: usize, bucket_count: usize): usize {
+    let following = index + 1
+    if following == bucket_count { return 0 }
+    return following
+}
+
+noalloc func probe_store_index(index: &StoreIndex, hash: u64): StoreIndexProbe {
+    let bucket_count = index.buckets.len()
+    if bucket_count == 0 { return StoreIndexProbe.vacant(0) }
+    var bucket_index = hash as usize % bucket_count
+    var first_deleted = bucket_count
+    var examined: usize = 0
+    while examined < bucket_count {
+        match &index.buckets[bucket_index] {
+            StoreIndexBucket.empty {
+                if first_deleted < bucket_count {
+                    return StoreIndexProbe.vacant(first_deleted)
+                }
+                return StoreIndexProbe.vacant(bucket_index)
+            }
+            StoreIndexBucket.deleted {
+                if first_deleted == bucket_count { first_deleted = bucket_index }
+            }
+            StoreIndexBucket.occupied(stored_hash, _) {
+                if ptr.copy_value(stored_hash) == hash {
+                    return StoreIndexProbe.found(bucket_index)
+                }
+            }
+        }
+        bucket_index = store_index_next(bucket_index, bucket_count)
+        examined += 1
+    }
+    if first_deleted < bucket_count { return StoreIndexProbe.vacant(first_deleted) }
+    return StoreIndexProbe.vacant(0)
+}
+
+func insert_store_index_bucket(index: &+StoreIndex, hash: u64, slots: Vec<usize>): bool {
+    let location = match probe_store_index(index, hash) {
+        StoreIndexProbe.found(_) { return false }
+        StoreIndexProbe.vacant(bucket_index) { bucket_index }
+    }
+    let reused_tombstone = match index.buckets[location] {
+        StoreIndexBucket.deleted { true }
+        _ { false }
+    }
+    let previous = ptr.replace_value(
+        &+index.buckets[location],
+        StoreIndexBucket.occupied(hash, move slots),
+    )
+    drop previous
+    index.hashes += 1
+    if reused_tombstone { index.tombstones -= 1 }
+    return true
+}
+
+func rebuild_store_index(index: &+StoreIndex, bucket_count: usize): void {
+    var replacement: Vec<StoreIndexBucket> = Vec.with_capacity(bucket_count)
+    fill_store_index_buckets(&+replacement, bucket_count)
+    let previous = ptr.replace_value(&+index.buckets, move replacement)
+    index.usable_capacity = store_index_usable_capacity(bucket_count)
+    index.hashes = 0
+    index.tombstones = 0
+    var old = move previous
+    while !old.is_empty() {
+        let bucket = old.pop() otherwise { break }
+        match move bucket {
+            StoreIndexBucket.occupied(hash, slots) {
+                if !insert_store_index_bucket(index, hash, move slots) {
+                    return safety.invariant_abort()
+                }
+            }
+            _ {}
+        }
+    }
+    return
+}
+
+func prepare_store_index_insert(index: &+StoreIndex): void {
+    if index.hashes + 1 > index.usable_capacity {
+        let next_count: usize = if index.buckets.is_empty() {
+            8
+        } else {
+            let current_count = index.buckets.len()
+            mem.growth_capacity(current_count, index.hashes + 1)
+        }
+        rebuild_store_index(index, next_count)
+        return
+    }
+    if index.tombstones > index.hashes && index.tombstones > 8 {
+        let bucket_count = index.buckets.len()
+        rebuild_store_index(index, bucket_count)
+    }
+    return
+}
+
+instance StoreIndex {
+    noalloc method &self.hash(key: &[u8]): u64 {
+        var state = self.seed.restart()
+        key.hash_into(&+state)
+        return state.finish()
+    }
+
+    noalloc method &self.candidates(hash: u64): &[usize]? from self {
+        let bucket_index = match probe_store_index(self, hash) {
+            StoreIndexProbe.found(found) { found }
+            StoreIndexProbe.vacant(_) { return none }
+        }
+        match &self.buckets[bucket_index] {
+            StoreIndexBucket.occupied(_, slots) { return slots as &[usize] }
+            _ { return none }
+        }
+    }
+
+    method &+self.add(hash: u64, slot: usize): bool {
+        match probe_store_index(self, hash) {
+            StoreIndexProbe.found(bucket_index) {
+                match &+self.buckets[bucket_index] {
+                    StoreIndexBucket.occupied(_, slots) {
+                        var candidate: usize = 0
+                        while candidate < slots.len() {
+                            if slots[candidate] == slot { return false }
+                            candidate += 1
+                        }
+                        slots.push(slot)
+                        return true
+                    }
+                    _ { return false }
+                }
+            }
+            StoreIndexProbe.vacant(_) {}
+        }
+        prepare_store_index_insert(self)
+        var slots: Vec<usize> = Vec.with_capacity(1)
+        slots.push(slot)
+        return insert_store_index_bucket(self, hash, move slots)
+    }
+
+    method &+self.remove(hash: u64, slot: usize): bool {
+        let bucket_index = match probe_store_index(self, hash) {
+            StoreIndexProbe.found(found) { found }
+            StoreIndexProbe.vacant(_) { return false }
+        }
+        var removed = false
+        var remove_bucket = false
+        match &+self.buckets[bucket_index] {
+            StoreIndexBucket.occupied(_, slots) {
+                var candidate: usize = 0
+                while candidate < slots.len() {
+                    if slots[candidate] == slot {
+                        let _ = slots.swap_remove(candidate)
+                        removed = true
+                        remove_bucket = slots.is_empty()
+                        break
+                    }
+                    candidate += 1
+                }
+            }
+            _ { return false }
+        }
+        if !removed { return false }
+        if !remove_bucket { return true }
+        let previous = ptr.replace_value(
+            &+self.buckets[bucket_index],
+            StoreIndexBucket.deleted,
+        )
+        drop previous
+        self.hashes -= 1
+        self.tombstones += 1
+        return true
+    }
+}

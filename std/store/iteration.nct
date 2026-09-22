@@ -1,0 +1,48 @@
+//! Lending traversal over authoritative Store insertion order.
+
+see ./index.nct
+see ./state.nct
+
+use /internal/safety
+
+copy struct StoreEntryRef {
+    key_value: &[u8]
+    value_value: &[u8]
+}
+
+struct StoreEntries {
+    state: &StoreState
+    next_slot: usize?
+    remaining: usize
+}
+
+noalloc func store_entries(state: &StoreState): StoreEntries from state {
+    return StoreEntries {
+        state: state,
+        next_slot: store_state_first_slot(state),
+        remaining: store_state_len(state),
+    }
+}
+
+instance StoreEntryRef {
+    noalloc method &self.key(): &[u8] from self { return self.key_value }
+
+    noalloc method &self.value(): &[u8] from self { return self.value_value }
+}
+
+instance StoreEntries {
+    noalloc method &self.remaining_len(): usize { return self.remaining }
+
+    noalloc method &+self.next(): StoreEntryRef? from self {
+        let slot_index = self.next_slot otherwise { return none }
+        self.next_slot = store_state_next_slot(self.state, slot_index)
+        self.remaining -= 1
+        let entry = store_state_entry_at(self.state, slot_index) otherwise {
+            return safety.invariant_abort()
+        }
+        return StoreEntryRef {
+            key_value: &entry.key,
+            value_value: &entry.value,
+        }
+    }
+}

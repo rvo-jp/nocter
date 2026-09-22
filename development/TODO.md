@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.67.0 Operational Local Applications is active. Phases 0 and 1 are complete: the milestone
-contract is fixed, and `Store` ownership is now enforced by one target-backed non-waiting lock held
-on a stable sibling for the complete owner lifetime. v0.66.0 remains the published and externally
-audited release boundary.
+Nocter v0.67.0 Operational Local Applications is active. Phases 0 through 2 are complete: the
+milestone contract is fixed, `Store` ownership is enforced by one target-backed non-waiting lock,
+and one insertion-ordered `StoreState` now owns a retained seeded lookup index plus allocation-free
+lending traversal. v0.66.0 remains the published and externally audited release boundary.
 
 ## Next Work
 
-Implement Phase 2 as one state-representation slice: retain deterministic ordered entries as the
-sole state authority, add one transient seeded hash index for lookup and mutation, maintain the
-index without exposing hash placement to persistence, and expose a lending entry iterator. Recovery
-must build the index once; ordinary operations must not reconstruct it or fall back to linear scan.
+Implement Phase 3 as one persistence-format boundary: add bounded atomic mutation batches and
+deterministic complete checkpoints, give the published v0.66.0 snapshot journal one explicit
+version-specific decoder, replay either each complete mutation batch or none of it, and normalize a
+legacy journal through the ordinary durable replacement authority. Commit, replay, migration, and
+compaction must share one record/version authority rather than branching on guessed bytes.
 
 Preserve the v0.66.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.

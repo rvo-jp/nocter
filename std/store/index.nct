@@ -1,8 +1,16 @@
 //! Durable local byte storage with explicit commit and bounded recovery.
 
+use /iter.LendingIterator
+
 see ./journal.nct
 
 see ./store.nct
+
+see ./state.nct
+
+see ./state_index.nct
+
+see ./iteration.nct
 
 see ./tests.nct
 
@@ -27,6 +35,27 @@ construct StoreLimits {
 /// One process-exclusive byte-keyed local store.
 pub struct Store
 
+/// One borrowed key/value entry yielded from a Store traversal.
+pub copy struct StoreEntryRef
+
+instance StoreEntryRef {
+    /// Borrows the entry key.
+    pub noalloc method &self.key(): &[u8] from self
+
+    /// Borrows the entry value.
+    pub noalloc method &self.value(): &[u8] from self
+}
+
+/// A lending cursor over Store entries in deterministic insertion order.
+pub struct StoreEntries
+
+instance StoreEntries {
+    impl LendingIterator { .Item = StoreEntryRef }
+
+    /// Returns the exact number of entries not yet yielded.
+    pub noalloc method &self.remaining_len(): usize
+}
+
 construct Store {
     /// Opens or creates a store, acquires exclusive ownership, and replays committed state.
     pub async func open(path: &str): Self!
@@ -44,6 +73,9 @@ instance Store {
 
     /// Returns the current value for an exact byte key.
     pub noalloc method &self.get(key: &[u8]): &[u8]? from self
+
+    /// Borrows every retained entry in deterministic insertion order without copying.
+    pub noalloc method &self.entries(): StoreEntries from self
 
     /// Copies a key and value into current state without committing it.
     pub method &+self.set(key: &[u8], value: &[u8]): void!

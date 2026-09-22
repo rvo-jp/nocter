@@ -1,0 +1,206 @@
+//! Authoritative insertion-ordered in-memory Store state.
+
+see ./state_index.nct
+
+use /internal/ptr
+use /internal/safety
+use /vec.Vec
+
+struct StoreEntry {
+    key: Vec<u8>
+    value: Vec<u8>
+}
+
+struct StoreSlot {
+    entry: StoreEntry
+    previous: usize?
+    next: usize?
+    free_next: usize?
+    occupied: bool
+}
+
+struct StoreState {
+    slots: Vec<StoreSlot>
+    index: StoreIndex
+    first: usize?
+    last: usize?
+    free: usize?
+    len: usize
+}
+
+noalloc func store_keys_equal(left: &[u8], right: &[u8]): bool {
+    if left.len() != right.len() { return false }
+    var index: usize = 0
+    while index < left.len() {
+        if left[index] != right[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+func empty_store_entry(): StoreEntry {
+    return StoreEntry { key: Vec.empty(), value: Vec.empty() }
+}
+
+func new_store_state(capacity: usize): StoreState {
+    return StoreState {
+        slots: Vec.with_capacity(capacity),
+        index: new_store_index(capacity),
+        first: none,
+        last: none,
+        free: none,
+        len: 0,
+    }
+}
+
+noalloc func find_store_slot(state: &StoreState, key: &[u8]): usize? {
+    let hash = state.index.hash(key)
+    let candidates = state.index.candidates(hash)?
+    var candidate: usize = 0
+    while candidate < candidates.len() {
+        let slot_index = candidates[candidate]
+        if slot_index < state.slots.len()
+        && state.slots[slot_index].occupied
+        && store_keys_equal(&state.slots[slot_index].entry.key, key) {
+            return slot_index
+        }
+        candidate += 1
+    }
+    return none
+}
+
+noalloc func store_state_contains(state: &StoreState, key: &[u8]): bool {
+    let _ = find_store_slot(state, key) otherwise { return false }
+    return true
+}
+
+func link_store_slot(state: &+StoreState, slot_index: usize): void {
+    let previous = state.last
+    state.slots[slot_index].previous = previous
+    state.slots[slot_index].next = none
+    let previous_index = previous otherwise {
+        state.first = slot_index
+        state.last = slot_index
+        return
+    }
+    state.slots[previous_index].next = slot_index
+    state.last = slot_index
+    return
+}
+
+func occupy_reusable_store_slot(
+    state: &+StoreState,
+    slot_index: usize,
+    entry: StoreEntry,
+): void {
+    state.free = state.slots[slot_index].free_next
+    let previous = ptr.replace_value(&+state.slots[slot_index].entry, move entry)
+    drop previous
+    state.slots[slot_index].free_next = none
+    state.slots[slot_index].occupied = true
+    link_store_slot(state, slot_index)
+    return
+}
+
+func append_store_slot(state: &+StoreState, entry: StoreEntry): usize {
+    let slot_index = state.slots.len()
+    state.slots.push(
+        StoreSlot {
+            entry: move entry,
+            previous: none,
+            next: none,
+            free_next: none,
+            occupied: true,
+        },
+    )
+    link_store_slot(state, slot_index)
+    return slot_index
+}
+
+func insert_store_entry(state: &+StoreState, entry: StoreEntry): bool {
+    if store_state_contains(state, &entry.key) { return false }
+    let hash = state.index.hash(&entry.key)
+    let reusable = state.free
+    let slot_index = reusable otherwise {
+        let appended = append_store_slot(state, move entry)
+        if !state.index.add(hash, appended) { return safety.invariant_abort() }
+        state.len += 1
+        return true
+    }
+    occupy_reusable_store_slot(state, slot_index, move entry)
+    if !state.index.add(hash, slot_index) { return safety.invariant_abort() }
+    state.len += 1
+    return true
+}
+
+func replace_store_value(state: &+StoreState, key: &[u8], value: Vec<u8>): Vec<u8>? {
+    let slot_index = find_store_slot(state, key)?
+    return ptr.replace_value(&+state.slots[slot_index].entry.value, move value)
+}
+
+func unlink_store_slot(state: &+StoreState, slot_index: usize): void {
+    let previous = state.slots[slot_index].previous
+    let next = state.slots[slot_index].next
+    let previous_index = previous otherwise {
+        state.first = next
+        let next_index = next otherwise {
+            state.last = none
+            return
+        }
+        state.slots[next_index].previous = none
+        return
+    }
+    state.slots[previous_index].next = next
+    let next_index = next otherwise {
+        state.last = previous
+        return
+    }
+    state.slots[next_index].previous = previous
+    return
+}
+
+func remove_store_entry(state: &+StoreState, key: &[u8]): StoreEntry? {
+    let slot_index = find_store_slot(state, key)?
+    let hash = state.index.hash(key)
+    if !state.index.remove(hash, slot_index) { return safety.invariant_abort() }
+    unlink_store_slot(state, slot_index)
+    let removed = ptr.replace_value(
+        &+state.slots[slot_index].entry,
+        empty_store_entry(),
+    )
+    state.slots[slot_index].occupied = false
+    state.slots[slot_index].previous = none
+    state.slots[slot_index].next = none
+    state.slots[slot_index].free_next = state.free
+    state.free = slot_index
+    state.len -= 1
+    return move removed
+}
+
+noalloc func store_state_len(state: &StoreState): usize { return state.len }
+
+noalloc func store_state_is_empty(state: &StoreState): bool { return state.len == 0 }
+
+noalloc func store_state_value(state: &StoreState, key: &[u8]): &[u8]? from state {
+    let slot_index = find_store_slot(state, key)?
+    return &state.slots[slot_index].entry.value
+}
+
+noalloc func store_state_first_slot(state: &StoreState): usize? { return state.first }
+
+noalloc func store_state_next_slot(state: &StoreState, slot_index: usize): usize? {
+    if slot_index >= state.slots.len() || !state.slots[slot_index].occupied {
+        return none
+    }
+    return state.slots[slot_index].next
+}
+
+noalloc func store_state_entry_at(
+    state: &StoreState,
+    slot_index: usize,
+): &StoreEntry? from state {
+    if slot_index >= state.slots.len() || !state.slots[slot_index].occupied {
+        return none
+    }
+    return &state.slots[slot_index].entry
+}

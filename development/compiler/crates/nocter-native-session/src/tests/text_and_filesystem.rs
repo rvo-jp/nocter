@@ -309,12 +309,46 @@ async func main(): i32 {
 }
 
 #[test]
-fn durable_store_recovers_committed_state_across_reopen() {
+fn standard_store_contract_crosses_native_tests() {
     let standard_root = nocter_test_support::standard_library_root();
-    let package_root = TempPackage::new();
-    package_root.source(
-        "main.nct",
-        r#"use std/fs
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"store\", module: \"./store\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["store"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard store tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 9);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+const DURABLE_STORE_TEST_SOURCE: &str = r#"use std/fs
 use std/io.{File, Writer}
 use std/store.{Store, StoreLimits}
 
@@ -334,6 +368,17 @@ async func main(): i32 {
     if !await second_store_open_is_rejected(limits) { return 36 }
     initial.set("name".bytes(), "Nocter".bytes()) catch _ { return 4 }
     initial.set("generation".bytes(), "first".bytes()) catch _ { return 5 }
+    var initial_entries = initial.entries()
+    let initial_name = initial_entries.next() otherwise { return 37 }
+    if initial_name.key() != "name".bytes() || initial_name.value() != "Nocter".bytes() {
+        return 38
+    }
+    let initial_generation = initial_entries.next() otherwise { return 39 }
+    if initial_generation.key() != "generation".bytes()
+    || initial_generation.value() != "first".bytes()
+    || initial_entries.remaining_len() != 0 {
+        return 40
+    }
     if !initial.has_uncommitted_changes() { return 6 }
     let first_sequence = await initial.commit() catch _ { return 7 }
     if first_sequence != 1 || initial.has_uncommitted_changes() { return 8 }
@@ -347,6 +392,20 @@ async func main(): i32 {
     recovered.set("generation".bytes(), "second".bytes()) catch _ { return 15 }
     let removed = recovered.remove("name".bytes()) catch _ { return 16 }
     if !removed { return 17 }
+    recovered.set("temporary".bytes(), "slot".bytes()) catch _ { return 41 }
+    var reordered = recovered.entries()
+    let retained = reordered.next() otherwise { return 42 }
+    if retained.key() != "generation".bytes() || retained.value() != "second".bytes() {
+        return 43
+    }
+    let appended = reordered.next() otherwise { return 44 }
+    if appended.key() != "temporary".bytes()
+    || appended.value() != "slot".bytes()
+    || reordered.remaining_len() != 0 {
+        return 45
+    }
+    let removed_temporary = recovered.remove("temporary".bytes()) catch _ { return 46 }
+    if !removed_temporary { return 47 }
     let second_sequence = await recovered.commit() catch _ { return 18 }
     if second_sequence != 2 { return 19 }
     await recovered.close() catch _ { return 20 }
@@ -373,8 +432,13 @@ async func main(): i32 {
     }
     return 35
 }
-"#,
-    );
+"#;
+
+#[test]
+fn durable_store_recovers_committed_state_across_reopen() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package_root = TempPackage::new();
+    package_root.source("main.nct", DURABLE_STORE_TEST_SOURCE);
     let standard_package = PackageIdentity::new("toolchain:std");
     let unit = discover(DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,

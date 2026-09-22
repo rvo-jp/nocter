@@ -19,11 +19,18 @@ journal bytes, and records retained between compactions. Recovery validates thos
 allocating lengths read from storage. The standard policy retains at most 64 KiB per key, 1 MiB per
 value, 65,536 entries, a 16 MiB snapshot, a 256 MiB journal, and 4,096 records between compactions.
 
-The current state representation preserves deterministic insertion order. Exact lookup,
-replacement, and removal are linear in entry count; encoding one commit is linear in total retained
-state. This tradeoff keeps the durable format independent of hash-table implementation details and
-avoids imposing a hash contract on byte keys. Applications needing large indexed datasets should
-use an external database rather than treating this bounded local store as one.
+The authoritative state preserves deterministic insertion order while a retained seeded hash index
+maps each observed hash to exact-key candidate slots. Exact lookup, replacement, and removal have
+expected constant cost and always confirm the complete key after hashing. Removed slots join a free
+list and can be reused without shifting later entries or changing insertion order. Encoding one
+commit remains linear in total retained state. The hash index is transient: it neither determines
+observable order nor appears in the durable format.
+
+`entries()` returns an allocation-free lending cursor over the authoritative insertion order. Each
+yield borrows the retained key and value without copying them, and the borrow ends before the cursor
+can advance again. The cursor reports its exact remaining length. Mutating the store while such a
+cursor or yielded entry is live is rejected by the ownership checker rather than synchronized at
+runtime.
 
 ## Snapshot and Journal Formats
 
@@ -49,10 +56,10 @@ Recovery verifies the header, sequence, bounds, and checksum of every complete j
 retains and decodes only the final complete snapshot. Superseded snapshot bodies are not copied
 into a second recovery collection and are never reconstructed as obsolete application states.
 
-Recovery builds one temporary seeded hash index while decoding, so duplicate validation compares
-only equal-hash candidates rather than scanning every prior persisted key. The index retains only
-hashes and entry positions and is discarded after the authoritative insertion-ordered state has
-been reconstructed.
+Recovery constructs the authoritative insertion-ordered state and its retained seeded hash index
+together. Duplicate validation therefore compares only equal-hash candidates rather than scanning
+every prior persisted key. Recovered lookup uses that same index; recovery does not build and then
+discard a second representation.
 
 ## Commit, Compaction, and Failure
 

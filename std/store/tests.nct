@@ -6,6 +6,12 @@ see ./journal.nct
 
 see ./store.nct
 
+see ./state.nct
+
+see ./state_index.nct
+
+see ./iteration.nct
+
 use /fixed.ByteBuffer
 use /vec.Vec
 
@@ -127,44 +133,186 @@ test complete_corruption_and_limit_violations_are_rejected {
 
 test store_snapshots_round_trip_and_reject_duplicate_keys {
     let limits = StoreLimits.bounded(32, 64, 4, 256, 512, 4)?
-    var entries: Vec<StoreEntry> = Vec.empty()
-    entries.push(
+    var state = new_store_state(2)
+    let first_inserted = insert_store_entry(
+        &+state,
         StoreEntry {
             key: Vec.from_slice("first".bytes()),
             value: Vec.from_slice("one".bytes()),
         },
     )
-    entries.push(
+    let second_inserted = insert_store_entry(
+        &+state,
         StoreEntry {
             key: Vec.from_slice("second".bytes()),
             value: Vec.from_slice("two".bytes()),
         },
     )
+    if !first_inserted || !second_inserted {
+        return error.new("std.store.test", "unique test state was rejected")
+    }
     let snapshot_bytes = SNAPSHOT_HEADER_BYTES
     + SNAPSHOT_ENTRY_HEADER_BYTES * 2
     + "first".len()
     + "one".len()
     + "second".len()
     + "two".len()
-    let encoded = encode_snapshot(&entries, snapshot_bytes)
+    let encoded = encode_snapshot(&state, snapshot_bytes)
     let (decoded, decoded_bytes) = decode_snapshot(&encoded, limits)?
+    let decoded_first = store_state_value(&decoded, "first".bytes()) otherwise {
+        return error.new("std.store.test", "decoded first key is absent")
+    }
+    let decoded_second = store_state_value(&decoded, "second".bytes()) otherwise {
+        return error.new("std.store.test", "decoded second key is absent")
+    }
     if decoded_bytes != snapshot_bytes
-    || decoded.len() != 2
-    || decoded[0].key != "first".bytes()
-    || decoded[0].value != "one".bytes()
-    || decoded[1].key != "second".bytes()
-    || decoded[1].value != "two".bytes() {
+    || store_state_len(&decoded) != 2
+    || decoded_first != "one".bytes()
+    || decoded_second != "two".bytes() {
         return error.new("std.store.test", "snapshot round trip changed state")
     }
 
-    entries[1].key = Vec.from_slice("first".bytes())
-    let duplicate_bytes = snapshot_bytes - "second".len() + "first".len()
-    let duplicate = encode_snapshot(&entries, duplicate_bytes)
+    var duplicate: Vec<u8> = Vec.empty()
+    var duplicate_header: ByteBuffer<16> = ByteBuffer<16>.empty()
+    append_snapshot_header(&+duplicate_header, 2)
+    let duplicate_header_bytes: &[u8] = &duplicate_header
+    duplicate.extend_from_slice(duplicate_header_bytes)
+    var duplicate_index: usize = 0
+    while duplicate_index < 2 {
+        var entry_header: ByteBuffer<16> = ByteBuffer<16>.empty()
+        append_entry_header(&+entry_header, "first".len(), "one".len())
+        let entry_header_bytes: &[u8] = &entry_header
+        duplicate.extend_from_slice(entry_header_bytes)
+        duplicate.extend_from_slice("first".bytes())
+        duplicate.extend_from_slice("one".bytes())
+        duplicate_index += 1
+    }
     let _decoded_duplicate = decode_snapshot(&duplicate, limits) catch failure {
         if failure.has_code("std.store.corrupt_snapshot") { return }
         return error.new("std.store.test", "duplicate key used the wrong error")
     }
     return error.new("std.store.test", "duplicate snapshot key was accepted")
+}
+
+test indexed_state_reuses_slots_without_changing_insertion_order {
+    var state = new_store_state(3)
+    if !insert_store_entry(
+        &+state,
+        StoreEntry {
+            key: Vec.from_slice("alpha".bytes()),
+            value: Vec.from_slice("one".bytes()),
+        },
+    )
+    || !insert_store_entry(
+        &+state,
+        StoreEntry {
+            key: Vec.from_slice("beta".bytes()),
+            value: Vec.from_slice("two".bytes()),
+        },
+    )
+    || !insert_store_entry(
+        &+state,
+        StoreEntry {
+            key: Vec.from_slice("gamma".bytes()),
+            value: Vec.from_slice("three".bytes()),
+        },
+    ) {
+        return error.new("std.store.test", "initial indexed state was rejected")
+    }
+    let removed = remove_store_entry(&+state, "beta".bytes()) otherwise {
+        return error.new("std.store.test", "indexed removal missed an existing key")
+    }
+    if removed.value != "two".bytes() {
+        return error.new("std.store.test", "indexed removal returned the wrong value")
+    }
+    if !insert_store_entry(
+        &+state,
+        StoreEntry {
+            key: Vec.from_slice("delta".bytes()),
+            value: Vec.from_slice("four".bytes()),
+        },
+    ) {
+        return error.new("std.store.test", "reused indexed slot rejected a new key")
+    }
+    let previous = replace_store_value(
+        &+state,
+        "alpha".bytes(),
+        Vec.from_slice("updated".bytes()),
+    ) otherwise {
+        return error.new("std.store.test", "indexed replacement missed an existing key")
+    }
+    let alpha = store_state_value(&state, "alpha".bytes()) otherwise {
+        return error.new("std.store.test", "indexed lookup lost alpha")
+    }
+    let delta = store_state_value(&state, "delta".bytes()) otherwise {
+        return error.new("std.store.test", "indexed lookup lost delta")
+    }
+    if previous != "one".bytes()
+    || alpha != "updated".bytes()
+    || store_state_contains(&state, "beta".bytes())
+    || delta != "four".bytes() {
+        return error.new("std.store.test", "indexed lookup or replacement changed")
+    }
+
+    var entries = store_entries(&state)
+    if entries.remaining_len() != 3 {
+        return error.new("std.store.test", "entry traversal reported the wrong length")
+    }
+    let first = entries.next() otherwise {
+        return error.new("std.store.test", "entry traversal omitted alpha")
+    }
+    if first.key() != "alpha".bytes() || first.value() != "updated".bytes() {
+        return error.new("std.store.test", "entry traversal changed alpha")
+    }
+    let second = entries.next() otherwise {
+        return error.new("std.store.test", "entry traversal omitted gamma")
+    }
+    if second.key() != "gamma".bytes() || second.value() != "three".bytes() {
+        return error.new("std.store.test", "entry traversal changed gamma")
+    }
+    let third = entries.next() otherwise {
+        return error.new("std.store.test", "entry traversal omitted delta")
+    }
+    if third.key() != "delta".bytes() || third.value() != "four".bytes() {
+        return error.new("std.store.test", "slot reuse changed insertion order")
+    }
+    let _unexpected = entries.next() otherwise {
+        if entries.remaining_len() == 0 { return }
+        return error.new("std.store.test", "exhausted traversal retained a length")
+    }
+    return error.new("std.store.test", "entry traversal yielded an extra entry")
+}
+
+test store_index_keeps_distinct_slots_for_one_hash {
+    var index = new_store_index(0)
+    if !index.add(7, 2) || !index.add(7, 9) || index.add(7, 2) {
+        return error.new("std.store.test", "collision candidates were not added exactly once")
+    }
+    let initial = index.candidates(7) otherwise {
+        return error.new("std.store.test", "collision bucket is absent")
+    }
+    if initial.len() != 2 || initial[0] != 2 || initial[1] != 9 {
+        return error.new("std.store.test", "collision bucket changed its slot candidates")
+    }
+    if !index.remove(7, 2) || index.remove(7, 2) {
+        return error.new("std.store.test", "collision removal did not report exact membership")
+    }
+    let retained = index.candidates(7) otherwise {
+        return error.new("std.store.test", "collision removal discarded a retained candidate")
+    }
+    if retained.len() != 1 || retained[0] != 9 {
+        return error.new("std.store.test", "collision removal retained the wrong candidate")
+    }
+    if !index.remove(7, 9) {
+        return error.new("std.store.test", "final collision candidate was not removed")
+    }
+    let _unexpected = index.candidates(7) otherwise {
+        if !index.add(11, 4) {
+            return error.new("std.store.test", "deleted bucket could not be reused")
+        }
+        return
+    }
+    return error.new("std.store.test", "empty collision bucket remained observable")
 }
 
 test snapshot_entry_count_must_fit_the_observed_payload {
