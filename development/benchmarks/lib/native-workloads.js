@@ -181,8 +181,8 @@ const WORKLOADS = [
     inputs: [],
     prepare() {},
     reset() {},
-    invocation(_root, repository) {
-      return textInvocation(path.join(repository, this.source), [], quiet);
+    invocation(_root, sourceRoot) {
+      return textInvocation(sourceRoot, [], quiet);
     },
   },
   {

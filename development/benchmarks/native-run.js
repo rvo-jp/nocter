@@ -85,7 +85,7 @@ async function prepare(options, repository, temporary, workloads) {
   return { artifacts, prepared };
 }
 
-async function measure(options, repository, workloads, prepared) {
+async function measure(options, workloads, prepared) {
   const output = {};
   for (const workload of workloads) {
     output[workload.name] = {};
@@ -95,7 +95,7 @@ async function measure(options, repository, workloads, prepared) {
         workload.reset(candidate.root);
         await runNativeScenario(
           candidate.executable,
-          workload.invocation(candidate.root, repository),
+          workload.invocation(candidate.root, workload.sourceRoot),
         );
       }
     }
@@ -108,7 +108,7 @@ async function measure(options, repository, workloads, prepared) {
         workload.reset(candidate.root);
         const sample = await runNativeScenario(
           candidate.executable,
-          workload.invocation(candidate.root, repository),
+          workload.invocation(candidate.root, workload.sourceRoot),
         );
         samples.get(compiler.label).push({
           round,
@@ -152,7 +152,7 @@ async function main() {
         inputs: workload.inputs,
       })),
       artifacts,
-      runtime: await measure(options, repository, workloads, prepared),
+      runtime: await measure(options, workloads, prepared),
     };
     const serialized = `${JSON.stringify(result, null, 2)}\n`;
     if (options.output) fs.writeFileSync(options.output, serialized);

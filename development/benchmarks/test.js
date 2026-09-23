@@ -95,10 +95,16 @@ try {
       assert.match(input.sha256, /^[0-9a-f]{64}$/);
       assert(input.bytes > 0);
     }
-    const invocation = workload.invocation(root, path.resolve(__dirname, "../.."));
+    const invocation = workload.invocation(root, workload.sourceRoot);
     assert(path.isAbsolute(invocation.cwd));
     assert(Array.isArray(invocation.args));
   }
+  const subprocess = workloads.find((workload) => workload.name === "subprocess_pipeline");
+  const detachedInvocation = subprocess.invocation;
+  assert.equal(
+    detachedInvocation(workloadRoot, subprocess.sourceRoot).cwd,
+    subprocess.sourceRoot,
+  );
 
   const binary = path.join(temporary, "nocter");
   const compiler = Buffer.from("compiler");
