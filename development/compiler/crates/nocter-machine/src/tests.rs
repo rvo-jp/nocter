@@ -1207,7 +1207,7 @@ fn machine_test_roots_close_names_and_dense_test_identities() {
 fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
     let mir = lower_fixture(
         "func main(): i32 {\n\
-             if true {\n\
+             if !false {\n\
                  return 7\n\
              }\n\
              return 9\n\
@@ -1247,7 +1247,7 @@ fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
     );
 
     let entry_body = program.function(entry).unwrap().body();
-    assert_eq!(entry_body.values().len(), 3);
+    assert_eq!(entry_body.values().len(), 4);
     assert_eq!(
         entry_body
             .operations()
@@ -1255,13 +1255,15 @@ fn machine_program_owns_dense_functions_values_operations_and_control_flow() {
                 matches!(operation.kind(), MachineOperationKind::Constant(_))
             })
             .count(),
-        3
+        4
     );
     assert!(
         entry_body
             .blocks()
-            .any(|(_, block)| matches!(block.terminator(), MachineTerminator::Branch { .. }))
+            .all(|(_, block)| !matches!(block.terminator(), MachineTerminator::Branch { .. }))
     );
+    assert_eq!(entry_body.optimization().terminators_folded(), 1);
+    assert_eq!(entry_body.optimization().operations_folded(), 1);
     for (_, value) in entry_body.values() {
         assert!(program.layouts().get(value.ty()).is_some());
     }

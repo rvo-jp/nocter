@@ -1,7 +1,7 @@
 use nocter_model::TypeId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
-use crate::identity::{MachineId, MachineTable};
+use crate::identity::MachineId;
 use crate::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineBinaryOperation, MachineBlock,
     MachineBlockId, MachineBranchTarget, MachineCallableAbi, MachineConstant,
@@ -574,19 +574,17 @@ impl<'a> DestructionBuilder<'a> {
                     ))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let body = crate::MachineBody::new(
-            self.parameters,
-            crate::program::MachineBodyDomains {
-                stack: MachineTable::from_values(self.stack),
-                drop_flags: MachineTable::from_values(Vec::<crate::MachineDropFlag>::new()),
-                addresses: MachineTable::from_values(self.addresses),
-                values: MachineTable::from_values(self.values),
-                operations: MachineTable::from_values(self.operations),
-                packs: MachineTable::from_values(Vec::<crate::MachinePack>::new()),
-                blocks: MachineTable::from_values(blocks),
-            },
-            MachineBlockId::new(0),
-        );
+        let body = crate::MachineBody::freeze(crate::program::MachineBodyDraft {
+            parameters: self.parameters,
+            stack: self.stack,
+            drop_flags: Vec::new(),
+            addresses: self.addresses,
+            values: self.values,
+            operations: self.operations,
+            packs: Vec::new(),
+            blocks,
+            entry: MachineBlockId::new(0),
+        });
         MachineFunction::new(
             owner,
             MachineFunctionKind::Callable(abi),

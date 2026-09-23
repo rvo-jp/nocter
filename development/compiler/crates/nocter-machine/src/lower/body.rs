@@ -12,7 +12,7 @@ use super::context::ProgramLoweringContext;
 use super::control::lower_blocks;
 use super::operation::lower_operations;
 use super::pack::lower_packs;
-use crate::identity::{MachineId, MachineTable};
+use crate::identity::MachineId;
 use crate::{
     MachineAddressId, MachineBlockId, MachineDropFlag, MachineDropFlagId, MachineLayoutPlan,
     MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId, MachineStackObject,
@@ -59,19 +59,17 @@ pub(super) fn lower_body(
         .transpose()?
         .unwrap_or(crate::MachineFunctionExecution::Immediate);
     Ok((
-        crate::MachineBody::new(
+        crate::MachineBody::freeze(crate::program::MachineBodyDraft {
             parameters,
-            crate::program::MachineBodyDomains {
-                stack: MachineTable::from_values(stack),
-                drop_flags: MachineTable::from_values(drop_flags),
-                addresses: MachineTable::from_values(addresses),
-                values: MachineTable::from_values(values),
-                operations: MachineTable::from_values(operations),
-                packs: MachineTable::from_values(packs),
-                blocks: MachineTable::from_values(blocks),
-            },
-            ids.block(body.entry())?,
-        ),
+            stack,
+            drop_flags,
+            addresses,
+            values,
+            operations,
+            packs,
+            blocks,
+            entry: ids.block(body.entry())?,
+        }),
         execution,
     ))
 }

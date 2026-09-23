@@ -2,8 +2,9 @@
 
 ## Responsibility
 
-Close machine layout and lower validated MIR into a target-independent machine program with explicit
-ABI transport, storage, linkage, primitive dependencies, and trusted function imports.
+Close machine layout and lower validated MIR into an optimized target-independent machine program
+with explicit ABI transport, storage, linkage, primitive dependencies, and trusted function
+imports.
 
 ## Contract
 
@@ -18,6 +19,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - call/result ABI classification and transport shared by primitive and imported calls
 - one canonical imported-service identity domain retained independently of MIR
 - stack objects, machine control flow, and dataflow
+- one mutable body-draft boundary, exhaustive operation-effect classification, target-independent
+  optimization, immutable body freeze, and post-optimization dataflow construction
 - deferred function execution, suspension frames, and frozen cancellation/output destruction
 - whole-program propagation of runtime-contract-owned ambient capability requirements
 - explicit process-root ownership and output storage for a deferred executable entry
@@ -34,6 +37,12 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   `RuntimeStorage` layout and destruction kind; Machine never projects native fields, disguises it
   as an empty source struct, or repeats native offsets.
 - Machine code cannot reach checking or target-program storage.
+- Every ordinary or compiler-generated body uses the same draft-to-freeze path. Optimization runs
+  before immutable tables and liveness exist, so a backend cannot observe a mutable draft or stale
+  pre-optimization dataflow.
+- An operation is removable only when Machine's exhaustive effect authority proves it pure and
+  non-trapping. Calls, ownership changes, cleanup, suspension, and safety traps are conservative
+  barriers without a stronger explicit proof.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
 - Imported calls retain only a dense machine import identity; their catalog descriptor is stored

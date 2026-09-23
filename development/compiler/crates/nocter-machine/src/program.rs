@@ -32,34 +32,37 @@ pub struct MachineBody {
     packs: MachineTable<MachinePackId, MachinePack>,
     blocks: MachineTable<MachineBlockId, MachineBlock>,
     entry: MachineBlockId,
+    optimization: crate::MachineOptimizationReport,
 }
 
-pub(crate) struct MachineBodyDomains {
-    pub(crate) stack: MachineTable<MachineStackId, MachineStackObject>,
-    pub(crate) drop_flags: MachineTable<MachineDropFlagId, MachineDropFlag>,
-    pub(crate) addresses: MachineTable<MachineAddressId, MachineAddress>,
-    pub(crate) values: MachineTable<MachineValueId, MachineValue>,
-    pub(crate) operations: MachineTable<MachineOperationId, MachineOperation>,
-    pub(crate) packs: MachineTable<MachinePackId, MachinePack>,
-    pub(crate) blocks: MachineTable<MachineBlockId, MachineBlock>,
+/// The sole mutable construction form for a machine body. Every producer submits this complete
+/// draft to `MachineBody::freeze`; no backend can observe it.
+pub(crate) struct MachineBodyDraft {
+    pub(crate) parameters: Vec<MachineStackId>,
+    pub(crate) stack: Vec<MachineStackObject>,
+    pub(crate) drop_flags: Vec<MachineDropFlag>,
+    pub(crate) addresses: Vec<MachineAddress>,
+    pub(crate) values: Vec<MachineValue>,
+    pub(crate) operations: Vec<MachineOperation>,
+    pub(crate) packs: Vec<MachinePack>,
+    pub(crate) blocks: Vec<MachineBlock>,
+    pub(crate) entry: MachineBlockId,
 }
 
 impl MachineBody {
-    pub(crate) fn new(
-        parameters: impl Into<Box<[MachineStackId]>>,
-        domains: MachineBodyDomains,
-        entry: MachineBlockId,
-    ) -> Self {
+    pub(crate) fn freeze(mut draft: MachineBodyDraft) -> Self {
+        let optimization = crate::optimization::optimize(&mut draft);
         Self {
-            parameters: parameters.into(),
-            stack: domains.stack,
-            drop_flags: domains.drop_flags,
-            addresses: domains.addresses,
-            values: domains.values,
-            operations: domains.operations,
-            packs: domains.packs,
-            blocks: domains.blocks,
-            entry,
+            parameters: draft.parameters.into_boxed_slice(),
+            stack: MachineTable::from_values(draft.stack),
+            drop_flags: MachineTable::from_values(draft.drop_flags),
+            addresses: MachineTable::from_values(draft.addresses),
+            values: MachineTable::from_values(draft.values),
+            operations: MachineTable::from_values(draft.operations),
+            packs: MachineTable::from_values(draft.packs),
+            blocks: MachineTable::from_values(draft.blocks),
+            entry: draft.entry,
+            optimization,
         }
     }
 
@@ -147,6 +150,13 @@ impl MachineBody {
     #[must_use]
     pub const fn entry(&self) -> MachineBlockId {
         self.entry
+    }
+
+    /// Structural changes made while this body was frozen. This is observation evidence, not a
+    /// second derivation of the optimized program.
+    #[must_use]
+    pub const fn optimization(&self) -> crate::MachineOptimizationReport {
+        self.optimization
     }
 }
 

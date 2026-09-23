@@ -18,11 +18,19 @@ MirProgram
 `MachineLayoutStore` assigns immutable stored layouts to the concrete types already closed by
 Executable. `MachineProgram` classifies arguments and results, expands target-independent storage
 and destruction operations, closes primitive dependencies and imported-service identities, and owns
-deterministic machine linkage.
+deterministic machine linkage. Each function then follows one Machine-owned mutable body draft,
+target-independent optimization, immutable freeze, and dataflow-validation path. Generated
+destruction and erased-callable functions cannot bypass that path.
 
 `Arm64Program` assigns physical registers and frames, selects and encodes instructions, and resolves
 branch/data fixups. `MachOImage` assigns file-format structures and emits final bytes. Artifact
 publication remains outside all three products.
+
+Optimization is an internal Machine transformation rather than an additional cross-stage product.
+Its input is already closed machine operations, layouts, ABI transport, linkage, and runtime roles.
+It cannot inspect MIR or an earlier semantic product, and ARM64 cannot repeat a target-independent
+decision. Immutable liveness is derived once from the optimized body rather than repaired after a
+mutation.
 
 ## ABI Ownership
 
@@ -46,6 +54,9 @@ field or variant structure from names.
 - Machine linkage names already selected items and never performs semantic lookup.
 - ARM64 register allocation cannot change ABI classification.
 - Primitive expansion is selected by closed runtime role.
+- Operation removal requires Machine-owned proof that evaluation is both unobservable and
+  non-trapping; unknown effects are retained.
+- Safety checks remain unless an exact path proof makes their trap condition impossible.
 - Imported-service descriptors are interned once into a dense machine domain; calls retain only its
   identity and the shared preplanned runtime-call ABI.
 - Mach-O writing is deterministic and cannot introduce executable items.

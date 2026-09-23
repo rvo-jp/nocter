@@ -2,26 +2,22 @@
 
 ## Current State
 
-Nocter v0.67.0 Operational Local Applications is published and externally audited. All eight phases
-are complete: the
-milestone contract is fixed; `Store` ownership is enforced by one target-backed non-waiting lock;
-one insertion-ordered `StoreState` owns lookup and traversal; journal version `2` publishes bounded
-mutation batches with deterministic checkpoint fallback while explicitly normalizing the published
-v0.66.0 format; and `std/config` owns source-neutral schemas, failure-atomic overlays, validation,
-provenance, immutable results, and secret-safe presentation. Scalar JSON objects, explicitly
-selected process environment variables, structured command-line results, and authored defaults now
-enter that same source vocabulary without adapter-owned precedence or validation. One process-owned
-lifecycle source now distinguishes consumable reload from sticky termination, and
-`PublishedConfiguration` can expose only a fully validated immutable value while retaining the
-previous value after candidate failure. The complete HTTP service now applies those contracts to
-bounded concurrent admission, incremental durable events, installed-home reload, rejected-candidate
-retention, exclusive store ownership, redacted output, graceful shutdown, and restart recovery.
-The annotated tag, single public artifact, downloaded installed home, latest-release endpoint,
-Compiler workflow, and Pages deployment all resolve to the recorded v0.67.0 identities.
+Nocter v0.67.0 Operational Local Applications is published and externally audited. The post-release
+file-retirement correction is on `main` and will be included in the next release without changing
+the retained v0.67.0 tag or artifact.
+
+v0.68.0 Production Native Performance is active. Phases 0 and 1 are complete. Every ordinary and
+compiler-generated Machine body now follows one draft, target-independent optimization, immutable
+freeze, and dataflow path. One exhaustive effect authority conservatively distinguishes pure,
+trapping, and observable operations, and each frozen body retains its exact transformation report.
 
 ## Next Work
 
-Define the next milestone as one coherent user-facing capability before implementation begins.
+Implement v0.68.0 Phase 2 through one dense remapping authority. Remove unreachable blocks and dead
+pure values together with their unused stack, address, flag, and pack identities; do not expose
+sparse tables or let ARM64 reinterpret reachability. Preserve operations classified as trapping or
+observable even when their results are unused.
+
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
 requires a new version and a newly qualified archive.
@@ -30,7 +26,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains from v0.67.0.
+No blocker is known.
 
 ## Non-negotiable Boundaries
 

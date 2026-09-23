@@ -11,6 +11,7 @@ mod data;
 mod dataflow;
 mod destruction;
 mod destruction_table;
+mod effect;
 mod erased_adapter;
 mod erased_callable;
 mod function_domain;
@@ -22,6 +23,7 @@ mod layout;
 mod linkage;
 mod lower;
 mod operation;
+mod optimization;
 mod pack;
 mod primitive_dependency;
 mod program;
@@ -75,6 +77,7 @@ pub use operation::{
     MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
     MachineValueDefinition, MachineValueRepresentation,
 };
+pub use optimization::MachineOptimizationReport;
 pub use pack::{
     MachinePack, MachinePackContribution, MachinePackNext, MachinePackNextOutcome,
     MachinePackSegment, MachinePackSpread,
