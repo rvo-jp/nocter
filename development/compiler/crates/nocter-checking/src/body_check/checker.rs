@@ -96,6 +96,11 @@ struct ResolvedPlace {
     partial_parents: Box<[NominalTypeId]>,
 }
 
+enum CallableMemberPlace {
+    Callable(ResolvedPlace),
+    MethodReceiver(ResolvedPlace),
+}
+
 struct CheckedExecutable {
     node: BodyNodeId,
     result: bool,

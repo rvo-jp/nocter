@@ -267,6 +267,29 @@ fn inherent_method_call_freezes_receiver_preparation_and_dispatch() {
 }
 
 #[test]
+fn method_fallback_checks_a_nested_place_once_and_projects_each_reference_once() {
+    let output = check(
+        "copy struct Item { value: i32 }\n\
+         instance Item {\n\
+             pub method &self.read(): i32 { self.value }\n\
+         }\n\
+         struct Buffer { values: [Item; 2] }\n\
+         instance Buffer {\n\
+             pub method &self.len(): usize { 2 }\n\
+             pub operator (&self[index: usize]): &Item {\n\
+                 return &self.values[index]\n\
+             }\n\
+         }\n\
+         func read_last(buffer: &Buffer): i32 {\n\
+             buffer[buffer.len() - 1].read()\n\
+         }\n",
+    )
+    .unwrap();
+
+    output.source_index().validate().unwrap();
+}
+
+#[test]
 fn owned_method_receiver_consumes_move_only_place_without_move_syntax() {
     let output = check(
         "struct Value { field: i32 }\n\

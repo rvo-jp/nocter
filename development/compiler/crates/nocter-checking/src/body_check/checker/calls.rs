@@ -3,9 +3,9 @@ use nocter_model::{BodyNodeId, TypeId};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind, PostfixSuffixKind, SyntaxToken};
 
-use super::BodyChecker;
 use super::call_planning::DeclaredCallGenerics;
 use super::value_planning::CallResultContext;
+use super::{BodyChecker, CallableMemberPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::syntax::{child_nodes, direct_identifier, is_transparent_expression};
@@ -184,26 +184,23 @@ impl BodyChecker<'_, '_> {
         if owner_kind == MemberOwnerKind::Produced {
             return self.check_method_call(node, owner, member, suffix, result_context);
         }
-        match self.postfix_place(callee, nocter_model::BorrowCapability::Readonly) {
-            Ok(place) => self.check_callable_place_call(
+        match self.callable_member_place(callee, nocter_model::BorrowCapability::Readonly)? {
+            CallableMemberPlace::Callable(place) => self.check_callable_place_call(
                 node,
                 callee,
                 &place,
                 suffix,
                 result_context.and_then(CallResultContext::complete_type),
             ),
-            Err(error)
-                if matches!(
-                    error.rule(),
-                    Some(BodyRule::UnknownField | BodyRule::InaccessibleField)
-                ) || matches!(
-                    error,
-                    BodyCheckError::Internal(BodyCheckInternalError::UnsupportedSyntax(_, _))
-                ) =>
-            {
-                self.check_method_call(node, owner, member, suffix, result_context)
-            }
-            Err(error) => Err(error),
+            CallableMemberPlace::MethodReceiver(place) => self
+                .check_method_call_with_place_receiver(
+                    node,
+                    owner,
+                    place,
+                    member,
+                    suffix,
+                    result_context,
+                ),
         }
     }
 

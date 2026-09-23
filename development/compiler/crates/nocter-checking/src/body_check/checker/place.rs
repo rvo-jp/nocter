@@ -2,7 +2,7 @@ use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind, PostfixSuffixKind, SyntaxOrigin, SyntaxToken};
 
-use super::{BodyChecker, NodeProjection, ResolvedPlace};
+use super::{BodyChecker, CallableMemberPlace, NodeProjection, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_field};
@@ -12,6 +12,7 @@ use crate::syntax::{
 };
 use crate::{LocalBindingKind, NameTarget, PlaceAccess, PlaceProjection, PlaceRoot};
 
+#[derive(Clone)]
 struct PlaceDraft {
     root: PlaceRoot,
     root_ty: TypeId,
@@ -117,6 +118,15 @@ impl BodyChecker<'_, '_> {
         syntax: PlaceSyntax,
         capability: BorrowCapability,
     ) -> Result<ResolvedPlace, BodyCheckError> {
+        let draft = self.resolve_place_draft(syntax, capability)?;
+        Ok(self.finish_place(draft))
+    }
+
+    fn resolve_place_draft(
+        &mut self,
+        syntax: PlaceSyntax,
+        capability: BorrowCapability,
+    ) -> Result<PlaceDraft, BodyCheckError> {
         let mut draft = if self.kind(syntax.root)? == NodeKind::ReferenceExpression {
             let token = direct_identifier(self.tree(), syntax.root)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(syntax.root))?;
@@ -170,7 +180,48 @@ impl BodyChecker<'_, '_> {
                 PlaceOperation::Index(suffix) => self.push_index(suffix, &mut draft, capability)?,
             }
         }
-        Ok(self.finish_place(draft))
+        Ok(draft)
+    }
+
+    pub(super) fn callable_member_place(
+        &mut self,
+        node: NodeId,
+        capability: BorrowCapability,
+    ) -> Result<CallableMemberPlace, BodyCheckError> {
+        let mut syntax = match collect_postfix_operations(self.tree(), node) {
+            Ok(syntax) => syntax,
+            Err(PlaceSyntaxError::NotPlace(invalid)) => {
+                return Err(BodyCheckInternalError::UnsupportedSyntax(
+                    invalid,
+                    self.kind(invalid)?,
+                )
+                .into());
+            }
+            Err(PlaceSyntaxError::InvalidSyntax(invalid)) => {
+                return Err(BodyCheckInternalError::InvalidSyntax(invalid).into());
+            }
+        };
+        let Some(PlaceOperation::Field(member)) = syntax.operations.pop() else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        };
+        let receiver = self.resolve_place_draft(syntax, capability)?;
+        let token = direct_identifier(self.tree(), member)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
+        let mut callable = receiver.clone();
+        match self.push_field(member, &mut callable, token) {
+            Ok(()) => Ok(CallableMemberPlace::Callable(self.finish_place(callable))),
+            Err(error)
+                if matches!(
+                    error.rule(),
+                    Some(BodyRule::UnknownField | BodyRule::InaccessibleField)
+                ) =>
+            {
+                Ok(CallableMemberPlace::MethodReceiver(
+                    self.finish_place(receiver),
+                ))
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub(super) fn is_writable_place(

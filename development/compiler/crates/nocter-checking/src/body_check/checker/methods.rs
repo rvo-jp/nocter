@@ -63,6 +63,38 @@ impl BodyChecker<'_, '_> {
             );
         }
         let receiver = self.method_receiver_draft(owner)?;
+        self.check_method_call_with_receiver(node, receiver, member, call_suffix, result_context)
+    }
+
+    pub(super) fn check_method_call_with_place_receiver(
+        &mut self,
+        node: NodeId,
+        owner: NodeId,
+        place: ResolvedPlace,
+        member: NodeId,
+        call_suffix: NodeId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        self.check_method_call_with_receiver(
+            node,
+            ReceiverDraft::Place {
+                syntax: owner,
+                place,
+            },
+            member,
+            call_suffix,
+            result_context,
+        )
+    }
+
+    fn check_method_call_with_receiver(
+        &mut self,
+        node: NodeId,
+        receiver: ReceiverDraft,
+        member: NodeId,
+        call_suffix: NodeId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         let receiver_owner = receiver_owner(self.types, receiver.ty())?;
         let available = self.receiver_borrow_capability(&receiver)?;
         let consumable = receiver.is_owned_source(self.types);
