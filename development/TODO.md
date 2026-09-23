@@ -2,8 +2,8 @@
 
 ## Current State
 
-Nocter v0.67.0 Operational Local Applications is a release candidate. All eight phases are
-complete: the
+Nocter v0.67.0 Operational Local Applications is qualified and ready for publication. All eight
+phases are complete: the
 milestone contract is fixed; `Store` ownership is enforced by one target-backed non-waiting lock;
 one insertion-ordered `StoreState` owns lookup and traversal; journal version `2` publishes bounded
 mutation batches with deterministic checkpoint fallback while explicitly normalizing the published
@@ -20,9 +20,11 @@ v0.66.0 remains the published and externally audited release boundary until v0.6
 
 ## Next Work
 
-Qualify the exact v0.67.0 release-content commit through two deterministic package builds and the
-installed-home gate. Record the resulting archive identity without rebuilding it. Publication and
-the external tag, asset, workflow, and Pages audit remain separate authorized work.
+Publish `dist/nocter-v0.67.0-arm64-darwin.tar.gz` with SHA-256
+`8d370918223ace0b1583f873bb47b826888ee5c531c1dcbd9d54eea748dc2f9a` without rebuilding it. Then
+verify the annotated tag, single GitHub Release asset, latest-release endpoint, downloaded
+installed home, push-triggered workflows, and source-identified Pages deployment in a release
+audit.
 
 Preserve the v0.66.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
