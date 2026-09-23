@@ -2,8 +2,8 @@
 
 ## Current State
 
-Nocter v0.67.0 Operational Local Applications is qualified and its public metadata selects the
-retained candidate. All eight phases are complete: the
+Nocter v0.67.0 Operational Local Applications is published and externally audited. All eight phases
+are complete: the
 milestone contract is fixed; `Store` ownership is enforced by one target-backed non-waiting lock;
 one insertion-ordered `StoreState` owns lookup and traversal; journal version `2` publishes bounded
 mutation batches with deterministic checkpoint fallback while explicitly normalizing the published
@@ -16,24 +16,21 @@ lifecycle source now distinguishes consumable reload from sticky termination, an
 previous value after candidate failure. The complete HTTP service now applies those contracts to
 bounded concurrent admission, incremental durable events, installed-home reload, rejected-candidate
 retention, exclusive store ownership, redacted output, graceful shutdown, and restart recovery.
-v0.66.0 remains the externally audited release boundary until v0.67.0 publication completes.
+The annotated tag, single public artifact, downloaded installed home, latest-release endpoint,
+Compiler workflow, and Pages deployment all resolve to the recorded v0.67.0 identities.
 
 ## Next Work
 
-Publish annotated tag `v0.67.0` and `dist/nocter-v0.67.0-arm64-darwin.tar.gz` with SHA-256
-`8d370918223ace0b1583f873bb47b826888ee5c531c1dcbd9d54eea748dc2f9a` without rebuilding it. Then
-verify the annotated tag, single GitHub Release asset, latest-release endpoint, downloaded
-installed home, push-triggered workflows, and source-identified Pages deployment in a release
-audit.
-
-Preserve the v0.66.0 tag, release asset, public notes, specification snapshot, and publication
-audit without replacement. Any correction requires a new version and a newly qualified artifact.
+Define the next milestone as one coherent user-facing capability before implementation begins.
+Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
+specification snapshot, and audit without replacement. Any correction to a published artifact
+requires a new version and a newly qualified archive.
 
 Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains from v0.66.0.
+No blocker remains from v0.67.0.
 
 ## Non-negotiable Boundaries
 
