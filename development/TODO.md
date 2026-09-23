@@ -21,8 +21,9 @@ weakening, aggregate staging, and drop-flag transitions, and keep calls, suspens
 transfer, and unknown aliasing as explicit barriers. Safety checks may disappear only with a
 Machine-owned proof that their failure condition is impossible. Exact same-block whole-stack load
 forwarding and complete unobserved local-storage removal are complete; next handle
-representation-preserving aliases, redundant drop-flag transitions, and proven checks without
-weakening call, suspension, ownership, or alias barriers.
+representation-preserving aliases and proven checks without weakening call, suspension, ownership,
+or alias barriers. Redundant same-block drop-flag transitions are complete and stop at callable
+boundaries.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

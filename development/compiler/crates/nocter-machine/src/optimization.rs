@@ -8,7 +8,9 @@ use crate::{
     MachineValueId,
 };
 
+mod drop_flags;
 mod prune;
+mod rewrite;
 mod storage;
 
 /// Structural changes made by the one Machine body optimization pass.
@@ -25,6 +27,7 @@ pub struct MachineOptimizationReport {
     packs_removed: usize,
     loads_forwarded: usize,
     stores_removed: usize,
+    drop_flag_writes_removed: usize,
 }
 
 impl MachineOptimizationReport {
@@ -84,6 +87,11 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn drop_flag_writes_removed(self) -> usize {
+        self.drop_flag_writes_removed
+    }
+
+    #[must_use]
     pub const fn changed(self) -> bool {
         self.operations_folded != 0
             || self.terminators_folded != 0
@@ -96,6 +104,7 @@ impl MachineOptimizationReport {
             || self.packs_removed != 0
             || self.loads_forwarded != 0
             || self.stores_removed != 0
+            || self.drop_flag_writes_removed != 0
     }
 }
 
@@ -127,10 +136,12 @@ pub(crate) fn optimize(
     let mut report = MachineOptimizationReport::default();
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
-    let storage = storage::prove(draft, execution)?;
-    report.loads_forwarded += storage.loads_forwarded();
-    report.stores_removed += storage.stores_removed();
-    prune::unreachable_and_unused(draft, execution, &storage, &mut report)?;
+    let mut rewrites = rewrite::MachineRewriteProof::default();
+    let storage = storage::prove(draft, execution, &mut rewrites)?;
+    report.loads_forwarded += storage.loads_forwarded;
+    report.stores_removed += storage.stores_removed;
+    report.drop_flag_writes_removed += drop_flags::prove(draft, &mut rewrites)?;
+    prune::unreachable_and_unused(draft, execution, &rewrites, &mut report)?;
     Ok(report)
 }
 

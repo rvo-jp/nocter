@@ -20,10 +20,10 @@ use super::{MachineOptimizationError, MachineOptimizationReport};
 pub(super) fn unreachable_and_unused(
     draft: &mut crate::program::MachineBodyDraft,
     execution: &mut MachineFunctionExecution,
-    storage: &super::storage::LocalStorageProof,
+    rewrites: &super::rewrite::MachineRewriteProof,
     report: &mut MachineOptimizationReport,
 ) -> Result<(), MachineOptimizationError> {
-    let retention = Retention::build(draft, execution, storage)?;
+    let retention = Retention::build(draft, execution, rewrites)?;
     if retention.blocks.len() == draft.blocks.len()
         && retention.operations.len() == draft.operations.len()
         && retention.values.len() == draft.values.len()
@@ -34,7 +34,7 @@ pub(super) fn unreachable_and_unused(
     {
         return Ok(());
     }
-    let remap = DenseRemap::new(draft, &retention, storage);
+    let remap = DenseRemap::new(draft, &retention, rewrites);
     let old_block_count = draft.blocks.len();
     let old_operation_count = draft.operations.len();
     let old_value_count = draft.values.len();
@@ -113,10 +113,10 @@ impl Retention {
     fn build(
         draft: &crate::program::MachineBodyDraft,
         execution: &MachineFunctionExecution,
-        storage: &super::storage::LocalStorageProof,
+        rewrites: &super::rewrite::MachineRewriteProof,
     ) -> Result<Self, MachineOptimizationError> {
         let mut retained = Self::reachable_blocks(draft)?;
-        retained.value_aliases = storage.aliases().clone();
+        retained.value_aliases = rewrites.aliases().clone();
         for block_id in retained.blocks.clone() {
             let block = draft
                 .blocks
@@ -131,7 +131,7 @@ impl Retention {
                     .operations
                     .get(operation_id.index())
                     .ok_or(MachineOptimizationError::UnknownOperation(*operation_id))?;
-                if !storage.removes(*operation_id)
+                if !rewrites.removes(*operation_id)
                     && operation.kind().effect() != MachineOperationEffect::Pure
                 {
                     retained.operations.insert(*operation_id);
@@ -650,7 +650,7 @@ impl DenseRemap {
     fn new(
         draft: &crate::program::MachineBodyDraft,
         retention: &Retention,
-        storage: &super::storage::LocalStorageProof,
+        rewrites: &super::rewrite::MachineRewriteProof,
     ) -> Self {
         Self {
             blocks: dense_map::<MachineBlockId>(draft.blocks.len(), &retention.blocks),
@@ -666,7 +666,7 @@ impl DenseRemap {
                 &retention.drop_flags,
             ),
             packs: dense_map::<MachinePackId>(draft.packs.len(), &retention.packs),
-            value_aliases: storage.aliases().clone(),
+            value_aliases: rewrites.aliases().clone(),
         }
     }
 

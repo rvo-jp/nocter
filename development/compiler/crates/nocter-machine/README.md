@@ -52,6 +52,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Stores and their stack/address domains disappear only when the whole non-parameter object has no
   surviving projection, escape, destruction, deferred-state, cancellation, region, pack, switch,
   or unforwarded-read use. The proof removes operations through the common pruning authority.
+- Drop-flag writes coalesce within one block only while no callable boundary can observe cleanup
+  state. The final write before control transfer remains part of the immutable Machine body.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
 - Imported calls retain only a dense machine import identity; their catalog descriptor is stored

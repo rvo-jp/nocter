@@ -9,48 +9,18 @@ use crate::{
 
 use super::MachineOptimizationError;
 
-/// Exact local-storage equivalences proved before body compaction.
-///
-/// A proof never crosses a basic-block or callable boundary. It is consumed by the common pruning
-/// remapper, so forwarding does not create another mutable IR or a second identity-rewrite pass.
 #[derive(Default)]
-pub(super) struct LocalStorageProof {
-    aliases: BTreeMap<MachineValueId, MachineValueId>,
-    removed_operations: BTreeSet<MachineOperationId>,
-    forwarded_loads: usize,
-    removed_stores: usize,
-}
-
-impl LocalStorageProof {
-    pub(super) fn aliases(&self) -> &BTreeMap<MachineValueId, MachineValueId> {
-        &self.aliases
-    }
-
-    pub(super) fn canonical_value(&self, mut value: MachineValueId) -> MachineValueId {
-        while let Some(source) = self.aliases.get(&value) {
-            value = *source;
-        }
-        value
-    }
-
-    pub(super) fn removes(&self, operation: MachineOperationId) -> bool {
-        self.removed_operations.contains(&operation)
-    }
-
-    pub(super) fn loads_forwarded(&self) -> usize {
-        self.forwarded_loads
-    }
-
-    pub(super) fn stores_removed(&self) -> usize {
-        self.removed_stores
-    }
+pub(super) struct StorageOptimizationReport {
+    pub(super) loads_forwarded: usize,
+    pub(super) stores_removed: usize,
 }
 
 pub(super) fn prove(
     draft: &crate::program::MachineBodyDraft,
     execution: &MachineFunctionExecution,
-) -> Result<LocalStorageProof, MachineOptimizationError> {
-    let mut proof = LocalStorageProof::default();
+    rewrites: &mut super::rewrite::MachineRewriteProof,
+) -> Result<StorageOptimizationReport, MachineOptimizationError> {
+    let mut report = StorageOptimizationReport::default();
     for block in &draft.blocks {
         let mut stored = BTreeMap::<MachineStackId, MachineValueId>::new();
         for operation_id in block.operations() {
@@ -60,7 +30,7 @@ pub(super) fn prove(
                 .ok_or(MachineOptimizationError::UnknownOperation(*operation_id))?;
             match operation.kind() {
                 MachineOperationKind::Store { destination, value } => {
-                    let value = proof.canonical_value(*value);
+                    let value = rewrites.canonical_value(*value);
                     if let Some(stack) = whole_stack(draft, *destination)? {
                         stored.insert(stack, value);
                     } else {
@@ -88,9 +58,9 @@ pub(super) fn prove(
                     if result_value.ty() == source_value.ty()
                         && result_value.representation() == source_value.representation()
                     {
-                        proof.aliases.insert(result, value);
-                        proof.removed_operations.insert(*operation_id);
-                        proof.forwarded_loads += 1;
+                        rewrites.alias(result, value);
+                        rewrites.remove(*operation_id);
+                        report.loads_forwarded += 1;
                     }
                 }
                 kind if kind.has_call_boundary() => stored.clear(),
@@ -99,8 +69,8 @@ pub(super) fn prove(
             }
         }
     }
-    remove_unobserved_stack_storage(draft, execution, &mut proof)?;
-    Ok(proof)
+    remove_unobserved_stack_storage(draft, execution, rewrites, &mut report)?;
+    Ok(report)
 }
 
 fn whole_stack(
@@ -132,7 +102,8 @@ fn whole_stack(
 fn remove_unobserved_stack_storage(
     draft: &crate::program::MachineBodyDraft,
     execution: &MachineFunctionExecution,
-    proof: &mut LocalStorageProof,
+    rewrites: &mut super::rewrite::MachineRewriteProof,
+    report: &mut StorageOptimizationReport,
 ) -> Result<(), MachineOptimizationError> {
     let mut candidates = (0..draft.stack.len())
         .map(MachineStackId::new)
@@ -164,7 +135,7 @@ fn remove_unobserved_stack_storage(
                 }
             }
             MachineOperationKind::Load { source } => {
-                if !proof.removes(operation_id) {
+                if !rewrites.removes(operation_id) {
                     disqualify_address(*source, &owners, &mut candidates);
                 }
             }
@@ -223,8 +194,8 @@ fn remove_unobserved_stack_storage(
             continue;
         };
         for operation in stack_stores {
-            if proof.removed_operations.insert(*operation) {
-                proof.removed_stores += 1;
+            if rewrites.remove(*operation) {
+                report.stores_removed += 1;
             }
         }
     }
