@@ -89,7 +89,7 @@ pub use program::{
 };
 pub use storage::{
     MachineAddress, MachineAddressExtent, MachineAddressRoot, MachineAddressStep, MachineDropFlag,
-    MachineIndex, MachineIndexBound, MachineStackObject, MachineStackPurpose,
+    MachineIndex, MachineIndexBound, MachineIndexCheck, MachineStackObject, MachineStackPurpose,
 };
 pub use structural::{
     MachineComparison, MachineComparisonOperation, MachineComparisonRepresentation,

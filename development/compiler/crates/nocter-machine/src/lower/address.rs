@@ -368,6 +368,7 @@ fn lower_index(
         index,
         stride,
         bound,
+        check: crate::MachineIndexCheck::Required,
     });
     state.current_view = false;
     Ok(())

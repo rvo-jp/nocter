@@ -26,6 +26,9 @@ source, loader commands, or package state.
 ## Invariants
 
 - ARM64 selection implements the ABI already classified by Machine.
+- Bounds emission consumes Machine's explicit check disposition. Proven fixed indexes form an
+  offset without a comparison, proven failures emit the bounds trap, and unresolved indexes retain
+  runtime checking; ARM64 never infers check removal from a constant by itself.
 - The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.

@@ -47,6 +47,7 @@ pub(crate) enum Arm64AsyncAddressStep {
         index: Arm64AsyncAddressIndex,
         stride: u64,
         bound: Arm64AsyncAddressBound,
+        check: nocter_machine::MachineIndexCheck,
     },
 }
 
@@ -338,6 +339,7 @@ fn select_address_steps(
                 index,
                 stride,
                 bound,
+                check,
             } => {
                 let bound = match bound {
                     MachineIndexBound::Fixed(length) => Arm64AsyncAddressBound::Fixed(length),
@@ -358,6 +360,7 @@ fn select_address_steps(
                     },
                     stride,
                     bound,
+                    check,
                 }
             }
         });

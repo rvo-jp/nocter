@@ -349,7 +349,10 @@ impl Retention {
                 self.mark_values(draft, [comparison.left(), comparison.right()])?;
             }
             MachineOperationKind::IndexBorrow(index) => {
-                self.mark_values(draft, [index.receiver(), index.index()])?;
+                self.mark_value(draft, index.receiver())?;
+                if let MachineIndex::Value(value) = index.index() {
+                    self.mark_value(draft, value)?;
+                }
             }
             MachineOperationKind::Aggregate(aggregate) => {
                 for write in aggregate.writes() {
@@ -855,8 +858,12 @@ fn remap_operation_kind(
         MachineOperationKind::IndexBorrow(index) => {
             MachineOperationKind::IndexBorrow(MachineIndexBorrow::new(
                 remap.value(index.receiver())?,
-                remap.value(index.index())?,
+                match index.index() {
+                    MachineIndex::Constant(index) => MachineIndex::Constant(index),
+                    MachineIndex::Value(value) => MachineIndex::Value(remap.value(value)?),
+                },
                 index.domain(),
+                index.check(),
             ))
         }
         MachineOperationKind::BorrowWeakening { source } => MachineOperationKind::BorrowWeakening {
@@ -1058,10 +1065,12 @@ fn remap_address_step(
             index: MachineIndex::Value(value),
             stride,
             bound,
+            check,
         } => MachineAddressStep::Index {
             index: MachineIndex::Value(remap.value(value)?),
             stride,
             bound,
+            check,
         },
         other => other,
     })

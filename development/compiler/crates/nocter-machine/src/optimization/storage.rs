@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::identity::MachineId;
 use crate::{
-    MachineAddressExtent, MachineAddressId, MachineAddressRoot, MachineCallAllocation,
-    MachineCallTarget, MachineCancellationAction, MachineFrameField, MachineFunctionExecution,
+    MachineAddressExtent, MachineAddressId, MachineAddressRoot, MachineAddressStep,
+    MachineCallAllocation, MachineCallTarget, MachineCancellationAction, MachineFrameField,
+    MachineFunctionExecution, MachineIndex, MachineIndexBound, MachineIndexCheck,
     MachineOperationId, MachineOperationKind, MachineStackId, MachineTerminator, MachineValueId,
 };
 
@@ -13,6 +14,7 @@ use super::MachineOptimizationError;
 pub(super) struct StorageOptimizationReport {
     pub(super) loads_forwarded: usize,
     pub(super) stores_removed: usize,
+    pub(super) address_evaluations_proven_safe: usize,
 }
 
 pub(super) fn prove(
@@ -38,8 +40,9 @@ pub(super) fn prove(
                     }
                 }
                 MachineOperationKind::Load { source } => {
-                    if whole_stack(draft, *source)?.is_some() {
+                    if non_trapping_stack_address(draft, *source)? {
                         rewrites.prove_pure(*operation_id);
+                        report.address_evaluations_proven_safe += 1;
                     }
                     let Some(result) = operation.result() else {
                         continue;
@@ -67,8 +70,9 @@ pub(super) fn prove(
                     }
                 }
                 MachineOperationKind::AddressOf { source } => {
-                    if whole_stack(draft, *source)?.is_some() {
+                    if non_trapping_stack_address(draft, *source)? {
                         rewrites.prove_pure(*operation_id);
+                        report.address_evaluations_proven_safe += 1;
                     }
                 }
                 kind if kind.has_call_boundary() => stored.clear(),
@@ -79,6 +83,55 @@ pub(super) fn prove(
     }
     remove_unobserved_stack_storage(draft, execution, rewrites, &mut report)?;
     Ok(report)
+}
+
+fn non_trapping_stack_address(
+    draft: &crate::program::MachineBodyDraft,
+    address: MachineAddressId,
+) -> Result<bool, MachineOptimizationError> {
+    let address = draft
+        .addresses
+        .get(address.index())
+        .ok_or(MachineOptimizationError::UnknownAddress(address))?;
+    let MachineAddressRoot::Stack(stack) = address.root() else {
+        return Ok(false);
+    };
+    let stack = draft
+        .stack
+        .get(stack.index())
+        .ok_or(MachineOptimizationError::UnknownStack(stack))?;
+    let MachineAddressExtent::Stored { size, alignment } = address.extent() else {
+        return Ok(false);
+    };
+    let mut offset = 0_u64;
+    for step in address.steps() {
+        let addition = match *step {
+            MachineAddressStep::Offset(offset) => offset,
+            MachineAddressStep::Index {
+                index: MachineIndex::Constant(index),
+                stride,
+                bound: MachineIndexBound::Fixed(_),
+                check: MachineIndexCheck::ProvenInBounds,
+            } => match index.checked_mul(stride) {
+                Some(offset) => offset,
+                None => return Ok(false),
+            },
+            MachineAddressStep::OffsetValue(_)
+            | MachineAddressStep::Dereference
+            | MachineAddressStep::ViewDereference { .. }
+            | MachineAddressStep::Index { .. } => return Ok(false),
+        };
+        offset = match offset.checked_add(addition) {
+            Some(offset) => offset,
+            None => return Ok(false),
+        };
+    }
+    let in_range = offset
+        .checked_add(size)
+        .is_some_and(|end| end <= stack.size());
+    let aligned =
+        alignment != 0 && stack.alignment() >= alignment && offset.is_multiple_of(alignment);
+    Ok(in_range && aligned)
 }
 
 fn whole_stack(

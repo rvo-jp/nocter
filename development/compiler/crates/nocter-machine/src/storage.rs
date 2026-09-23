@@ -68,6 +68,17 @@ pub enum MachineIndexBound {
     CurrentView,
 }
 
+/// Machine-owned disposition of one source-visible bounds check.
+///
+/// Targets consume this proof directly. They must not repeat constant-range analysis or silently
+/// omit a required check.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineIndexCheck {
+    Required,
+    ProvenInBounds,
+    ProvenTrap,
+}
+
 /// One explicit target-independent address calculation after semantic projections are erased.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAddressStep {
@@ -84,6 +95,7 @@ pub enum MachineAddressStep {
         index: MachineIndex,
         stride: u64,
         bound: MachineIndexBound,
+        check: MachineIndexCheck,
     },
 }
 

@@ -356,7 +356,9 @@ fn operation_inputs(
         }
         MachineOperationKind::IndexBorrow(index) => {
             insert_value(body, index.receiver(), &mut inputs)?;
-            insert_value(body, index.index(), &mut inputs)?;
+            if let MachineIndex::Value(value) = index.index() {
+                insert_value(body, value, &mut inputs)?;
+            }
         }
         MachineOperationKind::Aggregate(aggregate) => {
             for write in aggregate.writes() {

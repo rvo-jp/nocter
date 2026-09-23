@@ -240,8 +240,9 @@ pub enum Arm64SelectedInstruction {
     ResolveAddress(MachineAddressId),
     IndexAddress {
         destination: Arm64SelectedRegister,
-        index: Arm64SelectedRegister,
+        index: crate::Arm64SelectedIndex,
         domain: Arm64SelectedIndexAddressDomain,
+        check: nocter_machine::MachineIndexCheck,
     },
     MemoryAddress {
         destination: Arm64SelectedRegister,

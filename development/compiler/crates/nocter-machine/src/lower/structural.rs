@@ -174,8 +174,9 @@ fn lower_index(
     }
     Ok(MachineOperationKind::IndexBorrow(MachineIndexBorrow::new(
         context.ids.value(*receiver_value)?,
-        context.ids.value(*index_value)?,
+        crate::MachineIndex::Value(context.ids.value(*index_value)?),
         domain,
+        crate::MachineIndexCheck::Required,
     )))
 }
 

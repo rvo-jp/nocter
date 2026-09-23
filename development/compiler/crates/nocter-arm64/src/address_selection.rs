@@ -47,6 +47,7 @@ pub enum Arm64SelectedAddressStep {
         index: Arm64SelectedIndex,
         stride: u64,
         bound: Arm64SelectedIndexBound,
+        check: nocter_machine::MachineIndexCheck,
     },
 }
 
@@ -198,6 +199,7 @@ fn select_address(
                 index,
                 stride,
                 bound,
+                check,
             } => {
                 let bound = match bound {
                     MachineIndexBound::Fixed(length) => Arm64SelectedIndexBound::Fixed(length),
@@ -218,6 +220,7 @@ fn select_address(
                     },
                     stride,
                     bound,
+                    check,
                 }
             }
         };

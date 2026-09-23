@@ -1323,16 +1323,30 @@ fn machine_dataflow_tracks_values_that_survive_a_call() {
 #[test]
 fn machine_dataflow_expands_address_dependencies_once() {
     let program = MachineProgram::lower(&lower_fixture(
-        "func main(): i32 {\n\
+        "func read(index: usize): i32 {\n\
              let values: [i32; 2] = [7, 9]\n\
-             return values[1]\n\
-         }\n",
+             return values[index]\n\
+         }\n\
+         func main(): i32 { read(1) }\n",
     ))
     .unwrap();
-    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
-        panic!("fixture must produce one process machine root")
-    };
-    let function = program.function(entry).unwrap();
+    let function = program
+        .functions()
+        .map(|(_, function)| function)
+        .find(|function| {
+            function.body().addresses().any(|(_, address)| {
+                address.steps().iter().any(|step| {
+                    matches!(
+                        step,
+                        crate::MachineAddressStep::Index {
+                            index: crate::MachineIndex::Value(_),
+                            ..
+                        }
+                    )
+                })
+            })
+        })
+        .expect("fixture must contain one function with a dynamic index");
     let body = function.body();
     let (address_id, index) = body
         .addresses()
@@ -1503,7 +1517,7 @@ fn aggregate_and_field_projection_share_layout_owned_offsets() {
 }
 
 #[test]
-fn fixed_array_index_retains_stride_and_runtime_bound() {
+fn fixed_array_constant_index_carries_static_check_proof() {
     let mir = lower_fixture(
         "func main(): i32 {\n\
              let values: [i32; 2] = [7, 9]\n\
@@ -1520,13 +1534,50 @@ fn fixed_array_index_retains_stride_and_runtime_bound() {
             matches!(
                 step,
                 crate::MachineAddressStep::Index {
-                    index: crate::MachineIndex::Value(_),
+                    index: crate::MachineIndex::Constant(1),
                     stride: 4,
                     bound: crate::MachineIndexBound::Fixed(2),
+                    check: crate::MachineIndexCheck::ProvenInBounds,
                 }
             )
         })
     }));
+    assert_eq!(body.optimization().constant_indexes_resolved(), 1);
+    assert_eq!(body.optimization().bounds_checks_elided(), 1);
+    assert_eq!(body.optimization().address_evaluations_proven_safe(), 1);
+}
+
+#[test]
+fn constant_out_of_bounds_index_remains_an_explicit_static_check() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func main(): i32 {\n\
+             let values: [i32; 2] = [7, 9]\n\
+             return values[2]\n\
+         }\n",
+    ))
+    .unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let body = program.function(entry).unwrap().body();
+
+    assert!(body.addresses().any(|(_, address)| {
+        address.steps().iter().any(|step| {
+            matches!(
+                step,
+                crate::MachineAddressStep::Index {
+                    index: crate::MachineIndex::Constant(2),
+                    stride: 4,
+                    bound: crate::MachineIndexBound::Fixed(2),
+                    check: crate::MachineIndexCheck::ProvenTrap,
+                }
+            )
+        })
+    }));
+    assert_eq!(body.optimization().constant_indexes_resolved(), 1);
+    assert_eq!(body.optimization().bounds_checks_elided(), 0);
+    assert_eq!(body.optimization().bounds_traps_proven(), 1);
+    assert_eq!(body.optimization().address_evaluations_proven_safe(), 0);
 }
 
 #[test]
@@ -1911,8 +1962,8 @@ fn primitive_comparisons_freeze_scalar_and_enum_tag_representations() {
 #[test]
 fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations() {
     let program = MachineProgram::lower(&lower_fixture(
-        "func read<C, V>(source: &C, index: usize): V where copy V, (&C[usize]): &V {\n\
-             source[index]\n\
+        "func read<C, V>(source: &C): V where copy V, (&C[usize]): &V {\n\
+             source[1]\n\
          }\n\
          func weaken(value: &+i32): &i32 { value }\n\
          func main(): i32 {\n\
@@ -1920,7 +1971,7 @@ fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations()
              var mutable: i32 = 1\n\
              let readonly = weaken(&+mutable)\n\
              let _ = readonly\n\
-             read(&values, 1)\n\
+             read(&values)\n\
          }\n",
     ))
     .unwrap();
@@ -1939,6 +1990,8 @@ fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations()
                         length: 2,
                         stride: 4,
                     }
+                    && index.index() == crate::MachineIndex::Constant(1)
+                    && index.check() == crate::MachineIndexCheck::ProvenInBounds
         )
     }));
     assert!(

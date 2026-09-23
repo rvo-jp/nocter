@@ -1,4 +1,4 @@
-use crate::{MachineScalar, MachineValueId};
+use crate::{MachineIndex, MachineIndexCheck, MachineScalar, MachineValueId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineComparisonOperation {
@@ -76,20 +76,23 @@ pub enum MachineIndexDomain {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineIndexBorrow {
     receiver: MachineValueId,
-    index: MachineValueId,
+    index: MachineIndex,
     domain: MachineIndexDomain,
+    check: MachineIndexCheck,
 }
 
 impl MachineIndexBorrow {
     pub(crate) const fn new(
         receiver: MachineValueId,
-        index: MachineValueId,
+        index: MachineIndex,
         domain: MachineIndexDomain,
+        check: MachineIndexCheck,
     ) -> Self {
         Self {
             receiver,
             index,
             domain,
+            check,
         }
     }
 
@@ -99,13 +102,18 @@ impl MachineIndexBorrow {
     }
 
     #[must_use]
-    pub const fn index(self) -> MachineValueId {
+    pub const fn index(self) -> MachineIndex {
         self.index
     }
 
     #[must_use]
     pub const fn domain(self) -> MachineIndexDomain {
         self.domain
+    }
+
+    #[must_use]
+    pub const fn check(self) -> MachineIndexCheck {
+        self.check
     }
 }
 

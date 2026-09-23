@@ -6,7 +6,7 @@ Nocter v0.67.0 Operational Local Applications is published and externally audite
 file-retirement correction is on `main` and will be included in the next release without changing
 the retained v0.67.0 tag or artifact.
 
-v0.68.0 Production Native Performance is active. Phases 0 through 2 are complete. Every ordinary and
+v0.68.0 Production Native Performance is active. Phases 0 through 3 are complete. Every ordinary and
 compiler-generated Machine body now follows one draft, target-independent optimization, immutable
 freeze, and dataflow path. One exhaustive effect authority conservatively distinguishes pure,
 trapping, and observable operations. The optimizer now removes unreachable control flow and the
@@ -15,20 +15,17 @@ through one dense remapping pass. Each frozen body retains its exact transformat
 
 ## Next Work
 
-Implement v0.68.0 Phase 3 at the same Machine draft boundary. Forward values and local copies only
-across proven alias-safe regions, remove redundant loads, stores, address materialization, borrow
-weakening, aggregate staging, and drop-flag transitions, and keep calls, suspension, ownership
-transfer, and unknown aliasing as explicit barriers. Safety checks may disappear only with a
-Machine-owned proof that their failure condition is impossible. Exact same-block whole-stack load
-forwarding and complete unobserved local-storage removal are complete; next handle
-representation-preserving aliases and proven checks without weakening call, suspension, ownership,
-or alias barriers. Borrow weakening now uses a Machine-proven physical-storage alias while
-preserving its distinct typed value. Lane-complete direct aggregate construction now
-bypasses stack staging through one ARM64 plan shared by frame placement and instruction selection;
-partial-lane aggregates retain the zero-initialized memory path. Next audit the remaining explicit
-check forms for proofs with measurable native benefit. Redundant same-block drop-flag transitions
-are complete and stop at callable boundaries. Exact direct whole-stack address operations now carry
-a non-trapping proof; general checked address evaluation remains conservative.
+Implement v0.68.0 Phase 4 against the optimized immutable Machine product. Exercise synchronous,
+fallible, allocation-heavy, asynchronous, cancellation, collection, parsing, compression,
+filesystem, process, networking, and HTTP workloads; record generated code size and runtime with
+complete environment/sample identity; and attribute remaining dominant costs before making any
+target-specific change. Phase 3 completed same-block storage forwarding, unobserved stack removal,
+drop-flag coalescing, physical storage aliases, lane-complete register aggregate construction, and
+Machine-owned constant-index proofs. Fixed indexes now freeze as required, proven in bounds, or
+proven to trap; ARM64 consumes that disposition without repeating range analysis. Stack-rooted
+constant projections become non-trapping only after their complete byte extent and alignment are
+proven inside the stack object. Calls, suspension, ownership transfer, unknown aliasing,
+dereferences, views, dynamic offsets, unresolved bounds, and arithmetic traps remain barriers.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

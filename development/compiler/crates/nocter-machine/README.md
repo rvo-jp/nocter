@@ -56,8 +56,12 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Drop-flag writes coalesce within one block only while no callable boundary can observe cleanup
   state. The final write before control transfer remains part of the immutable Machine body.
 - Load or address materialization is locally non-trapping only when its direct stack address has no
-  projection and exactly matches the stack object's type, size, and alignment. General address
-  operations retain the conservative trapping classification.
+  dynamic projection, its complete constant offset and fixed-index path is proven in range, and its
+  stored extent remains aligned inside the stack object. Dereferences, views, dynamic offsets, and
+  unresolved indexes retain the conservative trapping classification.
+- Constant indexes are resolved once in Machine. Each fixed bound carries an explicit required,
+  proven-in-bounds, or proven-trap disposition; structural indexing and checked address paths share
+  that contract. Targets consume the disposition and cannot repeat range analysis or erase a trap.
 - Representation-preserving operations may retain distinct semantic value and type identities while
   naming one proven physical-storage identity. Machine validates that relation after dense pruning;
   targets consume it directly and cannot rediscover semantic equivalence or erase the typed value.

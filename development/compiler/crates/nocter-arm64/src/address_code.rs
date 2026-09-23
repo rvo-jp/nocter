@@ -7,6 +7,14 @@ use crate::{
     Arm64SelectedRegister, Arm64Shift,
 };
 
+#[derive(Clone, Copy)]
+struct Arm64IndexCalculation {
+    index: Arm64SelectedIndex,
+    stride: u64,
+    bound: Arm64SelectedIndexBound,
+    check: nocter_machine::MachineIndexCheck,
+}
+
 pub(crate) fn emit_resolve(
     function: &Arm64SelectedFunction,
     calculation: &Arm64SelectedAddressCalculation,
@@ -58,49 +66,72 @@ pub(crate) fn emit_resolve(
         }
     }
     for step in calculation.steps() {
-        match *step {
-            Arm64SelectedAddressStep::Offset(offset) => add_offset(code, address, offset),
-            Arm64SelectedAddressStep::OffsetRegister(offset) => {
-                let offset = crate::selected_code::read_register(function, offset, 0, code)?;
-                code.append(Arm64Instruction::AddSubtractRegister {
-                    size: Arm64DataSize::Bits64,
-                    operation: Arm64AddSubtract::Add,
-                    set_flags: false,
-                    destination: Arm64DataRegister::General(address),
-                    left: Arm64DataRegister::General(address),
-                    right: Arm64DataRegister::General(offset),
-                });
-            }
-            Arm64SelectedAddressStep::Dereference => {
-                load_native(code, Arm64LoadStoreSize::Double, None, address, address, 0);
-            }
-            Arm64SelectedAddressStep::ViewDereference {
-                pointer_offset,
+        emit_step(function, address, view_length, *step, code)?;
+    }
+    Ok(())
+}
+
+fn emit_step(
+    function: &Arm64SelectedFunction,
+    address: Arm64Register,
+    view_length: Arm64Register,
+    step: Arm64SelectedAddressStep,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    match step {
+        Arm64SelectedAddressStep::Offset(offset) => add_offset(code, address, offset),
+        Arm64SelectedAddressStep::OffsetRegister(offset) => {
+            let offset = crate::selected_code::read_register(function, offset, 0, code)?;
+            code.append(Arm64Instruction::AddSubtractRegister {
+                size: Arm64DataSize::Bits64,
+                operation: Arm64AddSubtract::Add,
+                set_flags: false,
+                destination: Arm64DataRegister::General(address),
+                left: Arm64DataRegister::General(address),
+                right: Arm64DataRegister::General(offset),
+            });
+        }
+        Arm64SelectedAddressStep::Dereference => {
+            load_native(code, Arm64LoadStoreSize::Double, None, address, address, 0);
+        }
+        Arm64SelectedAddressStep::ViewDereference {
+            pointer_offset,
+            length_offset,
+        } => {
+            load_native(
+                code,
+                Arm64LoadStoreSize::Double,
+                None,
+                view_length,
+                address,
                 length_offset,
-            } => {
-                load_native(
-                    code,
-                    Arm64LoadStoreSize::Double,
-                    None,
-                    view_length,
-                    address,
-                    length_offset,
-                );
-                load_native(
-                    code,
-                    Arm64LoadStoreSize::Double,
-                    None,
-                    address,
-                    address,
-                    pointer_offset,
-                );
-            }
-            Arm64SelectedAddressStep::Index {
+            );
+            load_native(
+                code,
+                Arm64LoadStoreSize::Double,
+                None,
+                address,
+                address,
+                pointer_offset,
+            );
+        }
+        Arm64SelectedAddressStep::Index {
+            index,
+            stride,
+            bound,
+            check,
+        } => emit_index(
+            function,
+            address,
+            view_length,
+            Arm64IndexCalculation {
                 index,
                 stride,
                 bound,
-            } => emit_index(function, address, view_length, index, stride, bound, code)?,
-        }
+                check,
+            },
+            code,
+        )?,
     }
     Ok(())
 }
@@ -142,8 +173,9 @@ pub(crate) fn emit_load(
 pub(crate) fn emit_index_address(
     function: &Arm64SelectedFunction,
     destination: Arm64SelectedRegister,
-    index: Arm64SelectedRegister,
+    index: Arm64SelectedIndex,
     domain: Arm64SelectedIndexAddressDomain,
+    check: nocter_machine::MachineIndexCheck,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     let address = crate::address_selection::runtime_address_register();
@@ -171,9 +203,12 @@ pub(crate) fn emit_index_address(
         function,
         address,
         view_length,
-        Arm64SelectedIndex::Register(index),
-        stride,
-        bound,
+        Arm64IndexCalculation {
+            index,
+            stride,
+            bound,
+            check,
+        },
         code,
     )?;
     emit_address(
@@ -225,25 +260,35 @@ fn emit_index(
     function: &Arm64SelectedFunction,
     address: Arm64Register,
     view_length: Arm64Register,
-    index: Arm64SelectedIndex,
-    stride: u64,
-    bound: Arm64SelectedIndexBound,
+    calculation: Arm64IndexCalculation,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    if let (Arm64SelectedIndex::Constant(index), Arm64SelectedIndexBound::Fixed(length)) =
-        (index, bound)
-    {
-        if index >= length {
+    let Arm64IndexCalculation {
+        index,
+        stride,
+        bound,
+        check,
+    } = calculation;
+    match check {
+        nocter_machine::MachineIndexCheck::ProvenTrap => {
             code.append(Arm64Instruction::Break {
                 immediate: crate::runtime_trap::Arm64RuntimeTrap::Bounds.immediate(),
             });
             return Ok(());
         }
-        let offset = index
-            .checked_mul(stride)
-            .ok_or(Arm64MaterializationError::OffsetOverflow)?;
-        add_offset(code, address, offset);
-        return Ok(());
+        nocter_machine::MachineIndexCheck::ProvenInBounds => {
+            let (Arm64SelectedIndex::Constant(index), Arm64SelectedIndexBound::Fixed(_)) =
+                (index, bound)
+            else {
+                return Err(Arm64MaterializationError::InvalidIndexProof);
+            };
+            let offset = index
+                .checked_mul(stride)
+                .ok_or(Arm64MaterializationError::OffsetOverflow)?;
+            add_offset(code, address, offset);
+            return Ok(());
+        }
+        nocter_machine::MachineIndexCheck::Required => {}
     }
 
     let index = match index {

@@ -57,6 +57,9 @@ field or variant structure from names.
 - Operation removal requires Machine-owned proof that evaluation is both unobservable and
   non-trapping; unknown effects are retained.
 - Safety checks remain unless an exact path proof makes their trap condition impossible.
+- Machine resolves constant indexes and freezes each bounds check as required, proven in range, or
+  proven to trap. ARM64 implements that disposition without repeating target-independent range
+  analysis.
 - Imported-service descriptors are interned once into a dense machine domain; calls retain only its
   identity and the shared preplanned runtime-call ABI.
 - Mach-O writing is deterministic and cannot introduce executable items.

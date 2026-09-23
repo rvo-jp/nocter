@@ -1,4 +1,4 @@
-use nocter_machine::{MachineOperationId, MachineValueId};
+use nocter_machine::{MachineIndex, MachineOperationId, MachineValueId};
 
 use crate::{
     Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction, Arm64SelectedRegister,
@@ -39,8 +39,14 @@ pub(crate) fn select_index_borrow(
     };
     selected.push(Arm64SelectedInstruction::IndexAddress {
         destination: one_word(values, result)?,
-        index: one_word(values, index.index())?,
+        index: match index.index() {
+            MachineIndex::Constant(index) => crate::Arm64SelectedIndex::Constant(index),
+            MachineIndex::Value(value) => {
+                crate::Arm64SelectedIndex::Register(one_word(values, value)?)
+            }
+        },
         domain,
+        check: index.check(),
     });
     Ok(())
 }
