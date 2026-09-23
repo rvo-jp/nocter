@@ -6,7 +6,7 @@ Nocter v0.67.0 Operational Local Applications is published and externally audite
 file-retirement correction is on `main` and will be included in the next release without changing
 the retained v0.67.0 tag or artifact.
 
-v0.68.0 Production Native Performance is active. Phases 0 through 3 are complete. Every ordinary and
+v0.68.0 Production Native Performance is active. Phases 0 through 4 are complete. Every ordinary and
 compiler-generated Machine body now follows one draft, target-independent optimization, immutable
 freeze, and dataflow path. One exhaustive effect authority conservatively distinguishes pure,
 trapping, and observable operations. The optimizer now removes unreachable control flow and the
@@ -15,17 +15,15 @@ through one dense remapping pass. Each frozen body retains its exact transformat
 
 ## Next Work
 
-Implement v0.68.0 Phase 4 against the optimized immutable Machine product. Exercise synchronous,
-fallible, allocation-heavy, asynchronous, cancellation, collection, parsing, compression,
-filesystem, process, networking, and HTTP workloads; record generated code size and runtime with
-complete environment/sample identity; and attribute remaining dominant costs before making any
-target-specific change. Phase 3 completed same-block storage forwarding, unobserved stack removal,
-drop-flag coalescing, physical storage aliases, lane-complete register aggregate construction, and
-Machine-owned constant-index proofs. Fixed indexes now freeze as required, proven in bounds, or
-proven to trap; ARM64 consumes that disposition without repeating range analysis. Stack-rooted
-constant projections become non-trapping only after their complete byte extent and alignment are
-proven inside the stack object. Calls, suspension, ownership transfer, unknown aliasing,
-dereferences, views, dynamic offsets, unresolved bounds, and arithmetic traps remain barriers.
+Implement v0.68.0 Phase 5. Run the complete repository, compiler, native, standard-library,
+example, documentation, packaging, and installed-home gates. Review the entire optimization
+boundary for duplicate authority, safety-check loss, stale pre-optimization dataflow,
+target-independent ARM64 rediscovery, sparse identity leakage, and benchmark-only production
+behavior. Phase 4 completed the external native workload matrix: four representative images fell
+by 3.67–6.16%, three were unchanged, compute-heavy runtime medians improved by 6.53–12.83%, and
+I/O-dominated workloads remained effectively flat with no regression. The measurement records
+complete compiler, installed-home, source, deterministic-input, host, executable, and sample-order
+identity. No additional target-specific optimization is justified before the final review.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
