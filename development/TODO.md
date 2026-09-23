@@ -2,20 +2,19 @@
 
 ## Current State
 
-Nocter v0.68.0 Production Native Performance is a release candidate. Phases 0 through 5 are
-complete. Every ordinary and
-compiler-generated Machine body now follows one draft, target-independent optimization, immutable
-freeze, and dataflow path. One exhaustive effect authority conservatively distinguishes pure,
-trapping, and observable operations. The optimizer now removes unreachable control flow and the
-complete closure of dead values, operations, stack objects, addresses, drop flags, and pack state
-through one dense remapping pass. Each frozen body retains its exact transformation report.
+Nocter v0.68.0 Production Native Performance is a qualified release candidate. Phases 0 through 5
+are complete. Every ordinary and compiler-generated Machine body now follows one draft,
+target-independent optimization, immutable freeze, and dataflow path. One exhaustive effect
+authority conservatively distinguishes pure, trapping, and observable operations. The optimizer
+now removes unreachable control flow and the complete closure of dead values, operations, stack
+objects, addresses, drop flags, and pack state through one dense remapping pass. Each frozen body
+retains its exact transformation report.
 
 ## Next Work
 
-Qualify the exact v0.68.0 release-content commit through two deterministic package builds and the
-installed-home gate. Record the resulting archive identity without rebuilding it. Publication and
-the external tag, asset, workflow, and Pages audit remain separate authorized work. v0.67.0 remains
-the published and externally audited release boundary until v0.68.0 publication.
+Publish only when explicitly authorized, reusing the exact retained qualified archive without
+rebuilding it. The external tag, asset, workflow, and Pages audit remain separate authorized work.
+v0.67.0 remains the published and externally audited release boundary until v0.68.0 publication.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
