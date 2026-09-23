@@ -122,6 +122,13 @@ pub(crate) fn emit_instruction(
             destination,
             source,
         } => emit_move(function, destination, source, size, code),
+        Arm64SelectedInstruction::ParallelCopy { first, second } => {
+            let copies = [Some(first), second]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            crate::parallel_copy::emit(function, &copies, code)
+        }
         Arm64SelectedInstruction::FloatLoadImmediate {
             size,
             destination,

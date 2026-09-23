@@ -1980,10 +1980,7 @@ fn machine_value_plan_separates_multiword_and_memory_values() {
     }));
 
     let frame = crate::Arm64FunctionFrame::build(&program, entry, &plan).unwrap();
-    let staging = frame.direct_aggregate_staging().unwrap();
-    let staging = frame.layout().object(staging).unwrap();
-    assert_eq!(staging.size(), 16);
-    assert_eq!(staging.alignment(), 8);
+    assert!(frame.direct_memory_staging().is_none());
 
     let large = aggregates
         .iter()
@@ -2001,6 +1998,66 @@ fn machine_value_plan_separates_multiword_and_memory_values() {
         .unwrap();
     assert_eq!(large_object.size(), 24);
     assert_eq!(large_object.alignment(), 8);
+}
+
+#[test]
+fn lane_complete_direct_aggregates_do_not_reserve_or_use_stack_staging() {
+    let program = crate::test_support::lower_machine(
+        "copy struct Pair { first: u64\n    second: u64 }\n\
+         func consume(value: Pair): void { return }\n\
+         func main(): i32 {\n\
+             let pair = Pair { first: 7, second: 9 }\n\
+             consume(pair)\n\
+             0\n\
+         }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let selected = crate::Arm64SelectedFunction::build(&program, entry).unwrap();
+
+    assert!(selected.frame().direct_memory_staging().is_none());
+    assert!(selected.blocks().any(|(_, block)| {
+        block.instructions().iter().any(|instruction| {
+            matches!(
+                instruction,
+                crate::Arm64SelectedInstruction::ParallelCopy { .. }
+            )
+        })
+    }));
+    assert!(selected.blocks().all(|(_, block)| {
+        block.instructions().iter().all(|instruction| {
+            !matches!(
+                instruction,
+                crate::Arm64SelectedInstruction::ZeroStack { .. }
+            )
+        })
+    }));
+}
+
+#[test]
+fn partial_lane_aggregates_keep_zero_initialized_stack_staging() {
+    let program = crate::test_support::lower_machine(
+        "copy struct Padded { first: u8\n    answer: i32 }\n\
+         func main(): i32 {\n\
+             let value = Padded { first: 1, answer: 42 }\n\
+             value.answer\n\
+         }\n",
+    );
+    let nocter_machine::MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce a process root")
+    };
+    let selected = crate::Arm64SelectedFunction::build(&program, entry).unwrap();
+
+    assert!(selected.frame().direct_memory_staging().is_some());
+    assert!(selected.blocks().any(|(_, block)| {
+        block.instructions().iter().any(|instruction| {
+            matches!(
+                instruction,
+                crate::Arm64SelectedInstruction::ZeroStack { .. }
+            )
+        })
+    }));
 }
 
 #[test]

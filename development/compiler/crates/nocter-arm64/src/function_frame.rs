@@ -64,7 +64,7 @@ pub struct Arm64FunctionFrame {
     stack_objects: Box<[Arm64FrameObjectId]>,
     drop_flags: Box<[Arm64FrameObjectId]>,
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
-    direct_aggregate_staging: Option<Arm64FrameObjectId>,
+    direct_memory_staging: Option<Arm64FrameObjectId>,
     memory_edge_staging: Option<Arm64FrameObjectId>,
     erased_callable_release_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
@@ -117,7 +117,7 @@ impl Arm64FunctionFrame {
             stack_objects: placed.stack_objects,
             drop_flags: placed.drop_flags,
             memory_values: placed.memory_values,
-            direct_aggregate_staging: placed.direct_aggregate_staging,
+            direct_memory_staging: placed.direct_memory_staging,
             memory_edge_staging: placed.memory_edge_staging,
             erased_callable_release_staging: placed.erased_callable_release_staging,
             packs: placed.packs,
@@ -156,10 +156,10 @@ impl Arm64FunctionFrame {
         self.memory_values.get(id.index()).copied().flatten()
     }
 
-    /// Shared construction storage for aggregates whose completed value lives in registers.
+    /// Shared byte staging for direct values that cannot be constructed in their registers.
     #[must_use]
-    pub const fn direct_aggregate_staging(&self) -> Option<Arm64FrameObjectId> {
-        self.direct_aggregate_staging
+    pub const fn direct_memory_staging(&self) -> Option<Arm64FrameObjectId> {
+        self.direct_memory_staging
     }
 
     /// One value-sized temporary used only to break cycles in block-edge memory assignments.
@@ -245,7 +245,7 @@ struct PlacedBodyObjects {
     stack_objects: Box<[Arm64FrameObjectId]>,
     drop_flags: Box<[Arm64FrameObjectId]>,
     memory_values: Box<[Option<Arm64FrameObjectId>]>,
-    direct_aggregate_staging: Option<Arm64FrameObjectId>,
+    direct_memory_staging: Option<Arm64FrameObjectId>,
     memory_edge_staging: Option<Arm64FrameObjectId>,
     erased_callable_release_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
@@ -315,7 +315,7 @@ fn place_body_objects(
         drop_flags.push(builder.add_object(1, 1)?);
     }
     let memory_values = place_memory_values(body, values, builder)?;
-    let direct_aggregate_staging = place_direct_aggregate_staging(body, values, builder)?;
+    let direct_memory_staging = place_direct_memory_staging(body, values, builder)?;
     let memory_edge_staging = place_memory_edge_staging(body, values, builder)?;
     let erased_callable_release_staging = place_erased_callable_release_staging(body, builder)?;
     let packs = place_packs(body, builder)?;
@@ -328,7 +328,7 @@ fn place_body_objects(
         stack_objects: stack_objects.into_boxed_slice(),
         drop_flags: drop_flags.into_boxed_slice(),
         memory_values,
-        direct_aggregate_staging,
+        direct_memory_staging,
         memory_edge_staging,
         erased_callable_release_staging,
         packs,
@@ -417,7 +417,7 @@ fn place_memory_edge_staging(
         .map_err(Arm64FunctionFrameError::from)
 }
 
-fn place_direct_aggregate_staging(
+fn place_direct_memory_staging(
     body: &nocter_machine::MachineBody,
     values: &Arm64ValuePlan,
     builder: &mut Arm64FrameLayoutBuilder,
@@ -432,12 +432,14 @@ fn place_direct_aggregate_staging(
                         .ok_or(Arm64FunctionFrameError::MissingOperationResult(
                             operation_id,
                         ))?;
-                if matches!(
-                    values
-                        .value(result)
-                        .ok_or(Arm64FunctionFrameError::MissingValue(result))?,
-                    Arm64ValueStorage::Direct(_)
-                ) {
+                if values.direct_aggregate(operation_id).is_none()
+                    && matches!(
+                        values
+                            .value(result)
+                            .ok_or(Arm64FunctionFrameError::MissingValue(result))?,
+                        Arm64ValueStorage::Direct(_)
+                    )
+                {
                     let (size, alignment) = requirement.unwrap_or((0, 1));
                     requirement = Some((
                         size.max(aggregate.size()),

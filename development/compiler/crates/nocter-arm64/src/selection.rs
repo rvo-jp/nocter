@@ -114,6 +114,11 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedRegister,
         source: Arm64SelectedRegister,
     },
+    /// One or two simultaneous general-register assignments resolved after allocation.
+    ParallelCopy {
+        first: Arm64SelectedCopy,
+        second: Option<Arm64SelectedCopy>,
+    },
     FloatLoadImmediate {
         size: Arm64DataSize,
         destination: Arm64SelectedFloatRegister,
@@ -502,6 +507,16 @@ impl Arm64SelectedFloatCopy {
 }
 
 impl Arm64SelectedCopy {
+    pub(crate) const fn new(
+        destination: Arm64SelectedRegister,
+        source: Arm64SelectedRegister,
+    ) -> Self {
+        Self {
+            destination,
+            source,
+        }
+    }
+
     #[must_use]
     pub const fn destination(self) -> Arm64SelectedRegister {
         self.destination
@@ -1066,8 +1081,7 @@ fn select_aggregate_operation(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     crate::aggregate_selection::select_aggregate(
-        scope.0,
-        scope.1,
+        (scope.0, scope.1, operation),
         aggregate,
         result.ok_or(Arm64SelectionError::MissingResult(operation))?,
         values,

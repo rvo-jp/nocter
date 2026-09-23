@@ -1,5 +1,5 @@
 use nocter_machine::{
-    MachineAggregate, MachineAggregateWrite, MachineFunctionId, MachineValueId,
+    MachineAggregate, MachineAggregateWrite, MachineFunctionId, MachineOperationId, MachineValueId,
     MachineValueRepresentation,
 };
 
@@ -11,18 +11,22 @@ use crate::{
 
 /// Selects one aggregate from its layout-owned byte-write recipe.
 ///
-/// Every byte is initialized before member writes. Memory values are assembled in their stable
-/// value object. Direct values use the function's shared construction object and are read into
-/// their allocated lanes immediately after assembly.
+/// Direct values use a precomputed register-construction plan when every member and zero-filled
+/// byte has an exact lane representation. Other values are initialized in stable memory before
+/// member writes.
 pub(crate) fn select_aggregate(
-    program: &nocter_machine::MachineProgram,
-    owner: MachineFunctionId,
+    scope: (
+        &nocter_machine::MachineProgram,
+        MachineFunctionId,
+        MachineOperationId,
+    ),
     aggregate: &MachineAggregate,
     result: MachineValueId,
     values: &Arm64ValuePlan,
     frame: &Arm64FunctionFrame,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    let (program, owner, operation) = scope;
     validate_result_layout(program, owner, result, aggregate)?;
     let storage = values
         .value(result)
@@ -30,6 +34,11 @@ pub(crate) fn select_aggregate(
     if matches!(storage, Arm64ValueStorage::Omitted) {
         validate_omitted_aggregate(program, owner, result, aggregate)?;
         return Ok(());
+    }
+    if let (Arm64ValueStorage::Direct(registers), Some(plan)) =
+        (storage, values.direct_aggregate(operation))
+    {
+        return select_direct_aggregate(registers, plan, selected);
     }
 
     let destination = aggregate_destination(frame, result, storage)?;
@@ -65,6 +74,68 @@ pub(crate) fn select_aggregate(
             });
         }
     }
+    Ok(())
+}
+
+fn select_direct_aggregate(
+    destinations: &[crate::Arm64VirtualRegister],
+    plan: &crate::aggregate_plan::Arm64DirectAggregatePlan,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    if destinations.len() != plan.lanes().len() {
+        return Err(Arm64SelectionError::DirectAggregatePlan);
+    }
+    let mut general_copies = Vec::new();
+    let mut deferred = Vec::new();
+    for (destination, (source, bytes)) in destinations.iter().copied().zip(plan.lanes()) {
+        let size = if bytes <= 4 {
+            Arm64DataSize::Bits32
+        } else {
+            Arm64DataSize::Bits64
+        };
+        let destination = Arm64SelectedRegister::Virtual(destination);
+        match source {
+            crate::aggregate_plan::Arm64DirectAggregateLane::Immediate(value) => {
+                deferred.push(Arm64SelectedInstruction::LoadImmediate {
+                    size,
+                    destination,
+                    value,
+                });
+            }
+            crate::aggregate_plan::Arm64DirectAggregateLane::General(source) => {
+                general_copies.push(crate::Arm64SelectedCopy::new(
+                    destination,
+                    Arm64SelectedRegister::Virtual(source),
+                ));
+            }
+            crate::aggregate_plan::Arm64DirectAggregateLane::Floating {
+                register,
+                bytes: source_bytes,
+            } if source_bytes == bytes => {
+                deferred.push(Arm64SelectedInstruction::FloatMoveToGeneral {
+                    size,
+                    destination,
+                    source: crate::Arm64SelectedFloatRegister::Virtual(register),
+                });
+            }
+            crate::aggregate_plan::Arm64DirectAggregateLane::Floating { .. } => {
+                return Err(Arm64SelectionError::DirectAggregatePlan);
+            }
+        }
+    }
+    match general_copies.as_slice() {
+        [] => {}
+        [first] => selected.push(Arm64SelectedInstruction::ParallelCopy {
+            first: *first,
+            second: None,
+        }),
+        [first, second] => selected.push(Arm64SelectedInstruction::ParallelCopy {
+            first: *first,
+            second: Some(*second),
+        }),
+        _ => return Err(Arm64SelectionError::DirectAggregatePlan),
+    }
+    selected.extend(deferred);
     Ok(())
 }
 
@@ -202,8 +273,8 @@ fn aggregate_destination(
 ) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {
     let object = match storage {
         Arm64ValueStorage::Direct(_) => frame
-            .direct_aggregate_staging()
-            .ok_or(Arm64SelectionError::MissingAggregateStaging)?,
+            .direct_memory_staging()
+            .ok_or(Arm64SelectionError::MissingDirectMemoryStaging)?,
         Arm64ValueStorage::Memory { .. } => frame
             .memory_value(result)
             .ok_or(Arm64SelectionError::MemoryValue(result))?,

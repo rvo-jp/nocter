@@ -190,9 +190,9 @@ fn staging(
 ) -> Result<Arm64SelectedStackAddress, Arm64SelectionError> {
     context
         .frame()
-        .direct_aggregate_staging()
+        .direct_memory_staging()
         .map(|object| Arm64SelectedStackAddress::FrameObject { object, offset: 0 })
-        .ok_or(Arm64SelectionError::MissingAggregateStaging)
+        .ok_or(Arm64SelectionError::MissingDirectMemoryStaging)
 }
 
 fn fixed_argument(index: u8) -> Result<Arm64SelectedRegister, Arm64SelectionError> {

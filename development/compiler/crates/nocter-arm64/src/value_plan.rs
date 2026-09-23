@@ -1,8 +1,8 @@
 use std::fmt;
 
 use nocter_machine::{
-    MachineBlockId, MachineFunction, MachineOperationId, MachineValueClass, MachineValueDefinition,
-    MachineValueId, MachineValueRepresentation, MachineValueStorage,
+    MachineBlockId, MachineFunction, MachineOperationId, MachineOperationKind, MachineValueClass,
+    MachineValueDefinition, MachineValueId, MachineValueRepresentation, MachineValueStorage,
 };
 
 use crate::{
@@ -56,6 +56,7 @@ impl Arm64ValueStorage {
 pub struct Arm64ValuePlan {
     owner: nocter_machine::MachineLinkageId,
     values: Box<[Arm64ValueStorage]>,
+    direct_aggregates: Box<[Option<crate::aggregate_plan::Arm64DirectAggregatePlan>]>,
     registers: Arm64RegisterAllocation,
 }
 
@@ -92,10 +93,25 @@ impl Arm64ValuePlan {
             .map(|(index, storage)| storage.ok_or(Arm64ValuePlanError::MissingPlannedValue(index)))
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
+        let mut direct_aggregates = vec![None; body.operations().len()];
+        for (operation_id, operation) in body.operations() {
+            let Some(slot) = direct_aggregates.get_mut(operation_id.index()) else {
+                return Err(Arm64ValuePlanError::UnknownOperation(operation_id));
+            };
+            let (MachineOperationKind::Aggregate(aggregate), Some(result)) =
+                (operation.kind(), operation.result())
+            else {
+                continue;
+            };
+            *slot = crate::aggregate_plan::Arm64DirectAggregatePlan::build(
+                body, aggregate, result, &values,
+            );
+        }
         apply_liveness(function, &schedule, &values, &mut register_builder)?;
         Ok(Self {
             owner: function.linkage(),
             values,
+            direct_aggregates: direct_aggregates.into_boxed_slice(),
             registers: register_builder.finish(),
         })
     }
@@ -113,6 +129,15 @@ impl Arm64ValuePlan {
     #[must_use]
     pub const fn registers(&self) -> &Arm64RegisterAllocation {
         &self.registers
+    }
+
+    pub(crate) fn direct_aggregate(
+        &self,
+        operation: MachineOperationId,
+    ) -> Option<&crate::aggregate_plan::Arm64DirectAggregatePlan> {
+        self.direct_aggregates
+            .get(operation.index())
+            .and_then(Option::as_ref)
     }
 }
 

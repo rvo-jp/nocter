@@ -7,6 +7,7 @@
 mod abi;
 mod address_code;
 mod address_selection;
+mod aggregate_plan;
 mod aggregate_selection;
 mod allocation_selection;
 mod async_activation;

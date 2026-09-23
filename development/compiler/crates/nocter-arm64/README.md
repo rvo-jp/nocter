@@ -14,7 +14,8 @@ source, loader commands, or package state.
 ## Internal Responsibilities
 
 - instruction and addressing selection
-- call, aggregate, pack, primitive, error, and region lowering
+- direct-register aggregate construction planning and memory-backed aggregate fallback
+- call, pack, primitive, error, and region lowering
 - declaration-to-materializer binding for compiler-owned asynchronous primitive families
 - frame layout and register allocation
 - allocation-backed async-frame placement from the exact Machine field union
@@ -31,6 +32,11 @@ source, loader commands, or package state.
 - Value planning assigns one physical register range to Machine-proven storage aliases. Instruction
   selection verifies that shared placement and emits no copy; it cannot infer aliases from source
   types or target-local operation heuristics.
+- Direct aggregates bypass stack construction only when one pre-frame plan proves every result lane
+  is an immediate, an exact-width general lane, or an exact-width floating lane. Partial-lane field
+  writes retain zero-initialized memory staging, and frame placement consumes the same plan rather
+  than repeating eligibility analysis. General lanes are materialized as one post-allocation
+  parallel copy, so an assigned destination cannot overwrite another lane's unread source.
 - Non-overlapping memory copies stabilize both address roots in boundary-only registers before
   chunk materialization. Large stack offsets therefore cannot replace an indirect argument or
   result pointer that the remainder of the copy still needs.
