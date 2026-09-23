@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.68.0 Phase 5 Optimization-boundary Review](v0.68.0-phase-5.md)
 - [v0.68.0 Phase 4 Native Workload Review](v0.68.0-phase-4.md)
 - [v0.67.0 Final Operational-application Review](v0.67.0-final.md)
 - [v0.67.0 Phase 7 Operational HTTP Service Review](v0.67.0-phase-7.md)
