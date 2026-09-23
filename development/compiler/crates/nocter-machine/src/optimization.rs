@@ -8,15 +8,20 @@ use crate::{
     MachineValueId,
 };
 
-mod dead_values;
+mod prune;
 
 /// Structural changes made by the one Machine body optimization pass.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MachineOptimizationReport {
     operations_folded: usize,
     terminators_folded: usize,
+    blocks_removed: usize,
     operations_removed: usize,
     values_removed: usize,
+    stack_objects_removed: usize,
+    addresses_removed: usize,
+    drop_flags_removed: usize,
+    packs_removed: usize,
 }
 
 impl MachineOptimizationReport {
@@ -31,6 +36,11 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn blocks_removed(self) -> usize {
+        self.blocks_removed
+    }
+
+    #[must_use]
     pub const fn operations_removed(self) -> usize {
         self.operations_removed
     }
@@ -41,18 +51,48 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn stack_objects_removed(self) -> usize {
+        self.stack_objects_removed
+    }
+
+    #[must_use]
+    pub const fn addresses_removed(self) -> usize {
+        self.addresses_removed
+    }
+
+    #[must_use]
+    pub const fn drop_flags_removed(self) -> usize {
+        self.drop_flags_removed
+    }
+
+    #[must_use]
+    pub const fn packs_removed(self) -> usize {
+        self.packs_removed
+    }
+
+    #[must_use]
     pub const fn changed(self) -> bool {
         self.operations_folded != 0
             || self.terminators_folded != 0
+            || self.blocks_removed != 0
             || self.operations_removed != 0
             || self.values_removed != 0
+            || self.stack_objects_removed != 0
+            || self.addresses_removed != 0
+            || self.drop_flags_removed != 0
+            || self.packs_removed != 0
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineOptimizationError {
+    UnknownBlock(crate::MachineBlockId),
+    UnknownStack(crate::MachineStackId),
+    UnknownAddress(crate::MachineAddressId),
     UnknownOperation(crate::MachineOperationId),
     UnknownValue(crate::MachineValueId),
+    UnknownDropFlag(crate::MachineDropFlagId),
+    UnknownPack(crate::MachinePackId),
 }
 
 impl fmt::Display for MachineOptimizationError {
@@ -72,7 +112,7 @@ pub(crate) fn optimize(
     let mut report = MachineOptimizationReport::default();
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
-    dead_values::eliminate(draft, execution, &mut report)?;
+    prune::unreachable_and_unused(draft, execution, &mut report)?;
     Ok(report)
 }
 

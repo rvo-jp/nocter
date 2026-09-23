@@ -6,17 +6,20 @@ Nocter v0.67.0 Operational Local Applications is published and externally audite
 file-retirement correction is on `main` and will be included in the next release without changing
 the retained v0.67.0 tag or artifact.
 
-v0.68.0 Production Native Performance is active. Phases 0 and 1 are complete. Every ordinary and
+v0.68.0 Production Native Performance is active. Phases 0 through 2 are complete. Every ordinary and
 compiler-generated Machine body now follows one draft, target-independent optimization, immutable
 freeze, and dataflow path. One exhaustive effect authority conservatively distinguishes pure,
-trapping, and observable operations, and each frozen body retains its exact transformation report.
+trapping, and observable operations. The optimizer now removes unreachable control flow and the
+complete closure of dead values, operations, stack objects, addresses, drop flags, and pack state
+through one dense remapping pass. Each frozen body retains its exact transformation report.
 
 ## Next Work
 
-Implement v0.68.0 Phase 2 through one dense remapping authority. Remove unreachable blocks and dead
-pure values together with their unused stack, address, flag, and pack identities; do not expose
-sparse tables or let ARM64 reinterpret reachability. Preserve operations classified as trapping or
-observable even when their results are unused.
+Implement v0.68.0 Phase 3 at the same Machine draft boundary. Forward values and local copies only
+across proven alias-safe regions, remove redundant loads, stores, address materialization, borrow
+weakening, aggregate staging, and drop-flag transitions, and keep calls, suspension, ownership
+transfer, and unknown aliasing as explicit barriers. Safety checks may disappear only with a
+Machine-owned proof that their failure condition is impossible.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

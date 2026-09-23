@@ -1,33 +1,46 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 
 use crate::effect::MachineOperationEffect;
 use crate::identity::MachineId;
 use crate::{
-    MachineAddress, MachineAddressExtent, MachineAddressRoot, MachineAddressStep, MachineAggregate,
-    MachineAggregateWrite, MachineAsyncFrame, MachineBlock, MachineBranchTarget, MachineCall,
-    MachineCallTarget, MachineCancellationAction, MachineErasedCallable, MachineFrameField,
+    MachineAddress, MachineAddressExtent, MachineAddressId, MachineAddressRoot, MachineAddressStep,
+    MachineAggregate, MachineAggregateWrite, MachineAsyncFrame, MachineBlock, MachineBlockId,
+    MachineBranchTarget, MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget,
+    MachineCancellationAction, MachineDropFlagId, MachineErasedCallable, MachineFrameField,
     MachineFunctionExecution, MachineIndex, MachineIndexBorrow, MachineInitialAsyncState,
-    MachineOperation, MachineOperationId, MachineOperationKind, MachinePack, MachinePackSegment,
-    MachinePackSpread, MachineSuspensionState, MachineSwitchCase, MachineTerminator, MachineValue,
-    MachineValueDefinition, MachineValueId,
+    MachineOperation, MachineOperationId, MachineOperationKind, MachinePack, MachinePackId,
+    MachinePackSegment, MachinePackSpread, MachineStackId, MachineSuspensionState,
+    MachineSwitchCase, MachineTerminator, MachineValue, MachineValueDefinition, MachineValueId,
 };
 
 use super::{MachineOptimizationError, MachineOptimizationReport};
 
-pub(super) fn eliminate(
+/// Retains the complete execution-resource closure of reachable blocks and compacts every
+/// affected body-local identity domain together.
+pub(super) fn unreachable_and_unused(
     draft: &mut crate::program::MachineBodyDraft,
     execution: &mut MachineFunctionExecution,
     report: &mut MachineOptimizationReport,
 ) -> Result<(), MachineOptimizationError> {
     let retention = Retention::build(draft, execution)?;
-    if retention.operations.len() == draft.operations.len()
+    if retention.blocks.len() == draft.blocks.len()
+        && retention.operations.len() == draft.operations.len()
         && retention.values.len() == draft.values.len()
+        && retention.stack.len() == draft.stack.len()
+        && retention.addresses.len() == draft.addresses.len()
+        && retention.drop_flags.len() == draft.drop_flags.len()
+        && retention.packs.len() == draft.packs.len()
     {
         return Ok(());
     }
     let remap = DenseRemap::new(draft, &retention);
+    let old_block_count = draft.blocks.len();
     let old_operation_count = draft.operations.len();
     let old_value_count = draft.values.len();
+    let old_stack_count = draft.stack.len();
+    let old_address_count = draft.addresses.len();
+    let old_drop_flag_count = draft.drop_flags.len();
+    let old_pack_count = draft.packs.len();
 
     draft.operations = std::mem::take(&mut draft.operations)
         .into_iter()
@@ -45,20 +58,53 @@ pub(super) fn eliminate(
         .filter(|(index, _)| retention.values.contains(&MachineValueId::new(*index)))
         .map(|(_, value)| remap_value(value, &remap))
         .collect::<Result<Vec<_>, _>>()?;
-    remap_addresses(&mut draft.addresses, &remap)?;
-    remap_packs(&mut draft.packs, &remap)?;
-    remap_blocks(&mut draft.blocks, &remap)?;
-    remap_execution(execution, &remap)?;
+    draft.parameters = draft
+        .parameters
+        .iter()
+        .map(|stack| remap.stack(*stack))
+        .collect::<Result<Vec<_>, _>>()?;
+    draft.stack = retain_domain(std::mem::take(&mut draft.stack), &retention.stack);
+    draft.drop_flags = retain_domain(std::mem::take(&mut draft.drop_flags), &retention.drop_flags);
+    draft.addresses = std::mem::take(&mut draft.addresses)
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| retention.addresses.contains(&MachineAddressId::new(*index)))
+        .map(|(_, address)| remap_address(&address, &remap))
+        .collect::<Result<Vec<_>, _>>()?;
+    draft.packs = std::mem::take(&mut draft.packs)
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| retention.packs.contains(&MachinePackId::new(*index)))
+        .map(|(_, pack)| remap_pack(&pack, &remap))
+        .collect::<Result<Vec<_>, _>>()?;
+    draft.blocks = std::mem::take(&mut draft.blocks)
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| retention.blocks.contains(&MachineBlockId::new(*index)))
+        .map(|(_, block)| remap_block(&block, &remap))
+        .collect::<Result<Vec<_>, _>>()?;
+    draft.entry = remap.block(draft.entry)?;
+    remap_execution(execution, &retention, &remap)?;
 
+    report.blocks_removed += old_block_count - draft.blocks.len();
     report.operations_removed += old_operation_count - draft.operations.len();
     report.values_removed += old_value_count - draft.values.len();
+    report.stack_objects_removed += old_stack_count - draft.stack.len();
+    report.addresses_removed += old_address_count - draft.addresses.len();
+    report.drop_flags_removed += old_drop_flag_count - draft.drop_flags.len();
+    report.packs_removed += old_pack_count - draft.packs.len();
     Ok(())
 }
 
 #[derive(Default)]
 struct Retention {
+    blocks: BTreeSet<MachineBlockId>,
     operations: BTreeSet<MachineOperationId>,
     values: BTreeSet<MachineValueId>,
+    stack: BTreeSet<MachineStackId>,
+    addresses: BTreeSet<MachineAddressId>,
+    drop_flags: BTreeSet<MachineDropFlagId>,
+    packs: BTreeSet<MachinePackId>,
 }
 
 impl Retention {
@@ -66,28 +112,35 @@ impl Retention {
         draft: &crate::program::MachineBodyDraft,
         execution: &MachineFunctionExecution,
     ) -> Result<Self, MachineOptimizationError> {
-        let mut retained = Self::default();
-        for (index, operation) in draft.operations.iter().enumerate() {
-            if operation.kind().effect() != MachineOperationEffect::Pure {
-                retained.operations.insert(MachineOperationId::new(index));
-            }
-        }
-        for block in &draft.blocks {
+        let mut retained = Self::reachable_blocks(draft)?;
+        for block_id in retained.blocks.clone() {
+            let block = draft
+                .blocks
+                .get(block_id.index())
+                .ok_or(MachineOptimizationError::UnknownBlock(block_id))?;
             for parameter in block.parameters() {
                 retained.mark_value(draft, *parameter)?;
             }
             retained.mark_terminator(draft, block.terminator())?;
+            for operation_id in block.operations() {
+                let operation = draft
+                    .operations
+                    .get(operation_id.index())
+                    .ok_or(MachineOptimizationError::UnknownOperation(*operation_id))?;
+                if operation.kind().effect() != MachineOperationEffect::Pure {
+                    retained.operations.insert(*operation_id);
+                }
+            }
         }
-        for address in &draft.addresses {
-            retained.mark_address(draft, address)?;
-        }
-        for pack in &draft.packs {
-            retained.mark_pack(draft, pack)?;
+        for parameter in &draft.parameters {
+            retained.mark_stack(draft, *parameter)?;
         }
         retained.mark_execution(draft, execution)?;
 
         let mut visited_operations = BTreeSet::new();
         let mut visited_values = BTreeSet::new();
+        let mut visited_addresses = BTreeSet::new();
+        let mut visited_packs = BTreeSet::new();
         loop {
             let pending_operations = retained
                 .operations
@@ -99,7 +152,21 @@ impl Retention {
                 .difference(&visited_values)
                 .copied()
                 .collect::<Vec<_>>();
-            if pending_operations.is_empty() && pending_values.is_empty() {
+            let pending_addresses = retained
+                .addresses
+                .difference(&visited_addresses)
+                .copied()
+                .collect::<Vec<_>>();
+            let pending_packs = retained
+                .packs
+                .difference(&visited_packs)
+                .copied()
+                .collect::<Vec<_>>();
+            if pending_operations.is_empty()
+                && pending_values.is_empty()
+                && pending_addresses.is_empty()
+                && pending_packs.is_empty()
+            {
                 break;
             }
             for operation_id in pending_operations {
@@ -123,6 +190,40 @@ impl Retention {
                     retained.mark_operation(draft, operation)?;
                 }
             }
+            for address_id in pending_addresses {
+                visited_addresses.insert(address_id);
+                let address = draft
+                    .addresses
+                    .get(address_id.index())
+                    .ok_or(MachineOptimizationError::UnknownAddress(address_id))?;
+                retained.mark_address_inputs(draft, address)?;
+            }
+            for pack_id in pending_packs {
+                visited_packs.insert(pack_id);
+                let pack = draft
+                    .packs
+                    .get(pack_id.index())
+                    .ok_or(MachineOptimizationError::UnknownPack(pack_id))?;
+                retained.mark_pack_inputs(draft, pack)?;
+            }
+        }
+        Ok(retained)
+    }
+
+    fn reachable_blocks(
+        draft: &crate::program::MachineBodyDraft,
+    ) -> Result<Self, MachineOptimizationError> {
+        let mut retained = Self::default();
+        let mut pending = VecDeque::from([draft.entry]);
+        while let Some(block_id) = pending.pop_front() {
+            let block = draft
+                .blocks
+                .get(block_id.index())
+                .ok_or(MachineOptimizationError::UnknownBlock(block_id))?;
+            if !retained.blocks.insert(block_id) {
+                continue;
+            }
+            pending.extend(successors(block.terminator()));
         }
         Ok(retained)
     }
@@ -162,17 +263,70 @@ impl Retention {
         Ok(())
     }
 
+    fn mark_stack(
+        &mut self,
+        draft: &crate::program::MachineBodyDraft,
+        stack: MachineStackId,
+    ) -> Result<(), MachineOptimizationError> {
+        if draft.stack.get(stack.index()).is_none() {
+            return Err(MachineOptimizationError::UnknownStack(stack));
+        }
+        self.stack.insert(stack);
+        Ok(())
+    }
+
+    fn mark_address_id(
+        &mut self,
+        draft: &crate::program::MachineBodyDraft,
+        address: MachineAddressId,
+    ) -> Result<(), MachineOptimizationError> {
+        if draft.addresses.get(address.index()).is_none() {
+            return Err(MachineOptimizationError::UnknownAddress(address));
+        }
+        self.addresses.insert(address);
+        Ok(())
+    }
+
+    fn mark_drop_flag(
+        &mut self,
+        draft: &crate::program::MachineBodyDraft,
+        flag: MachineDropFlagId,
+    ) -> Result<(), MachineOptimizationError> {
+        if draft.drop_flags.get(flag.index()).is_none() {
+            return Err(MachineOptimizationError::UnknownDropFlag(flag));
+        }
+        self.drop_flags.insert(flag);
+        Ok(())
+    }
+
+    fn mark_pack_id(
+        &mut self,
+        draft: &crate::program::MachineBodyDraft,
+        pack: MachinePackId,
+    ) -> Result<(), MachineOptimizationError> {
+        if draft.packs.get(pack.index()).is_none() {
+            return Err(MachineOptimizationError::UnknownPack(pack));
+        }
+        self.packs.insert(pack);
+        Ok(())
+    }
+
     fn mark_operation_inputs(
         &mut self,
         draft: &crate::program::MachineBodyDraft,
         operation: &MachineOperationKind,
     ) -> Result<(), MachineOptimizationError> {
         match operation {
-            MachineOperationKind::Store { value, .. }
-            | MachineOperationKind::Unary { operand: value, .. }
+            MachineOperationKind::Load { source } | MachineOperationKind::AddressOf { source } => {
+                self.mark_address_id(draft, *source)?;
+            }
+            MachineOperationKind::Store { destination, value } => {
+                self.mark_address_id(draft, *destination)?;
+                self.mark_value(draft, *value)?;
+            }
+            MachineOperationKind::Unary { operand: value, .. }
             | MachineOperationKind::NumericConversion { operand: value }
-            | MachineOperationKind::BorrowWeakening { source: value }
-            | MachineOperationKind::CreateRegion { parent: value, .. } => {
+            | MachineOperationKind::BorrowWeakening { source: value } => {
                 self.mark_value(draft, *value)?;
             }
             MachineOperationKind::Binary { left, right, .. }
@@ -200,18 +354,35 @@ impl Retention {
             }
             MachineOperationKind::Call(call) => {
                 self.mark_values(draft, call.arguments().iter().copied())?;
+                self.mark_call_resources(draft, call)?;
+            }
+            MachineOperationKind::InvokeDrop { place, .. }
+            | MachineOperationKind::ReportError { place }
+            | MachineOperationKind::ReleaseError { place }
+            | MachineOperationKind::ReleaseComputation { place }
+            | MachineOperationKind::ReleaseErasedCallable { place } => {
+                self.mark_address_id(draft, *place)?;
+            }
+            MachineOperationKind::DriveComputation {
+                computation,
+                destination,
+            } => {
+                self.mark_address_id(draft, *computation)?;
+                if let Some(destination) = destination {
+                    self.mark_address_id(draft, *destination)?;
+                }
+            }
+            MachineOperationKind::CreateRegion { parent, region } => {
+                self.mark_value(draft, *parent)?;
+                self.mark_stack(draft, *region)?;
+            }
+            MachineOperationKind::ReleaseRegion { region } => {
+                self.mark_stack(draft, *region)?;
+            }
+            MachineOperationKind::SetDropFlag { flag, .. } => {
+                self.mark_drop_flag(draft, *flag)?;
             }
             MachineOperationKind::Constant(_)
-            | MachineOperationKind::Load { .. }
-            | MachineOperationKind::AddressOf { .. }
-            | MachineOperationKind::InvokeDrop { .. }
-            | MachineOperationKind::ReportError { .. }
-            | MachineOperationKind::ReleaseError { .. }
-            | MachineOperationKind::ReleaseComputation { .. }
-            | MachineOperationKind::ReleaseErasedCallable { .. }
-            | MachineOperationKind::DriveComputation { .. }
-            | MachineOperationKind::ReleaseRegion { .. }
-            | MachineOperationKind::SetDropFlag { .. }
             | MachineOperationKind::PackLength
             | MachineOperationKind::PackNext
             | MachineOperationKind::DestroyPack => {}
@@ -219,7 +390,26 @@ impl Retention {
         Ok(())
     }
 
-    fn mark_address(
+    fn mark_call_resources(
+        &mut self,
+        draft: &crate::program::MachineBodyDraft,
+        call: &MachineCall,
+    ) -> Result<(), MachineOptimizationError> {
+        if let MachineCallTarget::Erased { callable, .. } = call.target() {
+            self.mark_address_id(draft, *callable)?;
+        }
+        match call.allocation() {
+            MachineCallAllocation::Inherit => {}
+            MachineCallAllocation::Lexical(stack) => self.mark_stack(draft, stack)?,
+            MachineCallAllocation::Explicit(address) => self.mark_address_id(draft, address)?,
+        }
+        if let Some(MachineCallPack::Prepared(pack)) = call.pack() {
+            self.mark_pack_id(draft, pack)?;
+        }
+        Ok(())
+    }
+
+    fn mark_address_inputs(
         &mut self,
         draft: &crate::program::MachineBodyDraft,
         address: &MachineAddress,
@@ -228,6 +418,8 @@ impl Retention {
             address.root()
         {
             self.mark_value(draft, value)?;
+        } else if let MachineAddressRoot::Stack(stack) = address.root() {
+            self.mark_stack(draft, stack)?;
         }
         for step in address.steps() {
             if let MachineAddressStep::OffsetValue(value)
@@ -242,7 +434,7 @@ impl Retention {
         Ok(())
     }
 
-    fn mark_pack(
+    fn mark_pack_inputs(
         &mut self,
         draft: &crate::program::MachineBodyDraft,
         pack: &MachinePack,
@@ -256,6 +448,7 @@ impl Retention {
                 }
                 MachinePackSegment::Spread(spread) => {
                     self.mark_value(draft, spread.remaining())?;
+                    self.mark_address_id(draft, spread.iterator())?;
                 }
             }
         }
@@ -279,10 +472,11 @@ impl Retention {
                 self.mark_target(draft, else_target)?;
             }
             MachineTerminator::BranchDropFlag {
+                flag,
                 initialized,
                 uninitialized,
-                ..
             } => {
+                self.mark_drop_flag(draft, *flag)?;
                 self.mark_target(draft, initialized)?;
                 self.mark_target(draft, uninitialized)?;
             }
@@ -298,8 +492,12 @@ impl Retention {
                 self.mark_target(draft, fallback)?;
             }
             MachineTerminator::SwitchTag {
-                cases, fallback, ..
+                subject,
+                cases,
+                fallback,
+                ..
             } => {
+                self.mark_address_id(draft, *subject)?;
                 for case in cases {
                     self.mark_target(draft, case.target())?;
                 }
@@ -341,6 +539,9 @@ impl Retention {
         self.mark_fields(draft, frame.initial().fields())?;
         self.mark_cancellation(draft, frame.initial().cancellation())?;
         for state in frame.states() {
+            if !self.blocks.contains(&state.suspend()) {
+                continue;
+            }
             self.mark_value(draft, state.awaited())?;
             self.mark_fields(draft, state.fields())?;
             self.mark_cancellation(draft, state.cancellation())?;
@@ -354,8 +555,11 @@ impl Retention {
         fields: &[MachineFrameField],
     ) -> Result<(), MachineOptimizationError> {
         for field in fields {
-            if let MachineFrameField::Value(value) = field {
-                self.mark_value(draft, *value)?;
+            match field {
+                MachineFrameField::Pack => {}
+                MachineFrameField::Stack(stack) => self.mark_stack(draft, *stack)?,
+                MachineFrameField::Value(value) => self.mark_value(draft, *value)?,
+                MachineFrameField::DropFlag(flag) => self.mark_drop_flag(draft, *flag)?,
             }
         }
         Ok(())
@@ -367,28 +571,96 @@ impl Retention {
         actions: &[MachineCancellationAction],
     ) -> Result<(), MachineOptimizationError> {
         for action in actions {
-            if let MachineCancellationAction::ReleaseAwaited(value) = action {
-                self.mark_value(draft, *value)?;
+            match action {
+                MachineCancellationAction::ReleaseAwaited(value) => {
+                    self.mark_value(draft, *value)?;
+                }
+                MachineCancellationAction::Destroy {
+                    address,
+                    initialized,
+                    ..
+                } => {
+                    self.mark_address_id(draft, *address)?;
+                    if let Some(flag) = initialized {
+                        self.mark_drop_flag(draft, *flag)?;
+                    }
+                }
+                MachineCancellationAction::ReleaseRegion(stack) => {
+                    self.mark_stack(draft, *stack)?;
+                }
+                MachineCancellationAction::DestroyPack => {}
             }
         }
         Ok(())
     }
 }
 
+fn successors(terminator: &MachineTerminator) -> Vec<MachineBlockId> {
+    match terminator {
+        MachineTerminator::Goto(target) => vec![target.block()],
+        MachineTerminator::Branch {
+            then_target,
+            else_target,
+            ..
+        }
+        | MachineTerminator::BranchDropFlag {
+            initialized: then_target,
+            uninitialized: else_target,
+            ..
+        } => vec![then_target.block(), else_target.block()],
+        MachineTerminator::SwitchValue {
+            cases, fallback, ..
+        }
+        | MachineTerminator::SwitchTag {
+            cases, fallback, ..
+        } => cases
+            .iter()
+            .map(|case| case.target().block())
+            .chain(std::iter::once(fallback.block()))
+            .collect(),
+        MachineTerminator::Suspend { resume, .. } => vec![resume.block()],
+        MachineTerminator::Return(_)
+        | MachineTerminator::Exit(_)
+        | MachineTerminator::Trap
+        | MachineTerminator::Unreachable => Vec::new(),
+    }
+}
+
 struct DenseRemap {
+    blocks: Vec<Option<MachineBlockId>>,
     operations: Vec<Option<MachineOperationId>>,
     values: Vec<Option<MachineValueId>>,
+    stack: Vec<Option<MachineStackId>>,
+    addresses: Vec<Option<MachineAddressId>>,
+    drop_flags: Vec<Option<MachineDropFlagId>>,
+    packs: Vec<Option<MachinePackId>>,
 }
 
 impl DenseRemap {
     fn new(draft: &crate::program::MachineBodyDraft, retention: &Retention) -> Self {
         Self {
+            blocks: dense_map::<MachineBlockId>(draft.blocks.len(), &retention.blocks),
             operations: dense_map::<MachineOperationId>(
                 draft.operations.len(),
                 &retention.operations,
             ),
             values: dense_map::<MachineValueId>(draft.values.len(), &retention.values),
+            stack: dense_map::<MachineStackId>(draft.stack.len(), &retention.stack),
+            addresses: dense_map::<MachineAddressId>(draft.addresses.len(), &retention.addresses),
+            drop_flags: dense_map::<MachineDropFlagId>(
+                draft.drop_flags.len(),
+                &retention.drop_flags,
+            ),
+            packs: dense_map::<MachinePackId>(draft.packs.len(), &retention.packs),
         }
+    }
+
+    fn block(&self, id: MachineBlockId) -> Result<MachineBlockId, MachineOptimizationError> {
+        self.blocks
+            .get(id.index())
+            .copied()
+            .flatten()
+            .ok_or(MachineOptimizationError::UnknownBlock(id))
     }
 
     fn operation(
@@ -419,6 +691,50 @@ impl DenseRemap {
             .flatten()
             .ok_or(MachineOptimizationError::UnknownValue(id))
     }
+
+    fn stack(&self, id: MachineStackId) -> Result<MachineStackId, MachineOptimizationError> {
+        self.stack
+            .get(id.index())
+            .copied()
+            .flatten()
+            .ok_or(MachineOptimizationError::UnknownStack(id))
+    }
+
+    fn address(&self, id: MachineAddressId) -> Result<MachineAddressId, MachineOptimizationError> {
+        self.addresses
+            .get(id.index())
+            .copied()
+            .flatten()
+            .ok_or(MachineOptimizationError::UnknownAddress(id))
+    }
+
+    fn drop_flag(
+        &self,
+        id: MachineDropFlagId,
+    ) -> Result<MachineDropFlagId, MachineOptimizationError> {
+        self.drop_flags
+            .get(id.index())
+            .copied()
+            .flatten()
+            .ok_or(MachineOptimizationError::UnknownDropFlag(id))
+    }
+
+    fn pack(&self, id: MachinePackId) -> Result<MachinePackId, MachineOptimizationError> {
+        self.packs
+            .get(id.index())
+            .copied()
+            .flatten()
+            .ok_or(MachineOptimizationError::UnknownPack(id))
+    }
+}
+
+fn retain_domain<I: MachineId + Ord, T>(values: Vec<T>, retained: &BTreeSet<I>) -> Vec<T> {
+    values
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| retained.contains(&I::new(*index)))
+        .map(|(_, value)| value)
+        .collect()
 }
 
 fn dense_map<I: MachineId + Ord>(length: usize, retained: &BTreeSet<I>) -> Vec<Option<I>> {
@@ -441,7 +757,10 @@ fn remap_value(
 ) -> Result<MachineValue, MachineOptimizationError> {
     let definition = match value.definition() {
         MachineValueDefinition::BlockParameter { block, position } => {
-            MachineValueDefinition::BlockParameter { block, position }
+            MachineValueDefinition::BlockParameter {
+                block: remap.block(block)?,
+                position,
+            }
         }
         MachineValueDefinition::Operation(operation) => {
             MachineValueDefinition::Operation(remap.operation(operation)?)
@@ -477,12 +796,14 @@ fn remap_operation_kind(
 ) -> Result<MachineOperationKind, MachineOptimizationError> {
     Ok(match operation {
         MachineOperationKind::Constant(value) => MachineOperationKind::Constant(*value),
-        MachineOperationKind::Load { source } => MachineOperationKind::Load { source: *source },
-        MachineOperationKind::AddressOf { source } => {
-            MachineOperationKind::AddressOf { source: *source }
-        }
+        MachineOperationKind::Load { source } => MachineOperationKind::Load {
+            source: remap.address(*source)?,
+        },
+        MachineOperationKind::AddressOf { source } => MachineOperationKind::AddressOf {
+            source: remap.address(*source)?,
+        },
         MachineOperationKind::Store { destination, value } => MachineOperationKind::Store {
-            destination: *destination,
+            destination: remap.address(*destination)?,
             value: remap.value(*value)?,
         },
         MachineOperationKind::Unary { operation, operand } => MachineOperationKind::Unary {
@@ -546,20 +867,24 @@ fn remap_operation_kind(
             allocation,
         } => MachineOperationKind::InvokeDrop {
             target: *target,
-            place: *place,
-            allocation: *allocation,
+            place: remap.address(*place)?,
+            allocation: remap_allocation(*allocation, remap)?,
         },
-        MachineOperationKind::ReportError { place } => {
-            MachineOperationKind::ReportError { place: *place }
-        }
-        MachineOperationKind::ReleaseError { place } => {
-            MachineOperationKind::ReleaseError { place: *place }
-        }
+        MachineOperationKind::ReportError { place } => MachineOperationKind::ReportError {
+            place: remap.address(*place)?,
+        },
+        MachineOperationKind::ReleaseError { place } => MachineOperationKind::ReleaseError {
+            place: remap.address(*place)?,
+        },
         MachineOperationKind::ReleaseComputation { place } => {
-            MachineOperationKind::ReleaseComputation { place: *place }
+            MachineOperationKind::ReleaseComputation {
+                place: remap.address(*place)?,
+            }
         }
         MachineOperationKind::ReleaseErasedCallable { place } => {
-            MachineOperationKind::ReleaseErasedCallable { place: *place }
+            MachineOperationKind::ReleaseErasedCallable {
+                place: remap.address(*place)?,
+            }
         }
         MachineOperationKind::ReleaseMappedStorage { pointer, bytes } => {
             MachineOperationKind::ReleaseMappedStorage {
@@ -571,21 +896,23 @@ fn remap_operation_kind(
             computation,
             destination,
         } => MachineOperationKind::DriveComputation {
-            computation: *computation,
-            destination: *destination,
+            computation: remap.address(*computation)?,
+            destination: destination
+                .map(|address| remap.address(address))
+                .transpose()?,
         },
         MachineOperationKind::CreateRegion { parent, region } => {
             MachineOperationKind::CreateRegion {
                 parent: remap.value(*parent)?,
-                region: *region,
+                region: remap.stack(*region)?,
             }
         }
-        MachineOperationKind::ReleaseRegion { region } => {
-            MachineOperationKind::ReleaseRegion { region: *region }
-        }
+        MachineOperationKind::ReleaseRegion { region } => MachineOperationKind::ReleaseRegion {
+            region: remap.stack(*region)?,
+        },
         MachineOperationKind::SetDropFlag { flag, initialized } => {
             MachineOperationKind::SetDropFlag {
-                flag: *flag,
+                flag: remap.drop_flag(*flag)?,
                 initialized: *initialized,
             }
         }
@@ -631,7 +958,7 @@ fn remap_call(
         MachineCallTarget::Primitive(target) => MachineCallTarget::Primitive(target.clone()),
         MachineCallTarget::Imported(target) => MachineCallTarget::Imported(target.clone()),
         MachineCallTarget::Erased { callable, abi } => MachineCallTarget::Erased {
-            callable: *callable,
+            callable: remap.address(*callable)?,
             abi: *abi,
         },
     };
@@ -641,45 +968,62 @@ fn remap_call(
             .iter()
             .map(|value| remap.value(*value))
             .collect::<Result<Vec<_>, _>>()?,
-        call.allocation(),
-        call.pack(),
+        remap_allocation(call.allocation(), remap)?,
+        match call.pack() {
+            Some(MachineCallPack::Prepared(pack)) => {
+                Some(MachineCallPack::Prepared(remap.pack(pack)?))
+            }
+            other => other,
+        },
     ))
 }
 
-fn remap_addresses(
-    addresses: &mut [MachineAddress],
+fn remap_allocation(
+    allocation: MachineCallAllocation,
     remap: &DenseRemap,
-) -> Result<(), MachineOptimizationError> {
-    for address in addresses {
-        let root = match address.root() {
-            MachineAddressRoot::Stack(stack) => MachineAddressRoot::Stack(stack),
-            MachineAddressRoot::Data(data) => MachineAddressRoot::Data(data),
-            MachineAddressRoot::Pointer { value } => MachineAddressRoot::Pointer {
-                value: remap.value(value)?,
-            },
-            MachineAddressRoot::View {
-                value,
-                pointer_offset,
-                length_offset,
-            } => MachineAddressRoot::View {
-                value: remap.value(value)?,
-                pointer_offset,
-                length_offset,
-            },
-        };
-        let steps = address
-            .steps()
-            .iter()
-            .map(|step| remap_address_step(*step, remap))
-            .collect::<Result<Vec<_>, _>>()?;
-        *address = match address.extent() {
-            MachineAddressExtent::Stored { size, alignment } => {
-                MachineAddress::new(address.ty(), size, alignment, root, steps)
-            }
-            MachineAddressExtent::View => MachineAddress::new_view(address.ty(), root, steps),
-        };
-    }
-    Ok(())
+) -> Result<MachineCallAllocation, MachineOptimizationError> {
+    Ok(match allocation {
+        MachineCallAllocation::Inherit => MachineCallAllocation::Inherit,
+        MachineCallAllocation::Lexical(stack) => {
+            MachineCallAllocation::Lexical(remap.stack(stack)?)
+        }
+        MachineCallAllocation::Explicit(address) => {
+            MachineCallAllocation::Explicit(remap.address(address)?)
+        }
+    })
+}
+
+fn remap_address(
+    address: &MachineAddress,
+    remap: &DenseRemap,
+) -> Result<MachineAddress, MachineOptimizationError> {
+    let root = match address.root() {
+        MachineAddressRoot::Stack(stack) => MachineAddressRoot::Stack(remap.stack(stack)?),
+        MachineAddressRoot::Data(data) => MachineAddressRoot::Data(data),
+        MachineAddressRoot::Pointer { value } => MachineAddressRoot::Pointer {
+            value: remap.value(value)?,
+        },
+        MachineAddressRoot::View {
+            value,
+            pointer_offset,
+            length_offset,
+        } => MachineAddressRoot::View {
+            value: remap.value(value)?,
+            pointer_offset,
+            length_offset,
+        },
+    };
+    let steps = address
+        .steps()
+        .iter()
+        .map(|step| remap_address_step(*step, remap))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(match address.extent() {
+        MachineAddressExtent::Stored { size, alignment } => {
+            MachineAddress::new(address.ty(), size, alignment, root, steps)
+        }
+        MachineAddressExtent::View => MachineAddress::new_view(address.ty(), root, steps),
+    })
 }
 
 fn remap_address_step(
@@ -703,25 +1047,22 @@ fn remap_address_step(
     })
 }
 
-fn remap_packs(
-    packs: &mut [MachinePack],
+fn remap_pack(
+    pack: &MachinePack,
     remap: &DenseRemap,
-) -> Result<(), MachineOptimizationError> {
-    for pack in packs {
-        let segments = pack
-            .segments()
-            .iter()
-            .map(|segment| remap_pack_segment(segment, remap))
-            .collect::<Result<Vec<_>, _>>()?;
-        *pack = MachinePack::new(
-            pack.element(),
-            pack.next(),
-            pack.next_result(),
-            remap.value(pack.length())?,
-            segments,
-        );
-    }
-    Ok(())
+) -> Result<MachinePack, MachineOptimizationError> {
+    let segments = pack
+        .segments()
+        .iter()
+        .map(|segment| remap_pack_segment(segment, remap))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(MachinePack::new(
+        pack.element(),
+        pack.next(),
+        pack.next_result(),
+        remap.value(pack.length())?,
+        segments,
+    ))
 }
 
 fn remap_pack_segment(
@@ -745,7 +1086,7 @@ fn remap_pack_segment(
             value_destruction: *value_destruction,
         },
         MachinePackSegment::Spread(spread) => MachinePackSegment::Spread(MachinePackSpread::new(
-            spread.iterator(),
+            remap.address(spread.iterator())?,
             remap.value(spread.remaining())?,
             spread.next().clone(),
             spread.contribution(),
@@ -754,30 +1095,27 @@ fn remap_pack_segment(
     })
 }
 
-fn remap_blocks(
-    blocks: &mut [MachineBlock],
+fn remap_block(
+    block: &MachineBlock,
     remap: &DenseRemap,
-) -> Result<(), MachineOptimizationError> {
-    for block in blocks {
-        let operations = block
-            .operations()
+) -> Result<MachineBlock, MachineOptimizationError> {
+    let operations = block
+        .operations()
+        .iter()
+        .map(|operation| remap.retained_operation(*operation))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    Ok(MachineBlock::new(
+        block
+            .parameters()
             .iter()
-            .map(|operation| remap.retained_operation(*operation))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        *block = MachineBlock::new(
-            block
-                .parameters()
-                .iter()
-                .map(|value| remap.value(*value))
-                .collect::<Result<Vec<_>, _>>()?,
-            operations,
-            remap_terminator(block.terminator(), remap)?,
-        );
-    }
-    Ok(())
+            .map(|value| remap.value(*value))
+            .collect::<Result<Vec<_>, _>>()?,
+        operations,
+        remap_terminator(block.terminator(), remap)?,
+    ))
 }
 
 fn remap_terminator(
@@ -800,7 +1138,7 @@ fn remap_terminator(
             initialized,
             uninitialized,
         } => MachineTerminator::BranchDropFlag {
-            flag: *flag,
+            flag: remap.drop_flag(*flag)?,
             initialized: remap_target(initialized, remap)?,
             uninitialized: remap_target(uninitialized, remap)?,
         },
@@ -819,7 +1157,7 @@ fn remap_terminator(
             cases,
             fallback,
         } => MachineTerminator::SwitchTag {
-            subject: *subject,
+            subject: remap.address(*subject)?,
             tag_offset: *tag_offset,
             cases: remap_cases(cases, remap)?,
             fallback: remap_target(fallback, remap)?,
@@ -863,7 +1201,7 @@ fn remap_target(
     remap: &DenseRemap,
 ) -> Result<MachineBranchTarget, MachineOptimizationError> {
     Ok(MachineBranchTarget::new(
-        target.block(),
+        remap.block(target.block())?,
         target
             .arguments()
             .iter()
@@ -874,6 +1212,7 @@ fn remap_target(
 
 fn remap_execution(
     execution: &mut MachineFunctionExecution,
+    retention: &Retention,
     remap: &DenseRemap,
 ) -> Result<(), MachineOptimizationError> {
     let MachineFunctionExecution::Deferred(frame) = execution else {
@@ -886,10 +1225,11 @@ fn remap_execution(
     let states = frame
         .states()
         .iter()
+        .filter(|state| retention.blocks.contains(&state.suspend()))
         .map(|state| {
             Ok(MachineSuspensionState::new(
-                state.suspend(),
-                state.resume(),
+                remap.block(state.suspend())?,
+                remap.block(state.resume())?,
                 remap.value(state.awaited())?,
                 remap_fields(state.fields(), remap)?,
                 remap_cancellation(state.cancellation(), remap)?,
@@ -914,7 +1254,11 @@ fn remap_fields(
         .map(|field| {
             Ok(match *field {
                 MachineFrameField::Value(value) => MachineFrameField::Value(remap.value(value)?),
-                other => other,
+                MachineFrameField::Stack(stack) => MachineFrameField::Stack(remap.stack(stack)?),
+                MachineFrameField::DropFlag(flag) => {
+                    MachineFrameField::DropFlag(remap.drop_flag(flag)?)
+                }
+                MachineFrameField::Pack => MachineFrameField::Pack,
             })
         })
         .collect()
@@ -931,7 +1275,19 @@ fn remap_cancellation(
                 MachineCancellationAction::ReleaseAwaited(value) => {
                     MachineCancellationAction::ReleaseAwaited(remap.value(*value)?)
                 }
-                other => other.clone(),
+                MachineCancellationAction::Destroy {
+                    address,
+                    initialized,
+                    destruction,
+                } => MachineCancellationAction::Destroy {
+                    address: remap.address(*address)?,
+                    initialized: initialized.map(|flag| remap.drop_flag(flag)).transpose()?,
+                    destruction: *destruction,
+                },
+                MachineCancellationAction::ReleaseRegion(stack) => {
+                    MachineCancellationAction::ReleaseRegion(remap.stack(*stack)?)
+                }
+                MachineCancellationAction::DestroyPack => MachineCancellationAction::DestroyPack,
             })
         })
         .collect()

@@ -18,8 +18,6 @@ impl MachineOperationKind {
     pub(crate) const fn effect(&self) -> MachineOperationEffect {
         match self {
             Self::Constant(_)
-            | Self::Load { .. }
-            | Self::AddressOf { .. }
             | Self::BorrowWeakening { .. }
             | Self::Aggregate(_)
             | Self::PackLength
@@ -35,6 +33,8 @@ impl MachineOperationKind {
                 operation: MachineUnaryOperation::Negate,
                 ..
             }
+            | Self::Load { .. }
+            | Self::AddressOf { .. }
             | Self::Binary { .. }
             | Self::NumericConversion { .. }
             | Self::Comparison(_)
@@ -62,7 +62,7 @@ impl MachineOperationKind {
 mod tests {
     use super::MachineOperationEffect;
     use crate::identity::MachineId;
-    use crate::{MachineOperationKind, MachineUnaryOperation, MachineValueId};
+    use crate::{MachineAddressId, MachineOperationKind, MachineUnaryOperation, MachineValueId};
 
     #[test]
     fn trapping_unary_operation_is_not_classified_as_removable() {
@@ -71,5 +71,18 @@ mod tests {
             operand: MachineValueId::new(0),
         };
         assert_eq!(operation.effect(), MachineOperationEffect::MayTrap);
+    }
+
+    #[test]
+    fn address_evaluation_is_not_pure_without_an_exact_address_proof() {
+        let source = MachineAddressId::new(0);
+        assert_eq!(
+            MachineOperationKind::Load { source }.effect(),
+            MachineOperationEffect::MayTrap
+        );
+        assert_eq!(
+            MachineOperationKind::AddressOf { source }.effect(),
+            MachineOperationEffect::MayTrap
+        );
     }
 }

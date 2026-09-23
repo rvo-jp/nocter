@@ -40,6 +40,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Every ordinary or compiler-generated body uses the same draft-to-freeze path. Optimization runs
   before immutable tables and liveness exist, so a backend cannot observe a mutable draft or stale
   pre-optimization dataflow.
+- Reachability and execution-resource retention form one Machine-owned closure. Blocks, operations,
+  values, stack objects, addresses, drop flags, and pack state are compacted together, and every
+  surviving reference is rewritten before immutable tables expose dense identities.
 - An operation is removable only when Machine's exhaustive effect authority proves it pure and
   non-trapping. Calls, ownership changes, cleanup, suspension, and safety traps are conservative
   barriers without a stronger explicit proof.
