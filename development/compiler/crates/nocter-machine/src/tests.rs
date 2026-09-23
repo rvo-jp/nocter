@@ -1452,12 +1452,35 @@ fn machine_program_erases_local_places_into_stack_addresses_and_memory_operation
             MachineOperationKind::Store { destination, .. } if *destination == address_id
         )
     }));
-    assert!(body.operations().any(|(_, operation)| {
+    assert!(!body.operations().any(|(_, operation)| {
         matches!(
             operation.kind(),
             MachineOperationKind::Load { source } if *source == address_id
         )
     }));
+    assert_eq!(body.optimization().loads_forwarded(), 1);
+}
+
+#[test]
+fn machine_storage_forwarding_stops_at_callable_boundaries() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func observe(value: &i32): void { return }\n\
+         func main(): i32 {\n\
+             var answer: i32 = 42\n\
+             observe(&answer)\n\
+             return answer\n\
+         }\n",
+    ))
+    .unwrap();
+    let MachineProgramRoot::Process { entry, .. } = *program.root() else {
+        panic!("fixture must produce one process machine root")
+    };
+    let body = program.function(entry).unwrap().body();
+    assert!(
+        body.operations()
+            .any(|(_, operation)| matches!(operation.kind(), MachineOperationKind::Load { .. }))
+    );
+    assert_eq!(body.optimization().loads_forwarded(), 0);
 }
 
 #[test]

@@ -46,6 +46,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - An operation is removable only when Machine's exhaustive effect authority proves it pure and
   non-trapping. Calls, ownership changes, cleanup, suspension, and safety traps are conservative
   barriers without a stronger explicit proof.
+- Local storage forwarding consumes an explicit same-block, whole-stack proof and feeds aliases
+  into the common dense remapper. It never crosses a call, block edge, indirect store, or mismatched
+  value representation, and it does not reclassify general address evaluation as non-trapping.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
 - Imported calls retain only a dense machine import identity; their catalog descriptor is stored

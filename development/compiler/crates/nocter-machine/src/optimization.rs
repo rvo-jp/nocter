@@ -9,6 +9,7 @@ use crate::{
 };
 
 mod prune;
+mod storage;
 
 /// Structural changes made by the one Machine body optimization pass.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -22,6 +23,7 @@ pub struct MachineOptimizationReport {
     addresses_removed: usize,
     drop_flags_removed: usize,
     packs_removed: usize,
+    loads_forwarded: usize,
 }
 
 impl MachineOptimizationReport {
@@ -71,6 +73,11 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn loads_forwarded(self) -> usize {
+        self.loads_forwarded
+    }
+
+    #[must_use]
     pub const fn changed(self) -> bool {
         self.operations_folded != 0
             || self.terminators_folded != 0
@@ -81,6 +88,7 @@ impl MachineOptimizationReport {
             || self.addresses_removed != 0
             || self.drop_flags_removed != 0
             || self.packs_removed != 0
+            || self.loads_forwarded != 0
     }
 }
 
@@ -112,7 +120,9 @@ pub(crate) fn optimize(
     let mut report = MachineOptimizationReport::default();
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
-    prune::unreachable_and_unused(draft, execution, &mut report)?;
+    let storage = storage::prove(draft)?;
+    report.loads_forwarded += storage.loads_forwarded();
+    prune::unreachable_and_unused(draft, execution, &storage, &mut report)?;
     Ok(report)
 }
 

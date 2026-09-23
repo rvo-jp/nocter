@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::effect::MachineOperationEffect;
 use crate::identity::MachineId;
@@ -20,9 +20,10 @@ use super::{MachineOptimizationError, MachineOptimizationReport};
 pub(super) fn unreachable_and_unused(
     draft: &mut crate::program::MachineBodyDraft,
     execution: &mut MachineFunctionExecution,
+    storage: &super::storage::LocalStorageProof,
     report: &mut MachineOptimizationReport,
 ) -> Result<(), MachineOptimizationError> {
-    let retention = Retention::build(draft, execution)?;
+    let retention = Retention::build(draft, execution, storage)?;
     if retention.blocks.len() == draft.blocks.len()
         && retention.operations.len() == draft.operations.len()
         && retention.values.len() == draft.values.len()
@@ -33,7 +34,7 @@ pub(super) fn unreachable_and_unused(
     {
         return Ok(());
     }
-    let remap = DenseRemap::new(draft, &retention);
+    let remap = DenseRemap::new(draft, &retention, storage);
     let old_block_count = draft.blocks.len();
     let old_operation_count = draft.operations.len();
     let old_value_count = draft.values.len();
@@ -105,14 +106,17 @@ struct Retention {
     addresses: BTreeSet<MachineAddressId>,
     drop_flags: BTreeSet<MachineDropFlagId>,
     packs: BTreeSet<MachinePackId>,
+    value_aliases: BTreeMap<MachineValueId, MachineValueId>,
 }
 
 impl Retention {
     fn build(
         draft: &crate::program::MachineBodyDraft,
         execution: &MachineFunctionExecution,
+        storage: &super::storage::LocalStorageProof,
     ) -> Result<Self, MachineOptimizationError> {
         let mut retained = Self::reachable_blocks(draft)?;
+        retained.value_aliases = storage.aliases().clone();
         for block_id in retained.blocks.clone() {
             let block = draft
                 .blocks
@@ -127,7 +131,9 @@ impl Retention {
                     .operations
                     .get(operation_id.index())
                     .ok_or(MachineOptimizationError::UnknownOperation(*operation_id))?;
-                if operation.kind().effect() != MachineOperationEffect::Pure {
+                if !storage.removes(*operation_id)
+                    && operation.kind().effect() != MachineOperationEffect::Pure
+                {
                     retained.operations.insert(*operation_id);
                 }
             }
@@ -243,8 +249,11 @@ impl Retention {
     fn mark_value(
         &mut self,
         draft: &crate::program::MachineBodyDraft,
-        value: MachineValueId,
+        mut value: MachineValueId,
     ) -> Result<(), MachineOptimizationError> {
+        while let Some(source) = self.value_aliases.get(&value) {
+            value = *source;
+        }
         if draft.values.get(value.index()).is_none() {
             return Err(MachineOptimizationError::UnknownValue(value));
         }
@@ -634,10 +643,15 @@ struct DenseRemap {
     addresses: Vec<Option<MachineAddressId>>,
     drop_flags: Vec<Option<MachineDropFlagId>>,
     packs: Vec<Option<MachinePackId>>,
+    value_aliases: BTreeMap<MachineValueId, MachineValueId>,
 }
 
 impl DenseRemap {
-    fn new(draft: &crate::program::MachineBodyDraft, retention: &Retention) -> Self {
+    fn new(
+        draft: &crate::program::MachineBodyDraft,
+        retention: &Retention,
+        storage: &super::storage::LocalStorageProof,
+    ) -> Self {
         Self {
             blocks: dense_map::<MachineBlockId>(draft.blocks.len(), &retention.blocks),
             operations: dense_map::<MachineOperationId>(
@@ -652,6 +666,7 @@ impl DenseRemap {
                 &retention.drop_flags,
             ),
             packs: dense_map::<MachinePackId>(draft.packs.len(), &retention.packs),
+            value_aliases: storage.aliases().clone(),
         }
     }
 
@@ -684,7 +699,10 @@ impl DenseRemap {
             .ok_or(MachineOptimizationError::UnknownOperation(id))
     }
 
-    fn value(&self, id: MachineValueId) -> Result<MachineValueId, MachineOptimizationError> {
+    fn value(&self, mut id: MachineValueId) -> Result<MachineValueId, MachineOptimizationError> {
+        while let Some(source) = self.value_aliases.get(&id) {
+            id = *source;
+        }
         self.values
             .get(id.index())
             .copied()

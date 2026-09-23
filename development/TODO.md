@@ -19,7 +19,9 @@ Implement v0.68.0 Phase 3 at the same Machine draft boundary. Forward values and
 across proven alias-safe regions, remove redundant loads, stores, address materialization, borrow
 weakening, aggregate staging, and drop-flag transitions, and keep calls, suspension, ownership
 transfer, and unknown aliasing as explicit barriers. Safety checks may disappear only with a
-Machine-owned proof that their failure condition is impossible.
+Machine-owned proof that their failure condition is impossible. Exact same-block whole-stack load
+forwarding is complete; next extend the proof to remove stores and storage only when no address or
+ownership use survives, then handle representation-preserving aliases and proven checks.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
