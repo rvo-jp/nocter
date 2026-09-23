@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::identity::MachineId;
 use crate::{
-    MachineAddressId, MachineAddressRoot, MachineOperationId, MachineOperationKind, MachineStackId,
-    MachineValueId,
+    MachineAddressExtent, MachineAddressId, MachineAddressRoot, MachineCallAllocation,
+    MachineCallTarget, MachineCancellationAction, MachineFrameField, MachineFunctionExecution,
+    MachineOperationId, MachineOperationKind, MachineStackId, MachineTerminator, MachineValueId,
 };
 
 use super::MachineOptimizationError;
@@ -15,6 +17,8 @@ use super::MachineOptimizationError;
 pub(super) struct LocalStorageProof {
     aliases: BTreeMap<MachineValueId, MachineValueId>,
     removed_operations: BTreeSet<MachineOperationId>,
+    forwarded_loads: usize,
+    removed_stores: usize,
 }
 
 impl LocalStorageProof {
@@ -34,12 +38,17 @@ impl LocalStorageProof {
     }
 
     pub(super) fn loads_forwarded(&self) -> usize {
-        self.removed_operations.len()
+        self.forwarded_loads
+    }
+
+    pub(super) fn stores_removed(&self) -> usize {
+        self.removed_stores
     }
 }
 
 pub(super) fn prove(
     draft: &crate::program::MachineBodyDraft,
+    execution: &MachineFunctionExecution,
 ) -> Result<LocalStorageProof, MachineOptimizationError> {
     let mut proof = LocalStorageProof::default();
     for block in &draft.blocks {
@@ -81,6 +90,7 @@ pub(super) fn prove(
                     {
                         proof.aliases.insert(result, value);
                         proof.removed_operations.insert(*operation_id);
+                        proof.forwarded_loads += 1;
                     }
                 }
                 kind if kind.has_call_boundary() => stored.clear(),
@@ -89,6 +99,7 @@ pub(super) fn prove(
             }
         }
     }
+    remove_unobserved_stack_storage(draft, execution, &mut proof)?;
     Ok(proof)
 }
 
@@ -100,8 +111,191 @@ fn whole_stack(
         .addresses
         .get(address.index())
         .ok_or(MachineOptimizationError::UnknownAddress(address))?;
-    Ok(match address_value.root() {
-        MachineAddressRoot::Stack(stack) if address_value.steps().is_empty() => Some(stack),
-        _ => None,
-    })
+    let MachineAddressRoot::Stack(stack) = address_value.root() else {
+        return Ok(None);
+    };
+    let stack_value = draft
+        .stack
+        .get(stack.index())
+        .ok_or(MachineOptimizationError::UnknownStack(stack))?;
+    Ok(matches!(
+        address_value.extent(),
+        MachineAddressExtent::Stored { size, alignment }
+            if address_value.steps().is_empty()
+                && address_value.ty() == stack_value.ty()
+                && size == stack_value.size()
+                && alignment == stack_value.alignment()
+    )
+    .then_some(stack))
+}
+
+fn remove_unobserved_stack_storage(
+    draft: &crate::program::MachineBodyDraft,
+    execution: &MachineFunctionExecution,
+    proof: &mut LocalStorageProof,
+) -> Result<(), MachineOptimizationError> {
+    let mut candidates = (0..draft.stack.len())
+        .map(MachineStackId::new)
+        .collect::<BTreeSet<_>>();
+    for parameter in &draft.parameters {
+        candidates.remove(parameter);
+    }
+
+    let mut owners = BTreeMap::<MachineAddressId, MachineStackId>::new();
+    for (index, address) in draft.addresses.iter().enumerate() {
+        let MachineAddressRoot::Stack(stack) = address.root() else {
+            continue;
+        };
+        let address_id = MachineAddressId::new(index);
+        if whole_stack(draft, address_id)?.is_some() {
+            owners.insert(address_id, stack);
+        } else {
+            candidates.remove(&stack);
+        }
+    }
+
+    let mut stores = BTreeMap::<MachineStackId, Vec<MachineOperationId>>::new();
+    for (index, operation) in draft.operations.iter().enumerate() {
+        let operation_id = MachineOperationId::new(index);
+        match operation.kind() {
+            MachineOperationKind::Store { destination, .. } => {
+                if let Some(stack) = owners.get(destination) {
+                    stores.entry(*stack).or_default().push(operation_id);
+                }
+            }
+            MachineOperationKind::Load { source } => {
+                if !proof.removes(operation_id) {
+                    disqualify_address(*source, &owners, &mut candidates);
+                }
+            }
+            MachineOperationKind::AddressOf { source }
+            | MachineOperationKind::ReportError { place: source }
+            | MachineOperationKind::ReleaseError { place: source }
+            | MachineOperationKind::ReleaseComputation { place: source }
+            | MachineOperationKind::ReleaseErasedCallable { place: source } => {
+                disqualify_address(*source, &owners, &mut candidates);
+            }
+            MachineOperationKind::InvokeDrop {
+                place, allocation, ..
+            } => {
+                disqualify_address(*place, &owners, &mut candidates);
+                disqualify_allocation(*allocation, &owners, &mut candidates);
+            }
+            MachineOperationKind::DriveComputation {
+                computation,
+                destination,
+            } => {
+                disqualify_address(*computation, &owners, &mut candidates);
+                if let Some(destination) = destination {
+                    disqualify_address(*destination, &owners, &mut candidates);
+                }
+            }
+            MachineOperationKind::CreateRegion { region, .. }
+            | MachineOperationKind::ReleaseRegion { region } => {
+                candidates.remove(region);
+            }
+            MachineOperationKind::Call(call) => {
+                if let MachineCallTarget::Erased { callable, .. } = call.target() {
+                    disqualify_address(*callable, &owners, &mut candidates);
+                }
+                disqualify_allocation(call.allocation(), &owners, &mut candidates);
+            }
+            _ => {}
+        }
+    }
+
+    for block in &draft.blocks {
+        if let MachineTerminator::SwitchTag { subject, .. } = block.terminator() {
+            disqualify_address(*subject, &owners, &mut candidates);
+        }
+    }
+    for pack in &draft.packs {
+        for segment in pack.segments() {
+            if let crate::MachinePackSegment::Spread(spread) = segment {
+                disqualify_address(spread.iterator(), &owners, &mut candidates);
+            }
+        }
+    }
+    disqualify_execution(execution, &owners, &mut candidates);
+
+    for stack in candidates {
+        let Some(stack_stores) = stores.get(&stack) else {
+            continue;
+        };
+        for operation in stack_stores {
+            if proof.removed_operations.insert(*operation) {
+                proof.removed_stores += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn disqualify_address(
+    address: MachineAddressId,
+    owners: &BTreeMap<MachineAddressId, MachineStackId>,
+    candidates: &mut BTreeSet<MachineStackId>,
+) {
+    if let Some(stack) = owners.get(&address) {
+        candidates.remove(stack);
+    }
+}
+
+fn disqualify_allocation(
+    allocation: MachineCallAllocation,
+    owners: &BTreeMap<MachineAddressId, MachineStackId>,
+    candidates: &mut BTreeSet<MachineStackId>,
+) {
+    match allocation {
+        MachineCallAllocation::Inherit => {}
+        MachineCallAllocation::Lexical(stack) => {
+            candidates.remove(&stack);
+        }
+        MachineCallAllocation::Explicit(address) => {
+            disqualify_address(address, owners, candidates);
+        }
+    }
+}
+
+fn disqualify_execution(
+    execution: &MachineFunctionExecution,
+    owners: &BTreeMap<MachineAddressId, MachineStackId>,
+    candidates: &mut BTreeSet<MachineStackId>,
+) {
+    let MachineFunctionExecution::Deferred(frame) = execution else {
+        return;
+    };
+    disqualify_fields(frame.initial().fields(), candidates);
+    disqualify_cancellation(frame.initial().cancellation(), owners, candidates);
+    for state in frame.states() {
+        disqualify_fields(state.fields(), candidates);
+        disqualify_cancellation(state.cancellation(), owners, candidates);
+    }
+}
+
+fn disqualify_fields(fields: &[MachineFrameField], candidates: &mut BTreeSet<MachineStackId>) {
+    for field in fields {
+        if let MachineFrameField::Stack(stack) = field {
+            candidates.remove(stack);
+        }
+    }
+}
+
+fn disqualify_cancellation(
+    actions: &[MachineCancellationAction],
+    owners: &BTreeMap<MachineAddressId, MachineStackId>,
+    candidates: &mut BTreeSet<MachineStackId>,
+) {
+    for action in actions {
+        match action {
+            MachineCancellationAction::Destroy { address, .. } => {
+                disqualify_address(*address, owners, candidates);
+            }
+            MachineCancellationAction::ReleaseRegion(stack) => {
+                candidates.remove(stack);
+            }
+            MachineCancellationAction::ReleaseAwaited(_)
+            | MachineCancellationAction::DestroyPack => {}
+        }
+    }
 }

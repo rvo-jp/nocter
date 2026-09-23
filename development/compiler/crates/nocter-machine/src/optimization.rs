@@ -24,6 +24,7 @@ pub struct MachineOptimizationReport {
     drop_flags_removed: usize,
     packs_removed: usize,
     loads_forwarded: usize,
+    stores_removed: usize,
 }
 
 impl MachineOptimizationReport {
@@ -78,6 +79,11 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn stores_removed(self) -> usize {
+        self.stores_removed
+    }
+
+    #[must_use]
     pub const fn changed(self) -> bool {
         self.operations_folded != 0
             || self.terminators_folded != 0
@@ -89,6 +95,7 @@ impl MachineOptimizationReport {
             || self.drop_flags_removed != 0
             || self.packs_removed != 0
             || self.loads_forwarded != 0
+            || self.stores_removed != 0
     }
 }
 
@@ -120,8 +127,9 @@ pub(crate) fn optimize(
     let mut report = MachineOptimizationReport::default();
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
-    let storage = storage::prove(draft)?;
+    let storage = storage::prove(draft, execution)?;
     report.loads_forwarded += storage.loads_forwarded();
+    report.stores_removed += storage.stores_removed();
     prune::unreachable_and_unused(draft, execution, &storage, &mut report)?;
     Ok(report)
 }

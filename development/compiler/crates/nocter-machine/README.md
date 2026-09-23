@@ -49,6 +49,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Local storage forwarding consumes an explicit same-block, whole-stack proof and feeds aliases
   into the common dense remapper. It never crosses a call, block edge, indirect store, or mismatched
   value representation, and it does not reclassify general address evaluation as non-trapping.
+- Stores and their stack/address domains disappear only when the whole non-parameter object has no
+  surviving projection, escape, destruction, deferred-state, cancellation, region, pack, switch,
+  or unforwarded-read use. The proof removes operations through the common pruning authority.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
 - Imported calls retain only a dense machine import identity; their catalog descriptor is stored

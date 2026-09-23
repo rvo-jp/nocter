@@ -1427,7 +1427,7 @@ fn machine_dataflow_treats_block_parameters_as_edge_definitions() {
 }
 
 #[test]
-fn machine_program_erases_local_places_into_stack_addresses_and_memory_operations() {
+fn machine_prunes_unobserved_local_storage_after_forwarding() {
     let mir = lower_fixture(
         "func main(): i32 {\n\
              let answer: i32 = 42\n\
@@ -1439,26 +1439,16 @@ fn machine_program_erases_local_places_into_stack_addresses_and_memory_operation
         panic!("fixture must produce one process machine root")
     };
     let body = program.function(entry).unwrap().body();
-    assert_eq!(body.stack_objects().len(), 1);
-    let (address_id, address) = body.addresses().next().unwrap();
-    assert!(matches!(
-        address.root(),
-        crate::MachineAddressRoot::Stack(_)
-    ));
-    assert!(address.steps().is_empty());
-    assert!(body.operations().any(|(_, operation)| {
-        matches!(
-            operation.kind(),
-            MachineOperationKind::Store { destination, .. } if *destination == address_id
-        )
-    }));
-    assert!(!body.operations().any(|(_, operation)| {
-        matches!(
-            operation.kind(),
-            MachineOperationKind::Load { source } if *source == address_id
-        )
-    }));
+    assert_eq!(body.stack_objects().len(), 0);
+    assert_eq!(body.addresses().len(), 0);
+    assert!(!body.operations().any(|(_, operation)| matches!(
+        operation.kind(),
+        MachineOperationKind::Store { .. } | MachineOperationKind::Load { .. }
+    )));
     assert_eq!(body.optimization().loads_forwarded(), 1);
+    assert_eq!(body.optimization().stores_removed(), 1);
+    assert_eq!(body.optimization().stack_objects_removed(), 1);
+    assert_eq!(body.optimization().addresses_removed(), 1);
 }
 
 #[test]

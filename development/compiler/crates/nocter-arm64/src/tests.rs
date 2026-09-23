@@ -1933,11 +1933,13 @@ fn machine_value_plan_separates_multiword_and_memory_values() {
     let program = crate::test_support::lower_machine(
         "copy struct Pair { first: u64\n    second: u64 }\n\
          struct Large { first: u64\n    second: u64\n    third: u64 }\n\
+         func consume(value: Pair): void { return }\n\
+         func consume_large(value: Large): void { drop value }\n\
          func main(): i32 {\n\
              let pair = Pair { first: 1, second: 2 }\n\
              let large = Large { first: 3, second: 4, third: 5 }\n\
-             let _ = pair\n\
-             drop large\n\
+             consume(pair)\n\
+             consume_large(move large)\n\
              0\n\
          }\n",
     );
