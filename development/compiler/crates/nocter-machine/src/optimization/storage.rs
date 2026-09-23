@@ -38,6 +38,9 @@ pub(super) fn prove(
                     }
                 }
                 MachineOperationKind::Load { source } => {
+                    if whole_stack(draft, *source)?.is_some() {
+                        rewrites.prove_pure(*operation_id);
+                    }
                     let Some(result) = operation.result() else {
                         continue;
                     };
@@ -61,6 +64,11 @@ pub(super) fn prove(
                         rewrites.alias(result, value);
                         rewrites.remove(*operation_id);
                         report.loads_forwarded += 1;
+                    }
+                }
+                MachineOperationKind::AddressOf { source } => {
+                    if whole_stack(draft, *source)?.is_some() {
+                        rewrites.prove_pure(*operation_id);
                     }
                 }
                 kind if kind.has_call_boundary() => stored.clear(),

@@ -132,6 +132,7 @@ impl Retention {
                     .get(operation_id.index())
                     .ok_or(MachineOptimizationError::UnknownOperation(*operation_id))?;
                 if !rewrites.removes(*operation_id)
+                    && !rewrites.is_proven_pure(*operation_id)
                     && operation.kind().effect() != MachineOperationEffect::Pure
                 {
                     retained.operations.insert(*operation_id);

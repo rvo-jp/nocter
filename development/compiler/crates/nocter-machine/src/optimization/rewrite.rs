@@ -7,6 +7,7 @@ use crate::{MachineOperationId, MachineValueId};
 pub(super) struct MachineRewriteProof {
     aliases: BTreeMap<MachineValueId, MachineValueId>,
     removed_operations: BTreeSet<MachineOperationId>,
+    proven_pure_operations: BTreeSet<MachineOperationId>,
 }
 
 impl MachineRewriteProof {
@@ -31,5 +32,13 @@ impl MachineRewriteProof {
 
     pub(super) fn remove(&mut self, operation: MachineOperationId) -> bool {
         self.removed_operations.insert(operation)
+    }
+
+    pub(super) fn prove_pure(&mut self, operation: MachineOperationId) {
+        self.proven_pure_operations.insert(operation);
+    }
+
+    pub(super) fn is_proven_pure(&self, operation: MachineOperationId) -> bool {
+        self.proven_pure_operations.contains(&operation)
     }
 }

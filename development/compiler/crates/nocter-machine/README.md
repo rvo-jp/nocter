@@ -54,6 +54,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   or unforwarded-read use. The proof removes operations through the common pruning authority.
 - Drop-flag writes coalesce within one block only while no callable boundary can observe cleanup
   state. The final write before control transfer remains part of the immutable Machine body.
+- Load or address materialization is locally non-trapping only when its direct stack address has no
+  projection and exactly matches the stack object's type, size, and alignment. General address
+  operations retain the conservative trapping classification.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
 - Imported calls retain only a dense machine import identity; their catalog descriptor is stored
