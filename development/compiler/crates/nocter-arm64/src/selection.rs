@@ -891,14 +891,13 @@ fn select_operation(
             )
         }
         MachineOperationKind::BorrowWeakening { source } => {
-            crate::structural_selection::select_direct_copy(
+            crate::structural_selection::select_storage_alias(
                 operation_id,
                 *source,
                 operation
                     .result()
                     .ok_or(Arm64SelectionError::MissingResult(operation_id))?,
                 values,
-                selected,
             )
         }
         MachineOperationKind::Aggregate(aggregate) => select_aggregate_operation(

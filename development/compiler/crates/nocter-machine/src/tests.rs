@@ -1946,6 +1946,28 @@ fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations()
             .iter()
             .any(|operation| matches!(operation, MachineOperationKind::BorrowWeakening { .. }))
     );
+    let (function, source, result) = program
+        .functions()
+        .find_map(|(_, function)| {
+            function
+                .body()
+                .operations()
+                .find_map(|(_, operation)| match operation.kind() {
+                    MachineOperationKind::BorrowWeakening { source } => {
+                        Some((function, *source, operation.result().unwrap()))
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    let source_value = function.body().value(source).unwrap();
+    let result_value = function.body().value(result).unwrap();
+    assert_ne!(source_value.ty(), result_value.ty());
+    assert_eq!(
+        result_value.storage(),
+        crate::MachineValueStorage::Alias(source)
+    );
+    assert_eq!(function.body().optimization().storage_aliases_proven(), 1);
 }
 
 #[test]

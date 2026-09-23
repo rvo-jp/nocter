@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_machine::{
     MachineBlockId, MachineFunction, MachineOperationId, MachineValueClass, MachineValueDefinition,
-    MachineValueId, MachineValueRepresentation,
+    MachineValueId, MachineValueRepresentation, MachineValueStorage,
 };
 
 use crate::{
@@ -70,68 +70,28 @@ impl Arm64ValuePlan {
         let body = function.body();
         let schedule = FunctionSchedule::build(function)?;
         let mut register_builder = Arm64RegisterAllocationBuilder::new();
-        let mut values = Vec::with_capacity(body.values().len());
-        for (value_id, value) in body.values() {
-            if value_id.index() != values.len() {
+        let mut values = vec![None; body.values().len()];
+        let mut visiting = vec![false; body.values().len()];
+        for (value_id, _) in body.values() {
+            if value_id.index() >= values.len() {
                 return Err(Arm64ValuePlanError::NonDenseValue(value_id));
             }
-            let storage = match value.representation() {
-                MachineValueRepresentation::Completion | MachineValueRepresentation::Diverging => {
-                    Arm64ValueStorage::Omitted
-                }
-                MachineValueRepresentation::Stored {
-                    size: 0,
-                    class: MachineValueClass::Zero,
-                    ..
-                } => Arm64ValueStorage::Omitted,
-                MachineValueRepresentation::Stored {
-                    size,
-                    class: MachineValueClass::Direct { words },
-                    ..
-                } if size <= DIRECT_VALUE_LIMIT
-                    && u64::from(words) == size.div_ceil(Arm64NocterAbi::word_size()) =>
-                {
-                    let definition = schedule.definition_position(value.definition())?;
-                    let registers = (0..words)
-                        .map(|_| register_builder.define(definition, Arm64RegisterClass::General))
-                        .collect::<Vec<_>>();
-                    Arm64ValueStorage::Direct(registers.into_boxed_slice())
-                }
-                MachineValueRepresentation::Stored {
-                    size: 4,
-                    class: MachineValueClass::Float32,
-                    ..
-                } => Arm64ValueStorage::Floating {
-                    register: register_builder.define(
-                        schedule.definition_position(value.definition())?,
-                        Arm64RegisterClass::Floating,
-                    ),
-                    bytes: 4,
-                },
-                MachineValueRepresentation::Stored {
-                    size: 8,
-                    class: MachineValueClass::Float64,
-                    ..
-                } => Arm64ValueStorage::Floating {
-                    register: register_builder.define(
-                        schedule.definition_position(value.definition())?,
-                        Arm64RegisterClass::Floating,
-                    ),
-                    bytes: 8,
-                },
-                MachineValueRepresentation::Stored {
-                    size,
-                    alignment,
-                    class: MachineValueClass::Indirect,
-                } => Arm64ValueStorage::Memory { size, alignment },
-                MachineValueRepresentation::Stored { .. } => {
-                    return Err(Arm64ValuePlanError::InvalidValueClass(value_id));
-                }
-            };
-            values.push(storage);
+            plan_value_storage(
+                body,
+                &schedule,
+                value_id,
+                &mut values,
+                &mut visiting,
+                &mut register_builder,
+            )?;
         }
 
-        let values = values.into_boxed_slice();
+        let values = values
+            .into_iter()
+            .enumerate()
+            .map(|(index, storage)| storage.ok_or(Arm64ValuePlanError::MissingPlannedValue(index)))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_boxed_slice();
         apply_liveness(function, &schedule, &values, &mut register_builder)?;
         Ok(Self {
             owner: function.linkage(),
@@ -154,6 +114,111 @@ impl Arm64ValuePlan {
     pub const fn registers(&self) -> &Arm64RegisterAllocation {
         &self.registers
     }
+}
+
+fn plan_value_storage(
+    body: &nocter_machine::MachineBody,
+    schedule: &FunctionSchedule,
+    id: MachineValueId,
+    planned: &mut [Option<Arm64ValueStorage>],
+    visiting: &mut [bool],
+    registers: &mut Arm64RegisterAllocationBuilder,
+) -> Result<Arm64ValueStorage, Arm64ValuePlanError> {
+    if let Some(storage) = planned
+        .get(id.index())
+        .ok_or(Arm64ValuePlanError::UnknownValue(id))?
+    {
+        return Ok(storage.clone());
+    }
+    let active = visiting
+        .get_mut(id.index())
+        .ok_or(Arm64ValuePlanError::UnknownValue(id))?;
+    if std::mem::replace(active, true) {
+        return Err(Arm64ValuePlanError::StorageAliasCycle(id));
+    }
+    let value = body
+        .value(id)
+        .ok_or(Arm64ValuePlanError::UnknownValue(id))?;
+    let storage = match value.storage() {
+        MachineValueStorage::Independent => independent_storage(id, value, schedule, registers)?,
+        MachineValueStorage::Alias(source) => {
+            let source_value = body
+                .value(source)
+                .ok_or(Arm64ValuePlanError::UnknownValue(source))?;
+            if value.representation() != source_value.representation() {
+                return Err(Arm64ValuePlanError::StorageAliasRepresentation { result: id, source });
+            }
+            let storage = plan_value_storage(body, schedule, source, planned, visiting, registers)?;
+            if matches!(storage, Arm64ValueStorage::Memory { .. }) {
+                return Err(Arm64ValuePlanError::UnsupportedStorageAlias { result: id, source });
+            }
+            storage
+        }
+    };
+    visiting[id.index()] = false;
+    planned[id.index()] = Some(storage.clone());
+    Ok(storage)
+}
+
+fn independent_storage(
+    id: MachineValueId,
+    value: nocter_machine::MachineValue,
+    schedule: &FunctionSchedule,
+    registers: &mut Arm64RegisterAllocationBuilder,
+) -> Result<Arm64ValueStorage, Arm64ValuePlanError> {
+    Ok(match value.representation() {
+        MachineValueRepresentation::Completion | MachineValueRepresentation::Diverging => {
+            Arm64ValueStorage::Omitted
+        }
+        MachineValueRepresentation::Stored {
+            size: 0,
+            class: MachineValueClass::Zero,
+            ..
+        } => Arm64ValueStorage::Omitted,
+        MachineValueRepresentation::Stored {
+            size,
+            class: MachineValueClass::Direct { words },
+            ..
+        } if size <= DIRECT_VALUE_LIMIT
+            && u64::from(words) == size.div_ceil(Arm64NocterAbi::word_size()) =>
+        {
+            let definition = schedule.definition_position(value.definition())?;
+            let registers = (0..words)
+                .map(|_| registers.define(definition, Arm64RegisterClass::General))
+                .collect::<Vec<_>>();
+            Arm64ValueStorage::Direct(registers.into_boxed_slice())
+        }
+        MachineValueRepresentation::Stored {
+            size: 4,
+            class: MachineValueClass::Float32,
+            ..
+        } => Arm64ValueStorage::Floating {
+            register: registers.define(
+                schedule.definition_position(value.definition())?,
+                Arm64RegisterClass::Floating,
+            ),
+            bytes: 4,
+        },
+        MachineValueRepresentation::Stored {
+            size: 8,
+            class: MachineValueClass::Float64,
+            ..
+        } => Arm64ValueStorage::Floating {
+            register: registers.define(
+                schedule.definition_position(value.definition())?,
+                Arm64RegisterClass::Floating,
+            ),
+            bytes: 8,
+        },
+        MachineValueRepresentation::Stored {
+            size,
+            alignment,
+            class: MachineValueClass::Indirect,
+        } => Arm64ValueStorage::Memory { size, alignment },
+        MachineValueRepresentation::Stored { .. } => {
+            return Err(Arm64ValuePlanError::InvalidValueClass(id));
+        }
+    })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -359,6 +424,7 @@ pub enum Arm64ValuePlanError {
     NonDenseValue(MachineValueId),
     InvalidValueClass(MachineValueId),
     UnknownValue(MachineValueId),
+    MissingPlannedValue(usize),
     UnknownOperation(MachineOperationId),
     UnknownOperationId(usize),
     DuplicateOperation(MachineOperationId),
@@ -368,6 +434,15 @@ pub enum Arm64ValuePlanError {
     DuplicateBlock(MachineBlockId),
     MissingBlockDataflow(MachineBlockId),
     PositionOverflow,
+    StorageAliasCycle(MachineValueId),
+    StorageAliasRepresentation {
+        result: MachineValueId,
+        source: MachineValueId,
+    },
+    UnsupportedStorageAlias {
+        result: MachineValueId,
+        source: MachineValueId,
+    },
     RegisterAllocation(Arm64RegisterAllocationError),
 }
 
@@ -384,6 +459,7 @@ impl std::error::Error for Arm64ValuePlanError {
             Self::NonDenseValue(_)
             | Self::InvalidValueClass(_)
             | Self::UnknownValue(_)
+            | Self::MissingPlannedValue(_)
             | Self::UnknownOperation(_)
             | Self::UnknownOperationId(_)
             | Self::DuplicateOperation(_)
@@ -392,7 +468,10 @@ impl std::error::Error for Arm64ValuePlanError {
             | Self::UnknownBlockId(_)
             | Self::DuplicateBlock(_)
             | Self::MissingBlockDataflow(_)
-            | Self::PositionOverflow => None,
+            | Self::PositionOverflow
+            | Self::StorageAliasCycle(_)
+            | Self::StorageAliasRepresentation { .. }
+            | Self::UnsupportedStorageAlias { .. } => None,
         }
     }
 }

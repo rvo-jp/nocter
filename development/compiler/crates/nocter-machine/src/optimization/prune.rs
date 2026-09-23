@@ -11,6 +11,7 @@ use crate::{
     MachineOperation, MachineOperationId, MachineOperationKind, MachinePack, MachinePackId,
     MachinePackSegment, MachinePackSpread, MachineStackId, MachineSuspensionState,
     MachineSwitchCase, MachineTerminator, MachineValue, MachineValueDefinition, MachineValueId,
+    MachineValueStorage,
 };
 
 use super::{MachineOptimizationError, MachineOptimizationReport};
@@ -785,11 +786,11 @@ fn remap_value(
             MachineValueDefinition::Operation(remap.operation(operation)?)
         }
     };
-    Ok(MachineValue::new(
-        value.ty(),
-        value.representation(),
-        definition,
-    ))
+    let storage = match value.storage() {
+        MachineValueStorage::Independent => MachineValueStorage::Independent,
+        MachineValueStorage::Alias(source) => MachineValueStorage::Alias(remap.value(source)?),
+    };
+    Ok(MachineValue::new(value.ty(), value.representation(), definition).with_storage(storage))
 }
 
 fn remap_operation(

@@ -22,9 +22,11 @@ transfer, and unknown aliasing as explicit barriers. Safety checks may disappear
 Machine-owned proof that their failure condition is impossible. Exact same-block whole-stack load
 forwarding and complete unobserved local-storage removal are complete; next handle
 representation-preserving aliases and proven checks without weakening call, suspension, ownership,
-or alias barriers. Redundant same-block drop-flag transitions are complete and stop at callable
-boundaries. Exact direct whole-stack address operations now carry a non-trapping proof; general
-checked address evaluation remains conservative.
+or alias barriers. Borrow weakening now uses a Machine-proven physical-storage alias while
+preserving its distinct typed value; next audit aggregate staging and the remaining explicit check
+forms for proofs with measurable native benefit. Redundant same-block drop-flag transitions are
+complete and stop at callable boundaries. Exact direct whole-stack address operations now carry a
+non-trapping proof; general checked address evaluation remains conservative.
 
 Preserve the v0.67.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

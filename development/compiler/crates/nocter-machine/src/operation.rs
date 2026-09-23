@@ -230,6 +230,7 @@ pub struct MachineValue {
     ty: TypeId,
     representation: MachineValueRepresentation,
     definition: MachineValueDefinition,
+    storage: MachineValueStorage,
 }
 
 impl MachineValue {
@@ -242,7 +243,12 @@ impl MachineValue {
             ty,
             representation,
             definition,
+            storage: MachineValueStorage::Independent,
         }
+    }
+
+    pub(crate) const fn with_storage(self, storage: MachineValueStorage) -> Self {
+        Self { storage, ..self }
     }
 
     #[must_use]
@@ -259,6 +265,22 @@ impl MachineValue {
     pub const fn definition(self) -> MachineValueDefinition {
         self.definition
     }
+
+    /// The target-independent physical-storage relation proven while the body was frozen.
+    ///
+    /// Aliased values keep distinct semantic identities and types. Targets may only share their
+    /// physical location; they must not substitute one value identity for the other.
+    #[must_use]
+    pub const fn storage(self) -> MachineValueStorage {
+        self.storage
+    }
+}
+
+/// Whether an SSA value needs independent runtime storage.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineValueStorage {
+    Independent,
+    Alias(MachineValueId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

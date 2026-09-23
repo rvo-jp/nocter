@@ -1,8 +1,8 @@
 use nocter_machine::{MachineOperationId, MachineValueId};
 
 use crate::{
-    Arm64DataSize, Arm64NocterAbi, Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction,
-    Arm64SelectedRegister, Arm64SelectionError, Arm64ValuePlan,
+    Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction, Arm64SelectedRegister,
+    Arm64SelectionError, Arm64ValuePlan,
 };
 
 pub(crate) fn select_index_borrow(
@@ -45,33 +45,14 @@ pub(crate) fn select_index_borrow(
     Ok(())
 }
 
-pub(crate) fn select_direct_copy(
+pub(crate) fn select_storage_alias(
     operation: MachineOperationId,
     source: MachineValueId,
     result: MachineValueId,
     values: &Arm64ValuePlan,
-    selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let sources = crate::selection::direct_value(values, source)?;
-    let destinations = crate::selection::direct_value(values, result)?;
-    if sources.len() != destinations.len()
-        || sources.len() > usize::from(Arm64NocterAbi::direct_value_word_limit())
-    {
-        return Err(Arm64SelectionError::DirectCopy(operation));
-    }
-    for (lane, source) in sources.iter().copied().enumerate() {
-        selected.push(Arm64SelectedInstruction::Move {
-            size: Arm64DataSize::Bits64,
-            destination: Arm64SelectedRegister::Fixed(argument_register(lane)?),
-            source: Arm64SelectedRegister::Virtual(source),
-        });
-    }
-    for (lane, destination) in destinations.iter().copied().enumerate() {
-        selected.push(Arm64SelectedInstruction::Move {
-            size: Arm64DataSize::Bits64,
-            destination: Arm64SelectedRegister::Virtual(destination),
-            source: Arm64SelectedRegister::Fixed(argument_register(lane)?),
-        });
+    if values.value(source) != values.value(result) {
+        return Err(Arm64SelectionError::StorageAlias(operation));
     }
     Ok(())
 }
@@ -84,11 +65,4 @@ fn one_word(
         [register] => Ok(Arm64SelectedRegister::Virtual(*register)),
         _ => Err(Arm64SelectionError::ExpectedOneWord(value)),
     }
-}
-
-fn argument_register(lane: usize) -> Result<crate::Arm64Register, Arm64SelectionError> {
-    u8::try_from(lane)
-        .ok()
-        .and_then(Arm64NocterAbi::argument_register)
-        .ok_or(Arm64SelectionError::RegisterOverflow)
 }

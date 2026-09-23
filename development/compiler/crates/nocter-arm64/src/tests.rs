@@ -2004,6 +2004,39 @@ fn machine_value_plan_separates_multiword_and_memory_values() {
 }
 
 #[test]
+fn borrow_weakening_shares_physical_storage_without_a_selected_copy() {
+    let program = crate::test_support::lower_machine(
+        "func weaken(value: &+i32): &i32 { value }\n\
+         func main(): i32 {\n\
+             var value: i32 = 1\n\
+             let readonly = weaken(&+value)\n\
+             let _ = readonly\n\
+             0\n\
+         }\n",
+    );
+    let (owner, function, operation, source, result) = program
+        .functions()
+        .find_map(|(owner, function)| {
+            function
+                .body()
+                .operations()
+                .find_map(|(operation, value)| match value.kind() {
+                    nocter_machine::MachineOperationKind::BorrowWeakening { source } => {
+                        Some((owner, function, operation, *source, value.result().unwrap()))
+                    }
+                    _ => None,
+                })
+        })
+        .unwrap();
+    let values = crate::Arm64ValuePlan::build(function).unwrap();
+
+    assert_eq!(values.value(source), values.value(result));
+    crate::structural_selection::select_storage_alias(operation, source, result, &values).unwrap();
+
+    crate::Arm64SelectedFunction::build(&program, owner).unwrap();
+}
+
+#[test]
 fn machine_value_plan_accepts_edge_defined_join_values() {
     let program = crate::test_support::lower_machine(
         "func choose(condition: bool): i32 {\n\

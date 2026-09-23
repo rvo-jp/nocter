@@ -28,6 +28,9 @@ source, loader commands, or package state.
 - The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
+- Value planning assigns one physical register range to Machine-proven storage aliases. Instruction
+  selection verifies that shared placement and emits no copy; it cannot infer aliases from source
+  types or target-local operation heuristics.
 - Non-overlapping memory copies stabilize both address roots in boundary-only registers before
   chunk materialization. Large stack offsets therefore cannot replace an indirect argument or
   result pointer that the remainder of the copy still needs.

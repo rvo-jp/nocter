@@ -12,6 +12,7 @@ mod drop_flags;
 mod prune;
 mod rewrite;
 mod storage;
+mod value_storage;
 
 /// Structural changes made by the one Machine body optimization pass.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -28,6 +29,7 @@ pub struct MachineOptimizationReport {
     loads_forwarded: usize,
     stores_removed: usize,
     drop_flag_writes_removed: usize,
+    storage_aliases_proven: usize,
 }
 
 impl MachineOptimizationReport {
@@ -92,6 +94,11 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn storage_aliases_proven(self) -> usize {
+        self.storage_aliases_proven
+    }
+
+    #[must_use]
     pub const fn changed(self) -> bool {
         self.operations_folded != 0
             || self.terminators_folded != 0
@@ -105,6 +112,7 @@ impl MachineOptimizationReport {
             || self.loads_forwarded != 0
             || self.stores_removed != 0
             || self.drop_flag_writes_removed != 0
+            || self.storage_aliases_proven != 0
     }
 }
 
@@ -117,6 +125,10 @@ pub enum MachineOptimizationError {
     UnknownValue(crate::MachineValueId),
     UnknownDropFlag(crate::MachineDropFlagId),
     UnknownPack(crate::MachinePackId),
+    InvalidStorageAlias {
+        result: crate::MachineValueId,
+        source: crate::MachineValueId,
+    },
 }
 
 impl fmt::Display for MachineOptimizationError {
@@ -142,6 +154,7 @@ pub(crate) fn optimize(
     report.stores_removed += storage.stores_removed;
     report.drop_flag_writes_removed += drop_flags::prove(draft, &mut rewrites)?;
     prune::unreachable_and_unused(draft, execution, &rewrites, &mut report)?;
+    report.storage_aliases_proven += value_storage::prove(draft)?;
     Ok(report)
 }
 

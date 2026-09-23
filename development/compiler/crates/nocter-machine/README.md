@@ -20,7 +20,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - one canonical imported-service identity domain retained independently of MIR
 - stack objects, machine control flow, and dataflow
 - one mutable body-draft boundary, exhaustive operation-effect classification, target-independent
-  optimization, immutable body freeze, and post-optimization dataflow construction
+  optimization, semantic-value/physical-storage identity, immutable body freeze, and
+  post-optimization dataflow construction
 - deferred function execution, suspension frames, and frozen cancellation/output destruction
 - whole-program propagation of runtime-contract-owned ambient capability requirements
 - explicit process-root ownership and output storage for a deferred executable entry
@@ -57,6 +58,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Load or address materialization is locally non-trapping only when its direct stack address has no
   projection and exactly matches the stack object's type, size, and alignment. General address
   operations retain the conservative trapping classification.
+- Representation-preserving operations may retain distinct semantic value and type identities while
+  naming one proven physical-storage identity. Machine validates that relation after dense pruning;
+  targets consume it directly and cannot rediscover semantic equivalence or erase the typed value.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
 - Imported calls retain only a dense machine import identity; their catalog descriptor is stored

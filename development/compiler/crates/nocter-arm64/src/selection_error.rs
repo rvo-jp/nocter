@@ -36,7 +36,7 @@ pub enum Arm64SelectionError {
     MissingAggregateStaging,
     MissingErasedCallableReleaseStaging,
     DirectLaneOffset(u64),
-    DirectCopy(MachineOperationId),
+    StorageAlias(MachineOperationId),
     UnsupportedScalar(MachineValueId),
     UnsupportedScalarRepresentation(MachineScalar),
     NonDenseBlock(MachineBlockId),
