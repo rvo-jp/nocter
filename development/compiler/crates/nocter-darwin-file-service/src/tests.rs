@@ -12,7 +12,7 @@ use tempfile::NamedTempFile;
 
 use crate::{
     DarwinFileJob, DarwinFileOutcome, DarwinFileOwner, DarwinFileService, FileAccess,
-    FileCancellation, FileJobKind, FileMetadataKind, FileOperationError, FilePosition,
+    FileCancellation, FileJobKind, FileMetadataKind, FileOperationError, FilePosition, retire_file,
 };
 
 fn service() -> DarwinFileService {
@@ -180,6 +180,31 @@ fn exclusive_lock_rejects_another_owner_and_releases_on_retirement() {
     drop(owner);
     wait_until(|| service.retirement_snapshot().drained());
     service.shutdown().unwrap();
+}
+
+#[test]
+fn retirement_releases_a_lock_retained_by_a_duplicated_descriptor() {
+    let temporary = NamedTempFile::new().unwrap();
+    let mut locked = std::fs::OpenOptions::new()
+        .append(true)
+        .open(temporary.path())
+        .unwrap();
+    let inherited = locked.try_clone().unwrap();
+    let contender = std::fs::OpenOptions::new()
+        .append(true)
+        .open(temporary.path())
+        .unwrap();
+
+    locked.lock().unwrap();
+    assert!(matches!(
+        contender.try_lock(),
+        Err(std::fs::TryLockError::WouldBlock)
+    ));
+    retire_file(&mut locked);
+    contender.try_lock().unwrap();
+
+    drop(locked);
+    drop(inherited);
 }
 
 #[test]

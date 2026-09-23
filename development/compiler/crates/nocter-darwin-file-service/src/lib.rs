@@ -410,7 +410,7 @@ impl DarwinFileService {
         job_capacity: ServiceCapacity,
         retirement_capacity: RetirementCapacity,
     ) -> Result<Self, BuildError> {
-        let retirements = DarwinRetirementService::new(retirement_capacity, |_: &mut File| {})?;
+        let retirements = DarwinRetirementService::new(retirement_capacity, retire_file)?;
         let jobs = DarwinBlockingService::new(job_capacity, execute_job)?;
         Ok(Self { jobs, retirements })
     }
@@ -667,6 +667,16 @@ fn lock_file_exclusive(file: &mut File) -> Result<(), FileOperationError> {
         Err(TryLockError::Error(error)) => Err(file_failure(&error)),
         Err(TryLockError::WouldBlock) => Err(FileOperationError::LOCK_CONTENDED),
     }
+}
+
+/// Releases advisory lock state before descriptor destruction.
+///
+/// A descriptor duplicated by `fork` can outlive the retiring owner until the child calls
+/// `exec`. Relying on `File::drop` alone would therefore let completed retirement remain
+/// transiently locked by that duplicate. Explicit unlock makes retirement completion the exact
+/// lock-release boundary while descriptor destruction remains the final resource cleanup.
+fn retire_file(file: &mut File) {
+    let _ = file.unlock();
 }
 
 fn identity_outcome(mut owner: DarwinFileOwner) -> DarwinFileOutcome {
