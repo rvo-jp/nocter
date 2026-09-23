@@ -53,4 +53,4 @@ async function runProcessScenario(compiler, args, cwd) {
   };
 }
 
-module.exports = { parseDarwinResources, runProcessScenario };
+module.exports = { parseDarwinResources, runChild, runProcessScenario };

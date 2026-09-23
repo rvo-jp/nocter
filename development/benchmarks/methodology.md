@@ -7,9 +7,10 @@ queries own deterministic computation accounting. Neither authority may infer th
 ## Boundary
 
 The external runner may know only documented CLI and LSP requests, representative checked source,
-process exit status, protocol responses, elapsed time, and host resource observations. It may not
-construct compiler semantic values, bypass installation integrity, call private crates, or encode
-an internal phase order.
+compiler-produced executable bytes, deterministic application inputs, process output and exit
+status, protocol responses, elapsed time, and host resource observations. It may not construct
+compiler semantic values, bypass installation integrity, call private crates, or encode an internal
+phase order.
 
 The computation kernel may count query executions and reuse because it owns those events. Tests
 may assert that an edit invalidates only the required queries. The kernel does not own wall-clock
@@ -19,6 +20,11 @@ This separation produces two complementary answers:
 
 1. External measurements show whether an ordinary command or editor interaction improved.
 2. Deterministic query tests show whether the computation model avoided unnecessary semantic work.
+
+Native product measurements add two observations at the same public boundary: exact executable
+size and runtime of the executable produced by ordinary `nocter build`. A workload validates its
+observable result after each sample, but benchmark code never becomes a second correctness oracle
+or a private execution path.
 
 A timing change without a query-count change points toward implementation cost, process startup,
 I/O, or code generation. A query-count regression is structural even when a fast machine hides it.
@@ -33,6 +39,8 @@ I/O, or code generation. A query-count regression is structural even when a fast
 - Use medians for the primary comparison and retain distribution summaries rather than one run.
 - Keep correctness and diagnostic expectations in conformance tests. A benchmark fails only when
   its scenario cannot execute faithfully.
+- Record the digest and byte length of every generated executable and deterministic native input.
+  Alternate compiler order for native samples exactly as for compiler-process samples.
 - Do not persist an incremental build cache or weaken installation validation to make a number
   smaller.
 - Attribute a measured bottleneck before changing architecture. Internal instrumentation requires

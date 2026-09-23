@@ -1,8 +1,9 @@
 # Performance Measurement
 
-This directory owns repeatable, non-normative measurements of user-visible compiler and editor
-latency. Measurements guide optimization; they do not define language or tooling correctness.
-Correctness remains owned by `spec/` and the compiler conformance suite.
+This directory owns repeatable, non-normative measurements of user-visible compiler latency,
+editor latency, generated executable size, and native application runtime. Measurements guide
+optimization; they do not define language, tooling, or standard-library correctness. Correctness
+remains owned by `spec/`, checked standard-library contracts, and the compiler conformance suite.
 
 The [measurement boundary](methodology.md) separates external latency evidence from deterministic
 compiler query counters and defines the evidence required for a valid comparison.
@@ -55,6 +56,38 @@ revision, clean-worktree state, and scenario-source digests emitted by the runne
 elapsed-time thresholds into conformance tests. Schema 2 records the installed manifest digest and
 its standard-library tree identity; the retained v0.36.0 baseline uses the earlier schema 1 and
 remains a historical record.
+
+## Native Product Measurements
+
+`native-run.js` builds each workload once through every compared installed compiler, records the
+complete executable size and SHA-256 identity, then alternates warm and measured executions. The
+workload matrix uses existing public applications rather than benchmark-only compiler paths:
+
+- `line-frequency` covers synchronous text, Map/Set, allocation, and filesystem work;
+- `json-normalize` covers fallible JSON parsing and generation;
+- `archive-inspect` covers bounded gzip and tar processing;
+- `binary-record` covers asynchronous file I/O and portable codec validation;
+- `subprocess-pipeline` covers child processes, async transfer, and timeout cancellation;
+- `async-http` covers a complete loopback HTTP exchange; and
+- `http-service` covers the bounded operational application, durable state, networking, and
+  structured shutdown.
+
+The runner creates deterministic line, JSON, and gzip/tar inputs outside the repository. Its result
+records their byte lengths and digests together with exact source, compiler, installed-home, host,
+executable, and repository identities. Every retained sample records its alternating round,
+position, and elapsed duration rather than retaining only a summary. Workload output is validated
+after timing; an invalid execution is not a performance sample.
+
+```sh
+node development/benchmarks/native-run.js \
+  --compiler released=/path/to/released/.nocter/nocter \
+  --compiler candidate=/path/to/candidate/.nocter/nocter \
+  --output /tmp/nocter-native-performance.json
+```
+
+Use `--samples` and `--warmups` to change the recorded counts. Native results compare complete
+compiler-produced executables; they do not time an IR interpreter, a compiler-private entry point,
+or a benchmark-specific standard-library implementation.
 
 ## Two Independent Signals
 

@@ -40,4 +40,4 @@ function sourceIdentity(repository) {
   };
 }
 
-module.exports = { sourceIdentity };
+module.exports = { identities, sha256, sourceIdentity };
