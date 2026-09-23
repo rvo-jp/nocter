@@ -5,7 +5,7 @@ use std::{path::PathBuf, sync::OnceLock};
 mod public_examples;
 
 pub use public_examples::{
-    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture,
+    PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleEnvironment, PublicExampleFixture,
     PublicExamplePostcondition, PublicExampleRun, PublicPackageExample,
     materialize_public_example_fixtures, public_example_fixture_path,
 };

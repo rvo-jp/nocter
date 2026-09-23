@@ -1299,6 +1299,9 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
                 }
             }
         }
+        for variable in run.environment() {
+            command.env(variable.name(), variable.value());
+        }
         command.stdin(Stdio::piped());
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());

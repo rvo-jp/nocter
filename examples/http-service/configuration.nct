@@ -1,0 +1,144 @@
+//! Application-owned configuration schema, source order, and operational decoding.
+
+see ./index.nct
+
+use std/cli.{Application, ParsedArguments}
+use std/config.{Builder, Configuration, Field, Schema, Source}
+use std/config/arguments as config_arguments
+use std/config/environment as config_environment
+use std/config/json as config_json
+use std/fs
+use std/json
+use std/string.String
+use std/time.Duration
+
+func parse_service_arguments(): ParsedArguments! {
+    var application = Application.new(
+        "http-service",
+        "Runs the bounded demonstration or waits for process lifecycle requests.",
+    )?
+    application.add_flag(
+        "operational",
+        none,
+        "Wait for reload and termination requests instead of stopping after the demonstration.",
+    )?
+    application.add_option("config", none, "FILE", "Read one optional JSON object.")?
+    application.add_option("listen", none, "ADDRESS", "Override the numeric listen address.")?
+    application.add_option("response", none, "TEXT", "Override the user-route response.")?
+    application.add_option("timeout", none, "SECONDS", "Override the request timeout.")?
+    application.add_option("state", none, "FILE", "Override the durable store path.")?
+    application.add_option("token", none, "TEXT", "Override the secret application token.")?
+    return application.parse_process()?
+}
+
+func service_schema(): Schema! {
+    var schema = Schema.empty()
+    let listen = Field.text("listen")?
+    schema.add(listen.required().text_length(1, 128)?)?
+    let response = Field.text("response")?
+    schema.add(response.required().text_length(1, 1024)?)?
+    let timeout = Field.unsigned("request_timeout_seconds")?
+    schema.add(timeout.required().unsigned_range(1, 30)?)?
+    let state = Field.text("state_path")?
+    schema.add(state.required().text_length(1, 1024)?)?
+    let token = Field.text("token")?
+    schema.add(token.required().secret().text_length(1, 1024)?)?
+    return move schema
+}
+
+func service_defaults(): Source! {
+    var defaults = Source.new("authored defaults")?
+    defaults.add_text("listen", "127.0.0.1:0")?
+    defaults.add_text("response", "{\"user\":\"alice\"}")?
+    defaults.add_unsigned("request_timeout_seconds", 1)?
+    defaults.add_text("state_path", ".http-service-state")?
+    defaults.add_text("token", "default-example-token")?
+    return move defaults
+}
+
+async func apply_service_file(
+    builder: &+Builder,
+    arguments: &ParsedArguments,
+): void! {
+    let path = arguments.option("config") otherwise { return }
+    let text = await fs.read_to_string(path)?
+    let value = json.parse(&text)?
+    let source = config_json.from_object("JSON configuration file", &value)?
+    builder.apply(move source)?
+    return
+}
+
+func service_environment_source(): Source! {
+    var environment = Source.new("process environment")?
+    config_environment.add(&+environment, "listen", "NOCTER_HTTP_LISTEN")?
+    config_environment.add(&+environment, "response", "NOCTER_HTTP_RESPONSE")?
+    config_environment.add(
+        &+environment,
+        "request_timeout_seconds",
+        "NOCTER_HTTP_TIMEOUT",
+    )?
+    config_environment.add(&+environment, "state_path", "NOCTER_HTTP_STATE")?
+    config_environment.add(&+environment, "token", "NOCTER_HTTP_TOKEN")?
+    return move environment
+}
+
+func service_argument_source(arguments: &ParsedArguments): Source! {
+    var command_line = Source.new("command line")?
+    config_arguments.add_option(&+command_line, arguments, "listen", "listen")?
+    config_arguments.add_option(&+command_line, arguments, "response", "response")?
+    config_arguments.add_option(
+        &+command_line,
+        arguments,
+        "request_timeout_seconds",
+        "timeout",
+    )?
+    config_arguments.add_option(&+command_line, arguments, "state_path", "state")?
+    config_arguments.add_option(&+command_line, arguments, "token", "token")?
+    return move command_line
+}
+
+async func build_service_configuration(arguments: &ParsedArguments): Configuration! {
+    var builder = Builder.new(service_schema()?)
+    builder.apply(service_defaults()?)?
+    await apply_service_file(&+builder, arguments)?
+    builder.apply(service_environment_source()?)?
+    builder.apply(service_argument_source(arguments)?)?
+    return builder.finish()?
+}
+
+noalloc func operational_mode(arguments: &ParsedArguments): bool {
+    return arguments.flag("operational")
+}
+
+func configured_timeout(configuration: &Configuration): Duration! {
+    let seconds = configuration.unsigned("request_timeout_seconds")? otherwise {
+        return error.new("http-service.configuration", "required timeout is absent")
+    }
+    return Duration.from_seconds(seconds)
+}
+
+func configured_response(configuration: &Configuration): String! {
+    return configuration.display("response")? otherwise {
+        return error.new("http-service.configuration", "required response is absent")
+    }
+}
+
+func configured_listen(configuration: &Configuration): String! {
+    let listen = configuration.text("listen")? otherwise {
+        return error.new("http-service.configuration", "required listen address is absent")
+    }
+    return String.copy(listen)
+}
+
+func configured_state_path(configuration: &Configuration): String! {
+    let path = configuration.text("state_path")? otherwise {
+        return error.new("http-service.configuration", "required state path is absent")
+    }
+    return String.copy(path)
+}
+
+func configured_token_display(configuration: &Configuration): String! {
+    return configuration.display("token")? otherwise {
+        return error.new("http-service.configuration", "required token is absent")
+    }
+}

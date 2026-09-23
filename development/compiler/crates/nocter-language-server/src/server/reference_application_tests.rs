@@ -324,8 +324,8 @@ fn assert_http_durable_store_editor_features(
         implementation.issue()
     );
 
-    let (set_line, set_source) = source_line(text, "state.set(");
-    let completion_character = set_source.find("state.").unwrap() + "state.".len();
+    let (set_line, set_source) = source_line(text, "durable.set(");
+    let completion_character = set_source.find("durable.").unwrap() + "durable.".len();
     let completion = server.receive(&position_request(
         53,
         "textDocument/completion",

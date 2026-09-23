@@ -228,14 +228,33 @@ nocter check
 nocter run
 ```
 
-[http-service/index.nct](http-service/index.nct) runs seven loopback connections through a
-service-owned, two-slot `TaskGroup` and a deterministic `Router<ServiceState>` of heterogeneous
-`Handler<ServiceState>` values. The router owns one explicit timeout policy and lends that exact
-state to each selected handler without a global or hidden clone. That state also owns one fixed
-session-cookie policy and a cooperative mutex containing structured operational events. The user
-route issues or accepts an opaque session identifier, returns it through an HttpOnly cookie, and
-records only a redacted session field. Shutdown projects the retained event through the structured
-JSON authority and verifies that the bearer spelling never enters the operational record.
+[http-service/index.nct](http-service/index.nct) is both a bounded integration demonstration and a
+long-running operational service. Its application-owned schema overlays authored defaults, an
+optional scalar JSON object, explicitly mapped process-environment variables, and command-line
+options in that order. Validation produces one immutable `Configuration`; its secret token can be
+presented only as `[redacted]`. A `PublishedConfiguration` atomically replaces complete generations
+after `SIGHUP`, while invalid candidates and attempts to change the startup-only listen address or
+state path retain the prior generation. `SIGINT` and `SIGTERM` close admission, drain active
+handlers under a deadline, commit and close durable state, verify restart recovery, and remove the
+example journal. Shutdown records its own durable lifecycle event, so a service that has accepted no
+request still terminates successfully. The service holds exclusive ownership of that journal for
+its complete lifetime.
+
+The accept loop drives connection admission, a service-owned two-slot `TaskGroup`, and lifecycle
+observation together. A slow connection therefore does not prevent another handler or a reload
+request from making progress. The deterministic `Router<ServiceState>` owns heterogeneous
+`Handler<ServiceState>` values and lends the exact shared state to each selected handler without a
+global or hidden clone. That state also owns one fixed session-cookie policy and cooperative
+mutexes for structured operational events and the journal owner. The user route issues or accepts
+an opaque session identifier, returns it through an HttpOnly cookie, and records only redacted
+session and configuration fields. Each accepted event is committed before it becomes visible in
+the retained in-memory event list; shutdown then verifies the exact committed JSON after reopening
+the journal.
+
+The default bounded run starts seven loopback connections and stops without requiring process
+signals. It exercises explicit configuration precedence, two concurrent handlers, decoded path
+and query loans, 404 and 405 policy, intentional handler failure, malformed framing, idle timeout,
+streaming request and response bodies, graceful drain, redaction, commit, and restart recovery.
 The application handles a decoded path parameter and a query pair lent directly from the retained
 request target and decoder scratch; it compares that pair before the next decoder advance without
 creating an owned query copy. It also exercises explicit 404 and 405 policy, an intentional handler
@@ -250,16 +269,23 @@ handler, detached task, hidden server registry, concurrent pipeline executor, or
 parser. Every accept, request read, response write, client operation, and complete shutdown drain
 has a finite deadline.
 
-Only after the handler group drains successfully, the service commits its structured event to one
-bounded `std/store.Store`, closes the owner, reopens the journal to simulate process restart, and
-verifies the exact committed bytes and sequence. It then closes the recovered owner and removes the
-example state file. Failed or cancelled request handling therefore cannot publish an in-memory
-event as durable application state.
-
 ```sh
 cd examples/http-service
 nocter check
 nocter run
+```
+
+The long-running mode accepts the same configuration sources and publishes its bound address in
+`.http-service-ready`. Send `SIGHUP` after replacing the JSON file to request one complete reload;
+send `SIGINT` or `SIGTERM` for graceful shutdown. The readiness file is removed after successful
+shutdown.
+
+```sh
+cd examples/http-service
+cat > service.json <<'JSON'
+{"response":"hello","request_timeout_seconds":2,"token":"do-not-log"}
+JSON
+nocter run -- --operational --config service.json --listen 127.0.0.1:8080
 ```
 
 [async-loopback/index.nct](async-loopback/index.nct) starts TCP connection and listener acceptance

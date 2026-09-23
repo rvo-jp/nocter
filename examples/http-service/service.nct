@@ -1,10 +1,15 @@
 see ./index.nct
 
+see ./configuration.nct
+
+see ./operational.nct
+
 use std/http.{Handler, IncomingRequest, Limits, OutgoingResponse, Responder, ResponseHead, RouteDispatch, RouteMatch, Router, Server, ServerConnection, SessionCookie, Status}
+use std/config.{Configuration, PublishedConfiguration}
 use std/fs
 use std/log.{Event, Field, Level}
 use std/net
-use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpStream}
+use std/net.{SocketAddress, TcpStream}
 use std/session.SessionId
 use std/string.String
 use std/store.Store
@@ -23,33 +28,49 @@ const LARGE_BODY_BYTES: usize = 32768
 const TRANSFER_BYTES: usize = 1024
 
 struct ServiceState {
-    request_timeout: Duration
+    configuration: PublishedConfiguration
     session_cookie: SessionCookie
     event_records: Mutex<Vec<Event>>
+    durable_state: Mutex<Store>
 }
 
 construct ServiceState {
-    func new(request_timeout: Duration): Self! {
+    func new(configuration: PublishedConfiguration, durable_state: Store): Self! {
         return ServiceState {
-            request_timeout: request_timeout,
+            configuration: move configuration,
             session_cookie: SessionCookie.new("session", "/", false)?,
             event_records: Mutex<Vec<Event>>.new(Vec<Event>.empty())?,
+            durable_state: Mutex<Store>.new(move durable_state)?,
         }
     }
 }
 
 instance ServiceState {
-    noalloc method &self.timeout(): Duration { return self.request_timeout }
+    async method &self.timeout(): Duration! {
+        let view = await self.configuration.current()
+        let timeout = configured_timeout(&view as &Configuration)?
+        return timeout
+    }
+
+    async method &self.response(): String! {
+        let view = await self.configuration.current()
+        let response = configured_response(&view as &Configuration)?
+        return move response
+    }
+
+    async method &self.token_display(): String! {
+        let view = await self.configuration.current()
+        let display = configured_token_display(&view as &Configuration)?
+        return move display
+    }
 
     noalloc method &self.cookie(): &SessionCookie from self { return &self.session_cookie }
 
     noalloc method &self.event_store(): &Mutex<Vec<Event>> from self {
         return &self.event_records
     }
-}
 
-func loopback(): SocketAddress {
-    return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
+    noalloc method &self.store(): &Mutex<Store> from self { return &self.durable_state }
 }
 
 func byte_buffer(length: usize): Vec<u8> {
@@ -107,7 +128,7 @@ async func handle_large_route(
     _route: RouteMatch,
 ): ServerConnection?! {
     var request_owner = move request
-    let timeout = state.timeout()
+    let timeout = await state.timeout()?
     if !await read_large_request(&+request_owner, timeout) {
         request_owner.close()
         return error.new("http-service.large_body", "large request body changed")
@@ -121,14 +142,29 @@ async func handle_close_route(
     request: IncomingRequest,
     _route: RouteMatch,
 ): ServerConnection?! {
-    let timeout = state.timeout()
+    let timeout = await state.timeout()?
     var responder = await request.finish_body_with_timeout(timeout)?
     responder.close_after_response()
     let response = OutgoingResponse.text(Status.ok(), "done")?
     return await responder.respond_with_timeout(move response, timeout)?
 }
 
-async func record_event(state: &ServiceState, event: Event): void {
+async func record_event(state: &ServiceState, event: Event): void! {
+    let event_output = event.to_json_line()?
+    await persist_event(state, &event_output)?
+    await retain_event(state, move event)
+    return
+}
+
+async func persist_event(state: &ServiceState, event_output: &str): void! {
+    let store = state.store()
+    var durable = await store.lock()
+    durable.set("last-event".bytes(), event_output.bytes())?
+    let _sequence = await durable.commit()?
+    return
+}
+
+async func retain_event(state: &ServiceState, event: Event): void {
     let event_store = state.event_store()
     var events = await event_store.lock()
     events.push(move event)
@@ -145,7 +181,7 @@ async func handle_user_route(
     request: IncomingRequest,
     route: RouteMatch,
 ): ServerConnection?! {
-    let timeout = state.timeout()
+    let timeout = await state.timeout()?
     let identifier = session_for_request(state, &request)?
     let user = route.parameter("id") otherwise {
         let response = OutgoingResponse.text(Status.bad_request(), "missing user")?
@@ -177,8 +213,12 @@ async func handle_user_route(
     event.add(move status_field)?
     let session_field = Field.redacted("session")?
     event.add(move session_field)?
-    await record_event(state, move event)
-    var response = OutgoingResponse.json(Status.ok(), "{\"user\":\"alice\"}")?
+    let token_display = await state.token_display()?
+    let token_field = Field.text("configured_token", &token_display)?
+    event.add(move token_field)?
+    await record_event(state, move event)?
+    let response_text = await state.response()?
+    var response = OutgoingResponse.json(Status.ok(), &response_text)?
     let cookie_policy = state.cookie()
     let session_header = cookie_policy.set_header(&identifier)?
     response.append_header(move session_header)
@@ -196,8 +236,11 @@ async func handle_failure_route(
     return error.new("http-service.handler_failed", "intentional handler failure")
 }
 
-func build_router(request_timeout: Duration): Router<ServiceState>! {
-    var router = Router.new(ServiceState.new(request_timeout)?)
+func build_router(
+    configuration: PublishedConfiguration,
+    durable_state: Store,
+): Router<ServiceState>! {
+    var router = Router.new(ServiceState.new(move configuration, move durable_state)?)
     let large: Handler<ServiceState> = (state, request, route) {
         handle_large_route(state, move request, move route)
     }
@@ -221,7 +264,7 @@ async func handle_connection(
     router: &Router<ServiceState>,
     connection: ServerConnection,
 ): bool {
-    let timeout = router.state().timeout()
+    let timeout = await router.state().timeout() catch _ { return false }
     var owner = move connection
     loop {
         let request = await owner.read_request_with_timeout(timeout) catch failure {
@@ -297,11 +340,13 @@ async func observe_handler(
 
 async func serve_bounded(
     server: Server,
-    request_timeout: Duration,
+    configuration: PublishedConfiguration,
+    durable_state: Store,
+    state_path: &str,
     shutdown_deadline: Duration,
 ): (usize, usize, String)! {
     var owner = move server
-    let router = build_router(request_timeout)?
+    let router = build_router(move configuration, move durable_state)?
     var handlers: TaskGroup<bool> = TaskGroup.empty()
     var accepted: usize = 0
     var succeeded: usize = 0
@@ -321,23 +366,28 @@ async func serve_bounded(
     owner.close()
     let drained = await drain_handlers_before(move handlers, shutdown_deadline)?
     let state = router.into_state()
-    let event_store = state.event_store()
-    var events = await event_store.lock()
-    let stored_events: &Vec<Event> = &events as &Vec<Event>
-    if stored_events.len() != 1 {
-        return error.new("http-service.events", "structured event count changed")
-    }
-    let event_output = stored_events[0].to_json_line()?
-    await persist_and_recover_event(&event_output)?
+    let event_output = await rendered_event(&state)?
+    await close_and_recover_event(&state, &event_output, state_path)?
     return (succeeded + drained.0, failed + drained.1, move event_output)
 }
 
-async func persist_and_recover_event(event_output: &str): void! {
-    let path: &str = ".http-service-state"
-    var state = await Store.open(path)?
-    state.set("last-event".bytes(), event_output.bytes())?
-    let committed_sequence = await state.commit()?
-    await state.close()?
+async func rendered_event(state: &ServiceState): String! {
+    let event_store = state.event_store()
+    var events = await event_store.lock()
+    let stored_events: &Vec<Event> = &events as &Vec<Event>
+    if stored_events.len() == 0 {
+        return error.new("http-service.events", "no structured event was recorded")
+    }
+    let output = stored_events[stored_events.len() - 1].to_json_line()?
+    return move output
+}
+
+async func close_and_recover_event(
+    state: &ServiceState,
+    event_output: &str,
+    path: &str,
+): void! {
+    let committed_sequence = await close_store(state)?
 
     var restarted = await Store.open(path)?
     let recovered = restarted.get("last-event".bytes()) otherwise {
@@ -350,6 +400,14 @@ async func persist_and_recover_event(event_output: &str): void! {
     await restarted.close()?
     await fs.remove_file(path)?
     return
+}
+
+async func close_store(state: &ServiceState): u64! {
+    let store = state.store()
+    var durable = await store.lock()
+    let committed_sequence = await durable.commit()?
+    await durable.close()?
+    return committed_sequence
 }
 
 async func read_until_eof(
@@ -430,14 +488,18 @@ async func timed_out_exchange(address: SocketAddress, timeout: Duration): bool {
     return received == 0
 }
 
-async func routed_parameter_exchange(address: SocketAddress, timeout: Duration): bool {
+async func routed_parameter_exchange(
+    address: SocketAddress,
+    timeout: Duration,
+    expected_response: &str,
+): bool {
     var stream = await net.connect_tcp_with_timeout(address, timeout) catch _ { return false }
     await stream.write_with_timeout(
         "GET /users/alice?view=full HTTP/1.1\r\nHost: localhost\r\nCookie: session=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\r\nConnection: close\r\n\r\n".bytes(),
         timeout,
     ) catch _ { return false }
     let response = await read_response_text(&+stream, timeout) catch _ { return false }
-    return (&response as &str).contains("{\"user\":\"alice\"}")
+    return (&response as &str).contains(expected_response)
     && (&response as &str).contains("set-cookie: session=")
     && (&response as &str).contains("HttpOnly; SameSite=Lax")
 }
@@ -470,10 +532,14 @@ async func handler_failure_exchange(address: SocketAddress, timeout: Duration): 
     return received == 0
 }
 
-async func run_clients(address: SocketAddress, timeout: Duration): usize! {
+async func run_clients(
+    address: SocketAddress,
+    timeout: Duration,
+    expected_response: &str,
+): usize! {
     var requests: TaskGroup<bool> = TaskGroup.empty()
     requests.add(large_reused_exchange(address, timeout))
-    requests.add(routed_parameter_exchange(address, timeout))
+    requests.add(routed_parameter_exchange(address, timeout, expected_response))
     requests.add(missing_route_exchange(address, timeout))
     requests.add(method_mismatch_exchange(address, timeout))
     requests.add(malformed_exchange(address, timeout))
@@ -490,14 +556,32 @@ async func run_clients(address: SocketAddress, timeout: Duration): usize! {
 }
 
 async func run_service_example(): i32! {
+    let arguments = parse_service_arguments()?
+    let configuration = await build_service_configuration(&arguments)?
+    if operational_mode(&arguments) {
+        return await run_operational_service(&arguments, move configuration)
+    }
+    let listen_text = configured_listen(&configuration)?
+    let listen = SocketAddress.parse(&listen_text) otherwise {
+        return error.new("http-service.configuration", "listen is not a numeric socket address")
+    }
+    let expected_response = configured_response(&configuration)?
+    let state_path = configured_state_path(&configuration)?
+    let published = PublishedConfiguration.new(move configuration)?
     let limits = Limits.new(1024, 8192, 32, 4, 1024, 128, 65536)?
-    let request_timeout = Duration.from_seconds(1)
     let operation_timeout = Duration.from_seconds(3)
-    let server = await Server.bind_with_limits(loopback(), limits)?
+    let durable_state = await Store.open(&state_path)?
+    let server = await Server.bind_with_limits(listen, limits)?
     let address = server.local_address()?
     let completed = await task.join(
-        serve_bounded(move server, request_timeout, operation_timeout),
-        run_clients(address, operation_timeout),
+        serve_bounded(
+            move server,
+            published.share(),
+            move durable_state,
+            &state_path,
+            operation_timeout,
+        ),
+        run_clients(address, operation_timeout, &expected_response),
     )
     let service = move completed.0?
     let clients = move completed.1?
@@ -510,7 +594,9 @@ async func run_service_example(): i32! {
     let event_output: &str = &service.2
     if !event_output.contains("\"event\":\"request.complete\"")
     || !event_output.contains("\"session\":\"[redacted]\"")
-    || event_output.contains("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") {
+    || !event_output.contains("\"configured_token\":\"[redacted]\"")
+    || event_output.contains("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+    || event_output.contains("environment-secret") {
         return error.new("http-service.events", "structured operational output changed")
     }
     if clients != REQUEST_COUNT {

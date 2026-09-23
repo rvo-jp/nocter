@@ -1133,10 +1133,23 @@ fn public_system_examples_run_through_the_installed_standard_library() {
         .unwrap();
 
         assert!(matches!(&outcome, InvocationOutcome::Build(_)));
-        let executed = std::process::Command::new(&output)
-            .current_dir(&execution_root)
-            .output()
-            .unwrap();
+        let mut command = std::process::Command::new(&output);
+        command.current_dir(&execution_root);
+        for argument in run.arguments() {
+            match argument {
+                nocter_test_support::PublicExampleArgument::FixturePath(path) => {
+                    let _ = nocter_test_support::public_example_fixture_path(&execution_root, path);
+                    command.arg(path);
+                }
+                nocter_test_support::PublicExampleArgument::Text(value) => {
+                    command.arg(value);
+                }
+            }
+        }
+        for variable in run.environment() {
+            command.env(variable.name(), variable.value());
+        }
+        let executed = command.output().unwrap();
         assert_eq!(
             executed.status.code(),
             Some(run.status()),
@@ -1147,6 +1160,234 @@ fn public_system_examples_run_through_the_installed_standard_library() {
         assert_eq!(executed.stdout, run.stdout(), "example {name} stdout");
         assert_eq!(executed.stderr, run.stderr(), "example {name} stderr");
     }
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+struct OperationalTestProcess(Option<std::process::Child>);
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+impl OperationalTestProcess {
+    fn new(child: std::process::Child) -> Self {
+        Self(Some(child))
+    }
+
+    fn id(&self) -> u32 {
+        self.0.as_ref().unwrap().id()
+    }
+
+    fn wait_with_output(mut self) -> std::io::Result<std::process::Output> {
+        self.0.take().unwrap().wait_with_output()
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+impl Drop for OperationalTestProcess {
+    fn drop(&mut self) {
+        if let Some(child) = &mut self.0 {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+fn operational_http_request(address: &std::net::SocketAddr) -> String {
+    use std::io::{Read, Write};
+    use std::net::Shutdown;
+    use std::time::Duration;
+
+    let mut stream = std::net::TcpStream::connect_timeout(address, Duration::from_secs(2)).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    stream
+        .write_all(
+            b"GET /users/alice?view=full HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        )
+        .unwrap();
+    stream.shutdown(Shutdown::Write).unwrap();
+    let mut response = Vec::new();
+    let mut scratch = [0_u8; 1024];
+    loop {
+        match stream.read(&mut scratch) {
+            Ok(0) => break,
+            Ok(count) => response.extend_from_slice(&scratch[..count]),
+            Err(error)
+                if !response.is_empty()
+                    && matches!(
+                        error.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+            {
+                break;
+            }
+            Err(error) => panic!("HTTP response read failed: {error}"),
+        }
+    }
+    String::from_utf8(response).unwrap()
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+fn send_operational_signal(process: &OperationalTestProcess, signal: &str) {
+    assert!(
+        std::process::Command::new("/bin/kill")
+            .arg(signal)
+            .arg(process.id().to_string())
+            .status()
+            .unwrap()
+            .success()
+    );
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+fn wait_for_operational_response(address: &std::net::SocketAddr, expected: &str) {
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !operational_http_request(address).contains(expected) {
+        assert!(
+            Instant::now() < deadline,
+            "expected reload was not published"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+fn spawn_operational_service(
+    executable: &Path,
+    root: &Path,
+    config: &Path,
+    state: &Path,
+) -> OperationalTestProcess {
+    use std::process::{Command, Stdio};
+
+    OperationalTestProcess::new(
+        Command::new(executable)
+            .current_dir(root)
+            .arg("--operational")
+            .arg("--config")
+            .arg(config)
+            .arg("--listen")
+            .arg("127.0.0.1:0")
+            .arg("--state")
+            .arg(state)
+            .env("NOCTER_HTTP_TOKEN", "environment-secret")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    )
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+fn wait_for_operational_readiness(root: &Path) -> std::net::SocketAddr {
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let ready = root.join(".http-service-ready");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !ready.is_file() {
+        assert!(
+            Instant::now() < deadline,
+            "service did not publish readiness"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    fs::read_to_string(ready).unwrap().parse().unwrap()
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+#[test]
+fn installed_http_service_reloads_valid_configuration_and_shuts_down_cleanly() {
+    use std::process::Command;
+    use std::thread;
+    use std::time::Duration;
+
+    let tree = TempTree::new("installed-operational-http-service");
+    let home = tree.installation("arm64-darwin", true);
+    let example = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/http-service");
+    let executable = tree.0.join("http-service-operational");
+    let outcome = execute_invocation(invocation(
+        [
+            OsString::from("build"),
+            OsString::from("-o"),
+            executable.as_os_str().to_owned(),
+        ],
+        &example,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert!(matches!(&outcome, InvocationOutcome::Build(_)));
+
+    let config = tree.0.join("service.json");
+    let state = tree.0.join("service.state");
+    fs::write(
+        &config,
+        b"{\"response\":\"initial-response\",\"token\":\"file-secret\"}",
+    )
+    .unwrap();
+
+    let child = spawn_operational_service(&executable, &tree.0, &config, &state);
+
+    let ready = tree.0.join(".http-service-ready");
+    let address = wait_for_operational_readiness(&tree.0);
+
+    assert!(operational_http_request(&address).contains("initial-response"));
+
+    let competing = Command::new(&executable)
+        .current_dir(&tree.0)
+        .arg("--operational")
+        .arg("--config")
+        .arg(&config)
+        .arg("--listen")
+        .arg("127.0.0.1:0")
+        .arg("--state")
+        .arg(&state)
+        .output()
+        .unwrap();
+    assert_eq!(competing.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&competing.stderr).contains("std.store.already_open"));
+
+    fs::write(
+        &config,
+        b"{\"response\":\"reloaded-response\",\"token\":\"reloaded-secret\"}",
+    )
+    .unwrap();
+    send_operational_signal(&child, "-HUP");
+    wait_for_operational_response(&address, "reloaded-response");
+
+    fs::write(&config, b"{\"response\":\"\",\"token\":\"never-log-this\"}").unwrap();
+    send_operational_signal(&child, "-HUP");
+    thread::sleep(Duration::from_millis(100));
+    assert!(operational_http_request(&address).contains("reloaded-response"));
+
+    fs::write(
+        &config,
+        b"{\"response\":\"second-reload\",\"token\":\"second-secret\"}",
+    )
+    .unwrap();
+    send_operational_signal(&child, "-HUP");
+    wait_for_operational_response(&address, "second-reload");
+
+    send_operational_signal(&child, "-TERM");
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("secret"));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("secret"));
+    assert!(!ready.exists());
+    assert!(!state.exists());
+
+    let idle_state = tree.0.join("idle-service.state");
+    let idle = spawn_operational_service(&executable, &tree.0, &config, &idle_state);
+    let _idle_address = wait_for_operational_readiness(&tree.0);
+    send_operational_signal(&idle, "-TERM");
+    let idle_output = idle.wait_with_output().unwrap();
+    assert_eq!(idle_output.status.code(), Some(0));
+    assert!(!ready.exists());
+    assert!(!idle_state.exists());
 }
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]

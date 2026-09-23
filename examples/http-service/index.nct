@@ -9,6 +9,10 @@
 
 see ./service.nct
 
+see ./configuration.nct
+
+see ./operational.nct
+
 async func main(): i32! {
     return await run_service_example()
 }

@@ -1,0 +1,232 @@
+//! Long-running admission, reload, and graceful termination policy.
+
+see ./index.nct
+
+see ./configuration.nct
+
+see ./service.nct
+
+use std/cli.ParsedArguments
+use std/config.{Configuration, PublishedConfiguration}
+use std/fs
+use std/http.{Limits, Router, Server, ServerConnection}
+use std/log.{Event, Field, Level}
+use std/net.SocketAddress
+use std/service
+use std/service.LifecycleRequest
+use std/store.Store
+use std/task
+use std/task.{Race, TaskGroup}
+use std/time.{Duration, SystemTime}
+
+enum AdmissionEvent {
+    connection(value: ServerConnection)
+    handler(value: bool)
+}
+
+enum OperationalEvent {
+    admission(value: AdmissionEvent)
+    lifecycle(value: LifecycleRequest)
+}
+
+async func accepted_admission(
+    server: &+Server,
+    timeout: Duration,
+): AdmissionEvent! {
+    return AdmissionEvent.connection(await server.accept_with_timeout(timeout)?)
+}
+
+async func completed_handler(handlers: &+TaskGroup<bool>): AdmissionEvent! {
+    return AdmissionEvent.handler(await observe_handler(handlers)?)
+}
+
+async func observed_admission(
+    server: &+Server,
+    handlers: &+TaskGroup<bool>,
+    timeout: Duration,
+): OperationalEvent! {
+    if handlers.is_empty() {
+        return OperationalEvent.admission(await accepted_admission(server, timeout)?)
+    }
+    let selected = await task.race(
+        accepted_admission(server, timeout),
+        completed_handler(handlers),
+    )
+    match move selected {
+        Race.first(value) { return OperationalEvent.admission(move value?) }
+        Race.second(value) { return OperationalEvent.admission(move value?) }
+    }
+}
+
+async func observed_handler(handlers: &+TaskGroup<bool>): OperationalEvent! {
+    return OperationalEvent.admission(await completed_handler(handlers)?)
+}
+
+async func observed_lifecycle(): OperationalEvent! {
+    return OperationalEvent.lifecycle(await service.lifecycle_requested()?)
+}
+
+async func next_operational_event(
+    server: &+Server,
+    handlers: &+TaskGroup<bool>,
+    timeout: Duration,
+): OperationalEvent! {
+    let admission = if handlers.len() == CONNECTION_LIMIT {
+        observed_handler(handlers)
+    } else {
+        observed_admission(server, handlers, timeout)
+    }
+    let selected = await task.race(
+        move admission,
+        observed_lifecycle(),
+    )
+    match move selected {
+        Race.first(value) { return move value? }
+        Race.second(value) { return move value? }
+    }
+}
+
+func configuration_matches_startup(
+    configuration: &Configuration,
+    listen: &str,
+    state_path: &str,
+): bool {
+    let candidate_listen = configured_listen(configuration) catch _ { return false }
+    let candidate_state = configured_state_path(configuration) catch _ { return false }
+    return candidate_listen == listen && candidate_state == state_path
+}
+
+async func reload_configuration(
+    published: &PublishedConfiguration,
+    arguments: &ParsedArguments,
+    listen: &str,
+    state_path: &str,
+): void {
+    let candidate = await build_service_configuration(arguments) catch _ {
+        return
+    }
+    if !configuration_matches_startup(&candidate, listen, state_path) {
+        return
+    }
+    await published.publish(move candidate)
+    return
+}
+
+async func complete_operational_shutdown(
+    router: Router<ServiceState>,
+    handlers: TaskGroup<bool>,
+    operation_timeout: Duration,
+    state_path: &str,
+    reason: &str,
+): String! {
+    let _drained = await drain_handlers_before(move handlers, operation_timeout)?
+    let state = router.into_state()
+    let timestamp = SystemTime.now()?
+    var event = Event.new(timestamp, Level.info, "service.shutdown")?
+    event.add(Field.text("reason", reason)?)?
+    await record_event(&state, move event)?
+    let output = await rendered_event(&state)?
+    await close_and_recover_event(&state, &output, state_path)?
+    return move output
+}
+
+async func serve_until_termination(
+    server: Server,
+    router: Router<ServiceState>,
+    published: PublishedConfiguration,
+    arguments: &ParsedArguments,
+    listen: &str,
+    state_path: &str,
+    operation_timeout: Duration,
+): String! {
+    var owner = move server
+    let routes = move router
+    var handlers: TaskGroup<bool> = TaskGroup.empty()
+    loop {
+        let event = await next_operational_event(
+            &+owner,
+            &+handlers,
+            operation_timeout,
+        )?
+        match move event {
+            OperationalEvent.admission(admission) {
+                match move admission {
+                    AdmissionEvent.connection(connection) {
+                        handlers.add(handle_connection(&routes, move connection))
+                    }
+                    AdmissionEvent.handler(_succeeded) {
+                        // Each connection owns its failure policy; the service keeps admitting.
+                    }
+                }
+            }
+            OperationalEvent.lifecycle(request) {
+                match request {
+                    LifecycleRequest.reload {
+                        await reload_configuration(
+                            &published,
+                            arguments,
+                            listen,
+                            state_path,
+                        )
+                    }
+                    LifecycleRequest.interrupt {
+                        owner.close()
+                        return await complete_operational_shutdown(
+                            move routes,
+                            move handlers,
+                            operation_timeout,
+                            state_path,
+                            "interrupt",
+                        )
+                    }
+                    LifecycleRequest.terminate {
+                        owner.close()
+                        return await complete_operational_shutdown(
+                            move routes,
+                            move handlers,
+                            operation_timeout,
+                            state_path,
+                            "terminate",
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+async func run_operational_service(
+    arguments: &ParsedArguments,
+    configuration: Configuration,
+): i32! {
+    let listen_text = configured_listen(&configuration)?
+    let state_path = configured_state_path(&configuration)?
+    let listen = SocketAddress.parse(&listen_text) otherwise {
+        return error.new("http-service.configuration", "listen is not a numeric socket address")
+    }
+    let published = PublishedConfiguration.new(move configuration)?
+    let durable_state = await Store.open(&state_path)?
+    let limits = Limits.new(1024, 8192, 32, 4, 1024, 128, 65536)?
+    let server = await Server.bind_with_limits(listen, limits)?
+    let address = server.local_address()?
+    let router = build_router(published.share(), move durable_state)?
+    let address_text = address.to_string()
+    await fs.write(".http-service-ready", address_text.bytes())?
+    let event_output = await serve_until_termination(
+        move server,
+        move router,
+        published.share(),
+        arguments,
+        &listen_text,
+        &state_path,
+        Duration.from_seconds(30),
+    ) catch failure {
+        await fs.remove_file(".http-service-ready") catch _ {}
+        return move failure
+    }
+    await fs.remove_file(".http-service-ready")?
+    if event_output.contains("environment-secret") {
+        return error.new("http-service.events", "secret entered operational output")
+    }
+    return 0
+}

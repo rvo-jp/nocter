@@ -7,6 +7,27 @@ pub enum PublicExampleArgument {
     Text(&'static str),
 }
 
+/// One exact environment value supplied to a public example process.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PublicExampleEnvironment {
+    name: &'static str,
+    value: &'static str,
+}
+
+impl PublicExampleEnvironment {
+    /// Returns the process-environment variable name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        self.name
+    }
+
+    /// Returns the exact value assigned to the variable.
+    #[must_use]
+    pub const fn value(self) -> &'static str {
+        self.value
+    }
+}
+
 /// One filesystem entry made available to every execution scenario for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PublicExampleFixture {
@@ -44,6 +65,7 @@ pub enum PublicExamplePostcondition {
 pub struct PublicExampleRun {
     name: &'static str,
     arguments: &'static [PublicExampleArgument],
+    environment: &'static [PublicExampleEnvironment],
     stdin: &'static [u8],
     status: i32,
     stdout: &'static [u8],
@@ -59,6 +81,11 @@ impl PublicExampleRun {
     #[must_use]
     pub const fn arguments(self) -> &'static [PublicExampleArgument] {
         self.arguments
+    }
+
+    #[must_use]
+    pub const fn environment(self) -> &'static [PublicExampleEnvironment] {
+        self.environment
     }
 
     #[must_use]
@@ -205,6 +232,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -213,6 +241,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "validated-inspection",
                 arguments: &[PublicExampleArgument::FixturePath("sample.tar.gz")],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"file\t6\ta.txt\n",
@@ -229,6 +258,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "async-datagram-exchange",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: b"",
@@ -244,6 +274,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "local-http-exchange",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: b"",
@@ -255,10 +286,28 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         directory: "http-service",
         package_identity: "workspace:http-service",
         executable: "http-service",
-        fixtures: &[],
+        fixtures: &[PublicExampleFixture::File {
+            path: "service.json",
+            contents: b"{\"response\":\"from-file\",\"request_timeout_seconds\":2,\"token\":\"file-secret\"}",
+        }],
         runs: &[PublicExampleRun {
             name: "bounded-concurrent-service",
-            arguments: &[],
+            arguments: &[
+                PublicExampleArgument::Text("--config"),
+                PublicExampleArgument::FixturePath("service.json"),
+                PublicExampleArgument::Text("--response"),
+                PublicExampleArgument::Text("from-command-line"),
+            ],
+            environment: &[
+                PublicExampleEnvironment {
+                    name: "NOCTER_HTTP_RESPONSE",
+                    value: "from-environment",
+                },
+                PublicExampleEnvironment {
+                    name: "NOCTER_HTTP_TOKEN",
+                    value: "environment-secret",
+                },
+            ],
             stdin: b"",
             status: 0,
             stdout: b"",
@@ -289,6 +338,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::FixturePath("input"),
                     PublicExampleArgument::FixturePath("report.txt"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"",
@@ -300,6 +350,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::FixturePath("missing"),
                     PublicExampleArgument::FixturePath("failed.txt"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 1,
                 stdout: b"",
@@ -329,6 +380,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -337,6 +389,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "integrity-checked-record-log",
                 arguments: &[PublicExampleArgument::FixturePath("record.bin")],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"",
@@ -356,6 +409,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "structured-tcp-join",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: b"",
@@ -371,6 +425,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "tcp-udp-timeout",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: b"tcp: ping\nudp: pong\ntimeout: std.net.timed_out\n",
@@ -386,6 +441,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "usage",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 2,
             stdout: b"",
@@ -414,6 +470,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "configured-command",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: include_bytes!(
@@ -434,6 +491,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "captured-text",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: include_bytes!("../../../../../examples/subprocess-output/sample-output.txt"),
@@ -458,6 +516,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "structured-process-pipeline",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: b"",
@@ -476,6 +535,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "nonzero-status",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 0,
             stdout: b"helper exited with code 17\n",
@@ -501,6 +561,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -509,6 +570,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[PublicExampleArgument::FixturePath("valid.json")],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"{\"items\":[true,\"\xc3\xa9\",1E+2]}\n",
@@ -517,6 +579,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "invalid-json",
                 arguments: &[PublicExampleArgument::FixturePath("invalid.json")],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -537,6 +600,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"usage: line-frequency PATH NEEDLE\n",
@@ -548,6 +612,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::FixturePath("input.txt"),
                     PublicExampleArgument::Text("alpha"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"lines: 3\nunique: 2\nmatching: 2\n",
@@ -568,6 +633,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"usage: file-summary PATH\n",
@@ -576,6 +642,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[PublicExampleArgument::FixturePath("input.txt")],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"2\n",
@@ -592,6 +659,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         runs: &[PublicExampleRun {
             name: "usage",
             arguments: &[],
+            environment: &[],
             stdin: b"",
             status: 2,
             stdout: b"",
@@ -611,6 +679,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"usage: text-report PATH NEEDLE\n",
@@ -619,6 +688,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "missing-needle",
                 arguments: &[PublicExampleArgument::FixturePath("input.txt")],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"usage: text-report PATH NEEDLE\n",
@@ -630,6 +700,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::FixturePath("input.txt"),
                     PublicExampleArgument::Text("alpha"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"lines: 3\nmatching: 2\n",
@@ -647,6 +718,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -655,6 +727,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[PublicExampleArgument::Text("  alpha beta  ")],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: b"==========\ntext: alpha-beta\nbytes: 10\n==========\n",
@@ -672,6 +745,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -680,6 +754,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "sample",
                 arguments: &[PublicExampleArgument::Text("> ")],
+                environment: &[],
                 stdin: include_bytes!("../../../../../examples/stdin-prefix/sample.txt"),
                 status: 0,
                 stdout: include_bytes!("../../../../../examples/stdin-prefix/sample-output.txt"),
@@ -688,6 +763,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "lines",
                 arguments: &[PublicExampleArgument::Text("> ")],
+                environment: &[],
                 stdin: b"\nalpha\r\nlone\rbeta\n\xf0\x9f\x98\x80 split\nfinal",
                 status: 0,
                 stdout: b"> \n> alpha\n> lone\rbeta\n> \xf0\x9f\x98\x80 split\n> final\n",
@@ -696,6 +772,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "invalid-utf8",
                 arguments: &[PublicExampleArgument::Text("> ")],
+                environment: &[],
                 stdin: b"good\nbad\xff\n",
                 status: 2,
                 stdout: b"> good\n",
@@ -735,6 +812,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -746,6 +824,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("needle"),
                     PublicExampleArgument::FixturePath("tree"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 0,
                 stdout: concat!(
@@ -763,6 +842,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("absent"),
                     PublicExampleArgument::FixturePath("tree"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 1,
                 stdout: b"",
@@ -774,6 +854,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("needle"),
                     PublicExampleArgument::FixturePath("missing"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
@@ -785,6 +866,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("bad"),
                     PublicExampleArgument::FixturePath("invalid"),
                 ],
+                environment: &[],
                 stdin: b"",
                 status: 2,
                 stdout: b"",
