@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.67.0 Final Operational-application Review](v0.67.0-final.md)
 - [v0.67.0 Phase 7 Operational HTTP Service Review](v0.67.0-phase-7.md)
 - [v0.67.0 Phase 5 Configuration-source Adapter Review](v0.67.0-phase-5.md)
 - [v0.67.0 Phase 6 Reloadable Lifecycle Review](v0.67.0-phase-6.md)

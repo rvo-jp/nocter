@@ -2,7 +2,8 @@
 
 ## Current State
 
-Nocter v0.67.0 Operational Local Applications is active. Phases 0 through 7 are complete: the
+Nocter v0.67.0 Operational Local Applications is a release candidate. All eight phases are
+complete: the
 milestone contract is fixed; `Store` ownership is enforced by one target-backed non-waiting lock;
 one insertion-ordered `StoreState` owns lookup and traversal; journal version `2` publishes bounded
 mutation batches with deterministic checkpoint fallback while explicitly normalizing the published
@@ -15,16 +16,13 @@ lifecycle source now distinguishes consumable reload from sticky termination, an
 previous value after candidate failure. The complete HTTP service now applies those contracts to
 bounded concurrent admission, incremental durable events, installed-home reload, rejected-candidate
 retention, exclusive store ownership, redacted output, graceful shutdown, and restart recovery.
-v0.66.0 remains the published and externally audited release boundary.
+v0.66.0 remains the published and externally audited release boundary until v0.67.0 publication.
 
 ## Next Work
 
-Implement Phase 8 qualification and review. Run cross-process contention, journal crash-tail and
-migration, reload race, installed-home example, compiler, LSP, native, documentation, deterministic
-packaging, and responsibility-boundary gates. Review for duplicate authority, repeated
-interpretation, reverse dependencies, and contracts that require callers to preserve hidden
-invariants. Keep application policy in the example rather than adding a service/configuration
-convenience wrapper.
+Qualify the exact v0.67.0 release-content commit through two deterministic package builds and the
+installed-home gate. Record the resulting archive identity without rebuilding it. Publication and
+the external tag, asset, workflow, and Pages audit remain separate authorized work.
 
 Preserve the v0.66.0 tag, release asset, public notes, specification snapshot, and publication
 audit without replacement. Any correction requires a new version and a newly qualified artifact.
