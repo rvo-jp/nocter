@@ -96,10 +96,22 @@ impl MachineTerminator {
     /// Whether target lowering crosses a callable boundary while executing this terminator.
     ///
     /// This fact belongs to Machine control flow. A target register allocator must not infer it
-    /// from the spelling or implementation of a particular terminator.
+    /// from the spelling or implementation of a particular terminator. The exhaustive match makes
+    /// every new control-transfer form classify that fact before the compiler can build.
     #[must_use]
     pub const fn has_call_boundary(&self) -> bool {
-        matches!(self, Self::Suspend { .. })
+        match self {
+            Self::Suspend { .. } => true,
+            Self::Goto(_)
+            | Self::Branch { .. }
+            | Self::BranchDropFlag { .. }
+            | Self::SwitchValue { .. }
+            | Self::SwitchTag { .. }
+            | Self::Return(_)
+            | Self::Exit(_)
+            | Self::Trap
+            | Self::Unreachable => false,
+        }
     }
 }
 

@@ -181,23 +181,40 @@ pub enum MachineOperationKind {
 impl MachineOperationKind {
     /// Whether target lowering may cross an ordinary callable boundary before this operation
     /// completes. Register allocation must preserve every value live after such an operation.
+    ///
+    /// The match is intentionally exhaustive. Adding a machine operation must classify its call
+    /// behavior before the compiler can build, because local optimization and register allocation
+    /// both consume this fact.
     #[must_use]
     pub const fn has_call_boundary(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::Call(_)
-                | Self::EraseCallable(_)
-                | Self::InvokeDrop { .. }
-                | Self::ReportError { .. }
-                | Self::ReleaseError { .. }
-                | Self::ReleaseComputation { .. }
-                | Self::ReleaseErasedCallable { .. }
-                | Self::ReleaseMappedStorage { .. }
-                | Self::DriveComputation { .. }
-                | Self::ReleaseRegion { .. }
-                | Self::PackNext
-                | Self::DestroyPack
-        )
+            | Self::EraseCallable(_)
+            | Self::InvokeDrop { .. }
+            | Self::ReportError { .. }
+            | Self::ReleaseError { .. }
+            | Self::ReleaseComputation { .. }
+            | Self::ReleaseErasedCallable { .. }
+            | Self::ReleaseMappedStorage { .. }
+            | Self::DriveComputation { .. }
+            | Self::ReleaseRegion { .. }
+            | Self::PackNext
+            | Self::DestroyPack => true,
+            Self::Constant(_)
+            | Self::Load { .. }
+            | Self::AddressOf { .. }
+            | Self::Store { .. }
+            | Self::Unary { .. }
+            | Self::Binary { .. }
+            | Self::NumericConversion { .. }
+            | Self::Comparison(_)
+            | Self::IndexBorrow(_)
+            | Self::BorrowWeakening { .. }
+            | Self::Aggregate(_)
+            | Self::CreateRegion { .. }
+            | Self::SetDropFlag { .. }
+            | Self::PackLength => false,
+        }
     }
 }
 

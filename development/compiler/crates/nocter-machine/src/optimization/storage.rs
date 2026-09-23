@@ -76,7 +76,6 @@ pub(super) fn prove(
                     }
                 }
                 kind if kind.has_call_boundary() => stored.clear(),
-                MachineOperationKind::DriveComputation { .. } => stored.clear(),
                 _ => {}
             }
         }
