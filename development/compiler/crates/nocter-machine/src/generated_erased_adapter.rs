@@ -263,25 +263,33 @@ impl<'a> AdapterBuilder<'a> {
         let operations = (0..self.operations.len())
             .map(MachineOperationId::new)
             .collect::<Vec<_>>();
-        let body = crate::MachineBody::freeze(crate::program::MachineBodyDraft {
-            parameters: self.parameters,
-            stack: self.stack,
-            drop_flags: Vec::new(),
-            addresses: self.addresses,
-            values: self.values,
-            operations: self.operations,
-            packs: Vec::new(),
-            blocks: vec![MachineBlock::new(
-                [],
-                operations,
-                MachineTerminator::Return(result),
-            )],
-            entry: MachineBlockId::new(0),
-        });
+        let mut execution = crate::MachineFunctionExecution::Immediate;
+        let body = crate::MachineBody::freeze(
+            crate::program::MachineBodyDraft {
+                parameters: self.parameters,
+                stack: self.stack,
+                drop_flags: Vec::new(),
+                addresses: self.addresses,
+                values: self.values,
+                operations: self.operations,
+                packs: Vec::new(),
+                blocks: vec![MachineBlock::new(
+                    [],
+                    operations,
+                    MachineTerminator::Return(result),
+                )],
+                entry: MachineBlockId::new(0),
+            },
+            &mut execution,
+        )
+        .map_err(|error| crate::MachineProgramError::Optimization {
+            owner: self.owner,
+            error,
+        })?;
         MachineFunction::new(
             self.owner,
             MachineFunctionKind::Callable(abi),
-            crate::MachineFunctionExecution::Immediate,
+            execution,
             body,
         )
         .map_err(|error| crate::MachineProgramError::Dataflow {

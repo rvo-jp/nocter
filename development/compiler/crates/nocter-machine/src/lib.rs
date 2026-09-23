@@ -77,7 +77,7 @@ pub use operation::{
     MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
     MachineValueDefinition, MachineValueRepresentation,
 };
-pub use optimization::MachineOptimizationReport;
+pub use optimization::{MachineOptimizationError, MachineOptimizationReport};
 pub use pack::{
     MachinePack, MachinePackContribution, MachinePackNext, MachinePackNextOutcome,
     MachinePackSegment, MachinePackSpread,

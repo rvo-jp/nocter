@@ -574,24 +574,24 @@ impl<'a> DestructionBuilder<'a> {
                     ))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let body = crate::MachineBody::freeze(crate::program::MachineBodyDraft {
-            parameters: self.parameters,
-            stack: self.stack,
-            drop_flags: Vec::new(),
-            addresses: self.addresses,
-            values: self.values,
-            operations: self.operations,
-            packs: Vec::new(),
-            blocks,
-            entry: MachineBlockId::new(0),
-        });
-        MachineFunction::new(
-            owner,
-            MachineFunctionKind::Callable(abi),
-            crate::MachineFunctionExecution::Immediate,
-            body,
+        let mut execution = crate::MachineFunctionExecution::Immediate;
+        let body = crate::MachineBody::freeze(
+            crate::program::MachineBodyDraft {
+                parameters: self.parameters,
+                stack: self.stack,
+                drop_flags: Vec::new(),
+                addresses: self.addresses,
+                values: self.values,
+                operations: self.operations,
+                packs: Vec::new(),
+                blocks,
+                entry: MachineBlockId::new(0),
+            },
+            &mut execution,
         )
-        .map_err(|error| crate::MachineProgramError::Dataflow { owner, error })
+        .map_err(|error| crate::MachineProgramError::Optimization { owner, error })?;
+        MachineFunction::new(owner, MachineFunctionKind::Callable(abi), execution, body)
+            .map_err(|error| crate::MachineProgramError::Dataflow { owner, error })
     }
 }
 

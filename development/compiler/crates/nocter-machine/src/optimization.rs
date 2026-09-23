@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt;
 
 use crate::effect::MachineOperationEffect;
 use crate::{
@@ -7,11 +8,15 @@ use crate::{
     MachineValueId,
 };
 
+mod dead_values;
+
 /// Structural changes made by the one Machine body optimization pass.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MachineOptimizationReport {
     operations_folded: usize,
     terminators_folded: usize,
+    operations_removed: usize,
+    values_removed: usize,
 }
 
 impl MachineOptimizationReport {
@@ -26,18 +31,49 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
+    pub const fn operations_removed(self) -> usize {
+        self.operations_removed
+    }
+
+    #[must_use]
+    pub const fn values_removed(self) -> usize {
+        self.values_removed
+    }
+
+    #[must_use]
     pub const fn changed(self) -> bool {
-        self.operations_folded != 0 || self.terminators_folded != 0
+        self.operations_folded != 0
+            || self.terminators_folded != 0
+            || self.operations_removed != 0
+            || self.values_removed != 0
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineOptimizationError {
+    UnknownOperation(crate::MachineOperationId),
+    UnknownValue(crate::MachineValueId),
+}
+
+impl fmt::Display for MachineOptimizationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "machine optimization failed: {self:?}")
+    }
+}
+
+impl std::error::Error for MachineOptimizationError {}
+
 /// Optimizes the complete mutable draft before immutable tables and liveness are constructed.
 /// No later stage can observe the draft or stale pre-optimization dataflow.
-pub(crate) fn optimize(draft: &mut crate::program::MachineBodyDraft) -> MachineOptimizationReport {
+pub(crate) fn optimize(
+    draft: &mut crate::program::MachineBodyDraft,
+    execution: &mut crate::MachineFunctionExecution,
+) -> Result<MachineOptimizationReport, MachineOptimizationError> {
     let mut report = MachineOptimizationReport::default();
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
-    report
+    dead_values::eliminate(draft, execution, &mut report)?;
+    Ok(report)
 }
 
 fn fold_operations(

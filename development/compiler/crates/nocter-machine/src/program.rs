@@ -50,9 +50,12 @@ pub(crate) struct MachineBodyDraft {
 }
 
 impl MachineBody {
-    pub(crate) fn freeze(mut draft: MachineBodyDraft) -> Self {
-        let optimization = crate::optimization::optimize(&mut draft);
-        Self {
+    pub(crate) fn freeze(
+        mut draft: MachineBodyDraft,
+        execution: &mut MachineFunctionExecution,
+    ) -> Result<Self, crate::MachineOptimizationError> {
+        let optimization = crate::optimization::optimize(&mut draft, execution)?;
+        Ok(Self {
             parameters: draft.parameters.into_boxed_slice(),
             stack: MachineTable::from_values(draft.stack),
             drop_flags: MachineTable::from_values(draft.drop_flags),
@@ -63,7 +66,7 @@ impl MachineBody {
             blocks: MachineTable::from_values(draft.blocks),
             entry: draft.entry,
             optimization,
-        }
+        })
     }
 
     #[must_use]

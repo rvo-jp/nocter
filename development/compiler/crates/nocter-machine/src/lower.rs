@@ -257,6 +257,10 @@ pub enum MachineProgramError {
     Abi(MachineAbiError),
     Linkage(MachineLinkageError),
     Context(MachineContextError),
+    Optimization {
+        owner: MachineLinkageId,
+        error: crate::MachineOptimizationError,
+    },
     Dataflow {
         owner: MachineLinkageId,
         error: crate::MachineDataflowError,
@@ -357,6 +361,7 @@ impl std::error::Error for MachineProgramError {
             Self::Abi(error) => Some(error),
             Self::Linkage(error) => Some(error),
             Self::Context(error) => Some(error),
+            Self::Optimization { error, .. } => Some(error),
             Self::Dataflow { error, .. } => Some(error),
             Self::DuplicateDestructionCall(_, _)
             | Self::DuplicatePackDestruction { .. }

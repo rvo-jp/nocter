@@ -51,15 +51,15 @@ pub(super) fn lower_body(
     let operations = lower_operations(body, context, &ids)?;
     let blocks = lower_blocks(body, context.layouts, &ids)?;
 
-    let execution = async_frame
+    let mut execution = async_frame
         .map(|(output, frame)| {
             lower_async_frame(output, frame, context, &ids)
                 .map(crate::MachineFunctionExecution::Deferred)
         })
         .transpose()?
         .unwrap_or(crate::MachineFunctionExecution::Immediate);
-    Ok((
-        crate::MachineBody::freeze(crate::program::MachineBodyDraft {
+    let body = crate::MachineBody::freeze(
+        crate::program::MachineBodyDraft {
             parameters,
             stack,
             drop_flags,
@@ -69,9 +69,11 @@ pub(super) fn lower_body(
             packs,
             blocks,
             entry: ids.block(body.entry())?,
-        }),
-        execution,
-    ))
+        },
+        &mut execution,
+    )
+    .map_err(|error| MachineProgramError::Optimization { owner, error })?;
+    Ok((body, execution))
 }
 
 fn lower_stack(
