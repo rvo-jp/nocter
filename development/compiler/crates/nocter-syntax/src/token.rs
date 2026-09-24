@@ -169,6 +169,17 @@ keywords! {
     While => "while",
 }
 
+impl From<nocter_language::CallableModifier> for Keyword {
+    fn from(modifier: nocter_language::CallableModifier) -> Self {
+        match modifier {
+            nocter_language::CallableModifier::CompileTime => Self::Const,
+            nocter_language::CallableModifier::NoAllocation => Self::NoAlloc,
+            nocter_language::CallableModifier::Blocking => Self::Blocking,
+            nocter_language::CallableModifier::Async => Self::Async,
+        }
+    }
+}
+
 macro_rules! punctuation {
     ($($variant:ident => $text:literal),+ $(,)?) => {
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

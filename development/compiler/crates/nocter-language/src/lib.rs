@@ -1,12 +1,14 @@
 //! Source-independent vocabulary shared by Nocter's syntax and semantic layers.
 
 mod argument_pack;
+mod callable_modifier;
 mod package;
 mod source_layout;
 
 include!(concat!(env!("OUT_DIR"), "/diagnostic_code.rs"));
 
 pub use argument_pack::ArgumentPackMember;
+pub use callable_modifier::{CallableModifier, CallablePrefixGrammar};
 pub use package::PackageDirectiveName;
 pub use source_layout::{
     MODULE_ROOT_FILE_NAME, SOURCE_FILE_EXTENSION, SOURCE_FILE_GLOB, SOURCE_FILE_SUFFIX,

@@ -9,6 +9,7 @@ use nocter_declarations::{
     ExportedEntity, InterfaceApplication, NominalShape, ParameterRole, RequirementKind,
     RequirementSubject, Visibility,
 };
+use nocter_language::CallableModifier;
 use nocter_model::{BorrowCapability, CallableCapability, Symbol, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SemanticEntity;
 use nocter_syntax::{ContextualSpelling, Keyword};
@@ -593,13 +594,13 @@ impl<'a> Renderer<'a> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(id)?;
         self.visibility(callable.site())?;
-        self.callable_guarantees(callable.guarantees());
-        if matches!(
-            callable.execution(),
-            nocter_declarations::CallableExecution::Deferred { .. }
-        ) {
-            self.keyword(Keyword::Async);
-        }
+        self.callable_prefix(
+            callable.guarantees(),
+            matches!(
+                callable.execution(),
+                nocter_declarations::CallableExecution::Deferred { .. }
+            ),
+        );
         if matches!(callable.owner(), CallableOwner::Interface(_)) && callable.body().is_some() {
             self.contextual(ContextualSpelling::Default);
         }
@@ -664,10 +665,7 @@ impl<'a> Renderer<'a> {
     ) -> Option<()> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(required.interface_method())?;
-        self.callable_guarantees(callable.guarantees());
-        if required.is_deferred() {
-            self.keyword(Keyword::Async);
-        }
+        self.callable_prefix(callable.guarantees(), required.is_deferred());
         self.keyword(Keyword::Method);
         let receiver = callable.receiver()?;
         let constrained_receiver = callable.input_provenance().sources(receiver).is_some();
@@ -1473,7 +1471,7 @@ impl<'a> Renderer<'a> {
     }
 
     fn callable_contract(&mut self, contract: &nocter_model::CallableContract) -> Option<()> {
-        self.callable_guarantees(contract.guarantees());
+        self.callable_prefix(contract.guarantees(), false);
         self.callable_capability(contract.capability());
         self.output.push('(');
         let has_result_origins = !contract.provenance().origins().is_empty();
@@ -1552,15 +1550,23 @@ impl<'a> Renderer<'a> {
         Some(())
     }
 
-    fn callable_guarantees(&mut self, guarantees: nocter_model::CallableGuarantees) {
-        if guarantees.compile_time() == nocter_model::CompileTimeGuarantee::Evaluatable {
-            self.keyword(Keyword::Const);
-        }
-        if guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation {
-            self.keyword(Keyword::NoAlloc);
-        }
-        if guarantees.nonblocking() == nocter_model::NonblockingGuarantee::Unspecified {
-            self.keyword(Keyword::Blocking);
+    fn callable_prefix(&mut self, guarantees: nocter_model::CallableGuarantees, deferred: bool) {
+        for modifier in CallableModifier::ALL.iter().copied() {
+            let present = match modifier {
+                CallableModifier::CompileTime => {
+                    guarantees.compile_time() == nocter_model::CompileTimeGuarantee::Evaluatable
+                }
+                CallableModifier::NoAllocation => {
+                    guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation
+                }
+                CallableModifier::Blocking => {
+                    guarantees.nonblocking() == nocter_model::NonblockingGuarantee::Unspecified
+                }
+                CallableModifier::Async => deferred,
+            };
+            if present {
+                self.keyword(Keyword::from(modifier));
+            }
         }
     }
 

@@ -1697,6 +1697,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-discovery",
  "nocter-filesystem",
+ "nocter-language",
  "nocter-model",
  "nocter-package",
  "nocter-session",

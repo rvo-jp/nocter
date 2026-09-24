@@ -25,9 +25,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation
 - canonical source-name and portable directory-module-segment validation
 - event-based parsing and flat tree construction
-- one canonical callable-prefix recognizer shared by declaration classification, declaration
-  parsing, and structural callable types; it retains authored `const`, `noalloc`, `blocking`, and
-  `async` nodes without effect or execution interpretation
+- one callable-prefix recognizer shared by declaration classification, declaration parsing, and
+  structural callable types; it consumes the language-owned modifier order and grammar categories
+  and retains authored modifier nodes without effect or execution interpretation
 - one structural `ProvenanceClause` in callable-result, input, receiver, structural-callable, and
   annotated-local positions without resolving its names
 - syntax diagnostics and missing/error elements

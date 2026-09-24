@@ -64,17 +64,34 @@ const fn callable_contract_violation(
     deferred: bool,
     guarantees: nocter_model::CallableGuarantees,
 ) -> Option<CallableContractViolation> {
+    use nocter_language::CallableModifier;
     use nocter_model::{AllocationGuarantee, CompileTimeGuarantee, NonblockingGuarantee};
 
     if deferred {
-        if matches!(guarantees.allocation(), AllocationGuarantee::NoAllocation) {
-            return Some(CallableContractViolation::DeferredNoAllocation);
-        }
-        if matches!(guarantees.nonblocking(), NonblockingGuarantee::Unspecified) {
-            return Some(CallableContractViolation::DeferredBlocking);
-        }
-        if matches!(guarantees.compile_time(), CompileTimeGuarantee::Evaluatable) {
-            return Some(CallableContractViolation::DeferredCompileTime);
+        let conflicts = [
+            (
+                CallableModifier::NoAllocation,
+                matches!(guarantees.allocation(), AllocationGuarantee::NoAllocation),
+                CallableContractViolation::DeferredNoAllocation,
+            ),
+            (
+                CallableModifier::Blocking,
+                matches!(guarantees.nonblocking(), NonblockingGuarantee::Unspecified),
+                CallableContractViolation::DeferredBlocking,
+            ),
+            (
+                CallableModifier::CompileTime,
+                matches!(guarantees.compile_time(), CompileTimeGuarantee::Evaluatable),
+                CallableContractViolation::DeferredCompileTime,
+            ),
+        ];
+        let mut index = 0;
+        while index < conflicts.len() {
+            let (modifier, present, violation) = conflicts[index];
+            if present && !CallableModifier::Async.is_compatible_with(modifier) {
+                return Some(violation);
+            }
+            index += 1;
         }
     }
     if matches!(kind, CallableKind::Primitive)

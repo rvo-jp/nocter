@@ -13,6 +13,7 @@ nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-discovery = { path = "../nocter-discovery" }
 nocter-filesystem = { path = "../nocter-filesystem" }
+nocter-language = { path = "../nocter-language" }
 nocter-model = { path = "../nocter-model" }
 nocter-session = { path = "../nocter-session" }
 nocter-source = { path = "../nocter-source" }

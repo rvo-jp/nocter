@@ -430,7 +430,7 @@ fn callable_modifier_completion_follows_the_authored_modifier_order() {
         ("asy", &["async"][..]),
         ("noalloc asy", &[][..]),
         ("blocking asy", &[][..]),
-        ("struct Value\nconstruct Value {\n    asy", &[][..]),
+        ("struct Value\nconstruct Value {\n    asy", &["async"][..]),
         (
             "struct Value\nconstruct Value {\n    blo",
             &["blocking"][..],

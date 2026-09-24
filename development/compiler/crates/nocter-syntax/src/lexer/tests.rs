@@ -54,6 +54,15 @@ fn keyword_enum_matches_the_normative_specification_list() {
 }
 
 #[test]
+fn callable_modifier_vocabulary_maps_to_reserved_keywords() {
+    for modifier in nocter_language::CallableModifier::ALL.iter().copied() {
+        let keyword = Keyword::from(modifier);
+        assert_eq!(keyword.as_str(), modifier.spelling());
+        assert_eq!(Keyword::from_spelling(modifier.spelling()), Some(keyword));
+    }
+}
+
+#[test]
 fn invalid_escape_reports_once() {
     let lexed = lex_text("\"bad \\q escape\"");
 

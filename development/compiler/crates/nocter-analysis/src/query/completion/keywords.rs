@@ -1,3 +1,4 @@
+use nocter_language::{CallableModifier, CallablePrefixGrammar};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_syntax::{
     ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree,
@@ -65,39 +66,21 @@ pub(super) fn completions(
 
     if let Some(modifiers) = callable_modifier_prefix(tree, source_file, offset) {
         completions.extend(
-            [
-                (
-                    Keyword::Const,
-                    Keyword::Const.as_str(),
-                    "compile-time callable capability",
-                ),
-                (
-                    Keyword::NoAlloc,
-                    Keyword::NoAlloc.as_str(),
-                    "allocation-free callable guarantee",
-                ),
-                (
-                    Keyword::Blocking,
-                    Keyword::Blocking.as_str(),
-                    "synchronous waiting callable effect",
-                ),
-                (
-                    Keyword::Async,
-                    Keyword::Async.as_str(),
-                    "deferred producer execution",
-                ),
-            ]
-            .into_iter()
-            .filter(|(keyword, spelling, _)| {
-                modifiers.allows(*keyword) && spelling.starts_with(modifiers.prefix)
-            })
-            .map(|(_, keyword, detail)| {
-                SemanticCompletion::new(
-                    keyword,
-                    SemanticCompletionKind::Keyword,
-                    Some(detail.into()),
-                )
-            }),
+            CallableModifier::ALL
+                .iter()
+                .copied()
+                .filter_map(|modifier| {
+                    let keyword = Keyword::from(modifier);
+                    (modifiers.allows(modifier) && keyword.as_str().starts_with(modifiers.prefix))
+                        .then_some((keyword, callable_modifier_detail(modifier)))
+                })
+                .map(|(keyword, detail)| {
+                    SemanticCompletion::new(
+                        keyword.as_str(),
+                        SemanticCompletionKind::Keyword,
+                        Some(detail.into()),
+                    )
+                }),
         );
     }
 
@@ -106,13 +89,22 @@ pub(super) fn completions(
 
 struct CallableModifierPrefix<'a> {
     prefix: &'a str,
-    allowed: &'static [Keyword],
-    allow_async: bool,
+    authored: Box<[CallableModifier]>,
+    grammar: CallablePrefixGrammar,
 }
 
 impl CallableModifierPrefix<'_> {
-    fn allows(&self, keyword: Keyword) -> bool {
-        self.allowed.contains(&keyword) && (keyword != Keyword::Async || self.allow_async)
+    fn allows(&self, modifier: CallableModifier) -> bool {
+        self.grammar.can_suggest_after(&self.authored, modifier)
+    }
+}
+
+const fn callable_modifier_detail(modifier: CallableModifier) -> &'static str {
+    match modifier {
+        CallableModifier::CompileTime => "compile-time callable capability",
+        CallableModifier::NoAllocation => "allocation-free callable guarantee",
+        CallableModifier::Blocking => "synchronous waiting callable effect",
+        CallableModifier::Async => "deferred producer execution",
     }
 }
 
@@ -172,35 +164,18 @@ fn callable_modifier_prefix<'a>(
     {
         return None;
     }
-    let modifiers = words
+    let authored = words
         .iter()
-        .map(|word| Keyword::from_spelling(word))
+        .map(|word| CallableModifier::from_spelling(word))
         .collect::<Option<Vec<_>>>()?;
-    let allowed: &'static [Keyword] = match modifiers.as_slice() {
-        [] => &[
-            Keyword::Const,
-            Keyword::NoAlloc,
-            Keyword::Blocking,
-            Keyword::Async,
-        ],
-        [Keyword::Const] => &[Keyword::NoAlloc, Keyword::Blocking],
-        [Keyword::NoAlloc] | [Keyword::Const, Keyword::NoAlloc] => &[Keyword::Blocking],
-        [Keyword::Blocking | Keyword::Async]
-        | [
-            Keyword::Const | Keyword::NoAlloc,
-            Keyword::Blocking | Keyword::Async,
-        ]
-        | [
-            Keyword::Const,
-            Keyword::NoAlloc,
-            Keyword::Blocking | Keyword::Async,
-        ] => &[],
-        _ => return None,
-    };
+    let grammar = CallablePrefixGrammar::DeferredAllowed;
+    if !grammar.is_canonical_prefix(&authored) {
+        return None;
+    }
     Some(CallableModifierPrefix {
         prefix,
-        allowed,
-        allow_async: container != Some(NodeKind::ConstructDeclaration),
+        authored: authored.into_boxed_slice(),
+        grammar,
     })
 }
 

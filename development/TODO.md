@@ -9,9 +9,9 @@ deferred until this source contract is stable.
 
 ## Next Work
 
-Complete v0.69.0 Phase 3 by auditing formatter and editor presentation against the canonical
-semantic contract, migrating any noncanonical standard-library or example source, and removing
-duplicate completion or rendering knowledge. Do not add new modifier vocabulary during this work.
+Complete v0.69.0 Phase 4 qualification and repository review. Verify compiler, editor,
+standard-library, examples, documentation, and package gates; then evaluate possible new guarantee
+vocabulary against concrete proof and runtime-enforcement mechanisms.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
