@@ -1,7 +1,4 @@
-use super::{
-    Parser, block, optional_async, optional_blocking, optional_const, optional_noalloc,
-    optional_visibility, requirements, skip_visibility, types,
-};
+use super::{Parser, block, modifiers, optional_visibility, requirements, skip_visibility, types};
 use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn struct_declaration(parser: &mut Parser<'_>) {
@@ -78,25 +75,21 @@ fn interface_member(parser: &mut Parser<'_>) {
     if has_visibility {
         cursor = skip_visibility(parser, cursor);
     }
-    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Const) {
-        cursor += 1;
-    }
-    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
-        cursor += 1;
-    }
-    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Blocking) {
-        cursor += 1;
-    }
-    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Async) {
-        cursor += 1;
-    }
-    let is_default = parser.contextual_at(cursor, ContextualSpelling::Default);
+    let prefix = modifiers::scan(
+        parser,
+        cursor,
+        modifiers::CallablePrefixGrammar::DeferredAllowed,
+    );
+    let is_default = parser.contextual_at(prefix.end(), ContextualSpelling::Default);
+    let mut member_cursor = prefix.end();
     if is_default {
-        cursor += 1;
+        member_cursor += 1;
     }
 
-    match parser.tokens[cursor].kind() {
-        TokenKind::Keyword(Keyword::Type) if has_bare_public_visibility && !is_default => {
+    match parser.tokens[member_cursor].kind() {
+        TokenKind::Keyword(Keyword::Type)
+            if has_bare_public_visibility && prefix.is_empty() && !is_default =>
+        {
             associated_type(parser);
         }
         TokenKind::Keyword(Keyword::Method) if has_bare_public_visibility || is_default => {
@@ -126,10 +119,7 @@ fn associated_type(parser: &mut Parser<'_>) {
 fn interface_method(parser: &mut Parser<'_>, is_default: bool) {
     let marker = parser.start();
     optional_visibility(parser);
-    optional_const(parser);
-    optional_noalloc(parser);
-    optional_blocking(parser);
-    optional_async(parser);
+    modifiers::parse(parser, modifiers::CallablePrefixGrammar::DeferredAllowed);
     if is_default {
         let modifier = parser.start();
         parser.expect_contextual(ContextualSpelling::Default);

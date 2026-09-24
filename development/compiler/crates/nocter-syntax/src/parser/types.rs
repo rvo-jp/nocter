@@ -255,16 +255,13 @@ fn at_readonly_borrow(parser: &Parser<'_>) -> bool {
 }
 
 fn at_callable_type(parser: &Parser<'_>) -> bool {
-    let mut offset = usize::from(parser.at_contextual(ContextualSpelling::Any));
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Const) {
-        offset += 1;
-    }
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::NoAlloc) {
-        offset += 1;
-    }
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Blocking) {
-        offset += 1;
-    }
+    let start = parser.cursor + usize::from(parser.at_contextual(ContextualSpelling::Any));
+    let prefix = super::declaration::modifiers::scan(
+        parser,
+        start,
+        super::declaration::modifiers::CallablePrefixGrammar::Immediate,
+    );
+    let offset = prefix.end() - parser.cursor;
     parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Func)
         || matches!(
             parser.nth_kind(offset),
@@ -279,9 +276,10 @@ fn callable_type(parser: &mut Parser<'_>) {
         parser.bump();
         parser.complete(erased, NodeKind::ErasedCallableModifier);
     }
-    super::declaration::optional_const(parser);
-    super::declaration::optional_noalloc(parser);
-    super::declaration::optional_blocking(parser);
+    super::declaration::modifiers::parse(
+        parser,
+        super::declaration::modifiers::CallablePrefixGrammar::Immediate,
+    );
     if parser.at_punctuation(Punctuation::Ampersand)
         || parser.at_punctuation(Punctuation::ReadWrite)
     {

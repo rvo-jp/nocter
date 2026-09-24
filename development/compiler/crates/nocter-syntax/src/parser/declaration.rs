@@ -1,5 +1,6 @@
 mod construct;
 mod instance;
+pub(super) mod modifiers;
 mod nominal;
 
 use super::{Parser, block, expression, requirements, root, types};
@@ -84,21 +85,23 @@ enum DeclarationKind {
 }
 
 fn declaration_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
-    targetable_kind(parser).or_else(|| match parser.current_kind() {
+    if let Some(kind) = targetable_kind(parser) {
+        return Some(kind);
+    }
+    let destruction = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::NoAllocationOnly,
+    );
+    if parser.contextual_at(destruction.end(), ContextualSpelling::Drop) {
+        return Some(DeclarationKind::Drop);
+    }
+    match parser.current_kind() {
         TokenKind::Keyword(Keyword::Construct) => Some(DeclarationKind::Construct),
         TokenKind::Keyword(Keyword::Instance) => Some(DeclarationKind::Instance),
         TokenKind::Keyword(Keyword::Test) => Some(DeclarationKind::Test),
-        TokenKind::Identifier if parser.at_contextual(ContextualSpelling::Drop) => {
-            Some(DeclarationKind::Drop)
-        }
-        TokenKind::Keyword(Keyword::NoAlloc)
-            if parser.nth_kind(1) == TokenKind::Identifier
-                && parser.nth_contextual(1, ContextualSpelling::Drop) =>
-        {
-            Some(DeclarationKind::Drop)
-        }
         _ => None,
-    })
+    }
 }
 
 fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
@@ -106,29 +109,21 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Pub) {
         cursor = skip_visibility(parser, cursor);
     }
-    let compile_time_callable = parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Const)
-        && matches!(
-            parser.tokens[cursor + 1].kind(),
-            TokenKind::Keyword(
-                Keyword::NoAlloc
-                    | Keyword::Blocking
-                    | Keyword::Async
-                    | Keyword::Func
-                    | Keyword::Primitive
-            )
-        );
-    if compile_time_callable {
-        cursor += 1;
+
+    let callable = modifiers::scan(
+        parser,
+        cursor,
+        modifiers::CallablePrefixGrammar::DeferredAllowed,
+    );
+    if parser.tokens[callable.end()].kind() == TokenKind::Keyword(Keyword::Func) {
+        return Some(DeclarationKind::Function);
     }
-    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
-        cursor += 1;
-    }
-    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Blocking) {
-        cursor += 1;
-    }
-    let asynchronous = parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Async);
-    if asynchronous {
-        cursor += 1;
+
+    let primitive = modifiers::scan(parser, cursor, modifiers::CallablePrefixGrammar::Immediate);
+    if parser.tokens[primitive.end()].kind() == TokenKind::Keyword(Keyword::Primitive)
+        && parser.tokens[primitive.end() + 1].kind() == TokenKind::Keyword(Keyword::Func)
+    {
+        return Some(DeclarationKind::PrimitiveFunction);
     }
 
     if parser.contextual_at(cursor, ContextualSpelling::Copy)
@@ -141,13 +136,6 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
         TokenKind::Keyword(Keyword::Const) => Some(DeclarationKind::Constant),
         TokenKind::Identifier if parser.contextual_at(cursor, ContextualSpelling::Static) => {
             Some(DeclarationKind::Static)
-        }
-        TokenKind::Keyword(Keyword::Func) => Some(DeclarationKind::Function),
-        TokenKind::Keyword(Keyword::Primitive)
-            if !asynchronous
-                && parser.tokens[cursor + 1].kind() == TokenKind::Keyword(Keyword::Func) =>
-        {
-            Some(DeclarationKind::PrimitiveFunction)
         }
         TokenKind::Keyword(Keyword::Primitive)
             if parser.tokens[cursor + 1].kind() == TokenKind::Keyword(Keyword::Type) =>
@@ -209,10 +197,14 @@ pub(super) fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {
 fn function(parser: &mut Parser<'_>, primitive: bool) {
     let marker = parser.start();
     optional_visibility(parser);
-    optional_const(parser);
-    optional_noalloc(parser);
-    optional_blocking(parser);
-    optional_async(parser);
+    modifiers::parse(
+        parser,
+        if primitive {
+            modifiers::CallablePrefixGrammar::Immediate
+        } else {
+            modifiers::CallablePrefixGrammar::DeferredAllowed
+        },
+    );
     if primitive {
         parser.expect_keyword(Keyword::Primitive);
     }
@@ -284,38 +276,6 @@ pub(super) fn optional_visibility(parser: &mut Parser<'_>) {
     }
 }
 
-pub(super) fn optional_noalloc(parser: &mut Parser<'_>) {
-    if parser.at_keyword(Keyword::NoAlloc) {
-        let modifier = parser.start();
-        parser.bump();
-        parser.complete(modifier, NodeKind::NoAllocationModifier);
-    }
-}
-
-pub(super) fn optional_const(parser: &mut Parser<'_>) {
-    if parser.at_keyword(Keyword::Const) {
-        let modifier = parser.start();
-        parser.bump();
-        parser.complete(modifier, NodeKind::CompileTimeModifier);
-    }
-}
-
-pub(super) fn optional_async(parser: &mut Parser<'_>) {
-    if parser.at_keyword(Keyword::Async) {
-        let modifier = parser.start();
-        parser.bump();
-        parser.complete(modifier, NodeKind::AsyncModifier);
-    }
-}
-
-pub(super) fn optional_blocking(parser: &mut Parser<'_>) {
-    if parser.at_keyword(Keyword::Blocking) {
-        let modifier = parser.start();
-        parser.bump();
-        parser.complete(modifier, NodeKind::BlockingModifier);
-    }
-}
-
 pub(super) fn method_signature(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Method);
@@ -368,7 +328,7 @@ fn simple_receiver(parser: &mut Parser<'_>, allow_owned: bool) {
 
 fn drop_declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    optional_noalloc(parser);
+    modifiers::parse(parser, modifiers::CallablePrefixGrammar::NoAllocationOnly);
     parser.expect_contextual(ContextualSpelling::Drop);
     types::declaration_type_pattern(parser);
     parser.expect_punctuation(Punctuation::LeftParen);

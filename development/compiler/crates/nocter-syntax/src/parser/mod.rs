@@ -206,10 +206,6 @@ impl<'source> Parser<'source> {
             && self.source.text_at(token.span().range()) == Some(spelling.as_str())
     }
 
-    fn nth_contextual(&self, distance: usize, spelling: ContextualSpelling) -> bool {
-        self.contextual_at(self.cursor + distance, spelling)
-    }
-
     fn nth_kind(&self, distance: usize) -> TokenKind {
         assert!(
             self.split.is_none(),

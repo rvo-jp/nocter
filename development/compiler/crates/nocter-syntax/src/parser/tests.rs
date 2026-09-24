@@ -627,6 +627,23 @@ fn rejects_noncanonical_noalloc_placement() {
 }
 
 #[test]
+fn rejects_noncanonical_callable_modifier_sequences_in_every_declaration_context() {
+    for source in [
+        "noalloc const func invalid(): void {}\n",
+        "const blocking noalloc func invalid(): void {}\n",
+        "interface Value { pub noalloc const method &self.value(): i32 }\n",
+        "construct Value { noalloc const func invalid(): Self }\n",
+        "instance Value { async blocking method &self.invalid(): void }\n",
+        "type Invalid = blocking noalloc &func(): void\n",
+    ] {
+        assert!(
+            parse_text(source, ParseGoal::SourceFile).has_errors(),
+            "noncanonical prefix parsed successfully: {source}"
+        );
+    }
+}
+
+#[test]
 fn rejects_closed_type_shapes_without_semantic_assistance() {
     for source in [
         "type Reversed = i32!?\n",

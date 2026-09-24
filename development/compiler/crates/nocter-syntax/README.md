@@ -25,8 +25,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation
 - canonical source-name and portable directory-module-segment validation
 - event-based parsing and flat tree construction
-- structural callable modifiers, including authored `noalloc`, `blocking`, and `async`, without
-  effect or execution interpretation
+- one canonical callable-prefix recognizer shared by declaration classification, declaration
+  parsing, and structural callable types; it retains authored `const`, `noalloc`, `blocking`, and
+  `async` nodes without effect or execution interpretation
 - one structural `ProvenanceClause` in callable-result, input, receiver, structural-callable, and
   annotated-local positions without resolving its names
 - syntax diagnostics and missing/error elements
@@ -52,8 +53,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - Package, discovery, lowering, and tooling consume the syntax-owned module-segment validator;
   none maintains a second keyword or identifier exclusion list.
 - Parser recovery preserves authored structure without inventing semantic success.
-- Callable modifiers have dedicated nodes; downstream stages never recover guarantees from token
-  text or declaration spelling.
+- Callable modifiers have dedicated nodes. One ordered vocabulary recognizes them in every
+  supported syntax context; downstream stages never recover guarantees from token text or
+  declaration spelling.
 - A consumer never infers subtree completeness from file-wide diagnostic presence.
 - Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.
 - Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.

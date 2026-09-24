@@ -1,7 +1,4 @@
-use super::{
-    Parser, block, callable_tail, optional_async, optional_blocking, optional_const,
-    optional_noalloc, root, types,
-};
+use super::{Parser, block, callable_tail, modifiers, root, types};
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, StringDelimiter, TokenKind};
 
 pub(super) fn declaration(parser: &mut Parser<'_>) {
@@ -17,18 +14,23 @@ fn member(parser: &mut Parser<'_>) {
     if parser.at_keyword(Keyword::Pub) {
         root::visibility(parser);
     }
-    if at_const_function(parser) {
-        optional_const(parser);
-    }
-    optional_noalloc(parser);
-    if parser.at_keyword(Keyword::Blocking)
-        && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func)
-    {
-        optional_blocking(parser);
-    }
-    if parser.at_keyword(Keyword::Async) && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func)
-    {
-        optional_async(parser);
+    let function_prefix = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::DeferredAllowed,
+    );
+    let function = parser.tokens[function_prefix.end()].kind() == TokenKind::Keyword(Keyword::Func);
+    let literal_prefix = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::NoAllocationOnly,
+    );
+    let literal =
+        parser.tokens[literal_prefix.end()].kind() == TokenKind::Keyword(Keyword::Literal);
+    if function {
+        modifiers::parse(parser, modifiers::CallablePrefixGrammar::DeferredAllowed);
+    } else if literal {
+        modifiers::parse(parser, modifiers::CallablePrefixGrammar::NoAllocationOnly);
     }
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Func) => {
@@ -45,23 +47,6 @@ fn member(parser: &mut Parser<'_>) {
         }
     };
     parser.complete(marker, kind);
-}
-
-fn at_const_function(parser: &Parser<'_>) -> bool {
-    if !parser.at_keyword(Keyword::Const) {
-        return false;
-    }
-    let mut offset = 1;
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::NoAlloc) {
-        offset += 1;
-    }
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Blocking) {
-        offset += 1;
-    }
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Async) {
-        offset += 1;
-    }
-    parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Func)
 }
 
 fn construction_function(parser: &mut Parser<'_>) {

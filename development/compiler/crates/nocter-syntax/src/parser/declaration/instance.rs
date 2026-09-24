@@ -1,6 +1,5 @@
 use super::{
-    Parser, block, method_signature, optional_async, optional_blocking, optional_const,
-    optional_noalloc, optional_visibility, receiver, requirements, types,
+    Parser, block, method_signature, modifiers, optional_visibility, receiver, requirements, types,
 };
 use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
@@ -24,21 +23,25 @@ fn member(parser: &mut Parser<'_>) {
         return;
     }
     optional_visibility(parser);
-    if at_const_method(parser) {
-        optional_const(parser);
-    }
-    optional_noalloc(parser);
-    if parser.at_keyword(Keyword::Blocking)
-        && (parser.nth_kind(1) == TokenKind::Keyword(Keyword::Method)
-            || parser.nth_kind(1) == TokenKind::Keyword(Keyword::Async)
-                && parser.nth_kind(2) == TokenKind::Keyword(Keyword::Method))
-    {
-        optional_blocking(parser);
-    }
-    if parser.at_keyword(Keyword::Async)
-        && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Method)
-    {
-        optional_async(parser);
+    let method_prefix = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::DeferredAllowed,
+    );
+    let method = parser.tokens[method_prefix.end()].kind() == TokenKind::Keyword(Keyword::Method);
+    let implicit_prefix = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::NoAllocationOnly,
+    );
+    let implicit = matches!(
+        parser.tokens[implicit_prefix.end()].kind(),
+        TokenKind::Keyword(Keyword::Operator) | TokenKind::Identifier
+    );
+    if method {
+        modifiers::parse(parser, modifiers::CallablePrefixGrammar::DeferredAllowed);
+    } else if implicit {
+        modifiers::parse(parser, modifiers::CallablePrefixGrammar::NoAllocationOnly);
     }
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Method) => {
@@ -57,23 +60,6 @@ fn member(parser: &mut Parser<'_>) {
         }
     };
     parser.complete(marker, kind);
-}
-
-fn at_const_method(parser: &Parser<'_>) -> bool {
-    if !parser.at_keyword(Keyword::Const) {
-        return false;
-    }
-    let mut offset = 1;
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::NoAlloc) {
-        offset += 1;
-    }
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Blocking) {
-        offset += 1;
-    }
-    if parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Async) {
-        offset += 1;
-    }
-    parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Method)
 }
 
 fn coercion(parser: &mut Parser<'_>) {
