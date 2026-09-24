@@ -9,10 +9,9 @@ deferred until this source contract is stable.
 
 ## Next Work
 
-Audit semantic modifier policy and compatibility in v0.69.0 Phase 2. Prove that contract/body
-joining, structural callable compatibility, interface satisfaction, compile-time projection, and
-body execution validation consume the one projected contract without token-text fallback or a
-second declaration-kind policy. Do not add new modifier vocabulary during this work.
+Complete v0.69.0 Phase 3 by auditing formatter and editor presentation against the canonical
+semantic contract, migrating any noncanonical standard-library or example source, and removing
+duplicate completion or rendering knowledge. Do not add new modifier vocabulary during this work.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

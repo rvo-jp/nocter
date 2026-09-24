@@ -46,6 +46,45 @@ pub enum CallableExecution {
     Deferred { output: TypeId },
 }
 
+/// One source-independent incompatibility between a callable's kind, execution, and guarantees.
+///
+/// Declaration consumers use this closed policy instead of independently interpreting modifier
+/// combinations. Source diagnostics remain the responsibility of the checking boundary that owns
+/// current source projection.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum CallableContractViolation {
+    DeferredNoAllocation,
+    DeferredBlocking,
+    DeferredCompileTime,
+    PrimitiveCompileTime,
+}
+
+const fn callable_contract_violation(
+    kind: CallableKind,
+    deferred: bool,
+    guarantees: nocter_model::CallableGuarantees,
+) -> Option<CallableContractViolation> {
+    use nocter_model::{AllocationGuarantee, CompileTimeGuarantee, NonblockingGuarantee};
+
+    if deferred {
+        if matches!(guarantees.allocation(), AllocationGuarantee::NoAllocation) {
+            return Some(CallableContractViolation::DeferredNoAllocation);
+        }
+        if matches!(guarantees.nonblocking(), NonblockingGuarantee::Unspecified) {
+            return Some(CallableContractViolation::DeferredBlocking);
+        }
+        if matches!(guarantees.compile_time(), CompileTimeGuarantee::Evaluatable) {
+            return Some(CallableContractViolation::DeferredCompileTime);
+        }
+    }
+    if matches!(kind, CallableKind::Primitive)
+        && matches!(guarantees.compile_time(), CompileTimeGuarantee::Evaluatable)
+    {
+        return Some(CallableContractViolation::PrimitiveCompileTime);
+    }
+    None
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ProvenanceOrigin {
     Receiver,
@@ -373,6 +412,16 @@ impl CallableDeclaration {
         self.guarantees
     }
 
+    /// Returns the first incompatibility in the declaration's canonical modifier-policy order.
+    #[must_use]
+    pub const fn contract_violation(&self) -> Option<CallableContractViolation> {
+        callable_contract_violation(
+            self.kind,
+            matches!(self.execution, CallableExecution::Deferred { .. }),
+            self.guarantees,
+        )
+    }
+
     #[must_use]
     pub const fn input_provenance(&self) -> &CallableInputProvenance {
         &self.input_provenance
@@ -595,5 +644,56 @@ impl Body {
     #[must_use]
     pub const fn form(self) -> BodyForm {
         self.form
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nocter_model::CallableGuarantees;
+
+    use super::{CallableContractViolation, CallableKind, callable_contract_violation};
+
+    #[test]
+    fn callable_contract_policy_is_closed_over_kind_execution_and_guarantees() {
+        assert_eq!(
+            callable_contract_violation(
+                CallableKind::Function,
+                true,
+                CallableGuarantees::no_allocation(),
+            ),
+            Some(CallableContractViolation::DeferredNoAllocation)
+        );
+        assert_eq!(
+            callable_contract_violation(
+                CallableKind::Function,
+                true,
+                CallableGuarantees::default().admit_blocking(),
+            ),
+            Some(CallableContractViolation::DeferredBlocking)
+        );
+        assert_eq!(
+            callable_contract_violation(
+                CallableKind::Function,
+                true,
+                CallableGuarantees::default().admit_compile_time_evaluation(),
+            ),
+            Some(CallableContractViolation::DeferredCompileTime)
+        );
+        assert_eq!(
+            callable_contract_violation(
+                CallableKind::Primitive,
+                false,
+                CallableGuarantees::default().admit_compile_time_evaluation(),
+            ),
+            Some(CallableContractViolation::PrimitiveCompileTime)
+        );
+        assert_eq!(
+            callable_contract_violation(
+                CallableKind::Function,
+                false,
+                CallableGuarantees::no_allocation().admit_compile_time_evaluation(),
+            ),
+            None
+        );
     }
 }

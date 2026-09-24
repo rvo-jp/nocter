@@ -16,6 +16,7 @@ mod body_relation_error;
 mod body_relations;
 mod body_sources;
 mod body_type_recipe;
+mod callable_contract_validity;
 mod checked;
 mod compile_time_program;
 mod compile_time_projection;
@@ -88,6 +89,9 @@ pub use body_sources::{
 pub use body_type_recipe::{
     BodyClosureRef, BodyTypeCapture, BodyTypeRecipe, BodyTypeRecipeError, BodyTypeRef,
     ReplayedBodyTypes,
+};
+pub use callable_contract_validity::{
+    CallableContractRule, CallableContractValidityError, validate_callable_contracts,
 };
 pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,

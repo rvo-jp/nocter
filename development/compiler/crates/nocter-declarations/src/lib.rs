@@ -34,11 +34,11 @@ pub use arenas::{
     DeclarationArenaBuilder, DeclarationArenas, DefinitionError, IncompleteDefinition,
 };
 pub use callable::{
-    Body, BodyForm, BodyOwner, CallableDeclaration, CallableExecution, CallableInputConstraint,
-    CallableInputProvenance, CallableKind, CallableOwner, CallableProvenance,
-    CallableProvenanceContract, DuplicateCallableOrigin, DuplicateInputConstraint, LiteralShape,
-    Parameter, ParameterOwner, ParameterRole, ParameterValueTypeShape, ProvenanceAnnotation,
-    ProvenanceOrigin,
+    Body, BodyForm, BodyOwner, CallableContractViolation, CallableDeclaration, CallableExecution,
+    CallableInputConstraint, CallableInputProvenance, CallableKind, CallableOwner,
+    CallableProvenance, CallableProvenanceContract, DuplicateCallableOrigin,
+    DuplicateInputConstraint, LiteralShape, Parameter, ParameterOwner, ParameterRole,
+    ParameterValueTypeShape, ProvenanceAnnotation, ProvenanceOrigin,
 };
 pub use constant::ConstantDeclaration;
 pub use constant_lookup::ConstantValueLookup;

@@ -18,8 +18,8 @@ coordinates, or checking internals.
 - one sparse structural-constant table and one independently validated dense declaration-value
   table, both separate from constant and static metadata
 - module, import, and prelude namespaces
-- callable execution, guarantees, canonical input/result provenance graphs, constant, and
-  requirement contracts
+- callable execution, guarantees, their closed compatibility policy, canonical input/result
+  provenance graphs, constant, and requirement contracts
 - explicit block or expression body forms, with constant and static initializers represented by
   ordinary semantic body identities rather than embedded syntax
 - canonical interface dependency paths, `Self`-inheritance closure, and effective member identities
@@ -41,6 +41,9 @@ coordinates, or checking internals.
 - A declaration identity never contains a source range or rendered name.
 - Authored callable execution and guarantees are declaration data; consumers do not rediscover
   modifiers from syntax or result shapes.
+- One declaration-owned policy classifies incompatible callable kind, execution, and guarantee
+  combinations. Checking projects that source-independent violation to diagnostics; consumers do
+  not maintain parallel modifier matrices.
 - Generic application validation compares one ordered parameter-domain schema with one ordered
   value sequence. Callers cannot substitute a type-only arity rule.
 - Callable input provenance stores resolved receiver and parameter identities. Source spellings,

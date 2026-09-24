@@ -18,12 +18,12 @@ use crate::interface_implementation::build_interface_implementation_table_from_i
 use crate::names::{NameResolutionInternalError, resolve_cataloged_body_names_recovering};
 use crate::type_validity::validate_associated_projection_uses;
 use crate::{
-    BodySourceCatalog, ConstructionSurfaceBuildError, ConstructionSurfaceTable,
-    CopyabilityBuildError, CopyabilityTable, DeclarationTypeValidityError, DropTable,
-    DropTableError, InstanceOperationBuildError, InstanceOperationTable,
-    InterfaceImplementationBuildError, InterfaceImplementationTable, NameResolutionError,
-    ResolvedBodyNames, StandardSemanticError, StandardSemanticTable, catalog_body_sources,
-    validate_declaration_types,
+    BodySourceCatalog, CallableContractValidityError, ConstructionSurfaceBuildError,
+    ConstructionSurfaceTable, CopyabilityBuildError, CopyabilityTable,
+    DeclarationTypeValidityError, DropTable, DropTableError, InstanceOperationBuildError,
+    InstanceOperationTable, InterfaceImplementationBuildError, InterfaceImplementationTable,
+    NameResolutionError, ResolvedBodyNames, StandardSemanticError, StandardSemanticTable,
+    catalog_body_sources, validate_callable_contracts, validate_declaration_types,
 };
 
 /// Fully validated, syntax-backed input to typed-body construction.
@@ -95,6 +95,7 @@ impl QueriedProgramPreparationRejection {
 
 #[derive(Debug)]
 enum QueriedPreparationRule {
+    CallableContract(SourceDiagnostic),
     TypeValidity(SourceDiagnostic),
     Copyability(SourceDiagnostic),
     InterfaceImplementation {
@@ -107,6 +108,9 @@ enum QueriedPreparationRule {
 impl QueriedPreparationRule {
     fn capture(error: PreparationError) -> Result<Self, PreparationError> {
         match error {
+            PreparationError::CallableContract(CallableContractValidityError::Rule(diagnostic)) => {
+                Ok(Self::CallableContract(diagnostic))
+            }
             PreparationError::TypeValidity(crate::DeclarationTypeValidityError::Rule(
                 diagnostic,
             )) => Ok(Self::TypeValidity(diagnostic)),
@@ -131,6 +135,9 @@ impl QueriedPreparationRule {
 
     fn current_error(&self) -> PreparationError {
         match self {
+            Self::CallableContract(diagnostic) => PreparationError::CallableContract(
+                CallableContractValidityError::Rule(diagnostic.clone()),
+            ),
             Self::TypeValidity(diagnostic) => PreparationError::TypeValidity(
                 crate::DeclarationTypeValidityError::Rule(diagnostic.clone()),
             ),
@@ -422,6 +429,7 @@ pub enum PreparationError {
         input: CompilationTarget,
         program: CompilationTarget,
     },
+    CallableContract(CallableContractValidityError),
     TypeValidity(DeclarationTypeValidityError),
     Copyability(CopyabilityBuildError),
     DropTable(DropTableError),
@@ -533,6 +541,7 @@ impl PreparationError {
     #[must_use]
     pub const fn source_diagnostic(&self) -> Option<&SourceDiagnostic> {
         match self {
+            Self::CallableContract(error) => error.source_diagnostic(),
             Self::TypeValidity(error) => error.source_diagnostic(),
             Self::Copyability(error) => error.source_diagnostic(),
             Self::MissingToolchain
@@ -557,6 +566,7 @@ impl PreparationError {
                 .map(PreparationRepairEvidence::MissingInterfaceMethods),
             Self::MissingToolchain
             | Self::TargetMismatch { .. }
+            | Self::CallableContract(_)
             | Self::TypeValidity(_)
             | Self::Copyability(_)
             | Self::DropTable(_)
@@ -578,6 +588,7 @@ impl fmt::Display for PreparationError {
                 formatter,
                 "checking input target {input} does not match declaration program target {program}"
             ),
+            Self::CallableContract(error) => error.fmt(formatter),
             Self::TypeValidity(error) => error.fmt(formatter),
             Self::Copyability(error) => error.fmt(formatter),
             Self::DropTable(error) => error.fmt(formatter),
@@ -599,6 +610,12 @@ impl fmt::Display for PreparationError {
 }
 
 impl std::error::Error for PreparationError {}
+
+impl From<CallableContractValidityError> for PreparationError {
+    fn from(error: CallableContractValidityError) -> Self {
+        Self::CallableContract(error)
+    }
+}
 
 impl From<DeclarationTypeValidityError> for PreparationError {
     fn from(error: DeclarationTypeValidityError) -> Self {
@@ -1126,6 +1143,7 @@ fn build_program_authorities(
     admission: &nocter_declarations::DeclarationAnalysisAdmission,
 ) -> Result<PreparedProgramAuthorities, PreparationError> {
     let operations = crate::admitted_operations::AdmittedOperations::new(graph, admission);
+    validate_callable_contracts(graph, diagnostic_origins)?;
     validate_declaration_types(graph, types, diagnostic_origins)?;
     crate::parameter_value_types::prepare_parameter_value_types(graph, types).map_err(
         |(parameter, declared)| PreparationError::ParameterValueType {

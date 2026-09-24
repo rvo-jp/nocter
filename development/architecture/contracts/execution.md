@@ -28,6 +28,11 @@ lowering owns the only syntax-to-contract projection. Declaration headers, decla
 structural callable types, and body-local callable types all use that fallible projection; an
 unrelated syntax node cannot acquire a default callable contract.
 
+`nocter-declarations` also owns the closed compatibility policy between callable kind, execution
+mode, and guarantees. Checking attaches that source-independent violation to the current source;
+it does not maintain a second modifier matrix. Body execution facts and target primitive profiles
+validate their distinct implementation obligations only after this authored contract is accepted.
+
 An authored contract may be weakened through an explicit checked conversion. Inferred facts never
 strengthen it. Presentation reads the authored contract, so an implementation that happens not to
 allocate does not acquire a displayed `noalloc` promise.

@@ -77,7 +77,8 @@ contracts and default method bodies. A matching interface implementation must ha
 execution kind. Constructors, literals, coercions, operators, drop declarations, tests, anonymous
 closures, and primitive functions do not admit the modifier in the initial model. A primitive or
 ordinary immediate function may return `future T` when it constructs or transfers a future value
-directly.
+directly. An asynchronous producer cannot carry `const`: compile-time evaluation neither constructs
+nor drives its future.
 
 An asynchronous body is checked against the nonblocking drive invariant. It may call any helper
 whose callable contract is nonblocking, but it cannot reach a `blocking`

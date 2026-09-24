@@ -374,6 +374,10 @@ Source-backed checked-body diagnostics:
   compiler-selected `AsyncIterator` or `AsyncLendingIterator` contract.
 - `E0421`: a callable marked `const` contains an operation or value shape outside the supported
   compile-time evaluation domain.
+- `E0422`: an asynchronous producer is marked `const`, although compile-time evaluation cannot
+  construct or drive its future.
+- `E0423`: a primitive function is marked `const` without a checked source implementation for the
+  compile-time evaluator.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

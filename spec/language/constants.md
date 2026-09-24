@@ -110,6 +110,11 @@ unsupported operation rejects the declaration even when no initializer currently
 runtime-only callable cannot acquire compile-time capability through assignment or interface
 adaptation; the capability may only be forgotten.
 
+An `async` declaration cannot carry `const`: invoking it creates a future rather than evaluating
+its body result, and the compile-time evaluator neither constructs nor drives futures. A primitive
+function also cannot carry `const` because it has no checked source body. A future language version
+may define explicit compile-time intrinsics, but runtime primitive registration does not imply one.
+
 ## Fixed-Array Lengths
 
 The length in `[T; expression]` is a structural constant expression with expected type `usize`:

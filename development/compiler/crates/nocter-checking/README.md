@@ -18,6 +18,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 ## Internal Responsibilities
 
 - program-wide preparation and standard semantic roles
+- source projection of the declaration-owned callable contract compatibility policy
 - lexical name evidence and body scopes
 - source-neutral lexical recipes with current body-local locator and spelling rebinding
 - one current-generation body-source catalog that owns each block or initializer-expression root

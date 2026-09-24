@@ -282,8 +282,9 @@ compile-time evaluator. Its canonical position follows visibility and precedes `
 position follows `noalloc` and precedes `async` or `primitive`. An unqualified public function does
 not admit synchronous waiting. `async` is admitted only on an ordinary function. Its canonical
 position follows `blocking` and precedes `func`; it has no primitive-function production.
-Combining `async` with either `noalloc` or `blocking` is a semantic error. The `async` modifier
-declares deferred execution and is independent of the callable's result type.
+Combining `async` with `const`, `noalloc`, or `blocking` is a semantic error. A primitive function
+cannot promise `const` because it has no checked source body for the compile-time evaluator. The
+`async` modifier declares deferred execution and is independent of the callable's result type.
 
 ## Structs and Enums
 
@@ -338,7 +339,7 @@ and must carry the body. A block on a method without `default` is invalid.
 `blocking` and `async` have the same canonical positions and meanings as on a function. An
 interface requirement and its private contract body must agree on both modifiers. A nonblocking
 inherent method may satisfy a `blocking` interface requirement, but a blocking method cannot
-satisfy an unqualified requirement. Combining `async` with either `noalloc` or `blocking` is
+satisfy an unqualified requirement. Combining `async` with `const`, `noalloc`, or `blocking` is
 invalid.
 Fields, operators, coercions, construction entries, drop declarations, and tests have no interface
 member production.
