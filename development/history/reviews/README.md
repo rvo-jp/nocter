@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.70.0 Trap-Free Callable-contract Review](v0.70.0-trap-free-contracts.md)
 - [v0.69.0 Canonical Declaration-contract Review](v0.69.0-declaration-contracts.md)
 - [v0.68.0 Phase 5 Optimization-boundary Review](v0.68.0-phase-5.md)
 - [v0.68.0 Phase 4 Native Workload Review](v0.68.0-phase-4.md)

@@ -3,16 +3,15 @@
 ## Current State
 
 Nocter v0.68.0 Production Native Performance is published and externally audited. v0.69.0
-Canonical Declaration Contracts is complete but unpublished. v0.70.0 Trap-Free Callable Contracts
-is active. Linux target work remains deliberately deferred until this source contract is stable.
+Canonical Declaration Contracts and v0.70.0 Trap-Free Callable Contracts are complete but
+unpublished. Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Complete v0.70.0 qualification and design review. Confirm that source trap facts remain one
-independent execution dimension, primitive declarations cannot overstate target evidence, explicit
-process termination remains structurally consistent between direct and callable-value use, and
-editor presentation preserves only authored guarantees. Do not broaden this milestone into a
-`realtime` profile or asynchronous future-drive guarantee.
+Begin v0.70.0 release preparation. Carry the completed v0.69.0 declaration-contract work and
+v0.70.0 trap-free contract into one release candidate, update versioned public surfaces, build the
+archive from clean committed source, and qualify the exact archive before publication. Do not add a
+`realtime` profile or asynchronous future-drive guarantee during release preparation.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
