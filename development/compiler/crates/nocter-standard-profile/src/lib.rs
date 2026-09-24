@@ -181,6 +181,7 @@ const fn bundled_standard_source_location(
             (&["iter"], NodeKind::InterfaceMethod, "remaining_len")
         }
         Role::ProcessAbort => (&["process"], NodeKind::FunctionDeclaration, "abort"),
+        Role::ProcessExit => (&["process"], NodeKind::FunctionDeclaration, "exit"),
     }
 }
 
@@ -337,6 +338,7 @@ pub const fn bundled_primitive_source_location(
         Role::U64BitwiseXor => (&["num"], "u64_bit_xor_raw"),
         Role::U64RotateRight => (&["num"], "u64_rotate_right_raw"),
         Role::U64LeadingZeros => (&["num"], "u64_leading_zeros_raw"),
+        Role::ProcessAbort => (&["process"], "abort_raw"),
         Role::ProcessExit => (&["process"], "exit_raw"),
         Role::ProcessFork => (&["process"], "fork_process_raw"),
         Role::ProcessOpenNull => (&["process"], "open_null_raw"),

@@ -6,6 +6,7 @@
 pub enum CallableModifier {
     CompileTime,
     NoAllocation,
+    NoTrap,
     Blocking,
     Async,
 }
@@ -15,6 +16,7 @@ impl CallableModifier {
     pub const ALL: &'static [Self] = &[
         Self::CompileTime,
         Self::NoAllocation,
+        Self::NoTrap,
         Self::Blocking,
         Self::Async,
     ];
@@ -24,6 +26,7 @@ impl CallableModifier {
         match text {
             "const" => Some(Self::CompileTime),
             "noalloc" => Some(Self::NoAllocation),
+            "notrap" => Some(Self::NoTrap),
             "blocking" => Some(Self::Blocking),
             "async" => Some(Self::Async),
             _ => None,
@@ -35,6 +38,7 @@ impl CallableModifier {
         match self {
             Self::CompileTime => "const",
             Self::NoAllocation => "noalloc",
+            Self::NoTrap => "notrap",
             Self::Blocking => "blocking",
             Self::Async => "async",
         }
@@ -57,12 +61,12 @@ impl CallableModifier {
 /// Modifier vocabulary admitted by one callable-shaped syntax production.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CallablePrefixGrammar {
-    /// `const noalloc blocking async`, used by functions and methods.
+    /// `const noalloc notrap blocking async`, used by functions and methods.
     DeferredAllowed,
-    /// `const noalloc blocking`, used by structural callable types and primitive functions.
+    /// `const noalloc notrap blocking`, used by structural callable types and primitive functions.
     Immediate,
-    /// `noalloc`, used by literals, operators, coercions, and destruction.
-    NoAllocationOnly,
+    /// `noalloc notrap`, used by literals, operators, coercions, and destruction.
+    ImmediateGuarantees,
 }
 
 impl CallablePrefixGrammar {
@@ -71,7 +75,12 @@ impl CallablePrefixGrammar {
         match self {
             Self::DeferredAllowed => true,
             Self::Immediate => !matches!(modifier, CallableModifier::Async),
-            Self::NoAllocationOnly => matches!(modifier, CallableModifier::NoAllocation),
+            Self::ImmediateGuarantees => {
+                matches!(
+                    modifier,
+                    CallableModifier::NoAllocation | CallableModifier::NoTrap
+                )
+            }
         }
     }
 
@@ -136,12 +145,16 @@ mod tests {
         ));
         assert!(!CallablePrefixGrammar::Immediate.can_suggest_after(&[], CallableModifier::Async));
         assert!(
-            CallablePrefixGrammar::NoAllocationOnly
+            CallablePrefixGrammar::ImmediateGuarantees
                 .can_suggest_after(&[], CallableModifier::NoAllocation)
         );
         assert!(
-            !CallablePrefixGrammar::NoAllocationOnly
+            !CallablePrefixGrammar::ImmediateGuarantees
                 .can_suggest_after(&[], CallableModifier::CompileTime)
+        );
+        assert!(
+            CallablePrefixGrammar::ImmediateGuarantees
+                .can_suggest_after(&[CallableModifier::NoAllocation], CallableModifier::NoTrap,)
         );
     }
 }

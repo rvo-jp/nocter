@@ -37,6 +37,11 @@ pub fn project_callable_guarantees(tree: &SyntaxTree, node: NodeId) -> Option<Ca
     } else {
         guarantees
     };
+    let guarantees = if direct_node(tree, node, NodeKind::NoTrapModifier).is_some() {
+        guarantees.no_trap()
+    } else {
+        guarantees
+    };
     if direct_node(tree, node, NodeKind::CompileTimeModifier).is_some() {
         Some(guarantees.admit_compile_time_evaluation())
     } else {
@@ -46,7 +51,9 @@ pub fn project_callable_guarantees(tree: &SyntaxTree, node: NodeId) -> Option<Ca
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{AllocationGuarantee, CompileTimeGuarantee, NonblockingGuarantee};
+    use nocter_model::{
+        AllocationGuarantee, CompileTimeGuarantee, NonblockingGuarantee, TrapGuarantee,
+    };
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{NodeKind, ParseGoal, SyntaxTree, parse};
 
@@ -54,12 +61,12 @@ mod tests {
 
     #[test]
     fn declaration_and_structural_type_modifiers_share_one_projection() {
-        let declaration = parse_text("const noalloc blocking func work(): void\n");
+        let declaration = parse_text("const noalloc notrap blocking func work(): void\n");
         let declaration_root = declaration
             .nodes()
             .find_map(|(id, node)| (node.kind() == NodeKind::FunctionDeclaration).then_some(id))
             .unwrap();
-        let structural = parse_text("type Work = const noalloc blocking func(): void\n");
+        let structural = parse_text("type Work = const noalloc notrap blocking func(): void\n");
         let structural_root = structural
             .nodes()
             .find_map(|(id, node)| (node.kind() == NodeKind::CallableType).then_some(id))
@@ -78,6 +85,7 @@ mod tests {
             declaration_contract.nonblocking(),
             NonblockingGuarantee::Unspecified
         );
+        assert_eq!(declaration_contract.trap(), TrapGuarantee::NoTrap);
         assert_eq!(
             declaration_contract.compile_time(),
             CompileTimeGuarantee::Evaluatable

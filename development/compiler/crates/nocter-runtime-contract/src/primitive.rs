@@ -32,6 +32,7 @@ macro_rules! closed_role_enum {
 pub struct PrimitiveExecutionFacts {
     may_allocate: bool,
     may_block: bool,
+    may_source_trap: bool,
     produced_computation: PrimitiveProducedComputation,
 }
 
@@ -82,6 +83,12 @@ impl PrimitiveExecutionFacts {
     #[must_use]
     pub const fn may_block(self) -> bool {
         self.may_block
+    }
+
+    /// Whether invocation may enter the source-semantic trap boundary.
+    #[must_use]
+    pub const fn may_source_trap(self) -> bool {
+        self.may_source_trap
     }
 
     /// Whether a primitive returning `future T` certifies every drive and cancellation entry as
@@ -216,6 +223,8 @@ closed_role_enum! {
         U64BitwiseXor,
         U64RotateRight,
         U64LeadingZeros,
+        /// Terminates the current process immediately with an unsuccessful status.
+        ProcessAbort,
         ProcessExit,
         /// Forks the current process without observing child progress.
         ProcessFork,
@@ -483,6 +492,7 @@ impl PrimitiveRole {
             Self::U64BitwiseXor => "u64_bitwise_xor",
             Self::U64RotateRight => "u64_rotate_right",
             Self::U64LeadingZeros => "u64_leading_zeros",
+            Self::ProcessAbort => "process_abort",
             Self::ProcessExit => "process_exit",
             Self::ProcessFork => "process_fork",
             Self::ProcessOpenNull => "process_open_null",

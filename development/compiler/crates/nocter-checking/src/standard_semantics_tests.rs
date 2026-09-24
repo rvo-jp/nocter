@@ -148,6 +148,56 @@ pub interface Format {
 }
 
 #[test]
+fn process_termination_roles_require_exact_notrap_function_contracts() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+notrap primitive func terminate_raw(): never
+pub notrap func abort(): never { terminate_raw() }
+pub notrap func exit(code: i32): never { terminate_raw() }
+",
+    );
+    with_prepared_roles(
+        &fixture,
+        vec![
+            StandardRoleInput::new(
+                StandardDeclarationRole::ProcessAbort,
+                fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "abort"),
+            ),
+            StandardRoleInput::new(
+                StandardDeclarationRole::ProcessExit,
+                fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "exit"),
+            ),
+        ],
+        |_| (),
+    )
+    .unwrap();
+
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+notrap primitive func terminate_raw(): never
+pub notrap func exit(...codes: i32): never { terminate_raw() }
+",
+    );
+    let error = with_prepared_roles(
+        &fixture,
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::ProcessExit,
+            fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "exit"),
+        )],
+        |_| (),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(
+            StandardSemanticError::InvalidProcessTerminationContract
+        )
+    ));
+}
+
+#[test]
 fn exact_standard_interpolation_contract_is_accepted() {
     let fixture = Fixture::with_standard(
         "",

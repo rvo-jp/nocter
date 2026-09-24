@@ -396,6 +396,9 @@ let owned = Vec [...move source]
 - The operand of `...move` must be an eligible existing move-only place. A call, literal, or other
   newly produced temporary must first be stored in a binding.
 - Every spread iterator must also implement `ExactSizeIterator`.
+- Spread records the iterator's initial `remaining_len()` and requires exactly that many successful
+  `next()` results. Early exhaustion or an additional item is a violated iterator contract and
+  enters the ordinary safety trap. A spread therefore cannot appear in a `notrap` callable.
 - A spread accepts only `Iterator`; `LendingIterator` is excluded even when its item type is
   readonly.
 - A directly selected iterator that lacks `ExactSizeIterator` is rejected; selection does not fall

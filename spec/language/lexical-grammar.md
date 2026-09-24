@@ -117,6 +117,7 @@ method
 move
 never
 noalloc
+notrap
 none
 otherwise
 operator

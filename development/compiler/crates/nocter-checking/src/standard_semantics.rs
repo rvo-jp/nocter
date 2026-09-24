@@ -171,7 +171,10 @@ impl StandardSemanticTable {
             self.callable(StandardDeclarationRole::InterpolationTextAppender),
         )?;
         if let Some(abort) = self.callable(StandardDeclarationRole::ProcessAbort) {
-            validate_process_abort(graph, types, abort)?;
+            validate_process_termination(graph, types, abort, &[])?;
+        }
+        if let Some(exit) = self.callable(StandardDeclarationRole::ProcessExit) {
+            validate_process_termination(graph, types, exit, &[BuiltinType::I32])?;
         }
         self.validate_iteration_relationships(graph, types, IterationSemanticRoles::SYNCHRONOUS)?;
         self.validate_iteration_relationships(graph, types, IterationSemanticRoles::LENDING)?;
@@ -320,7 +323,8 @@ fn validate_role_domain(
         | StandardDeclarationRole::AsyncIteratorNextMethod
         | StandardDeclarationRole::AsyncLendingIteratorNextMethod
         | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod
-        | StandardDeclarationRole::ProcessAbort => {
+        | StandardDeclarationRole::ProcessAbort
+        | StandardDeclarationRole::ProcessExit => {
             matches!(entity, StandardDeclaration::Callable(_))
         }
     };
@@ -558,26 +562,45 @@ fn validate_exact_size_method(
     Ok(())
 }
 
-fn validate_process_abort(
+fn validate_process_termination(
     graph: &DeclarationGraph,
     types: &TypeStore,
-    abort: CallableId,
+    callable: CallableId,
+    expected_parameters: &[BuiltinType],
 ) -> Result<(), StandardSemanticError> {
     let callable = graph
         .declarations()
         .callables()
-        .get(abort)
-        .ok_or(StandardSemanticError::InvalidProcessAbortContract)?;
+        .get(callable)
+        .ok_or(StandardSemanticError::InvalidProcessTerminationContract)?;
     if callable.kind() != CallableKind::Function
         || !matches!(callable.owner(), CallableOwner::Module(_))
         || callable.receiver().is_some()
-        || !callable.parameters().is_empty()
+        || callable.parameters().len() != expected_parameters.len()
         || !callable.generic_parameters().is_empty()
         || !callable.requirements().is_empty()
         || callable.result() != types.builtin(BuiltinType::Never)
+        || callable.guarantees().trap() != nocter_model::TrapGuarantee::NoTrap
         || !is_public(graph, callable.site())
     {
-        return Err(StandardSemanticError::InvalidProcessAbortContract);
+        return Err(StandardSemanticError::InvalidProcessTerminationContract);
+    }
+    for (position, (parameter, expected)) in callable
+        .parameters()
+        .iter()
+        .zip(expected_parameters)
+        .enumerate()
+    {
+        let parameter = graph
+            .declarations()
+            .parameters()
+            .get(*parameter)
+            .ok_or(StandardSemanticError::InvalidProcessTerminationContract)?;
+        if parameter.ty() != types.builtin(*expected)
+            || parameter.role() != (ParameterRole::Ordinary { position })
+        {
+            return Err(StandardSemanticError::InvalidProcessTerminationContract);
+        }
     }
     Ok(())
 }
@@ -604,7 +627,7 @@ pub enum StandardSemanticError {
     InvalidAsyncIteratorContract,
     InvalidAsyncLendingIteratorContract,
     InvalidExactSizeIteratorContract,
-    InvalidProcessAbortContract,
+    InvalidProcessTerminationContract,
     InvalidNominalContract(StandardDeclarationRole),
 }
 

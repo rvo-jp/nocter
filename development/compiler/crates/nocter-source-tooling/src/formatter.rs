@@ -677,6 +677,18 @@ mod tests {
     }
 
     #[test]
+    fn preserves_canonical_notrap_modifier_placement() {
+        let formatted = format(
+            "pub noalloc notrap func apply(callback:notrap &func(i32):i32):i32 { return callback(1) }\nnotrap drop Value(&+self) {}\n",
+        );
+        assert_eq!(
+            formatted,
+            "pub noalloc notrap func apply(callback: notrap &func(i32): i32): i32 { return callback(1) }\n\nnotrap drop Value(&+self) {}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn preserves_canonical_const_callable_modifier_placement() {
         let formatted = format(
             "pub const noalloc func apply(callback:const &func(i32):i32):i32 { return callback(1) }\ninstance Value { pub const method &self.value():i32 { return 1 } }\n",

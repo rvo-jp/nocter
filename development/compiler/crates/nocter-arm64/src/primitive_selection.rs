@@ -169,6 +169,7 @@ pub(crate) fn select(
         | PrimitiveRole::EntropyFill
         | PrimitiveRole::WallClockRead
         | PrimitiveRole::TimeoutWait
+        | PrimitiveRole::ProcessAbort
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::ProcessFork
         | PrimitiveRole::ProcessOpenNull

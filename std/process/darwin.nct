@@ -15,7 +15,10 @@ use /string
 use /vec.Vec
 
 #target: "arm64-darwin"
-noalloc primitive func exit_raw(code: i32): never
+noalloc notrap primitive func exit_raw(code: i32): never
+
+#target: "arm64-darwin"
+noalloc notrap primitive func abort_raw(): never
 
 #target: "arm64-darwin"
 noalloc primitive func arg_count_raw(): usize
@@ -191,12 +194,12 @@ func valid_environment_name(name: &str): bool {
     return true
 }
 
-func exit(code: i32): never {
+notrap func exit(code: i32): never {
     exit_raw(code)
 }
 
-func abort(): never {
-    darwin.trap()
+notrap func abort(): never {
+    abort_raw()
 }
 
 func cwd_failed(): error {

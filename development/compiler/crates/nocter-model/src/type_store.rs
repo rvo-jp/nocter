@@ -170,6 +170,16 @@ pub enum NonblockingGuarantee {
     Unspecified,
 }
 
+/// Whether a callable contract guarantees absence of source-semantic traps.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum TrapGuarantee {
+    /// The contract makes no trap-freedom guarantee.
+    #[default]
+    Unspecified,
+    /// Calling the value cannot reach a Nocter safety trap.
+    NoTrap,
+}
+
 /// Whether a callable contract promises an implementation available to compile-time evaluation.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum CompileTimeGuarantee {
@@ -184,6 +194,7 @@ pub enum CompileTimeGuarantee {
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CallableGuarantees {
     allocation: AllocationGuarantee,
+    trap: TrapGuarantee,
     nonblocking: NonblockingGuarantee,
     compile_time: CompileTimeGuarantee,
 }
@@ -193,6 +204,7 @@ impl CallableGuarantees {
     pub const fn no_allocation() -> Self {
         Self {
             allocation: AllocationGuarantee::NoAllocation,
+            trap: TrapGuarantee::Unspecified,
             nonblocking: NonblockingGuarantee::Nonblocking,
             compile_time: CompileTimeGuarantee::RuntimeOnly,
         }
@@ -212,6 +224,13 @@ impl CallableGuarantees {
         self
     }
 
+    /// Returns the same guarantees with an authored trap-free promise.
+    #[must_use]
+    pub const fn no_trap(mut self) -> Self {
+        self.trap = TrapGuarantee::NoTrap;
+        self
+    }
+
     #[must_use]
     pub const fn allocation(self) -> AllocationGuarantee {
         self.allocation
@@ -220,6 +239,11 @@ impl CallableGuarantees {
     #[must_use]
     pub const fn nonblocking(self) -> NonblockingGuarantee {
         self.nonblocking
+    }
+
+    #[must_use]
+    pub const fn trap(self) -> TrapGuarantee {
+        self.trap
     }
 
     #[must_use]
@@ -246,13 +270,17 @@ impl CallableGuarantees {
                 matches!(self.nonblocking, NonblockingGuarantee::Nonblocking)
             }
         };
+        let trap = match expected.trap {
+            TrapGuarantee::Unspecified => true,
+            TrapGuarantee::NoTrap => matches!(self.trap, TrapGuarantee::NoTrap),
+        };
         let compile_time = match expected.compile_time {
             CompileTimeGuarantee::RuntimeOnly => true,
             CompileTimeGuarantee::Evaluatable => {
                 matches!(self.compile_time, CompileTimeGuarantee::Evaluatable)
             }
         };
-        allocation && nonblocking && compile_time
+        allocation && trap && nonblocking && compile_time
     }
 }
 
@@ -961,6 +989,15 @@ mod tests {
             ProvenanceSet::empty(),
         )
         .unwrap();
+        let notrap = CallableContract::new(
+            CallableCapability::Owned,
+            CallableGuarantees::default().no_trap(),
+            [],
+            None,
+            result,
+            ProvenanceSet::empty(),
+        )
+        .unwrap();
         let compile_time = CallableContract::new(
             CallableCapability::Owned,
             CallableGuarantees::default().admit_compile_time_evaluation(),
@@ -986,6 +1023,11 @@ mod tests {
                 blocking.clone(),
             )))
             .unwrap();
+        let notrap_id = types
+            .intern(TypeKind::Callable(CallableType::statically_witnessed(
+                notrap.clone(),
+            )))
+            .unwrap();
         let compile_time_id = types
             .intern(TypeKind::Callable(CallableType::statically_witnessed(
                 compile_time.clone(),
@@ -993,11 +1035,14 @@ mod tests {
             .unwrap();
         assert_ne!(ordinary_id, noalloc_id);
         assert_ne!(ordinary_id, blocking_id);
+        assert_ne!(ordinary_id, notrap_id);
         assert_ne!(ordinary_id, compile_time_id);
         assert!(ordinary.can_weaken_to(&blocking));
         assert!(!blocking.can_weaken_to(&ordinary));
         assert!(noalloc.can_weaken_to(&ordinary));
         assert!(!ordinary.can_weaken_to(&noalloc));
+        assert!(notrap.can_weaken_to(&ordinary));
+        assert!(!ordinary.can_weaken_to(&notrap));
         assert!(compile_time.can_weaken_to(&ordinary));
         assert!(!ordinary.can_weaken_to(&compile_time));
     }

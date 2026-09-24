@@ -16,7 +16,6 @@ pub(super) fn select(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
-        PrimitiveRole::AllocationAbort => select_break(operation, target, selected),
         PrimitiveRole::MemoryMap | PrimitiveRole::MemoryUnmap => {
             select_memory_operation(operation, target, selected)
         }
@@ -66,9 +65,10 @@ pub(super) fn select(
         | PrimitiveRole::Syscall3Signed
         | PrimitiveRole::Syscall4
         | PrimitiveRole::Syscall6 => select_syscall(operation, target, selected),
-        PrimitiveRole::Trap | PrimitiveRole::Unreachable => {
-            select_break(operation, target, selected)
-        }
+        PrimitiveRole::AllocationAbort
+        | PrimitiveRole::ProcessAbort
+        | PrimitiveRole::Trap
+        | PrimitiveRole::Unreachable => select_break(operation, target, selected),
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
 }
@@ -364,6 +364,7 @@ fn select_break(
     validate_diverging(operation, target)?;
     let reason = match target.role() {
         PrimitiveRole::Trap => crate::runtime_trap::Arm64RuntimeTrap::ExplicitTrap,
+        PrimitiveRole::ProcessAbort => crate::runtime_trap::Arm64RuntimeTrap::ProcessAbort,
         PrimitiveRole::Unreachable => crate::runtime_trap::Arm64RuntimeTrap::ExplicitUnreachable,
         PrimitiveRole::AllocationAbort => crate::runtime_trap::Arm64RuntimeTrap::AllocationFailure,
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),

@@ -1,6 +1,6 @@
 use nocter_model::{
     AllocationGuarantee, Arena, CallableGuarantees, CallableId, ClosureId, DropId,
-    NonblockingGuarantee,
+    NonblockingGuarantee, TrapGuarantee,
 };
 
 /// Positive allocation fact inferred for one closed execution root.
@@ -37,6 +37,23 @@ impl SynchronousWaitFact {
     }
 }
 
+/// Positive source-semantic trap fact inferred for one closed execution root.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum TrapFact {
+    /// No reachable operation can enter the Nocter trap boundary.
+    #[default]
+    NoTrap,
+    /// At least one reachable operation may enter the Nocter trap boundary.
+    MayTrap,
+}
+
+impl TrapFact {
+    #[must_use]
+    pub const fn may_trap(self) -> bool {
+        matches!(self, Self::MayTrap)
+    }
+}
+
 /// Inferred positive facts for one closed execution root.
 ///
 /// This is implementation evidence, not an authored callable contract. An immediate callable root
@@ -47,14 +64,20 @@ impl SynchronousWaitFact {
 pub struct ExecutionFacts {
     allocation: AllocationFact,
     synchronous_wait: SynchronousWaitFact,
+    trap: TrapFact,
 }
 
 impl ExecutionFacts {
     #[must_use]
-    pub const fn new(allocation: AllocationFact, synchronous_wait: SynchronousWaitFact) -> Self {
+    pub const fn new(
+        allocation: AllocationFact,
+        synchronous_wait: SynchronousWaitFact,
+        trap: TrapFact,
+    ) -> Self {
         Self {
             allocation,
             synchronous_wait,
+            trap,
         }
     }
 
@@ -68,12 +91,28 @@ impl ExecutionFacts {
         self.synchronous_wait
     }
 
+    #[must_use]
+    pub const fn trap(self) -> TrapFact {
+        self.trap
+    }
+
     /// Facts introduced by an operation that requests storage directly.
     #[must_use]
     pub(crate) const fn allocation_request() -> Self {
         Self::new(
             AllocationFact::MayAllocate,
             SynchronousWaitFact::Nonblocking,
+            TrapFact::NoTrap,
+        )
+    }
+
+    /// Facts introduced by one source-semantic operation that may trap.
+    #[must_use]
+    pub(crate) const fn trapping_operation() -> Self {
+        Self::new(
+            AllocationFact::NoAllocation,
+            SynchronousWaitFact::Nonblocking,
+            TrapFact::MayTrap,
         )
     }
 
@@ -92,6 +131,10 @@ impl ExecutionFacts {
                 NonblockingGuarantee::Nonblocking => SynchronousWaitFact::Nonblocking,
                 NonblockingGuarantee::Unspecified => SynchronousWaitFact::MayBlock,
             },
+            match guarantees.trap() {
+                TrapGuarantee::Unspecified => TrapFact::MayTrap,
+                TrapGuarantee::NoTrap => TrapFact::NoTrap,
+            },
         )
     }
 
@@ -108,6 +151,11 @@ impl ExecutionFacts {
                 SynchronousWaitFact::MayBlock
             } else {
                 SynchronousWaitFact::Nonblocking
+            },
+            trap: if self.trap.may_trap() || other.trap.may_trap() {
+                TrapFact::MayTrap
+            } else {
+                TrapFact::NoTrap
             },
         };
         if *self == next {
@@ -160,20 +208,25 @@ impl ExecutionFactTable {
 mod tests {
     use nocter_model::CallableGuarantees;
 
-    use super::{AllocationFact, ExecutionFacts, SynchronousWaitFact};
+    use super::{AllocationFact, ExecutionFacts, SynchronousWaitFact, TrapFact};
 
     #[test]
-    fn external_contract_conversion_preserves_both_independent_bounds() {
+    fn external_contract_conversion_preserves_all_independent_bounds() {
         assert_eq!(
             ExecutionFacts::admitted_by(CallableGuarantees::default()),
             ExecutionFacts::new(
                 AllocationFact::MayAllocate,
                 SynchronousWaitFact::Nonblocking,
+                TrapFact::MayTrap,
             )
         );
         assert_eq!(
             ExecutionFacts::admitted_by(CallableGuarantees::no_allocation().admit_blocking()),
-            ExecutionFacts::new(AllocationFact::NoAllocation, SynchronousWaitFact::MayBlock,)
+            ExecutionFacts::new(
+                AllocationFact::NoAllocation,
+                SynchronousWaitFact::MayBlock,
+                TrapFact::MayTrap,
+            )
         );
     }
 
@@ -186,16 +239,24 @@ mod tests {
             ExecutionFacts::new(
                 AllocationFact::MayAllocate,
                 SynchronousWaitFact::Nonblocking,
+                TrapFact::NoTrap,
             )
         );
         assert!(facts.include(ExecutionFacts::new(
             AllocationFact::NoAllocation,
             SynchronousWaitFact::MayBlock,
+            TrapFact::NoTrap,
         )));
         assert!(!facts.include(ExecutionFacts::allocation_request()));
         assert_eq!(
             facts,
-            ExecutionFacts::new(AllocationFact::MayAllocate, SynchronousWaitFact::MayBlock,)
+            ExecutionFacts::new(
+                AllocationFact::MayAllocate,
+                SynchronousWaitFact::MayBlock,
+                TrapFact::NoTrap,
+            )
         );
+        assert!(facts.include(ExecutionFacts::trapping_operation()));
+        assert_eq!(facts.trap(), TrapFact::MayTrap);
     }
 }

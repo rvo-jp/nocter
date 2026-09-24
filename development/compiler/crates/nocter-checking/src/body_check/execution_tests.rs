@@ -74,6 +74,143 @@ fn source_backed_unmarked_helpers_can_be_proven_allocation_free() {
 }
 
 #[test]
+fn notrap_rejects_source_semantic_trap_operations() {
+    for source in [
+        "notrap func add(left: i32, right: i32): i32 { return left + right }\n",
+        "notrap func force(value: i32?): i32 { return value! }\n",
+        "notrap func index(values: &[i32], position: usize): i32 { return values[position] }\n",
+        "notrap func assign(value: i32): i32 { var result = value\nresult += 1\nreturn result }\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0425");
+    }
+}
+
+#[test]
+fn notrap_accepts_operations_without_a_source_trap_path() {
+    check(
+        "func identity(value: i32): i32 { return value }\n\
+         notrap func valid(value: i32): i32 { return identity(value) }\n\
+         notrap func floating(left: f64, right: f64): f64 { return left / right }\n\
+         notrap func propagate(value: i32!): i32! { return move value? }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn trap_facts_propagate_through_calls_and_structural_contracts() {
+    let error = check(
+        "func increment(value: i32): i32 { return value + 1 }\n\
+         notrap func invalid(value: i32): i32 { return increment(value) }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    check(
+        "notrap func apply(callback: any notrap &func(i32): i32, value: i32): i32 {\n\
+             return callback(value)\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "notrap func invalid(callback: any &func(i32): i32, value: i32): i32 {\n\
+             return callback(value)\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
+fn contextual_notrap_closure_requirements_validate_the_closure_body() {
+    check(
+        "func accept(callback: any notrap &func(i32): i32): i32 { return callback(1) }\n\
+         func valid(): i32 { return accept((value: i32): i32 { return value }) }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "func accept(callback: any notrap &func(i32): i32): i32 { return callback(1) }\n\
+         func invalid(): i32 { return accept((value: i32): i32 { return value + 1 }) }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
+fn trap_facts_include_implicit_destruction() {
+    let error = check(
+        "struct Resource { value: i32 }\n\
+         drop Resource(&+self) { let _ = self.value + 1\nreturn }\n\
+         notrap func invalid(value: i32): void { let resource = Resource { value: value }\nreturn }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    check(
+        "struct Resource {}\n\
+         notrap drop Resource(&+self) { return }\n\
+         notrap func valid(): void { let resource = Resource {}\nreturn }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn explicit_process_termination_is_not_a_source_trap() {
+    let fixture = Fixture::with_standard(
+        "",
+        "pub notrap func abort(): never { abort_raw() }\n\
+         pub notrap func exit(code: i32): never { exit_raw(code) }\n\
+         notrap primitive func abort_raw(): never\n\
+         notrap primitive func exit_raw(code: i32): never\n\
+         notrap func stop_now(): never { abort() }\n\
+         notrap func stop_with(code: i32): never { exit(code) }\n",
+    );
+    let input = with_standard_roles(
+        fixture.input(false),
+        vec![
+            StandardRoleInput::new(
+                StandardDeclarationRole::ProcessAbort,
+                fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "abort"),
+            ),
+            StandardRoleInput::new(
+                StandardDeclarationRole::ProcessExit,
+                fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "exit"),
+            ),
+        ],
+    );
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    check_prepared_program(&input, prepared).unwrap();
+}
+
+#[test]
+fn process_termination_roles_do_not_hide_prior_safety_traps() {
+    let fixture = Fixture::with_standard(
+        "",
+        "pub notrap func abort(): never { let _ = 1 + 1\nabort_raw() }\n\
+         notrap primitive func abort_raw(): never\n",
+    );
+    let input = with_standard_roles(
+        fixture.input(false),
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::ProcessAbort,
+            fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "abort"),
+        )],
+    );
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn synchronous_wait_facts_propagate_through_the_existing_call_graph() {
     let error = check_standard(
         "blocking primitive func wait_raw(): void\n\

@@ -118,6 +118,10 @@ signature-help, completion, and callable-type presentation. Tools do not synthes
 an unqualified callable merely because its current body is inferred allocation-free. Internal
 effect summaries are proof evidence, not additional source syntax.
 
+An authored `notrap` contract follows the same presentation rule. Normalized declaration, hover,
+signature help, completion, and callable-type presentation preserve it after `noalloc` and before
+`blocking`. Tools do not synthesize `notrap` from an inferred trap-free body.
+
 An authored `blocking` effect is likewise source-visible in normalized declaration, hover,
 signature-help, completion, and callable-type presentation. Tools do not add `blocking` to a
 private helper merely because body analysis proves that effect; a feature that explains

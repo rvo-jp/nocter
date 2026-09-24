@@ -363,7 +363,9 @@ pub primitive type never
 const PROCESS_SOURCE: &str = "\
 use /internal/os/darwin.{SyscallPairResult, SyscallResult}
 #target: \"arm64-darwin\"
-noalloc primitive func exit_raw(code: i32): never
+noalloc notrap primitive func abort_raw(): never
+#target: \"arm64-darwin\"
+noalloc notrap primitive func exit_raw(code: i32): never
 #target: \"arm64-darwin\"
 noalloc primitive func fork_process_raw(): SyscallPairResult
 #target: \"arm64-darwin\"
@@ -392,7 +394,8 @@ primitive func env_count_raw(): usize
 primitive func env_name_raw(index: usize): &str from static
 #target: \"arm64-darwin\"
 primitive func env_value_raw(index: usize): &str from static
-pub func exit_for_test(code: i32): never { exit_raw(code) }
+pub notrap func abort_for_test(): never { abort_raw() }
+pub notrap func exit_for_test(code: i32): never { exit_raw(code) }
 pub noalloc func abandon_process_for_test(pid: usize): void { abandon_process_raw(pid) }
 pub func arg_count_for_test(): usize { return arg_count_raw() }
 pub func arg_for_test(index: usize): &str { return arg_raw(index) }

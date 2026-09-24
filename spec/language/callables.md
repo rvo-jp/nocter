@@ -299,8 +299,38 @@ allocation-free closure may satisfy either the guaranteed contract or an otherwi
 unqualified contract. Erasing the guarantee is one-way; an unqualified callable value cannot be
 used where `noalloc` is required merely because its hidden witness once had that property.
 
+The `notrap` guarantee is an independent part of the same structural contract. It appears after
+`noalloc`, when both are present, and before `blocking` or the callable capability:
+
+```nct
+notrap func validate(value: i32): bool
+noalloc notrap &func(&Record): bool
+any notrap &+func(Job): void!
+```
+
+`notrap` promises that immediate execution cannot reach a Nocter safety trap. The proof includes
+explicit trap and unreachable operations, checked integer arithmetic and shifts, bounds-checked
+indexing, postfix `!`, argument-spread length checks, selected operators and coercions, callbacks,
+source-backed callees, closure bodies, and implicit destruction. A recoverable `T!` result is
+allowed because returning `error` is not a trap. Explicit `process.abort` and `process.exit` calls
+are terminating process operations rather than safety traps and are also allowed; neither runs
+source cleanup.
+
+An unqualified source-backed helper may be used when whole-program checking proves its reachable
+body trap-free. A bodyless primitive, abstract method, or callable value must carry `notrap` before
+a caller may rely on that guarantee. Primitive declarations are checked against compiler-owned
+runtime-role evidence, so a trap primitive cannot make a false `notrap` claim. The proof does not
+cover allocation-failure termination, operating-system termination, hardware failure, or violation
+of compiler/runtime representation invariants.
+
+Trap freedom weakens in one direction: a `notrap` callable may satisfy an otherwise identical
+unqualified contract, but an unqualified callable cannot satisfy a `notrap` requirement. Body
+inference supplies proof evidence and never silently adds `notrap` to the callable's source-visible
+type. `notrap` is currently an immediate-execution guarantee. Combining it with `async` is invalid
+because `future T` does not yet retain a trap-freedom contract for later driving.
+
 Synchronous waiting is a separate callable effect. A structural callable that may synchronously
-wait writes `blocking` after any `noalloc` guarantee and before its capability:
+wait writes `blocking` after any `noalloc` and `notrap` guarantees and before its capability:
 
 ```nct
 blocking func(): void
@@ -333,7 +363,7 @@ type Finalizer = any func(Job): Result
 ```
 
 The enclosed callable contract is unchanged. Capability, parameter and result types, result
-provenance, `noalloc`, and `blocking` remain part of compatibility and invocation. `any &func`
+provenance, `noalloc`, `notrap`, and `blocking` remain part of compatibility and invocation. `any &func`
 permits repeated readonly invocation, `any &+func` permits repeated invocation through a writable
 place, and `any func` permits one consuming invocation. All use the ordinary
 `callback(arguments)` surface.
@@ -348,8 +378,8 @@ erased.
 Erasure occurs only at a contextual expected-type boundary that explicitly names `any`, including
 an annotated initializer, an erased-callable argument, a named erased result, or an `as any ...`
 conversion. The source must provide one concrete callable witness compatible with the complete
-destination contract. Erasure may weaken `noalloc` or nonblocking guarantees in the same direction
-as an ordinary callable conversion, but cannot strengthen them. No untyped closure, ordinary
+destination contract. Erasure may weaken `noalloc`, `notrap`, or nonblocking guarantees in the same
+direction as an ordinary callable conversion, but cannot strengthen them. No untyped closure, ordinary
 callable annotation, generic inference result, or control-flow merge silently selects erased
 representation.
 

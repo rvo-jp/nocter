@@ -1,8 +1,8 @@
 # Execution Contract Design
 
 This document owns the compiler-internal boundary between authored callable promises, checked
-execution facts, and consumers of those facts. Public meanings of `noalloc`, `blocking`, `async`,
-and `future T` remain in `spec/`.
+execution facts, and consumers of those facts. Public meanings of `noalloc`, `notrap`, `blocking`,
+`async`, and `future T` remain in `spec/`.
 
 ## Four Distinct Questions
 
@@ -32,6 +32,8 @@ unrelated syntax node cannot acquire a default callable contract.
 mode, and guarantees. Checking attaches that source-independent violation to the current source;
 it does not maintain a second modifier matrix. Body execution facts and target primitive profiles
 validate their distinct implementation obligations only after this authored contract is accepted.
+Allocation freedom, trap freedom, nonblocking invocation, and compile-time availability remain
+independent structural dimensions; no combined modifier is reconstructed downstream.
 
 An authored contract may be weakened through an explicit checked conversion. Inferred facts never
 strengthen it. Presentation reads the authored contract, so an implementation that happens not to
@@ -42,7 +44,10 @@ allocate does not acquire a displayed `noalloc` promise.
 `nocter-checking` owns implementation facts. It derives them from checked operations, frozen
 dispatch, closure identities, and ownership-owned cleanup schedules. The fact domain is a positive
 least-fixed-point lattice: a root begins without a positive allocation or blocking fact and gains
-one when a direct operation or reachable execution edge proves it possible.
+one when a direct operation or reachable execution edge proves it possible. The current lattice
+has independent positive facts for allocation, synchronous waiting, and source-semantic traps.
+Arithmetic, indexing, forced outcomes, spread validation, selected operations, callbacks, and
+ownership cleanup all contribute through this one relation graph.
 
 Missing semantic identities are integrity failures. They do not become conservative effect values;
 conservative values are valid only for explicit external-contract edges whose implementations are
@@ -54,8 +59,16 @@ unavailable by design.
 contract; target validation binds that declaration to one primitive role and compares the two.
 Neither checking nor target validation derives primitive behavior from a function name, module
 path, return type, or generated instruction sequence. One exhaustive runtime profile assigns every
-role its invocation facts, produced-computation classification, and hidden context requirements;
-adding a role without the complete assignment fails compilation.
+role its invocation facts, source-trap behavior, produced-computation classification, and hidden
+context requirements; adding a role without the complete assignment fails compilation.
+
+Process abort and exit each have their own closed primitive role. Those roles certify process
+termination rather than a source safety trap even when a target selects the same physical break
+instruction for another trap role. The standard `abort` and `exit` wrappers are then proved through
+ordinary execution edges; checking neither recognizes their names nor erases facts from an entire
+wrapper. A safety trap that precedes the terminating primitive therefore still invalidates a
+`notrap` wrapper. Their published callable contracts carry `notrap`, keeping direct and
+callable-value use consistent.
 
 ## Execution Edges
 
@@ -88,7 +101,7 @@ or syntax to reproduce execution facts.
 ## Future Extension
 
 A later `realtime` contract must be added as a profile over this model, not as an unrelated checker.
-It will require additional fact domains such as bounded work, abort behavior, and synchronization,
+It will require additional fact domains such as bounded work and synchronization,
 but must reuse the same execution scopes, edges, primitive authority, destruction integration, and
 fixed-point ownership. If a proposed guarantee cannot fit those contracts without a special-case
 path, the execution model must be corrected before the syntax is accepted.

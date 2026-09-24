@@ -525,10 +525,10 @@ construct Box<T> {
 instance Box<T> {
     impl Display
     /// Reads the value.
-    pub noalloc method &self.get(): &T
+    pub noalloc notrap method &self.get(): &T
 }
 
-pub func braces(): &str { "{}" }
+pub const noalloc notrap func braces(): &str { "{}" }
 `);
     const byQualifiedName = new Map(symbols.map(symbol => [symbol.qualifiedName, symbol]));
     for (const expected of ["Box", "Box.value", "Box.new", "Box.Display", "Box.get", "braces"]) {

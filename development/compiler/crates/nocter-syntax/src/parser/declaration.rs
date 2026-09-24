@@ -91,7 +91,7 @@ fn declaration_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     let destruction = modifiers::scan(
         parser,
         parser.cursor,
-        modifiers::CallablePrefixGrammar::NoAllocationOnly,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
     );
     if parser.contextual_at(destruction.end(), ContextualSpelling::Drop) {
         return Some(DeclarationKind::Drop);
@@ -328,7 +328,10 @@ fn simple_receiver(parser: &mut Parser<'_>, allow_owned: bool) {
 
 fn drop_declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    modifiers::parse(parser, modifiers::CallablePrefixGrammar::NoAllocationOnly);
+    modifiers::parse(
+        parser,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+    );
     parser.expect_contextual(ContextualSpelling::Drop);
     types::declaration_type_pattern(parser);
     parser.expect_punctuation(Punctuation::LeftParen);

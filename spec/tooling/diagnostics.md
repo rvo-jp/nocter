@@ -378,6 +378,11 @@ Source-backed checked-body diagnostics:
   construct or drive its future.
 - `E0423`: a primitive function is marked `const` without a checked source implementation for the
   compile-time evaluator.
+- `E0424`: an asynchronous producer is marked `notrap`, although `future T` does not carry a
+  trap-free drive contract.
+- `E0425`: a `notrap` callable can reach a safety-trapping operation, a callable without a
+  trap-free contract or body proof, a trapping primitive, or destruction whose trap behavior
+  cannot be proven safe.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

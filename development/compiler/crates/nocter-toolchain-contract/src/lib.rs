@@ -51,6 +51,7 @@ closed_role_enum! {
         ExactSizeIteratorInterface,
         ExactSizeIteratorRemainingLenMethod,
         ProcessAbort,
+        ProcessExit,
     }
 }
 
@@ -91,6 +92,7 @@ impl StandardDeclarationRole {
             Self::ExactSizeIteratorInterface => "exact_size_iterator_interface",
             Self::ExactSizeIteratorRemainingLenMethod => "exact_size_iterator_remaining_len_method",
             Self::ProcessAbort => "process_abort",
+            Self::ProcessExit => "process_exit",
         }
     }
 }

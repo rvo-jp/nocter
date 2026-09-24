@@ -425,10 +425,14 @@ fn callable_modifier_completion_follows_the_authored_modifier_order() {
         ("con", &["const"][..]),
         ("const noa", &["noalloc"][..]),
         ("pub noa", &["noalloc"][..]),
+        ("not", &["notrap"][..]),
+        ("noalloc not", &["notrap"][..]),
         ("blo", &["blocking"][..]),
+        ("notrap blo", &["blocking"][..]),
         ("noalloc blo", &["blocking"][..]),
         ("asy", &["async"][..]),
         ("noalloc asy", &[][..]),
+        ("notrap asy", &[][..]),
         ("blocking asy", &[][..]),
         ("struct Value\nconstruct Value {\n    asy", &["async"][..]),
         (
@@ -909,6 +913,37 @@ fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
     assert_eq!(
         inferred.presentation().code(),
         "func inferred(value: i32): i32"
+    );
+}
+
+#[test]
+fn callable_hover_renders_the_authored_notrap_guarantee() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "notrap func identity(value: i32): i32 { return value }\n",
+        "func main(): i32 { return identity(1) }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(72));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "notrap fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let call = source_text.rfind("identity").unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(call).unwrap()))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        subject.presentation().code(),
+        "notrap func identity(value: i32): i32"
     );
 }
 

@@ -141,6 +141,38 @@ fn interface_noalloc_requirements_are_directional() {
 }
 
 #[test]
+fn interface_notrap_requirements_are_directional() {
+    let invalid = Fixture::new(
+        "pub interface Readable { pub notrap method &self.read(): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(): i32 { return 1 }\n}\n",
+    );
+    let input = invalid.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
+    let error = build_interface_implementation_table(
+        &graph,
+        &mut types.transaction(),
+        source_index.diagnostic_origins(),
+    )
+    .unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0352");
+
+    let valid = Fixture::new(
+        "pub interface Readable { pub method &self.read(): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    notrap method &self.read(): i32 { return 1 }\n}\n",
+    );
+    let input = valid.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
+    let (graph, types, _values, _admission) = program.into_parts();
+    build_interface_implementation_table(
+        &graph,
+        &mut types.transaction(),
+        source_index.diagnostic_origins(),
+    )
+    .unwrap();
+}
+
+#[test]
 fn required_methods_preserve_constant_generic_parameter_domains() {
     let fixture = Fixture::new(
         "pub interface FixedSource {\n\

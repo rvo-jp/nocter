@@ -151,6 +151,8 @@ Rules:
 - `expr!` is not stack unwinding.
 - Programs that need a stable message, exit code, or cleanup before termination must handle the
   outcome with `catch` or `otherwise` and call an explicit process API after the required work.
+- Postfix `!` is therefore rejected in a `notrap` callable. `?`, `catch`, and `otherwise` remain
+  available because recoverable failure and absence are not safety traps.
 
 ## Recoverable Failure and Non-Recoverable Termination
 

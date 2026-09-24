@@ -46,7 +46,7 @@ pub use type_projection::{TypeProjection, TypeProjectionError};
 pub use type_store::{
     AllocationGuarantee, ArgumentPack, ArgumentPackType, BorrowCapability, BuiltinType,
     CallableCapability, CallableContract, CallableGuarantees, CallableRepresentation, CallableType,
-    CompileTimeGuarantee, InvalidParameterOrigin, NonblockingGuarantee, TupleElements, TypeCursor,
-    TypeKind, TypeStore, UnknownTypeId,
+    CompileTimeGuarantee, InvalidParameterOrigin, NonblockingGuarantee, TrapGuarantee,
+    TupleElements, TypeCursor, TypeKind, TypeStore, UnknownTypeId,
 };
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};

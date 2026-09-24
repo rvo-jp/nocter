@@ -8,6 +8,7 @@ const fn modifier_node_kind(modifier: CallableModifier) -> NodeKind {
     match modifier {
         CallableModifier::CompileTime => NodeKind::CompileTimeModifier,
         CallableModifier::NoAllocation => NodeKind::NoAllocationModifier,
+        CallableModifier::NoTrap => NodeKind::NoTrapModifier,
         CallableModifier::Blocking => NodeKind::BlockingModifier,
         CallableModifier::Async => NodeKind::AsyncModifier,
     }

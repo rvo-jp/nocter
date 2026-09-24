@@ -45,6 +45,12 @@ unknown primitive effect. The checker consumes the registry fact through declara
 uses the same callable-effect authority as ordinary bodies; the backend does not reinterpret the
 modifier.
 
+A primitive function may publish `notrap` only when the same closed registry certifies that
+invocation cannot enter a source-semantic safety trap. Process abort and process exit have distinct
+non-trapping primitive roles even when a target uses the same instruction family for process
+termination and a safety trap. A source declaration cannot relabel the trap primitive as
+`notrap`.
+
 A primitive function writes `blocking` when invoking it may synchronously wait for external
 progress. The closed primitive registry certifies that effect for the exact declaration role; a
 source modifier cannot downgrade an unknown or blocking primitive to nonblocking. A generic raw

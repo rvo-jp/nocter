@@ -32,7 +32,7 @@ fn member(parser: &mut Parser<'_>) {
     let implicit_prefix = modifiers::scan(
         parser,
         parser.cursor,
-        modifiers::CallablePrefixGrammar::NoAllocationOnly,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
     );
     let implicit = matches!(
         parser.tokens[implicit_prefix.end()].kind(),
@@ -41,7 +41,10 @@ fn member(parser: &mut Parser<'_>) {
     if method {
         modifiers::parse(parser, modifiers::CallablePrefixGrammar::DeferredAllowed);
     } else if implicit {
-        modifiers::parse(parser, modifiers::CallablePrefixGrammar::NoAllocationOnly);
+        modifiers::parse(
+            parser,
+            modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+        );
     }
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Method) => {

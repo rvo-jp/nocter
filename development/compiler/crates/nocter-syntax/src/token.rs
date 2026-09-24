@@ -150,6 +150,7 @@ keywords! {
     Move => "move",
     Never => "never",
     NoAlloc => "noalloc",
+    NoTrap => "notrap",
     None => "none",
     Operator => "operator",
     Otherwise => "otherwise",
@@ -174,6 +175,7 @@ impl From<nocter_language::CallableModifier> for Keyword {
         match modifier {
             nocter_language::CallableModifier::CompileTime => Self::Const,
             nocter_language::CallableModifier::NoAllocation => Self::NoAlloc,
+            nocter_language::CallableModifier::NoTrap => Self::NoTrap,
             nocter_language::CallableModifier::Blocking => Self::Blocking,
             nocter_language::CallableModifier::Async => Self::Async,
         }

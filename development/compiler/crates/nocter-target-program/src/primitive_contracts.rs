@@ -8,8 +8,9 @@ use nocter_declarations::{
     Visibility,
 };
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableId, CompilationTarget, GenericParameterId,
-    NominalTypeId, PackageId, TypeId, TypeKind, TypeStore,
+    AllocationGuarantee, BorrowCapability, BuiltinType, CallableGuarantees, CallableId,
+    CompilationTarget, GenericParameterId, NominalTypeId, NonblockingGuarantee, PackageId,
+    TrapGuarantee, TypeId, TypeKind, TypeStore,
 };
 use nocter_runtime_contract::{RuntimeStorageRegistry, RuntimeStorageRole};
 
@@ -181,21 +182,7 @@ fn validate_identity(
     if declaration.kind() != CallableKind::Primitive || declaration.receiver().is_some() {
         return Err(PrimitiveContractRule::CallableKind);
     }
-    if matches!(
-        declaration.guarantees().allocation(),
-        nocter_model::AllocationGuarantee::NoAllocation
-    ) && role.execution_facts().may_allocate()
-    {
-        return Err(PrimitiveContractRule::AllocationGuarantee);
-    }
-    let expected_nonblocking = if role.execution_facts().may_block() {
-        nocter_model::NonblockingGuarantee::Unspecified
-    } else {
-        nocter_model::NonblockingGuarantee::Nonblocking
-    };
-    if declaration.guarantees().nonblocking() != expected_nonblocking {
-        return Err(PrimitiveContractRule::BlockingGuarantee);
-    }
+    validate_authored_guarantees(role, declaration.guarantees())?;
     let site = graph
         .declaration_sites()
         .get(declaration.site())
@@ -207,6 +194,29 @@ fn validate_identity(
     };
     if site.module() != module || site.visibility() != expected_visibility {
         return Err(PrimitiveContractRule::Visibility);
+    }
+    Ok(())
+}
+
+fn validate_authored_guarantees(
+    role: PrimitiveRole,
+    guarantees: CallableGuarantees,
+) -> Result<(), PrimitiveContractRule> {
+    let facts = role.execution_facts();
+    if matches!(guarantees.allocation(), AllocationGuarantee::NoAllocation) && facts.may_allocate()
+    {
+        return Err(PrimitiveContractRule::AllocationGuarantee);
+    }
+    let expected_nonblocking = if facts.may_block() {
+        NonblockingGuarantee::Unspecified
+    } else {
+        NonblockingGuarantee::Nonblocking
+    };
+    if guarantees.nonblocking() != expected_nonblocking {
+        return Err(PrimitiveContractRule::BlockingGuarantee);
+    }
+    if matches!(guarantees.trap(), TrapGuarantee::NoTrap) && facts.may_source_trap() {
+        return Err(PrimitiveContractRule::TrapGuarantee);
     }
     Ok(())
 }
@@ -1373,13 +1383,20 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             )
         }
         PrimitiveRole::Trap => make(0, vec![], never(), package, arm64_darwin, vec![]),
-        PrimitiveRole::Unreachable => make(0, vec![], never(), private, arm64_darwin, vec![]),
+        PrimitiveRole::ProcessAbort | PrimitiveRole::Unreachable => {
+            make(0, vec![], never(), private, arm64_darwin, vec![])
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PrimitiveContractRule, TypeContract, contract, validate_role_effects};
+    use nocter_model::CallableGuarantees;
+
+    use super::{
+        PrimitiveContractRule, TypeContract, contract, validate_authored_guarantees,
+        validate_role_effects,
+    };
     use crate::PrimitiveRole;
 
     #[test]
@@ -1406,6 +1423,31 @@ mod tests {
         assert_eq!(
             validate_role_effects(PrimitiveRole::MonotonicDeadline, &invalid),
             Err(PrimitiveContractRule::FutureDriveGuarantee)
+        );
+    }
+
+    #[test]
+    fn trapping_primitives_cannot_claim_a_notrap_source_contract() {
+        assert_eq!(
+            validate_authored_guarantees(
+                PrimitiveRole::Trap,
+                CallableGuarantees::no_allocation().no_trap(),
+            ),
+            Err(PrimitiveContractRule::TrapGuarantee)
+        );
+        assert_eq!(
+            validate_authored_guarantees(
+                PrimitiveRole::AllocationAbort,
+                CallableGuarantees::no_allocation().no_trap(),
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            validate_authored_guarantees(
+                PrimitiveRole::ProcessAbort,
+                CallableGuarantees::no_allocation().no_trap(),
+            ),
+            Ok(())
         );
     }
 }

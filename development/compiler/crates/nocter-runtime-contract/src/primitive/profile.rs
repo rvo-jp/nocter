@@ -25,19 +25,26 @@ impl PrimitiveRuntimeProfile {
 const INERT_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
     may_allocate: false,
     may_block: false,
+    may_source_trap: false,
     produced_computation: PrimitiveProducedComputation::None,
-};
-const ALLOCATING_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
-    may_allocate: true,
-    ..INERT_EXECUTION
 };
 const BLOCKING_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
     may_block: true,
     ..INERT_EXECUTION
 };
+const TRAPPING_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
+    may_source_trap: true,
+    ..INERT_EXECUTION
+};
+const ALLOCATING_TRAPPING_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
+    may_allocate: true,
+    may_source_trap: true,
+    ..INERT_EXECUTION
+};
 const ALLOCATING_FUTURE_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
     may_allocate: true,
     may_block: false,
+    may_source_trap: false,
     produced_computation: PrimitiveProducedComputation::DriveSafeFuture,
 };
 const PREALLOCATED_FUTURE_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
@@ -63,10 +70,12 @@ const BOTH_CONTEXTS: PrimitiveContexts = PrimitiveContexts {
 };
 
 const PLAIN: PrimitiveRuntimeProfile = PrimitiveRuntimeProfile::new(INERT_EXECUTION, NO_CONTEXT);
-const ALLOCATING: PrimitiveRuntimeProfile =
-    PrimitiveRuntimeProfile::new(ALLOCATING_EXECUTION, NO_CONTEXT);
 const BLOCKING: PrimitiveRuntimeProfile =
     PrimitiveRuntimeProfile::new(BLOCKING_EXECUTION, NO_CONTEXT);
+const TRAPPING: PrimitiveRuntimeProfile =
+    PrimitiveRuntimeProfile::new(TRAPPING_EXECUTION, NO_CONTEXT);
+const ALLOCATING_TRAPPING: PrimitiveRuntimeProfile =
+    PrimitiveRuntimeProfile::new(ALLOCATING_TRAPPING_EXECUTION, NO_CONTEXT);
 const ALLOCATION_CONTEXT: PrimitiveRuntimeProfile =
     PrimitiveRuntimeProfile::new(INERT_EXECUTION, ALLOCATION_ONLY);
 const PROCESS_CONTEXT: PrimitiveRuntimeProfile =
@@ -97,7 +106,7 @@ impl PrimitiveRole {
     )]
     const fn runtime_profile(self) -> PrimitiveRuntimeProfile {
         match self {
-            Self::DropValueAtPointer => ALLOCATING,
+            Self::DropValueAtPointer => ALLOCATING_TRAPPING,
             Self::TimeoutWait
             | Self::NetworkConnectionReceiveEvent
             | Self::NetworkConnectionReleaseBarrier
@@ -243,6 +252,7 @@ impl PrimitiveRole {
             | Self::U64BitwiseXor
             | Self::U64RotateRight
             | Self::U64LeadingZeros
+            | Self::ProcessAbort
             | Self::ProcessExit
             | Self::ProcessFork
             | Self::ProcessOpenNull
@@ -292,9 +302,43 @@ impl PrimitiveRole {
             | Self::NetworkListenerPort
             | Self::NetworkListenerRequestCancel
             | Self::NetworkListenerRelease
-            | Self::NetworkListenerDispose
-            | Self::Trap
-            | Self::Unreachable => PLAIN,
+            | Self::NetworkListenerDispose => PLAIN,
+            Self::Trap | Self::Unreachable => TRAPPING,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PrimitiveRole;
+
+    #[test]
+    fn only_source_trap_primitives_carry_trap_evidence() {
+        assert!(PrimitiveRole::Trap.execution_facts().may_source_trap());
+        assert!(
+            PrimitiveRole::Unreachable
+                .execution_facts()
+                .may_source_trap()
+        );
+        assert!(
+            PrimitiveRole::DropValueAtPointer
+                .execution_facts()
+                .may_source_trap()
+        );
+        assert!(
+            !PrimitiveRole::AllocationAbort
+                .execution_facts()
+                .may_source_trap()
+        );
+        assert!(
+            !PrimitiveRole::ProcessExit
+                .execution_facts()
+                .may_source_trap()
+        );
+        assert!(
+            !PrimitiveRole::ProcessAbort
+                .execution_facts()
+                .may_source_trap()
+        );
     }
 }

@@ -23,14 +23,17 @@ fn member(parser: &mut Parser<'_>) {
     let literal_prefix = modifiers::scan(
         parser,
         parser.cursor,
-        modifiers::CallablePrefixGrammar::NoAllocationOnly,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
     );
     let literal =
         parser.tokens[literal_prefix.end()].kind() == TokenKind::Keyword(Keyword::Literal);
     if function {
         modifiers::parse(parser, modifiers::CallablePrefixGrammar::DeferredAllowed);
     } else if literal {
-        modifiers::parse(parser, modifiers::CallablePrefixGrammar::NoAllocationOnly);
+        modifiers::parse(
+            parser,
+            modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+        );
     }
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Func) => {

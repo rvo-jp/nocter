@@ -657,3 +657,10 @@ Rules:
 - General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation.
 - Wrapping arithmetic is not unchecked arithmetic. It must be exposed through explicit numeric APIs.
 - Target overlays and compiler primitive lowering may use target-specific machine instructions internally, but that must not expose undefined behavior to ordinary Nocter code.
+
+An immediate callable may publish `notrap` when every reachable source operation is proven unable
+to enter these safety-trap paths. The guarantee is transitive through calls, selected operations,
+callbacks, closures, and implicit destruction. Conservative checking may reject a body whose
+safety depends on a value fact that the compiler cannot prove; use a recoverable operation or an
+explicit non-trapping standard API in that case. Process termination through `process.abort` or
+`process.exit` is not a safety trap and does not violate `notrap`.

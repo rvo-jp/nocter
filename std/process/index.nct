@@ -227,7 +227,7 @@ pub blocking func cwd(): String!
 pub blocking func try_cwd(allocator: &+TryAllocator): String!
 
 /// Terminates the process with `code` and does not return.
-pub func exit(code: i32): never
+pub notrap func exit(code: i32): never
 
 /// Terminates the process immediately with an unsuccessful status.
-pub func abort(): never
+pub notrap func abort(): never

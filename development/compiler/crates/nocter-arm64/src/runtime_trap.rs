@@ -21,6 +21,7 @@ pub(crate) enum Arm64RuntimeTrap {
     AsyncWaitFailure,
     AsyncWaitReleaseFailure,
     ErasedCallableReleaseFailure,
+    ProcessAbort,
 }
 
 impl Arm64RuntimeTrap {
@@ -43,6 +44,7 @@ impl Arm64RuntimeTrap {
             Self::AsyncWaitFailure => 15,
             Self::AsyncWaitReleaseFailure => 16,
             Self::ErasedCallableReleaseFailure => 17,
+            Self::ProcessAbort => 18,
         }
     }
 }

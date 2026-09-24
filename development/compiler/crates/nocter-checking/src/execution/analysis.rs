@@ -2,12 +2,12 @@ use std::collections::{BTreeMap, HashSet};
 
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
-    AllocationGuarantee, ArenaBuilder, BodyNodeId, CallableGuarantees, CallableId, ClosureId,
-    DropId, LoopId, NonblockingGuarantee, PlaceId, TypeStore,
+    AllocationGuarantee, ArenaBuilder, BodyNodeId, BuiltinType, CallableGuarantees, CallableId,
+    ClosureId, DropId, LoopId, NonblockingGuarantee, PlaceId, TrapGuarantee, TypeKind, TypeStore,
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
-use super::{AllocationFact, ExecutionFactTable, ExecutionFacts};
+use super::{AllocationFact, ExecutionFactTable, ExecutionFacts, TrapFact};
 use crate::body_relations::BodyRelationCatalog;
 use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckInternalError,
@@ -149,6 +149,11 @@ fn initial_callable_facts(bodyless: bool, guarantees: CallableGuarantees) -> Exe
             AllocationFact::NoAllocation
         },
         admitted.synchronous_wait(),
+        if bodyless {
+            admitted.trap()
+        } else {
+            TrapFact::NoTrap
+        },
     )
 }
 
@@ -182,6 +187,13 @@ fn blocking_cause(
     execution_cause(relations, summaries, |facts| {
         facts.synchronous_wait().may_block()
     })
+}
+
+fn trap_cause(
+    relations: &RootRelations,
+    summaries: &Summaries,
+) -> Result<Option<BodyNodeId>, BodyRelationError> {
+    execution_cause(relations, summaries, |facts| facts.trap().may_trap())
 }
 
 fn execution_cause(
@@ -255,26 +267,14 @@ fn validate_contracts(
         let root_facts = facts
             .get(&Root::Callable(callable))
             .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
-        if guaranteed_noalloc(declaration.guarantees()) && execution.allocation().may_allocate() {
-            return contract_error(
-                inputs,
-                body,
-                allocation_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
-                BodyRule::NoAllocationContractViolation,
-            );
-        }
-        if guaranteed_nonblocking(declaration.guarantees())
-            && execution.synchronous_wait().may_block()
-        {
-            return contract_error(
-                inputs,
-                body,
-                blocking_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
-                BodyRule::BlockingContractViolation,
-            );
-        }
+        validate_execution_bounds(
+            inputs,
+            body,
+            root_facts,
+            summaries,
+            execution,
+            declaration.guarantees(),
+        )?;
     }
     for (drop, declaration) in graph.declarations().drops().iter() {
         let execution = summaries
@@ -285,24 +285,14 @@ fn validate_contracts(
         let root_facts = facts
             .get(&Root::Drop(drop))
             .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
-        if guaranteed_noalloc(declaration.guarantees()) && execution.allocation().may_allocate() {
-            return contract_error(
-                inputs,
-                declaration.body(),
-                allocation_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
-                BodyRule::NoAllocationContractViolation,
-            );
-        }
-        if execution.synchronous_wait().may_block() {
-            return contract_error(
-                inputs,
-                declaration.body(),
-                blocking_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
-                BodyRule::BlockingContractViolation,
-            );
-        }
+        validate_execution_bounds(
+            inputs,
+            declaration.body(),
+            root_facts,
+            summaries,
+            execution,
+            declaration.guarantees(),
+        )?;
     }
     for (closure, definition) in closures.definitions().iter() {
         let execution = summaries
@@ -313,34 +303,65 @@ fn validate_contracts(
         let root_facts = facts
             .get(&Root::Closure(closure))
             .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
-        if definition
+        let guarantees = definition
             .callable_requirements()
             .iter()
-            .any(|contract| guaranteed_noalloc(contract.guarantees()))
-            && execution.allocation().may_allocate()
-        {
-            return contract_error(
-                inputs,
-                definition.owner(),
-                allocation_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
-                BodyRule::NoAllocationContractViolation,
-            );
-        }
-        if definition
-            .callable_requirements()
-            .iter()
-            .any(|contract| guaranteed_nonblocking(contract.guarantees()))
-            && execution.synchronous_wait().may_block()
-        {
-            return contract_error(
-                inputs,
-                definition.owner(),
-                blocking_cause(root_facts, summaries)?
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?,
-                BodyRule::BlockingContractViolation,
-            );
-        }
+            .map(nocter_model::CallableContract::guarantees);
+        validate_execution_requirements(
+            inputs,
+            definition.owner(),
+            root_facts,
+            summaries,
+            execution,
+            guarantees,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_execution_bounds(
+    inputs: &BodyRelationCatalog<'_>,
+    body: nocter_model::BodyId,
+    relations: &RootRelations,
+    summaries: &Summaries,
+    execution: ExecutionFacts,
+    guarantees: CallableGuarantees,
+) -> Result<(), BodyRelationError> {
+    validate_execution_requirements(inputs, body, relations, summaries, execution, [guarantees])
+}
+
+fn validate_execution_requirements(
+    inputs: &BodyRelationCatalog<'_>,
+    body: nocter_model::BodyId,
+    relations: &RootRelations,
+    summaries: &Summaries,
+    execution: ExecutionFacts,
+    guarantees: impl IntoIterator<Item = CallableGuarantees>,
+) -> Result<(), BodyRelationError> {
+    let (requires_noalloc, requires_nonblocking, requires_notrap) = guarantees.into_iter().fold(
+        (false, false, false),
+        |(noalloc, nonblocking, notrap), guarantees| {
+            (
+                noalloc || guaranteed_noalloc(guarantees),
+                nonblocking || guaranteed_nonblocking(guarantees),
+                notrap || guaranteed_notrap(guarantees),
+            )
+        },
+    );
+    if requires_noalloc && execution.allocation().may_allocate() {
+        let cause = allocation_cause(relations, summaries)?
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+        return contract_error(inputs, body, cause, BodyRule::NoAllocationContractViolation);
+    }
+    if requires_nonblocking && execution.synchronous_wait().may_block() {
+        let cause = blocking_cause(relations, summaries)?
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+        return contract_error(inputs, body, cause, BodyRule::BlockingContractViolation);
+    }
+    if requires_notrap && execution.trap().may_trap() {
+        let cause =
+            trap_cause(relations, summaries)?.ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+        return contract_error(inputs, body, cause, BodyRule::NoTrapContractViolation);
     }
     Ok(())
 }
@@ -387,6 +408,10 @@ const fn guaranteed_noalloc(guarantees: CallableGuarantees) -> bool {
 
 const fn guaranteed_nonblocking(guarantees: CallableGuarantees) -> bool {
     matches!(guarantees.nonblocking(), NonblockingGuarantee::Nonblocking)
+}
+
+const fn guaranteed_notrap(guarantees: CallableGuarantees) -> bool {
+    matches!(guarantees.trap(), TrapGuarantee::NoTrap)
 }
 
 struct Collector<'program> {
@@ -546,16 +571,21 @@ impl<'program> Collector<'program> {
                     }
                 }
             }
-            CheckedOperation::Primitive(primitive) => match primitive {
-                PrimitiveOperation::Unary { operand, .. }
-                | PrimitiveOperation::NumericConversion { operand, .. } => {
-                    self.visit_node(*operand)?;
+            CheckedOperation::Primitive(primitive) => {
+                match primitive {
+                    PrimitiveOperation::Unary { operand, .. }
+                    | PrimitiveOperation::NumericConversion { operand, .. } => {
+                        self.visit_node(*operand)?;
+                    }
+                    PrimitiveOperation::Binary { left, right, .. } => {
+                        self.visit_node(*left)?;
+                        self.visit_node(*right)?;
+                    }
                 }
-                PrimitiveOperation::Binary { left, right, .. } => {
-                    self.visit_node(*left)?;
-                    self.visit_node(*right)?;
+                if self.primitive_may_trap(primitive)? {
+                    self.record_direct_trap(node);
                 }
-            },
+            }
             CheckedOperation::Aggregate(aggregate) => match aggregate {
                 AggregateConstruction::Struct { fields, .. } => {
                     for (_, value) in fields {
@@ -573,7 +603,12 @@ impl<'program> Collector<'program> {
                     self.visit_node(*value)?;
                 }
             },
-            CheckedOperation::Outcome(outcome) => self.visit_outcome(outcome)?,
+            CheckedOperation::Outcome(outcome) => {
+                self.visit_outcome(outcome)?;
+                if matches!(outcome, CheckedOutcome::Force { .. }) {
+                    self.record_direct_trap(node);
+                }
+            }
             CheckedOperation::OpaqueWitness(witness) => self.visit_node(witness.value())?,
             CheckedOperation::Closure(closure) => {
                 for capture in closure.captures() {
@@ -666,6 +701,7 @@ impl<'program> Collector<'program> {
                 } => {
                     self.visit_iteration(node, iteration.step())?;
                     self.record_selection(node, exact_size)?;
+                    self.record_direct_trap(node);
                 }
             }
         }
@@ -720,10 +756,26 @@ impl<'program> Collector<'program> {
                 }
             }
             CheckedControl::Bind { initializer, .. } => self.visit_node(*initializer)?,
-            CheckedControl::Assign { target, value }
-            | CheckedControl::CompoundAssign { target, value, .. } => {
+            CheckedControl::Assign { target, value } => {
                 self.visit_node(*value)?;
                 self.visit_place(*target)?;
+            }
+            CheckedControl::CompoundAssign {
+                target,
+                value,
+                operation,
+            } => {
+                self.visit_node(*value)?;
+                self.visit_place(*target)?;
+                let ty = self
+                    .body
+                    .places()
+                    .get(*target)
+                    .map(crate::CheckedPlace::ty)
+                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+                if self.integer_operation_may_trap(*operation, ty) {
+                    self.record_direct_trap(node);
+                }
             }
             CheckedControl::Discard(value) => self.visit_node(*value)?,
             CheckedControl::Unreachable(_)
@@ -821,7 +873,10 @@ impl<'program> Collector<'program> {
                 PlaceProjection::Field { .. }
                 | PlaceProjection::TupleElement { .. }
                 | PlaceProjection::BorrowDeref { .. } => {}
-                PlaceProjection::BuiltinIndex { index, .. } => self.visit_node(*index)?,
+                PlaceProjection::BuiltinIndex { index, .. } => {
+                    self.visit_node(*index)?;
+                    self.record_direct_trap(*index);
+                }
                 PlaceProjection::CoercedBuiltinIndex {
                     index,
                     receiver_coercion,
@@ -829,6 +884,7 @@ impl<'program> Collector<'program> {
                 } => {
                     self.visit_node(*index)?;
                     self.record_selection(*index, receiver_coercion)?;
+                    self.record_direct_trap(*index);
                 }
                 PlaceProjection::SelectedIndex {
                     index,
@@ -883,6 +939,94 @@ impl<'program> Collector<'program> {
         self.facts
             .direct
             .push((node, ExecutionFacts::allocation_request()));
+    }
+
+    fn record_direct_trap(&mut self, node: BodyNodeId) {
+        self.facts
+            .direct
+            .push((node, ExecutionFacts::trapping_operation()));
+    }
+
+    fn primitive_may_trap(
+        &self,
+        operation: &PrimitiveOperation,
+    ) -> Result<bool, BodyRelationError> {
+        let (operation, operand) = match operation {
+            PrimitiveOperation::Unary {
+                operation: crate::PrimitiveUnary::Negate,
+                operand,
+            } => (None, *operand),
+            PrimitiveOperation::Unary {
+                operation: crate::PrimitiveUnary::LogicalNot,
+                ..
+            }
+            | PrimitiveOperation::NumericConversion { .. } => return Ok(false),
+            PrimitiveOperation::Binary {
+                operation, left, ..
+            } => (Some(*operation), *left),
+        };
+        let ty = self
+            .body
+            .nodes()
+            .get(operand)
+            .map(crate::CheckedNode::ty)
+            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
+        Ok(match operation {
+            Some(operation) => self.integer_operation_may_trap(operation, ty),
+            None => self.is_signed_integer(ty),
+        })
+    }
+
+    fn integer_operation_may_trap(
+        &self,
+        operation: crate::PrimitiveBinary,
+        ty: nocter_model::TypeId,
+    ) -> bool {
+        if !self.is_integer(ty) {
+            return false;
+        }
+        matches!(
+            operation,
+            crate::PrimitiveBinary::Add
+                | crate::PrimitiveBinary::Subtract
+                | crate::PrimitiveBinary::Multiply
+                | crate::PrimitiveBinary::Divide
+                | crate::PrimitiveBinary::Remainder
+                | crate::PrimitiveBinary::ShiftLeft
+                | crate::PrimitiveBinary::ShiftRightSigned
+                | crate::PrimitiveBinary::ShiftRightUnsigned
+        )
+    }
+
+    fn is_integer(&self, ty: nocter_model::TypeId) -> bool {
+        matches!(
+            self.types.get(ty),
+            Some(TypeKind::Builtin(
+                BuiltinType::I8
+                    | BuiltinType::I16
+                    | BuiltinType::I32
+                    | BuiltinType::I64
+                    | BuiltinType::Isize
+                    | BuiltinType::U8
+                    | BuiltinType::U16
+                    | BuiltinType::U32
+                    | BuiltinType::U64
+                    | BuiltinType::Usize
+            ))
+        )
+    }
+
+    fn is_signed_integer(&self, ty: nocter_model::TypeId) -> bool {
+        matches!(
+            self.types.get(ty),
+            Some(TypeKind::Builtin(
+                BuiltinType::I8
+                    | BuiltinType::I16
+                    | BuiltinType::I32
+                    | BuiltinType::I64
+                    | BuiltinType::Isize
+            ))
+        )
     }
 
     fn record_selection(

@@ -45,6 +45,7 @@ pub enum BodyRule {
     InvalidOpaqueWitness,
     InvalidArgumentPackUse,
     NoAllocationContractViolation,
+    NoTrapContractViolation,
     BlockingContractViolation,
     UnknownTupleElement,
     AwaitOutsideDeferredBody,
@@ -98,6 +99,7 @@ impl BodyRule {
         Self::InvalidOpaqueWitness,
         Self::InvalidArgumentPackUse,
         Self::NoAllocationContractViolation,
+        Self::NoTrapContractViolation,
         Self::BlockingContractViolation,
         Self::UnknownTupleElement,
         Self::AwaitOutsideDeferredBody,
@@ -152,6 +154,7 @@ impl BodyRule {
             Self::InvalidOpaqueWitness => DiagnosticCode::E0408,
             Self::InvalidArgumentPackUse => DiagnosticCode::E0409,
             Self::NoAllocationContractViolation => DiagnosticCode::E0411,
+            Self::NoTrapContractViolation => DiagnosticCode::E0425,
             Self::BlockingContractViolation => DiagnosticCode::E0417,
             Self::UnknownTupleElement => DiagnosticCode::E0413,
             Self::AwaitOutsideDeferredBody => DiagnosticCode::E0415,
@@ -203,6 +206,10 @@ impl BodyRule {
             Self::NoAllocationContractViolation => (
                 "operation may allocate inside a `noalloc` contract",
                 "remove the allocation path or remove `noalloc` from the callable contract",
+            ),
+            Self::NoTrapContractViolation => (
+                "operation may trap inside a `notrap` contract",
+                "remove the trapping path, use a recoverable operation, or remove `notrap` from the callable contract",
             ),
             Self::BlockingContractViolation => (
                 "operation may synchronously wait inside a nonblocking contract",

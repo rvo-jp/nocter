@@ -7,6 +7,7 @@ use nocter_source_index::{DiagnosticOrigins, SemanticEntity};
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CallableContractRule {
     DeferredNoAllocation,
+    DeferredNoTrap,
     DeferredBlocking,
     DeferredCompileTime,
     PrimitiveCompileTime,
@@ -15,6 +16,7 @@ pub enum CallableContractRule {
 impl CallableContractRule {
     pub const ALL: &'static [Self] = &[
         Self::DeferredNoAllocation,
+        Self::DeferredNoTrap,
         Self::DeferredBlocking,
         Self::DeferredCompileTime,
         Self::PrimitiveCompileTime,
@@ -24,6 +26,7 @@ impl CallableContractRule {
     pub const fn code(self) -> DiagnosticCode {
         match self {
             Self::DeferredNoAllocation => DiagnosticCode::E0374,
+            Self::DeferredNoTrap => DiagnosticCode::E0424,
             Self::DeferredBlocking => DiagnosticCode::E0418,
             Self::DeferredCompileTime => DiagnosticCode::E0422,
             Self::PrimitiveCompileTime => DiagnosticCode::E0423,
@@ -35,6 +38,10 @@ impl CallableContractRule {
             Self::DeferredNoAllocation => (
                 "an asynchronous producer cannot promise `noalloc`",
                 "remove `noalloc`; creating the owning computation requires storage",
+            ),
+            Self::DeferredNoTrap => (
+                "an asynchronous producer cannot promise `notrap`",
+                "remove `notrap`; `future T` does not carry a trap-free drive contract",
             ),
             Self::DeferredBlocking => (
                 "an asynchronous producer cannot admit synchronous blocking",
@@ -57,6 +64,7 @@ impl From<CallableContractViolation> for CallableContractRule {
     fn from(violation: CallableContractViolation) -> Self {
         match violation {
             CallableContractViolation::DeferredNoAllocation => Self::DeferredNoAllocation,
+            CallableContractViolation::DeferredNoTrap => Self::DeferredNoTrap,
             CallableContractViolation::DeferredBlocking => Self::DeferredBlocking,
             CallableContractViolation::DeferredCompileTime => Self::DeferredCompileTime,
             CallableContractViolation::PrimitiveCompileTime => Self::PrimitiveCompileTime,
@@ -149,6 +157,10 @@ mod tests {
             (
                 "blocking async func impossible(): i32 { return 1 }\n",
                 "E0418",
+            ),
+            (
+                "notrap async func impossible(): i32 { return 1 }\n",
+                "E0424",
             ),
             ("const async func impossible(): i32 { return 1 }\n", "E0422"),
         ] {

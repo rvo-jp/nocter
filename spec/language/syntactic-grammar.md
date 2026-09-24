@@ -252,13 +252,14 @@ visibility. The semantic rules are defined by
 ## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? AsyncModifier? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
-                    | Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? "primitive" "func" Name GenericParameters? Parameters
+                    | Visibility? CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? "primitive" "func" Name GenericParameters? Parameters
                       CallableTail
 
 CompileTimeModifier = "const"
 NoAllocModifier = "noalloc"
+NoTrapModifier = "notrap"
 BlockingModifier = "blocking"
 AsyncModifier = "async"
 
@@ -278,11 +279,13 @@ here does not create an open user-defined primitive-type facility.
 
 `CompileTimeModifier` promises that the same ordinary callable implementation is available to the
 compile-time evaluator. Its canonical position follows visibility and precedes `noalloc`.
-`blocking` admits synchronous waiting by an immediate function or primitive function. Its canonical
-position follows `noalloc` and precedes `async` or `primitive`. An unqualified public function does
+`NoTrapModifier` promises that immediate execution cannot reach a source-semantic safety trap. Its
+canonical position follows `noalloc` and precedes `blocking`. `blocking` admits synchronous waiting
+by an immediate function or primitive function. Its canonical position follows `notrap` and
+precedes `async` or `primitive`. An unqualified public function does
 not admit synchronous waiting. `async` is admitted only on an ordinary function. Its canonical
 position follows `blocking` and precedes `func`; it has no primitive-function production.
-Combining `async` with `const`, `noalloc`, or `blocking` is a semantic error. A primitive function
+Combining `async` with `const`, `noalloc`, `notrap`, or `blocking` is a semantic error. A primitive function
 cannot promise `const` because it has no checked source body for the compile-time evaluator. The
 `async` modifier declares deferred execution and is independent of the callable's result type.
 
@@ -327,8 +330,8 @@ InterfaceMember = AssociatedTypeDeclaration
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
-PublicInterfaceMethod = "pub" CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? "default"? MethodSignature CallableBody
-ImplementationInterfaceMethod = CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? "default" MethodSignature Block
+PublicInterfaceMethod = "pub" CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? AsyncModifier? "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? AsyncModifier? "default" MethodSignature Block
 ```
 
 An interface contract member always writes bare `pub`; it cannot narrow its visibility
@@ -336,10 +339,11 @@ independently from the interface. A method without `default` is a bodyless requi
 with `default` is reusable behavior and either carries a block inline or omits it as an eligible
 root contract. The matching private interface fragment writes `default method` without visibility
 and must carry the body. A block on a method without `default` is invalid.
-`blocking` and `async` have the same canonical positions and meanings as on a function. An
-interface requirement and its private contract body must agree on both modifiers. A nonblocking
+`noalloc`, `notrap`, `blocking`, and `async` have the same canonical positions and meanings as on a
+function. An interface requirement and its private contract body must agree on every authored
+guarantee and execution modifier. A nonblocking
 inherent method may satisfy a `blocking` interface requirement, but a blocking method cannot
-satisfy an unqualified requirement. Combining `async` with `const`, `noalloc`, or `blocking` is
+satisfy an unqualified requirement. Combining `async` with `const`, `noalloc`, `notrap`, or `blocking` is
 invalid.
 Fields, operators, coercions, construction entries, drop declarations, and tests have no interface
 member production.
@@ -353,8 +357,8 @@ ConstructDeclaration = "construct" DeclarationTypePattern
 ConstructBody = "{" newline* ConstructMember
                 (newline+ ConstructMember)* newline* "}"
 
-ConstructMember = Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? ConstructionFunction
-                | Visibility? NoAllocModifier? LiteralDeclaration
+ConstructMember = Visibility? CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? AsyncModifier? ConstructionFunction
+                | Visibility? NoAllocModifier? NoTrapModifier? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
                        CallableTail CallableBody
@@ -389,7 +393,7 @@ InstanceMember = InherentMethod
                | IndexOperator
                | ExpansionOperator
 
-InherentMethod = Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? MethodSignature CallableBody
+InherentMethod = Visibility? CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? AsyncModifier? MethodSignature CallableBody
 
 InterfaceImplementation = "impl" InterfaceApplication
 
@@ -402,26 +406,27 @@ MethodSignature = "method" Receiver "." Name GenericParameters? Parameters Calla
 Receiver = SimpleReceiver | "(" SimpleReceiver ProvenanceClause ")"
 SimpleReceiver = "&" "self" | "&+" "self" | "self"
 
-An inherent method follows the same `blocking`, `async`, and `noalloc` rules as a function.
+An inherent method follows the same `blocking`, `async`, `noalloc`, and `notrap` rules as a function.
 Literals, coercions, operators, expansion, and destruction have no `blocking` production and must
-remain nonblocking because they may be invoked implicitly.
+remain nonblocking because they may be invoked implicitly. They may publish `noalloc` and `notrap`
+when their implementations satisfy those independent guarantees.
 
-CoercionDeclaration = Visibility? NoAllocModifier? "coerce" BorrowReceiver "as" Type
+CoercionDeclaration = Visibility? NoAllocModifier? NoTrapModifier? "coerce" BorrowReceiver "as" Type
                       CoercionProvenance? CallableBody
 BorrowReceiver = "&" "self" | "&+" "self"
 CoercionProvenance = "from" "self"
 
-EqualityOperator = Visibility? NoAllocModifier? "operator" "(" "&" "self" "==" Name ":" "&" "Self" ")"
+EqualityOperator = Visibility? NoAllocModifier? NoTrapModifier? "operator" "(" "&" "self" "==" Name ":" "&" "Self" ")"
                    ":" "bool" WhereClause? CallableBody
 
-OrderingOperator = Visibility? NoAllocModifier? "operator" "(" "&" "self" "<" Name ":" "&" "Self" ")"
+OrderingOperator = Visibility? NoAllocModifier? NoTrapModifier? "operator" "(" "&" "self" "<" Name ":" "&" "Self" ")"
                    ":" "bool" WhereClause? CallableBody
 
-IndexOperator = Visibility? NoAllocModifier? "operator" "(" IndexReceiver "[" ParameterContract "]" ")"
+IndexOperator = Visibility? NoAllocModifier? NoTrapModifier? "operator" "(" IndexReceiver "[" ParameterContract "]" ")"
                 ":" BorrowType ProvenanceClause? WhereClause? CallableBody
 IndexReceiver = "&" "self" | "&+" "self"
 
-ExpansionOperator = Visibility? NoAllocModifier? "operator" "(" "..." ExpansionReceiver ")"
+ExpansionOperator = Visibility? NoAllocModifier? NoTrapModifier? "operator" "(" "..." ExpansionReceiver ")"
                     ":" Type ProvenanceClause? WhereClause? CallableBody
 ExpansionReceiver = "&" "self" | "&+" "self" | "self"
 ```
@@ -459,7 +464,7 @@ target kind is legal for `construct`, `instance`, or `drop`.
 ## Drop and Test Declarations
 
 ```text
-DropDeclaration = NoAllocModifier? "drop" DeclarationTypePattern "(" "&+" "self" ")" Block
+DropDeclaration = NoAllocModifier? NoTrapModifier? "drop" DeclarationTypePattern "(" "&+" "self" ")" Block
 TestDeclaration = "test" Name Block
 ```
 
@@ -549,7 +554,7 @@ FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
 TupleType = "(" Type "," Type ("," Type)* ","? ")"
 
-CallableType = CompileTimeModifier? NoAllocModifier? BlockingModifier? CallableCapability "func" "(" List(CallableParameter) ")"
+CallableType = CompileTimeModifier? NoAllocModifier? NoTrapModifier? BlockingModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
 ErasedCallableType = "any" CallableType
 CallableCapability = ("&" | "&+")?
@@ -592,10 +597,11 @@ An unprefixed callable type remains statically witnessed. Prefixing the complete
 `any` selects its distinct sized erased representation; `any` cannot prefix another type form.
 
 `CompileTimeModifier` is accepted on function declarations, construction functions, methods, and
-callable types. `NoAllocModifier` is accepted only on callable declarations, drop declarations,
-and callable types. Their canonical positions follow visibility in `const noalloc` order and
+callable types. `NoAllocModifier` and `NoTrapModifier` are accepted only on callable declarations,
+drop declarations, and callable types. Their canonical positions follow visibility in
+`const noalloc notrap` order and
 precede `blocking`, `async`, `primitive`, `default`, the callable kind, or the callable capability.
-Repeating either modifier or placing one on a nominal type, constant, interface, instance, test,
+Repeating a modifier or placing one on a nominal type, constant, interface, instance, test,
 parameter, or ordinary type has no production. Construction literals, coercions, operators,
 expansion, and destruction do not accept `CompileTimeModifier`.
 

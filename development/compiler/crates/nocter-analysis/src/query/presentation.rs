@@ -1559,6 +1559,9 @@ impl<'a> Renderer<'a> {
                 CallableModifier::NoAllocation => {
                     guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation
                 }
+                CallableModifier::NoTrap => {
+                    guarantees.trap() == nocter_model::TrapGuarantee::NoTrap
+                }
                 CallableModifier::Blocking => {
                     guarantees.nonblocking() == nocter_model::NonblockingGuarantee::Unspecified
                 }

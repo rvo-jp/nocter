@@ -103,6 +103,7 @@ const fn callable_modifier_detail(modifier: CallableModifier) -> &'static str {
     match modifier {
         CallableModifier::CompileTime => "compile-time callable capability",
         CallableModifier::NoAllocation => "allocation-free callable guarantee",
+        CallableModifier::NoTrap => "trap-free callable guarantee",
         CallableModifier::Blocking => "synchronous waiting callable effect",
         CallableModifier::Async => "deferred producer execution",
     }

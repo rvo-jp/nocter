@@ -142,7 +142,9 @@ pub use copyability::{
     CopyabilityTable,
 };
 pub use enum_pattern_completion::{EnumPatternCompletionCandidate, EnumPatternCompletionError};
-pub use execution::{AllocationFact, ExecutionFactTable, ExecutionFacts, SynchronousWaitFact};
+pub use execution::{
+    AllocationFact, ExecutionFactTable, ExecutionFacts, SynchronousWaitFact, TrapFact,
+};
 pub use expected::{
     ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,
     plan_expected_type,

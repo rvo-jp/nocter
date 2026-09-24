@@ -4,7 +4,9 @@ mod table;
 use crate::{BodyRelationError, ClosureTable, body_relations::BodyRelationCatalog};
 use nocter_model::TypeStore;
 
-pub use table::{AllocationFact, ExecutionFactTable, ExecutionFacts, SynchronousWaitFact};
+pub use table::{
+    AllocationFact, ExecutionFactTable, ExecutionFacts, SynchronousWaitFact, TrapFact,
+};
 
 pub(crate) fn analyze_program_execution(
     environment: &crate::program_environment::ProgramEnvironment,

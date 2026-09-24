@@ -3,6 +3,9 @@
 // It recognizes declaration headers conservatively so documentation navigation and search can
 // address source that has already passed the repository's compiler checks.
 
+const CALLABLE_MODIFIERS = "(?:(?:const|noalloc|notrap|blocking|async)\\s+)*";
+const IMMEDIATE_GUARANTEES = "(?:(?:noalloc|notrap)\\s+)*";
+
 function indexNocterSource(source) {
     const lines = String(source).replace(/\r/g, "").split("\n");
     const symbols = [];
@@ -67,16 +70,16 @@ function recognizeDeclaration(line, parent) {
     }
 
     const typeScope = line.match(/^(construct|instance)\s+(.+?)(?=\s+where\b|\s*\{|$)/)
-        || line.match(/^(drop)\s+([A-Za-z_][A-Za-z0-9_]*(?:<[^>]+>)?)/);
+        || line.match(new RegExp(`^${IMMEDIATE_GUARANTEES}(drop)\\s+([A-Za-z_][A-Za-z0-9_]*(?:<[^>]+>)?)`));
     if (typeScope) {
         const owner = baseTypeName(typeScope[2]);
         return scopedDeclaration(typeScope[1], owner, `${typeScope[1]} ${typeScope[2]}`);
     }
 
-    const method = line.match(/^(?:pub\s+)?(?:(?:noalloc|blocking|async|default)\s+)*method\s+.+?\.([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]+>)?\s*\(/);
+    const method = line.match(new RegExp(`^(?:pub\\s+)?${CALLABLE_MODIFIERS}(?:default\\s+)?method\\s+.+?\\.([A-Za-z_][A-Za-z0-9_]*)\\s*(?:<[^>]+>)?\\s*\\(`));
     if (method) return memberDeclaration("method", method[1], `${method[1]}()`);
 
-    const function_ = line.match(/^(?:pub\s+)?(?:primitive\s+)?(?:(?:noalloc|blocking|async)\s+)*func\s+([A-Za-z_][A-Za-z0-9_]*)/);
+    const function_ = line.match(new RegExp(`^(?:pub\\s+)?${CALLABLE_MODIFIERS}(?:primitive\\s+)?func\\s+([A-Za-z_][A-Za-z0-9_]*)`));
     if (function_) {
         const declaration = memberDeclaration("func", function_[1], `${function_[1]}()`);
         return parent ? declaration : { ...declaration, member: false };
@@ -94,13 +97,13 @@ function recognizeDeclaration(line, parent) {
         return parent ? declaration : { ...declaration, member: false };
     }
 
-    const literal = line.match(/^(?:pub\s+)?(?:default\s+)?literal\s+([^\s(]+)/);
+    const literal = line.match(new RegExp(`^(?:pub\\s+)?${IMMEDIATE_GUARANTEES}literal\\s+([^\\s(]+)`));
     if (literal) return memberDeclaration("literal", literal[1], `literal ${literal[1]}`);
 
-    if (/^(?:pub\s+)?(?:(?:noalloc|blocking|async)\s+)*coerce\b/.test(line)) {
+    if (new RegExp(`^(?:pub\\s+)?${IMMEDIATE_GUARANTEES}coerce\\b`).test(line)) {
         return memberDeclaration("coerce", "coerce", "coerce");
     }
-    if (/^(?:pub\s+)?(?:(?:noalloc|blocking|async)\s+)*operator\b/.test(line)) {
+    if (new RegExp(`^(?:pub\\s+)?${IMMEDIATE_GUARANTEES}operator\\b`).test(line)) {
         return memberDeclaration("operator", "operator", "operator");
     }
 

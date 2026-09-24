@@ -54,6 +54,7 @@ pub enum CallableExecution {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CallableContractViolation {
     DeferredNoAllocation,
+    DeferredNoTrap,
     DeferredBlocking,
     DeferredCompileTime,
     PrimitiveCompileTime,
@@ -65,7 +66,9 @@ const fn callable_contract_violation(
     guarantees: nocter_model::CallableGuarantees,
 ) -> Option<CallableContractViolation> {
     use nocter_language::CallableModifier;
-    use nocter_model::{AllocationGuarantee, CompileTimeGuarantee, NonblockingGuarantee};
+    use nocter_model::{
+        AllocationGuarantee, CompileTimeGuarantee, NonblockingGuarantee, TrapGuarantee,
+    };
 
     if deferred {
         let conflicts = [
@@ -73,6 +76,11 @@ const fn callable_contract_violation(
                 CallableModifier::NoAllocation,
                 matches!(guarantees.allocation(), AllocationGuarantee::NoAllocation),
                 CallableContractViolation::DeferredNoAllocation,
+            ),
+            (
+                CallableModifier::NoTrap,
+                matches!(guarantees.trap(), TrapGuarantee::NoTrap),
+                CallableContractViolation::DeferredNoTrap,
             ),
             (
                 CallableModifier::Blocking,
@@ -672,6 +680,14 @@ mod tests {
 
     #[test]
     fn callable_contract_policy_is_closed_over_kind_execution_and_guarantees() {
+        assert_eq!(
+            callable_contract_violation(
+                CallableKind::Function,
+                true,
+                CallableGuarantees::default().no_trap(),
+            ),
+            Some(CallableContractViolation::DeferredNoTrap)
+        );
         assert_eq!(
             callable_contract_violation(
                 CallableKind::Function,

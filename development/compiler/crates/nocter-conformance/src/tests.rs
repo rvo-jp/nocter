@@ -1469,6 +1469,18 @@ fn process_exit_primitive_crosses_the_native_pipeline() {
 }
 
 #[test]
+fn process_abort_primitive_materializes_without_a_runtime_dependency() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/process\n\
+         notrap func stop(): never { process.abort_for_test() }\n\
+         func main(): i32 { stop() }\n",
+        &[&["process"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+}
+
+#[test]
 fn process_entry_state_crosses_calls_and_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/process\n\

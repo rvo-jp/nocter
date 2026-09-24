@@ -615,6 +615,30 @@ fn parses_blocking_on_explicit_callable_surfaces() {
 }
 
 #[test]
+fn parses_notrap_on_immediate_callable_surfaces() {
+    let tree = assert_syntax_ok(
+        "pub const noalloc notrap func inspect(value: i32): i32 { return value }\n\
+         pub notrap primitive func safe_raw(): i32\n\
+         interface Source { pub notrap method &self.read(): i32 }\n\
+         construct Value { pub notrap func new(): Self\n\
+         pub notrap literal \"\"(text: &str): Self }\n\
+         instance Value { pub notrap method &self.value(): i32\n\
+         pub notrap operator (&self == other: &Self): bool\n\
+         pub notrap coerce &self as &str }\n\
+         notrap drop Value(&+self) {}\n\
+         type Callback = noalloc notrap &func(): void\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::NoTrapModifier)
+            .count(),
+        10
+    );
+}
+
+#[test]
 fn rejects_noncanonical_noalloc_placement() {
     for source in [
         "noalloc pub func invalid(): void {}\n",
@@ -631,6 +655,7 @@ fn rejects_noncanonical_callable_modifier_sequences_in_every_declaration_context
     for source in [
         "noalloc const func invalid(): void {}\n",
         "const blocking noalloc func invalid(): void {}\n",
+        "notrap noalloc func invalid(): void {}\n",
         "interface Value { pub noalloc const method &self.value(): i32 }\n",
         "construct Value { noalloc const func invalid(): Self }\n",
         "instance Value { async blocking method &self.invalid(): void }\n",
