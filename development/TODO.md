@@ -9,9 +9,10 @@ deferred until this source contract is stable.
 
 ## Next Work
 
-Complete v0.69.0 Phase 4 qualification and repository review. Verify compiler, editor,
-standard-library, examples, documentation, and package gates; then evaluate possible new guarantee
-vocabulary against concrete proof and runtime-enforcement mechanisms.
+Decide whether the next milestone should begin a `realtime` feasibility study or return to practical
+application work. Do not add modifier syntax before a representative latency-sensitive application,
+a closed bounded-execution fact domain, and target primitive evidence establish that the promise is
+both useful and enforceable.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
