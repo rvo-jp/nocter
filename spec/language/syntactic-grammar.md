@@ -252,11 +252,12 @@ visibility. The semantic rules are defined by
 ## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? NoAllocModifier? BlockingModifier? AsyncModifier? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
-                    | Visibility? NoAllocModifier? BlockingModifier? "primitive" "func" Name GenericParameters? Parameters
+                    | Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? "primitive" "func" Name GenericParameters? Parameters
                       CallableTail
 
+CompileTimeModifier = "const"
 NoAllocModifier = "noalloc"
 BlockingModifier = "blocking"
 AsyncModifier = "async"
@@ -275,12 +276,14 @@ whether the latter is valid. Semantic toolchain validation restricts `PrimitiveT
 exact closed built-in declaration selected for that source token; accepting a syntactic `Name`
 here does not create an open user-defined primitive-type facility.
 
-`blocking` admits synchronous waiting by an immediate function or primitive function. Its
-canonical position follows `noalloc` and precedes `async` or `primitive`. An unqualified public
-function does not admit synchronous waiting. `async` is admitted only on an ordinary function. Its
-canonical position follows `blocking` and precedes `func`; it has no primitive-function
-production. Combining `async` with either `noalloc` or `blocking` is a semantic error. The `async`
-modifier declares deferred execution and is independent of the callable's result type.
+`CompileTimeModifier` promises that the same ordinary callable implementation is available to the
+compile-time evaluator. Its canonical position follows visibility and precedes `noalloc`.
+`blocking` admits synchronous waiting by an immediate function or primitive function. Its canonical
+position follows `noalloc` and precedes `async` or `primitive`. An unqualified public function does
+not admit synchronous waiting. `async` is admitted only on an ordinary function. Its canonical
+position follows `blocking` and precedes `func`; it has no primitive-function production.
+Combining `async` with either `noalloc` or `blocking` is a semantic error. The `async` modifier
+declares deferred execution and is independent of the callable's result type.
 
 ## Structs and Enums
 
@@ -323,8 +326,8 @@ InterfaceMember = AssociatedTypeDeclaration
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
-PublicInterfaceMethod = "pub" NoAllocModifier? BlockingModifier? AsyncModifier? "default"? MethodSignature CallableBody
-ImplementationInterfaceMethod = NoAllocModifier? BlockingModifier? AsyncModifier? "default" MethodSignature Block
+PublicInterfaceMethod = "pub" CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? "default" MethodSignature Block
 ```
 
 An interface contract member always writes bare `pub`; it cannot narrow its visibility
@@ -349,7 +352,7 @@ ConstructDeclaration = "construct" DeclarationTypePattern
 ConstructBody = "{" newline* ConstructMember
                 (newline+ ConstructMember)* newline* "}"
 
-ConstructMember = Visibility? NoAllocModifier? BlockingModifier? ConstructionFunction
+ConstructMember = Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? ConstructionFunction
                 | Visibility? NoAllocModifier? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
@@ -385,7 +388,7 @@ InstanceMember = InherentMethod
                | IndexOperator
                | ExpansionOperator
 
-InherentMethod = Visibility? NoAllocModifier? BlockingModifier? AsyncModifier? MethodSignature CallableBody
+InherentMethod = Visibility? CompileTimeModifier? NoAllocModifier? BlockingModifier? AsyncModifier? MethodSignature CallableBody
 
 InterfaceImplementation = "impl" InterfaceApplication
 
@@ -545,7 +548,7 @@ FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
 TupleType = "(" Type "," Type ("," Type)* ","? ")"
 
-CallableType = NoAllocModifier? BlockingModifier? CallableCapability "func" "(" List(CallableParameter) ")"
+CallableType = CompileTimeModifier? NoAllocModifier? BlockingModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
 ErasedCallableType = "any" CallableType
 CallableCapability = ("&" | "&+")?
@@ -587,10 +590,13 @@ prefix followed by a separate `func` type. Their leading capability describes in
 An unprefixed callable type remains statically witnessed. Prefixing the complete callable type with
 `any` selects its distinct sized erased representation; `any` cannot prefix another type form.
 
-`NoAllocModifier` is accepted only on callable declarations, drop declarations, and callable
-types. Its canonical position follows visibility and precedes `primitive`, `default`, the callable
-kind, or the callable capability. Repeating it or placing it on a nominal type, constant,
-interface, instance, test, parameter, or ordinary type has no production.
+`CompileTimeModifier` is accepted on function declarations, construction functions, methods, and
+callable types. `NoAllocModifier` is accepted only on callable declarations, drop declarations,
+and callable types. Their canonical positions follow visibility in `const noalloc` order and
+precede `blocking`, `async`, `primitive`, `default`, the callable kind, or the callable capability.
+Repeating either modifier or placing one on a nominal type, constant, interface, instance, test,
+parameter, or ordinary type has no production. Construction literals, coercions, operators,
+expansion, and destruction do not accept `CompileTimeModifier`.
 
 A dotted named type has one syntax-tree shape. Resolution walks it from left to right: a module
 namespace prefix selects one exported type member, while a type prefix selects an associated type.
