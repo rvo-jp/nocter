@@ -2,20 +2,19 @@
 
 ## Current State
 
-Nocter v0.72.0 Flow-Proven Safe Operations is qualified and its public metadata selects the
-retained candidate. Checking owns path-sensitive bounds and integer-arithmetic dispositions; MIR
-and Machine transport them without re-proof; ARM64 consumes the closed Machine contract. Practical
-checked slice observers publish guarantees validated by their complete source bodies. Linux target
-work remains deliberately deferred.
+Nocter v0.72.0 Flow-Proven Safe Operations is published and externally audited. Checking owns
+path-sensitive bounds and integer-arithmetic dispositions; MIR and Machine transport them without
+re-proof; ARM64 consumes the closed Machine contract. Practical checked slice observers publish
+guarantees validated by their complete source bodies. Linux target work remains deliberately
+deferred.
 
 ## Next Work
 
-Publish annotated tag `v0.72.0` and the exact qualified archive without rebuilding it. Then verify
-the tag, single GitHub Release asset, latest-release endpoint, downloaded installed home,
-push-triggered workflows, and source-identified Pages deployment in a release audit. Publication
-is explicitly authorized.
+Define the next milestone from a concrete language or standard-library usability boundary before
+implementation begins. Do not reopen v0.72.0 for unrelated work; preserve its checked safety
+dispositions, qualified artifact, public tag, and external audit as one immutable boundary.
 
-Preserve the v0.71.0 release-content commit, publication tag, retained asset, release notes,
+Preserve the v0.72.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
 requires a new version and a newly qualified archive.
 
