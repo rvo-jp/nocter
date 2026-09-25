@@ -275,10 +275,10 @@ nocter check
 nocter run
 ```
 
-The long-running mode accepts the same configuration sources and publishes its bound address in
-`.http-service-ready`. Send `SIGHUP` after replacing the JSON file to request one complete reload;
-send `SIGINT` or `SIGTERM` for graceful shutdown. The readiness file is removed after successful
-shutdown.
+The long-running mode accepts the same configuration sources and atomically publishes its bound
+address in `.http-service-ready`. Send `SIGHUP` after replacing the JSON file to request one
+complete reload; send `SIGINT` or `SIGTERM` for graceful shutdown. The readiness file is removed
+after successful shutdown.
 
 ```sh
 cd examples/http-service

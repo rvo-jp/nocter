@@ -1178,6 +1178,14 @@ impl OperationalTestProcess {
     fn wait_with_output(mut self) -> std::io::Result<std::process::Output> {
         self.0.take().unwrap().wait_with_output()
     }
+
+    fn stop_with_output(&mut self) -> std::io::Result<std::process::Output> {
+        let mut child = self.0.take().unwrap();
+        if child.try_wait()?.is_none() {
+            child.kill()?;
+        }
+        child.wait_with_output()
+    }
 }
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
@@ -1282,17 +1290,25 @@ fn spawn_operational_service(
 }
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-fn wait_for_operational_readiness(root: &Path) -> std::net::SocketAddr {
+fn wait_for_operational_readiness(
+    root: &Path,
+    process: &mut OperationalTestProcess,
+) -> std::net::SocketAddr {
     use std::thread;
     use std::time::{Duration, Instant};
 
     let ready = root.join(".http-service-ready");
     let deadline = Instant::now() + Duration::from_secs(10);
     while !ready.is_file() {
-        assert!(
-            Instant::now() < deadline,
-            "service did not publish readiness"
-        );
+        if Instant::now() >= deadline {
+            let output = process.stop_with_output().unwrap();
+            panic!(
+                "service did not publish readiness; status: {:?}; stdout: {}; stderr: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
         thread::sleep(Duration::from_millis(10));
     }
     fs::read_to_string(ready).unwrap().parse().unwrap()
@@ -1330,10 +1346,10 @@ fn installed_http_service_reloads_valid_configuration_and_shuts_down_cleanly() {
     )
     .unwrap();
 
-    let child = spawn_operational_service(&executable, &tree.0, &config, &state);
+    let mut child = spawn_operational_service(&executable, &tree.0, &config, &state);
 
     let ready = tree.0.join(".http-service-ready");
-    let address = wait_for_operational_readiness(&tree.0);
+    let address = wait_for_operational_readiness(&tree.0, &mut child);
 
     assert!(operational_http_request(&address).contains("initial-response"));
 
@@ -1381,8 +1397,8 @@ fn installed_http_service_reloads_valid_configuration_and_shuts_down_cleanly() {
     assert!(!state.exists());
 
     let idle_state = tree.0.join("idle-service.state");
-    let idle = spawn_operational_service(&executable, &tree.0, &config, &idle_state);
-    let _idle_address = wait_for_operational_readiness(&tree.0);
+    let mut idle = spawn_operational_service(&executable, &tree.0, &config, &idle_state);
+    let _idle_address = wait_for_operational_readiness(&tree.0, &mut idle);
     send_operational_signal(&idle, "-TERM");
     let idle_output = idle.wait_with_output().unwrap();
     assert_eq!(idle_output.status.code(), Some(0));

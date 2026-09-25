@@ -211,7 +211,7 @@ async func run_operational_service(
     let address = server.local_address()?
     let router = build_router(published.share(), move durable_state)?
     let address_text = address.to_string()
-    await fs.write(".http-service-ready", address_text.bytes())?
+    await fs.write_durable(".http-service-ready", address_text.bytes())?
     let event_output = await serve_until_termination(
         move server,
         move router,
