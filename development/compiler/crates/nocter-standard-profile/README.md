@@ -21,5 +21,7 @@ validate semantic contracts, or orchestrate a compiler session.
   foreign ABI remain in the runtime contract rather than this physical profile.
 - Iteration protocols with repeated member spellings use distinct physical child modules; the
   profile maps each stable role to an exact declaration without making a spelling an identity.
+- View-length roles bind the public `slice` and `str` observation methods that checking may use as
+  symbolic bounds; implementation primitives remain separate runtime roles.
 - A physical-standard test cannot reconstruct a partial bundled profile.
 - Physical source paths and declaration spellings do not enter semantic or backend products.

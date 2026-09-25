@@ -50,6 +50,10 @@ closed_role_enum! {
         AsyncLendingIteratorNextMethod,
         ExactSizeIteratorInterface,
         ExactSizeIteratorRemainingLenMethod,
+        /// Exact slice observation whose result is the receiver view's element length.
+        SliceLengthMethod,
+        /// Exact string-view observation whose result is the receiver view's byte length.
+        StringViewLengthMethod,
         ProcessAbort,
         ProcessExit,
     }
@@ -91,6 +95,8 @@ impl StandardDeclarationRole {
             Self::AsyncLendingIteratorNextMethod => "async_lending_iterator_next_method",
             Self::ExactSizeIteratorInterface => "exact_size_iterator_interface",
             Self::ExactSizeIteratorRemainingLenMethod => "exact_size_iterator_remaining_len_method",
+            Self::SliceLengthMethod => "slice_length_method",
+            Self::StringViewLengthMethod => "string_view_length_method",
             Self::ProcessAbort => "process_abort",
             Self::ProcessExit => "process_exit",
         }

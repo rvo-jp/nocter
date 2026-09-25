@@ -515,7 +515,8 @@ impl BodyChecker<'_, '_> {
         if let Some((element, fixed_length)) = builtin {
             let index =
                 self.check_expression(expression, Some(self.types.builtin(BuiltinType::Usize)))?;
-            let bounds = self.index_bounds_check(index, fixed_length);
+            let bounds =
+                self.index_bounds_check(index, fixed_length, draft.root, &draft.projections);
             draft.ty = element;
             draft.projections.push(PlaceProjection::BuiltinIndex {
                 index,
@@ -590,9 +591,13 @@ impl BodyChecker<'_, '_> {
         &self,
         index: BodyNodeId,
         fixed_length: Option<u64>,
+        root: PlaceRoot,
+        projections: &[PlaceProjection],
     ) -> crate::IndexBoundsCheck {
         let Some(length) = fixed_length else {
-            return crate::IndexBoundsCheck::Required;
+            return self
+                .flow_view_index_bounds(index, root, projections)
+                .unwrap_or(crate::IndexBoundsCheck::Required);
         };
         let Some(node) = self.builder.node(index) else {
             return crate::IndexBoundsCheck::Required;
@@ -609,7 +614,7 @@ impl BodyChecker<'_, '_> {
         };
         let Some(constant_index) = value.and_then(|value| u64::try_from(value).ok()) else {
             return self
-                .flow_index_bounds(index, length)
+                .flow_fixed_index_bounds(index, length)
                 .unwrap_or(crate::IndexBoundsCheck::Required);
         };
         if constant_index < length {

@@ -8,7 +8,7 @@ use nocter_declarations::{
 };
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, CallableId,
-    DeclarationSiteId, InterfaceId, NominalTypeId, TypeKind, TypeStore,
+    DeclarationSiteId, InterfaceId, NominalTypeId, TypeId, TypeKind, TypeStore,
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
@@ -185,6 +185,8 @@ impl StandardSemanticTable {
             IterationSemanticRoles::ASYNCHRONOUS_LENDING,
         )?;
         self.validate_exact_size_relationships(graph, types)
+            .and_then(|()| self.validate_slice_length(graph, types))
+            .and_then(|()| self.validate_string_view_length(graph, types))
     }
 
     fn validate_iteration_relationships(
@@ -236,6 +238,28 @@ impl StandardSemanticTable {
                 dependency: StandardDeclarationRole::ExactSizeIteratorInterface,
             })?;
         validate_exact_size_method(graph, types, interface, method)
+    }
+
+    fn validate_slice_length(
+        &self,
+        graph: &DeclarationGraph,
+        types: &TypeStore,
+    ) -> Result<(), StandardSemanticError> {
+        let Some(method) = self.callable(StandardDeclarationRole::SliceLengthMethod) else {
+            return Ok(());
+        };
+        validate_slice_length_method(graph, types, method)
+    }
+
+    fn validate_string_view_length(
+        &self,
+        graph: &DeclarationGraph,
+        types: &TypeStore,
+    ) -> Result<(), StandardSemanticError> {
+        let Some(method) = self.callable(StandardDeclarationRole::StringViewLengthMethod) else {
+            return Ok(());
+        };
+        validate_string_view_length_method(graph, types, method)
     }
 
     fn validate_nominal_roles(
@@ -323,6 +347,8 @@ fn validate_role_domain(
         | StandardDeclarationRole::AsyncIteratorNextMethod
         | StandardDeclarationRole::AsyncLendingIteratorNextMethod
         | StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod
+        | StandardDeclarationRole::SliceLengthMethod
+        | StandardDeclarationRole::StringViewLengthMethod
         | StandardDeclarationRole::ProcessAbort
         | StandardDeclarationRole::ProcessExit => {
             matches!(entity, StandardDeclaration::Callable(_))
@@ -562,6 +588,71 @@ fn validate_exact_size_method(
     Ok(())
 }
 
+fn validate_slice_length_method(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    method: CallableId,
+) -> Result<(), StandardSemanticError> {
+    let invalid = StandardSemanticError::InvalidSliceLengthContract;
+    validate_view_length_method(graph, types, method, invalid, |ty| {
+        matches!(types.get(ty), Some(TypeKind::Slice(_)))
+    })
+}
+
+fn validate_string_view_length_method(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    method: CallableId,
+) -> Result<(), StandardSemanticError> {
+    let invalid = StandardSemanticError::InvalidStringViewLengthContract;
+    validate_view_length_method(graph, types, method, invalid, |ty| {
+        matches!(types.get(ty), Some(TypeKind::Builtin(BuiltinType::Str)))
+    })
+}
+
+fn validate_view_length_method(
+    graph: &DeclarationGraph,
+    types: &TypeStore,
+    method: CallableId,
+    invalid: StandardSemanticError,
+    valid_target: impl FnOnce(TypeId) -> bool,
+) -> Result<(), StandardSemanticError> {
+    let callable = graph
+        .declarations()
+        .callables()
+        .get(method)
+        .ok_or(invalid)?;
+    let CallableOwner::Instance(instance) = callable.owner() else {
+        return Err(invalid);
+    };
+    let instance = graph
+        .declarations()
+        .instances()
+        .get(instance)
+        .ok_or(invalid)?;
+    let Some(receiver) = callable
+        .receiver()
+        .and_then(|id| graph.declarations().parameters().get(id))
+    else {
+        return Err(invalid);
+    };
+    if callable.kind() != CallableKind::Method
+        || !instance.members().contains(&method)
+        || !valid_target(instance.target())
+        || receiver.ty() != instance.target()
+        || receiver.role() != ParameterRole::Receiver(CallableCapability::Readonly)
+        || !callable.parameters().is_empty()
+        || !callable.generic_parameters().is_empty()
+        || !callable.requirements().is_empty()
+        || callable.result() != types.builtin(BuiltinType::Usize)
+        || callable.guarantees().allocation() != nocter_model::AllocationGuarantee::NoAllocation
+        || !is_public(graph, callable.site())
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 fn validate_process_termination(
     graph: &DeclarationGraph,
     types: &TypeStore,
@@ -627,6 +718,8 @@ pub enum StandardSemanticError {
     InvalidAsyncIteratorContract,
     InvalidAsyncLendingIteratorContract,
     InvalidExactSizeIteratorContract,
+    InvalidSliceLengthContract,
+    InvalidStringViewLengthContract,
     InvalidProcessTerminationContract,
     InvalidNominalContract(StandardDeclarationRole),
 }

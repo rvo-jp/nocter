@@ -74,6 +74,9 @@ Value-sensitive safety evidence follows the same ownership rule. Checking derive
 values and checked control flow. Execution facts consume it directly and MIR transports it as data.
 Machine preserves the disposition even if representation optimization later exposes a constant:
 without checking's path environment, neither strengthening nor contradiction testing is valid.
+Symbolic view bounds use exact toolchain-selected length callables and stable receiver identities;
+standard source spellings and physical paths are not proof inputs. Branch and loop exits enter one
+conservative join authority, so operation-specific consumers cannot retain stronger private facts.
 
 ## Independent Body Queries
 

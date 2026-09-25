@@ -180,6 +180,8 @@ const fn bundled_standard_source_location(
         Role::ExactSizeIteratorRemainingLenMethod => {
             (&["iter"], NodeKind::InterfaceMethod, "remaining_len")
         }
+        Role::SliceLengthMethod => (&["slice"], NodeKind::InherentMethod, "len"),
+        Role::StringViewLengthMethod => (&["str"], NodeKind::InherentMethod, "len"),
         Role::ProcessAbort => (&["process"], NodeKind::FunctionDeclaration, "abort"),
         Role::ProcessExit => (&["process"], NodeKind::FunctionDeclaration, "exit"),
     }

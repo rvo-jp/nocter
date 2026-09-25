@@ -81,6 +81,11 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   refine branch-local integer intervals; every branch construct starts from one entry state and
   joins only reachable continuations. Mutable, captured, static, and projected storage is excluded
   until checking has an explicit invalidation model for it.
+- Symbolic view bounds refer to the exact receiver identity and compiler-selected standard
+  length role. A fact about one slice or string cannot justify indexing another, and checking does
+  not infer length semantics from a method name.
+- Loop exits use the same flow join as branches. A while-condition false edge and each reachable
+  `break` contribute explicit states; potentially zero-iteration loops retain their entry state.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.
 - `ProgramEnvironment` carries the immutable structural-constant table selected with its graph.

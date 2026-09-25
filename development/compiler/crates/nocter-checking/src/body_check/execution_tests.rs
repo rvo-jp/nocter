@@ -127,6 +127,65 @@ fn notrap_uses_branch_local_bounds_proof_and_terminal_path_refinement() {
 }
 
 #[test]
+fn notrap_uses_loop_exit_facts_from_the_shared_flow_domain() {
+    check(
+        "notrap func guarded_by_while(values: [i32; 2], index: usize): i32 {\n\
+             while index >= 2 { return 0 }\n\
+             return values[index]\n\
+         }\n\
+         notrap func guarded_by_break(values: [i32; 2], index: usize): i32 {\n\
+             loop {\n\
+                 if index < 2 { break }\n\
+                 return 0\n\
+             }\n\
+             return values[index]\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn standard_view_length_role_proves_indexing_on_the_same_storage() {
+    let check_with_role = |source| {
+        let fixture = Fixture::with_standard(
+            source,
+            "instance str {\n\
+                 pub noalloc method &self.len(): usize { return 0 }\n\
+             }\n",
+        );
+        let input = with_standard_roles(
+            fixture.input(false),
+            vec![StandardRoleInput::new(
+                StandardDeclarationRole::StringViewLengthMethod,
+                fixture.standard_declaration_token(NodeKind::InherentMethod, "len"),
+            )],
+        );
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+        let prepared =
+            prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+        check_prepared_program(&input, prepared)
+    };
+
+    check_with_role(
+        "notrap func read(text: &str, index: usize): u8 {\n\
+             if index < text.len() { return text[index] }\n\
+             return 0\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check_with_role(
+        "notrap func invalid(left: &str, right: &str, index: usize): u8 {\n\
+             if index < left.len() { return right[index] }\n\
+             return 0\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn bounds_proof_does_not_escape_a_join_or_attach_to_mutable_storage() {
     let joined = check(
         "notrap func invalid(values: [i32; 2], index: usize, choose: bool): i32 {\n\

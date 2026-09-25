@@ -16,6 +16,7 @@ use crate::{
 pub(super) struct LoopConstruction {
     pub(super) id: LoopId,
     pub(super) has_break: bool,
+    pub(super) break_flows: Vec<super::safety_flow::SafetyFlowState>,
 }
 
 impl BodyChecker<'_, '_> {
@@ -24,6 +25,7 @@ impl BodyChecker<'_, '_> {
         self.loops.push(LoopConstruction {
             id: loop_,
             has_break: false,
+            break_flows: Vec::new(),
         });
         let kind = match self.kind(statement)? {
             NodeKind::WhileStatement => {
@@ -43,10 +45,17 @@ impl BodyChecker<'_, '_> {
             .block_scope(block)
             .ok_or(BodyCheckInternalError::MissingBlockScope(block))?;
         let continuation_flow = self.safety_flow.clone();
+        let while_condition = match &kind {
+            LoopKind::While { condition } => self.safety_condition(*condition),
+            LoopKind::Infinite
+            | LoopKind::Range { .. }
+            | LoopKind::For { .. }
+            | LoopKind::ForAwait { .. }
+            | LoopKind::ArgumentPack { .. }
+            | LoopKind::KeyedArgumentPack { .. } => None,
+        };
         self.safety_flow = match &kind {
-            LoopKind::While { condition } => {
-                continuation_flow.branch(self.safety_condition(*condition), true)
-            }
+            LoopKind::While { .. } => continuation_flow.branch(while_condition, true),
             LoopKind::Infinite
             | LoopKind::Range { .. }
             | LoopKind::For { .. }
@@ -58,11 +67,23 @@ impl BodyChecker<'_, '_> {
             block,
             BlockExpectation::Value(Some(self.types.builtin(BuiltinType::Void))),
         )?;
-        self.safety_flow = continuation_flow;
         let frame = self.loops.pop().ok_or(BodyCheckInternalError::LoopStack)?;
         if frame.id != loop_ {
             return Err(BodyCheckInternalError::LoopStack.into());
         }
+        let mut exit_flows = frame.break_flows;
+        match &kind {
+            LoopKind::While { .. } => {
+                exit_flows.push(continuation_flow.branch(while_condition, false));
+            }
+            LoopKind::Infinite => {}
+            LoopKind::Range { .. }
+            | LoopKind::For { .. }
+            | LoopKind::ForAwait { .. }
+            | LoopKind::ArgumentPack { .. }
+            | LoopKind::KeyedArgumentPack { .. } => exit_flows.push(continuation_flow),
+        }
+        self.safety_flow = super::safety_flow::SafetyFlowState::join(exit_flows);
         let ty = match &kind {
             LoopKind::Infinite if !frame.has_break => self.types.builtin(BuiltinType::Never),
             LoopKind::Infinite
@@ -215,11 +236,15 @@ impl BodyChecker<'_, '_> {
         statement: NodeId,
         is_break: bool,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        let break_flow = (is_break && self.flow_reachable).then(|| self.safety_flow.clone());
         let Some(frame) = self.loops.last_mut() else {
             return Err(self.rule(BodyRule::InvalidLoopControl, statement)?);
         };
         if is_break && self.flow_reachable {
             frame.has_break = true;
+        }
+        if let Some(flow) = break_flow {
+            frame.break_flows.push(flow);
         }
         let control = if is_break {
             CheckedControl::Break(frame.id)

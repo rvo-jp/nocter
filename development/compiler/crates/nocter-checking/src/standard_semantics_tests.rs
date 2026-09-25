@@ -72,6 +72,49 @@ pub interface Format {
 }
 
 #[test]
+fn view_length_role_requires_the_exact_readonly_noalloc_contract() {
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+instance str {
+    pub noalloc method &self.len(): usize { return 0 }
+}
+",
+    );
+    with_prepared_roles(
+        &fixture,
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::StringViewLengthMethod,
+            fixture.standard_declaration_token(NodeKind::InherentMethod, "len"),
+        )],
+        |_| (),
+    )
+    .unwrap();
+
+    let fixture = Fixture::with_standard(
+        "",
+        r"
+instance str {
+    pub method &self.len(): usize { return 0 }
+}
+",
+    );
+    let error = with_prepared_roles(
+        &fixture,
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::StringViewLengthMethod,
+            fixture.standard_declaration_token(NodeKind::InherentMethod, "len"),
+        )],
+        |_| (),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        PreparationError::StandardSemantics(StandardSemanticError::InvalidStringViewLengthContract)
+    ));
+}
+
+#[test]
 fn near_miss_format_contract_is_rejected_once_during_preparation() {
     let fixture = Fixture::with_standard(
         "",

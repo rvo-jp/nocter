@@ -11,6 +11,8 @@ Discovery and declaration lowering bind exact source declarations to this contra
 target validation consume resolved role identities rather than standard-library spellings.
 The execution-fact authority uses the selected standard package's exact `AllocationRequest`
 callable as its backing-storage request boundary; OS primitive names are not semantic evidence.
+Checking likewise receives exact slice and string-view length methods as closed semantic roles, so
+flow proof never recognizes a standard API from its spelling or physical path.
 
 ## Invariants
 
