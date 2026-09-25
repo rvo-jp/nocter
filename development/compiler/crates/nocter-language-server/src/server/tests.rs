@@ -821,7 +821,7 @@ fn hover_normalizes_method_self_to_its_semantic_owner() {
         standard.display()
     ));
     let response = hover.response().unwrap();
-    assert!(response.contains("```nocter\\npub noalloc method &str.len(): usize\\n```"));
+    assert!(response.contains("```nocter\\npub noalloc notrap method &str.len(): usize\\n```"));
     assert!(response.contains(&format!(
         "\"start\":{{\"line\":{line},\"character\":{character}}}"
     )));
