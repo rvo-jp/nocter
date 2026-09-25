@@ -1472,7 +1472,6 @@ pub enum Arm64MaterializationError {
     InvalidMemoryWidth(u8),
     OverlappingStackCopy,
     InvalidParallelCopy,
-    InvalidIndexProof,
     MissingMemoryEdgeStaging,
     InvalidSystemCallArity(u8),
     InvalidSwitchWidth(usize),

@@ -375,38 +375,37 @@ fn emit_async_index(
         bound,
         check,
     } = calculation;
-    match check {
+    let runtime_check_required = match check {
         nocter_machine::MachineIndexCheck::ProvenTrap => {
             code.append(Arm64Instruction::Break {
                 immediate: crate::runtime_trap::Arm64RuntimeTrap::Bounds.immediate(),
             });
             return Ok(());
         }
-        nocter_machine::MachineIndexCheck::ProvenInBounds => {
-            let (Arm64AsyncAddressIndex::Constant(index), Arm64AsyncAddressBound::Fixed(_)) =
-                (index, bound)
-            else {
-                return Err(crate::Arm64MaterializationError::InvalidIndexProof.into());
-            };
-            let offset = index
-                .checked_mul(stride)
-                .ok_or(Arm64AsyncCancelError::OffsetOverflow)?;
-            crate::address_code::add_offset(code, destination, offset);
-            return Ok(());
-        }
-        nocter_machine::MachineIndexCheck::Required => {}
+        nocter_machine::MachineIndexCheck::ProvenInBounds => false,
+        nocter_machine::MachineIndexCheck::Required => true,
+    };
+
+    if !runtime_check_required && let Arm64AsyncAddressIndex::Constant(index) = index {
+        let offset = index
+            .checked_mul(stride)
+            .ok_or(Arm64AsyncCancelError::OffsetOverflow)?;
+        crate::address_code::add_offset(code, destination, offset);
+        return Ok(());
     }
     let index_register = argument(0)?;
     load_index(plan, index, index_register, code)?;
-    let bound = match bound {
-        Arm64AsyncAddressBound::Fixed(length) => {
-            let register = argument(1)?;
-            crate::frame_access::load_immediate(code, register, length, Arm64DataSize::Bits64);
-            register
-        }
-        Arm64AsyncAddressBound::CurrentView => view_length,
-    };
-    crate::address_code::emit_bounds_check(index_register, bound, code)?;
+    if runtime_check_required {
+        let bound = match bound {
+            Arm64AsyncAddressBound::Fixed(length) => {
+                let register = argument(1)?;
+                crate::frame_access::load_immediate(code, register, length, Arm64DataSize::Bits64);
+                register
+            }
+            Arm64AsyncAddressBound::CurrentView => view_length,
+        };
+        crate::address_code::emit_bounds_check(index_register, bound, code)?;
+    }
     let stride_register = argument(1)?;
     crate::frame_access::load_immediate(code, stride_register, stride, Arm64DataSize::Bits64);
     code.append(Arm64Instruction::MultiplyAdd {

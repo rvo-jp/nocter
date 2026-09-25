@@ -18,6 +18,7 @@ use super::{
 use nocter_session::{AnalyzedUnit, AnalyzedUnitStatus, CompiledTarget, ExecutableCompileRequest};
 
 mod arithmetic_runtime;
+mod bounds_runtime;
 mod codecs_and_callables;
 mod http_server;
 mod io_and_async_runtime;

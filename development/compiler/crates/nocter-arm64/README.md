@@ -26,9 +26,10 @@ source, loader commands, or package state.
 ## Invariants
 
 - ARM64 selection implements the ABI already classified by Machine.
-- Bounds emission consumes Machine's explicit check disposition. Proven fixed indexes form an
-  offset without a comparison, proven failures emit the bounds trap, and unresolved indexes retain
-  runtime checking; ARM64 never infers check removal from a constant by itself.
+- Bounds emission consumes Machine's explicit check disposition. Every proven-safe index omits the
+  comparison, proven failures emit the bounds trap, and unresolved indexes retain runtime
+  checking. A constant proven-safe index may use an immediate offset, but ARM64 never revalidates
+  the proof from index or bound shape.
 - Arithmetic emission consumes Machine's explicit trap disposition. Required integer operations
   check fixed-width overflow, zero division/remainder, signed minimum divided by negative one, and
   invalid shift counts before committing the result. Proven traps emit `brk`; proven-safe

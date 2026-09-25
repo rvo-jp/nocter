@@ -269,26 +269,23 @@ fn emit_index(
         bound,
         check,
     } = calculation;
-    match check {
+    let runtime_check_required = match check {
         nocter_machine::MachineIndexCheck::ProvenTrap => {
             code.append(Arm64Instruction::Break {
                 immediate: crate::runtime_trap::Arm64RuntimeTrap::Bounds.immediate(),
             });
             return Ok(());
         }
-        nocter_machine::MachineIndexCheck::ProvenInBounds => {
-            let (Arm64SelectedIndex::Constant(index), Arm64SelectedIndexBound::Fixed(_)) =
-                (index, bound)
-            else {
-                return Err(Arm64MaterializationError::InvalidIndexProof);
-            };
-            let offset = index
-                .checked_mul(stride)
-                .ok_or(Arm64MaterializationError::OffsetOverflow)?;
-            add_offset(code, address, offset);
-            return Ok(());
-        }
-        nocter_machine::MachineIndexCheck::Required => {}
+        nocter_machine::MachineIndexCheck::ProvenInBounds => false,
+        nocter_machine::MachineIndexCheck::Required => true,
+    };
+
+    if !runtime_check_required && let Arm64SelectedIndex::Constant(index) = index {
+        let offset = index
+            .checked_mul(stride)
+            .ok_or(Arm64MaterializationError::OffsetOverflow)?;
+        add_offset(code, address, offset);
+        return Ok(());
     }
 
     let index = match index {
@@ -301,15 +298,17 @@ fn emit_index(
             crate::selected_code::read_register(function, index, 0, code)?
         }
     };
-    let bound = match bound {
-        Arm64SelectedIndexBound::Fixed(length) => {
-            let register = compiler_scratch(1);
-            crate::frame_access::load_immediate(code, register, length, Arm64DataSize::Bits64);
-            register
-        }
-        Arm64SelectedIndexBound::CurrentView => view_length,
-    };
-    emit_bounds_check(index, bound, code)?;
+    if runtime_check_required {
+        let bound = match bound {
+            Arm64SelectedIndexBound::Fixed(length) => {
+                let register = compiler_scratch(1);
+                crate::frame_access::load_immediate(code, register, length, Arm64DataSize::Bits64);
+                register
+            }
+            Arm64SelectedIndexBound::CurrentView => view_length,
+        };
+        emit_bounds_check(index, bound, code)?;
+    }
     let stride_register = compiler_scratch(1);
     crate::frame_access::load_immediate(code, stride_register, stride, Arm64DataSize::Bits64);
     code.append(Arm64Instruction::MultiplyAdd {
