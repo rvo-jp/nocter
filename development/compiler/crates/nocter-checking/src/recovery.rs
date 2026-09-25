@@ -245,7 +245,7 @@ impl BodyAnalysisRecovery {
         let TypedBodyInterruptionKind::MemberSelection {
             receiver,
             available,
-            owned,
+            can_supply_owned,
         } = typed.interruption.kind()
         else {
             return None;
@@ -273,7 +273,7 @@ impl BodyAnalysisRecovery {
                 semantics,
                 session,
             },
-            MemberCompletionContext::new(body, source, *receiver, *available, *owned),
+            MemberCompletionContext::new(body, source, *receiver, *available, *can_supply_owned),
         ))
     }
 

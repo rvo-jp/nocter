@@ -34,14 +34,6 @@ impl ReceiverDraft {
             Self::Value { ty, .. } => *ty,
         }
     }
-
-    fn is_owned_source(&self, types: &nocter_model::TypeStore) -> bool {
-        !matches!(types.get(self.ty()), Some(TypeKind::Borrow { .. }))
-            && match self {
-                Self::Place { place, .. } => place.access == PlaceAccess::Owned,
-                Self::Value { .. } => true,
-            }
-    }
 }
 
 impl BodyChecker<'_, '_> {
@@ -97,11 +89,16 @@ impl BodyChecker<'_, '_> {
     ) -> Result<BodyNodeId, BodyCheckError> {
         let receiver_owner = receiver_owner(self.types, receiver.ty())?;
         let available = self.receiver_borrow_capability(&receiver)?;
-        let consumable = receiver.is_owned_source(self.types);
+        let can_supply_owned = self.receiver_can_supply_owned(&receiver)?;
         let Some(member_token) = direct_identifier(self.tree(), member) else {
             let origin = SourceOrigin::from_node(self.tree(), member)
                 .map_err(|_| BodyCheckInternalError::InvalidSyntax(member))?;
-            self.record_member_interruption_origin(origin, receiver_owner, available, consumable);
+            self.record_member_interruption_origin(
+                origin,
+                receiver_owner,
+                available,
+                can_supply_owned,
+            );
             return Err(BodyCheckInternalError::InvalidSyntax(member).into());
         };
         let member_name = self
@@ -116,7 +113,7 @@ impl BodyChecker<'_, '_> {
                 .map_err(BodyCheckInternalError::from)?
         };
         candidates.retain(|candidate| {
-            receiver_supports(available, consumable, candidate.receiver_capability())
+            receiver_supports(available, can_supply_owned, candidate.receiver_capability())
         });
         if candidates.is_empty() {
             let mut selector = self.instance_selector();
@@ -126,11 +123,21 @@ impl BodyChecker<'_, '_> {
         }
         let mut candidates = candidates.drain(..);
         let Some(selected) = candidates.next() else {
-            self.record_member_interruption(member_token, receiver_owner, available, consumable)?;
+            self.record_member_interruption(
+                member_token,
+                receiver_owner,
+                available,
+                can_supply_owned,
+            )?;
             return Err(self.token_rule(BodyRule::InvalidCall, member_token)?);
         };
         if candidates.next().is_some() {
-            self.record_member_interruption(member_token, receiver_owner, available, consumable)?;
+            self.record_member_interruption(
+                member_token,
+                receiver_owner,
+                available,
+                can_supply_owned,
+            )?;
             return Err(self.token_rule(BodyRule::InvalidCall, member_token)?);
         }
         self.finish_method_call(
@@ -347,12 +354,12 @@ impl BodyChecker<'_, '_> {
                 return Err(self.rule(BodyRule::InvalidCall, syntax)?);
             }
             (CallableCapability::Owned, None) => {
-                if place.access != PlaceAccess::Owned {
-                    return Err(self.rule(BodyRule::InvalidCall, syntax)?);
-                }
                 let operation = match self.classify_copyability(place.ty)? {
                     Copyability::Copy => CheckedOperation::Copy(place.id),
                     Copyability::MoveOnly => {
+                        if place.access != PlaceAccess::Owned {
+                            return Err(self.rule(BodyRule::InvalidCall, syntax)?);
+                        }
                         for parent in place.partial_parents.iter().rev() {
                             if let Some(drop) = self.drops.get(*parent) {
                                 return Err(self.partial_move_drop(syntax, drop)?);
@@ -386,6 +393,26 @@ impl BodyChecker<'_, '_> {
         }
     }
 
+    /// Reports whether method dispatch can materialize an owned receiver value.
+    ///
+    /// A value expression is already consumable. An owned place can move a move-only value, while
+    /// any non-borrow place whose type is copyable can supply an owned value without consuming its
+    /// storage. A place whose value is itself a borrow must retain borrow-receiver semantics: copying
+    /// that place copies the borrow, not its referent.
+    fn receiver_can_supply_owned(
+        &mut self,
+        receiver: &ReceiverDraft,
+    ) -> Result<bool, BodyCheckError> {
+        if matches!(self.types.get(receiver.ty()), Some(TypeKind::Borrow { .. })) {
+            return Ok(false);
+        }
+        match receiver {
+            ReceiverDraft::Value { .. } => Ok(true),
+            ReceiverDraft::Place { place, .. } => Ok(place.access == PlaceAccess::Owned
+                || self.classify_copyability(place.ty)? == Copyability::Copy),
+        }
+    }
+
     fn project_method_member(
         &mut self,
         token: nocter_syntax::SyntaxToken,
@@ -405,11 +432,11 @@ impl BodyChecker<'_, '_> {
         token: nocter_syntax::SyntaxToken,
         receiver: TypeId,
         available: BorrowCapability,
-        owned: bool,
+        can_supply_owned: bool,
     ) -> Result<(), BodyCheckInternalError> {
         let origin = SourceOrigin::from_token(self.tree(), token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(self.source.root()))?;
-        self.record_member_interruption_origin(origin, receiver, available, owned);
+        self.record_member_interruption_origin(origin, receiver, available, can_supply_owned);
         Ok(())
     }
 
@@ -418,7 +445,7 @@ impl BodyChecker<'_, '_> {
         origin: SourceOrigin,
         receiver: TypeId,
         available: BorrowCapability,
-        owned: bool,
+        can_supply_owned: bool,
     ) {
         self.interruption = Some(TypedBodyInterruption::new(
             self.source.body(),
@@ -426,7 +453,7 @@ impl BodyChecker<'_, '_> {
             TypedBodyInterruptionKind::MemberSelection {
                 receiver,
                 available,
-                owned,
+                can_supply_owned,
             },
         ));
     }

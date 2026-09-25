@@ -46,7 +46,7 @@ pub enum TypedBodyInterruptionKind {
     MemberSelection {
         receiver: TypeId,
         available: BorrowCapability,
-        owned: bool,
+        can_supply_owned: bool,
     },
     ConstructionSelection {
         owner: ConstructionCompletionOwner,

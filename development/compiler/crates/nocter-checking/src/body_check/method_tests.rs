@@ -650,6 +650,30 @@ fn nested_field_method_fallback_publishes_each_source_projection_once() {
 }
 
 #[test]
+fn copyable_borrowed_field_can_supply_an_owned_method_receiver() {
+    check(
+        "copy struct Counter { value: i32 }\n\
+         instance Counter { pub method self.read(): i32 { self.value } }\n\
+         struct Header { counter: Counter }\n\
+         func read(header: &Header): i32 { header.counter.read() }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn move_only_borrowed_field_cannot_supply_an_owned_method_receiver() {
+    let error = check(
+        "struct Item { value: i32 }\n\
+         instance Item { pub method self.take(): i32 { self.value } }\n\
+         struct Owner { item: Item }\n\
+         func take(owner: &Owner): i32 { owner.item.take() }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(crate::BodyRule::InvalidCall));
+}
+
+#[test]
 fn equally_ranked_receiver_coercion_routes_are_ambiguous() {
     let error = check(
         "struct First {}\n\

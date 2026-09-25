@@ -91,7 +91,7 @@ impl InstanceOperationSelector<'_> {
         &mut self,
         target: TypeId,
         available: BorrowCapability,
-        owned: bool,
+        can_supply_owned: bool,
     ) -> Result<Vec<MethodCompletionCandidate>, InstanceSelectionError> {
         let mut names = self
             .table
@@ -119,7 +119,7 @@ impl InstanceOperationSelector<'_> {
         for name in names {
             let mut selected = self.select_method_candidates(target, name)?;
             selected.retain(|candidate| {
-                receiver_supports(available, owned, candidate.receiver_capability())
+                receiver_supports(available, can_supply_owned, candidate.receiver_capability())
             });
             if selected.is_empty() {
                 selected = self.select_coerced_method_candidates(target, name, available)?;
@@ -837,13 +837,13 @@ impl InstanceOperationSelector<'_> {
 
 pub(crate) fn receiver_supports(
     available: BorrowCapability,
-    owned: bool,
+    can_supply_owned: bool,
     required: CallableCapability,
 ) -> bool {
     match required {
         CallableCapability::Readonly => true,
         CallableCapability::ReadWrite => available == BorrowCapability::ReadWrite,
-        CallableCapability::Owned => owned,
+        CallableCapability::Owned => can_supply_owned,
     }
 }
 

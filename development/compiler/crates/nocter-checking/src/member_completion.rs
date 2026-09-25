@@ -59,7 +59,7 @@ pub(crate) struct MemberCompletionContext {
     source: SourceId,
     receiver: TypeId,
     available: BorrowCapability,
-    owned: bool,
+    can_supply_owned: bool,
 }
 
 impl MemberCompletionContext {
@@ -69,14 +69,14 @@ impl MemberCompletionContext {
         source: SourceId,
         receiver: TypeId,
         available: BorrowCapability,
-        can_consume: bool,
+        can_supply_owned: bool,
     ) -> Self {
         Self {
             body,
             source,
             receiver,
             available,
-            owned: can_consume,
+            can_supply_owned,
         }
     }
 }
@@ -203,7 +203,7 @@ impl CheckedProgram {
         body: BodyId,
         receiver: BodyNodeId,
         available: BorrowCapability,
-        can_consume: bool,
+        can_supply_owned: bool,
     ) -> Result<Box<[MemberCompletionCandidate]>, MemberCompletionError> {
         let checked_body = self
             .bodies()
@@ -222,7 +222,7 @@ impl CheckedProgram {
                 semantics: self.semantic_authority(),
                 session,
             },
-            MemberCompletionContext::new(body, source, receiver, available, can_consume),
+            MemberCompletionContext::new(body, source, receiver, available, can_supply_owned),
         )
     }
 }
@@ -269,7 +269,7 @@ pub(crate) fn select_member_completions(
         access,
     );
     let methods = InstanceOperationSelector::new(selection, types, copyabilities)
-        .select_member_completions(receiver, context.available, context.owned)
+        .select_member_completions(receiver, context.available, context.can_supply_owned)
         .map_err(MemberCompletionError::Selection)?;
     completions.extend(
         methods
