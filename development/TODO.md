@@ -2,19 +2,18 @@
 
 ## Current State
 
-Nocter v0.71.0 Guaranteed Structural Operations is qualified and its public metadata selects the
-retained candidate. The completed v0.69.0 and v0.70.0 implementation milestones are included in
-this release rather than receiving separate public archives. Linux target work remains deliberately
-deferred.
+Nocter v0.71.0 Guaranteed Structural Operations is published and externally audited. The completed
+v0.69.0 and v0.70.0 implementation milestones are included in this release rather than receiving
+separate public archives. Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Publish annotated tag `v0.71.0` and the exact qualified archive without rebuilding it. Then verify
-the tag, single GitHub Release asset, latest-release endpoint, downloaded installed home,
-push-triggered workflows, and source-identified Pages deployment in a release audit. After that
-public boundary is closed, begin v0.72.0 with a flow-proof model for safe operations.
+Begin v0.72.0 with a flow-proof model for safe operations. The checker must derive local range and
+arithmetic facts from control flow, freeze admitted proof in the checked program, and let later
+lowering consume only that proof. Do not add unchecked indexing, source-text rediscovery, or a
+second backend-owned proof system.
 
-Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
+Preserve the v0.71.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
 requires a new version and a newly qualified archive.
 
