@@ -132,6 +132,22 @@ for zero. `rotate_right` uses the low six bits of `amount`, so every `u64` amoun
 methods do not allocate or fail. Normal arithmetic operators retain the trapping rules below; the
 methods do not introduce new operator spellings.
 
+The active standard package also declares `checked_add`, `checked_sub`, and `checked_mul` on every
+built-in integer type. These are ordinary type-owned methods rather than alternative operator
+semantics:
+
+```nct
+let end = start.checked_add(length) otherwise { return none }
+let remaining = total.checked_sub(consumed) otherwise { return none }
+let bytes = count.checked_mul(element_size) otherwise { return none }
+```
+
+They return `none` when the mathematical result is outside the receiver type. Their
+compiler-checked declarations are `noalloc notrap`, so a generic or callable contract can rely on
+recoverable arithmetic without admitting allocation or a trap. Exact API declarations and target-
+width behavior belong to the [`std/num` contract](../../std/num/index.nct) and its
+[numeric behavior guide](../../std/num/README.md).
+
 Arithmetic trap rules:
 
 - Overflow in normal integer arithmetic traps.

@@ -5,7 +5,7 @@
 
 see ./replacement.nct
 
-pub(/) noalloc primitive func from_addr<T>(address: usize): *T
+pub(/) noalloc notrap primitive func from_addr<T>(address: usize): *T
 
 pub(/) noalloc primitive func pointee_size<T>(pointer: *T): usize
 
@@ -41,12 +41,12 @@ pub(/) noalloc func swap_slice_values<T>(values: &+[T], left: usize, right: usiz
 /// Copies one `copy` value through a readonly borrow without exposing its representation.
 pub(/) noalloc func copy_value<T>(value: &T): T where copy T
 
-pub(/) noalloc primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
+pub(/) noalloc notrap primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
 
-pub(/) noalloc primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
+pub(/) noalloc notrap primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 
-pub(/) noalloc primitive func slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+pub(/) noalloc notrap primitive func slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 
-pub(/) noalloc primitive func slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+pub(/) noalloc notrap primitive func slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
 
-pub(/) noalloc primitive func slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
+pub(/) noalloc notrap primitive func slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]

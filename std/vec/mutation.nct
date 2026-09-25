@@ -18,7 +18,7 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): usize! {
     }
 
     let values_len: usize = values.len
-    let required_capacity: usize = mem.checked_add(values_len, additional) otherwise {
+    let required_capacity: usize = values_len.checked_add(additional) otherwise {
         return mem.capacity_overflow()
     }
     let values_capacity: usize = values.capacity
@@ -35,8 +35,8 @@ func try_reserve<T>(values: &+Vec<T>, additional: usize): usize! {
         return required_capacity
     }
     let next_capacity = mem.growth_capacity(values_capacity, required_capacity)
-    let byte_capacity: usize = mem.checked_multiply(next_capacity, element_size) otherwise {
-        let required_bytes: usize = mem.checked_multiply(required_capacity, element_size) otherwise {
+    let byte_capacity: usize = next_capacity.checked_mul(element_size) otherwise {
+        let required_bytes: usize = required_capacity.checked_mul(element_size) otherwise {
             return mem.capacity_overflow()
         }
         mem_module.try_grow_owned(&+values.storage, required_bytes)?

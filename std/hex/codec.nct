@@ -10,7 +10,7 @@ use /string.String
 use /vec.Vec
 
 noalloc func encoded_len(byte_len: usize): usize! {
-    let result = mem.checked_multiply(byte_len, 2) otherwise { return length_overflow() }
+    let result = byte_len.checked_mul(2) otherwise { return length_overflow() }
     return result
 }
 

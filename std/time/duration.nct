@@ -7,7 +7,6 @@ const MILLISECONDS_PER_SECOND: u64 = 1000
 const MICROSECONDS_PER_SECOND: u64 = 1000000
 const NANOSECONDS_PER_MILLISECOND: u64 = 1000000
 const NANOSECONDS_PER_MICROSECOND: u64 = 1000
-const MAX_SECONDS: u64 = 18446744073709551615
 
 copy struct Duration {
     seconds: u64
@@ -67,34 +66,50 @@ instance Duration {
         return self.seconds == 0 && self.nanoseconds == 0
     }
 
-    noalloc method &self.checked_add(other: &Self): Self? {
-        let nanosecond_sum = self.nanoseconds + other.nanoseconds
+    noalloc notrap method &self.checked_add(other: &Self): Self? {
+        let current_nanoseconds: u64 = self.nanoseconds
+        let current_seconds: u64 = self.seconds
+        let nanosecond_sum = current_nanoseconds.checked_add(other.nanoseconds) otherwise {
+            return none
+        }
         let carry: u64 = if nanosecond_sum >= NANOSECONDS_PER_SECOND { 1 } else { 0 }
         let nanoseconds = if carry == 1 {
-            nanosecond_sum - NANOSECONDS_PER_SECOND
+            nanosecond_sum.checked_sub(NANOSECONDS_PER_SECOND) otherwise { return none }
         } else {
             nanosecond_sum
         }
-        if other.seconds > MAX_SECONDS - self.seconds { return none }
-        var seconds = self.seconds + other.seconds
+        var seconds = current_seconds.checked_add(other.seconds) otherwise { return none }
         if carry == 1 {
-            if seconds == MAX_SECONDS { return none }
-            seconds += 1
+            seconds = seconds.checked_add(1) otherwise { return none }
         }
         return normalized_duration(seconds, nanoseconds)
     }
 
-    noalloc method &self.checked_sub(other: &Self): Self? {
+    noalloc notrap method &self.checked_sub(other: &Self): Self? {
         if self < other { return none }
+        let current_seconds: u64 = self.seconds
+        let current_nanoseconds: u64 = self.nanoseconds
         if self.nanoseconds >= other.nanoseconds {
+            let seconds = current_seconds.checked_sub(other.seconds) otherwise { return none }
+            let nanoseconds = current_nanoseconds.checked_sub(other.nanoseconds) otherwise {
+                return none
+            }
             return normalized_duration(
-                self.seconds - other.seconds,
-                self.nanoseconds - other.nanoseconds,
+                seconds,
+                nanoseconds,
             )
         }
+        let seconds = current_seconds.checked_sub(other.seconds) otherwise { return none }
+        let borrowed_seconds = seconds.checked_sub(1) otherwise { return none }
+        let borrowed_nanoseconds = NANOSECONDS_PER_SECOND.checked_add(current_nanoseconds) otherwise {
+            return none
+        }
+        let nanoseconds = borrowed_nanoseconds.checked_sub(other.nanoseconds) otherwise {
+            return none
+        }
         return normalized_duration(
-            self.seconds - other.seconds - 1,
-            NANOSECONDS_PER_SECOND + self.nanoseconds - other.nanoseconds,
+            borrowed_seconds,
+            nanoseconds,
         )
     }
 

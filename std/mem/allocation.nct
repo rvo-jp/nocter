@@ -48,10 +48,10 @@ func region_alloc_pages(
     // within the mapping, so region release can walk mappings without storing
     // metadata beside or inside user-visible bytes.
     let header_size: usize = 16
-    let header_and_payload: usize = mem.checked_add(header_size, size) otherwise {
+    let header_and_payload: usize = header_size.checked_add(size) otherwise {
         return invalid_argument()
     }
-    let mapping_size: usize = mem.checked_add(header_and_payload, align) otherwise {
+    let mapping_size: usize = header_and_payload.checked_add(align) otherwise {
         return invalid_argument()
     }
     let mapping = alloc_pages(mapping_size)?

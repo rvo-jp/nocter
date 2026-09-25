@@ -3,7 +3,6 @@
 see ./index.nct
 
 use /internal/notify.NotificationHandle
-use /internal/mem
 use /internal/ptr as internal_ptr
 use /internal/safety
 use /internal/shared.SharedCell
@@ -109,7 +108,7 @@ instance Sender<T, N> {
             return safety.invariant_abort()
         }
         let writable = state.write()
-        writable.sender_count = mem.checked_add(writable.sender_count, 1) otherwise {
+        writable.sender_count = writable.sender_count.checked_add(1) otherwise {
             return safety.invariant_abort()
         }
         state.unlock()
@@ -162,7 +161,7 @@ instance Receiver<T, N> {
             return safety.invariant_abort()
         }
         let writable = state.write()
-        writable.receiver_count = mem.checked_add(writable.receiver_count, 1) otherwise {
+        writable.receiver_count = writable.receiver_count.checked_add(1) otherwise {
             return safety.invariant_abort()
         }
         state.unlock()

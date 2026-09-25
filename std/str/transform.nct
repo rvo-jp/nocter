@@ -11,7 +11,7 @@ func repeat(text: &str, count: usize): String {
     if count == 0 || text.len() == 0 {
         return String.empty()
     }
-    let required_capacity = internal_mem.checked_multiply(text.len(), count) otherwise {
+    let required_capacity = text.len().checked_mul(count) otherwise {
         return internal_mem.allocation_abort()
     }
     var result = String.with_capacity(required_capacity)
@@ -36,7 +36,7 @@ noalloc func replacement_capacity(
         }
         if replacement.len() >= pattern.len() {
             let growth = replacement.len() - pattern.len()
-            capacity = internal_mem.checked_add(capacity, growth) otherwise {
+            capacity = capacity.checked_add(growth) otherwise {
                 return internal_mem.allocation_abort()
             }
         } else {

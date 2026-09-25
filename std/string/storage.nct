@@ -10,12 +10,12 @@ struct String {
     len: usize
 }
 
-noalloc func view(text: &String): &str {
+noalloc notrap func view(text: &String): &str {
     return ptr.str_from_raw_parts(text.storage.bytes().ptr(), text.len)
 }
 
 instance String {
-    noalloc coerce &self as &str {
+    noalloc notrap coerce &self as &str {
         return view(self)
     }
 

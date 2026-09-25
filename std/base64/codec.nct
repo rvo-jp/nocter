@@ -42,18 +42,18 @@ noalloc func digit_value(byte: u8, url: bool): u8? {
 }
 
 noalloc func standard_encoded_len(input_len: usize): usize! {
-    let rounded = mem.checked_add(input_len, 2) otherwise { return length_overflow() }
+    let rounded = input_len.checked_add(2) otherwise { return length_overflow() }
     let groups: usize = rounded / 3
-    let result = mem.checked_multiply(groups, 4) otherwise { return length_overflow() }
+    let result = groups.checked_mul(4) otherwise { return length_overflow() }
     return result
 }
 
 noalloc func url_encoded_len(input_len: usize): usize! {
     let groups: usize = input_len / 3
-    let prefix: usize = mem.checked_multiply(groups, 4) otherwise { return length_overflow() }
+    let prefix: usize = groups.checked_mul(4) otherwise { return length_overflow() }
     let tail: usize = input_len % 3
     let suffix: usize = if tail == 0 { 0 } else if tail == 1 { 2 } else { 3 }
-    let result = mem.checked_add(prefix, suffix) otherwise { return length_overflow() }
+    let result = prefix.checked_add(suffix) otherwise { return length_overflow() }
     return result
 }
 

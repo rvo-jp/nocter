@@ -32,7 +32,7 @@ func bucket_count_for(minimum: usize, bind_empty: bool): usize! {
     }
     var bucket_count: usize = 8
     while usable_capacity(bucket_count) < minimum {
-        let next = mem.checked_add(bucket_count, bucket_count) otherwise { return mem.capacity_overflow() }
+        let next = bucket_count.checked_add(bucket_count) otherwise { return mem.capacity_overflow() }
         bucket_count = next
     }
     return bucket_count

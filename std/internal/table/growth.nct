@@ -77,7 +77,7 @@ func try_rebuild<K, V>(table: &+Table<K, V>, new_count: usize): void! where K im
 }
 
 func try_reserve_table<K, V>(table: &+Table<K, V>, additional: usize): void! where K impl Hash {
-    let required = mem.checked_add(table.keys.len(), additional) otherwise {
+    let required = table.keys.len().checked_add(additional) otherwise {
         return mem.capacity_overflow()
     }
     if required <= table_capacity(table) {

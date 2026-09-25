@@ -1,0 +1,301 @@
+//! Trap-free checked arithmetic shared by every built-in integer width.
+
+see ./index.nct
+see ./conversion.nct
+
+const MAXIMUM_I8: i64 = 127
+const MINIMUM_I8: i64 = -128
+const MAXIMUM_I16: i64 = 32767
+const MINIMUM_I16: i64 = -32768
+const MAXIMUM_I32: i64 = 2147483647
+const MINIMUM_I32: i64 = -2147483648
+const MAXIMUM_I64_MAGNITUDE: u64 = 9223372036854775808
+const MAXIMUM_I64: u64 = 9223372036854775807
+const MAXIMUM_U64: u64 = 18446744073709551615
+const MAXIMUM_U8: u64 = 255
+const MAXIMUM_U16: u64 = 65535
+const MAXIMUM_U32: u64 = 4294967295
+
+instance u64 {
+    noalloc notrap method self.checked_add(other: u64): u64? {
+        let result = self.wrapping_add(other)
+        if result < self { return none }
+        return result
+    }
+
+    noalloc notrap method self.checked_sub(other: u64): u64? {
+        if self < other { return none }
+        return self.wrapping_sub(other)
+    }
+
+    noalloc notrap method self.checked_mul(other: u64): u64? {
+        if self.multiply_high(other) != 0 { return none }
+        return self.wrapping_mul(other)
+    }
+}
+
+instance usize {
+    noalloc notrap method self.checked_add(other: usize): usize? {
+        let result = (self as u64).checked_add(other as u64) otherwise { return none }
+        return result as usize
+    }
+
+    noalloc notrap method self.checked_sub(other: usize): usize? {
+        let result = (self as u64).checked_sub(other as u64) otherwise { return none }
+        return result as usize
+    }
+
+    noalloc notrap method self.checked_mul(other: usize): usize? {
+        let result = (self as u64).checked_mul(other as u64) otherwise { return none }
+        return result as usize
+    }
+}
+
+instance i64 {
+    noalloc notrap method self.checked_add(other: i64): i64? {
+        let result = i64.from_bits(self.to_bits().wrapping_add(other.to_bits()))
+        let self_negative = self < 0
+        let other_negative = other < 0
+        if self_negative == other_negative && (result < 0) != self_negative { return none }
+        return result
+    }
+
+    noalloc notrap method self.checked_sub(other: i64): i64? {
+        let result = i64.from_bits(self.to_bits().wrapping_sub(other.to_bits()))
+        let self_negative = self < 0
+        let other_negative = other < 0
+        if self_negative != other_negative && (result < 0) != self_negative { return none }
+        return result
+    }
+
+    noalloc notrap method self.checked_mul(other: i64): i64? {
+        let zero: u64 = 0
+        let self_negative = self < 0
+        let other_negative = other < 0
+        let result_negative = self_negative != other_negative
+        let self_bits = self.to_bits()
+        let other_bits = other.to_bits()
+        let self_magnitude = if self_negative {
+            zero.wrapping_sub(self_bits)
+        } else {
+            self_bits
+        }
+        let other_magnitude = if other_negative {
+            zero.wrapping_sub(other_bits)
+        } else {
+            other_bits
+        }
+        if self_magnitude.multiply_high(other_magnitude) != 0 { return none }
+        let magnitude = self_magnitude.wrapping_mul(other_magnitude)
+        let maximum = if result_negative { MAXIMUM_I64_MAGNITUDE } else { MAXIMUM_I64 }
+        if magnitude > maximum { return none }
+        let bits = if result_negative { zero.wrapping_sub(magnitude) } else { magnitude }
+        return i64.from_bits(bits)
+    }
+}
+
+instance isize {
+    noalloc notrap method self.checked_add(other: isize): isize? {
+        let result = (self as i64).checked_add(other as i64) otherwise { return none }
+        return result as isize
+    }
+
+    noalloc notrap method self.checked_sub(other: isize): isize? {
+        let result = (self as i64).checked_sub(other as i64) otherwise { return none }
+        return result as isize
+    }
+
+    noalloc notrap method self.checked_mul(other: isize): isize? {
+        let result = (self as i64).checked_mul(other as i64) otherwise { return none }
+        return result as isize
+    }
+}
+
+instance i8 {
+    noalloc notrap method self.checked_add(other: i8): i8? {
+        let result = (self as i64).checked_add(other as i64) otherwise { return none }
+        if result < MINIMUM_I8 || result > MAXIMUM_I8 { return none }
+        return i8_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_sub(other: i8): i8? {
+        let result = (self as i64).checked_sub(other as i64) otherwise { return none }
+        if result < MINIMUM_I8 || result > MAXIMUM_I8 { return none }
+        return i8_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_mul(other: i8): i8? {
+        let result = (self as i64).checked_mul(other as i64) otherwise { return none }
+        if result < MINIMUM_I8 || result > MAXIMUM_I8 { return none }
+        return i8_truncate_raw(result)
+    }
+}
+
+instance i16 {
+    noalloc notrap method self.checked_add(other: i16): i16? {
+        let result = (self as i64).checked_add(other as i64) otherwise { return none }
+        if result < MINIMUM_I16 || result > MAXIMUM_I16 { return none }
+        return i16_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_sub(other: i16): i16? {
+        let result = (self as i64).checked_sub(other as i64) otherwise { return none }
+        if result < MINIMUM_I16 || result > MAXIMUM_I16 { return none }
+        return i16_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_mul(other: i16): i16? {
+        let result = (self as i64).checked_mul(other as i64) otherwise { return none }
+        if result < MINIMUM_I16 || result > MAXIMUM_I16 { return none }
+        return i16_truncate_raw(result)
+    }
+}
+
+instance i32 {
+    noalloc notrap method self.checked_add(other: i32): i32? {
+        let result = (self as i64).checked_add(other as i64) otherwise { return none }
+        if result < MINIMUM_I32 || result > MAXIMUM_I32 { return none }
+        return i32_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_sub(other: i32): i32? {
+        let result = (self as i64).checked_sub(other as i64) otherwise { return none }
+        if result < MINIMUM_I32 || result > MAXIMUM_I32 { return none }
+        return i32_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_mul(other: i32): i32? {
+        let result = (self as i64).checked_mul(other as i64) otherwise { return none }
+        if result < MINIMUM_I32 || result > MAXIMUM_I32 { return none }
+        return i32_truncate_raw(result)
+    }
+}
+
+instance u8 {
+    noalloc notrap method self.checked_add(other: u8): u8? {
+        let result = (self as u64).checked_add(other as u64) otherwise { return none }
+        if result > MAXIMUM_U8 { return none }
+        return u8_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_sub(other: u8): u8? {
+        let result = (self as u64).checked_sub(other as u64) otherwise { return none }
+        return u8_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_mul(other: u8): u8? {
+        let result = (self as u64).checked_mul(other as u64) otherwise { return none }
+        if result > MAXIMUM_U8 { return none }
+        return u8_truncate_raw(result)
+    }
+}
+
+instance u16 {
+    noalloc notrap method self.checked_add(other: u16): u16? {
+        let result = (self as u64).checked_add(other as u64) otherwise { return none }
+        if result > MAXIMUM_U16 { return none }
+        return u16_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_sub(other: u16): u16? {
+        let result = (self as u64).checked_sub(other as u64) otherwise { return none }
+        return u16_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_mul(other: u16): u16? {
+        let result = (self as u64).checked_mul(other as u64) otherwise { return none }
+        if result > MAXIMUM_U16 { return none }
+        return u16_truncate_raw(result)
+    }
+}
+
+instance u32 {
+    noalloc notrap method self.checked_add(other: u32): u32? {
+        let result = (self as u64).checked_add(other as u64) otherwise { return none }
+        if result > MAXIMUM_U32 { return none }
+        return u32_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_sub(other: u32): u32? {
+        let result = (self as u64).checked_sub(other as u64) otherwise { return none }
+        return u32_truncate_raw(result)
+    }
+
+    noalloc notrap method self.checked_mul(other: u32): u32? {
+        let result = (self as u64).checked_mul(other as u64) otherwise { return none }
+        if result > MAXIMUM_U32 { return none }
+        return u32_truncate_raw(result)
+    }
+}
+
+test checked_signed_arithmetic_handles_asymmetric_boundaries {
+    let maximum: i64 = 9223372036854775807
+    let minimum: i64 = -9223372036854775808
+    let negative_one: i64 = -1
+    let two: i64 = 2
+    let minimum_product = minimum.checked_mul(1) otherwise {
+        return error.new("std.num.checked", "i64 minimum product was rejected")
+    }
+    if minimum_product != minimum {
+        return error.new("std.num.checked", "i64 minimum product changed")
+    }
+    let _add_overflow = maximum.checked_add(1) otherwise {
+        let _sub_overflow = minimum.checked_sub(1) otherwise {
+            let _mul_overflow = minimum.checked_mul(negative_one) otherwise {
+                let _positive_overflow = maximum.checked_mul(two) otherwise { return }
+                return error.new("std.num.checked", "positive product overflow succeeded")
+            }
+            return error.new("std.num.checked", "minimum times negative one succeeded")
+        }
+        return error.new("std.num.checked", "signed subtraction overflow succeeded")
+    }
+    return error.new("std.num.checked", "signed addition overflow succeeded")
+}
+
+test checked_u64_arithmetic_rejects_overflow_without_trapping {
+    let maximum: u64 = MAXIMUM_U64
+    let zero: u64 = 0
+    let sum = maximum.wrapping_sub(1).checked_add(1) otherwise {
+        return error.new("std.num.checked", "representable sum was rejected")
+    }
+    let product = maximum.checked_mul(1) otherwise {
+        return error.new("std.num.checked", "representable product was rejected")
+    }
+    if sum != maximum || product != maximum {
+        return error.new("std.num.checked", "checked result changed")
+    }
+    let _sum_overflow = maximum.checked_add(1) otherwise {
+        let _sub_underflow = zero.checked_sub(1) otherwise {
+            let _mul_overflow = maximum.checked_mul(2) otherwise { return }
+            return error.new("std.num.checked", "overflowing product succeeded")
+        }
+        return error.new("std.num.checked", "negative unsigned result succeeded")
+    }
+    return error.new("std.num.checked", "overflowing sum succeeded")
+}
+
+test checked_usize_arithmetic_uses_the_target_width {
+    let maximum: usize = 18446744073709551615
+    let sum = maximum.checked_add(0) otherwise {
+        return error.new("std.num.usize", "usize maximum was rejected")
+    }
+    if sum != maximum {
+        return error.new("std.num.usize", "usize checked result changed")
+    }
+    let _overflow = maximum.checked_add(1) otherwise { return }
+    return error.new("std.num.usize", "usize overflow succeeded")
+}
+
+test checked_narrow_arithmetic_rejects_destination_overflow {
+    let signed_maximum: i8 = 127
+    let signed_minimum: i8 = -128
+    let unsigned_maximum: u16 = 65535
+    let _signed_add = signed_maximum.checked_add(1) otherwise {
+        let _signed_sub = signed_minimum.checked_sub(1) otherwise {
+            let _unsigned_mul = unsigned_maximum.checked_mul(2) otherwise { return }
+            return error.new("std.num.checked", "narrow unsigned overflow succeeded")
+        }
+        return error.new("std.num.checked", "narrow signed underflow succeeded")
+    }
+    return error.new("std.num.checked", "narrow signed overflow succeeded")
+}

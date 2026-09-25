@@ -4,7 +4,6 @@ see ./index.nct
 
 use /mem.RawBuffer
 use /mem as mem_module
-use /internal/mem
 use /path
 use /ptr
 use /internal/ptr as internal_ptr
@@ -17,7 +16,7 @@ struct TargetPathArgument {
 #target: "arm64-darwin"
 func target_path_argument(value: &str): TargetPathArgument! {
     path.validate(value)?
-    let allocation_size: usize = mem.checked_add(value.len(), 1) otherwise {
+    let allocation_size: usize = value.len().checked_add(1) otherwise {
         return error.new("std.io.invalid_input", "path length cannot be represented")
     }
     var allocator = mem_module.page_try_allocator()

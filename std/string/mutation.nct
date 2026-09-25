@@ -10,7 +10,7 @@ use /mem
 
 func try_reserve(text: &+String, additional: usize): usize! {
     let text_len: usize = text.len
-    let required_capacity: usize = internal_mem.checked_add(text_len, additional) otherwise {
+    let required_capacity: usize = text_len.checked_add(additional) otherwise {
         return internal_mem.capacity_overflow()
     }
     let current_capacity: usize = text.storage.bytes().len()

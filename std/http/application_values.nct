@@ -3,8 +3,6 @@
 see ./errors.nct
 see ./index.nct
 
-use /internal/mem
-
 copy struct ApplicationLimits {
     item_count: usize
     value_bytes: usize
@@ -16,7 +14,7 @@ noalloc func checked_application_size(
     additional: usize,
     limit: usize,
 ): usize! {
-    let next = mem.checked_add(current, additional) otherwise {
+    let next = current.checked_add(additional) otherwise {
         return application_value_limit()
     }
     if next > limit { return application_value_limit() }

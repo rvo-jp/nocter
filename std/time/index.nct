@@ -49,10 +49,10 @@ instance Duration {
     pub noalloc method &self.is_zero(): bool
 
     /// Adds two durations, returning absence when the normalized result is unrepresentable.
-    pub noalloc method &self.checked_add(other: &Self): Self?
+    pub noalloc notrap method &self.checked_add(other: &Self): Self?
 
     /// Subtracts a duration, returning absence when `other` is greater than this value.
-    pub noalloc method &self.checked_sub(other: &Self): Self?
+    pub noalloc notrap method &self.checked_sub(other: &Self): Self?
 
     /// Returns whether both durations denote the same normalized span.
     pub noalloc operator (&self == other: &Self): bool

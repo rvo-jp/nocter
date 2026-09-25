@@ -41,13 +41,13 @@ noalloc func valid_environment_value_for_command(value: &str): bool {
 }
 
 func own_environment_entry(name: &str, value: &str): OwnedProcessText {
-    let prefix_len = internal_mem.checked_add(name.len(), 1) otherwise {
+    let prefix_len = name.len().checked_add(1) otherwise {
         return internal_mem.allocation_abort()
     }
-    let text_len = internal_mem.checked_add(prefix_len, value.len()) otherwise {
+    let text_len = prefix_len.checked_add(value.len()) otherwise {
         return internal_mem.allocation_abort()
     }
-    let allocation_size = internal_mem.checked_add(text_len, 1) otherwise {
+    let allocation_size = text_len.checked_add(1) otherwise {
         return internal_mem.allocation_abort()
     }
     var allocator = mem_module.current_allocator()

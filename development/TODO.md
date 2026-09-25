@@ -9,11 +9,11 @@ deliberately deferred.
 
 ## Next Work
 
-Begin v0.71.0 Phase 1. Add explicit checked arithmetic for algorithms that recover from overflow,
-then audit standard operators, coercions, expansions, and generic algorithms against the Phase 0
-structural guarantee model. Publish `noalloc` or `notrap` only where the selected operations and
-runtime primitives prove the contract. Do not add a `realtime` profile or asynchronous future-drive
-guarantee in this milestone.
+Complete v0.71.0 Phase 2 qualification. Run the complete compiler, standard-library, example,
+documentation, package, and release-source gates. Review the final implementation for duplicate
+guarantee policy, source-text semantic inference, redispatch, compatibility fallbacks, and stale
+v0.70 limitations. Do not add a `realtime` profile or asynchronous future-drive guarantee in this
+milestone.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

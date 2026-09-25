@@ -9,6 +9,7 @@ see ./floating.nct
 see ./float_big.nct
 see ./float_parse.nct
 see ./integer_bits.nct
+see ./checked_arithmetic.nct
 see ./scalar.nct
 see ./tests.nct
 see ./text.nct
@@ -204,7 +205,7 @@ instance f64 {
 
 construct i8 {
     /// Creates a signed integer with exactly the supplied two's-complement representation.
-    pub noalloc func from_bits(bits: u8): Self
+    pub noalloc notrap func from_bits(bits: u8): Self
 
     /// Converts an integral binary64 value when it is representable as `i8`.
     pub noalloc func from_f64(value: f64): Self?
@@ -215,7 +216,7 @@ construct i8 {
 
 construct i16 {
     /// Creates a signed integer with exactly the supplied two's-complement representation.
-    pub noalloc func from_bits(bits: u16): Self
+    pub noalloc notrap func from_bits(bits: u16): Self
 
     /// Converts an integral binary64 value when it is representable as `i16`.
     pub noalloc func from_f64(value: f64): Self?
@@ -226,7 +227,7 @@ construct i16 {
 
 construct i32 {
     /// Creates a signed integer with exactly the supplied two's-complement representation.
-    pub noalloc func from_bits(bits: u32): Self
+    pub noalloc notrap func from_bits(bits: u32): Self
 
     /// Converts an integral binary64 value when it is representable as `i32`.
     pub noalloc func from_f64(value: f64): Self?
@@ -237,7 +238,7 @@ construct i32 {
 
 construct i64 {
     /// Creates a signed integer with exactly the supplied two's-complement representation.
-    pub noalloc func from_bits(bits: u64): Self
+    pub noalloc notrap func from_bits(bits: u64): Self
 
     /// Converts an integral binary64 value when it is representable as `i64`.
     pub noalloc func from_f64(value: f64): Self?
@@ -247,23 +248,59 @@ construct i64 {
 }
 
 instance i8 {
+    /// Adds two values, or returns none when the mathematical result is outside `i8`.
+    pub noalloc notrap method self.checked_add(other: i8): i8?
+
+    /// Subtracts two values, or returns none when the mathematical result is outside `i8`.
+    pub noalloc notrap method self.checked_sub(other: i8): i8?
+
+    /// Multiplies two values, or returns none when the mathematical result is outside `i8`.
+    pub noalloc notrap method self.checked_mul(other: i8): i8?
+
     /// Returns the exact stored two's-complement representation.
-    pub noalloc method self.to_bits(): u8
+    pub noalloc notrap method self.to_bits(): u8
 }
 
 instance i16 {
+    /// Adds two values, or returns none when the mathematical result is outside `i16`.
+    pub noalloc notrap method self.checked_add(other: i16): i16?
+
+    /// Subtracts two values, or returns none when the mathematical result is outside `i16`.
+    pub noalloc notrap method self.checked_sub(other: i16): i16?
+
+    /// Multiplies two values, or returns none when the mathematical result is outside `i16`.
+    pub noalloc notrap method self.checked_mul(other: i16): i16?
+
     /// Returns the exact stored two's-complement representation.
-    pub noalloc method self.to_bits(): u16
+    pub noalloc notrap method self.to_bits(): u16
 }
 
 instance i32 {
+    /// Adds two values, or returns none when the mathematical result is outside `i32`.
+    pub noalloc notrap method self.checked_add(other: i32): i32?
+
+    /// Subtracts two values, or returns none when the mathematical result is outside `i32`.
+    pub noalloc notrap method self.checked_sub(other: i32): i32?
+
+    /// Multiplies two values, or returns none when the mathematical result is outside `i32`.
+    pub noalloc notrap method self.checked_mul(other: i32): i32?
+
     /// Returns the exact stored two's-complement representation.
-    pub noalloc method self.to_bits(): u32
+    pub noalloc notrap method self.to_bits(): u32
 }
 
 instance i64 {
+    /// Adds two values, or returns none when the mathematical result is outside `i64`.
+    pub noalloc notrap method self.checked_add(other: i64): i64?
+
+    /// Subtracts two values, or returns none when the mathematical result is outside `i64`.
+    pub noalloc notrap method self.checked_sub(other: i64): i64?
+
+    /// Multiplies two values, or returns none when the mathematical result is outside `i64`.
+    pub noalloc notrap method self.checked_mul(other: i64): i64?
+
     /// Returns the exact stored two's-complement representation.
-    pub noalloc method self.to_bits(): u64
+    pub noalloc notrap method self.to_bits(): u64
 }
 
 construct isize {
@@ -356,6 +393,15 @@ instance i64 {
 }
 
 instance isize {
+    /// Adds two values, or returns none when the mathematical result is outside `isize`.
+    pub noalloc notrap method self.checked_add(other: isize): isize?
+
+    /// Subtracts two values, or returns none when the mathematical result is outside `isize`.
+    pub noalloc notrap method self.checked_sub(other: isize): isize?
+
+    /// Multiplies two values, or returns none when the mathematical result is outside `isize`.
+    pub noalloc notrap method self.checked_mul(other: isize): isize?
+
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
 
@@ -364,32 +410,41 @@ instance isize {
 }
 
 instance u64 {
+    /// Adds two values, or returns none when the mathematical result exceeds `u64`.
+    pub noalloc notrap method self.checked_add(other: u64): u64?
+
+    /// Subtracts two values, or returns none when the mathematical result is negative.
+    pub noalloc notrap method self.checked_sub(other: u64): u64?
+
+    /// Multiplies two values, or returns none when the mathematical result exceeds `u64`.
+    pub noalloc notrap method self.checked_mul(other: u64): u64?
+
     /// Adds two values modulo 2^64.
-    pub noalloc method self.wrapping_add(other: u64): u64
+    pub noalloc notrap method self.wrapping_add(other: u64): u64
 
     /// Subtracts two values modulo 2^64.
-    pub noalloc method self.wrapping_sub(other: u64): u64
+    pub noalloc notrap method self.wrapping_sub(other: u64): u64
 
     /// Multiplies two values modulo 2^64.
-    pub noalloc method self.wrapping_mul(other: u64): u64
+    pub noalloc notrap method self.wrapping_mul(other: u64): u64
 
     /// Returns the high half of the full 128-bit unsigned product.
-    pub noalloc method self.multiply_high(other: u64): u64
+    pub noalloc notrap method self.multiply_high(other: u64): u64
 
     /// Returns the bitwise conjunction of two values.
-    pub noalloc method self.bit_and(other: u64): u64
+    pub noalloc notrap method self.bit_and(other: u64): u64
 
     /// Returns the bitwise disjunction of two values.
-    pub noalloc method self.bit_or(other: u64): u64
+    pub noalloc notrap method self.bit_or(other: u64): u64
 
     /// Returns the bitwise exclusive OR of two values.
-    pub noalloc method self.bit_xor(other: u64): u64
+    pub noalloc notrap method self.bit_xor(other: u64): u64
 
     /// Rotates the bits right; only the low six bits of amount are significant.
-    pub noalloc method self.rotate_right(amount: u64): u64
+    pub noalloc notrap method self.rotate_right(amount: u64): u64
 
     /// Returns the number of zero bits before the most-significant set bit, or 64 for zero.
-    pub noalloc method self.leading_zeros(): u64
+    pub noalloc notrap method self.leading_zeros(): u64
 
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
@@ -399,6 +454,15 @@ instance u64 {
 }
 
 instance u8 {
+    /// Adds two values, or returns none when the mathematical result exceeds `u8`.
+    pub noalloc notrap method self.checked_add(other: u8): u8?
+
+    /// Subtracts two values, or returns none when the mathematical result is negative.
+    pub noalloc notrap method self.checked_sub(other: u8): u8?
+
+    /// Multiplies two values, or returns none when the mathematical result exceeds `u8`.
+    pub noalloc notrap method self.checked_mul(other: u8): u8?
+
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
 
@@ -407,6 +471,15 @@ instance u8 {
 }
 
 instance u16 {
+    /// Adds two values, or returns none when the mathematical result exceeds `u16`.
+    pub noalloc notrap method self.checked_add(other: u16): u16?
+
+    /// Subtracts two values, or returns none when the mathematical result is negative.
+    pub noalloc notrap method self.checked_sub(other: u16): u16?
+
+    /// Multiplies two values, or returns none when the mathematical result exceeds `u16`.
+    pub noalloc notrap method self.checked_mul(other: u16): u16?
+
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
 
@@ -415,6 +488,15 @@ instance u16 {
 }
 
 instance u32 {
+    /// Adds two values, or returns none when the mathematical result exceeds `u32`.
+    pub noalloc notrap method self.checked_add(other: u32): u32?
+
+    /// Subtracts two values, or returns none when the mathematical result is negative.
+    pub noalloc notrap method self.checked_sub(other: u32): u32?
+
+    /// Multiplies two values, or returns none when the mathematical result exceeds `u32`.
+    pub noalloc notrap method self.checked_mul(other: u32): u32?
+
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
 
@@ -423,6 +505,15 @@ instance u32 {
 }
 
 instance usize {
+    /// Adds two counts, or returns none when the mathematical result exceeds `usize`.
+    pub noalloc notrap method self.checked_add(other: usize): usize?
+
+    /// Subtracts two counts, or returns none when the mathematical result is negative.
+    pub noalloc notrap method self.checked_sub(other: usize): usize?
+
+    /// Multiplies two counts, or returns none when the mathematical result exceeds `usize`.
+    pub noalloc notrap method self.checked_mul(other: usize): usize?
+
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
 

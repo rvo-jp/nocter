@@ -41,7 +41,7 @@ struct SharedProbe {
 noalloc func align_address(address: usize, align: usize): usize {
     let remainder = address % align
     if remainder == 0 { return address }
-    return internal_mem.checked_add(address, align - remainder) otherwise {
+    return address.checked_add(align - remainder) otherwise {
         return safety.invariant_abort()
     }
 }
@@ -56,17 +56,17 @@ func new_shared_storage<T>(value: T): SharedStorage<T> {
     let header_size = ptr.pointee_size(header_pointer)
     let value_size = ptr.pointee_size(value_pointer)
     let value_align = ptr.pointee_align(value_pointer)
-    let header_and_padding: usize = internal_mem.checked_add(header_size, value_align) otherwise {
+    let header_and_padding: usize = header_size.checked_add(value_align) otherwise {
         return safety.invariant_abort()
     }
-    let mapping_size: usize = internal_mem.checked_add(header_and_padding, value_size) otherwise {
+    let mapping_size: usize = header_and_padding.checked_add(value_size) otherwise {
         return safety.invariant_abort()
     }
     let mapping_address = mem.alloc_shared_pages(mapping_size) catch allocation_error {
         return internal_mem.allocation_abort()
     }
     let stored_header: *SharedHeader = ptr.from_addr(mapping_address)
-    let unaligned_value: usize = internal_mem.checked_add(mapping_address, header_size) otherwise {
+    let unaligned_value: usize = mapping_address.checked_add(header_size) otherwise {
         return safety.invariant_abort()
     }
     let stored_value: *T = ptr.from_addr(align_address(unaligned_value, value_align))
@@ -87,7 +87,7 @@ func new_shared_storage<T>(value: T): SharedStorage<T> {
 noalloc func share_storage<T>(owner: &SharedStorage<T>): SharedStorage<T> {
     if !owner.active { return safety.invariant_abort() }
     let header = header_view_mut(owner)
-    header.owner_count = internal_mem.checked_add(header.owner_count, 1) otherwise {
+    header.owner_count = header.owner_count.checked_add(1) otherwise {
         return safety.invariant_abort()
     }
     return SharedStorage<T> {

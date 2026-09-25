@@ -33,7 +33,7 @@ func store_index_bucket_count(minimum: usize): usize {
     if minimum == 0 { return 0 }
     var bucket_count: usize = 8
     while store_index_usable_capacity(bucket_count) < minimum {
-        bucket_count = mem.checked_add(bucket_count, bucket_count) otherwise {
+        bucket_count = bucket_count.checked_add(bucket_count) otherwise {
             return mem.allocation_abort()
         }
     }

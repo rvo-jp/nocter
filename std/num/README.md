@@ -34,6 +34,27 @@ and leading-zero count. These operations provide the exact wide arithmetic requi
 conversion algorithms without introducing `u128` as a source type or asking ordinary trapping
 operators to acquire a second meaning.
 
+## Checked Integer Arithmetic
+
+Every built-in integer type exposes `checked_add`, `checked_sub`, and `checked_mul`. Each method
+returns the mathematical result when it belongs to the receiver type and returns `none` on
+overflow or unsigned underflow. The methods are `noalloc notrap`: failure is an ordinary optional
+outcome, not an allocation request or trap.
+
+```nct
+let next = count.checked_add(additional) otherwise { return none }
+let bytes = next.checked_mul(element_size) otherwise { return none }
+```
+
+The signed operations include the asymmetric minimum value correctly. In particular, multiplying
+the minimum by one succeeds, while multiplying it by negative one returns `none`. `usize` and
+`isize` use the active target width. Normal `+`, `-`, and `*` operators retain their trapping
+contract; checked methods do not change operator meaning.
+
+The standard package uses these type-owned methods for allocation sizes, collection growth,
+encoded lengths, and counters. There is no separate package-internal implementation of checked
+capacity arithmetic.
+
 ## Floating-Point Text Input
 
 `f32.parse` and `f64.parse` consume an entire ASCII decimal spelling. They accept an optional

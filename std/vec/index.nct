@@ -63,16 +63,16 @@ construct Vec<T> {
 
 instance Vec<T> {
     /// Exposes the initialized element prefix as a readonly view.
-    pub noalloc coerce &self as &[T]
+    pub noalloc notrap coerce &self as &[T]
 
     /// Exposes the initialized element prefix as a readwrite view.
-    pub noalloc coerce &+self as &+[T]
+    pub noalloc notrap coerce &+self as &+[T]
 
     /// Creates an allocation-free iterator over readonly element borrows.
-    pub noalloc operator (...&self): ViewIter<T>
+    pub noalloc notrap operator (...&self): ViewIter<T>
 
     /// Creates an allocation-free iterator over readwrite element borrows.
-    pub noalloc operator (...&+self): MutableViewIter<T>
+    pub noalloc notrap operator (...&+self): MutableViewIter<T>
 
     /// Transfers the allocation and every element into an owning iterator.
     pub operator (...self): VecIntoIter<T>

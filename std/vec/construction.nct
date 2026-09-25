@@ -34,7 +34,7 @@ construct Vec<T> {
         if element_size == 0 {
             return empty_with_capacity(requested_capacity)
         }
-        let byte_capacity: usize = mem.checked_multiply(requested_capacity, element_size) otherwise {
+        let byte_capacity: usize = requested_capacity.checked_mul(element_size) otherwise {
             return mem.allocation_abort()
         }
         var allocator = mem_module.current_allocator()
@@ -57,7 +57,7 @@ construct Vec<T> {
         if element_size == 0 {
             return empty_with_capacity(requested_capacity)
         }
-        let byte_capacity: usize = mem.checked_multiply(requested_capacity, element_size) otherwise {
+        let byte_capacity: usize = requested_capacity.checked_mul(element_size) otherwise {
             return mem.capacity_overflow()
         }
         let storage = allocator.try_alloc(byte_capacity, internal_ptr.pointee_align(pointer))?

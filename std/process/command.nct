@@ -5,7 +5,6 @@
 
 see ./index.nct
 
-use /internal/mem as internal_mem
 use /internal/ptr as internal_ptr
 use /mem.RawBuffer
 use /mem
@@ -71,7 +70,7 @@ noalloc func validate_process_text(value: &str, require_nonempty: bool): void! {
 
 func own_process_text(value: &str, require_nonempty: bool): OwnedProcessText! {
     validate_process_text(value, require_nonempty)?
-    let allocation_size = internal_mem.checked_add(value.len(), 1) otherwise {
+    let allocation_size = value.len().checked_add(1) otherwise {
         return invalid_command_input()
     }
     var allocator = mem.current_allocator()

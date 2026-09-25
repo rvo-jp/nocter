@@ -63,7 +63,7 @@ pub noalloc func is_valid_utf8(candidate: &[u8]): bool
 
 instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub noalloc coerce &self as &str
+    pub noalloc notrap coerce &self as &str
 
     /// Returns the byte capacity available without growth.
     pub noalloc method &self.capacity(): usize

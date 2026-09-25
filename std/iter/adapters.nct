@@ -51,7 +51,7 @@ struct MutableViewIter<T> {
 }
 
 construct ViewIter<T> {
-    noalloc func from_view(view: &[T]): Self {
+    noalloc notrap func from_view(view: &[T]): Self {
         return ViewIter<T> {
             view: view,
             next_index: 0,

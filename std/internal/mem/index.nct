@@ -4,14 +4,8 @@ see ./capacity.nct
 
 pub(/) noalloc primitive func allocation_abort(): never
 
-/// Adds two pointer-sized counts without wrapping.
-pub(/) noalloc func checked_add(left: usize, right: usize): usize?
-
-/// Multiplies two pointer-sized counts without wrapping.
-pub(/) noalloc func checked_multiply(left: usize, right: usize): usize?
-
 /// Selects geometric capacity no smaller than `required`.
-pub(/) noalloc func growth_capacity(current: usize, required: usize): usize
+pub(/) noalloc notrap func growth_capacity(current: usize, required: usize): usize
 
 /// Constructs the one stable error for unrepresentable storage capacity.
 pub(/) noalloc func capacity_overflow(): error

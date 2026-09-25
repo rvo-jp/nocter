@@ -2,12 +2,12 @@
 
 see ./index.nct
 
-noalloc primitive func u8_truncate_raw(value: u64): u8
-noalloc primitive func u16_truncate_raw(value: u64): u16
-noalloc primitive func u32_truncate_raw(value: u64): u32
-noalloc primitive func i8_truncate_raw(value: i64): i8
-noalloc primitive func i16_truncate_raw(value: i64): i16
-noalloc primitive func i32_truncate_raw(value: i64): i32
+noalloc notrap primitive func u8_truncate_raw(value: u64): u8
+noalloc notrap primitive func u16_truncate_raw(value: u64): u16
+noalloc notrap primitive func u32_truncate_raw(value: u64): u32
+noalloc notrap primitive func i8_truncate_raw(value: i64): i8
+noalloc notrap primitive func i16_truncate_raw(value: i64): i16
+noalloc notrap primitive func i32_truncate_raw(value: i64): i32
 noalloc primitive func f64_to_f32_raw(value: f64): f32
 noalloc primitive func f64_to_i64_raw(value: f64): i64
 noalloc primitive func f64_to_u64_raw(value: f64): u64

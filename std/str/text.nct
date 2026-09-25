@@ -10,9 +10,9 @@ use /internal/ptr
 use /string.String
 use /vec.Vec
 
-noalloc primitive func str_len_raw(value: &str): usize
+noalloc notrap primitive func str_len_raw(value: &str): usize
 
-noalloc primitive func str_ptr_addr_raw(value: &str): usize
+noalloc notrap primitive func str_ptr_addr_raw(value: &str): usize
 
 instance str {
     noalloc operator (&self == other: &Self): bool {

@@ -3,13 +3,12 @@
 see ./index.nct
 see ./byte_helpers.nct
 
-use /internal/mem as internal_mem
 use /mem
 
 const COPY_BUFFER_SIZE: usize = 8192
 
 noalloc func transferred_count(total: usize, received: usize): usize! {
-    let next = internal_mem.checked_add(total, received) otherwise {
+    let next = total.checked_add(received) otherwise {
         return error.new("std.io.byte_count_overflow", "copied byte count exceeded usize")
     }
     return next

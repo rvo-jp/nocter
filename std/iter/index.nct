@@ -183,12 +183,12 @@ instance MutableViewIter<T> {
 
 construct MutableViewIter<T> {
     /// Creates an allocation-free mutable iterator over `view`.
-    pub noalloc func from_view(view: &+[T]): Self
+    pub noalloc notrap func from_view(view: &+[T]): Self
 }
 
 construct ViewIter<T> {
     /// Creates an allocation-free readonly iterator over `view`.
-    pub noalloc func from_view(view: &[T]): Self
+    pub noalloc notrap func from_view(view: &[T]): Self
 }
 
 instance ViewIter<T> {

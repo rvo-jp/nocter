@@ -43,10 +43,10 @@ noalloc func has_later_environment_change(command: &Command, change_index: usize
 #target: "arm64-darwin"
 func prepare_environment(command: &Command): Vec<usize> {
     let inherited_count = if command.inherit_environment { env_count_raw() } else { 0 }
-    let partial_capacity = mem.checked_add(inherited_count, command.environment_changes.len()) otherwise {
+    let partial_capacity = inherited_count.checked_add(command.environment_changes.len()) otherwise {
         return mem.allocation_abort()
     }
-    let capacity = mem.checked_add(partial_capacity, 1) otherwise {
+    let capacity = partial_capacity.checked_add(1) otherwise {
         return mem.allocation_abort()
     }
     var environment_vector: Vec<usize> = Vec.with_capacity(capacity)
@@ -80,7 +80,7 @@ func prepare_environment(command: &Command): Vec<usize> {
 #target: "arm64-darwin"
 func prepare_command(command: Command): PreparedCommand {
     var source = move command
-    let argv_capacity = mem.checked_add(source.arguments.len(), 2) otherwise {
+    let argv_capacity = source.arguments.len().checked_add(2) otherwise {
         return mem.allocation_abort()
     }
     var argv: Vec<usize> = Vec.with_capacity(argv_capacity)
