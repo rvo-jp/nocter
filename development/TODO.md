@@ -4,16 +4,15 @@
 
 Nocter v0.68.0 Production Native Performance is published and externally audited. v0.69.0
 Canonical Declaration Contracts and v0.70.0 Trap-Free Callable Contracts are complete but
-unpublished. v0.71.0 Guaranteed Structural Operations is active. Linux target work remains
-deliberately deferred.
+unpublished. v0.71.0 Guaranteed Structural Operations is implementation-complete and unpublished.
+Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Complete v0.71.0 Phase 2 qualification. Run the complete compiler, standard-library, example,
-documentation, package, and release-source gates. Review the final implementation for duplicate
-guarantee policy, source-text semantic inference, redispatch, compatibility fallbacks, and stale
-v0.70 limitations. Do not add a `realtime` profile or asynchronous future-drive guarantee in this
-milestone.
+Prepare the v0.71.0 release identity and qualify the deterministic installed artifact when release
+preparation is authorized. Re-run the complete source gate from the final release-content commit,
+then retain and audit the exact qualified archive. Do not tag, upload, or publish without explicit
+authorization.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
