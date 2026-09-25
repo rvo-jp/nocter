@@ -16,8 +16,8 @@ use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclaration, SurfaceDecla
 
 use super::normalization_origins::NormalizationOrigins;
 use super::{
-    BoundInterfaceApplication, BoundOpaqueResult, BoundRequirementKind, BoundTypeId, BoundTypeKind,
-    PreparedTypeBindings, TypeBindingRule, TypeBindingViolation,
+    BoundAssociatedTypeBinding, BoundInterfaceApplication, BoundOpaqueResult, BoundRequirementKind,
+    BoundTypeId, BoundTypeKind, PreparedTypeBindings, TypeBindingRule, TypeBindingViolation,
 };
 
 mod preparation;
@@ -1273,72 +1273,63 @@ fn normalize_requirement(
         } => RequirementKind::Interface {
             subject: *subject,
             application: normalize_interface_application(evaluator, declaration, application)?,
-            associated_types: associated_types
-                .iter()
-                .map(|binding| {
-                    let projection = evaluator.normalize(binding.projection, declaration)?;
-                    let Some(TypeKind::AssociatedProjection { associated, .. }) =
-                        evaluator.store.get(projection)
-                    else {
-                        return Err(TypeNormalizationError::InvalidBoundType(binding.projection));
-                    };
-                    Ok(AssociatedTypeBinding::new(
-                        *associated,
-                        evaluator.normalize(binding.value, declaration)?,
-                    ))
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_boxed_slice(),
+            associated_types: normalize_associated_bindings(
+                evaluator,
+                declaration,
+                associated_types,
+            )?,
         },
-        BoundRequirementKind::Callable { subject, contract } => {
-            let ty = evaluator.normalize(*contract, declaration)?;
-            let Some(TypeKind::Callable(callable)) = evaluator.store.get(ty) else {
-                return Err(evaluator.authored_violation(
-                    TypeNormalizationRule::InvalidCallableRequirement,
-                    *contract,
-                )?);
-            };
-            if callable.is_erased() {
-                return Err(evaluator.authored_violation(
-                    TypeNormalizationRule::InvalidCallableRequirement,
-                    *contract,
-                )?);
-            }
-            RequirementKind::Callable {
-                subject: *subject,
-                contract: callable.contract().clone(),
-            }
-        }
+        BoundRequirementKind::Callable { subject, contract } => RequirementKind::Callable {
+            subject: *subject,
+            contract: normalize_callable_requirement(evaluator, declaration, *contract)?,
+        },
         BoundRequirementKind::Copy(parameter) => RequirementKind::Copy(*parameter),
-        BoundRequirementKind::Equality { operand } => RequirementKind::Equality {
+        BoundRequirementKind::Equality {
+            operand,
+            guarantees,
+        } => RequirementKind::Equality {
             operand: evaluator.normalize(*operand, declaration)?,
+            guarantees: *guarantees,
         },
-        BoundRequirementKind::Ordering { operand } => RequirementKind::Ordering {
+        BoundRequirementKind::Ordering {
+            operand,
+            guarantees,
+        } => RequirementKind::Ordering {
             operand: evaluator.normalize(*operand, declaration)?,
+            guarantees: *guarantees,
         },
         BoundRequirementKind::Index {
             capability,
             container,
             index,
             result,
+            guarantees,
         } => RequirementKind::Index {
             capability: *capability,
             container: evaluator.normalize(*container, declaration)?,
             index: evaluator.normalize(*index, declaration)?,
             result: evaluator.normalize(*result, declaration)?,
+            guarantees: *guarantees,
         },
-        BoundRequirementKind::Coercion { source, target } => RequirementKind::Coercion {
+        BoundRequirementKind::Coercion {
+            source,
+            target,
+            guarantees,
+        } => RequirementKind::Coercion {
             source: evaluator.normalize(*source, declaration)?,
             target: evaluator.normalize(*target, declaration)?,
+            guarantees: *guarantees,
         },
         BoundRequirementKind::Expansion {
             capability,
             source,
             result,
+            guarantees,
         } => RequirementKind::Expansion {
             capability: *capability,
             source: evaluator.normalize(*source, declaration)?,
             result: evaluator.normalize(*result, declaration)?,
+            guarantees: *guarantees,
         },
         BoundRequirementKind::BinderRefinement {
             parameter,
@@ -1349,4 +1340,44 @@ fn normalize_requirement(
             replacement: evaluator.normalize(*replacement, declaration)?,
         },
     })
+}
+
+fn normalize_associated_bindings(
+    evaluator: &mut Evaluator<'_>,
+    declaration: SurfaceDeclarationId,
+    bindings: &[BoundAssociatedTypeBinding],
+) -> Result<Box<[AssociatedTypeBinding]>, TypeNormalizationError> {
+    bindings
+        .iter()
+        .map(|binding| {
+            let projection = evaluator.normalize(binding.projection, declaration)?;
+            let Some(TypeKind::AssociatedProjection { associated, .. }) =
+                evaluator.store.get(projection)
+            else {
+                return Err(TypeNormalizationError::InvalidBoundType(binding.projection));
+            };
+            Ok(AssociatedTypeBinding::new(
+                *associated,
+                evaluator.normalize(binding.value, declaration)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Vec::into_boxed_slice)
+}
+
+fn normalize_callable_requirement(
+    evaluator: &mut Evaluator<'_>,
+    declaration: SurfaceDeclarationId,
+    contract: BoundTypeId,
+) -> Result<CallableContract, TypeNormalizationError> {
+    let ty = evaluator.normalize(contract, declaration)?;
+    let Some(TypeKind::Callable(callable)) = evaluator.store.get(ty) else {
+        return Err(evaluator
+            .authored_violation(TypeNormalizationRule::InvalidCallableRequirement, contract)?);
+    };
+    if callable.is_erased() {
+        return Err(evaluator
+            .authored_violation(TypeNormalizationRule::InvalidCallableRequirement, contract)?);
+    }
+    Ok(callable.contract().clone())
 }

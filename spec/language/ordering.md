@@ -47,7 +47,8 @@ the operator's implicit readonly operand adjustment.
 Generic code requires the same structural operation:
 
 ```nct
-func earlier<T>(left: &T, right: &T): bool where (&T < &T): bool {
+noalloc notrap func earlier<T>(left: &T, right: &T): bool
+where noalloc notrap (&T < &T): bool {
     return left < right
 }
 ```
@@ -55,6 +56,8 @@ func earlier<T>(left: &T, right: &T): bool where (&T < &T): bool {
 The requirement proves strict ordering for that exact operand pair and a `bool` result. It adds no
 runtime witness or dispatch value. Concrete specialization must find primitive integer ordering,
 an accessible source declaration, or a declaration reached through one readonly coercion.
+When the requirement carries `noalloc` or `notrap`, that selected declaration and every implicit
+coercion must carry the same guarantee. Primitive integer ordering carries both.
 
 ## Total-Order Contract
 

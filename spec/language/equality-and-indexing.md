@@ -41,6 +41,13 @@ value-producing or partial lookup operation. Use an ordinary method returning `&
 lookup. The declaration body owns bounds and failure policy; the compiler does not add a second
 bounds check around a source-defined operation.
 
+Generic equality and indexing requirements may constrain immediate execution with `noalloc` and
+`notrap`, for example `where noalloc notrap (&T == &T): bool` or
+`where noalloc (&C[usize]): &V`. Primitive equality carries both guarantees. Built-in indexing is
+allocation-free but may trap on an invalid index, so it cannot satisfy a `notrap` requirement.
+Source-defined operations and implicit operand or receiver coercions are checked independently
+against every requested guarantee.
+
 Arrays, slices, and `str` are directly indexable. For a nominal receiver, selection first checks an
 accessible declaration on the original type. If none applies, selection may use one accessible
 borrow coercion whose target is directly indexable or owns an applicable index declaration.
@@ -97,4 +104,3 @@ if count > 0 && state == ScanState.inside_word {
     ...
 }
 ```
-

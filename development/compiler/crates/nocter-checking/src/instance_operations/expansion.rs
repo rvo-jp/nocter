@@ -50,6 +50,7 @@ impl InstanceOperationSelector<'_> {
                     capability: required,
                     source: required_source,
                     result,
+                    ..
                 } = assumption.predicate()
                 else {
                     return None;

@@ -689,6 +689,18 @@ mod tests {
     }
 
     #[test]
+    fn preserves_execution_guarantees_on_structural_requirements() {
+        let formatted = format(
+            "noalloc notrap func equal<T>(left:&T,right:&T):bool where noalloc notrap (&T==&T):bool { return left==right }\n",
+        );
+        assert_eq!(
+            formatted,
+            "noalloc notrap func equal<T>(left: &T, right: &T): bool where noalloc notrap (&T == &T): bool { return left == right }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn preserves_canonical_const_callable_modifier_placement() {
         let formatted = format(
             "pub const noalloc func apply(callback:const &func(i32):i32):i32 { return callback(1) }\ninstance Value { pub const method &self.value():i32 { return 1 } }\n",

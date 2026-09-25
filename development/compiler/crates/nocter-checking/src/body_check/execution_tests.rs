@@ -211,6 +211,74 @@ fn process_termination_roles_do_not_hide_prior_safety_traps() {
 }
 
 #[test]
+fn structural_operation_requirements_carry_notrap_into_generic_bodies() {
+    check(
+        "struct Value { field: i32 }\n\
+         instance Value {\n\
+             pub noalloc notrap operator (&self == other: &Self): bool { return true }\n\
+             pub noalloc notrap operator (&self[index: usize]): &i32 { return &self.field }\n\
+             pub noalloc notrap coerce &self as &i32 { return &self.field }\n\
+         }\n\
+         noalloc notrap func equal<T>(left: &T, right: &T): bool where noalloc notrap (&T == &T): bool {\n\
+             return left == right\n\
+         }\n\
+         noalloc notrap func indexed<C, V>(container: &C, index: usize): &V where noalloc notrap (&C[usize]): &V {\n\
+             return &container[index]\n\
+         }\n\
+         noalloc notrap func converted<T, V>(value: &T): &V where noalloc notrap &T as &V { return value }\n\
+         notrap func equal_with_weaker_requirement<T>(left: &T, right: &T): bool where notrap (&T == &T): bool {\n\
+             return left == right\n\
+         }\n\
+         notrap func call_with_stronger_fact<T>(left: &T, right: &T): bool where noalloc notrap (&T == &T): bool {\n\
+             return equal_with_weaker_requirement(left, right)\n\
+         }\n\
+         func use_all(left: &Value, right: &Value): bool {\n\
+             let same = equal(left, right)\n\
+             let selected: &i32 = indexed(left, 0)\n\
+             let converted_view: &i32 = converted(left)\n\
+             return same\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn concrete_structural_implementations_must_satisfy_required_guarantees() {
+    assert!(
+        check(
+            "struct Value {}\n\
+             instance Value { pub operator (&self == other: &Self): bool { return true } }\n\
+             func equal<T>(left: &T, right: &T): bool where notrap (&T == &T): bool {\n\
+                 return left == right\n\
+             }\n\
+             func invalid(left: &Value, right: &Value): bool { return equal(left, right) }\n",
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn interface_prerequisites_combine_independent_structural_guarantees() {
+    check(
+        "pub interface NoAllocEqual where noalloc (&Self == &Self): bool {}\n\
+         pub interface NoTrapEqual where notrap (&Self == &Self): bool {}\n\
+         pub interface SafeEqual where Self impl NoAllocEqual, Self impl NoTrapEqual {}\n\
+         struct Value {}\n\
+         instance Value {\n\
+             impl NoAllocEqual\n\
+             impl NoTrapEqual\n\
+             impl SafeEqual\n\
+             pub noalloc notrap operator (&self == other: &Self): bool { return true }\n\
+         }\n\
+         noalloc notrap func equal<T>(left: &T, right: &T): bool where T impl SafeEqual {\n\
+             return left == right\n\
+         }\n\
+         func concrete(left: &Value, right: &Value): bool { return equal(left, right) }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn synchronous_wait_facts_propagate_through_the_existing_call_graph() {
     let error = check_standard(
         "blocking primitive func wait_raw(): void\n\

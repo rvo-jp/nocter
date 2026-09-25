@@ -70,7 +70,7 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 require_type(program, *index, DeclarationDomain::Requirement)?;
                 require_type(program, *result, DeclarationDomain::Requirement)?;
             }
-            RequirementKind::Coercion { source, target } => {
+            RequirementKind::Coercion { source, target, .. } => {
                 require_type(program, *source, DeclarationDomain::Requirement)?;
                 require_type(program, *target, DeclarationDomain::Requirement)?;
             }
@@ -78,7 +78,8 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                 require_type(program, *source, DeclarationDomain::Requirement)?;
                 require_type(program, *result, DeclarationDomain::Requirement)?;
             }
-            RequirementKind::Equality { operand } | RequirementKind::Ordering { operand } => {
+            RequirementKind::Equality { operand, .. }
+            | RequirementKind::Ordering { operand, .. } => {
                 require_type(program, *operand, DeclarationDomain::Requirement)?;
             }
             RequirementKind::BinderRefinement {

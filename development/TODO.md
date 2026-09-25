@@ -4,14 +4,16 @@
 
 Nocter v0.68.0 Production Native Performance is published and externally audited. v0.69.0
 Canonical Declaration Contracts and v0.70.0 Trap-Free Callable Contracts are complete but
-unpublished. Linux target work remains deliberately deferred.
+unpublished. v0.71.0 Guaranteed Structural Operations is active. Linux target work remains
+deliberately deferred.
 
 ## Next Work
 
-Begin v0.70.0 release preparation. Carry the completed v0.69.0 declaration-contract work and
-v0.70.0 trap-free contract into one release candidate, update versioned public surfaces, build the
-archive from clean committed source, and qualify the exact archive before publication. Do not add a
-`realtime` profile or asynchronous future-drive guarantee during release preparation.
+Begin v0.71.0 Phase 1. Add explicit checked arithmetic for algorithms that recover from overflow,
+then audit standard operators, coercions, expansions, and generic algorithms against the Phase 0
+structural guarantee model. Publish `noalloc` or `notrap` only where the selected operations and
+runtime primitives prove the contract. Do not add a `realtime` profile or asynchronous future-drive
+guarantee in this milestone.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

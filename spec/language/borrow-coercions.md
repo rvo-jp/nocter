@@ -55,7 +55,7 @@ declaration is valid only inside that surface.
 A generic callable can require the same one-step coercion without naming a nominal interface:
 
 ```nct
-func view<T>(value: &T): &str from value where &T as &str {
+noalloc func view<T>(value: &T): &str from value where noalloc &T as &str {
     return value
 }
 ```
@@ -70,6 +70,10 @@ Within the generic body, this predicate is static evidence for contextual conver
 source type must expose one accessible coercion to the exact target. The compiler then specializes
 the generic evidence to that concrete declaration. A requirement does not create a runtime witness,
 insert a source borrow, permit chaining, or weaken visibility.
+
+The requirement may begin with `noalloc`, `notrap`, or canonical `noalloc notrap`. A concrete
+coercion must carry every requested guarantee. Capability weakening from `&+T` to `&T` carries
+both guarantees; no guarantee is inferred onto an unqualified source declaration.
 
 ## Contextual Selection
 

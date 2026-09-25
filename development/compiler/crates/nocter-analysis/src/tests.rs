@@ -463,6 +463,36 @@ fn callable_modifier_completion_follows_the_authored_modifier_order() {
 }
 
 #[test]
+fn structural_requirement_completion_uses_the_shared_modifier_order() {
+    for (tail, expected) in [
+        ("no", &["noalloc", "notrap"][..]),
+        ("noalloc not", &["notrap"][..]),
+        ("notrap noa", &[][..]),
+    ] {
+        let tree = TempTree::new();
+        let source_text = format!("func equal<T>(left: &T, right: &T): bool where {tail}");
+        let (_, snapshot) = bundled_snapshot(&tree, &source_text, GenerationId::new(74));
+        let source = snapshot
+            .sources()
+            .iter()
+            .find(|source| source.name().as_str().ends_with("app.nct"))
+            .unwrap();
+        let completions = snapshot
+            .semantic_completions(
+                source.id(),
+                ByteOffset::new(u32::try_from(source_text.len()).unwrap()),
+            )
+            .unwrap();
+        let actual = completions
+            .iter()
+            .filter(|completion| completion.kind() == crate::SemanticCompletionKind::Keyword)
+            .map(crate::SemanticCompletion::label)
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected, "requirement completion for {tail:?}");
+    }
+}
+
+#[test]
 fn contextual_declaration_keyword_completion_includes_static() {
     let tree = TempTree::new();
     let source_text = "sta";
@@ -944,6 +974,33 @@ fn callable_hover_renders_the_authored_notrap_guarantee() {
     assert_eq!(
         subject.presentation().code(),
         "notrap func identity(value: i32): i32"
+    );
+}
+
+#[test]
+fn callable_hover_renders_structural_operation_guarantees() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "noalloc notrap func equal<T>(left: &T, right: &T): bool ",
+        "where noalloc notrap (&T == &T): bool { return left == right }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(73));
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(22))
+        .unwrap()
+        .unwrap();
+
+    assert!(
+        subject
+            .presentation()
+            .code()
+            .contains("where noalloc notrap (&T == &T): bool")
     );
 }
 

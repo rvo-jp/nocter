@@ -1,4 +1,4 @@
-use super::{Parser, types};
+use super::{Parser, declaration::modifiers, types};
 use crate::{ContextualSpelling, ExpectedSyntax, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn where_clause(parser: &mut Parser<'_>) {
@@ -13,14 +13,23 @@ pub(super) fn where_clause(parser: &mut Parser<'_>) {
 }
 
 fn predicate(parser: &mut Parser<'_>) {
-    if parser.at_punctuation(Punctuation::LeftParen) {
+    let prefix = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+    );
+    let prefixed = !prefix.is_empty();
+    let next = parser.tokens[prefix.end()].kind();
+    if next == TokenKind::Punctuation(Punctuation::LeftParen) {
         parenthesized_predicate(parser);
-    } else if parser.at_punctuation(Punctuation::Ampersand)
-        || parser.at_punctuation(Punctuation::ReadWrite)
+    } else if next == TokenKind::Punctuation(Punctuation::Ampersand)
+        || next == TokenKind::Punctuation(Punctuation::ReadWrite)
     {
         if !parser.attempt(coercion_predicate) {
             type_equality_predicate(parser);
         }
+    } else if prefixed {
+        parser.error_token(ExpectedSyntax::Predicate);
     } else if parser.at_contextual(ContextualSpelling::Copy)
         && parser.nth_kind(1) == TokenKind::Identifier
     {
@@ -71,7 +80,12 @@ fn type_equality_predicate(parser: &mut Parser<'_>) {
 }
 
 fn parenthesized_predicate(parser: &mut Parser<'_>) {
-    if parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::Expansion) {
+    let prefix = modifiers::scan(
+        parser,
+        parser.cursor,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+    );
+    if parser.tokens[prefix.end() + 1].kind() == TokenKind::Punctuation(Punctuation::Expansion) {
         expansion_predicate(parser);
     } else {
         operator_predicate(parser);
@@ -80,6 +94,10 @@ fn parenthesized_predicate(parser: &mut Parser<'_>) {
 
 fn operator_predicate(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    modifiers::parse(
+        parser,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+    );
     parser.bump();
     let readonly = if parser.eat_punctuation(Punctuation::Ampersand) {
         true
@@ -110,6 +128,10 @@ fn operator_predicate(parser: &mut Parser<'_>) {
 
 fn coercion_predicate(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    modifiers::parse(
+        parser,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+    );
     parser.bump();
     types::type_(parser);
     parser.expect_keyword(crate::Keyword::As);
@@ -119,6 +141,10 @@ fn coercion_predicate(parser: &mut Parser<'_>) {
 
 fn expansion_predicate(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    modifiers::parse(
+        parser,
+        modifiers::CallablePrefixGrammar::ImmediateGuarantees,
+    );
     parser.bump();
     parser.bump();
     if parser.at_punctuation(Punctuation::Ampersand)

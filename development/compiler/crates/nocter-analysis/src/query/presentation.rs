@@ -753,15 +753,24 @@ impl<'a> Renderer<'a> {
                 self.output.push_str(" = ");
                 self.ty(*replacement)?;
             }
-            CheckedPredicate::Equality(ty) | CheckedPredicate::Ordering(ty) => {
+            CheckedPredicate::Equality {
+                operand: ty,
+                guarantees,
+            }
+            | CheckedPredicate::Ordering {
+                operand: ty,
+                guarantees,
+            } => {
+                self.callable_prefix(*guarantees, false);
                 self.output.push_str("(&");
                 self.ty(*ty)?;
-                self.output
-                    .push_str(if matches!(requirement, CheckedPredicate::Equality(_)) {
+                self.output.push_str(
+                    if matches!(requirement, CheckedPredicate::Equality { .. }) {
                         " == &"
                     } else {
                         " < &"
-                    });
+                    },
+                );
                 self.ty(*ty)?;
                 self.output.push_str("): bool");
             }
@@ -770,7 +779,9 @@ impl<'a> Renderer<'a> {
                 container,
                 index,
                 result,
+                guarantees,
             } => {
+                self.callable_prefix(*guarantees, false);
                 self.output.push('(');
                 self.output.push_str(match capability {
                     BorrowCapability::Readonly => "&",
@@ -782,7 +793,12 @@ impl<'a> Renderer<'a> {
                 self.output.push_str("]): ");
                 self.ty(*result)?;
             }
-            CheckedPredicate::Coercion { source, target } => {
+            CheckedPredicate::Coercion {
+                source,
+                target,
+                guarantees,
+            } => {
+                self.callable_prefix(*guarantees, false);
                 self.ty(*source)?;
                 self.output.push(' ');
                 self.keyword(Keyword::As);
@@ -792,7 +808,9 @@ impl<'a> Renderer<'a> {
                 capability,
                 source,
                 result,
+                guarantees,
             } => {
+                self.callable_prefix(*guarantees, false);
                 self.output.push_str("(...");
                 self.output.push_str(match capability {
                     ExpansionCapability::Readonly => "&",
@@ -1212,7 +1230,15 @@ impl<'a> Renderer<'a> {
                 self.output.push_str(" = ");
                 self.ty(*replacement)?;
             }
-            RequirementKind::Equality { operand } | RequirementKind::Ordering { operand } => {
+            RequirementKind::Equality {
+                operand,
+                guarantees,
+            }
+            | RequirementKind::Ordering {
+                operand,
+                guarantees,
+            } => {
+                self.callable_prefix(*guarantees, false);
                 self.output.push_str("(&");
                 self.ty(*operand)?;
                 self.output
@@ -1229,7 +1255,9 @@ impl<'a> Renderer<'a> {
                 container,
                 index,
                 result,
+                guarantees,
             } => {
+                self.callable_prefix(*guarantees, false);
                 self.output.push('(');
                 self.output.push_str(match capability {
                     BorrowCapability::Readonly => "&",
@@ -1241,7 +1269,12 @@ impl<'a> Renderer<'a> {
                 self.output.push_str("]): ");
                 self.ty(*result)?;
             }
-            RequirementKind::Coercion { source, target } => {
+            RequirementKind::Coercion {
+                source,
+                target,
+                guarantees,
+            } => {
+                self.callable_prefix(*guarantees, false);
                 self.ty(*source)?;
                 self.output.push(' ');
                 self.keyword(Keyword::As);
@@ -1251,7 +1284,9 @@ impl<'a> Renderer<'a> {
                 capability,
                 source,
                 result,
+                guarantees,
             } => {
+                self.callable_prefix(*guarantees, false);
                 self.output.push_str("(...");
                 self.output.push_str(match capability {
                     ExpansionCapability::Readonly => "&",

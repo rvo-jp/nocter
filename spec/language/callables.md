@@ -329,6 +329,21 @@ inference supplies proof evidence and never silently adds `notrap` to the callab
 type. `notrap` is currently an immediate-execution guarantee. Combining it with `async` is invalid
 because `future T` does not yet retain a trap-freedom contract for later driving.
 
+Generic operator, borrow-coercion, and expansion requirements carry the same immediate `noalloc`
+and `notrap` guarantees when those guarantees matter to the generic body:
+
+```nct
+noalloc notrap func same<T>(left: &T, right: &T): bool
+where noalloc notrap (&T == &T): bool {
+    return left == right
+}
+```
+
+The structural requirement is the generic body's execution contract for that selected operation.
+Concrete specialization verifies the actual operation and any implicit coercions against it; body
+checking and execution analysis do not rediscover the implementation from source text. Omitting a
+modifier is deliberate weakening, not inferred evidence that the operation may allocate or trap.
+
 Synchronous waiting is a separate callable effect. A structural callable that may synchronously
 wait writes `blocking` after any `noalloc` and `notrap` guarantees and before its capability:
 

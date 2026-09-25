@@ -101,14 +101,16 @@ impl InstanceOperationSelector<'_> {
         target: TypeId,
         operation: ComparisonOperation,
     ) -> Result<Vec<StaticSelection>, InstanceSelectionError> {
-        let predicate = match operation {
-            ComparisonOperation::Equal => CheckedPredicate::Equality(target),
-            ComparisonOperation::Less => CheckedPredicate::Ordering(target),
-        };
         let mut selected = self
             .body_assumptions()
             .iter()
-            .filter(|assumption| assumption.predicate() == &predicate)
+            .filter(|assumption| match (operation, assumption.predicate()) {
+                (ComparisonOperation::Equal, CheckedPredicate::Equality { operand, .. })
+                | (ComparisonOperation::Less, CheckedPredicate::Ordering { operand, .. }) => {
+                    *operand == target
+                }
+                _ => false,
+            })
             .map(|assumption| {
                 StaticSelection::new(
                     StaticDispatch::StructuralRequirement {

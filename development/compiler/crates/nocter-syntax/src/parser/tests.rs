@@ -787,6 +787,42 @@ fn parses_interface_self_structural_prerequisites() {
 }
 
 #[test]
+fn parses_execution_guarantees_on_structural_requirements() {
+    let tree = assert_syntax_ok(
+        "func inspect<T, C, V, I>(): void where noalloc notrap (&T == &T): bool, noalloc notrap (&T < &T): bool, noalloc (&C[usize]): &V, notrap &T as &V, noalloc notrap (...&T): I {}\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::NoAllocationModifier)
+            .count(),
+        4
+    );
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::NoTrapModifier)
+            .count(),
+        4
+    );
+    assert!(has_node_kind(&tree, NodeKind::OperatorPredicate));
+    assert!(has_node_kind(&tree, NodeKind::CoercionPredicate));
+    assert!(has_node_kind(&tree, NodeKind::ExpansionPredicate));
+
+    for source in [
+        "func invalid<T>(): void where const (&T == &T): bool {}\n",
+        "func invalid<T>(): void where blocking (&T == &T): bool {}\n",
+        "func invalid<T>(): void where async (&T == &T): bool {}\n",
+        "func invalid<T>(): void where notrap noalloc (&T == &T): bool {}\n",
+    ] {
+        assert!(
+            parse_text(source, ParseGoal::SourceFile).has_errors(),
+            "invalid structural guarantee prefix parsed successfully: {source}"
+        );
+    }
+}
+
+#[test]
 fn rejects_implicit_interface_default_bodies() {
     let tree = parse_text(
         "interface Source { pub method self.consume(): void {} }\n",

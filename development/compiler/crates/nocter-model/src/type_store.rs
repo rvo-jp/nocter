@@ -231,6 +231,41 @@ impl CallableGuarantees {
         self
     }
 
+    /// Combines two independently required contracts for the same execution edge.
+    #[must_use]
+    pub const fn combine_requirements(self, other: Self) -> Self {
+        Self {
+            allocation: if matches!(self.allocation, AllocationGuarantee::NoAllocation)
+                || matches!(other.allocation, AllocationGuarantee::NoAllocation)
+            {
+                AllocationGuarantee::NoAllocation
+            } else {
+                AllocationGuarantee::Unspecified
+            },
+            trap: if matches!(self.trap, TrapGuarantee::NoTrap)
+                || matches!(other.trap, TrapGuarantee::NoTrap)
+            {
+                TrapGuarantee::NoTrap
+            } else {
+                TrapGuarantee::Unspecified
+            },
+            nonblocking: if matches!(self.nonblocking, NonblockingGuarantee::Nonblocking)
+                || matches!(other.nonblocking, NonblockingGuarantee::Nonblocking)
+            {
+                NonblockingGuarantee::Nonblocking
+            } else {
+                NonblockingGuarantee::Unspecified
+            },
+            compile_time: if matches!(self.compile_time, CompileTimeGuarantee::Evaluatable)
+                || matches!(other.compile_time, CompileTimeGuarantee::Evaluatable)
+            {
+                CompileTimeGuarantee::Evaluatable
+            } else {
+                CompileTimeGuarantee::RuntimeOnly
+            },
+        }
+    }
+
     #[must_use]
     pub const fn allocation(self) -> AllocationGuarantee {
         self.allocation
@@ -897,8 +932,9 @@ mod tests {
     };
 
     use super::{
-        ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
-        CallableGuarantees, CallableType, TupleElements, TypeKind, TypeStore,
+        AllocationGuarantee, ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability,
+        CallableContract, CallableGuarantees, CallableType, NonblockingGuarantee, TrapGuarantee,
+        TupleElements, TypeKind, TypeStore,
     };
 
     #[test]
@@ -1045,6 +1081,18 @@ mod tests {
         assert!(!ordinary.can_weaken_to(&notrap));
         assert!(compile_time.can_weaken_to(&ordinary));
         assert!(!ordinary.can_weaken_to(&compile_time));
+    }
+
+    #[test]
+    fn independent_requirements_combine_into_one_stronger_contract() {
+        let combined = CallableGuarantees::no_allocation()
+            .combine_requirements(CallableGuarantees::default().no_trap());
+
+        assert_eq!(combined.allocation(), AllocationGuarantee::NoAllocation);
+        assert_eq!(combined.trap(), TrapGuarantee::NoTrap);
+        assert_eq!(combined.nonblocking(), NonblockingGuarantee::Nonblocking);
+        assert!(combined.can_weaken_to(CallableGuarantees::no_allocation()));
+        assert!(combined.can_weaken_to(CallableGuarantees::default().no_trap()));
     }
 
     #[test]

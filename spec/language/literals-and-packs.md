@@ -317,7 +317,7 @@ same implementation when direct iterator construction is useful.
 A generic function states expansion and iterator behavior separately:
 
 ```nct
-func visit<C, I>(source: &C): void where (...&C): I, I impl Iterator {
+noalloc func visit<C, I>(source: &C): void where noalloc (...&C): I, I impl Iterator {
     for item in &source {
         inspect(item)
     }
@@ -332,6 +332,10 @@ where (...&C): I
 where (...&+C): I
 where (...C): I
 ```
+
+Each shape may begin with `noalloc`, `notrap`, or canonical `noalloc notrap`. The selected
+expansion declaration must carry every requested guarantee; the iterator's later `next` calls
+remain separate method contracts.
 
 The result type is exact. The compiler may infer `I` by selecting the concrete source operator at a
 call site. The expansion predicate proves only that conversion result. A separate

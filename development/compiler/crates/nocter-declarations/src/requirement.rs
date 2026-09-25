@@ -1,6 +1,6 @@
 use nocter_model::{
-    AssociatedTypeId, BorrowCapability, CallableContract, CallableId, GenericParameterId,
-    InstanceId, InterfaceId, NominalTypeId, TypeAliasId, TypeId,
+    AssociatedTypeId, BorrowCapability, CallableContract, CallableGuarantees, CallableId,
+    GenericParameterId, InstanceId, InterfaceId, NominalTypeId, TypeAliasId, TypeId,
 };
 
 use crate::{AssociatedTypeBinding, InterfaceApplication};
@@ -42,24 +42,29 @@ pub enum RequirementKind {
     Copy(GenericParameterId),
     Equality {
         operand: TypeId,
+        guarantees: CallableGuarantees,
     },
     Ordering {
         operand: TypeId,
+        guarantees: CallableGuarantees,
     },
     Index {
         capability: BorrowCapability,
         container: TypeId,
         index: TypeId,
         result: TypeId,
+        guarantees: CallableGuarantees,
     },
     Coercion {
         source: TypeId,
         target: TypeId,
+        guarantees: CallableGuarantees,
     },
     Expansion {
         capability: ExpansionCapability,
         source: TypeId,
         result: TypeId,
+        guarantees: CallableGuarantees,
     },
     BinderRefinement {
         parameter: GenericParameterId,

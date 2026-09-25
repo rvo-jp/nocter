@@ -651,13 +651,15 @@ CallablePredicate = Name ":" Type
 CopyPredicate = "copy" Name
 TypeEqualityPredicate = Type "=" Type
 
-OperatorPredicate = "(" OperatorRequirement ")" ":" Type
+StructuralGuarantees = NoAllocModifier? NoTrapModifier?
+
+OperatorPredicate = StructuralGuarantees "(" OperatorRequirement ")" ":" Type
 OperatorRequirement = "&" Type ("==" | "<") "&" Type
                     | ("&" | "&+") Type "[" Type "]"
 
-CoercionPredicate = ("&" | "&+") Type "as" Type
+CoercionPredicate = StructuralGuarantees ("&" | "&+") Type "as" Type
 
-ExpansionPredicate = "(" "..." ExpansionRequirementSource ")" ":" Type
+ExpansionPredicate = StructuralGuarantees "(" "..." ExpansionRequirementSource ")" ":" Type
 ExpansionRequirementSource = Name | "&" Name | "&+" Name
                            | "Self" | "&" "Self" | "&+" "Self"
 ```
@@ -671,6 +673,12 @@ declaration-pattern binder refinement from other predicates, restricts structura
 operands, and rejects duplicate or unsatisfied requirements. A type equality is accepted only as a
 directed binder refinement belonging to a declaration type pattern; associated projection equality
 is expressed by `AssociatedBindings` on the relevant interface application.
+
+`StructuralGuarantees` applies only to operator, coercion, and expansion predicates. It uses the
+same canonical `noalloc notrap` order as immediate callable declarations. `const`, `blocking`, and
+`async` are not structural-operation requirement prefixes. An omitted prefix makes no allocation-
+or trap-freedom promise. A stronger proven operation may satisfy a weaker requirement, but the
+reverse is invalid.
 
 `Self` is accepted as a requirement subject only in an interface header. It may be the subject of
 an interface predicate or the operand/source of equality, strict ordering, indexing, borrow

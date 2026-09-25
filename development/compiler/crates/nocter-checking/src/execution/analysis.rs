@@ -1070,11 +1070,13 @@ fn structural_execution_guarantees(
 ) -> Result<CallableGuarantees, BodyRelationError> {
     match predicate {
         crate::CheckedPredicate::Callable { contract, .. } => Ok(contract.guarantees()),
-        crate::CheckedPredicate::Equality(_)
-        | crate::CheckedPredicate::Ordering(_)
+        crate::CheckedPredicate::Equality { .. }
+        | crate::CheckedPredicate::Ordering { .. }
         | crate::CheckedPredicate::Index { .. }
         | crate::CheckedPredicate::Coercion { .. }
-        | crate::CheckedPredicate::Expansion { .. } => Ok(CallableGuarantees::default()),
+        | crate::CheckedPredicate::Expansion { .. } => predicate
+            .structural_guarantees()
+            .ok_or_else(|| BodyCheckInternalError::ExecutionAnalysis.into()),
         crate::CheckedPredicate::Interface { .. }
         | crate::CheckedPredicate::Copy(_)
         | crate::CheckedPredicate::BinderRefinement { .. } => {

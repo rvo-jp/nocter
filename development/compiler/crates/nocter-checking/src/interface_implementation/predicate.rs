@@ -2,7 +2,9 @@ use nocter_declarations::{
     AssociatedTypeBinding, DeclarationGraph, ExpansionCapability, InterfaceApplication,
     RequirementKind, RequirementSubject,
 };
-use nocter_model::{BorrowCapability, CallableContract, RequirementId, TypeId, TypeKind};
+use nocter_model::{
+    BorrowCapability, CallableContract, CallableGuarantees, RequirementId, TypeId, TypeKind,
+};
 
 use crate::type_relations::{SubstitutionError, TypeSubstitution};
 
@@ -23,23 +25,144 @@ pub enum CheckedPredicate {
         binder: TypeId,
         replacement: TypeId,
     },
-    Equality(TypeId),
-    Ordering(TypeId),
+    Equality {
+        operand: TypeId,
+        guarantees: CallableGuarantees,
+    },
+    Ordering {
+        operand: TypeId,
+        guarantees: CallableGuarantees,
+    },
     Index {
         capability: BorrowCapability,
         container: TypeId,
         index: TypeId,
         result: TypeId,
+        guarantees: CallableGuarantees,
     },
     Coercion {
         source: TypeId,
         target: TypeId,
+        guarantees: CallableGuarantees,
     },
     Expansion {
         capability: ExpansionCapability,
         source: TypeId,
         result: TypeId,
+        guarantees: CallableGuarantees,
     },
+}
+
+impl CheckedPredicate {
+    /// Returns the execution contract carried by a structural operation requirement.
+    #[must_use]
+    pub const fn structural_guarantees(&self) -> Option<CallableGuarantees> {
+        match self {
+            Self::Equality { guarantees, .. }
+            | Self::Ordering { guarantees, .. }
+            | Self::Index { guarantees, .. }
+            | Self::Coercion { guarantees, .. }
+            | Self::Expansion { guarantees, .. } => Some(*guarantees),
+            Self::Interface { .. }
+            | Self::Callable { .. }
+            | Self::Copy(_)
+            | Self::BinderRefinement { .. } => None,
+        }
+    }
+
+    /// Applies directional guarantee weakening when both predicates describe structural
+    /// operations. `None` leaves non-structural implication to its owning proof rule.
+    pub(crate) fn structural_implies(&self, expected: &Self) -> Option<bool> {
+        let actual_guarantees = self.structural_guarantees()?;
+        let expected_guarantees = expected.structural_guarantees()?;
+        Some(
+            self.has_same_structural_operation(expected)
+                && actual_guarantees.can_weaken_to(expected_guarantees),
+        )
+    }
+
+    fn has_same_structural_operation(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Equality { operand: left, .. }, Self::Equality { operand: right, .. })
+            | (Self::Ordering { operand: left, .. }, Self::Ordering { operand: right, .. }) => {
+                left == right
+            }
+            (
+                Self::Index {
+                    capability: left_capability,
+                    container: left_container,
+                    index: left_index,
+                    result: left_result,
+                    ..
+                },
+                Self::Index {
+                    capability: right_capability,
+                    container: right_container,
+                    index: right_index,
+                    result: right_result,
+                    ..
+                },
+            ) => {
+                left_capability == right_capability
+                    && left_container == right_container
+                    && left_index == right_index
+                    && left_result == right_result
+            }
+            (
+                Self::Coercion {
+                    source: left_source,
+                    target: left_target,
+                    ..
+                },
+                Self::Coercion {
+                    source: right_source,
+                    target: right_target,
+                    ..
+                },
+            ) => left_source == right_source && left_target == right_target,
+            (
+                Self::Expansion {
+                    capability: left_capability,
+                    source: left_source,
+                    result: left_result,
+                    ..
+                },
+                Self::Expansion {
+                    capability: right_capability,
+                    source: right_source,
+                    result: right_result,
+                    ..
+                },
+            ) => {
+                left_capability == right_capability
+                    && left_source == right_source
+                    && left_result == right_result
+            }
+            _ => false,
+        }
+    }
+
+    fn combine_structural_requirements(&mut self, other: &Self) -> bool {
+        if !self.has_same_structural_operation(other) {
+            return false;
+        }
+        let Some(left) = self.structural_guarantees() else {
+            return false;
+        };
+        let Some(right) = other.structural_guarantees() else {
+            return false;
+        };
+        let combined = left.combine_requirements(right);
+        match self {
+            Self::Equality { guarantees, .. }
+            | Self::Ordering { guarantees, .. }
+            | Self::Index { guarantees, .. }
+            | Self::Coercion { guarantees, .. }
+            | Self::Expansion { guarantees, .. } => *guarantees = combined,
+            _ => return false,
+        }
+        true
+    }
 }
 
 /// One authored derivation of a normalized declaration predicate.
@@ -133,6 +256,19 @@ pub(crate) fn normalize_requirements(
         let mut pending = VecDeque::from([(predicate, RequirementDerivation::new(*id, *id))]);
         let mut expanded = HashSet::new();
         while let Some((predicate, derivation)) = pending.pop_front() {
+            if let Some(index) = normalized
+                .iter()
+                .position(|existing| existing.predicate.has_same_structural_operation(&predicate))
+            {
+                let previous = normalized[index].predicate.clone();
+                indexes.remove(&previous);
+                normalized[index]
+                    .predicate
+                    .combine_structural_requirements(&predicate);
+                normalized[index].add_derivation(derivation);
+                indexes.insert(normalized[index].predicate.clone(), index);
+                continue;
+            }
             if let Some(index) = indexes.get(&predicate).copied() {
                 normalized[index].add_derivation(derivation);
             } else {
@@ -281,35 +417,52 @@ pub(crate) fn substitute_predicate(
             binder: substitution.apply_type(types, *binder)?,
             replacement: substitution.apply_type(types, *replacement)?,
         },
-        CheckedPredicate::Equality(ty) => {
-            CheckedPredicate::Equality(substitution.apply_type(types, *ty)?)
-        }
-        CheckedPredicate::Ordering(ty) => {
-            CheckedPredicate::Ordering(substitution.apply_type(types, *ty)?)
-        }
+        CheckedPredicate::Equality {
+            operand,
+            guarantees,
+        } => CheckedPredicate::Equality {
+            operand: substitution.apply_type(types, *operand)?,
+            guarantees: *guarantees,
+        },
+        CheckedPredicate::Ordering {
+            operand,
+            guarantees,
+        } => CheckedPredicate::Ordering {
+            operand: substitution.apply_type(types, *operand)?,
+            guarantees: *guarantees,
+        },
         CheckedPredicate::Index {
             capability,
             container,
             index,
             result,
+            guarantees,
         } => CheckedPredicate::Index {
             capability: *capability,
             container: substitution.apply_type(types, *container)?,
             index: substitution.apply_type(types, *index)?,
             result: substitution.apply_type(types, *result)?,
+            guarantees: *guarantees,
         },
-        CheckedPredicate::Coercion { source, target } => CheckedPredicate::Coercion {
+        CheckedPredicate::Coercion {
+            source,
+            target,
+            guarantees,
+        } => CheckedPredicate::Coercion {
             source: substitution.apply_type(types, *source)?,
             target: substitution.apply_type(types, *target)?,
+            guarantees: *guarantees,
         },
         CheckedPredicate::Expansion {
             capability,
             source,
             result,
+            guarantees,
         } => CheckedPredicate::Expansion {
             capability: *capability,
             source: substitution.apply_type(types, *source)?,
             result: substitution.apply_type(types, *result)?,
+            guarantees: *guarantees,
         },
     })
 }
@@ -349,35 +502,52 @@ fn normalize_predicate(
         RequirementKind::Copy(parameter) => {
             CheckedPredicate::Copy(generic_type(types, substitution, *parameter)?)
         }
-        RequirementKind::Equality { operand } => {
-            CheckedPredicate::Equality(substitution.apply_type(types, *operand)?)
-        }
-        RequirementKind::Ordering { operand } => {
-            CheckedPredicate::Ordering(substitution.apply_type(types, *operand)?)
-        }
+        RequirementKind::Equality {
+            operand,
+            guarantees,
+        } => CheckedPredicate::Equality {
+            operand: substitution.apply_type(types, *operand)?,
+            guarantees: *guarantees,
+        },
+        RequirementKind::Ordering {
+            operand,
+            guarantees,
+        } => CheckedPredicate::Ordering {
+            operand: substitution.apply_type(types, *operand)?,
+            guarantees: *guarantees,
+        },
         RequirementKind::Index {
             capability,
             container,
             index,
             result,
+            guarantees,
         } => CheckedPredicate::Index {
             capability: *capability,
             container: substitution.apply_type(types, *container)?,
             index: substitution.apply_type(types, *index)?,
             result: substitution.apply_type(types, *result)?,
+            guarantees: *guarantees,
         },
-        RequirementKind::Coercion { source, target } => CheckedPredicate::Coercion {
+        RequirementKind::Coercion {
+            source,
+            target,
+            guarantees,
+        } => CheckedPredicate::Coercion {
             source: substitution.apply_type(types, *source)?,
             target: substitution.apply_type(types, *target)?,
+            guarantees: *guarantees,
         },
         RequirementKind::Expansion {
             capability,
             source,
             result,
+            guarantees,
         } => CheckedPredicate::Expansion {
             capability: *capability,
             source: substitution.apply_type(types, *source)?,
             result: substitution.apply_type(types, *result)?,
+            guarantees: *guarantees,
         },
         RequirementKind::BinderRefinement {
             parameter,

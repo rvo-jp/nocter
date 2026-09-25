@@ -249,8 +249,8 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
                 }
             },
             CheckedPredicate::Copy(_)
-            | CheckedPredicate::Equality(_)
-            | CheckedPredicate::Ordering(_)
+            | CheckedPredicate::Equality { .. }
+            | CheckedPredicate::Ordering { .. }
             | CheckedPredicate::Index { .. }
             | CheckedPredicate::Coercion { .. }
             | CheckedPredicate::Expansion { .. } => false,
@@ -462,11 +462,14 @@ impl<'program, R: RequirementPredicate> Prover<'program, R> {
     }
 }
 
-fn predicate_implies(
+pub(crate) fn predicate_implies(
     types: &mut nocter_model::TypeTransaction,
     actual: &CheckedPredicate,
     expected: &CheckedPredicate,
 ) -> Result<bool, SubstitutionError> {
+    if let Some(implies) = actual.structural_implies(expected) {
+        return Ok(implies);
+    }
     Ok(match (actual, expected) {
         (
             CheckedPredicate::Interface {

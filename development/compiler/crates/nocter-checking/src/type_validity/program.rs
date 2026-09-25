@@ -306,7 +306,7 @@ fn validate_requirement(
             validate_position(types, source_index, *index, TypePosition::Data, entity)?;
             validate_position(types, source_index, *result, TypePosition::Data, entity)
         }
-        RequirementKind::Coercion { source, target } => {
+        RequirementKind::Coercion { source, target, .. } => {
             validate_position(types, source_index, *source, TypePosition::Data, entity)?;
             validate_position(types, source_index, *target, TypePosition::Data, entity)
         }
@@ -321,7 +321,7 @@ fn validate_requirement(
             TypePosition::Data,
             entity,
         ),
-        RequirementKind::Equality { operand } | RequirementKind::Ordering { operand } => {
+        RequirementKind::Equality { operand, .. } | RequirementKind::Ordering { operand, .. } => {
             validate_position(types, source_index, *operand, TypePosition::Data, entity)
         }
         RequirementKind::Copy(_) => Ok(()),

@@ -607,25 +607,27 @@ impl<'program> ConcreteDispatchResolver<'program> {
                     ResolvedDispatchStep::CallableValue { subject, contract },
                 ))
             }
-            CheckedPredicate::Equality(ty) => {
-                self.resolve_comparison(evidence, ty, ComparisonOperation::Equal)
+            CheckedPredicate::Equality { operand, .. } => {
+                self.resolve_comparison(evidence, operand, ComparisonOperation::Equal)
             }
-            CheckedPredicate::Ordering(ty) => {
-                self.resolve_comparison(evidence, ty, ComparisonOperation::Less)
+            CheckedPredicate::Ordering { operand, .. } => {
+                self.resolve_comparison(evidence, operand, ComparisonOperation::Less)
             }
             CheckedPredicate::Index {
                 capability,
                 container,
                 index,
                 result,
+                ..
             } => self.resolve_index(evidence, capability, container, index, result),
-            CheckedPredicate::Coercion { source, target } => {
+            CheckedPredicate::Coercion { source, target, .. } => {
                 self.resolve_coercion(evidence, source, target)
             }
             CheckedPredicate::Expansion {
                 capability,
                 source,
                 result,
+                ..
             } => self.resolve_expansion(evidence, capability, source, result),
             CheckedPredicate::Interface { .. }
             | CheckedPredicate::Copy(_)
@@ -682,33 +684,10 @@ impl<'program> ConcreteDispatchResolver<'program> {
                     .collect::<Result<Vec<_>, _>>()?
                     .into_boxed_slice(),
             },
-            CheckedPredicate::Callable { subject, contract } => {
-                let parameters = contract
-                    .parameters()
-                    .iter()
-                    .copied()
-                    .map(|parameter| self.specialize_type(parameter, &empty))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let pack = contract
-                    .pack()
-                    .map(|pack| pack.try_map(|component| self.specialize_type(component, &empty)))
-                    .transpose()?;
-                let result = self.specialize_type(contract.result(), &empty)?;
-                let contract = CallableContract::new_with_input_provenance(
-                    contract.capability(),
-                    contract.guarantees(),
-                    parameters,
-                    pack,
-                    contract.input_provenance().clone(),
-                    result,
-                    contract.provenance().clone(),
-                )
-                .map_err(|_| SubstitutionError::InvalidStore)?;
-                CheckedPredicate::Callable {
-                    subject: self.specialize_type(subject, &empty)?,
-                    contract,
-                }
-            }
+            CheckedPredicate::Callable { subject, contract } => CheckedPredicate::Callable {
+                subject: self.specialize_type(subject, &empty)?,
+                contract: self.reduce_callable_contract(&contract, &empty)?,
+            },
             CheckedPredicate::Copy(ty) => CheckedPredicate::Copy(self.specialize_type(ty, &empty)?),
             CheckedPredicate::BinderRefinement {
                 binder,
@@ -717,37 +696,82 @@ impl<'program> ConcreteDispatchResolver<'program> {
                 binder: self.specialize_type(binder, &empty)?,
                 replacement: self.specialize_type(replacement, &empty)?,
             },
-            CheckedPredicate::Equality(ty) => {
-                CheckedPredicate::Equality(self.specialize_type(ty, &empty)?)
-            }
-            CheckedPredicate::Ordering(ty) => {
-                CheckedPredicate::Ordering(self.specialize_type(ty, &empty)?)
-            }
+            CheckedPredicate::Equality {
+                operand,
+                guarantees,
+            } => CheckedPredicate::Equality {
+                operand: self.specialize_type(operand, &empty)?,
+                guarantees,
+            },
+            CheckedPredicate::Ordering {
+                operand,
+                guarantees,
+            } => CheckedPredicate::Ordering {
+                operand: self.specialize_type(operand, &empty)?,
+                guarantees,
+            },
             CheckedPredicate::Index {
                 capability,
                 container,
                 index,
                 result,
+                guarantees,
             } => CheckedPredicate::Index {
                 capability,
                 container: self.specialize_type(container, &empty)?,
                 index: self.specialize_type(index, &empty)?,
                 result: self.specialize_type(result, &empty)?,
+                guarantees,
             },
-            CheckedPredicate::Coercion { source, target } => CheckedPredicate::Coercion {
+            CheckedPredicate::Coercion {
+                source,
+                target,
+                guarantees,
+            } => CheckedPredicate::Coercion {
                 source: self.specialize_type(source, &empty)?,
                 target: self.specialize_type(target, &empty)?,
+                guarantees,
             },
             CheckedPredicate::Expansion {
                 capability,
                 source,
                 result,
+                guarantees,
             } => CheckedPredicate::Expansion {
                 capability,
                 source: self.specialize_type(source, &empty)?,
                 result: self.specialize_type(result, &empty)?,
+                guarantees,
             },
         })
+    }
+
+    fn reduce_callable_contract(
+        &mut self,
+        contract: &CallableContract,
+        substitution: &TypeSubstitution,
+    ) -> Result<CallableContract, ConcreteDispatchError> {
+        let parameters = contract
+            .parameters()
+            .iter()
+            .copied()
+            .map(|parameter| self.specialize_type(parameter, substitution))
+            .collect::<Result<Vec<_>, _>>()?;
+        let pack = contract
+            .pack()
+            .map(|pack| pack.try_map(|component| self.specialize_type(component, substitution)))
+            .transpose()?;
+        let result = self.specialize_type(contract.result(), substitution)?;
+        CallableContract::new_with_input_provenance(
+            contract.capability(),
+            contract.guarantees(),
+            parameters,
+            pack,
+            contract.input_provenance().clone(),
+            result,
+            contract.provenance().clone(),
+        )
+        .map_err(|_| SubstitutionError::InvalidStore.into())
     }
 
     fn resolve_comparison(

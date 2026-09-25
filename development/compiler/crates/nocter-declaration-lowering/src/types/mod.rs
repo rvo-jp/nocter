@@ -225,24 +225,29 @@ pub enum BoundRequirementKind {
     Copy(GenericParameterId),
     Equality {
         operand: BoundTypeId,
+        guarantees: nocter_model::CallableGuarantees,
     },
     Ordering {
         operand: BoundTypeId,
+        guarantees: nocter_model::CallableGuarantees,
     },
     Index {
         capability: BorrowCapability,
         container: BoundTypeId,
         index: BoundTypeId,
         result: BoundTypeId,
+        guarantees: nocter_model::CallableGuarantees,
     },
     Coercion {
         source: BoundTypeId,
         target: BoundTypeId,
+        guarantees: nocter_model::CallableGuarantees,
     },
     Expansion {
         capability: ExpansionCapability,
         source: BoundTypeId,
         result: BoundTypeId,
+        guarantees: nocter_model::CallableGuarantees,
     },
     BinderRefinement {
         parameter: GenericParameterId,

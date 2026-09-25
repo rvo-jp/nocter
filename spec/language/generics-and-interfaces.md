@@ -80,10 +80,10 @@ invalid.
 An operator requirement encloses the required expression in parentheses and states its result type:
 
 ```nct
-where (&T == &T): bool
-where (&T < &T): bool
-where (&C[K]): &V
-where (&+C[K]): &+V
+where noalloc notrap (&T == &T): bool
+where noalloc notrap (&T < &T): bool
+where noalloc (&C[K]): &V
+where noalloc (&+C[K]): &+V
 ```
 
 The equality and strict-order forms require two readonly borrows of the same visible generic
@@ -96,6 +96,14 @@ through a built-in projection, an accessible instance-owned index declaration, o
 receiver coercion to either operation. Generic specialization uses the same selector as an ordinary
 index expression. Operator requirements produce no runtime witness.
 
+An operator, borrow-coercion, or expansion requirement may begin with `noalloc`, `notrap`, or both
+in that order. These modifiers constrain the selected implicit operation itself. Every selected
+source declaration and every implicit coercion needed to reach it must provide the required
+guarantees. Built-in integer comparison and capability weakening provide both guarantees; built-in
+bounds-checked indexing provides `noalloc` but not `notrap`. A stronger fact implies an otherwise
+identical weaker fact, including when interface prerequisites contribute the guarantees through
+separate paths.
+
 ### Interface Prerequisites
 
 An interface header may state prerequisites on its contextual `Self` type with the same `where`
@@ -106,7 +114,7 @@ pub interface SizedSource where Self impl Source {
     pub method &self.remaining_len(): usize
 }
 
-pub interface ComparableKey where (&Self == &Self): bool {
+pub interface ComparableKey where noalloc notrap (&Self == &Self): bool {
     pub noalloc method &self.write_key(output: &+KeySink): void
 }
 ```

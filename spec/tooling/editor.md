@@ -122,6 +122,12 @@ An authored `notrap` contract follows the same presentation rule. Normalized dec
 signature help, completion, and callable-type presentation preserve it after `noalloc` and before
 `blocking`. Tools do not synthesize `notrap` from an inferred trap-free body.
 
+The same normalized presentation preserves `noalloc` and `notrap` on structural operator,
+borrow-coercion, and expansion predicates in `where` clauses. Completion offers only the legal
+`noalloc notrap` prefix order there; it does not offer callable-only `const`, `blocking`, or
+`async`. An incomplete predicate remains eligible for completion through parser-owned recovery,
+without a second editor grammar.
+
 An authored `blocking` effect is likewise source-visible in normalized declaration, hover,
 signature-help, completion, and callable-type presentation. Tools do not add `blocking` to a
 private helper merely because body analysis proves that effect; a feature that explains

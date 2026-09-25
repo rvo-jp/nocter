@@ -39,6 +39,13 @@ An authored contract may be weakened through an explicit checked conversion. Inf
 strengthen it. Presentation reads the authored contract, so an implementation that happens not to
 allocate does not acquire a displayed `noalloc` promise.
 
+Structural operator, coercion, and expansion predicates reuse the immediate `noalloc` and `notrap`
+dimensions. Declaration normalization combines duplicate predicates for the same structural
+operation by conjunction and retains every authored derivation. One directional implication rule
+then serves interface prerequisites, generic-call proof, and concrete operation selection. A
+stronger admitted fact can satisfy a weaker use; no consumer compares predicate records directly
+to reconstruct that policy.
+
 ### Checked Execution Facts
 
 `nocter-checking` owns implementation facts. It derives them from checked operations, frozen
@@ -78,6 +85,8 @@ checked operations again:
 - an immediate direct call reaches the selected callable root;
 - an immediate closure call reaches the selected closure root;
 - a structural or dynamically selected call reaches its authored external contract;
+- a generic structural operation reaches the guarantees stored with its admitted capability
+  evidence;
 - an asynchronous call performs its explicit invocation plan and does not execute the deferred
   body at that point;
 - cleanup reaches every ownership-selected drop root;

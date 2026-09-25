@@ -29,17 +29,44 @@ pub(super) fn completions(
         return Box::new([]);
     };
 
-    if let Some(where_clause) = innermost_node(tree, offset, NodeKind::WhereClause)
+    if let Some(where_clause) = where_clause_for_completion(tree, source_file, offset)
         && has_visible_generic_syntax(tree, where_clause)
-        && !has_descendant(tree, where_clause, NodeKind::CopyPredicate)
-        && current_where_prefix(tree, source_file, where_clause, offset)
-            .is_some_and(|prefix| ContextualSpelling::Copy.as_str().starts_with(prefix))
+        && let Some(fragment) = current_where_fragment(tree, source_file, where_clause, offset)
     {
-        return Box::new([SemanticCompletion::new(
-            ContextualSpelling::Copy.as_str(),
-            SemanticCompletionKind::Keyword,
-            Some("intrinsic generic copy requirement".into()),
-        )]);
+        let mut completions = Vec::new();
+        if !has_descendant(tree, where_clause, NodeKind::CopyPredicate)
+            && fragment
+                .chars()
+                .all(|character| character == '_' || character.is_ascii_alphanumeric())
+            && ContextualSpelling::Copy.as_str().starts_with(fragment)
+        {
+            completions.push(SemanticCompletion::new(
+                ContextualSpelling::Copy.as_str(),
+                SemanticCompletionKind::Keyword,
+                Some("intrinsic generic copy requirement".into()),
+            ));
+        }
+        if let Some(modifiers) = where_modifier_prefix(fragment) {
+            completions.extend(
+                CallableModifier::ALL
+                    .iter()
+                    .copied()
+                    .filter_map(|modifier| {
+                        let keyword = Keyword::from(modifier);
+                        (modifiers.allows(modifier)
+                            && keyword.as_str().starts_with(modifiers.prefix))
+                        .then_some((keyword, callable_modifier_detail(modifier)))
+                    })
+                    .map(|(keyword, detail)| {
+                        SemanticCompletion::new(
+                            keyword.as_str(),
+                            SemanticCompletionKind::Keyword,
+                            Some(detail.into()),
+                        )
+                    }),
+            );
+        }
+        return completions.into_boxed_slice();
     }
 
     let mut completions = Vec::new();
@@ -180,7 +207,7 @@ fn callable_modifier_prefix<'a>(
     })
 }
 
-fn current_where_prefix<'a>(
+fn current_where_fragment<'a>(
     tree: &SyntaxTree,
     source: &'a nocter_source::SourceFile,
     clause: NodeId,
@@ -202,11 +229,69 @@ fn current_where_prefix<'a>(
             start = token.range().end();
         }
     }
-    let prefix = source.text_at(TextRange::new(start, offset))?.trim();
-    prefix
+    Some(source.text_at(TextRange::new(start, offset))?.trim_start())
+}
+
+fn where_modifier_prefix(fragment: &str) -> Option<CallableModifierPrefix<'_>> {
+    let trailing_space = fragment
+        .as_bytes()
+        .last()
+        .is_some_and(u8::is_ascii_whitespace);
+    let mut words = fragment.split_ascii_whitespace().collect::<Vec<_>>();
+    let prefix = if trailing_space {
+        ""
+    } else {
+        words.pop().unwrap_or("")
+    };
+    if !prefix
         .chars()
         .all(|character| character == '_' || character.is_ascii_alphanumeric())
-        .then_some(prefix)
+    {
+        return None;
+    }
+    let authored = words
+        .iter()
+        .map(|word| CallableModifier::from_spelling(word))
+        .collect::<Option<Vec<_>>>()?;
+    let grammar = CallablePrefixGrammar::ImmediateGuarantees;
+    if !grammar.is_canonical_prefix(&authored) {
+        return None;
+    }
+    Some(CallableModifierPrefix {
+        prefix,
+        authored: authored.into_boxed_slice(),
+        grammar,
+    })
+}
+
+/// Finds the syntactic `where` owner even when the cursor follows an incomplete predicate.
+///
+/// A recovering parser cannot include a partially typed identifier in `WhereClause` until it
+/// knows which predicate follows. Completion may extend only across identifier characters and
+/// whitespace, so punctuation or a body boundary cannot accidentally attach the cursor to an
+/// earlier clause.
+fn where_clause_for_completion(
+    tree: &SyntaxTree,
+    source: &nocter_source::SourceFile,
+    offset: ByteOffset,
+) -> Option<NodeId> {
+    if let Some(clause) = innermost_node(tree, offset, NodeKind::WhereClause) {
+        return Some(clause);
+    }
+    tree.nodes()
+        .filter(|(_, node)| node.kind() == NodeKind::WhereClause && node.range().end() <= offset)
+        .filter_map(|(id, node)| {
+            let gap = source.text_at(TextRange::new(node.range().end(), offset))?;
+            gap.chars()
+                .all(|character| {
+                    character == '_'
+                        || character.is_ascii_alphanumeric()
+                        || character.is_ascii_whitespace()
+                })
+                .then_some((id, node.range().start()))
+        })
+        .max_by_key(|(_, start)| *start)
+        .map(|(id, _)| id)
 }
 
 fn has_visible_generic_syntax(tree: &SyntaxTree, where_clause: NodeId) -> bool {

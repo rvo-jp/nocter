@@ -363,6 +363,7 @@ fn interface_prerequisites_are_required_by_explicit_implementations() {
         "pub interface Equatable where (&Self == &Self): bool {}\nstruct Value {}\ninstance Value { impl Equatable }\n",
         "pub interface Base {}\npub interface Derived<T> where T impl Base {}\nstruct Argument {}\nstruct Value {}\ninstance Value { impl Derived<Argument> }\n",
         "pub interface Viewable<T> where &+T as &str {}\nstruct Value<T> {}\ninstance Value<T> where &T as &str { impl Viewable<T> }\n",
+        "pub interface Expandable where notrap (...Self): i32 {}\nstruct Value {}\ninstance Value { impl Expandable\noperator (...self): i32 { return 1 } }\n",
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);
@@ -377,11 +378,11 @@ fn interface_prerequisites_are_required_by_explicit_implementations() {
 #[test]
 fn expansion_operation_proves_an_interface_prerequisite() {
     let fixture = Fixture::new(
-        "pub interface Expandable where (...Self): i32 {}\n\
+        "pub interface Expandable where noalloc notrap (...Self): i32 {}\n\
          struct Value {}\n\
          instance Value {\n\
              impl Expandable\n\
-             operator (...self): i32 { return 1 }\n\
+             noalloc notrap operator (...self): i32 { return 1 }\n\
          }\n",
     );
     let input = fixture.input(false);

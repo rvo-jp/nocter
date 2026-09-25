@@ -96,6 +96,7 @@ pub enum InstanceSelectionError {
     InvalidMethodSignature(nocter_model::CallableId),
     InvalidInterfaceMethod(nocter_model::InterfaceId),
     InvalidStructuralIndex,
+    MissingCapabilityEvidence(nocter_model::CapabilityEvidenceId),
     IncompleteGeneric(nocter_model::GenericParameterId),
     DuplicateGeneric(nocter_model::GenericParameterId),
     Substitution(SubstitutionError),
@@ -147,6 +148,9 @@ impl fmt::Display for InstanceSelectionError {
             }
             Self::InvalidStructuralIndex => {
                 formatter.write_str("invalid structural index requirement")
+            }
+            Self::MissingCapabilityEvidence(evidence) => {
+                write!(formatter, "missing capability evidence {evidence:?}")
             }
             Self::IncompleteGeneric(parameter) => {
                 write!(formatter, "operation selection did not bind {parameter:?}")
@@ -284,18 +288,6 @@ impl<'program> InstanceOperationSelector<'program> {
         }
     }
 
-    pub(super) fn contains_assumption(&self, predicate: &CheckedPredicate) -> bool {
-        match self.assumptions {
-            SelectionAssumptions::None => false,
-            SelectionAssumptions::Proof(requirements) => requirements
-                .iter()
-                .any(|requirement| requirement.predicate() == predicate),
-            SelectionAssumptions::Body(requirements) => requirements
-                .iter()
-                .any(|requirement| requirement.predicate() == predicate),
-        }
-    }
-
     pub(super) const fn body_assumptions(&self) -> &'program [BodyRequirement] {
         match self.assumptions {
             SelectionAssumptions::Body(requirements) => requirements,
@@ -350,6 +342,7 @@ impl<'program> InstanceOperationSelector<'program> {
                 container,
                 index,
                 result,
+                ..
             } = assumption.predicate()
             else {
                 continue;
@@ -519,6 +512,7 @@ impl<'program> InstanceOperationSelector<'program> {
                 let CheckedPredicate::Coercion {
                     source: required_source,
                     target,
+                    ..
                 } = assumption.predicate()
                 else {
                     return None;

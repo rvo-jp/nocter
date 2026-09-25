@@ -24,6 +24,9 @@ pub fn project_callable_guarantees(tree: &SyntaxTree, node: NodeId) -> Option<Ca
             | NodeKind::ExpansionOperator
             | NodeKind::DropDeclaration
             | NodeKind::CallableType
+            | NodeKind::OperatorPredicate
+            | NodeKind::CoercionPredicate
+            | NodeKind::ExpansionPredicate
     ) {
         return None;
     }

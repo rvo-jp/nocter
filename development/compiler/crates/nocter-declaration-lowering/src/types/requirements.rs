@@ -146,6 +146,7 @@ fn bind_predicate(
             result.push(BoundRequirementKind::Coercion {
                 source,
                 target: *target,
+                guarantees: structural_guarantees(tree, predicate)?,
             });
         }
         Some(NodeKind::ExpansionPredicate) => {
@@ -158,6 +159,7 @@ fn bind_predicate(
                 capability: expansion_capability(tree, predicate),
                 source: *source,
                 result: *result_type,
+                guarantees: structural_guarantees(tree, predicate)?,
             });
         }
         _ => return Err(invalid_requirement(predicate)),
@@ -372,9 +374,15 @@ fn bind_operator(
         }
         result.push(
             if has_punctuation(tree, predicate, Punctuation::EqualEqual) {
-                BoundRequirementKind::Equality { operand: left }
+                BoundRequirementKind::Equality {
+                    operand: left,
+                    guarantees: structural_guarantees(tree, predicate)?,
+                }
             } else {
-                BoundRequirementKind::Ordering { operand: left }
+                BoundRequirementKind::Ordering {
+                    operand: left,
+                    guarantees: structural_guarantees(tree, predicate)?,
+                }
             },
         );
     } else if has_punctuation(tree, predicate, Punctuation::LeftBracket) {
@@ -386,11 +394,19 @@ fn bind_operator(
             },
             index: *second,
             result: *third,
+            guarantees: structural_guarantees(tree, predicate)?,
         });
     } else {
         return Err(invalid_requirement(predicate));
     }
     Ok(())
+}
+
+fn structural_guarantees(
+    tree: &SyntaxTree,
+    predicate: NodeId,
+) -> Result<nocter_model::CallableGuarantees, TypeBindingError> {
+    crate::project_callable_guarantees(tree, predicate).ok_or(invalid_requirement(predicate))
 }
 
 fn bind_associated_bounds(
