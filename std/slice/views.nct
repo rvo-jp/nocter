@@ -17,33 +17,33 @@ func value_is_less<T>(left: &T, right: &T): bool where (&T < &T): bool {
 }
 
 instance [T] {
-    noalloc method &self.len(): usize {
+    noalloc notrap method &self.len(): usize {
         return slice_len_raw(self)
     }
 
-    noalloc method &self.is_empty(): bool {
+    noalloc notrap method &self.is_empty(): bool {
         return slice_len_raw(self) == 0
     }
 
-    noalloc method &self.ptr(): *T {
+    noalloc notrap method &self.ptr(): *T {
         return ptr.from_addr(slice_ptr_addr_raw(self))
     }
 
-    noalloc method &self.get(index: usize): &T? {
+    noalloc notrap method &self.get(index: usize): &T? {
         if index >= self.len() {
             return none
         }
         return &self[index]
     }
 
-    noalloc method &+self.get_mut(index: usize): &+T? {
+    noalloc notrap method &+self.get_mut(index: usize): &+T? {
         if index >= self.len() {
             return none
         }
         return &+self[index]
     }
 
-    noalloc method &self.first(): &T? {
+    noalloc notrap method &self.first(): &T? {
         return self.get(0)?
     }
 

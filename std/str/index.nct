@@ -69,13 +69,13 @@ instance str {
     pub noalloc operator (&self < other: &Self): bool
 
     /// Returns the UTF-8 byte length of this text.
-    pub noalloc method &self.len(): usize
+    pub noalloc notrap method &self.len(): usize
 
     /// Returns whether this text contains no UTF-8 bytes.
-    pub noalloc method &self.is_empty(): bool
+    pub noalloc notrap method &self.is_empty(): bool
 
     /// Returns the non-owning address of the first UTF-8 byte.
-    pub noalloc method &self.ptr(): *u8
+    pub noalloc notrap method &self.ptr(): *u8
 
     /// Returns the exact UTF-8 encoding bytes as a borrowed slice.
     pub noalloc method &self.bytes(): &[u8]

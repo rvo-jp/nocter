@@ -8,7 +8,7 @@ fn checked_integer_arithmetic_executes_boundary_safe_values() {
     let image = compile_single_file_native_source(
         &package_root,
         &standard_root,
-        r#"
+        r"
 func add_i8(left: i8, right: i8): i8 { return left + right }
 func multiply_i16(left: i16, right: i16): i16 { return left * right }
 func divide_i32(left: i32, right: i32): i32 { return left / right }
@@ -21,7 +21,7 @@ func main(): i32 {
     if shift_u32(1, 31) != 2147483648 { return 4 }
     return 0
 }
-"#,
+",
     );
     execute_native_status(&image, &package_root.0, "checked-arithmetic-safe", 0);
 }

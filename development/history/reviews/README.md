@@ -10,6 +10,10 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.72.0 Phase 4 Standard Adoption and Qualification Review](v0.72.0-phase-4.md)
+- [v0.72.0 Phase 3 Checked Arithmetic Review](v0.72.0-phase-3.md)
+- [v0.72.0 Phase 2 Bounds Proof Across Control Flow Review](v0.72.0-phase-2.md)
+- [v0.72.0 Phase 1 Safety-flow Domain Review](v0.72.0-phase-1.md)
 - [v0.72.0 Phase 0 Safety-disposition Boundary Review](v0.72.0-phase-0.md)
 - [v0.71.0 Guaranteed Structural-operation Review](v0.71.0-structural-guarantees.md)
 - [v0.70.0 Trap-Free Callable-contract Review](v0.70.0-trap-free-contracts.md)

@@ -651,7 +651,9 @@ Rules:
 
 - Debug and release builds have the same trap conditions.
 - A build mode must not turn a checked operation into undefined behavior.
-- The optimizer may remove a safety check only when it proves that the trap condition cannot occur on that path.
+- The checker may discharge a safety check only when facts valid on that exact path prove that the
+  trap condition cannot occur. Later lowering and optimization consume that decision; they do not
+  repeat the source proof.
 - Removing a check is valid only when the source-level observable behavior is unchanged.
 - If a check is statically known to fail, the compiler may emit an unconditional trap for that path.
 - General user code has no unchecked arithmetic, unchecked indexing, or unchecked enum-tag operation.
@@ -664,3 +666,8 @@ callbacks, closures, and implicit destruction. Conservative checking may reject 
 safety depends on a value fact that the compiler cannot prove; use a recoverable operation or an
 explicit non-trapping standard API in that case. Process termination through `process.abort` or
 `process.exit` is not a safety trap and does not violate `notrap`.
+
+Path-local comparisons may prove subsequent bounds checks and integer arithmetic safe. A fact from
+only one branch does not survive a merge, and a fact about mutable or aliasable storage is not used
+as a stable proof. If proof is incomplete, the ordinary runtime check remains; outside an authored
+`notrap` contract, incomplete proof is not a compilation error.

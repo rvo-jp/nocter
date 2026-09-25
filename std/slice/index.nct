@@ -9,22 +9,22 @@ see ./views.nct
 
 instance [T] {
     /// Returns the number of elements in this slice.
-    pub noalloc method &self.len(): usize
+    pub noalloc notrap method &self.len(): usize
 
     /// Returns whether this slice contains no elements.
-    pub noalloc method &self.is_empty(): bool
+    pub noalloc notrap method &self.is_empty(): bool
 
     /// Returns the non-owning address of the first element storage.
-    pub noalloc method &self.ptr(): *T
+    pub noalloc notrap method &self.ptr(): *T
 
     /// Returns a readonly element borrow, or `none` when `index` is out of bounds.
-    pub noalloc method &self.get(index: usize): &T?
+    pub noalloc notrap method &self.get(index: usize): &T?
 
     /// Returns a readwrite element borrow, or `none` when `index` is out of bounds.
-    pub noalloc method &+self.get_mut(index: usize): &+T?
+    pub noalloc notrap method &+self.get_mut(index: usize): &+T?
 
     /// Returns the first element borrow, or `none` when the slice is empty.
-    pub noalloc method &self.first(): &T?
+    pub noalloc notrap method &self.first(): &T?
 
     /// Returns the borrowed half-open range when both bounds are ordered and in bounds.
     pub noalloc method &self.get_range(start: usize, end: usize): &[T]? from self

@@ -252,7 +252,7 @@ let first = read[0]      // traps if out of bounds
 let maybe = read.get(0)  // u8?
 ```
 
-`x[i]` traps on out-of-bounds access. Bounds checks are always-on for every build mode; see [Safety Checks and Build Modes](control-flow.md#safety-checks-and-build-modes). Trap semantics are specified in [Control Flow](control-flow.md#never-and-reachability). `x.get(i)` returns `T?` and is used when absence should be handled as a value.
+`x[i]` traps on out-of-bounds access. Bounds checks are always-on for every build mode; see [Safety Checks and Build Modes](control-flow.md#safety-checks-and-build-modes). Trap semantics are specified in [Control Flow](control-flow.md#never-and-reachability). `x.get(i)` returns `T?` and is used when absence should be handled as a value. The standard slice `get`, `get_mut`, and `first` contracts are `noalloc notrap`; their implementations establish the required bounds fact before indexing.
 
 Length is exposed through normal methods, not special fields.
 

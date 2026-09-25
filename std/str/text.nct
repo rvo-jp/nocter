@@ -44,15 +44,15 @@ instance str {
         return left.len() < right.len()
     }
 
-    noalloc method &self.len(): usize {
+    noalloc notrap method &self.len(): usize {
         return str_len_raw(self)
     }
 
-    noalloc method &self.is_empty(): bool {
+    noalloc notrap method &self.is_empty(): bool {
         return str_len_raw(self) == 0
     }
 
-    noalloc method &self.ptr(): *u8 {
+    noalloc notrap method &self.ptr(): *u8 {
         return ptr.from_addr(str_ptr_addr_raw(self))
     }
 
