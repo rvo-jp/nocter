@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.68.0 Production Native Performance is published and externally audited. The completed
-v0.69.0 and v0.70.0 implementation work is included in the qualified v0.71.0 Guaranteed Structural
-Operations candidate rather than receiving separate public archives. Linux target work remains
-deliberately deferred.
+Nocter v0.71.0 Guaranteed Structural Operations is qualified and its public metadata selects the
+retained candidate. The completed v0.69.0 and v0.70.0 implementation milestones are included in
+this release rather than receiving separate public archives. Linux target work remains deliberately
+deferred.
 
 ## Next Work
 
-Publish and audit the exact qualified v0.71.0 archive without rebuilding it. Publication is
-explicitly authorized for this release. After the public boundary is closed, begin v0.72.0 with a
-flow-proof model for safe operations; do not combine that new design with the immutable release
-identity.
+Publish annotated tag `v0.71.0` and the exact qualified archive without rebuilding it. Then verify
+the tag, single GitHub Release asset, latest-release endpoint, downloaded installed home,
+push-triggered workflows, and source-identified Pages deployment in a release audit. After that
+public boundary is closed, begin v0.72.0 with a flow-proof model for safe operations.
 
 Preserve the v0.68.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
