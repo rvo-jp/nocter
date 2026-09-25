@@ -182,7 +182,7 @@ pub(crate) fn load_immediate(
 pub(crate) const fn scratch(index: u8) -> Arm64Register {
     match Arm64NocterAbi::compiler_scratch_register(index) {
         Some(register) => register,
-        None => panic!("the ABI reserves exactly two compiler scratch registers"),
+        None => panic!("compiler scratch register index is outside the ABI reservation"),
     }
 }
 

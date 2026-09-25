@@ -37,18 +37,19 @@ pub use loan::{
     SuspensionStorage,
 };
 pub use node::{
-    AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
-    BorrowConversionPreparation, CallTarget, CheckedBindingPattern, CheckedBorrowConversion,
-    CheckedCall, CheckedClosure, CheckedClosureCapture, CheckedComparison, CheckedComparisonPlan,
-    CheckedComparisonStep, CheckedControl, CheckedInterpolation, CheckedIteratorAcquisition,
-    CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPackLiteral, CheckedPattern,
-    CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot, CheckedPatternSubject,
-    CheckedReadonlyOperand, CheckedReceiver, CheckedReceiverCoercion, CoercedReceiverPreparation,
-    ComparisonImplementation, ComparisonOperation, ConstantValue, InterpolationPart,
-    IterationAcquisition, IterationItemOrigin, LogicalOperation, LoopKind, PatternBindingMode,
-    PatternRemainder, PatternSubjectPreparation, PrimitiveBinary, PrimitiveComparisonRelation,
-    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation,
-    TypedAsyncIteration, TypedIteration, TypedIterationStep,
+    AggregateConstruction, AllocationSelection, ArithmeticTrapCheck,
+    BorrowConversionImplementation, BorrowConversionPreparation, CallTarget, CheckedBindingPattern,
+    CheckedBorrowConversion, CheckedCall, CheckedClosure, CheckedClosureCapture, CheckedComparison,
+    CheckedComparisonPlan, CheckedComparisonStep, CheckedControl, CheckedInterpolation,
+    CheckedIteratorAcquisition, CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome,
+    CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
+    CheckedPatternSlot, CheckedPatternSubject, CheckedReadonlyOperand, CheckedReceiver,
+    CheckedReceiverCoercion, CoercedReceiverPreparation, ComparisonImplementation,
+    ComparisonOperation, ConstantValue, InterpolationPart, IterationAcquisition,
+    IterationItemOrigin, LogicalOperation, LoopKind, PatternBindingMode, PatternRemainder,
+    PatternSubjectPreparation, PrimitiveBinary, PrimitiveComparisonRelation, PrimitiveOperation,
+    PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation, TypedAsyncIteration,
+    TypedIteration, TypedIterationStep,
 };
 pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
 pub use place::{CheckedPlace, IndexBoundsCheck, PlaceAccess, PlaceProjection, PlaceRoot};

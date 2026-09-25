@@ -371,6 +371,7 @@ impl<'a> DestructionBuilder<'a> {
                 operation: MachineBinaryOperation::Less,
                 left: zero,
                 right: index,
+                check: crate::MachineArithmeticCheck::NotRequired,
             },
         )?;
         self.terminate(MachineTerminator::Branch {
@@ -387,6 +388,7 @@ impl<'a> DestructionBuilder<'a> {
                 operation: MachineBinaryOperation::Subtract,
                 left: index,
                 right: one,
+                check: crate::MachineArithmeticCheck::InternalInvariant,
             },
         )?;
         let stride = self.integer(stride)?;
@@ -396,6 +398,7 @@ impl<'a> DestructionBuilder<'a> {
                 operation: MachineBinaryOperation::Multiply,
                 left: next,
                 right: stride,
+                check: crate::MachineArithmeticCheck::InternalInvariant,
             },
         )?;
         let mut element_steps = steps;

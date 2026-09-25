@@ -322,6 +322,7 @@ fn select_counter_delta(
     selected.push(Arm64SelectedInstruction::Binary {
         size: Arm64DataSize::Bits64,
         operation: Arm64SelectedBinaryOperation::Subtract,
+        arithmetic: None,
         destination: super::primitive_selection::fixed_register(0)?,
         left: super::primitive_selection::fixed_register(1)?,
         right: super::primitive_selection::fixed_register(0)?,

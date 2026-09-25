@@ -12,10 +12,9 @@ work remains deliberately deferred.
 
 ## Next Work
 
-Continue v0.72.0 Phase 3 by closing runtime integer-arithmetic checks and freezing their
-checking-owned dispositions through MIR, Machine, and ARM64. Then apply only proven guarantees to
-standard APIs. Do not add operation-specific proof tables, unchecked arithmetic, source-text
-rediscovery, or a backend-owned proof system.
+Continue v0.72.0 Phase 4 by applying only demonstrated flow guarantees to practical standard APIs,
+then run the complete release gate and cross-stage authority review. Do not add operation-specific
+proof tables, unchecked arithmetic, source-text rediscovery, or a backend-owned proof system.
 
 Preserve the v0.71.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

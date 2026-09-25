@@ -95,7 +95,7 @@ pub use callable_contract_validity::{
 };
 pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,
-    BodyClosureRecipe, BodyClosureRecipeError, BorrowConversionImplementation,
+    ArithmeticTrapCheck, BodyClosureRecipe, BodyClosureRecipeError, BorrowConversionImplementation,
     BorrowConversionPreparation, BuildCheckedBodyError, CallTarget, CallableProvenanceTable,
     CheckedArgumentPack, CheckedAwait, CheckedBindingPattern, CheckedBody, CheckedBodyLoans,
     CheckedBodyProvenance, CheckedBorrowConversion, CheckedCall, CheckedCallExecution,

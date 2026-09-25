@@ -43,9 +43,9 @@ pub use destruction::{
 pub use erased_callable::MirErasedCallable;
 pub use lower::{MirLoweringError, lower_executable};
 pub use operation::{
-    MirAggregate, MirBinaryOperation, MirCall, MirCallAllocation, MirCallSignature, MirCallTarget,
-    MirClosureCapture, MirConstant, MirOperation, MirOperationKind, MirReadMode, MirStructuralCall,
-    MirUnaryOperation,
+    MirAggregate, MirArithmeticCheck, MirBinaryOperation, MirCall, MirCallAllocation,
+    MirCallSignature, MirCallTarget, MirClosureCapture, MirConstant, MirOperation,
+    MirOperationKind, MirReadMode, MirStructuralCall, MirUnaryOperation,
 };
 pub use pack::{
     MirCallPack, MirPackArgument, MirPackContribution, MirPackInput, MirPackNext, MirPackSegment,

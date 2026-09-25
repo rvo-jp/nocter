@@ -65,6 +65,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   access from path facts that are intentionally absent from Machine. Structural indexing and
   checked address paths share this contract, and targets consume it without repeating
   source-safety analysis or erasing a trap.
+- Integer arithmetic carries the frozen checking disposition unchanged. `Required` remains
+  observable and cannot be removed; `ProvenSafe` is removable when unused; `ProvenTrap` remains an
+  unconditional trap. Machine does not inspect constants or ranges to change that classification.
 - Representation-preserving operations may retain distinct semantic value and type identities while
   naming one proven physical-storage identity. Machine validates that relation after dense pruning;
   targets consume it directly and cannot rediscover semantic equivalence or erase the typed value.

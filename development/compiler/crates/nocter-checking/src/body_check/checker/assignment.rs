@@ -69,6 +69,7 @@ impl BodyChecker<'_, '_> {
                 target: place.id,
                 value,
                 operation,
+                check: crate::ArithmeticTrapCheck::Required,
             }
         } else {
             CheckedControl::Assign {

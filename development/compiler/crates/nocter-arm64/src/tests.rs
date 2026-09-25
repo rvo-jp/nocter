@@ -488,11 +488,30 @@ fn encodes_lossless_integer_widening_with_exact_signedness() {
 fn encodes_wide_integer_arithmetic_support() {
     assert_eq!(
         word(Arm64Instruction::MultiplyHigh {
+            signed: false,
             destination: x(0),
             left: x(1),
             right: x(2),
         }),
         0x9bc2_7c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::MultiplyHigh {
+            signed: true,
+            destination: x(0),
+            left: x(1),
+            right: x(2),
+        }),
+        0x9b42_7c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::MultiplyLong {
+            signed: false,
+            destination: x(0),
+            left: x(1),
+            right: x(2),
+        }),
+        0x9ba2_7c20
     );
     assert_eq!(
         word(Arm64Instruction::CountLeadingZeros {
@@ -905,12 +924,12 @@ fn abi_register_roles_form_one_closed_partition() {
     assert_eq!(roles[9], Arm64AbiRegisterRole::AllocationContext);
     assert_eq!(roles[10], Arm64AbiRegisterRole::ProcessContext);
     assert!(
-        roles[11..16]
+        roles[11..15]
             .iter()
             .all(|role| *role == Arm64AbiRegisterRole::CallerSaved)
     );
     assert!(
-        roles[16..18]
+        roles[15..18]
             .iter()
             .all(|role| *role == Arm64AbiRegisterRole::CompilerScratch)
     );
@@ -1016,19 +1035,27 @@ fn register_allocation_spills_deterministically_after_closed_pool_pressure() {
         .collect::<Vec<_>>();
     let allocation = builder.finish();
 
-    assert_eq!(allocation.spill_count(), 2);
+    assert_eq!(allocation.spill_count(), 3);
     assert!(matches!(
-        allocation.location(registers[15]),
+        allocation.location(registers[14]),
         Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 0
     ));
     assert!(matches!(
-        allocation.location(registers[16]),
+        allocation.location(registers[15]),
         Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 1
     ));
-    assert!(registers[..15].iter().all(|register| matches!(
+    assert!(matches!(
+        allocation.location(registers[16]),
+        Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 2
+    ));
+    assert!(registers[..14].iter().all(|register| matches!(
         allocation.location(*register),
         Some(crate::Arm64AllocatedLocation::GeneralRegister(physical))
-            if physical != x(9) && physical != x(10) && physical != x(16) && physical != x(17)
+            if physical != x(9)
+                && physical != x(10)
+                && physical != x(15)
+                && physical != x(16)
+                && physical != x(17)
     )));
 }
 

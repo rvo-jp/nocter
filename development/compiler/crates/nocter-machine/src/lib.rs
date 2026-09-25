@@ -73,8 +73,8 @@ pub use layout::{
 pub use linkage::{MachineLinkageError, MachineLinkageKey};
 pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};
 pub use operation::{
-    MachineAggregate, MachineAggregateWrite, MachineBinaryOperation, MachineConstant,
-    MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
+    MachineAggregate, MachineAggregateWrite, MachineArithmeticCheck, MachineBinaryOperation,
+    MachineConstant, MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
     MachineValueDefinition, MachineValueRepresentation, MachineValueStorage,
 };
 pub use optimization::{MachineOptimizationError, MachineOptimizationReport};

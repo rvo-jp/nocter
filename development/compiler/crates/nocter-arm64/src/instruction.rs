@@ -190,6 +190,14 @@ pub enum Arm64Instruction {
         subtract_product: bool,
     },
     MultiplyHigh {
+        signed: bool,
+        destination: Arm64Register,
+        left: Arm64Register,
+        right: Arm64Register,
+    },
+    /// Multiplies two 32-bit operands into one 64-bit result.
+    MultiplyLong {
+        signed: bool,
         destination: Arm64Register,
         left: Arm64Register,
         right: Arm64Register,

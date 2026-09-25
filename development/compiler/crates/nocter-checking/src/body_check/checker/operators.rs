@@ -11,9 +11,10 @@ use crate::body_check::literal::{
 use crate::instance_operations::ComparisonCandidateImplementation;
 use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
-    CheckedComparison, CheckedComparisonPlan, CheckedComparisonStep, CheckedControl,
-    CheckedOperation, CheckedReadonlyOperand, ComparisonImplementation, ComparisonOperation,
-    ConstantValue, LogicalOperation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    ArithmeticTrapCheck, CheckedComparison, CheckedComparisonPlan, CheckedComparisonStep,
+    CheckedControl, CheckedOperation, CheckedReadonlyOperand, ComparisonImplementation,
+    ComparisonOperation, ConstantValue, LogicalOperation, PrimitiveBinary, PrimitiveOperation,
+    PrimitiveUnary,
 };
 
 impl BodyChecker<'_, '_> {
@@ -98,6 +99,7 @@ impl BodyChecker<'_, '_> {
             CheckedOperation::Primitive(PrimitiveOperation::Unary {
                 operation: PrimitiveUnary::LogicalNot,
                 operand,
+                check: ArithmeticTrapCheck::NotRequired,
             }),
         )?;
         expected.map_or(Ok(checked), |expected| {
@@ -150,6 +152,11 @@ impl BodyChecker<'_, '_> {
             CheckedOperation::Primitive(PrimitiveOperation::Unary {
                 operation: PrimitiveUnary::Negate,
                 operand,
+                check: if is_integer_type(self.types, operand_ty) {
+                    self.negation_check(operand, operand_ty)
+                } else {
+                    ArithmeticTrapCheck::NotRequired
+                },
             }),
         )?;
         expected.map_or(Ok(checked), |expected| {
@@ -201,6 +208,7 @@ impl BodyChecker<'_, '_> {
                 operation,
                 left,
                 right,
+                check: self.arithmetic_check(operation, left, right, operation_ty),
             }),
         )?;
         expected.map_or(Ok(checked), |expected| {

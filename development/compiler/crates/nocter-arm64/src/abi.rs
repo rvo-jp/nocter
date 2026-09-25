@@ -116,10 +116,11 @@ impl Arm64NocterAbi {
 
     #[must_use]
     pub const fn compiler_scratch_register(index: u8) -> Option<Arm64Register> {
-        if index < 2 {
-            Arm64Register::new(16 + index)
-        } else {
-            None
+        match index {
+            0 => Arm64Register::new(16),
+            1 => Arm64Register::new(17),
+            2 => Arm64Register::new(15),
+            _ => None,
         }
     }
 
@@ -151,8 +152,8 @@ impl Arm64NocterAbi {
         match number {
             9 => Arm64AbiRegisterRole::AllocationContext,
             10 => Arm64AbiRegisterRole::ProcessContext,
-            11..=15 => Arm64AbiRegisterRole::CallerSaved,
-            16..=17 => Arm64AbiRegisterRole::CompilerScratch,
+            11..=14 => Arm64AbiRegisterRole::CallerSaved,
+            15..=17 => Arm64AbiRegisterRole::CompilerScratch,
             18 => Arm64AbiRegisterRole::Reserved,
             19..=28 => Arm64AbiRegisterRole::CalleeSaved,
             29 => Arm64AbiRegisterRole::FramePointer,

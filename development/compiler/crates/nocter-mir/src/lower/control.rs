@@ -30,8 +30,9 @@ impl FunctionLowerer<'_> {
                 target,
                 value,
                 operation,
+                check,
             } => {
-                self.lower_compound_assignment(*target, *value, *operation)?;
+                self.lower_compound_assignment(*target, *value, *operation, *check)?;
                 Ok(None)
             }
             CheckedControl::Discard(value) => {

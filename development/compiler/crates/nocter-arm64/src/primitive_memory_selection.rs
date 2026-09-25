@@ -345,6 +345,7 @@ fn select_dynamic_address(
     selected.push(Arm64SelectedInstruction::Binary {
         size: Arm64DataSize::Bits64,
         operation: Arm64SelectedBinaryOperation::Add,
+        arithmetic: None,
         destination: address,
         left: fixed(0)?,
         right: fixed(1)?,

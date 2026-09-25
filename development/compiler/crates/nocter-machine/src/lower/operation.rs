@@ -56,18 +56,25 @@ fn lower_operation(
             flag: ids.drop_flag(*flag)?,
             initialized: *initialized,
         },
-        MirOperationKind::Unary { operation, operand } => MachineOperationKind::Unary {
+        MirOperationKind::Unary {
+            operation,
+            operand,
+            check,
+        } => MachineOperationKind::Unary {
             operation: lower_unary(*operation),
             operand: ids.value(*operand)?,
+            check: lower_arithmetic_check(*check),
         },
         MirOperationKind::Binary {
             operation,
             left,
             right,
+            check,
         } => MachineOperationKind::Binary {
             operation: lower_binary(*operation),
             left: ids.value(*left)?,
             right: ids.value(*right)?,
+            check: lower_arithmetic_check(*check),
         },
         MirOperationKind::NumericConversion { operand } => {
             MachineOperationKind::NumericConversion {
@@ -123,6 +130,20 @@ fn lower_operation(
         MirOperationKind::DestroyPack => MachineOperationKind::DestroyPack,
     };
     Ok(MachineOperation::new(kind, result))
+}
+
+const fn lower_arithmetic_check(
+    check: nocter_mir::MirArithmeticCheck,
+) -> crate::MachineArithmeticCheck {
+    match check {
+        nocter_mir::MirArithmeticCheck::NotRequired => crate::MachineArithmeticCheck::NotRequired,
+        nocter_mir::MirArithmeticCheck::InternalInvariant => {
+            crate::MachineArithmeticCheck::InternalInvariant
+        }
+        nocter_mir::MirArithmeticCheck::Required => crate::MachineArithmeticCheck::Required,
+        nocter_mir::MirArithmeticCheck::ProvenSafe => crate::MachineArithmeticCheck::ProvenSafe,
+        nocter_mir::MirArithmeticCheck::ProvenTrap => crate::MachineArithmeticCheck::ProvenTrap,
+    }
 }
 
 fn lower_callable_erasure(

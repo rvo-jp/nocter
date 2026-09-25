@@ -3,7 +3,10 @@ use nocter_model::{BuiltinType, TypeKind};
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
-use crate::{CheckedOperation, PrimitiveBinary, PrimitiveOperation, prepare_program_checking};
+use crate::{
+    ArithmeticTrapCheck, CheckedOperation, PrimitiveBinary, PrimitiveOperation,
+    prepare_program_checking,
+};
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
@@ -98,4 +101,25 @@ fn arithmetic_rejects_non_integer_and_mismatched_operands() {
         let error = check(source).unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0370");
     }
+}
+
+#[test]
+fn checking_freezes_constant_arithmetic_dispositions() {
+    let output = check("func values(): (i8, i8) {\n    return (100 + 20, 100 + 100)\n}\n").unwrap();
+    let (_, body) = output.program().bodies().iter().next().unwrap();
+    let checks = body
+        .nodes()
+        .iter()
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Primitive(PrimitiveOperation::Binary { check, .. }) => Some(*check),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        checks,
+        vec![
+            ArithmeticTrapCheck::ProvenSafe,
+            ArithmeticTrapCheck::ProvenTrap
+        ]
+    );
 }

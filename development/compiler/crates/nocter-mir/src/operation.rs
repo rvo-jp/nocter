@@ -40,6 +40,28 @@ pub enum MirBinaryOperation {
     Less,
 }
 
+/// MIR transport of checking's arithmetic trap decision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MirArithmeticCheck {
+    NotRequired,
+    /// Compiler-generated arithmetic whose surrounding lowering invariant proves the operation.
+    InternalInvariant,
+    Required,
+    ProvenSafe,
+    ProvenTrap,
+}
+
+impl From<nocter_checking::ArithmeticTrapCheck> for MirArithmeticCheck {
+    fn from(check: nocter_checking::ArithmeticTrapCheck) -> Self {
+        match check {
+            nocter_checking::ArithmeticTrapCheck::NotRequired => Self::NotRequired,
+            nocter_checking::ArithmeticTrapCheck::Required => Self::Required,
+            nocter_checking::ArithmeticTrapCheck::ProvenSafe => Self::ProvenSafe,
+            nocter_checking::ArithmeticTrapCheck::ProvenTrap => Self::ProvenTrap,
+        }
+    }
+}
+
 /// One binding-preserving value supplied to a concrete closure environment field.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MirClosureCapture {
@@ -276,11 +298,13 @@ pub enum MirOperationKind {
     Unary {
         operation: MirUnaryOperation,
         operand: MirValueId,
+        check: MirArithmeticCheck,
     },
     Binary {
         operation: MirBinaryOperation,
         left: MirValueId,
         right: MirValueId,
+        check: MirArithmeticCheck,
     },
     NumericConversion {
         operand: MirValueId,

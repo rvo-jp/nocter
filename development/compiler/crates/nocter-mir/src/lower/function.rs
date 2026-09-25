@@ -314,21 +314,28 @@ impl<'a> FunctionLowerer<'a> {
         primitive: &PrimitiveOperation,
     ) -> Result<MirValueId, MirLoweringError> {
         let kind = match primitive {
-            PrimitiveOperation::Unary { operation, operand } => MirOperationKind::Unary {
+            PrimitiveOperation::Unary {
+                operation,
+                operand,
+                check,
+            } => MirOperationKind::Unary {
                 operation: match operation {
                     PrimitiveUnary::LogicalNot => MirUnaryOperation::LogicalNot,
                     PrimitiveUnary::Negate => MirUnaryOperation::Negate,
                 },
                 operand: self.require_value(*operand)?,
+                check: (*check).into(),
             },
             PrimitiveOperation::Binary {
                 operation,
                 left,
                 right,
+                check,
             } => MirOperationKind::Binary {
                 operation: mir_binary_operation(*operation),
                 left: self.require_value(*left)?,
                 right: self.require_value(*right)?,
+                check: (*check).into(),
             },
             PrimitiveOperation::NumericConversion { operand, .. } => {
                 MirOperationKind::NumericConversion {

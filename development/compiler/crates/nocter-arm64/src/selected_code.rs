@@ -9,7 +9,7 @@ use crate::{
     Arm64Register, Arm64SelectedBinaryOperation, Arm64SelectedComparisonOperation,
     Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
     Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
-    Arm64SelectedUnaryOperation, Arm64Shift, Arm64SystemRegister,
+    Arm64SelectedUnaryOperation, Arm64SystemRegister,
 };
 
 impl Arm64SelectedFunction {
@@ -320,16 +320,37 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::Unary {
             size,
             operation,
+            arithmetic,
             destination,
             operand,
-        } => emit_unary(function, operation, destination, operand, size, code),
+        } => emit_unary(
+            function,
+            operation,
+            arithmetic,
+            destination,
+            operand,
+            size,
+            code,
+        ),
         Arm64SelectedInstruction::Binary {
             size,
             operation,
+            arithmetic,
             destination,
             left,
             right,
-        } => emit_binary(function, operation, destination, left, right, size, code),
+        } => emit_binary(
+            function,
+            BinaryMaterialization {
+                operation,
+                arithmetic,
+                destination,
+                left,
+                right,
+                size,
+            },
+            code,
+        ),
         Arm64SelectedInstruction::CompareBorrowed {
             size,
             extension,
@@ -739,6 +760,7 @@ fn emit_resolved_address(
 fn emit_unary(
     function: &Arm64SelectedFunction,
     operation: Arm64SelectedUnaryOperation,
+    arithmetic: Option<crate::selection::Arm64IntegerArithmetic>,
     destination: Arm64SelectedRegister,
     operand: Arm64SelectedRegister,
     size: Arm64DataSize,
@@ -746,6 +768,12 @@ fn emit_unary(
 ) -> Result<(), Arm64MaterializationError> {
     let operand = read_register(function, operand, 0, code)?;
     let destination = write_target(function, destination)?;
+    if arithmetic.is_some_and(|arithmetic| {
+        arithmetic.check == nocter_machine::MachineArithmeticCheck::ProvenTrap
+    }) {
+        crate::arithmetic_check_code::emit_trap(code);
+        return Ok(());
+    }
     match operation {
         Arm64SelectedUnaryOperation::LogicalNot => {
             code.append(Arm64Instruction::AddSubtractImmediate {
@@ -764,6 +792,23 @@ fn emit_unary(
             });
         }
         Arm64SelectedUnaryOperation::Negate => {
+            if let Some(arithmetic) = arithmetic
+                && arithmetic.check == nocter_machine::MachineArithmeticCheck::Required
+            {
+                let minimum =
+                    crate::arithmetic_check_code::signed_minimum_pattern(arithmetic.bits, size);
+                let scratch = crate::frame_access::scratch(2);
+                crate::frame_access::load_immediate(code, scratch, minimum, size);
+                code.append(Arm64Instruction::AddSubtractRegister {
+                    size,
+                    operation: Arm64AddSubtract::Subtract,
+                    set_flags: true,
+                    destination: Arm64DataRegister::Zero,
+                    left: Arm64DataRegister::General(operand),
+                    right: Arm64DataRegister::General(scratch),
+                });
+                crate::arithmetic_check_code::trap_if(code, Arm64BranchCondition::Equal)?;
+            }
             code.append(Arm64Instruction::AddSubtractRegister {
                 size,
                 operation: Arm64AddSubtract::Subtract,
@@ -772,6 +817,14 @@ fn emit_unary(
                 left: Arm64DataRegister::Zero,
                 right: Arm64DataRegister::General(operand),
             });
+            if let Some(arithmetic) = arithmetic {
+                crate::arithmetic_check_code::normalize_integer(
+                    code,
+                    destination.register,
+                    size,
+                    arithmetic,
+                );
+            }
         }
         Arm64SelectedUnaryOperation::CountLeadingZeros => {
             code.append(Arm64Instruction::CountLeadingZeros {
@@ -784,45 +837,65 @@ fn emit_unary(
     Ok(())
 }
 
-fn emit_binary(
-    function: &Arm64SelectedFunction,
+#[derive(Clone, Copy)]
+struct BinaryMaterialization {
     operation: Arm64SelectedBinaryOperation,
+    arithmetic: Option<crate::selection::Arm64IntegerArithmetic>,
     destination: Arm64SelectedRegister,
     left: Arm64SelectedRegister,
     right: Arm64SelectedRegister,
     size: Arm64DataSize,
+}
+
+fn emit_binary(
+    function: &Arm64SelectedFunction,
+    binary: BinaryMaterialization,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
+    let BinaryMaterialization {
+        operation,
+        arithmetic,
+        destination,
+        left,
+        right,
+        size,
+    } = binary;
     let left = read_register(function, left, 0, code)?;
     let right = read_register(function, right, 1, code)?;
     let destination = write_target(function, destination)?;
+    if arithmetic.is_some_and(|arithmetic| {
+        arithmetic.check == nocter_machine::MachineArithmeticCheck::ProvenTrap
+    }) {
+        crate::arithmetic_check_code::emit_trap(code);
+        return Ok(());
+    }
+    let required = arithmetic.is_some_and(|arithmetic| {
+        arithmetic.check == nocter_machine::MachineArithmeticCheck::Required
+    });
+    if required && let Some(arithmetic) = arithmetic {
+        crate::arithmetic_check_code::emit_precalculation_check(
+            code, operation, left, right, size, arithmetic,
+        )?;
+    }
+    let integer = crate::arithmetic_check_code::IntegerBinaryEmission {
+        operation,
+        arithmetic,
+        destination: destination.register,
+        left,
+        right,
+        size,
+        required,
+    };
     match operation {
         Arm64SelectedBinaryOperation::Add | Arm64SelectedBinaryOperation::Subtract => {
-            code.append(Arm64Instruction::AddSubtractRegister {
-                size,
-                operation: if operation == Arm64SelectedBinaryOperation::Add {
-                    Arm64AddSubtract::Add
-                } else {
-                    Arm64AddSubtract::Subtract
-                },
-                set_flags: false,
-                destination: Arm64DataRegister::General(destination.register),
-                left: Arm64DataRegister::General(left),
-                right: Arm64DataRegister::General(right),
-            });
+            crate::arithmetic_check_code::emit_add_subtract(integer, code)?;
         }
         Arm64SelectedBinaryOperation::Multiply => {
-            code.append(Arm64Instruction::MultiplyAdd {
-                size,
-                destination: destination.register,
-                left,
-                right,
-                addend: Arm64DataRegister::Zero,
-                subtract_product: false,
-            });
+            crate::arithmetic_check_code::emit_multiply(integer, code)?;
         }
         Arm64SelectedBinaryOperation::MultiplyHigh => {
             code.append(Arm64Instruction::MultiplyHigh {
+                signed: false,
                 destination: destination.register,
                 left,
                 right,
@@ -836,48 +909,35 @@ fn emit_binary(
                 right,
                 signed,
             });
+            if let Some(arithmetic) = arithmetic {
+                crate::arithmetic_check_code::normalize_integer(
+                    code,
+                    destination.register,
+                    size,
+                    arithmetic,
+                );
+            }
         }
         Arm64SelectedBinaryOperation::Remainder { signed } => {
             emit_remainder(code, size, destination.register, left, right, signed);
+            if let Some(arithmetic) = arithmetic {
+                crate::arithmetic_check_code::normalize_integer(
+                    code,
+                    destination.register,
+                    size,
+                    arithmetic,
+                );
+            }
         }
         Arm64SelectedBinaryOperation::ShiftLeft
         | Arm64SelectedBinaryOperation::ShiftRight { .. }
         | Arm64SelectedBinaryOperation::RotateRight => {
-            let operation = match operation {
-                Arm64SelectedBinaryOperation::ShiftLeft => Arm64Shift::Left,
-                Arm64SelectedBinaryOperation::ShiftRight { signed: true } => {
-                    Arm64Shift::RightArithmetic
-                }
-                Arm64SelectedBinaryOperation::ShiftRight { signed: false } => {
-                    Arm64Shift::RightLogical
-                }
-                Arm64SelectedBinaryOperation::RotateRight => Arm64Shift::RotateRight,
-                _ => unreachable!(),
-            };
-            code.append(Arm64Instruction::VariableShift {
-                size,
-                operation,
-                destination: destination.register,
-                value: left,
-                amount: right,
-            });
+            crate::arithmetic_check_code::emit_shift(integer, code);
         }
         Arm64SelectedBinaryOperation::BitwiseXor
         | Arm64SelectedBinaryOperation::BitwiseAnd
         | Arm64SelectedBinaryOperation::BitwiseOr => {
-            let operation = match operation {
-                Arm64SelectedBinaryOperation::BitwiseXor => crate::Arm64Logical::ExclusiveOr,
-                Arm64SelectedBinaryOperation::BitwiseAnd => crate::Arm64Logical::And,
-                Arm64SelectedBinaryOperation::BitwiseOr => crate::Arm64Logical::Or,
-                _ => unreachable!(),
-            };
-            code.append(Arm64Instruction::LogicalRegister {
-                size,
-                operation,
-                destination: Arm64DataRegister::General(destination.register),
-                left: Arm64DataRegister::General(left),
-                right: Arm64DataRegister::General(right),
-            });
+            emit_bitwise(code, operation, size, destination.register, left, right);
         }
         Arm64SelectedBinaryOperation::Equal | Arm64SelectedBinaryOperation::Less { .. } => {
             emit_comparison(code, size, destination.register, left, right, operation);
@@ -885,6 +945,29 @@ fn emit_binary(
     }
     finish_write(destination, code);
     Ok(())
+}
+
+fn emit_bitwise(
+    code: &mut Arm64CodeBuilder,
+    operation: Arm64SelectedBinaryOperation,
+    size: Arm64DataSize,
+    destination: Arm64Register,
+    left: Arm64Register,
+    right: Arm64Register,
+) {
+    let operation = match operation {
+        Arm64SelectedBinaryOperation::BitwiseXor => crate::Arm64Logical::ExclusiveOr,
+        Arm64SelectedBinaryOperation::BitwiseAnd => crate::Arm64Logical::And,
+        Arm64SelectedBinaryOperation::BitwiseOr => crate::Arm64Logical::Or,
+        _ => unreachable!(),
+    };
+    code.append(Arm64Instruction::LogicalRegister {
+        size,
+        operation,
+        destination: Arm64DataRegister::General(destination),
+        left: Arm64DataRegister::General(left),
+        right: Arm64DataRegister::General(right),
+    });
 }
 
 fn emit_remainder(

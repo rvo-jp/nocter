@@ -14,15 +14,24 @@ use crate::validation_types::{
     matches_opaque_witness, payload_type, variant_representation,
 };
 use crate::{
-    MirAggregate, MirBinaryOperation, MirBody, MirBranchTarget, MirConstant, MirFunction,
-    MirLocalKind, MirOperation, MirOperationKind, MirPlace, MirPlaceRoot, MirProjectionKind,
-    MirReadMode, MirSwitchSubject, MirTerminator, MirUnaryOperation, MirValueDefinition,
+    MirAggregate, MirArithmeticCheck, MirBinaryOperation, MirBody, MirBranchTarget, MirConstant,
+    MirFunction, MirLocalKind, MirOperation, MirOperationKind, MirPlace, MirPlaceRoot,
+    MirProjectionKind, MirReadMode, MirSwitchSubject, MirTerminator, MirUnaryOperation,
+    MirValueDefinition,
 };
 use crate::{MirValidationEnvironment, MirValidationError};
 use nocter_model::{
     BorrowCapability, BuiltinType, ExecutableItemId, FieldId, MirBlockId, MirDropFlagId,
     MirLocalId, MirOperationId, MirPlaceId, MirValueId, OpaqueTypeId, TypeId, TypeKind, TypeStore,
 };
+
+const fn arithmetic_check_matches_type(check: MirArithmeticCheck, integer: bool) -> bool {
+    if integer {
+        !matches!(check, MirArithmeticCheck::NotRequired)
+    } else {
+        matches!(check, MirArithmeticCheck::NotRequired)
+    }
+}
 
 /// Validates every body-local reference, type relation, CFG edge, and SSA use.
 ///
@@ -634,15 +643,25 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
-            MirOperationKind::Unary { operation, operand } => {
+            MirOperationKind::Unary {
+                operation,
+                operand,
+                check,
+            } => {
                 let operand = self.value_type(*operand)?;
                 let valid = match operation {
                     MirUnaryOperation::LogicalNot => {
-                        operand == self.types.builtin(BuiltinType::Bool) && result == Some(operand)
+                        operand == self.types.builtin(BuiltinType::Bool)
+                            && result == Some(operand)
+                            && *check == MirArithmeticCheck::NotRequired
                     }
                     MirUnaryOperation::Negate => {
                         (is_integer(self.types, operand) || is_float(self.types, operand))
                             && result == Some(operand)
+                            && arithmetic_check_matches_type(
+                                *check,
+                                is_integer(self.types, operand),
+                            )
                     }
                 };
                 if !valid {
@@ -653,6 +672,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 operation,
                 left,
                 right,
+                check,
             } => {
                 let left = self.value_type(*left)?;
                 let right = self.value_type(*right)?;
@@ -660,7 +680,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     operation,
                     MirBinaryOperation::Equal | MirBinaryOperation::Less
                 ) {
-                    left == right && result == Some(self.types.builtin(BuiltinType::Bool))
+                    left == right
+                        && result == Some(self.types.builtin(BuiltinType::Bool))
+                        && *check == MirArithmeticCheck::NotRequired
                 } else {
                     let supports_operation = match operation {
                         MirBinaryOperation::Add
@@ -675,7 +697,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         | MirBinaryOperation::ShiftRightUnsigned => is_integer(self.types, left),
                         MirBinaryOperation::Equal | MirBinaryOperation::Less => unreachable!(),
                     };
-                    left == right && supports_operation && result == Some(left)
+                    left == right
+                        && supports_operation
+                        && result == Some(left)
+                        && arithmetic_check_matches_type(*check, is_integer(self.types, left))
                 };
                 if !valid {
                     return Err(mismatch());

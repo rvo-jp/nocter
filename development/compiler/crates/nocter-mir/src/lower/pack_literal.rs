@@ -242,6 +242,7 @@ impl FunctionLowerer<'_> {
                     operation: MirBinaryOperation::Add,
                     left: length,
                     right: count,
+                    check: crate::MirArithmeticCheck::InternalInvariant,
                 },
             )?;
             remaining.push(Some(count));

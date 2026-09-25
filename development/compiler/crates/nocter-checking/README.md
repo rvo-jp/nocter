@@ -84,6 +84,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Symbolic view bounds refer to the exact receiver identity and compiler-selected standard
   length role. A fact about one slice or string cannot justify indexing another, and checking does
   not infer length semantics from a method name.
+- Integer negation, arithmetic, division-family operations, and shifts retain one checking-owned
+  trap disposition. Constants and admitted flow intervals can prove an operation safe or certain
+  to trap; incomplete evidence requires the complete runtime check. Execution analysis consumes
+  that disposition directly when validating `notrap`.
 - Loop exits use the same flow join as branches. A while-condition false edge and each reachable
   `break` contribute explicit states; potentially zero-iteration loops retain their entry state.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;

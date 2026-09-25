@@ -730,16 +730,31 @@ pub enum LogicalOperation {
     Or,
 }
 
+/// Checking-owned disposition for one source-visible arithmetic trap obligation.
+///
+/// Later representations transport this decision without repeating range analysis. Operations
+/// whose language semantics cannot trap use `NotRequired`; `Required` means the target must emit
+/// the complete runtime check.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ArithmeticTrapCheck {
+    NotRequired,
+    Required,
+    ProvenSafe,
+    ProvenTrap,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PrimitiveOperation {
     Unary {
         operation: PrimitiveUnary,
         operand: BodyNodeId,
+        check: ArithmeticTrapCheck,
     },
     Binary {
         operation: PrimitiveBinary,
         left: BodyNodeId,
         right: BodyNodeId,
+        check: ArithmeticTrapCheck,
     },
     NumericConversion {
         operand: BodyNodeId,
@@ -1484,6 +1499,7 @@ pub enum CheckedControl {
         target: PlaceId,
         value: BodyNodeId,
         operation: PrimitiveBinary,
+        check: ArithmeticTrapCheck,
     },
     Discard(BodyNodeId),
     /// Retains a checked source subtree that has no incoming executable edge.

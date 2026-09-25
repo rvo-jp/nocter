@@ -735,6 +735,7 @@ fn a_value_from_one_branch_does_not_dominate_its_sibling() {
                 operation: MirBinaryOperation::Add,
                 left: left_value,
                 right: one,
+                check: crate::MirArithmeticCheck::Required,
             },
         )
         .unwrap();

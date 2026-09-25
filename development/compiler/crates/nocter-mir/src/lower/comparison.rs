@@ -50,6 +50,7 @@ impl FunctionLowerer<'_> {
                         MirOperationKind::Unary {
                             operation: MirUnaryOperation::LogicalNot,
                             operand: result,
+                            check: crate::MirArithmeticCheck::NotRequired,
                         },
                     )
                     .map(Some)

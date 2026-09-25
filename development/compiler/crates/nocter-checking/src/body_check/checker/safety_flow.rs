@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use nocter_model::{BodyNodeId, LocalBindingId, ParameterId};
+use nocter_model::{BodyNodeId, BuiltinType, LocalBindingId, ParameterId, TypeId, TypeKind};
 use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::BodyChecker;
 use crate::{
-    CallTarget, CheckedOperation, IndexBoundsCheck, LocalBindingKind, PlaceProjection, PlaceRoot,
-    PrimitiveComparisonRelation, StaticDispatch,
+    ArithmeticTrapCheck, CallTarget, CheckedOperation, IndexBoundsCheck, LocalBindingKind,
+    PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparisonRelation, StaticDispatch,
 };
 
 /// One stable scalar storage identity admitted into local safety reasoning.
@@ -274,6 +274,71 @@ impl SafetyFlowState {
 }
 
 impl BodyChecker<'_, '_> {
+    pub(super) fn negation_check(&self, operand: BodyNodeId, ty: TypeId) -> ArithmeticTrapCheck {
+        let Some((minimum, maximum, _, true)) = integer_domain(self.types.get(ty)) else {
+            return ArithmeticTrapCheck::NotRequired;
+        };
+        let range = self.arithmetic_range(operand, minimum, maximum);
+        if range.lower_inclusive == Some(minimum) && range.upper_exclusive == minimum.checked_add(1)
+        {
+            ArithmeticTrapCheck::ProvenTrap
+        } else if range.lower_inclusive.is_some_and(|lower| lower > minimum) {
+            ArithmeticTrapCheck::ProvenSafe
+        } else {
+            ArithmeticTrapCheck::Required
+        }
+    }
+
+    pub(super) fn arithmetic_check(
+        &self,
+        operation: PrimitiveBinary,
+        left: BodyNodeId,
+        right: BodyNodeId,
+        ty: TypeId,
+    ) -> ArithmeticTrapCheck {
+        let Some((minimum, maximum, bits, signed)) = integer_domain(self.types.get(ty)) else {
+            return ArithmeticTrapCheck::NotRequired;
+        };
+        let left = self.arithmetic_range(left, minimum, maximum);
+        let right = self.arithmetic_range(right, minimum, maximum);
+        match operation {
+            PrimitiveBinary::Add | PrimitiveBinary::Subtract | PrimitiveBinary::Multiply => {
+                arithmetic_result_check(operation, left, right, minimum, maximum)
+            }
+            PrimitiveBinary::Divide | PrimitiveBinary::Remainder => {
+                division_check(left, right, minimum, signed)
+            }
+            PrimitiveBinary::ShiftLeft
+            | PrimitiveBinary::ShiftRightSigned
+            | PrimitiveBinary::ShiftRightUnsigned => shift_check(right, bits),
+        }
+    }
+
+    fn arithmetic_range(&self, node: BodyNodeId, minimum: i128, maximum: i128) -> IntegerRange {
+        if let Some(value) = self.integer_constant(node) {
+            return IntegerRange {
+                lower_inclusive: Some(value),
+                upper_exclusive: value.checked_add(1),
+            };
+        }
+        let Some(value) = self.safety_value(node) else {
+            return IntegerRange {
+                lower_inclusive: Some(minimum),
+                upper_exclusive: maximum.checked_add(1),
+            };
+        };
+        let flow = self
+            .safety_flow
+            .ranges
+            .get(&value)
+            .copied()
+            .unwrap_or_default();
+        IntegerRange {
+            lower_inclusive: Some(flow.lower_inclusive.unwrap_or(minimum).max(minimum)),
+            upper_exclusive: Some(flow.upper_exclusive.unwrap_or(maximum + 1).min(maximum + 1)),
+        }
+    }
+
     pub(super) fn safety_condition(&self, node: BodyNodeId) -> Option<SafetyCondition> {
         let CheckedOperation::Comparison(comparison) = self.builder.node(node)?.operation() else {
             return None;
@@ -391,6 +456,139 @@ impl BodyChecker<'_, '_> {
             }
             _ => None,
         }
+    }
+}
+
+fn integer_domain(kind: Option<&TypeKind>) -> Option<(i128, i128, u8, bool)> {
+    let builtin = match kind? {
+        TypeKind::Builtin(builtin) => *builtin,
+        _ => return None,
+    };
+    let (bits, signed) = match builtin {
+        BuiltinType::I8 => (8, true),
+        BuiltinType::I16 => (16, true),
+        BuiltinType::I32 => (32, true),
+        BuiltinType::I64 | BuiltinType::Isize => (64, true),
+        BuiltinType::U8 => (8, false),
+        BuiltinType::U16 => (16, false),
+        BuiltinType::U32 => (32, false),
+        BuiltinType::U64 | BuiltinType::Usize => (64, false),
+        _ => return None,
+    };
+    let (minimum, maximum) = if signed {
+        let magnitude = 1_i128 << (bits - 1);
+        (-magnitude, magnitude - 1)
+    } else {
+        (0, (1_i128 << bits) - 1)
+    };
+    Some((minimum, maximum, bits, signed))
+}
+
+fn arithmetic_result_check(
+    operation: PrimitiveBinary,
+    left: IntegerRange,
+    right: IntegerRange,
+    minimum: i128,
+    maximum: i128,
+) -> ArithmeticTrapCheck {
+    let (Some(left_min), Some(left_end), Some(right_min), Some(right_end)) = (
+        left.lower_inclusive,
+        left.upper_exclusive,
+        right.lower_inclusive,
+        right.upper_exclusive,
+    ) else {
+        return ArithmeticTrapCheck::Required;
+    };
+    let left_max = left_end - 1;
+    let right_max = right_end - 1;
+    let extrema = match operation {
+        PrimitiveBinary::Add => [(left_min, right_min), (left_max, right_max)]
+            .map(|(left, right)| left.checked_add(right)),
+        PrimitiveBinary::Subtract => [(left_min, right_max), (left_max, right_min)]
+            .map(|(left, right)| left.checked_sub(right)),
+        PrimitiveBinary::Multiply => {
+            let products = [
+                left_min.checked_mul(right_min),
+                left_min.checked_mul(right_max),
+                left_max.checked_mul(right_min),
+                left_max.checked_mul(right_max),
+            ];
+            let Some(mut low) = products[0] else {
+                return ArithmeticTrapCheck::Required;
+            };
+            let mut high = low;
+            for product in products.into_iter().skip(1) {
+                let Some(product) = product else {
+                    return ArithmeticTrapCheck::Required;
+                };
+                low = low.min(product);
+                high = high.max(product);
+            }
+            return if low >= minimum && high <= maximum {
+                ArithmeticTrapCheck::ProvenSafe
+            } else if high < minimum || low > maximum {
+                ArithmeticTrapCheck::ProvenTrap
+            } else {
+                ArithmeticTrapCheck::Required
+            };
+        }
+        _ => return ArithmeticTrapCheck::Required,
+    };
+    let [Some(low), Some(high)] = extrema else {
+        return ArithmeticTrapCheck::Required;
+    };
+    if low >= minimum && high <= maximum {
+        ArithmeticTrapCheck::ProvenSafe
+    } else if high < minimum || low > maximum {
+        ArithmeticTrapCheck::ProvenTrap
+    } else {
+        ArithmeticTrapCheck::Required
+    }
+}
+
+fn division_check(
+    left: IntegerRange,
+    right: IntegerRange,
+    minimum: i128,
+    signed: bool,
+) -> ArithmeticTrapCheck {
+    let excludes_zero = excludes_value(right, 0);
+    let excludes_minus_one = !signed || excludes_value(right, -1);
+    let left_excludes_minimum = !signed
+        || left.lower_inclusive.is_some_and(|lower| lower > minimum)
+        || left.upper_exclusive.is_some_and(|upper| upper <= minimum);
+    if excludes_zero && (excludes_minus_one || left_excludes_minimum) {
+        ArithmeticTrapCheck::ProvenSafe
+    } else if right.lower_inclusive == Some(0) && right.upper_exclusive == Some(1)
+        || signed
+            && left.lower_inclusive == Some(minimum)
+            && left.upper_exclusive == minimum.checked_add(1)
+            && right.lower_inclusive == Some(-1)
+            && right.upper_exclusive == Some(0)
+    {
+        ArithmeticTrapCheck::ProvenTrap
+    } else {
+        ArithmeticTrapCheck::Required
+    }
+}
+
+fn excludes_value(range: IntegerRange, value: i128) -> bool {
+    range.upper_exclusive.is_some_and(|upper| upper <= value)
+        || range.lower_inclusive.is_some_and(|lower| lower > value)
+}
+
+fn shift_check(count: IntegerRange, bits: u8) -> ArithmeticTrapCheck {
+    let bits = i128::from(bits);
+    if count.lower_inclusive.is_some_and(|lower| lower >= 0)
+        && count.upper_exclusive.is_some_and(|upper| upper <= bits)
+    {
+        ArithmeticTrapCheck::ProvenSafe
+    } else if count.upper_exclusive.is_some_and(|upper| upper <= 0)
+        || count.lower_inclusive.is_some_and(|lower| lower >= bits)
+    {
+        ArithmeticTrapCheck::ProvenTrap
+    } else {
+        ArithmeticTrapCheck::Required
     }
 }
 

@@ -20,6 +20,28 @@ use crate::{
 mod destruction;
 
 #[test]
+fn preserves_checked_arithmetic_dispositions_without_machine_reproof() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "func safe(): i8 { return 10 + 20 }\n\
+         func trapped(): i8 { return 100 + 100 }\n\
+         func dynamic(left: i8, right: i8): i8 { return left + right }\n\
+         func main(): i32 { if false { let _ = trapped() }\nlet _ = safe()\nlet _ = dynamic(1, 2)\nreturn 0 }\n",
+    ))
+    .unwrap();
+    let dispositions = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .filter_map(|(_, operation)| match operation.kind() {
+            MachineOperationKind::Binary { check, .. } => Some(*check),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(dispositions.contains(&crate::MachineArithmeticCheck::ProvenSafe));
+    assert!(dispositions.contains(&crate::MachineArithmeticCheck::ProvenTrap));
+    assert!(dispositions.contains(&crate::MachineArithmeticCheck::Required));
+}
+
+#[test]
 fn structured_join_carries_machine_owned_tuple_placement() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/task\n\

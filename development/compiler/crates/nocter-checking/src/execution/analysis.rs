@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashSet};
 
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
-    AllocationGuarantee, ArenaBuilder, BodyNodeId, BuiltinType, CallableGuarantees, CallableId,
-    ClosureId, DropId, LoopId, NonblockingGuarantee, PlaceId, TrapGuarantee, TypeKind, TypeStore,
+    AllocationGuarantee, ArenaBuilder, BodyNodeId, CallableGuarantees, CallableId, ClosureId,
+    DropId, LoopId, NonblockingGuarantee, PlaceId, TrapGuarantee, TypeStore,
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
@@ -582,7 +582,7 @@ impl<'program> Collector<'program> {
                         self.visit_node(*right)?;
                     }
                 }
-                if self.primitive_may_trap(primitive)? {
+                if Self::primitive_may_trap(primitive) {
                     self.record_direct_trap(node);
                 }
             }
@@ -763,17 +763,15 @@ impl<'program> Collector<'program> {
             CheckedControl::CompoundAssign {
                 target,
                 value,
-                operation,
+                check,
+                ..
             } => {
                 self.visit_node(*value)?;
                 self.visit_place(*target)?;
-                let ty = self
-                    .body
-                    .places()
-                    .get(*target)
-                    .map(crate::CheckedPlace::ty)
-                    .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
-                if self.integer_operation_may_trap(*operation, ty) {
+                if matches!(
+                    check,
+                    crate::ArithmeticTrapCheck::Required | crate::ArithmeticTrapCheck::ProvenTrap
+                ) {
                     self.record_direct_trap(node);
                 }
             }
@@ -952,85 +950,16 @@ impl<'program> Collector<'program> {
             .push((node, ExecutionFacts::trapping_operation()));
     }
 
-    fn primitive_may_trap(
-        &self,
-        operation: &PrimitiveOperation,
-    ) -> Result<bool, BodyRelationError> {
-        let (operation, operand) = match operation {
-            PrimitiveOperation::Unary {
-                operation: crate::PrimitiveUnary::Negate,
-                operand,
-            } => (None, *operand),
-            PrimitiveOperation::Unary {
-                operation: crate::PrimitiveUnary::LogicalNot,
-                ..
+    fn primitive_may_trap(operation: &PrimitiveOperation) -> bool {
+        let check = match operation {
+            PrimitiveOperation::Unary { check, .. } | PrimitiveOperation::Binary { check, .. } => {
+                *check
             }
-            | PrimitiveOperation::NumericConversion { .. } => return Ok(false),
-            PrimitiveOperation::Binary {
-                operation, left, ..
-            } => (Some(*operation), *left),
+            PrimitiveOperation::NumericConversion { .. } => return false,
         };
-        let ty = self
-            .body
-            .nodes()
-            .get(operand)
-            .map(crate::CheckedNode::ty)
-            .ok_or(BodyCheckInternalError::ExecutionAnalysis)?;
-        Ok(match operation {
-            Some(operation) => self.integer_operation_may_trap(operation, ty),
-            None => self.is_signed_integer(ty),
-        })
-    }
-
-    fn integer_operation_may_trap(
-        &self,
-        operation: crate::PrimitiveBinary,
-        ty: nocter_model::TypeId,
-    ) -> bool {
-        if !self.is_integer(ty) {
-            return false;
-        }
         matches!(
-            operation,
-            crate::PrimitiveBinary::Add
-                | crate::PrimitiveBinary::Subtract
-                | crate::PrimitiveBinary::Multiply
-                | crate::PrimitiveBinary::Divide
-                | crate::PrimitiveBinary::Remainder
-                | crate::PrimitiveBinary::ShiftLeft
-                | crate::PrimitiveBinary::ShiftRightSigned
-                | crate::PrimitiveBinary::ShiftRightUnsigned
-        )
-    }
-
-    fn is_integer(&self, ty: nocter_model::TypeId) -> bool {
-        matches!(
-            self.types.get(ty),
-            Some(TypeKind::Builtin(
-                BuiltinType::I8
-                    | BuiltinType::I16
-                    | BuiltinType::I32
-                    | BuiltinType::I64
-                    | BuiltinType::Isize
-                    | BuiltinType::U8
-                    | BuiltinType::U16
-                    | BuiltinType::U32
-                    | BuiltinType::U64
-                    | BuiltinType::Usize
-            ))
-        )
-    }
-
-    fn is_signed_integer(&self, ty: nocter_model::TypeId) -> bool {
-        matches!(
-            self.types.get(ty),
-            Some(TypeKind::Builtin(
-                BuiltinType::I8
-                    | BuiltinType::I16
-                    | BuiltinType::I32
-                    | BuiltinType::I64
-                    | BuiltinType::Isize
-            ))
+            check,
+            crate::ArithmeticTrapCheck::Required | crate::ArithmeticTrapCheck::ProvenTrap
         )
     }
 

@@ -251,12 +251,14 @@ pub enum Arm64SelectedInstruction {
     Unary {
         size: Arm64DataSize,
         operation: Arm64SelectedUnaryOperation,
+        arithmetic: Option<Arm64IntegerArithmetic>,
         destination: Arm64SelectedRegister,
         operand: Arm64SelectedRegister,
     },
     Binary {
         size: Arm64DataSize,
         operation: Arm64SelectedBinaryOperation,
+        arithmetic: Option<Arm64IntegerArithmetic>,
         destination: Arm64SelectedRegister,
         left: Arm64SelectedRegister,
         right: Arm64SelectedRegister,
@@ -418,6 +420,14 @@ pub enum Arm64SelectedInstruction {
     Call(MachineFunctionId),
     CallImported(nocter_machine::MachineImportId),
     CallRegister(Arm64SelectedRegister),
+}
+
+/// Closed integer semantics attached only to source arithmetic selected from Machine.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64IntegerArithmetic {
+    pub(crate) bits: u8,
+    pub(crate) signed: bool,
+    pub(crate) check: nocter_machine::MachineArithmeticCheck,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -867,10 +877,11 @@ fn select_operation(
         MachineOperationKind::Unary {
             operation: unary,
             operand,
+            check,
         } => select_unary(
             (program, owner),
             operation_id,
-            *unary,
+            (*unary, *check),
             *operand,
             operation.result(),
             values,
@@ -880,10 +891,11 @@ fn select_operation(
             operation: binary,
             left,
             right,
+            check,
         } => select_binary(
             (program, owner),
             operation_id,
-            *binary,
+            (*binary, *check),
             (*left, *right),
             operation.result(),
             values,
@@ -1154,12 +1166,16 @@ fn select_constant(
 fn select_unary(
     scope: (&nocter_machine::MachineProgram, MachineFunctionId),
     operation_id: MachineOperationId,
-    operation: MachineUnaryOperation,
+    semantics: (
+        MachineUnaryOperation,
+        nocter_machine::MachineArithmeticCheck,
+    ),
     operand: MachineValueId,
     result: Option<MachineValueId>,
     values: &Arm64ValuePlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    let (operation, check) = semantics;
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
     let operand_storage = values
         .value(operand)
@@ -1186,6 +1202,14 @@ fn select_unary(
         operation: match operation {
             MachineUnaryOperation::LogicalNot => Arm64SelectedUnaryOperation::LogicalNot,
             MachineUnaryOperation::Negate => Arm64SelectedUnaryOperation::Negate,
+        },
+        arithmetic: match machine_scalar(scope.0, scope.1, operand)? {
+            MachineScalar::Integer { bits, signed } => Some(Arm64IntegerArithmetic {
+                bits,
+                signed,
+                check,
+            }),
+            _ => None,
         },
         destination: one_word(values, result)?,
         operand: one_word(values, operand)?,
@@ -1273,12 +1297,16 @@ const fn float_scalar_size(scalar: MachineScalar) -> Arm64DataSize {
 fn select_binary(
     scope: (&nocter_machine::MachineProgram, MachineFunctionId),
     operation_id: MachineOperationId,
-    operation: MachineBinaryOperation,
+    semantics: (
+        MachineBinaryOperation,
+        nocter_machine::MachineArithmeticCheck,
+    ),
     operands: (MachineValueId, MachineValueId),
     result: Option<MachineValueId>,
     values: &Arm64ValuePlan,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    let (operation, check) = semantics;
     let (left, right) = operands;
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
     let left_storage = values
@@ -1337,6 +1365,9 @@ fn select_binary(
         return Ok(());
     }
     let (size, signed) = scalar_value(scope.0, scope.1, left)?;
+    let MachineScalar::Integer { bits, .. } = machine_scalar(scope.0, scope.1, left)? else {
+        return Err(Arm64SelectionError::UnsupportedScalar(left));
+    };
     let selected_operation = match operation {
         MachineBinaryOperation::Add => Arm64SelectedBinaryOperation::Add,
         MachineBinaryOperation::Subtract => Arm64SelectedBinaryOperation::Subtract,
@@ -1356,6 +1387,11 @@ fn select_binary(
     selected.push(Arm64SelectedInstruction::Binary {
         size,
         operation: selected_operation,
+        arithmetic: Some(Arm64IntegerArithmetic {
+            bits,
+            signed,
+            check,
+        }),
         destination: one_word(values, result)?,
         left: one_word(values, left)?,
         right: one_word(values, right)?,

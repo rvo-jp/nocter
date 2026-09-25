@@ -479,7 +479,9 @@ impl Projector<'_> {
         CompileTimeProjectionError,
     > {
         match operation {
-            PrimitiveOperation::Unary { operation, operand } => Ok(CompileTimeOperation::Unary {
+            PrimitiveOperation::Unary {
+                operation, operand, ..
+            } => Ok(CompileTimeOperation::Unary {
                 operation: match operation {
                     PrimitiveUnary::LogicalNot => CompileTimeUnaryOperation::LogicalNot,
                     PrimitiveUnary::Negate => CompileTimeUnaryOperation::Negate,
@@ -490,6 +492,7 @@ impl Projector<'_> {
                 operation,
                 left,
                 right,
+                ..
             } => Ok(CompileTimeOperation::Binary {
                 operation: match operation {
                     PrimitiveBinary::Add => CompileTimeBinaryOperation::Add,

@@ -775,6 +775,7 @@ fn select_u64_primitive(
         selected.push(Arm64SelectedInstruction::Unary {
             size: Arm64DataSize::Bits64,
             operation: crate::Arm64SelectedUnaryOperation::CountLeadingZeros,
+            arithmetic: None,
             destination: fixed_register(0)?,
             operand: fixed_register(0)?,
         });
@@ -796,6 +797,7 @@ fn select_u64_primitive(
     selected.push(Arm64SelectedInstruction::Binary {
         size: Arm64DataSize::Bits64,
         operation,
+        arithmetic: None,
         destination: fixed_register(0)?,
         left: fixed_register(0)?,
         right: fixed_register(1)?,
@@ -896,6 +898,7 @@ fn select_string_subview(
     selected.push(Arm64SelectedInstruction::Binary {
         size: Arm64DataSize::Bits64,
         operation: Arm64SelectedBinaryOperation::Add,
+        arithmetic: None,
         destination: fixed_register(0)?,
         left: fixed_register(0)?,
         right: fixed_register(2)?,

@@ -1284,6 +1284,29 @@ fn carries_checked_index_bounds_dispositions_without_reclassification() {
 }
 
 #[test]
+fn carries_checked_arithmetic_dispositions_without_reclassification() {
+    let program = lower_fixture(
+        "func safe(): i8 { return 10 + 20 }\n\
+         func trapped(): i8 { return 100 + 100 }\n\
+         func dynamic(left: i8, right: i8): i8 { return left + right }\n\
+         func main(): i32 { if false { let _ = trapped() }\nlet _ = safe()\nlet _ = dynamic(1, 2)\nreturn 0 }\n",
+    )
+    .unwrap();
+    let dispositions = program
+        .functions()
+        .iter()
+        .flat_map(|(_, function)| function.operations().iter())
+        .filter_map(|(_, operation)| match operation.kind() {
+            MirOperationKind::Binary { check, .. } => Some(*check),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(dispositions.contains(&crate::MirArithmeticCheck::ProvenSafe));
+    assert!(dispositions.contains(&crate::MirArithmeticCheck::ProvenTrap));
+    assert!(dispositions.contains(&crate::MirArithmeticCheck::Required));
+}
+
+#[test]
 fn lowers_specialized_structural_index_with_its_receiver_lane() {
     let program = lower_fixture(
         "copy struct Buffer { values: [i32; 2] }\n\

@@ -40,6 +40,9 @@ or assign a machine ABI.
 - Validation checks representation integrity, not source-language acceptance.
 - Dynamic indexes retain the exact bounds-check disposition selected by checking. MIR neither
   derives a proof from constants nor changes a required check into a proven result.
+- Source arithmetic retains checking's exact trap disposition. Compiler-generated loop and pack
+  arithmetic uses an explicit internal-invariant state instead of masquerading as source proof or
+  silently selecting unchecked source semantics.
 - Suspension-frame liveness is derived once from the closed MIR CFG. Cancellation order and
   conditional initialization are consumed from checked ownership rather than inferred from MIR
   operation shapes.

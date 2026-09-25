@@ -221,6 +221,7 @@ fn fold_operation(
         MachineOperationKind::Unary {
             operation: MachineUnaryOperation::LogicalNot,
             operand,
+            ..
         } => match constants.get(operand) {
             Some(MachineConstant::Bool(value)) => Some(MachineConstant::Bool(!value)),
             _ => None,
@@ -229,6 +230,7 @@ fn fold_operation(
             operation: MachineBinaryOperation::Equal,
             left,
             right,
+            ..
         } => match (constants.get(left), constants.get(right)) {
             (Some(MachineConstant::Bool(left)), Some(MachineConstant::Bool(right))) => {
                 Some(MachineConstant::Bool(left == right))
@@ -323,6 +325,7 @@ mod tests {
                 &MachineOperationKind::Unary {
                     operation: MachineUnaryOperation::LogicalNot,
                     operand: source,
+                    check: crate::MachineArithmeticCheck::NotRequired,
                 },
                 &constants,
             ),
@@ -334,6 +337,7 @@ mod tests {
                     operation: MachineBinaryOperation::Add,
                     left: source,
                     right: source,
+                    check: crate::MachineArithmeticCheck::Required,
                 },
                 &constants,
             ),

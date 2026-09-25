@@ -77,6 +77,10 @@ without checking's path environment, neither strengthening nor contradiction tes
 Symbolic view bounds use exact toolchain-selected length callables and stable receiver identities;
 standard source spellings and physical paths are not proof inputs. Branch and loop exits enter one
 conservative join authority, so operation-specific consumers cannot retain stronger private facts.
+Integer arithmetic consults the same interval facts. Execution validation, MIR, Machine, and ARM64
+consume the frozen disposition; none repeats the proof. Machine distinguishes compiler-generated
+arithmetic invariants from source operations, so an internal lowering shortcut cannot become an
+unchecked source-language path.
 
 ## Independent Body Queries
 

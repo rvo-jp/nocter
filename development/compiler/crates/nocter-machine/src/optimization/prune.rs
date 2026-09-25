@@ -829,18 +829,25 @@ fn remap_operation_kind(
             destination: remap.address(*destination)?,
             value: remap.value(*value)?,
         },
-        MachineOperationKind::Unary { operation, operand } => MachineOperationKind::Unary {
+        MachineOperationKind::Unary {
+            operation,
+            operand,
+            check,
+        } => MachineOperationKind::Unary {
             operation: *operation,
             operand: remap.value(*operand)?,
+            check: *check,
         },
         MachineOperationKind::Binary {
             operation,
             left,
             right,
+            check,
         } => MachineOperationKind::Binary {
             operation: *operation,
             left: remap.value(*left)?,
             right: remap.value(*right)?,
+            check: *check,
         },
         MachineOperationKind::NumericConversion { operand } => {
             MachineOperationKind::NumericConversion {

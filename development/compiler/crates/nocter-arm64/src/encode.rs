@@ -13,6 +13,7 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::MoveWide { .. }
         | Arm64Instruction::MultiplyAdd { .. }
         | Arm64Instruction::MultiplyHigh { .. }
+        | Arm64Instruction::MultiplyLong { .. }
         | Arm64Instruction::Divide { .. }
         | Arm64Instruction::VariableShift { .. }
         | Arm64Instruction::CountLeadingZeros { .. }
@@ -81,10 +82,17 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             Ok(encode_multiply_add_instruction(instruction))
         }
         Arm64Instruction::MultiplyHigh {
+            signed,
             destination,
             left,
             right,
-        } => Ok(encode_multiply_high(destination, left, right)),
+        } => Ok(encode_multiply_high(signed, destination, left, right)),
+        Arm64Instruction::MultiplyLong {
+            signed,
+            destination,
+            left,
+            right,
+        } => Ok(encode_multiply_long(signed, destination, left, right)),
         Arm64Instruction::Divide {
             size,
             destination,
@@ -170,11 +178,24 @@ fn encode_multiply_add_instruction(instruction: Arm64Instruction) -> u32 {
 }
 
 fn encode_multiply_high(
+    signed: bool,
     destination: crate::Arm64Register,
     left: crate::Arm64Register,
     right: crate::Arm64Register,
 ) -> u32 {
-    0x9bc0_7c00
+    (if signed { 0x9b40_7c00 } else { 0x9bc0_7c00 })
+        | u32::from(right.number()) << 16
+        | u32::from(left.number()) << 5
+        | u32::from(destination.number())
+}
+
+fn encode_multiply_long(
+    signed: bool,
+    destination: crate::Arm64Register,
+    left: crate::Arm64Register,
+    right: crate::Arm64Register,
+) -> u32 {
+    (if signed { 0x9b20_7c00 } else { 0x9ba0_7c00 })
         | u32::from(right.number()) << 16
         | u32::from(left.number()) << 5
         | u32::from(destination.number())

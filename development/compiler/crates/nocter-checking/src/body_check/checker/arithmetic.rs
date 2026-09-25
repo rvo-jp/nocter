@@ -4,9 +4,9 @@ use nocter_syntax::{NodeId, Punctuation, SyntaxElement, TokenKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::body_check::literal::{contextual_numeric_type, is_numeric_type};
+use crate::body_check::literal::{contextual_numeric_type, is_integer_type, is_numeric_type};
 use crate::syntax::child_nodes;
-use crate::{CheckedOperation, PrimitiveBinary, PrimitiveOperation};
+use crate::{ArithmeticTrapCheck, CheckedOperation, PrimitiveBinary, PrimitiveOperation};
 
 impl BodyChecker<'_, '_> {
     pub(super) fn check_arithmetic(
@@ -58,6 +58,11 @@ impl BodyChecker<'_, '_> {
                 operation,
                 left,
                 right,
+                check: if is_integer_type(self.types, result_ty) {
+                    self.arithmetic_check(operation, left, right, result_ty)
+                } else {
+                    ArithmeticTrapCheck::NotRequired
+                },
             }),
         )?;
         expected.map_or(Ok(checked), |expected| {

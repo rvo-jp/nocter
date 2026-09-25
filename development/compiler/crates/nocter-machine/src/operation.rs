@@ -36,6 +36,16 @@ pub enum MachineBinaryOperation {
     Less,
 }
 
+/// Target-independent transport of checking's arithmetic trap decision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineArithmeticCheck {
+    NotRequired,
+    InternalInvariant,
+    Required,
+    ProvenSafe,
+    ProvenTrap,
+}
+
 /// One initialized byte-range contribution to an aggregate value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAggregateWrite {
@@ -112,11 +122,13 @@ pub enum MachineOperationKind {
     Unary {
         operation: MachineUnaryOperation,
         operand: MachineValueId,
+        check: MachineArithmeticCheck,
     },
     Binary {
         operation: MachineBinaryOperation,
         left: MachineValueId,
         right: MachineValueId,
+        check: MachineArithmeticCheck,
     },
     NumericConversion {
         operand: MachineValueId,

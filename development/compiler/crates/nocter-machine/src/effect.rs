@@ -1,4 +1,6 @@
-use crate::{MachineBinaryOperation, MachineOperationKind, MachineUnaryOperation};
+use crate::{
+    MachineArithmeticCheck, MachineBinaryOperation, MachineOperationKind, MachineUnaryOperation,
+};
 
 /// The strongest removal guarantee Machine can prove from an operation's closed kind alone.
 ///
@@ -25,17 +27,34 @@ impl MachineOperationKind {
                 operation: MachineUnaryOperation::LogicalNot,
                 ..
             }
+            | Self::Unary {
+                check:
+                    MachineArithmeticCheck::NotRequired
+                    | MachineArithmeticCheck::InternalInvariant
+                    | MachineArithmeticCheck::ProvenSafe,
+                ..
+            }
             | Self::Binary {
                 operation: MachineBinaryOperation::Equal | MachineBinaryOperation::Less,
                 ..
+            }
+            | Self::Binary {
+                check:
+                    MachineArithmeticCheck::NotRequired
+                    | MachineArithmeticCheck::InternalInvariant
+                    | MachineArithmeticCheck::ProvenSafe,
+                ..
             } => MachineOperationEffect::Pure,
             Self::Unary {
-                operation: MachineUnaryOperation::Negate,
+                check: MachineArithmeticCheck::Required | MachineArithmeticCheck::ProvenTrap,
                 ..
             }
             | Self::Load { .. }
             | Self::AddressOf { .. }
-            | Self::Binary { .. }
+            | Self::Binary {
+                check: MachineArithmeticCheck::Required | MachineArithmeticCheck::ProvenTrap,
+                ..
+            }
             | Self::NumericConversion { .. }
             | Self::Comparison(_)
             | Self::IndexBorrow(_) => MachineOperationEffect::MayTrap,
@@ -69,6 +88,7 @@ mod tests {
         let operation = MachineOperationKind::Unary {
             operation: MachineUnaryOperation::Negate,
             operand: MachineValueId::new(0),
+            check: crate::MachineArithmeticCheck::Required,
         };
         assert_eq!(operation.effect(), MachineOperationEffect::MayTrap);
     }

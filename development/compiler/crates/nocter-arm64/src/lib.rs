@@ -10,6 +10,7 @@ mod address_selection;
 mod aggregate_plan;
 mod aggregate_selection;
 mod allocation_selection;
+mod arithmetic_check_code;
 mod async_activation;
 mod async_cancel_code;
 mod async_cancellation;

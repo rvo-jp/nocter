@@ -29,6 +29,12 @@ source, loader commands, or package state.
 - Bounds emission consumes Machine's explicit check disposition. Proven fixed indexes form an
   offset without a comparison, proven failures emit the bounds trap, and unresolved indexes retain
   runtime checking; ARM64 never infers check removal from a constant by itself.
+- Arithmetic emission consumes Machine's explicit trap disposition. Required integer operations
+  check fixed-width overflow, zero division/remainder, signed minimum divided by negative one, and
+  invalid shift counts before committing the result. Proven traps emit `brk`; proven-safe
+  operations omit only the check. Narrow results are normalized to their declared signedness and
+  width. Three compiler scratch registers are reserved so 64-bit multiply overflow remains exact
+  even when both operands and the result are spilled.
 - The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.

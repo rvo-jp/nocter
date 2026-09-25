@@ -99,6 +99,25 @@ fn notrap_accepts_operations_without_a_source_trap_path() {
 }
 
 #[test]
+fn notrap_consumes_flow_proven_arithmetic_dispositions() {
+    check(
+        "notrap func increment(value: i32): i32 {\n\
+             if value < 2147483647 { return value + 1 }\n\
+             return value\n\
+         }\n\
+         notrap func divide(value: i32, divisor: i32): i32 {\n\
+             if divisor > 0 { return value / divisor }\n\
+             return value\n\
+         }\n\
+         notrap func shift(value: u32, amount: u32): u32 {\n\
+             if amount < 32 { return value << amount }\n\
+             return value\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn notrap_uses_the_frozen_fixed_array_bounds_disposition() {
     check("notrap func valid(values: [i32; 2]): i32 { return values[1] }\n").unwrap();
 
@@ -315,7 +334,7 @@ fn explicit_process_termination_is_not_a_source_trap() {
 fn process_termination_roles_do_not_hide_prior_safety_traps() {
     let fixture = Fixture::with_standard(
         "",
-        "pub notrap func abort(): never { let _ = 1 + 1\nabort_raw() }\n\
+        "pub notrap func abort(): never { var value = 1\nlet _ = value + 1\nabort_raw() }\n\
          notrap primitive func abort_raw(): never\n",
     );
     let input = with_standard_roles(

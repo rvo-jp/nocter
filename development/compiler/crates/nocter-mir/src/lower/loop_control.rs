@@ -249,6 +249,7 @@ impl FunctionLowerer<'_> {
                 operation: MirBinaryOperation::Less,
                 left: current,
                 right: end,
+                check: crate::MirArithmeticCheck::NotRequired,
             },
         )?;
         let header = self
@@ -277,6 +278,7 @@ impl FunctionLowerer<'_> {
                 operation: MirBinaryOperation::Add,
                 left: current,
                 right: one,
+                check: crate::MirArithmeticCheck::InternalInvariant,
             },
         )?;
         self.append_effect(MirOperationKind::Initialize {

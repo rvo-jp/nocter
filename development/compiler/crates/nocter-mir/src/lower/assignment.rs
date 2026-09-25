@@ -23,6 +23,7 @@ impl FunctionLowerer<'_> {
         target: PlaceId,
         value: BodyNodeId,
         operation: nocter_checking::PrimitiveBinary,
+        check: nocter_checking::ArithmeticTrapCheck,
     ) -> Result<(), MirLoweringError> {
         let value = self.require_value(value)?;
         let destination = self.lower_place(target)?;
@@ -44,6 +45,7 @@ impl FunctionLowerer<'_> {
                 operation: super::function::mir_binary_operation(operation),
                 left: current,
                 right: value,
+                check: check.into(),
             },
         )?;
         self.append_effect(MirOperationKind::Store {
