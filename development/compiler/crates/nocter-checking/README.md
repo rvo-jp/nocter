@@ -74,8 +74,13 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
 - A source-visible safety proof is selected only in checking. Each checked index retains whether a
   runtime bounds check is required, the access is proven in range, or the access is proven to trap.
-  Execution analysis consumes that disposition, and later stages may validate but never strengthen
-  it from constant propagation or target representation.
+  Execution analysis consumes that disposition, and later stages transport it without
+  reinterpretation. A path proof cannot be validated from a context-free constant after control
+  flow has been erased.
+- Local safety facts are keyed only by stable semantic value identities. Primitive comparisons
+  refine branch-local integer intervals; every branch construct starts from one entry state and
+  joins only reachable continuations. Mutable, captured, static, and projected storage is excluded
+  until checking has an explicit invalidation model for it.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.
 - `ProgramEnvironment` carries the immutable structural-constant table selected with its graph.

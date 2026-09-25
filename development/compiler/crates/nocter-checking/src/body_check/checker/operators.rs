@@ -342,7 +342,11 @@ impl BodyChecker<'_, '_> {
         let [left_syntax, right_syntax] = binary_operands(self, node)?;
         let boolean = self.types.builtin(BuiltinType::Bool);
         let left = self.check_expression(left_syntax, Some(boolean))?;
+        let skipped_right_flow = self.safety_flow.clone();
         let right = self.check_expression(right_syntax, Some(boolean))?;
+        let evaluated_right_flow = self.safety_flow.clone();
+        self.safety_flow =
+            super::safety_flow::SafetyFlowState::join([skipped_right_flow, evaluated_right_flow]);
         let left_ty = self.node_type(left)?;
         let operation = match operator_punctuation(self, node)? {
             Punctuation::LogicalAnd => LogicalOperation::And,

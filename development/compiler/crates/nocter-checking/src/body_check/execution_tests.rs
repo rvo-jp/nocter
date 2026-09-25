@@ -108,6 +108,61 @@ fn notrap_uses_the_frozen_fixed_array_bounds_disposition() {
 }
 
 #[test]
+fn notrap_uses_branch_local_bounds_proof_and_terminal_path_refinement() {
+    check(
+        "notrap func guarded(values: [i32; 2], index: usize): i32 {\n\
+             if index < 2 { return values[index] }\n\
+             return 0\n\
+         }\n\
+         notrap func guarded_by_exit(values: [i32; 2], index: usize): i32 {\n\
+             if index >= 2 { return 0 }\n\
+             return values[index]\n\
+         }\n\
+         notrap func guarded_by_inclusive_bound(values: [i32; 2], index: usize): i32 {\n\
+             if index <= 1 { return values[index] }\n\
+             return 0\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn bounds_proof_does_not_escape_a_join_or_attach_to_mutable_storage() {
+    let joined = check(
+        "notrap func invalid(values: [i32; 2], index: usize, choose: bool): i32 {\n\
+             if choose {\n\
+                 if index < 2 { let observed = values[index] }\n\
+             }\n\
+             return values[index]\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(joined.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    let mutable = check(
+        "notrap func invalid(values: [i32; 2], input: usize): i32 {\n\
+             var index = input\n\
+             if index < 2 { return values[index] }\n\
+             return 0\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(mutable.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    let loop_exit = check(
+        "notrap func invalid(values: [i32; 2], index: usize, enter: bool): i32 {\n\
+             while enter {\n\
+                 if index >= 2 { return 0 }\n\
+                 break\n\
+             }\n\
+             return values[index]\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(loop_exit.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn trap_facts_propagate_through_calls_and_structural_contracts() {
     let error = check(
         "func increment(value: i32): i32 { return value + 1 }\n\

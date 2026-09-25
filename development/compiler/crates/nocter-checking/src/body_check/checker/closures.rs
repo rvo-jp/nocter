@@ -435,6 +435,7 @@ impl BodyChecker<'_, '_> {
         let saved_execution = self.execution;
         let saved_loops = mem::take(&mut self.loops);
         let saved_reachable = self.flow_reachable;
+        let saved_safety_flow = mem::take(&mut self.safety_flow);
         let saved_inference = self.closure_result_inference.take();
         let saved_opaque_result = self.opaque_result.take();
         self.result_type =
@@ -458,6 +459,7 @@ impl BodyChecker<'_, '_> {
         self.result_type = saved_result;
         self.execution = saved_execution;
         self.flow_reachable = saved_reachable;
+        self.safety_flow = saved_safety_flow;
         if !closure_loops.is_empty() {
             return Err(BodyCheckInternalError::LoopStack.into());
         }

@@ -17,9 +17,8 @@ use nocter_model::{
 
 use crate::{
     AggregateConstruction, CallTarget, CheckedBindingPattern, CheckedBody, CheckedCallExecution,
-    CheckedComparisonPlan, CheckedControl, CheckedOperation, ComparisonImplementation,
-    ComparisonOperation, LogicalOperation, PlaceRoot, PrimitiveBinary, PrimitiveOperation,
-    PrimitiveUnary, ReceiverPreparation, StaticDispatch,
+    CheckedControl, CheckedOperation, LogicalOperation, PlaceRoot, PrimitiveBinary,
+    PrimitiveOperation, PrimitiveUnary, ReceiverPreparation, StaticDispatch,
 };
 
 /// Why an ordinary checked operation cannot enter the initial compile-time plan domain.
@@ -418,45 +417,24 @@ impl Projector<'_> {
         CompileTimeOperation<CompileTimeRecipeCallTarget, nocter_model::GenericParameterId>,
         CompileTimeProjectionError,
     > {
-        if comparison.left().coercion().is_some() || comparison.right().coercion().is_some() {
-            return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
-        }
-        let operation = match comparison.plan() {
-            CheckedComparisonPlan::Direct { step, negate } if primitive_comparison_step(step) => {
-                match (step.operation(), step.reverse(), *negate) {
-                    (ComparisonOperation::Equal, _, false) => CompileTimeComparisonOperation::Equal,
-                    (ComparisonOperation::Equal, _, true) => {
-                        CompileTimeComparisonOperation::NotEqual
-                    }
-                    (ComparisonOperation::Less, false, false) => {
-                        CompileTimeComparisonOperation::Less
-                    }
-                    (ComparisonOperation::Less, false, true) => {
-                        CompileTimeComparisonOperation::GreaterEqual
-                    }
-                    (ComparisonOperation::Less, true, false) => {
-                        CompileTimeComparisonOperation::Greater
-                    }
-                    (ComparisonOperation::Less, true, true) => {
-                        CompileTimeComparisonOperation::LessEqual
-                    }
-                }
+        let operation = match comparison.primitive_relation() {
+            Some(crate::PrimitiveComparisonRelation::Equal) => {
+                CompileTimeComparisonOperation::Equal
             }
-            CheckedComparisonPlan::Inclusive { strict, equal }
-                if primitive_comparison_step(strict)
-                    && primitive_comparison_step(equal)
-                    && strict.operation() == ComparisonOperation::Less
-                    && equal.operation() == ComparisonOperation::Equal =>
-            {
-                if strict.reverse() {
-                    CompileTimeComparisonOperation::GreaterEqual
-                } else {
-                    CompileTimeComparisonOperation::LessEqual
-                }
+            Some(crate::PrimitiveComparisonRelation::NotEqual) => {
+                CompileTimeComparisonOperation::NotEqual
             }
-            CheckedComparisonPlan::Direct { .. }
-            | CheckedComparisonPlan::Inclusive { .. }
-            | CheckedComparisonPlan::Unreachable => {
+            Some(crate::PrimitiveComparisonRelation::Less) => CompileTimeComparisonOperation::Less,
+            Some(crate::PrimitiveComparisonRelation::LessEqual) => {
+                CompileTimeComparisonOperation::LessEqual
+            }
+            Some(crate::PrimitiveComparisonRelation::Greater) => {
+                CompileTimeComparisonOperation::Greater
+            }
+            Some(crate::PrimitiveComparisonRelation::GreaterEqual) => {
+                CompileTimeComparisonOperation::GreaterEqual
+            }
+            None => {
                 return Err(self.error(Some(node), CompileTimeProjectionRule::UnsupportedOperation));
             }
         };
@@ -718,12 +696,6 @@ impl Projector<'_> {
             Some(_) | None => false,
         }
     }
-}
-
-fn primitive_comparison_step(step: &crate::CheckedComparisonStep) -> bool {
-    matches!(step.implementation(), ComparisonImplementation::Primitive)
-        && step.left_coercion().is_none()
-        && step.right_coercion().is_none()
 }
 
 impl Specializer<'_> {

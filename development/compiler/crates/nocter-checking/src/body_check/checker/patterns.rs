@@ -51,7 +51,7 @@ impl BodyChecker<'_, '_> {
         let pattern = self.check_enum_pattern(pattern_syntax, &subject)?;
 
         let else_syntax = direct_node(self.tree(), node, NodeKind::ElseClause);
-        let branches = self.check_if_branches(node, expected)?;
+        let branches = self.check_if_branches(node, expected, None)?;
         let fallback = branches
             .else_branch
             .map(|body| CheckedPatternFallback::new(body, true));
@@ -84,6 +84,8 @@ impl BodyChecker<'_, '_> {
         let mut fallback = None;
         let mut branch_types = Vec::new();
         let mut inferred = expected;
+        let entry_flow = self.safety_flow.clone();
+        let mut continuation_flows = Vec::new();
 
         let arm_nodes = direct_nodes(self.tree(), node, NodeKind::MatchArm);
         if arm_nodes.is_empty() {
@@ -101,8 +103,12 @@ impl BodyChecker<'_, '_> {
                 if !covered.insert(pattern.variant()) {
                     return Err(self.rule(BodyRule::InvalidMatchCoverage, pattern_syntax)?);
                 }
+                self.safety_flow = entry_flow.clone();
                 let body = self.check_block(block, BlockExpectation::Value(inferred))?;
                 let ty = self.node_type(body)?;
+                if ty != self.types.builtin(BuiltinType::Never) {
+                    continuation_flows.push(self.safety_flow.clone());
+                }
                 inferred = self.branch_expectation(inferred, [ty]);
                 branch_types.push(Some(ty));
                 arms.push(CheckedPatternArm::new(pattern, body));
@@ -114,8 +120,12 @@ impl BodyChecker<'_, '_> {
                     return Err(self.rule(BodyRule::InvalidMatchCoverage, arm_syntax)?);
                 }
                 let reachable = covered.len() != variants.len();
+                self.safety_flow = entry_flow.clone();
                 let body = self.check_pattern_fallback(block, inferred, reachable)?;
                 let ty = self.node_type(body)?;
+                if reachable && ty != self.types.builtin(BuiltinType::Never) {
+                    continuation_flows.push(self.safety_flow.clone());
+                }
                 inferred = self.branch_expectation(inferred, [ty]);
                 branch_types.push(Some(ty));
                 fallback = Some(CheckedPatternFallback::new(body, reachable));
@@ -125,6 +135,7 @@ impl BodyChecker<'_, '_> {
         if fallback.is_none() && covered.len() != variants.len() {
             return Err(self.rule(BodyRule::InvalidMatchCoverage, node)?);
         }
+        self.safety_flow = super::safety_flow::SafetyFlowState::join(continuation_flows);
         let ty = self.branch_result_type(branch_types, false);
         let checked = self.add_node(
             node,

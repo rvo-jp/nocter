@@ -1547,6 +1547,47 @@ fn fixed_array_constant_index_carries_static_check_proof() {
 }
 
 #[test]
+fn branch_proven_dynamic_index_carries_the_checked_disposition() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "notrap func read(values: [i32; 2], index: usize): i32 {\n\
+             if index < 2 { return values[index] }\n\
+             return 0\n\
+         }\n\
+         func main(): i32 { read([7, 9], 1) }\n",
+    ))
+    .unwrap();
+
+    assert!(program.functions().any(|(_, function)| {
+        function.body().addresses().any(|(_, address)| {
+            address.steps().iter().any(|step| {
+                matches!(
+                    step,
+                    crate::MachineAddressStep::Index {
+                        index: crate::MachineIndex::Value(_),
+                        stride: 4,
+                        bound: crate::MachineIndexBound::Fixed(2),
+                        check: crate::MachineIndexCheck::ProvenInBounds,
+                    }
+                )
+            })
+        })
+    }));
+}
+
+#[test]
+fn machine_does_not_reinterpret_a_path_proof_after_constant_folding() {
+    MachineProgram::lower(&lower_fixture(
+        "notrap func read(values: [i32; 2]): i32 {\n\
+             let index: usize = 2\n\
+             if index < 2 { return values[index] }\n\
+             return 0\n\
+         }\n\
+         func main(): i32 { read([7, 9]) }\n",
+    ))
+    .unwrap();
+}
+
+#[test]
 fn constant_out_of_bounds_index_remains_an_explicit_static_check() {
     let program = MachineProgram::lower(&lower_fixture(
         "func main(): i32 {\n\

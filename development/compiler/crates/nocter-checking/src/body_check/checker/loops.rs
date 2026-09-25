@@ -42,10 +42,23 @@ impl BodyChecker<'_, '_> {
             .names
             .block_scope(block)
             .ok_or(BodyCheckInternalError::MissingBlockScope(block))?;
+        let continuation_flow = self.safety_flow.clone();
+        self.safety_flow = match &kind {
+            LoopKind::While { condition } => {
+                continuation_flow.branch(self.safety_condition(*condition), true)
+            }
+            LoopKind::Infinite
+            | LoopKind::Range { .. }
+            | LoopKind::For { .. }
+            | LoopKind::ForAwait { .. }
+            | LoopKind::ArgumentPack { .. }
+            | LoopKind::KeyedArgumentPack { .. } => continuation_flow.clone(),
+        };
         let body = self.check_block(
             block,
             BlockExpectation::Value(Some(self.types.builtin(BuiltinType::Void))),
         )?;
+        self.safety_flow = continuation_flow;
         let frame = self.loops.pop().ok_or(BodyCheckInternalError::LoopStack)?;
         if frame.id != loop_ {
             return Err(BodyCheckInternalError::LoopStack.into());

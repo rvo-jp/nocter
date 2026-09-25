@@ -233,7 +233,15 @@ impl BodyChecker<'_, '_> {
         };
         let block = direct_node(self.tree(), *clause, NodeKind::Block)
             .ok_or(BodyCheckInternalError::InvalidSyntax(*clause))?;
+        let success_flow = self.safety_flow.clone();
         let fallback = self.check_block(block, BlockExpectation::Value(Some(payload)))?;
+        let fallback_flow = self.safety_flow.clone();
+        let never = self.types.builtin(BuiltinType::Never);
+        self.safety_flow = if self.node_type(fallback)? == never {
+            success_flow
+        } else {
+            super::safety_flow::SafetyFlowState::join([success_flow, fallback_flow])
+        };
         let recovered = self.add_node(
             node,
             payload,

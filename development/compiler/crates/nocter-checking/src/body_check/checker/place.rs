@@ -607,10 +607,12 @@ impl BodyChecker<'_, '_> {
             }
             _ => None,
         };
-        let Some(index) = value.and_then(|value| u64::try_from(value).ok()) else {
-            return crate::IndexBoundsCheck::Required;
+        let Some(constant_index) = value.and_then(|value| u64::try_from(value).ok()) else {
+            return self
+                .flow_index_bounds(index, length)
+                .unwrap_or(crate::IndexBoundsCheck::Required);
         };
-        if index < length {
+        if constant_index < length {
             crate::IndexBoundsCheck::ProvenInBounds
         } else {
             crate::IndexBoundsCheck::ProvenTrap

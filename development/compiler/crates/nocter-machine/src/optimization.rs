@@ -144,11 +144,6 @@ pub enum MachineOptimizationError {
         result: crate::MachineValueId,
         source: crate::MachineValueId,
     },
-    InvalidIndexDisposition {
-        index: u64,
-        length: u64,
-        check: crate::MachineIndexCheck,
-    },
 }
 
 impl fmt::Display for MachineOptimizationError {
@@ -169,7 +164,7 @@ pub(crate) fn optimize(
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
     let mut rewrites = rewrite::MachineRewriteProof::default();
-    let checks = checks::resolve_constant_indexes(draft, &constants, &mut rewrites)?;
+    let checks = checks::resolve_constant_indexes(draft, &constants, &mut rewrites);
     report.constant_indexes_resolved += checks.indexes_resolved;
     let storage = storage::prove(draft, execution, &mut rewrites)?;
     report.loads_forwarded += storage.loads_forwarded;

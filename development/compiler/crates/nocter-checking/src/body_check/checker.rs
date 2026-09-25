@@ -61,11 +61,13 @@ mod patterns;
 mod place;
 mod readonly_operands;
 mod regions;
+mod safety_flow;
 mod type_uses;
 mod typed_literals;
 mod value_planning;
 use loops::LoopConstruction;
 use opaque_witness::OpaqueResultState;
+use safety_flow::SafetyFlowState;
 
 #[derive(Clone, Debug)]
 pub(super) struct NodeProjection {
@@ -170,6 +172,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopConstruction>,
     flow_reachable: bool,
+    safety_flow: SafetyFlowState,
     assumptions: Vec<super::BodyRequirement>,
     /// Intrinsic body facts plus concrete closure capabilities proven at earlier expressions.
     local_facts: Vec<crate::CheckedPredicate>,
@@ -316,6 +319,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             node_origins: HashMap::new(),
             loops: Vec::new(),
             flow_reachable: true,
+            safety_flow: SafetyFlowState::default(),
             assumptions: assumptions.declared().to_vec(),
             local_facts: assumptions.intrinsic().to_vec(),
             copy_proofs: assumptions.copy_proofs().clone(),
@@ -939,7 +943,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             condition_expression,
             Some(self.types.builtin(BuiltinType::Bool)),
         )?;
-        let branches = self.check_if_branches(node, expected)?;
+        let safety_condition = self.safety_condition(condition);
+        let branches = self.check_if_branches(node, expected, safety_condition)?;
         let checked = self.add_node(
             node,
             branches.ty,
@@ -958,6 +963,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         &mut self,
         node: NodeId,
         expected: Option<TypeId>,
+        condition: Option<safety_flow::SafetyCondition>,
     ) -> Result<CheckedIfBranches, BodyCheckError> {
         let then_syntax = self.required_child(node, NodeKind::Block)?;
         let else_syntax = direct_node(self.tree(), node, NodeKind::ElseClause);
@@ -966,8 +972,12 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         } else {
             BlockExpectation::Value(Some(self.types.builtin(BuiltinType::Void)))
         };
+        let entry_flow = self.safety_flow.clone();
+        self.safety_flow = entry_flow.branch(condition, true);
         let then_branch = self.check_block(then_syntax, then_expectation)?;
         let then_type = self.node_type(then_branch)?;
+        let then_flow = self.safety_flow.clone();
+        self.safety_flow = entry_flow.branch(condition, false);
         let (else_branch, else_type) = if let Some(else_clause) = else_syntax {
             let inferred = expected
                 .or((then_type != self.types.builtin(BuiltinType::Never)).then_some(then_type));
@@ -987,6 +997,15 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         };
 
         let never = self.types.builtin(BuiltinType::Never);
+        let else_flow = self.safety_flow.clone();
+        let mut continuation_flows = Vec::with_capacity(2);
+        if then_type != never {
+            continuation_flows.push(then_flow);
+        }
+        if else_type.is_none_or(|ty| ty != never) {
+            continuation_flows.push(else_flow);
+        }
+        self.safety_flow = SafetyFlowState::join(continuation_flows);
         let ty = match else_type {
             None => self.types.builtin(BuiltinType::Void),
             Some(else_type) if then_type == never => else_type,

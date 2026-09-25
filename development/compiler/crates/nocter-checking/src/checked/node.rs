@@ -430,6 +430,20 @@ pub enum ComparisonOperation {
     Less,
 }
 
+/// One primitive comparison relation in source operand order.
+///
+/// This normalized meaning is shared by compile-time evaluation and checked control-flow
+/// reasoning, so neither consumer interprets a comparison plan independently.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PrimitiveComparisonRelation {
+    Equal,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+}
+
 /// How one source operand becomes the readonly receiver of a compiler-selected operation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ReadonlyOperandPreparation {
@@ -654,6 +668,60 @@ impl CheckedComparison {
     pub fn plan(&self) -> &CheckedComparisonPlan {
         self.plan.as_ref()
     }
+
+    /// Returns the normalized primitive relation when the complete plan has no selected operation
+    /// or operand coercion.
+    #[must_use]
+    pub fn primitive_relation(&self) -> Option<PrimitiveComparisonRelation> {
+        if self.left.coercion().is_some() || self.right.coercion().is_some() {
+            return None;
+        }
+        match self.plan() {
+            CheckedComparisonPlan::Direct { step, negate } if primitive_comparison_step(step) => {
+                match (step.operation(), step.reverse(), *negate) {
+                    (ComparisonOperation::Equal, _, false) => {
+                        Some(PrimitiveComparisonRelation::Equal)
+                    }
+                    (ComparisonOperation::Equal, _, true) => {
+                        Some(PrimitiveComparisonRelation::NotEqual)
+                    }
+                    (ComparisonOperation::Less, false, false) => {
+                        Some(PrimitiveComparisonRelation::Less)
+                    }
+                    (ComparisonOperation::Less, false, true) => {
+                        Some(PrimitiveComparisonRelation::GreaterEqual)
+                    }
+                    (ComparisonOperation::Less, true, false) => {
+                        Some(PrimitiveComparisonRelation::Greater)
+                    }
+                    (ComparisonOperation::Less, true, true) => {
+                        Some(PrimitiveComparisonRelation::LessEqual)
+                    }
+                }
+            }
+            CheckedComparisonPlan::Inclusive { strict, equal }
+                if primitive_comparison_step(strict)
+                    && primitive_comparison_step(equal)
+                    && strict.operation() == ComparisonOperation::Less
+                    && equal.operation() == ComparisonOperation::Equal =>
+            {
+                if strict.reverse() {
+                    Some(PrimitiveComparisonRelation::GreaterEqual)
+                } else {
+                    Some(PrimitiveComparisonRelation::LessEqual)
+                }
+            }
+            CheckedComparisonPlan::Direct { .. }
+            | CheckedComparisonPlan::Inclusive { .. }
+            | CheckedComparisonPlan::Unreachable => None,
+        }
+    }
+}
+
+fn primitive_comparison_step(step: &CheckedComparisonStep) -> bool {
+    matches!(step.implementation(), ComparisonImplementation::Primitive)
+        && step.left_coercion().is_none()
+        && step.right_coercion().is_none()
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

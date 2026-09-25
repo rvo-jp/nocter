@@ -20,45 +20,42 @@ pub(super) fn resolve_constant_indexes(
     draft: &mut crate::program::MachineBodyDraft,
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     rewrites: &mut super::rewrite::MachineRewriteProof,
-) -> Result<CheckOptimizationReport, super::MachineOptimizationError> {
+) -> CheckOptimizationReport {
     let mut report = CheckOptimizationReport::default();
-    resolve_addresses(draft, constants, &mut report)?;
-    resolve_index_borrows(draft, constants, rewrites, &mut report)?;
-    Ok(report)
+    resolve_addresses(draft, constants, &mut report);
+    resolve_index_borrows(draft, constants, rewrites, &mut report);
+    report
 }
 
 fn resolve_addresses(
     draft: &mut crate::program::MachineBodyDraft,
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     report: &mut CheckOptimizationReport,
-) -> Result<(), super::MachineOptimizationError> {
+) {
     for address in &mut draft.addresses {
         let mut changed = false;
         let steps = address
             .steps()
             .iter()
-            .map(|step| -> Result<_, super::MachineOptimizationError> {
-                Ok(match *step {
+            .map(|step| match *step {
+                MachineAddressStep::Index {
+                    index,
+                    stride,
+                    bound,
+                    check,
+                } => {
+                    let resolved = resolve(index, constants, report);
+                    changed |= resolved != index;
                     MachineAddressStep::Index {
-                        index,
+                        index: resolved,
                         stride,
                         bound,
                         check,
-                    } => {
-                        let resolved = resolve(index, constants, report);
-                        validate_disposition(resolved, bound, check)?;
-                        changed |= resolved != index;
-                        MachineAddressStep::Index {
-                            index: resolved,
-                            stride,
-                            bound,
-                            check,
-                        }
                     }
-                    _ => *step,
-                })
+                }
+                _ => *step,
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
         if !changed {
             continue;
         }
@@ -71,7 +68,6 @@ fn resolve_addresses(
             }
         };
     }
-    Ok(())
 }
 
 fn resolve_index_borrows(
@@ -79,20 +75,13 @@ fn resolve_index_borrows(
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     rewrites: &mut super::rewrite::MachineRewriteProof,
     report: &mut CheckOptimizationReport,
-) -> Result<(), super::MachineOptimizationError> {
+) {
     for (index, operation) in draft.operations.iter_mut().enumerate() {
         let MachineOperationKind::IndexBorrow(borrow) = operation.kind() else {
             continue;
         };
         let borrow = *borrow;
         let resolved = resolve(borrow.index(), constants, report);
-        let bound = match borrow.domain() {
-            crate::MachineIndexDomain::Fixed { length, .. } => {
-                crate::MachineIndexBound::Fixed(length)
-            }
-            crate::MachineIndexDomain::View { .. } => crate::MachineIndexBound::CurrentView,
-        };
-        validate_disposition(resolved, bound, borrow.check())?;
         if resolved == borrow.index() {
             continue;
         }
@@ -110,32 +99,6 @@ fn resolve_index_borrows(
         if check == MachineIndexCheck::ProvenInBounds {
             rewrites.prove_pure(MachineOperationId::new(index));
         }
-    }
-    Ok(())
-}
-
-fn validate_disposition(
-    index: MachineIndex,
-    bound: crate::MachineIndexBound,
-    check: MachineIndexCheck,
-) -> Result<(), super::MachineOptimizationError> {
-    let (MachineIndex::Constant(index), crate::MachineIndexBound::Fixed(length)) = (index, bound)
-    else {
-        return Ok(());
-    };
-    let valid = match check {
-        MachineIndexCheck::Required => true,
-        MachineIndexCheck::ProvenInBounds => index < length,
-        MachineIndexCheck::ProvenTrap => index >= length,
-    };
-    if valid {
-        Ok(())
-    } else {
-        Err(super::MachineOptimizationError::InvalidIndexDisposition {
-            index,
-            length,
-            check,
-        })
     }
 }
 
@@ -164,56 +127,5 @@ fn constant_index(constant: &MachineConstant) -> Option<u64> {
         | MachineConstant::Float32(_)
         | MachineConstant::Float64(_)
         | MachineConstant::Text(_) => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::validate_disposition;
-    use crate::{MachineIndex, MachineIndexBound, MachineIndexCheck, MachineOptimizationError};
-
-    #[test]
-    fn fixed_bounds_validate_frozen_dispositions_without_inference() {
-        assert!(
-            validate_disposition(
-                MachineIndex::Constant(1),
-                MachineIndexBound::Fixed(2),
-                MachineIndexCheck::ProvenInBounds,
-            )
-            .is_ok()
-        );
-        assert!(
-            validate_disposition(
-                MachineIndex::Constant(2),
-                MachineIndexBound::Fixed(2),
-                MachineIndexCheck::ProvenTrap,
-            )
-            .is_ok()
-        );
-        assert!(
-            validate_disposition(
-                MachineIndex::Constant(1),
-                MachineIndexBound::Fixed(2),
-                MachineIndexCheck::Required,
-            )
-            .is_ok()
-        );
-
-        assert!(matches!(
-            validate_disposition(
-                MachineIndex::Constant(2),
-                MachineIndexBound::Fixed(2),
-                MachineIndexCheck::ProvenInBounds,
-            ),
-            Err(MachineOptimizationError::InvalidIndexDisposition { .. })
-        ));
-        assert!(matches!(
-            validate_disposition(
-                MachineIndex::Constant(1),
-                MachineIndexBound::Fixed(2),
-                MachineIndexCheck::ProvenTrap,
-            ),
-            Err(MachineOptimizationError::InvalidIndexDisposition { .. })
-        ));
     }
 }

@@ -115,10 +115,11 @@ pub use checked::{
     InterpolationPart, IterationAcquisition, IterationItemOrigin, LoanId, LoanPlace,
     LoanProjection, LoanRoot, LoanTable, LogicalOperation, LoopKind, OpaqueWitnessTable,
     OpaqueWitnessTableBuildError, PatternBindingMode, PatternRemainder, PatternSubjectPreparation,
-    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
-    ProvenanceProjection, ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation,
-    ReceiverPreparation, ReplayedBodyClosures, SpreadMode, StaticDispatch, StaticSelection,
-    SuspensionStorage, TypedAsyncIteration, TypedIteration, TypedIterationStep, ValueProvenance,
+    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparisonRelation,
+    PrimitiveOperation, PrimitiveUnary, ProvenanceProjection, ProvenanceSource, ProvenanceTable,
+    ReadonlyOperandPreparation, ReceiverPreparation, ReplayedBodyClosures, SpreadMode,
+    StaticDispatch, StaticSelection, SuspensionStorage, TypedAsyncIteration, TypedIteration,
+    TypedIterationStep, ValueProvenance,
 };
 pub use compile_time_program::CompileTimeProgram;
 pub use compile_time_projection::{CompileTimeProjectionError, CompileTimeProjectionRule};

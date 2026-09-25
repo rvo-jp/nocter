@@ -70,10 +70,10 @@ Structural capability evidence records the authored root, exact prerequisite der
 specialized predicate once. Provenance, loans, concrete specialization, and editor queries consume
 that record; none may reopen the root declaration to reconstruct proof.
 
-Value-sensitive safety evidence follows the same ownership rule. Checking may derive it from typed
-values and, in later phases, checked control flow. Execution facts consume it directly and MIR
-transports it as data. Machine may validate the disposition against closed layout facts, but it may
-not use constant propagation to create a stronger source proof.
+Value-sensitive safety evidence follows the same ownership rule. Checking derives it from typed
+values and checked control flow. Execution facts consume it directly and MIR transports it as data.
+Machine preserves the disposition even if representation optimization later exposes a constant:
+without checking's path environment, neither strengthening nor contradiction testing is valid.
 
 ## Independent Body Queries
 
@@ -118,7 +118,7 @@ permit a guessed range or a partial editor result.
 - Every body-local ID belongs to exactly one body recipe.
 - Every selected operation has one frozen semantic identity or plan.
 - Every admitted source-safety proof has one checking-owned disposition that later stages can only
-  transport, validate, or consume.
+  transport or consume.
 - Proof-only declaration requirements cannot be used as body dispatch evidence.
 - A successful body commits all local semantic changes together or publishes nothing.
 - Canonical replay is the sole allocator of final body-added type and closure identities.

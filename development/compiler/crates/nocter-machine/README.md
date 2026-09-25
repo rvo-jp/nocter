@@ -61,9 +61,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   unresolved indexes retain the conservative trapping classification.
 - Machine may resolve an SSA index into a constant machine representation, but it preserves the
   required, proven-in-bounds, or proven-trap disposition frozen by checking and transported by MIR.
-  A fixed bound validates that the upstream disposition is internally consistent; it cannot be used
-  to strengthen a required check. Structural indexing and checked address paths share this contract,
-  and targets consume it without repeating source-safety analysis or erasing a trap.
+  It neither strengthens nor locally revalidates that disposition: checking may have proved an
+  access from path facts that are intentionally absent from Machine. Structural indexing and
+  checked address paths share this contract, and targets consume it without repeating
+  source-safety analysis or erasing a trap.
 - Representation-preserving operations may retain distinct semantic value and type identities while
   naming one proven physical-storage identity. Machine validates that relation after dense pruning;
   targets consume it directly and cannot rediscover semantic equivalence or erase the typed value.

@@ -70,8 +70,9 @@ pub enum MachineIndexBound {
 
 /// Machine representation of one checking-owned source-visible bounds disposition.
 ///
-/// Machine validates and preserves this value; it does not create a stronger source proof. Targets
-/// consume the disposition directly and must not repeat range analysis or omit a required check.
+/// Machine preserves this value without comparing it to a context-free constant: a path-sensitive
+/// proof is meaningful only with checking's control-flow facts. Targets consume the disposition
+/// directly and must not repeat range analysis or omit a required check.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineIndexCheck {
     Required,
