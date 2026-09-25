@@ -13,7 +13,7 @@ pub(crate) fn place_values(place: &MirPlace) -> impl Iterator<Item = MirValueId>
                 .projections()
                 .iter()
                 .filter_map(|projection| match projection.kind() {
-                    MirProjectionKind::DynamicIndex(value) => Some(value),
+                    MirProjectionKind::DynamicIndex { index, .. } => Some(index),
                     _ => None,
                 }),
         )

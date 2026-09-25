@@ -5,7 +5,7 @@ use nocter_target_program::{ExecutableDispatchPlan, ExecutableDispatchStep};
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use super::place::LoweredPlacePath;
-use crate::{MirOperationKind, MirPlaceRoot, MirProjectionKind};
+use crate::{MirIndexBoundsCheck, MirOperationKind, MirPlaceRoot, MirProjectionKind};
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_coerced_builtin_index(
@@ -14,6 +14,7 @@ impl FunctionLowerer<'_> {
         path: &mut LoweredPlacePath,
         index: BodyNodeId,
         receiver_coercion: &StaticSelection,
+        bounds: MirIndexBoundsCheck,
         result: TypeId,
     ) -> Result<(), MirLoweringError> {
         let coercion = self.place_invocation_step(place, receiver_coercion)?;
@@ -28,7 +29,7 @@ impl FunctionLowerer<'_> {
         };
         path.projections.clear();
         path.ty = container;
-        path.push(MirProjectionKind::DynamicIndex(index), result);
+        path.push(MirProjectionKind::DynamicIndex { index, bounds }, result);
         Ok(())
     }
 

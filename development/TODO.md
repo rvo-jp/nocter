@@ -2,16 +2,17 @@
 
 ## Current State
 
-Nocter v0.71.0 Guaranteed Structural Operations is published and externally audited. The completed
-v0.69.0 and v0.70.0 implementation milestones are included in this release rather than receiving
-separate public archives. Linux target work remains deliberately deferred.
+Nocter v0.71.0 Guaranteed Structural Operations is published and externally audited. v0.72.0
+Flow-Proven Safe Operations is active. Phase 0 freezes direct fixed-array bounds dispositions in
+checking and carries them through MIR and Machine without backend re-proof; its implementation,
+qualification, and authority review are complete. Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Begin v0.72.0 with a flow-proof model for safe operations. The checker must derive local range and
-arithmetic facts from control flow, freeze admitted proof in the checked program, and let later
-lowering consume only that proof. Do not add unchecked indexing, source-text rediscovery, or a
-second backend-owned proof system.
+Begin v0.72.0 Phase 1 by introducing the checking-owned control-flow fact domain for branch and join
+refinement. Extend safety admission only through that shared domain before applying it to checked
+arithmetic and standard-library guarantees. Do not add unchecked indexing, source-text rediscovery,
+or a second backend-owned proof system.
 
 Preserve the v0.71.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact

@@ -68,10 +68,10 @@ pub enum MachineIndexBound {
     CurrentView,
 }
 
-/// Machine-owned disposition of one source-visible bounds check.
+/// Machine representation of one checking-owned source-visible bounds disposition.
 ///
-/// Targets consume this proof directly. They must not repeat constant-range analysis or silently
-/// omit a required check.
+/// Machine validates and preserves this value; it does not create a stronger source proof. Targets
+/// consume the disposition directly and must not repeat range analysis or omit a required check.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineIndexCheck {
     Required,

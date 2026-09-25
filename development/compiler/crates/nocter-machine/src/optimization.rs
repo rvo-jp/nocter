@@ -32,8 +32,6 @@ pub struct MachineOptimizationReport {
     drop_flag_writes_removed: usize,
     storage_aliases_proven: usize,
     constant_indexes_resolved: usize,
-    bounds_checks_elided: usize,
-    bounds_traps_proven: usize,
     address_evaluations_proven_safe: usize,
 }
 
@@ -109,16 +107,6 @@ impl MachineOptimizationReport {
     }
 
     #[must_use]
-    pub const fn bounds_checks_elided(self) -> usize {
-        self.bounds_checks_elided
-    }
-
-    #[must_use]
-    pub const fn bounds_traps_proven(self) -> usize {
-        self.bounds_traps_proven
-    }
-
-    #[must_use]
     pub const fn address_evaluations_proven_safe(self) -> usize {
         self.address_evaluations_proven_safe
     }
@@ -139,8 +127,6 @@ impl MachineOptimizationReport {
             || self.drop_flag_writes_removed != 0
             || self.storage_aliases_proven != 0
             || self.constant_indexes_resolved != 0
-            || self.bounds_checks_elided != 0
-            || self.bounds_traps_proven != 0
             || self.address_evaluations_proven_safe != 0
     }
 }
@@ -157,6 +143,11 @@ pub enum MachineOptimizationError {
     InvalidStorageAlias {
         result: crate::MachineValueId,
         source: crate::MachineValueId,
+    },
+    InvalidIndexDisposition {
+        index: u64,
+        length: u64,
+        check: crate::MachineIndexCheck,
     },
 }
 
@@ -178,10 +169,8 @@ pub(crate) fn optimize(
     let constants = fold_operations(&mut draft.operations, &mut report);
     fold_terminators(&mut draft.blocks, &constants, &mut report);
     let mut rewrites = rewrite::MachineRewriteProof::default();
-    let checks = checks::resolve_constant_indexes(draft, &constants, &mut rewrites);
+    let checks = checks::resolve_constant_indexes(draft, &constants, &mut rewrites)?;
     report.constant_indexes_resolved += checks.indexes_resolved;
-    report.bounds_checks_elided += checks.bounds_checks_elided;
-    report.bounds_traps_proven += checks.bounds_traps_proven;
     let storage = storage::prove(draft, execution, &mut rewrites)?;
     report.loads_forwarded += storage.loads_forwarded;
     report.stores_removed += storage.stores_removed;

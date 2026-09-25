@@ -4,7 +4,8 @@ use nocter_model::BuiltinType;
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CheckedOperation, PlaceAccess, PlaceProjection, PrimitiveOperation, prepare_program_checking,
+    CheckedOperation, IndexBoundsCheck, PlaceAccess, PlaceProjection, PrimitiveOperation,
+    prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -97,6 +98,41 @@ fn nested_index_evaluations_are_retained_once_in_source_order() {
         .collect::<Vec<_>>();
 
     assert_eq!(values, vec![0, 1]);
+}
+
+#[test]
+fn fixed_array_indexes_freeze_checked_bounds_dispositions() {
+    let output = check(
+        "func safe(values: [i32; 2]): i32 { return values[1] }\n\
+         func trapped(values: [i32; 2]): i32 { return values[2] }\n\
+         func dynamic(values: [i32; 2], position: usize): i32 { return values[position] }\n",
+    )
+    .unwrap();
+    let mut dispositions = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.places().iter())
+        .flat_map(|(_, place)| place.projections())
+        .filter_map(|projection| match projection {
+            PlaceProjection::BuiltinIndex { bounds, .. } => Some(*bounds),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    dispositions.sort_by_key(|disposition| match disposition {
+        IndexBoundsCheck::Required => 0,
+        IndexBoundsCheck::ProvenInBounds => 1,
+        IndexBoundsCheck::ProvenTrap => 2,
+    });
+
+    assert_eq!(
+        dispositions,
+        vec![
+            IndexBoundsCheck::Required,
+            IndexBoundsCheck::ProvenInBounds,
+            IndexBoundsCheck::ProvenTrap,
+        ]
+    );
 }
 
 #[test]

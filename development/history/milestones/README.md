@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.72.0: Flow-Proven Safe Operations](v0.72.0.md)
 - [v0.71.0: Guaranteed Structural Operations](v0.71.0.md)
 - [v0.71.0 Release Preparation](v0.71.0-release-preparation.md)
 - [v0.70.0: Trap-Free Callable Contracts](v0.70.0.md)

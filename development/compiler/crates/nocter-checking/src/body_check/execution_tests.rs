@@ -99,6 +99,15 @@ fn notrap_accepts_operations_without_a_source_trap_path() {
 }
 
 #[test]
+fn notrap_uses_the_frozen_fixed_array_bounds_disposition() {
+    check("notrap func valid(values: [i32; 2]): i32 { return values[1] }\n").unwrap();
+
+    let error =
+        check("notrap func invalid(values: [i32; 2]): i32 { return values[2] }\n").unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn trap_facts_propagate_through_calls_and_structural_contracts() {
     let error = check(
         "func increment(value: i32): i32 { return value + 1 }\n\

@@ -3,63 +3,62 @@ use std::collections::BTreeMap;
 use crate::identity::MachineId;
 use crate::{
     MachineAddress, MachineAddressExtent, MachineAddressStep, MachineConstant, MachineIndex,
-    MachineIndexBorrow, MachineIndexBound, MachineIndexCheck, MachineIndexDomain, MachineOperation,
-    MachineOperationId, MachineOperationKind, MachineValueId,
+    MachineIndexBorrow, MachineIndexCheck, MachineOperation, MachineOperationId,
+    MachineOperationKind, MachineValueId,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct CheckOptimizationReport {
     pub(super) indexes_resolved: usize,
-    pub(super) bounds_checks_elided: usize,
-    pub(super) bounds_traps_proven: usize,
 }
 
-/// Resolves constant indexes and owns every static bounds conclusion before Machine is frozen.
+/// Resolves the machine representation of constant indexes without re-proving source safety.
 ///
-/// Targets consume `MachineIndexCheck` directly. An in-range fixed index has no dynamic check; an
-/// out-of-range fixed index remains an explicit unconditional trap. Dynamic and view-bounded
-/// indexes retain the source-visible runtime check.
+/// Bounds dispositions arrive frozen from semantic checking through MIR. Machine may replace an
+/// SSA index with its constant representation, but it must preserve the existing disposition.
 pub(super) fn resolve_constant_indexes(
     draft: &mut crate::program::MachineBodyDraft,
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     rewrites: &mut super::rewrite::MachineRewriteProof,
-) -> CheckOptimizationReport {
+) -> Result<CheckOptimizationReport, super::MachineOptimizationError> {
     let mut report = CheckOptimizationReport::default();
-    resolve_addresses(draft, constants, &mut report);
-    resolve_index_borrows(draft, constants, rewrites, &mut report);
-    report
+    resolve_addresses(draft, constants, &mut report)?;
+    resolve_index_borrows(draft, constants, rewrites, &mut report)?;
+    Ok(report)
 }
 
 fn resolve_addresses(
     draft: &mut crate::program::MachineBodyDraft,
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     report: &mut CheckOptimizationReport,
-) {
+) -> Result<(), super::MachineOptimizationError> {
     for address in &mut draft.addresses {
         let mut changed = false;
         let steps = address
             .steps()
             .iter()
-            .map(|step| match *step {
-                MachineAddressStep::Index {
-                    index,
-                    stride,
-                    bound,
-                    check,
-                } => {
-                    let (resolved, resolved_check) =
-                        resolve(index, bound, check, constants, report);
-                    changed |= resolved != index || resolved_check != check;
+            .map(|step| -> Result<_, super::MachineOptimizationError> {
+                Ok(match *step {
                     MachineAddressStep::Index {
-                        index: resolved,
+                        index,
                         stride,
                         bound,
-                        check: resolved_check,
+                        check,
+                    } => {
+                        let resolved = resolve(index, constants, report);
+                        validate_disposition(resolved, bound, check)?;
+                        changed |= resolved != index;
+                        MachineAddressStep::Index {
+                            index: resolved,
+                            stride,
+                            bound,
+                            check,
+                        }
                     }
-                }
-                _ => *step,
+                    _ => *step,
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         if !changed {
             continue;
         }
@@ -72,6 +71,7 @@ fn resolve_addresses(
             }
         };
     }
+    Ok(())
 }
 
 fn resolve_index_borrows(
@@ -79,20 +79,24 @@ fn resolve_index_borrows(
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     rewrites: &mut super::rewrite::MachineRewriteProof,
     report: &mut CheckOptimizationReport,
-) {
+) -> Result<(), super::MachineOptimizationError> {
     for (index, operation) in draft.operations.iter_mut().enumerate() {
         let MachineOperationKind::IndexBorrow(borrow) = operation.kind() else {
             continue;
         };
         let borrow = *borrow;
+        let resolved = resolve(borrow.index(), constants, report);
         let bound = match borrow.domain() {
-            MachineIndexDomain::Fixed { length, .. } => MachineIndexBound::Fixed(length),
-            MachineIndexDomain::View { .. } => MachineIndexBound::CurrentView,
+            crate::MachineIndexDomain::Fixed { length, .. } => {
+                crate::MachineIndexBound::Fixed(length)
+            }
+            crate::MachineIndexDomain::View { .. } => crate::MachineIndexBound::CurrentView,
         };
-        let (resolved, check) = resolve(borrow.index(), bound, borrow.check(), constants, report);
-        if resolved == borrow.index() && check == borrow.check() {
+        validate_disposition(resolved, bound, borrow.check())?;
+        if resolved == borrow.index() {
             continue;
         }
+        let check = borrow.check();
         let result = operation.result();
         *operation = MachineOperation::new(
             MachineOperationKind::IndexBorrow(MachineIndexBorrow::new(
@@ -107,38 +111,48 @@ fn resolve_index_borrows(
             rewrites.prove_pure(MachineOperationId::new(index));
         }
     }
+    Ok(())
+}
+
+fn validate_disposition(
+    index: MachineIndex,
+    bound: crate::MachineIndexBound,
+    check: MachineIndexCheck,
+) -> Result<(), super::MachineOptimizationError> {
+    let (MachineIndex::Constant(index), crate::MachineIndexBound::Fixed(length)) = (index, bound)
+    else {
+        return Ok(());
+    };
+    let valid = match check {
+        MachineIndexCheck::Required => true,
+        MachineIndexCheck::ProvenInBounds => index < length,
+        MachineIndexCheck::ProvenTrap => index >= length,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(super::MachineOptimizationError::InvalidIndexDisposition {
+            index,
+            length,
+            check,
+        })
+    }
 }
 
 fn resolve(
     index: MachineIndex,
-    bound: MachineIndexBound,
-    check: MachineIndexCheck,
     constants: &BTreeMap<MachineValueId, MachineConstant>,
     report: &mut CheckOptimizationReport,
-) -> (MachineIndex, MachineIndexCheck) {
-    debug_assert_eq!(check, MachineIndexCheck::Required);
-    let index = match index {
+) -> MachineIndex {
+    match index {
         MachineIndex::Value(value) => match constants.get(&value).and_then(constant_index) {
             Some(index) => {
                 report.indexes_resolved += 1;
                 MachineIndex::Constant(index)
             }
-            None => return (MachineIndex::Value(value), MachineIndexCheck::Required),
+            None => MachineIndex::Value(value),
         },
         MachineIndex::Constant(index) => MachineIndex::Constant(index),
-    };
-    let (MachineIndex::Constant(index), MachineIndexBound::Fixed(length)) = (index, bound) else {
-        return (index, MachineIndexCheck::Required);
-    };
-    if index < length {
-        report.bounds_checks_elided += 1;
-        (
-            MachineIndex::Constant(index),
-            MachineIndexCheck::ProvenInBounds,
-        )
-    } else {
-        report.bounds_traps_proven += 1;
-        (MachineIndex::Constant(index), MachineIndexCheck::ProvenTrap)
     }
 }
 
@@ -150,5 +164,56 @@ fn constant_index(constant: &MachineConstant) -> Option<u64> {
         | MachineConstant::Float32(_)
         | MachineConstant::Float64(_)
         | MachineConstant::Text(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_disposition;
+    use crate::{MachineIndex, MachineIndexBound, MachineIndexCheck, MachineOptimizationError};
+
+    #[test]
+    fn fixed_bounds_validate_frozen_dispositions_without_inference() {
+        assert!(
+            validate_disposition(
+                MachineIndex::Constant(1),
+                MachineIndexBound::Fixed(2),
+                MachineIndexCheck::ProvenInBounds,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_disposition(
+                MachineIndex::Constant(2),
+                MachineIndexBound::Fixed(2),
+                MachineIndexCheck::ProvenTrap,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_disposition(
+                MachineIndex::Constant(1),
+                MachineIndexBound::Fixed(2),
+                MachineIndexCheck::Required,
+            )
+            .is_ok()
+        );
+
+        assert!(matches!(
+            validate_disposition(
+                MachineIndex::Constant(2),
+                MachineIndexBound::Fixed(2),
+                MachineIndexCheck::ProvenInBounds,
+            ),
+            Err(MachineOptimizationError::InvalidIndexDisposition { .. })
+        ));
+        assert!(matches!(
+            validate_disposition(
+                MachineIndex::Constant(1),
+                MachineIndexBound::Fixed(2),
+                MachineIndexCheck::ProvenTrap,
+            ),
+            Err(MachineOptimizationError::InvalidIndexDisposition { .. })
+        ));
     }
 }

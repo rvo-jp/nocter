@@ -8,7 +8,9 @@ use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot}
 use nocter_test_support::CompilerFixture;
 
 use super::{MirLoweringError, lower_executable};
-use crate::{MirAggregate, MirOperationKind, MirProjectionKind, MirTerminator};
+use crate::{
+    MirAggregate, MirIndexBoundsCheck, MirOperationKind, MirProjectionKind, MirTerminator,
+};
 
 mod interpolation;
 mod root;
@@ -1250,6 +1252,35 @@ fn lowers_coerced_builtin_index_without_reopening_index_selection() {
             .iter()
             .any(|(_, place)| matches!(place.root(), crate::MirPlaceRoot::Dereference { .. }))
     }));
+}
+
+#[test]
+fn carries_checked_index_bounds_dispositions_without_reclassification() {
+    let program = lower_fixture(
+        "func safe(values: &[i32; 2]): i32 { values[1] }\n\
+         func trapped(values: &[i32; 2]): i32 { values[2] }\n\
+         func dynamic(values: &[i32; 2], index: usize): i32 { values[index] }\n\
+         func main(): i32 {\n\
+             let values = [1, 2]\n\
+             if false { return trapped(&values) }\n\
+             safe(&values) + dynamic(&values, 0)\n\
+         }\n",
+    )
+    .unwrap();
+    let dispositions = program
+        .functions()
+        .iter()
+        .flat_map(|(_, function)| function.places().iter())
+        .flat_map(|(_, place)| place.projections())
+        .filter_map(|projection| match projection.kind() {
+            MirProjectionKind::DynamicIndex { bounds, .. } => Some(bounds),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(dispositions.contains(&MirIndexBoundsCheck::ProvenInBounds));
+    assert!(dispositions.contains(&MirIndexBoundsCheck::ProvenTrap));
+    assert!(dispositions.contains(&MirIndexBoundsCheck::Required));
 }
 
 #[test]

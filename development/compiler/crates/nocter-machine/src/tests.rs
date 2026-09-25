@@ -1543,7 +1543,6 @@ fn fixed_array_constant_index_carries_static_check_proof() {
         })
     }));
     assert_eq!(body.optimization().constant_indexes_resolved(), 1);
-    assert_eq!(body.optimization().bounds_checks_elided(), 1);
     assert_eq!(body.optimization().address_evaluations_proven_safe(), 1);
 }
 
@@ -1575,8 +1574,6 @@ fn constant_out_of_bounds_index_remains_an_explicit_static_check() {
         })
     }));
     assert_eq!(body.optimization().constant_indexes_resolved(), 1);
-    assert_eq!(body.optimization().bounds_checks_elided(), 0);
-    assert_eq!(body.optimization().bounds_traps_proven(), 1);
     assert_eq!(body.optimization().address_evaluations_proven_safe(), 0);
 }
 
@@ -1991,7 +1988,7 @@ fn generic_builtin_index_and_borrow_weakening_become_closed_machine_operations()
                         stride: 4,
                     }
                     && index.index() == crate::MachineIndex::Constant(1)
-                    && index.check() == crate::MachineIndexCheck::ProvenInBounds
+                    && index.check() == crate::MachineIndexCheck::Required
         )
     }));
     assert!(

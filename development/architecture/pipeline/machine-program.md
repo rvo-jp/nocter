@@ -56,10 +56,12 @@ field or variant structure from names.
 - Primitive expansion is selected by closed runtime role.
 - Operation removal requires Machine-owned proof that evaluation is both unobservable and
   non-trapping; unknown effects are retained.
-- Safety checks remain unless an exact path proof makes their trap condition impossible.
-- Machine resolves constant indexes and freezes each bounds check as required, proven in range, or
-  proven to trap. ARM64 implements that disposition without repeating target-independent range
-  analysis.
+- Safety checks remain unless checking froze an exact source-path proof that makes their trap
+  condition impossible.
+- Checking freezes each source-visible bounds disposition as required, proven in range, or proven
+  to trap; MIR transports it. Machine may resolve the index's SSA representation and validates any
+  closed fixed-bound contradiction without strengthening the disposition. ARM64 implements it
+  without repeating source or target-independent range analysis.
 - Imported-service descriptors are interned once into a dense machine domain; calls retain only its
   identity and the shared preplanned runtime-call ABI.
 - Mach-O writing is deterministic and cannot introduce executable items.

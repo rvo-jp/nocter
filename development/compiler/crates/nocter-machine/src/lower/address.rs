@@ -189,7 +189,7 @@ fn lower_projection(
     if state.current_view
         && !matches!(
             projection,
-            MirProjectionKind::FixedIndex(_) | MirProjectionKind::DynamicIndex(_)
+            MirProjectionKind::FixedIndex(_) | MirProjectionKind::DynamicIndex { .. }
         )
     {
         return Err(address_error(
@@ -221,14 +221,21 @@ fn lower_projection(
             )?;
         }
         MirProjectionKind::FixedIndex(index) => {
-            lower_index(context, state, source, MachineIndex::Constant(index))?;
+            lower_index(
+                context,
+                state,
+                source,
+                MachineIndex::Constant(index),
+                crate::MachineIndexCheck::ProvenInBounds,
+            )?;
         }
-        MirProjectionKind::DynamicIndex(index) => {
+        MirProjectionKind::DynamicIndex { index, bounds } => {
             lower_index(
                 context,
                 state,
                 source,
                 MachineIndex::Value(context.ids.value(index)?),
+                machine_index_check(bounds),
             )?;
         }
         MirProjectionKind::OptionalPayload => {
@@ -332,6 +339,7 @@ fn lower_index(
     state: &mut AddressState,
     source: TypeId,
     index: MachineIndex,
+    check: crate::MachineIndexCheck,
 ) -> Result<(), MachineProgramError> {
     let (stride, bound) = match context.types.get(source) {
         Some(RuntimeType::FixedArray { .. }) => {
@@ -368,10 +376,18 @@ fn lower_index(
         index,
         stride,
         bound,
-        check: crate::MachineIndexCheck::Required,
+        check,
     });
     state.current_view = false;
     Ok(())
+}
+
+const fn machine_index_check(check: nocter_mir::MirIndexBoundsCheck) -> crate::MachineIndexCheck {
+    match check {
+        nocter_mir::MirIndexBoundsCheck::Required => crate::MachineIndexCheck::Required,
+        nocter_mir::MirIndexBoundsCheck::ProvenInBounds => crate::MachineIndexCheck::ProvenInBounds,
+        nocter_mir::MirIndexBoundsCheck::ProvenTrap => crate::MachineIndexCheck::ProvenTrap,
+    }
 }
 
 fn push_outcome_offset(

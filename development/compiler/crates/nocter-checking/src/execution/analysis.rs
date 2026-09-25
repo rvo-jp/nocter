@@ -873,18 +873,23 @@ impl<'program> Collector<'program> {
                 PlaceProjection::Field { .. }
                 | PlaceProjection::TupleElement { .. }
                 | PlaceProjection::BorrowDeref { .. } => {}
-                PlaceProjection::BuiltinIndex { index, .. } => {
+                PlaceProjection::BuiltinIndex { index, bounds, .. } => {
                     self.visit_node(*index)?;
-                    self.record_direct_trap(*index);
+                    if *bounds != crate::IndexBoundsCheck::ProvenInBounds {
+                        self.record_direct_trap(*index);
+                    }
                 }
                 PlaceProjection::CoercedBuiltinIndex {
                     index,
                     receiver_coercion,
+                    bounds,
                     ..
                 } => {
                     self.visit_node(*index)?;
                     self.record_selection(*index, receiver_coercion)?;
-                    self.record_direct_trap(*index);
+                    if *bounds != crate::IndexBoundsCheck::ProvenInBounds {
+                        self.record_direct_trap(*index);
+                    }
                 }
                 PlaceProjection::SelectedIndex {
                     index,

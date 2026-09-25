@@ -51,7 +51,7 @@ pub use node::{
     TypedIteration, TypedIterationStep,
 };
 pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
-pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
+pub use place::{CheckedPlace, IndexBoundsCheck, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;
 pub use program::{CheckedProgram, CheckedProgramMapFailure, CheckedProgramOutput};
 pub use provenance::{

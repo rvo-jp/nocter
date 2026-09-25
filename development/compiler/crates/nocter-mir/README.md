@@ -16,6 +16,7 @@ or assign a machine ABI.
 
 - CFG and dense local identity construction
 - concrete place and projection lowering
+- lossless transport of checking-owned safety dispositions
 - canonical physical aggregate assembly after source-ordered initializer evaluation
 - explicit cleanup, destruction, region, outcome, and switch edges
 - deferred execution, suspension edges, continuation liveness, and checked cancellation plans
@@ -37,6 +38,8 @@ or assign a machine ABI.
 - Declared constants are resolved only through values frozen by executable reachability; MIR never
   reads declaration records or repeats constant evaluation.
 - Validation checks representation integrity, not source-language acceptance.
+- Dynamic indexes retain the exact bounds-check disposition selected by checking. MIR neither
+  derives a proof from constants nor changes a required check into a proven result.
 - Suspension-frame liveness is derived once from the closed MIR CFG. Cancellation order and
   conditional initialization are consumed from checked ownership rather than inferred from MIR
   operation shapes.

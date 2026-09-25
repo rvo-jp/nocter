@@ -298,7 +298,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 Some(TypeKind::Slice(element)) if *element == result => {}
                 _ => return Err(MirValidationError::InvalidProjection { place }),
             },
-            MirProjectionKind::DynamicIndex(index) => {
+            MirProjectionKind::DynamicIndex { index, .. } => {
                 if self.value_type(index)? != self.types.builtin(BuiltinType::Usize) {
                     return Err(MirValidationError::InvalidProjection { place });
                 }

@@ -56,6 +56,10 @@ has independent positive facts for allocation, synchronous waiting, and source-s
 Arithmetic, indexing, forced outcomes, spread validation, selected operations, callbacks, and
 ownership cleanup all contribute through this one relation graph.
 
+Indexing contributes according to the checking-owned bounds disposition on the checked place. A
+proven-in-bounds access contributes no trap fact; a required check or proven trap does. Execution
+analysis does not inspect literal shape, evaluate constants, or reconstruct control-flow proof.
+
 Missing semantic identities are integrity failures. They do not become conservative effect values;
 conservative values are valid only for explicit external-contract edges whose implementations are
 unavailable by design.

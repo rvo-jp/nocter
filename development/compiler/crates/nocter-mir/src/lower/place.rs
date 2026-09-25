@@ -131,13 +131,20 @@ impl FunctionLowerer<'_> {
                 PlaceProjection::BorrowDeref { capability, .. } => {
                     path.push(MirProjectionKind::BorrowDereference(*capability), ty);
                 }
-                PlaceProjection::BuiltinIndex { index, .. } => {
+                PlaceProjection::BuiltinIndex { index, bounds, .. } => {
                     let index = self.require_value(*index)?;
-                    path.push(MirProjectionKind::DynamicIndex(index), ty);
+                    path.push(
+                        MirProjectionKind::DynamicIndex {
+                            index,
+                            bounds: (*bounds).into(),
+                        },
+                        ty,
+                    );
                 }
                 PlaceProjection::CoercedBuiltinIndex {
                     index,
                     receiver_coercion,
+                    bounds,
                     ..
                 } => {
                     self.lower_coerced_builtin_index(
@@ -145,6 +152,7 @@ impl FunctionLowerer<'_> {
                         &mut path,
                         *index,
                         receiver_coercion,
+                        (*bounds).into(),
                         ty,
                     )?;
                 }

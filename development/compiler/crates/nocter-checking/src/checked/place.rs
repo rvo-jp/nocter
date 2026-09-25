@@ -21,6 +21,17 @@ pub enum PlaceAccess {
     Borrowed(BorrowCapability),
 }
 
+/// Checked disposition of one source-visible indexing bounds check.
+///
+/// Checking is the sole semantic producer. Later stages may preserve this decision but must not
+/// infer a stronger disposition from constants, layout, or generated instructions.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum IndexBoundsCheck {
+    Required,
+    ProvenInBounds,
+    ProvenTrap,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlaceProjection {
     Field {
@@ -38,11 +49,13 @@ pub enum PlaceProjection {
     },
     BuiltinIndex {
         index: BodyNodeId,
+        bounds: IndexBoundsCheck,
         ty: TypeId,
     },
     CoercedBuiltinIndex {
         index: BodyNodeId,
         receiver_coercion: StaticSelection,
+        bounds: IndexBoundsCheck,
         ty: TypeId,
     },
     SelectedIndex {

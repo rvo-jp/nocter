@@ -51,7 +51,10 @@ pub use pack::{
     MirCallPack, MirPackArgument, MirPackContribution, MirPackInput, MirPackNext, MirPackSegment,
     MirPackSpread,
 };
-pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, MirProjectionKind};
+pub use place::{
+    MirIndexBoundsCheck, MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection,
+    MirProjectionKind,
+};
 pub use primitive_dependency::MirPrimitiveDependency;
 pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder, MirProgramOwner};
 pub use schema::{

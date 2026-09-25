@@ -57,6 +57,8 @@ Checking is the sole owner of:
 - selected calls, members, operators, coercions, construction, and iteration;
 - interface and structural requirement evidence;
 - ownership, moves, loans, provenance, regions, cleanup, and destruction timing;
+- source-visible safety dispositions, including whether an index requires a runtime bounds check,
+  is proven in range, or is proven to trap;
 - abstract dispatch retained for later concrete specialization; and
 - the exact authored reason a declaration, name, or body domain was rejected.
 
@@ -67,6 +69,11 @@ which the same decision could be repeated.
 Structural capability evidence records the authored root, exact prerequisite derivation, and
 specialized predicate once. Provenance, loans, concrete specialization, and editor queries consume
 that record; none may reopen the root declaration to reconstruct proof.
+
+Value-sensitive safety evidence follows the same ownership rule. Checking may derive it from typed
+values and, in later phases, checked control flow. Execution facts consume it directly and MIR
+transports it as data. Machine may validate the disposition against closed layout facts, but it may
+not use constant propagation to create a stronger source proof.
 
 ## Independent Body Queries
 
@@ -110,6 +117,8 @@ permit a guessed range or a partial editor result.
 - Prepared semantic authority and current source access belong to one admitted compile scope.
 - Every body-local ID belongs to exactly one body recipe.
 - Every selected operation has one frozen semantic identity or plan.
+- Every admitted source-safety proof has one checking-owned disposition that later stages can only
+  transport, validate, or consume.
 - Proof-only declaration requirements cannot be used as body dispatch evidence.
 - A successful body commits all local semantic changes together or publishes nothing.
 - Canonical replay is the sole allocator of final body-added type and closure identities.

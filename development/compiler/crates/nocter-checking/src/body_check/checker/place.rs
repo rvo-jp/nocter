@@ -1,4 +1,4 @@
-use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
+use nocter_model::{BodyNodeId, BorrowCapability, BuiltinType, ConstantValue, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind, PostfixSuffixKind, SyntaxOrigin, SyntaxToken};
 
@@ -10,7 +10,9 @@ use crate::instance_operations::{IndexOperationCandidate, retain_direct_candidat
 use crate::syntax::{
     child_nodes, direct_identifier, direct_node, direct_token, is_transparent_expression,
 };
-use crate::{LocalBindingKind, NameTarget, PlaceAccess, PlaceProjection, PlaceRoot};
+use crate::{
+    CheckedOperation, LocalBindingKind, NameTarget, PlaceAccess, PlaceProjection, PlaceRoot,
+};
 
 #[derive(Clone)]
 struct PlaceDraft {
@@ -496,23 +498,28 @@ impl BodyChecker<'_, '_> {
     ) -> Result<(), BodyCheckError> {
         let base = self.place_projection_base(draft)?;
         let builtin = match self.types.get(base) {
-            Some(TypeKind::FixedArray { element, .. } | TypeKind::Slice(element)) => Some(*element),
+            Some(TypeKind::FixedArray { element, length }) => {
+                Some((*element, length.closed_value()))
+            }
+            Some(TypeKind::Slice(element)) => Some((*element, None)),
             Some(TypeKind::Builtin(BuiltinType::Str)) => {
                 draft.access = PlaceAccess::Borrowed(BorrowCapability::Readonly);
                 draft.writable = false;
-                Some(self.types.builtin(BuiltinType::U8))
+                Some((self.types.builtin(BuiltinType::U8), None))
             }
             Some(_) => None,
             None => return Err(BodyCheckInternalError::UnknownType(base).into()),
         };
         let expression = direct_node(self.tree(), suffix, NodeKind::Expression)
             .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
-        if let Some(element) = builtin {
+        if let Some((element, fixed_length)) = builtin {
             let index =
                 self.check_expression(expression, Some(self.types.builtin(BuiltinType::Usize)))?;
+            let bounds = self.index_bounds_check(index, fixed_length);
             draft.ty = element;
             draft.projections.push(PlaceProjection::BuiltinIndex {
                 index,
+                bounds,
                 ty: draft.ty,
             });
             return Ok(());
@@ -567,6 +574,7 @@ impl BodyChecker<'_, '_> {
                     .push(PlaceProjection::CoercedBuiltinIndex {
                         index,
                         receiver_coercion: receiver_coercion.clone(),
+                        bounds: crate::IndexBoundsCheck::Required,
                         ty: selected.result(),
                     });
             }
@@ -576,6 +584,37 @@ impl BodyChecker<'_, '_> {
         draft.access = PlaceAccess::Borrowed(capability);
         draft.writable = capability == BorrowCapability::ReadWrite && receiver_writable;
         Ok(())
+    }
+
+    fn index_bounds_check(
+        &self,
+        index: BodyNodeId,
+        fixed_length: Option<u64>,
+    ) -> crate::IndexBoundsCheck {
+        let Some(length) = fixed_length else {
+            return crate::IndexBoundsCheck::Required;
+        };
+        let Some(node) = self.builder.node(index) else {
+            return crate::IndexBoundsCheck::Required;
+        };
+        let value = match node.operation() {
+            CheckedOperation::Literal(ConstantValue::Integer(value)) => Some(*value),
+            CheckedOperation::DeclaredConstant(constant) => {
+                match self.constants.constant(*constant) {
+                    Some(ConstantValue::Integer(value)) => Some(*value),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let Some(index) = value.and_then(|value| u64::try_from(value).ok()) else {
+            return crate::IndexBoundsCheck::Required;
+        };
+        if index < length {
+            crate::IndexBoundsCheck::ProvenInBounds
+        } else {
+            crate::IndexBoundsCheck::ProvenTrap
+        }
     }
 
     fn place_projection_base(&self, draft: &mut PlaceDraft) -> Result<TypeId, BodyCheckError> {

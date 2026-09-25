@@ -56,7 +56,7 @@ pub(crate) fn place_facts(
                 }
                 facts.movable = false;
             }
-            MirProjectionKind::FixedIndex(_) | MirProjectionKind::DynamicIndex(_) => {
+            MirProjectionKind::FixedIndex(_) | MirProjectionKind::DynamicIndex { .. } => {
                 facts.movable = false;
             }
             _ => {}

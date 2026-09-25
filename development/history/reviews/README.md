@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.72.0 Phase 0 Safety-disposition Boundary Review](v0.72.0-phase-0.md)
 - [v0.71.0 Guaranteed Structural-operation Review](v0.71.0-structural-guarantees.md)
 - [v0.70.0 Trap-Free Callable-contract Review](v0.70.0-trap-free-contracts.md)
 - [v0.69.0 Canonical Declaration-contract Review](v0.69.0-declaration-contracts.md)

@@ -35,6 +35,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   constraint graph
 - checked iteration steps freeze owning versus receiver-lending item origin; loan and provenance
   analysis consume that fact without repeating protocol selection
+- checking-owned safety dispositions for value-sensitive operations; execution analysis and later
+  lowering consume the frozen disposition instead of re-proving it from checked value shapes
 - one exact-coverage body-relation catalog shared by provenance, execution, and loans
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
@@ -70,6 +72,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   call edges seed the shared specialization query, including generic callees that have no other
   non-generic root; plan availability therefore cannot depend on an unrelated callable body.
 - Checked dispatch is selected once; Target and MIR receive no lookup inputs.
+- A source-visible safety proof is selected only in checking. Each checked index retains whether a
+  runtime bounds check is required, the access is proven in range, or the access is proven to trap.
+  Execution analysis consumes that disposition, and later stages may validate but never strengthen
+  it from constant propagation or target representation.
 - Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
   checking never copies an evaluated declaration value into a checked body.
 - `ProgramEnvironment` carries the immutable structural-constant table selected with its graph.
