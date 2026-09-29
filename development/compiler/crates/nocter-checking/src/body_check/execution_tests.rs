@@ -118,6 +118,35 @@ fn notrap_consumes_flow_proven_arithmetic_dispositions() {
 }
 
 #[test]
+fn notrap_consumes_relational_arithmetic_dispositions() {
+    check(
+        "notrap func distance(start: usize, end: usize): usize {\n\
+             if start > end { return 0 }\n\
+             return end - start\n\
+         }\n\
+         notrap func advance(index: usize, limit: usize): usize {\n\
+             if index >= limit { return index }\n\
+             return index + 1\n\
+         }\n\
+         notrap func transitive(first: usize, second: usize, third: usize): usize {\n\
+             if first > second { return 0 }\n\
+             if second > third { return 0 }\n\
+             return third - first\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "notrap func invalid(start: usize, end: usize): usize {\n\
+             if start > end { return end - start }\n\
+             return 0\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn notrap_uses_the_frozen_fixed_array_bounds_disposition() {
     check("notrap func valid(values: [i32; 2]): i32 { return values[1] }\n").unwrap();
 

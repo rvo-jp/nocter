@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use nocter_model::{BodyNodeId, BuiltinType, LocalBindingId, ParameterId, TypeId, TypeKind};
 use nocter_toolchain_contract::StandardDeclarationRole;
@@ -8,6 +8,10 @@ use crate::{
     ArithmeticTrapCheck, CallTarget, CheckedOperation, IndexBoundsCheck, LocalBindingKind,
     PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparisonRelation, StaticDispatch,
 };
+
+mod order;
+
+use order::{OrderFact, OrderRelations, SafetySymbol};
 
 /// One stable scalar storage identity admitted into local safety reasoning.
 ///
@@ -20,23 +24,10 @@ pub(super) enum SafetyValue {
     ImmutableLocal(LocalBindingId),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct LengthFact {
-    index: SafetyValue,
-    storage: SafetyValue,
-    relation: LengthRelation,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum LengthRelation {
-    Below,
-    AtOrAbove,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum SafetyLimit {
+enum SafetyTerm {
+    Symbol(SafetySymbol),
     Constant(i128),
-    Length(SafetyValue),
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -83,67 +74,88 @@ impl IntegerRange {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct SafetyCondition {
-    value: SafetyValue,
+    left: SafetyTerm,
     relation: PrimitiveComparisonRelation,
-    limit: SafetyLimit,
+    right: SafetyTerm,
 }
 
 impl SafetyCondition {
     const fn new(
-        value: SafetyValue,
+        left: SafetyTerm,
         relation: PrimitiveComparisonRelation,
-        limit: SafetyLimit,
+        right: SafetyTerm,
     ) -> Self {
         Self {
-            value,
+            left,
             relation,
-            limit,
+            right,
         }
     }
 
-    fn integer_refinement(self, outcome: bool) -> Option<RangeRefinement> {
-        let SafetyLimit::Constant(constant) = self.limit else {
-            return None;
-        };
-        let relation = if outcome {
-            self.relation
-        } else {
-            complement(self.relation)
+    fn normalized(self, outcome: bool) -> Self {
+        Self {
+            relation: if outcome {
+                self.relation
+            } else {
+                complement(self.relation)
+            },
+            ..self
+        }
+    }
+
+    fn integer_refinement(self, outcome: bool) -> Option<(SafetyValue, RangeRefinement)> {
+        let condition = self.normalized(outcome);
+        let (value, constant, relation) = match (condition.left, condition.right) {
+            (SafetyTerm::Symbol(SafetySymbol::Value(value)), SafetyTerm::Constant(constant)) => {
+                (value, constant, condition.relation)
+            }
+            (SafetyTerm::Constant(constant), SafetyTerm::Symbol(SafetySymbol::Value(value))) => {
+                (value, constant, reverse(condition.relation))
+            }
+            _ => return None,
         };
         let bound_after = || constant.checked_add(1);
         match relation {
-            PrimitiveComparisonRelation::Equal => Some(RangeRefinement::Exact(constant)),
+            PrimitiveComparisonRelation::Equal => Some((value, RangeRefinement::Exact(constant))),
             PrimitiveComparisonRelation::NotEqual => None,
-            PrimitiveComparisonRelation::Less => Some(RangeRefinement::Upper(constant)),
-            PrimitiveComparisonRelation::LessEqual => bound_after().map(RangeRefinement::Upper),
-            PrimitiveComparisonRelation::Greater => bound_after().map(RangeRefinement::Lower),
-            PrimitiveComparisonRelation::GreaterEqual => Some(RangeRefinement::Lower(constant)),
+            PrimitiveComparisonRelation::Less => Some((value, RangeRefinement::Upper(constant))),
+            PrimitiveComparisonRelation::LessEqual => bound_after()
+                .map(RangeRefinement::Upper)
+                .map(|refinement| (value, refinement)),
+            PrimitiveComparisonRelation::Greater => bound_after()
+                .map(RangeRefinement::Lower)
+                .map(|refinement| (value, refinement)),
+            PrimitiveComparisonRelation::GreaterEqual => {
+                Some((value, RangeRefinement::Lower(constant)))
+            }
         }
     }
 
-    fn length_fact(self, outcome: bool) -> Option<LengthFact> {
-        let SafetyLimit::Length(storage) = self.limit else {
+    fn order_facts(self, outcome: bool) -> Option<[Option<OrderFact>; 2]> {
+        let condition = self.normalized(outcome);
+        let (SafetyTerm::Symbol(left), SafetyTerm::Symbol(right)) =
+            (condition.left, condition.right)
+        else {
             return None;
         };
-        let relation = if outcome {
-            self.relation
-        } else {
-            complement(self.relation)
+        let fact = |lower, upper, strict| OrderFact {
+            lower,
+            upper,
+            strict,
         };
-        let relation = match relation {
-            PrimitiveComparisonRelation::Less => LengthRelation::Below,
-            PrimitiveComparisonRelation::Equal
-            | PrimitiveComparisonRelation::Greater
-            | PrimitiveComparisonRelation::GreaterEqual => LengthRelation::AtOrAbove,
-            PrimitiveComparisonRelation::LessEqual | PrimitiveComparisonRelation::NotEqual => {
-                return None;
+        match condition.relation {
+            PrimitiveComparisonRelation::Less => Some([Some(fact(left, right, true)), None]),
+            PrimitiveComparisonRelation::LessEqual => Some([Some(fact(left, right, false)), None]),
+            PrimitiveComparisonRelation::Greater => Some([Some(fact(right, left, true)), None]),
+            PrimitiveComparisonRelation::GreaterEqual => {
+                Some([Some(fact(right, left, false)), None])
             }
-        };
-        Some(LengthFact {
-            index: self.value,
-            storage,
-            relation,
-        })
+            PrimitiveComparisonRelation::Equal => Some([
+                Some(fact(left, right, false)),
+                Some(fact(right, left, false)),
+            ]),
+            PrimitiveComparisonRelation::NotEqual => None,
+        }
     }
 }
 
@@ -162,7 +174,7 @@ enum RangeRefinement {
 pub(super) struct SafetyFlowState {
     reachable: bool,
     ranges: BTreeMap<SafetyValue, IntegerRange>,
-    length_facts: BTreeSet<LengthFact>,
+    order: OrderRelations,
 }
 
 impl Default for SafetyFlowState {
@@ -170,7 +182,7 @@ impl Default for SafetyFlowState {
         Self {
             reachable: true,
             ranges: BTreeMap::new(),
-            length_facts: BTreeSet::new(),
+            order: OrderRelations::default(),
         }
     }
 }
@@ -181,8 +193,8 @@ impl SafetyFlowState {
         let Some(condition) = condition else {
             return branch;
         };
-        if let Some(refinement) = condition.integer_refinement(outcome) {
-            let range = branch.ranges.entry(condition.value).or_default();
+        if let Some((value, refinement)) = condition.integer_refinement(outcome) {
+            let range = branch.ranges.entry(value).or_default();
             match refinement {
                 RangeRefinement::Lower(lower) => range.refine_lower(lower),
                 RangeRefinement::Upper(upper) => range.refine_upper(upper),
@@ -195,16 +207,10 @@ impl SafetyFlowState {
             }
             branch.reachable &= !range.is_empty();
         }
-        if let Some(fact) = condition.length_fact(outcome) {
-            let opposite = LengthFact {
-                relation: match fact.relation {
-                    LengthRelation::Below => LengthRelation::AtOrAbove,
-                    LengthRelation::AtOrAbove => LengthRelation::Below,
-                },
-                ..fact
-            };
-            branch.reachable &= !branch.length_facts.contains(&opposite);
-            branch.length_facts.insert(fact);
+        if let Some(facts) = condition.order_facts(outcome) {
+            for fact in facts.into_iter().flatten() {
+                branch.reachable &= branch.order.insert(fact);
+            }
         }
         branch
     }
@@ -215,7 +221,7 @@ impl SafetyFlowState {
             return Self {
                 reachable: false,
                 ranges: BTreeMap::new(),
-                length_facts: BTreeSet::new(),
+                order: OrderRelations::default(),
             };
         };
         for incoming in reachable {
@@ -226,9 +232,7 @@ impl SafetyFlowState {
                 *range = range.join(*incoming);
                 true
             });
-            joined
-                .length_facts
-                .retain(|fact| incoming.length_facts.contains(fact));
+            joined.order.retain_shared(&incoming.order);
         }
         joined
     }
@@ -253,19 +257,11 @@ impl SafetyFlowState {
         index: SafetyValue,
         storage: SafetyValue,
     ) -> IndexBoundsCheck {
-        if !self.reachable
-            || self.length_facts.contains(&LengthFact {
-                index,
-                storage,
-                relation: LengthRelation::Below,
-            })
-        {
+        let index = SafetySymbol::Value(index);
+        let length = SafetySymbol::Length(storage);
+        if !self.reachable || self.order.proves(index, length, true) {
             IndexBoundsCheck::ProvenInBounds
-        } else if self.length_facts.contains(&LengthFact {
-            index,
-            storage,
-            relation: LengthRelation::AtOrAbove,
-        }) {
+        } else if self.order.proves(length, index, false) {
             IndexBoundsCheck::ProvenTrap
         } else {
             IndexBoundsCheck::Required
@@ -299,6 +295,24 @@ impl BodyChecker<'_, '_> {
         let Some((minimum, maximum, bits, signed)) = integer_domain(self.types.get(ty)) else {
             return ArithmeticTrapCheck::NotRequired;
         };
+        if !signed {
+            let left_value = self.safety_value(left).map(SafetySymbol::Value);
+            let right_value = self.safety_value(right).map(SafetySymbol::Value);
+            if operation == PrimitiveBinary::Subtract
+                && left_value
+                    .zip(right_value)
+                    .is_some_and(|(left, right)| self.safety_flow.order.proves(right, left, false))
+            {
+                return ArithmeticTrapCheck::ProvenSafe;
+            }
+            if operation == PrimitiveBinary::Add
+                && self.integer_constant(right) == Some(1)
+                && left_value
+                    .is_some_and(|left| self.safety_flow.order.has_strict_upper_bound(left))
+            {
+                return ArithmeticTrapCheck::ProvenSafe;
+            }
+        }
         let left = self.arithmetic_range(left, minimum, maximum);
         let right = self.arithmetic_range(right, minimum, maximum);
         match operation {
@@ -344,19 +358,11 @@ impl BodyChecker<'_, '_> {
             return None;
         };
         let relation = comparison.primitive_relation()?;
-        let left_value = self.safety_value(comparison.left().value());
-        let right_value = self.safety_value(comparison.right().value());
-        let left_limit = self.safety_limit(comparison.left().value());
-        let right_limit = self.safety_limit(comparison.right().value());
-        match (left_value, right_limit, left_limit, right_value) {
-            (Some(value), Some(limit), _, None) => {
-                Some(SafetyCondition::new(value, relation, limit))
-            }
-            (None, _, Some(limit), Some(value)) => {
-                Some(SafetyCondition::new(value, reverse(relation), limit))
-            }
-            _ => None,
-        }
+        Some(SafetyCondition::new(
+            self.safety_term(comparison.left().value())?,
+            relation,
+            self.safety_term(comparison.right().value())?,
+        ))
     }
 
     pub(super) fn flow_fixed_index_bounds(
@@ -413,10 +419,19 @@ impl BodyChecker<'_, '_> {
         }
     }
 
-    fn safety_limit(&self, node: BodyNodeId) -> Option<SafetyLimit> {
+    fn safety_term(&self, node: BodyNodeId) -> Option<SafetyTerm> {
         self.integer_constant(node)
-            .map(SafetyLimit::Constant)
-            .or_else(|| self.view_length(node).map(SafetyLimit::Length))
+            .map(SafetyTerm::Constant)
+            .or_else(|| {
+                self.safety_value(node)
+                    .map(SafetySymbol::Value)
+                    .map(SafetyTerm::Symbol)
+            })
+            .or_else(|| {
+                self.view_length(node)
+                    .map(SafetySymbol::Length)
+                    .map(SafetyTerm::Symbol)
+            })
     }
 
     fn view_length(&self, node: BodyNodeId) -> Option<SafetyValue> {
@@ -616,7 +631,7 @@ const fn reverse(relation: PrimitiveComparisonRelation) -> PrimitiveComparisonRe
 
 #[cfg(test)]
 mod tests {
-    use super::{SafetyCondition, SafetyFlowState, SafetyValue};
+    use super::{SafetyCondition, SafetyFlowState, SafetySymbol, SafetyTerm, SafetyValue};
     use crate::{IndexBoundsCheck, PrimitiveComparisonRelation};
     use nocter_model::{ArenaBuilder, LocalBindingId};
 
@@ -624,12 +639,16 @@ mod tests {
         SafetyValue::ImmutableLocal(ArenaBuilder::<LocalBindingId, ()>::new().insert(()))
     }
 
+    fn value_term(value: SafetyValue) -> SafetyTerm {
+        SafetyTerm::Symbol(SafetySymbol::Value(value))
+    }
+
     #[test]
     fn branch_refinement_proves_both_sides_of_one_bound() {
         let condition = SafetyCondition::new(
-            value(),
+            value_term(value()),
             PrimitiveComparisonRelation::Less,
-            super::SafetyLimit::Constant(4),
+            SafetyTerm::Constant(4),
         );
         let entry = SafetyFlowState::default();
 
@@ -650,14 +669,14 @@ mod tests {
     #[test]
     fn join_retains_only_a_bound_valid_on_every_reachable_path() {
         let strict = SafetyCondition::new(
-            value(),
+            value_term(value()),
             PrimitiveComparisonRelation::Less,
-            super::SafetyLimit::Constant(2),
+            SafetyTerm::Constant(2),
         );
         let broad = SafetyCondition::new(
-            value(),
+            value_term(value()),
             PrimitiveComparisonRelation::LessEqual,
-            super::SafetyLimit::Constant(2),
+            SafetyTerm::Constant(2),
         );
         let entry = SafetyFlowState::default();
         let joined = SafetyFlowState::join([
@@ -678,14 +697,14 @@ mod tests {
     #[test]
     fn unreachable_incoming_state_cannot_weaken_a_join() {
         let lower = SafetyCondition::new(
-            value(),
+            value_term(value()),
             PrimitiveComparisonRelation::GreaterEqual,
-            super::SafetyLimit::Constant(4),
+            SafetyTerm::Constant(4),
         );
         let upper = SafetyCondition::new(
-            value(),
+            value_term(value()),
             PrimitiveComparisonRelation::Less,
-            super::SafetyLimit::Constant(4),
+            SafetyTerm::Constant(4),
         );
         let safe = SafetyFlowState::default().branch(Some(upper), true);
         let unreachable = safe.branch(Some(lower), true);
@@ -703,9 +722,9 @@ mod tests {
             nocter_model::ArenaBuilder::<nocter_model::ParameterId, ()>::new().insert(()),
         );
         let condition = SafetyCondition::new(
-            value(),
+            value_term(value()),
             PrimitiveComparisonRelation::Less,
-            super::SafetyLimit::Length(storage),
+            SafetyTerm::Symbol(SafetySymbol::Length(storage)),
         );
         let entry = SafetyFlowState::default();
         let safe = entry.branch(Some(condition), true);
@@ -722,6 +741,40 @@ mod tests {
         assert_eq!(
             SafetyFlowState::join([safe, trapped]).view_bounds_disposition(value(), storage),
             IndexBoundsCheck::Required
+        );
+    }
+
+    #[test]
+    fn relational_closure_and_join_retain_semantic_order() {
+        let mut locals = ArenaBuilder::<LocalBindingId, ()>::new();
+        let first = SafetyValue::ImmutableLocal(locals.insert(()));
+        let second = SafetyValue::ImmutableLocal(locals.insert(()));
+        let third = SafetyValue::ImmutableLocal(locals.insert(()));
+        let first_before_second = SafetyCondition::new(
+            value_term(first),
+            PrimitiveComparisonRelation::Less,
+            value_term(second),
+        );
+        let second_before_third = SafetyCondition::new(
+            value_term(second),
+            PrimitiveComparisonRelation::LessEqual,
+            value_term(third),
+        );
+        let direct = SafetyCondition::new(
+            value_term(first),
+            PrimitiveComparisonRelation::Less,
+            value_term(third),
+        );
+        let entry = SafetyFlowState::default();
+        let transitive = entry
+            .branch(Some(first_before_second), true)
+            .branch(Some(second_before_third), true);
+        let joined = SafetyFlowState::join([transitive, entry.branch(Some(direct), true)]);
+
+        assert!(
+            joined
+                .order
+                .proves(SafetySymbol::Value(first), SafetySymbol::Value(third), true)
         );
     }
 }

@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.72.0 Flow-Proven Safe Operations is published and externally audited. Checking owns
-path-sensitive bounds and integer-arithmetic dispositions; MIR and Machine transport them without
-re-proof; ARM64 consumes the closed Machine contract. Practical checked slice observers publish
-guarantees validated by their complete source bodies. Linux target work remains deliberately
-deferred.
+Nocter v0.72.0 Flow-Proven Safe Operations is published and externally audited. v0.73.0 Relational
+Safety and Verified Traversal is active. Its first phase generalizes checking-owned path facts from
+independent numeric ranges and one special length relation to normalized order between stable
+values and semantic view lengths. Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Define the next milestone from a concrete language or standard-library usability boundary before
-implementation begins. Do not reopen v0.72.0 for unrelated work; preserve its checked safety
-dispositions, qualified artifact, public tag, and external audit as one immutable boundary.
+Complete the [v0.73.0 milestone](history/milestones/v0.73.0.md) in order: relational facts,
+place-sensitive mutation, loop invariants, borrowed range construction, standard traversal
+adoption, and qualification. Do not reopen v0.72.0; preserve its checked safety dispositions,
+qualified artifact, public tag, and external audit as one immutable boundary.
 
 Preserve the v0.72.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
