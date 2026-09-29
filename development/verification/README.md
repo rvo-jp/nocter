@@ -45,11 +45,13 @@ same source, workspace, and tests; neither tier owns independent expected behavi
 
 Compiler workspace crates use test-profile optimization level 1 because the integration suite
 executes the compiler itself as its dominant workload. Third-party dependencies remain
-unoptimized, bounding clean compilation cost. The language-server test binary runs separately and
-caps concurrency at four workers (or the available processor count when lower); its independent
-full semantic compilations otherwise contend for enough memory that eight workers increase both
-CPU work and elapsed time. Other workspace tests retain Cargo's normal concurrency. Public examples
-cross native compilation and actual process execution once at the command boundary; lower
+unoptimized, bounding clean compilation cost. The language-server and native-session test binaries
+run separately and cap concurrency at four workers (or the available processor count when lower).
+Both suites perform independent full semantic compilations; native-session additionally launches
+generated programs and local service fixtures. Higher concurrency makes these tests compete for CPU
+and process resources, and can let an otherwise healthy local operation reach the deadline whose
+behavior the test is measuring. Other workspace tests retain Cargo's normal concurrency. Public
+examples cross native compilation and actual process execution once at the command boundary; lower
 native-session tests retain focused ABI and runtime contracts instead of compiling the same complete
 example corpus again.
 
