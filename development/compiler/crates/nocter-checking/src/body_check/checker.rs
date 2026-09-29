@@ -625,6 +625,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             self.validate_type_in_position(pattern, ty, TypePosition::Data)?;
         }
         let pattern = self.check_binding_pattern(pattern, ty, provenance_sources.as_deref())?;
+        if !mutable && let crate::CheckedBindingPattern::Local { binding, .. } = &pattern {
+            self.bind_safety_local(*binding, value);
+        }
         self.add_node(
             statement,
             self.types.builtin(BuiltinType::Void),
@@ -944,7 +947,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             Some(self.types.builtin(BuiltinType::Bool)),
         )?;
         let safety_condition = self.safety_condition(condition);
-        let branches = self.check_if_branches(node, expected, safety_condition)?;
+        let branches = self.check_if_branches(node, expected, safety_condition.as_ref())?;
         let checked = self.add_node(
             node,
             branches.ty,
@@ -963,7 +966,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         &mut self,
         node: NodeId,
         expected: Option<TypeId>,
-        condition: Option<safety_flow::SafetyCondition>,
+        condition: Option<&safety_flow::SafetyCondition>,
     ) -> Result<CheckedIfBranches, BodyCheckError> {
         let then_syntax = self.required_child(node, NodeKind::Block)?;
         let else_syntax = direct_node(self.tree(), node, NodeKind::ElseClause);
@@ -1272,6 +1275,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             && self.is_region_place(*place)?
         {
             return Err(self.rule(BodyRule::InvalidMoveSource, syntax)?);
+        }
+        if let CheckedOperation::Call(call) = &operation {
+            self.invalidate_call_mutations(call);
         }
         let node = self.builder.add_node(ty, operation);
         let origin = SourceOrigin::from_node(self.tree(), syntax)

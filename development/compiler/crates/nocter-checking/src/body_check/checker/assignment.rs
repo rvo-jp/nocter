@@ -77,6 +77,7 @@ impl BodyChecker<'_, '_> {
                 value,
             }
         };
+        self.invalidate_place(place.id);
         self.add_node(statement, ty, CheckedOperation::Control(control))
     }
 }

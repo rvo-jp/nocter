@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{BodyNodeId, BuiltinType, LocalBindingId, ParameterId, TypeId, TypeKind};
+use nocter_model::{BodyNodeId, BuiltinType, FieldId, LocalBindingId, TypeId, TypeKind};
 use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::BodyChecker;
@@ -9,22 +9,45 @@ use crate::{
     PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparisonRelation, StaticDispatch,
 };
 
+mod mutation;
 mod order;
 
 use order::{OrderFact, OrderRelations, SafetySymbol};
 
-/// One stable scalar storage identity admitted into local safety reasoning.
-///
-/// Mutable locals, captures, statics, and projected places are deliberately excluded. Their value
-/// can change through assignment or aliasing, while an ordinary value parameter or immutable local
-/// cannot change during its checked lifetime.
+/// One field or tuple step in a semantic scalar place identity.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) enum SafetyValue {
-    Parameter(ParameterId),
-    ImmutableLocal(LocalBindingId),
+enum SafetyProjection {
+    Field(FieldId),
+    TupleElement(usize),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// One scalar place identity whose writes can be observed by the flow model.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) struct SafetyValue {
+    root: PlaceRoot,
+    projections: Box<[SafetyProjection]>,
+}
+
+impl SafetyValue {
+    fn new(root: PlaceRoot, projections: impl Into<Box<[SafetyProjection]>>) -> Self {
+        Self {
+            root,
+            projections: projections.into(),
+        }
+    }
+
+    fn local(local: LocalBindingId) -> Self {
+        Self::new(PlaceRoot::Local(local), [])
+    }
+
+    fn overlaps(&self, other: &Self) -> bool {
+        self.root == other.root
+            && (self.projections.starts_with(&other.projections)
+                || other.projections.starts_with(&self.projections))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum SafetyTerm {
     Symbol(SafetySymbol),
     Constant(i128),
@@ -72,7 +95,7 @@ impl IntegerRange {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct SafetyCondition {
     left: SafetyTerm,
     relation: PrimitiveComparisonRelation,
@@ -80,11 +103,7 @@ pub(super) struct SafetyCondition {
 }
 
 impl SafetyCondition {
-    const fn new(
-        left: SafetyTerm,
-        relation: PrimitiveComparisonRelation,
-        right: SafetyTerm,
-    ) -> Self {
+    fn new(left: SafetyTerm, relation: PrimitiveComparisonRelation, right: SafetyTerm) -> Self {
         Self {
             left,
             relation,
@@ -92,18 +111,19 @@ impl SafetyCondition {
         }
     }
 
-    fn normalized(self, outcome: bool) -> Self {
+    fn normalized(&self, outcome: bool) -> Self {
         Self {
             relation: if outcome {
                 self.relation
             } else {
                 complement(self.relation)
             },
-            ..self
+            left: self.left.clone(),
+            right: self.right.clone(),
         }
     }
 
-    fn integer_refinement(self, outcome: bool) -> Option<(SafetyValue, RangeRefinement)> {
+    fn integer_refinement(&self, outcome: bool) -> Option<(SafetyValue, RangeRefinement)> {
         let condition = self.normalized(outcome);
         let (value, constant, relation) = match (condition.left, condition.right) {
             (SafetyTerm::Symbol(SafetySymbol::Value(value)), SafetyTerm::Constant(constant)) => {
@@ -131,7 +151,7 @@ impl SafetyCondition {
         }
     }
 
-    fn order_facts(self, outcome: bool) -> Option<[Option<OrderFact>; 2]> {
+    fn order_facts(&self, outcome: bool) -> Option<[Option<OrderFact>; 2]> {
         let condition = self.normalized(outcome);
         let (SafetyTerm::Symbol(left), SafetyTerm::Symbol(right)) =
             (condition.left, condition.right)
@@ -151,7 +171,7 @@ impl SafetyCondition {
                 Some([Some(fact(right, left, false)), None])
             }
             PrimitiveComparisonRelation::Equal => Some([
-                Some(fact(left, right, false)),
+                Some(fact(left.clone(), right.clone(), false)),
                 Some(fact(right, left, false)),
             ]),
             PrimitiveComparisonRelation::NotEqual => None,
@@ -168,13 +188,16 @@ enum RangeRefinement {
 
 /// Checking-owned path facts for one point in a body.
 ///
-/// A state contains only facts valid on every execution reaching that point. Branch refinement
-/// intersects facts; a join forms the weakest interval containing every reachable incoming range.
+/// A state contains only facts valid on every execution reaching that point. Branches refine an
+/// isolated copy; a join intersects relational facts and forms the weakest numeric interval that
+/// contains every reachable incoming range. Alias identities canonicalize reborrowed local roots
+/// before facts are created or invalidated.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct SafetyFlowState {
     reachable: bool,
     ranges: BTreeMap<SafetyValue, IntegerRange>,
     order: OrderRelations,
+    aliases: BTreeMap<SafetyValue, SafetyValue>,
 }
 
 impl Default for SafetyFlowState {
@@ -183,12 +206,13 @@ impl Default for SafetyFlowState {
             reachable: true,
             ranges: BTreeMap::new(),
             order: OrderRelations::default(),
+            aliases: BTreeMap::new(),
         }
     }
 }
 
 impl SafetyFlowState {
-    pub(super) fn branch(&self, condition: Option<SafetyCondition>, outcome: bool) -> Self {
+    pub(super) fn branch(&self, condition: Option<&SafetyCondition>, outcome: bool) -> Self {
         let mut branch = self.clone();
         let Some(condition) = condition else {
             return branch;
@@ -209,7 +233,7 @@ impl SafetyFlowState {
         }
         if let Some(facts) = condition.order_facts(outcome) {
             for fact in facts.into_iter().flatten() {
-                branch.reachable &= branch.order.insert(fact);
+                branch.reachable &= branch.order.insert(&fact);
             }
         }
         branch
@@ -222,6 +246,7 @@ impl SafetyFlowState {
                 reachable: false,
                 ranges: BTreeMap::new(),
                 order: OrderRelations::default(),
+                aliases: BTreeMap::new(),
             };
         };
         for incoming in reachable {
@@ -233,16 +258,19 @@ impl SafetyFlowState {
                 true
             });
             joined.order.retain_shared(&incoming.order);
+            joined
+                .aliases
+                .retain(|alias, target| incoming.aliases.get(alias) == Some(target));
         }
         joined
     }
 
-    fn bounds_disposition(&self, value: SafetyValue, length: u64) -> IndexBoundsCheck {
+    fn bounds_disposition(&self, value: &SafetyValue, length: u64) -> IndexBoundsCheck {
         if !self.reachable {
             return IndexBoundsCheck::ProvenInBounds;
         }
         let length = i128::from(length);
-        let range = self.ranges.get(&value).copied().unwrap_or_default();
+        let range = self.ranges.get(value).copied().unwrap_or_default();
         if range.upper_exclusive.is_some_and(|upper| upper <= length) {
             IndexBoundsCheck::ProvenInBounds
         } else if length == 0 || range.lower_inclusive.is_some_and(|lower| lower >= length) {
@@ -259,9 +287,9 @@ impl SafetyFlowState {
     ) -> IndexBoundsCheck {
         let index = SafetySymbol::Value(index);
         let length = SafetySymbol::Length(storage);
-        if !self.reachable || self.order.proves(index, length, true) {
+        if !self.reachable || self.order.proves(&index, &length, true) {
             IndexBoundsCheck::ProvenInBounds
-        } else if self.order.proves(length, index, false) {
+        } else if self.order.proves(&length, &index, false) {
             IndexBoundsCheck::ProvenTrap
         } else {
             IndexBoundsCheck::Required
@@ -300,7 +328,8 @@ impl BodyChecker<'_, '_> {
             let right_value = self.safety_value(right).map(SafetySymbol::Value);
             if operation == PrimitiveBinary::Subtract
                 && left_value
-                    .zip(right_value)
+                    .as_ref()
+                    .zip(right_value.as_ref())
                     .is_some_and(|(left, right)| self.safety_flow.order.proves(right, left, false))
             {
                 return ArithmeticTrapCheck::ProvenSafe;
@@ -308,6 +337,7 @@ impl BodyChecker<'_, '_> {
             if operation == PrimitiveBinary::Add
                 && self.integer_constant(right) == Some(1)
                 && left_value
+                    .as_ref()
                     .is_some_and(|left| self.safety_flow.order.has_strict_upper_bound(left))
             {
                 return ArithmeticTrapCheck::ProvenSafe;
@@ -371,7 +401,7 @@ impl BodyChecker<'_, '_> {
         length: u64,
     ) -> Option<IndexBoundsCheck> {
         self.safety_value(index)
-            .map(|value| self.safety_flow.bounds_disposition(value, length))
+            .map(|value| self.safety_flow.bounds_disposition(&value, length))
     }
 
     pub(super) fn flow_view_index_bounds(
@@ -385,7 +415,7 @@ impl BodyChecker<'_, '_> {
         Some(self.safety_flow.view_bounds_disposition(index, storage))
     }
 
-    fn safety_value(&self, node: BodyNodeId) -> Option<SafetyValue> {
+    pub(super) fn safety_value(&self, node: BodyNodeId) -> Option<SafetyValue> {
         let place = match self.builder.node(node)?.operation() {
             CheckedOperation::Place(place) | CheckedOperation::Copy(place) => *place,
             _ => return None,
@@ -399,24 +429,35 @@ impl BodyChecker<'_, '_> {
         root: PlaceRoot,
         projections: &[PlaceProjection],
     ) -> Option<SafetyValue> {
-        if projections
-            .iter()
-            .any(|projection| !matches!(projection, PlaceProjection::BorrowDeref { .. }))
-        {
-            return None;
-        }
         match root {
-            PlaceRoot::Parameter(parameter) => Some(SafetyValue::Parameter(parameter)),
+            PlaceRoot::Parameter(_) => {}
             PlaceRoot::Local(local)
-                if self.names.locals().get(local)?.kind() == LocalBindingKind::Immutable =>
-            {
-                Some(SafetyValue::ImmutableLocal(local))
-            }
+                if matches!(
+                    self.names.locals().get(local)?.kind(),
+                    LocalBindingKind::Immutable | LocalBindingKind::Mutable
+                ) => {}
             PlaceRoot::Local(_)
             | PlaceRoot::Capture(_)
             | PlaceRoot::Static(_)
-            | PlaceRoot::Value(_) => None,
+            | PlaceRoot::Value(_) => return None,
         }
+        let projections = projections
+            .iter()
+            .filter_map(|projection| match projection {
+                PlaceProjection::Field { field, .. } => Some(Some(SafetyProjection::Field(*field))),
+                PlaceProjection::TupleElement { index, .. } => {
+                    Some(Some(SafetyProjection::TupleElement(*index)))
+                }
+                PlaceProjection::BorrowDeref { .. } => None,
+                PlaceProjection::BuiltinIndex { .. }
+                | PlaceProjection::CoercedBuiltinIndex { .. }
+                | PlaceProjection::SelectedIndex { .. } => Some(None),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(
+            self.safety_flow
+                .canonicalize(SafetyValue::new(root, projections)),
+        )
     }
 
     fn safety_term(&self, node: BodyNodeId) -> Option<SafetyTerm> {
@@ -632,21 +673,21 @@ const fn reverse(relation: PrimitiveComparisonRelation) -> PrimitiveComparisonRe
 #[cfg(test)]
 mod tests {
     use super::{SafetyCondition, SafetyFlowState, SafetySymbol, SafetyTerm, SafetyValue};
-    use crate::{IndexBoundsCheck, PrimitiveComparisonRelation};
+    use crate::{IndexBoundsCheck, PlaceRoot, PrimitiveComparisonRelation};
     use nocter_model::{ArenaBuilder, LocalBindingId};
 
     fn value() -> SafetyValue {
-        SafetyValue::ImmutableLocal(ArenaBuilder::<LocalBindingId, ()>::new().insert(()))
+        SafetyValue::local(ArenaBuilder::<LocalBindingId, ()>::new().insert(()))
     }
 
-    fn value_term(value: SafetyValue) -> SafetyTerm {
-        SafetyTerm::Symbol(SafetySymbol::Value(value))
+    fn value_term(value: &SafetyValue) -> SafetyTerm {
+        SafetyTerm::Symbol(SafetySymbol::Value(value.clone()))
     }
 
     #[test]
     fn branch_refinement_proves_both_sides_of_one_bound() {
         let condition = SafetyCondition::new(
-            value_term(value()),
+            value_term(&value()),
             PrimitiveComparisonRelation::Less,
             SafetyTerm::Constant(4),
         );
@@ -654,14 +695,14 @@ mod tests {
 
         assert_eq!(
             entry
-                .branch(Some(condition), true)
-                .bounds_disposition(value(), 4),
+                .branch(Some(&condition), true)
+                .bounds_disposition(&value(), 4),
             IndexBoundsCheck::ProvenInBounds
         );
         assert_eq!(
             entry
-                .branch(Some(condition), false)
-                .bounds_disposition(value(), 4),
+                .branch(Some(&condition), false)
+                .bounds_disposition(&value(), 4),
             IndexBoundsCheck::ProvenTrap
         );
     }
@@ -669,27 +710,27 @@ mod tests {
     #[test]
     fn join_retains_only_a_bound_valid_on_every_reachable_path() {
         let strict = SafetyCondition::new(
-            value_term(value()),
+            value_term(&value()),
             PrimitiveComparisonRelation::Less,
             SafetyTerm::Constant(2),
         );
         let broad = SafetyCondition::new(
-            value_term(value()),
+            value_term(&value()),
             PrimitiveComparisonRelation::LessEqual,
             SafetyTerm::Constant(2),
         );
         let entry = SafetyFlowState::default();
         let joined = SafetyFlowState::join([
-            entry.branch(Some(strict), true),
-            entry.branch(Some(broad), true),
+            entry.branch(Some(&strict), true),
+            entry.branch(Some(&broad), true),
         ]);
 
         assert_eq!(
-            joined.bounds_disposition(value(), 3),
+            joined.bounds_disposition(&value(), 3),
             IndexBoundsCheck::ProvenInBounds
         );
         assert_eq!(
-            joined.bounds_disposition(value(), 2),
+            joined.bounds_disposition(&value(), 2),
             IndexBoundsCheck::Required
         );
     }
@@ -697,45 +738,48 @@ mod tests {
     #[test]
     fn unreachable_incoming_state_cannot_weaken_a_join() {
         let lower = SafetyCondition::new(
-            value_term(value()),
+            value_term(&value()),
             PrimitiveComparisonRelation::GreaterEqual,
             SafetyTerm::Constant(4),
         );
         let upper = SafetyCondition::new(
-            value_term(value()),
+            value_term(&value()),
             PrimitiveComparisonRelation::Less,
             SafetyTerm::Constant(4),
         );
-        let safe = SafetyFlowState::default().branch(Some(upper), true);
-        let unreachable = safe.branch(Some(lower), true);
+        let safe = SafetyFlowState::default().branch(Some(&upper), true);
+        let unreachable = safe.branch(Some(&lower), true);
         let joined = SafetyFlowState::join([safe, unreachable]);
 
         assert_eq!(
-            joined.bounds_disposition(value(), 4),
+            joined.bounds_disposition(&value(), 4),
             IndexBoundsCheck::ProvenInBounds
         );
     }
 
     #[test]
     fn view_length_facts_refine_and_join_by_semantic_identity() {
-        let storage = SafetyValue::Parameter(
-            nocter_model::ArenaBuilder::<nocter_model::ParameterId, ()>::new().insert(()),
+        let storage = SafetyValue::new(
+            PlaceRoot::Parameter(
+                nocter_model::ArenaBuilder::<nocter_model::ParameterId, ()>::new().insert(()),
+            ),
+            [],
         );
         let condition = SafetyCondition::new(
-            value_term(value()),
+            value_term(&value()),
             PrimitiveComparisonRelation::Less,
-            SafetyTerm::Symbol(SafetySymbol::Length(storage)),
+            SafetyTerm::Symbol(SafetySymbol::Length(storage.clone())),
         );
         let entry = SafetyFlowState::default();
-        let safe = entry.branch(Some(condition), true);
-        let trapped = entry.branch(Some(condition), false);
+        let safe = entry.branch(Some(&condition), true);
+        let trapped = entry.branch(Some(&condition), false);
 
         assert_eq!(
-            safe.view_bounds_disposition(value(), storage),
+            safe.view_bounds_disposition(value(), storage.clone()),
             IndexBoundsCheck::ProvenInBounds
         );
         assert_eq!(
-            trapped.view_bounds_disposition(value(), storage),
+            trapped.view_bounds_disposition(value(), storage.clone()),
             IndexBoundsCheck::ProvenTrap
         );
         assert_eq!(
@@ -747,34 +791,34 @@ mod tests {
     #[test]
     fn relational_closure_and_join_retain_semantic_order() {
         let mut locals = ArenaBuilder::<LocalBindingId, ()>::new();
-        let first = SafetyValue::ImmutableLocal(locals.insert(()));
-        let second = SafetyValue::ImmutableLocal(locals.insert(()));
-        let third = SafetyValue::ImmutableLocal(locals.insert(()));
+        let first = SafetyValue::local(locals.insert(()));
+        let second = SafetyValue::local(locals.insert(()));
+        let third = SafetyValue::local(locals.insert(()));
         let first_before_second = SafetyCondition::new(
-            value_term(first),
+            value_term(&first),
             PrimitiveComparisonRelation::Less,
-            value_term(second),
+            value_term(&second),
         );
         let second_before_third = SafetyCondition::new(
-            value_term(second),
+            value_term(&second),
             PrimitiveComparisonRelation::LessEqual,
-            value_term(third),
+            value_term(&third),
         );
         let direct = SafetyCondition::new(
-            value_term(first),
+            value_term(&first),
             PrimitiveComparisonRelation::Less,
-            value_term(third),
+            value_term(&third),
         );
         let entry = SafetyFlowState::default();
         let transitive = entry
-            .branch(Some(first_before_second), true)
-            .branch(Some(second_before_third), true);
-        let joined = SafetyFlowState::join([transitive, entry.branch(Some(direct), true)]);
+            .branch(Some(&first_before_second), true)
+            .branch(Some(&second_before_third), true);
+        let joined = SafetyFlowState::join([transitive, entry.branch(Some(&direct), true)]);
 
-        assert!(
-            joined
-                .order
-                .proves(SafetySymbol::Value(first), SafetySymbol::Value(third), true)
-        );
+        assert!(joined.order.proves(
+            &SafetySymbol::Value(first),
+            &SafetySymbol::Value(third),
+            true
+        ));
     }
 }

@@ -147,6 +147,68 @@ fn notrap_consumes_relational_arithmetic_dispositions() {
 }
 
 #[test]
+fn notrap_tracks_projected_places_and_invalidates_writes() {
+    check(
+        "struct Cursor {\n    value: usize\n    limit: usize\n    observations: usize\n}\n\
+         instance Cursor {\n\
+             noalloc notrap method &self.observe(): void { return }\n\
+             notrap method &+self.next(): usize? {\n\
+                 if self.value >= self.limit { return none }\n\
+                 let current = self.value\n\
+                 self.observe()\n\
+                 self.observations = 0\n\
+                 self.value = current + 1\n\
+                 return current\n\
+             }\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "struct Cursor {\n    value: usize\n    limit: usize\n}\n\
+         instance Cursor {\n\
+             notrap method &+self.invalid(): usize {\n\
+                 if self.value >= self.limit { return self.value }\n\
+                 self.value = self.limit\n\
+                 return self.value + 1\n\
+             }\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    let error = check(
+        "struct Cursor {\n    value: usize\n    limit: usize\n}\n\
+         instance Cursor {\n\
+             method &+self.reset(): void { self.value = self.limit }\n\
+             notrap method &+self.invalid_call(): usize {\n\
+                 if self.value >= self.limit { return self.value }\n\
+                 self.reset()\n\
+                 return self.value + 1\n\
+             }\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    let error = check(
+        "struct Cursor {\n    value: usize\n    limit: usize\n}\n\
+         instance Cursor {\n\
+             method &+self.reset(): void { self.value = self.limit }\n\
+         }\n\
+         notrap func invalid_alias(value: usize, limit: usize): usize {\n\
+             var cursor = Cursor { value: value, limit: limit }\n\
+             if cursor.value >= cursor.limit { return cursor.value }\n\
+             let alias = &+cursor\n\
+             alias.reset()\n\
+             return cursor.value + 1\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn notrap_uses_the_frozen_fixed_array_bounds_disposition() {
     check("notrap func valid(values: [i32; 2]): i32 { return values[1] }\n").unwrap();
 
@@ -234,7 +296,7 @@ fn standard_view_length_role_proves_indexing_on_the_same_storage() {
 }
 
 #[test]
-fn bounds_proof_does_not_escape_a_join_or_attach_to_mutable_storage() {
+fn bounds_proof_does_not_escape_a_join_and_mutable_storage_requires_invalidation() {
     let joined = check(
         "notrap func invalid(values: [i32; 2], index: usize, choose: bool): i32 {\n\
              if choose {\n\
@@ -246,15 +308,25 @@ fn bounds_proof_does_not_escape_a_join_or_attach_to_mutable_storage() {
     .unwrap_err();
     assert_eq!(joined.rule(), Some(BodyRule::NoTrapContractViolation));
 
-    let mutable = check(
+    check(
         "notrap func invalid(values: [i32; 2], input: usize): i32 {\n\
              var index = input\n\
              if index < 2 { return values[index] }\n\
              return 0\n\
          }\n",
     )
+    .unwrap();
+
+    let reassigned = check(
+        "notrap func invalid(values: [i32; 2], input: usize): i32 {\n\
+             var index = input\n\
+             if index >= 2 { return 0 }\n\
+             index = input\n\
+             return values[index]\n\
+         }\n",
+    )
     .unwrap_err();
-    assert_eq!(mutable.rule(), Some(BodyRule::NoTrapContractViolation));
+    assert_eq!(reassigned.rule(), Some(BodyRule::NoTrapContractViolation));
 
     let loop_exit = check(
         "notrap func invalid(values: [i32; 2], index: usize, enter: bool): i32 {\n\

@@ -55,7 +55,7 @@ impl BodyChecker<'_, '_> {
             | LoopKind::KeyedArgumentPack { .. } => None,
         };
         self.safety_flow = match &kind {
-            LoopKind::While { .. } => continuation_flow.branch(while_condition, true),
+            LoopKind::While { .. } => continuation_flow.branch(while_condition.as_ref(), true),
             LoopKind::Infinite
             | LoopKind::Range { .. }
             | LoopKind::For { .. }
@@ -74,7 +74,7 @@ impl BodyChecker<'_, '_> {
         let mut exit_flows = frame.break_flows;
         match &kind {
             LoopKind::While { .. } => {
-                exit_flows.push(continuation_flow.branch(while_condition, false));
+                exit_flows.push(continuation_flow.branch(while_condition.as_ref(), false));
             }
             LoopKind::Infinite => {}
             LoopKind::Range { .. }

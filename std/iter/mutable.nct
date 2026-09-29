@@ -18,7 +18,7 @@ instance MutableViewIter<T> {
     }
 
     /// Advances and returns an exclusive element borrow, or `none` at exhaustion.
-    noalloc method &+self.next(): &+T? {
+    noalloc notrap method &+self.next(): &+T? {
         if self.next_index >= self.view.len() {
             return none
         }
