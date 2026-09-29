@@ -7,7 +7,7 @@ see ./replacement.nct
 
 pub(/) noalloc notrap primitive func from_addr<T>(address: usize): *T
 
-pub(/) noalloc primitive func pointee_size<T>(pointer: *T): usize
+pub(/) noalloc notrap primitive func pointee_size<T>(pointer: *T): usize
 
 pub(/) noalloc primitive func pointee_align<T>(pointer: *T): usize
 

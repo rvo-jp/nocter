@@ -42,3 +42,27 @@ test split_once_returns_two_borrowed_positions {
     let _ = absent otherwise { return }
     return error.new("std.str.test", "split_once found an absent separator")
 }
+
+test borrowed_ranges_validate_text_boundaries_and_slice_bounds {
+    let text = "λNocter"
+    let complete = text.get_range(0, text.len()) otherwise {
+        return error.new("std.str.test", "get_range rejected the complete text")
+    }
+    if complete != text {
+        return error.new("std.str.test", "get_range changed the complete text")
+    }
+
+    let _invalid_boundary = text.get_range(1, text.len()) otherwise {
+        let bytes = text.bytes()
+        let empty = bytes.get_range(bytes.len(), bytes.len()) otherwise {
+            return error.new("std.str.test", "slice get_range rejected its terminal empty range")
+        }
+        if !empty.is_empty() {
+            return error.new("std.str.test", "slice get_range returned a nonempty terminal range")
+        }
+
+        let _reversed = bytes.get_range(bytes.len(), 0) otherwise { return }
+        return error.new("std.str.test", "slice get_range accepted reversed bounds")
+    }
+    return error.new("std.str.test", "get_range accepted a split UTF-8 encoding")
+}

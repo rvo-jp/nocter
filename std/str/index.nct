@@ -78,7 +78,7 @@ instance str {
     pub noalloc notrap method &self.ptr(): *u8
 
     /// Returns the exact UTF-8 encoding bytes as a borrowed slice.
-    pub noalloc method &self.bytes(): &[u8]
+    pub noalloc notrap method &self.bytes(): &[u8]
 
     /// Iterates over Unicode scalar values in source order without allocation.
     pub noalloc method &self.chars(): Chars from self
@@ -87,10 +87,10 @@ instance str {
     pub noalloc method &self.char_count(): usize
 
     /// Returns whether `index` lies on a Unicode scalar boundary.
-    pub noalloc method &self.is_char_boundary(index: usize): bool
+    pub noalloc notrap method &self.is_char_boundary(index: usize): bool
 
     /// Returns the byte range when it is ordered, in bounds, and boundary-aligned.
-    pub noalloc method &self.get_range(start: usize, end: usize): &str?
+    pub noalloc notrap method &self.get_range(start: usize, end: usize): &str?
 
     /// Returns the first byte index of `needle` at or after `start`.
     pub noalloc method &self.find_from(needle: &str, start: usize): usize?

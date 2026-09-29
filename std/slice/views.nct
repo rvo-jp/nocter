@@ -47,14 +47,17 @@ instance [T] {
         return self.get(0)?
     }
 
-    noalloc method &self.get_range(start: usize, end: usize): &[T]? from self {
-        if start > end || end > self.len() {
+    noalloc notrap method &self.get_range(start: usize, end: usize): &[T]? from self {
+        if start > end { return none }
+        if end > self.len() { return none }
+        let range_len = end - start
+        let element_size = ptr.pointee_size(self.ptr())
+        let byte_offset = start.checked_mul(element_size) otherwise { return none }
+        let start_address = slice_ptr_addr_raw(self).checked_add(byte_offset) otherwise {
             return none
         }
-        let element_size = ptr.pointee_size(self.ptr())
-        let start_address = slice_ptr_addr_raw(self) + start * element_size
         let start_pointer: *T = ptr.from_addr(start_address)
-        return ptr.slice_from_raw_parts_value(start_pointer, end - start)
+        return ptr.slice_from_raw_parts_value(start_pointer, range_len)
     }
 
     operator (&self == other: &Self): bool where (&T == &T): bool {

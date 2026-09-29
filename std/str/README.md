@@ -11,7 +11,7 @@ reports `std.string.invalid_utf8` without copying, allocating, or extending the 
 Search and range indices are UTF-8 byte offsets. `get_range` returns `none` when `start > end`, an
 endpoint is outside the input, or an endpoint divides a UTF-8 encoding. Empty ranges and the full
 input range are valid. The result borrows `self`; it never reconstructs provenance from an integer
-address.
+address. Boundary observation and range construction are `noalloc notrap` operations.
 
 `strip_prefix` and `strip_suffix` compare exact UTF-8 bytes and return a view into `self`. The affix
 is an input to comparison, not a storage origin of the returned view. An empty affix matches and

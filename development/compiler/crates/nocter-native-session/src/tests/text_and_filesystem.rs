@@ -1082,7 +1082,7 @@ fn standard_str_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 12);
+    assert_eq!(case_count, 13);
 }
 
 #[test]

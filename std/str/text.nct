@@ -56,15 +56,15 @@ instance str {
         return ptr.from_addr(str_ptr_addr_raw(self))
     }
 
-    noalloc method &self.bytes(): &[u8] {
+    noalloc notrap method &self.bytes(): &[u8] {
         return bytes_from_str(self)
     }
 
-    noalloc method &self.is_char_boundary(index: usize): bool {
+    noalloc notrap method &self.is_char_boundary(index: usize): bool {
         return is_char_boundary(self, index)
     }
 
-    noalloc method &self.get_range(start: usize, end: usize): &str? {
+    noalloc notrap method &self.get_range(start: usize, end: usize): &str? {
         return get_range(self, start, end)?
     }
 

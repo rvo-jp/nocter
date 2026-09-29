@@ -7,9 +7,9 @@ use /iter.Iterator
 use /internal/ptr
 use /internal/utf8
 
-noalloc primitive func bytes_from_str(value: &str): &[u8] from value
+noalloc notrap primitive func bytes_from_str(value: &str): &[u8] from value
 
-noalloc primitive func str_subview_unchecked(
+noalloc notrap primitive func str_subview_unchecked(
     text: &str,
     start: usize,
     len: usize,
@@ -33,14 +33,14 @@ struct LinesIter {
     finished: bool
 }
 
-noalloc func is_char_boundary(text: &str, index: usize): bool {
-    if index > text.len() { return false }
-    if index == 0 || index == text.len() { return true }
+noalloc notrap func is_char_boundary(text: &str, index: usize): bool {
+    if index >= text.len() { return index == text.len() }
+    if index == 0 { return true }
     let byte: u8 = text[index]
     return byte < 128 || byte >= 192
 }
 
-noalloc func get_range(text: &str, start: usize, end: usize): &str? {
+noalloc notrap func get_range(text: &str, start: usize, end: usize): &str? {
     if start > end { return none }
     if !is_char_boundary(text, start) || !is_char_boundary(text, end) {
         return none

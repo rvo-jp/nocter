@@ -13,7 +13,8 @@ coercions, so direct Vec indexing and slice indexing select the same implementat
 `get_range` uses half-open element bounds. It returns `none` when the start exceeds the end or the
 end exceeds the source length. Empty ranges, including the range at the source end, are valid and
 retain the source slice's provenance; constructing a range never grants access through a raw
-address.
+address. Bound validation and address arithmetic are recoverable, so the operation is both
+`noalloc` and `notrap`.
 
 Readwrite slices order elements in place with constant auxiliary storage and `O(n log n)`
 worst-case comparisons and moves. No later element is strictly less than an earlier element after
