@@ -74,6 +74,12 @@ impl OrderRelations {
             .retain(|fact| !fact.lower.depends_on(target) && !fact.upper.depends_on(target));
     }
 
+    pub(super) fn retain_symbols(&mut self, mut retain: impl FnMut(&SafetyValue) -> bool) {
+        self.facts.retain(|fact| {
+            fact.lower.values().all(&mut retain) && fact.upper.values().all(&mut retain)
+        });
+    }
+
     fn close(&mut self) {
         loop {
             let current = self.facts.iter().cloned().collect::<Vec<_>>();
@@ -108,6 +114,12 @@ impl SafetySymbol {
     fn depends_on(&self, target: &SafetyValue) -> bool {
         match self {
             Self::Value(value) | Self::Length(value) => value.overlaps(target),
+        }
+    }
+
+    fn values(&self) -> impl Iterator<Item = &SafetyValue> {
+        match self {
+            Self::Value(value) | Self::Length(value) => std::iter::once(value),
         }
     }
 }

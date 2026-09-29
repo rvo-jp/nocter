@@ -133,7 +133,7 @@ impl BodyChecker<'_, '_> {
         }
     }
 
-    fn type_may_carry_mutable_alias(
+    pub(super) fn type_may_carry_mutable_alias(
         &self,
         ty: Option<TypeId>,
         visiting: &mut BTreeSet<TypeId>,

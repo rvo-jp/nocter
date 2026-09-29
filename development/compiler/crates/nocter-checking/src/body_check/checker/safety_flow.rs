@@ -9,6 +9,7 @@ use crate::{
     PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveComparisonRelation, StaticDispatch,
 };
 
+mod loops;
 mod mutation;
 mod order;
 

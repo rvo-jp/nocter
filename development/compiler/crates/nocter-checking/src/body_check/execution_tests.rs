@@ -342,6 +342,50 @@ fn bounds_proof_does_not_escape_a_join_and_mutable_storage_requires_invalidation
 }
 
 #[test]
+fn loop_safety_uses_repeated_invariants_instead_of_first_iteration_facts() {
+    check(
+        "notrap func valid(values: [i32; 2], input: usize): void {\n\
+             var index = input\n\
+             while index < 2 {\n\
+                 let observed = values[index]\n\
+                 index = index + 1\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    let repeated = check(
+        "notrap func invalid(values: [i32; 2], enter: bool): void {\n\
+             var index: usize = 0\n\
+             if index >= 2 { return }\n\
+             while enter {\n\
+                 let observed = values[index]\n\
+                 index = 2\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(repeated.rule(), Some(BodyRule::NoTrapContractViolation));
+
+    let exit = check(
+        "notrap func invalid(values: [i32; 2], input: usize): i32 {\n\
+             var observed = input\n\
+             if observed >= 2 { return 0 }\n\
+             var iteration: usize = 0\n\
+             while iteration < 1 {\n\
+                 observed = 2\n\
+                 iteration = iteration + 1\n\
+             }\n\
+             return values[observed]\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(exit.rule(), Some(BodyRule::NoTrapContractViolation));
+}
+
+#[test]
 fn trap_facts_propagate_through_calls_and_structural_contracts() {
     let error = check(
         "func increment(value: i32): i32 { return value + 1 }\n\

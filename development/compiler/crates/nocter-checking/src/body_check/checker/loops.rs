@@ -27,11 +27,15 @@ impl BodyChecker<'_, '_> {
             has_break: false,
             break_flows: Vec::new(),
         });
+        let entry_flow = self.safety_flow.clone();
+        let mut repeated_condition_flow = None;
         let kind = match self.kind(statement)? {
             NodeKind::WhileStatement => {
+                self.safety_flow = self.loop_safety_invariant(&entry_flow);
                 let condition = self.required_child(statement, NodeKind::Expression)?;
                 let condition =
                     self.check_expression(condition, Some(self.types.builtin(BuiltinType::Bool)))?;
+                repeated_condition_flow = Some(self.safety_flow.clone());
                 LoopKind::While { condition }
             }
             NodeKind::LoopStatement => LoopKind::Infinite,
@@ -44,7 +48,8 @@ impl BodyChecker<'_, '_> {
             .names
             .block_scope(block)
             .ok_or(BodyCheckInternalError::MissingBlockScope(block))?;
-        let continuation_flow = self.safety_flow.clone();
+        let repetition_flow = repeated_condition_flow
+            .unwrap_or_else(|| self.loop_safety_invariant(&self.safety_flow));
         let while_condition = match &kind {
             LoopKind::While { condition } => self.safety_condition(*condition),
             LoopKind::Infinite
@@ -55,13 +60,13 @@ impl BodyChecker<'_, '_> {
             | LoopKind::KeyedArgumentPack { .. } => None,
         };
         self.safety_flow = match &kind {
-            LoopKind::While { .. } => continuation_flow.branch(while_condition.as_ref(), true),
+            LoopKind::While { .. } => repetition_flow.branch(while_condition.as_ref(), true),
             LoopKind::Infinite
             | LoopKind::Range { .. }
             | LoopKind::For { .. }
             | LoopKind::ForAwait { .. }
             | LoopKind::ArgumentPack { .. }
-            | LoopKind::KeyedArgumentPack { .. } => continuation_flow.clone(),
+            | LoopKind::KeyedArgumentPack { .. } => repetition_flow.clone(),
         };
         let body = self.check_block(
             block,
@@ -74,14 +79,14 @@ impl BodyChecker<'_, '_> {
         let mut exit_flows = frame.break_flows;
         match &kind {
             LoopKind::While { .. } => {
-                exit_flows.push(continuation_flow.branch(while_condition.as_ref(), false));
+                exit_flows.push(repetition_flow.branch(while_condition.as_ref(), false));
             }
             LoopKind::Infinite => {}
             LoopKind::Range { .. }
             | LoopKind::For { .. }
             | LoopKind::ForAwait { .. }
             | LoopKind::ArgumentPack { .. }
-            | LoopKind::KeyedArgumentPack { .. } => exit_flows.push(continuation_flow),
+            | LoopKind::KeyedArgumentPack { .. } => exit_flows.push(repetition_flow),
         }
         self.safety_flow = super::safety_flow::SafetyFlowState::join(exit_flows);
         let ty = match &kind {
