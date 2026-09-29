@@ -60,11 +60,13 @@ construct ViewIter<T> {
 }
 
 instance ViewIter<T> {
-    noalloc method &self.remaining_len(): usize {
-        return self.view.len() - self.next_index
+    noalloc notrap method &self.remaining_len(): usize {
+        let view_len = self.view.len()
+        if self.next_index >= view_len { return 0 }
+        return view_len - self.next_index
     }
 
-    noalloc method &+self.next(): &T? {
+    noalloc notrap method &+self.next(): &T? {
         if self.next_index >= self.view.len() {
             return none
         }

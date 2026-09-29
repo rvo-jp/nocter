@@ -154,6 +154,10 @@ pub struct EmptyIter<T>
 instance EmptyIter<T> {
     impl ExactSizeIterator
     impl Iterator { .Item = T }
+
+    pub noalloc notrap method &self.remaining_len(): usize
+
+    pub noalloc notrap method &+self.next(): T?
 }
 
 /// An iterator that owns at most one unconsumed item.
@@ -162,13 +166,17 @@ pub struct OnceIter<T>
 instance OnceIter<T> {
     impl ExactSizeIterator
     impl Iterator { .Item = T }
+
+    pub noalloc notrap method &self.remaining_len(): usize
+
+    pub noalloc notrap method &+self.next(): T?
 }
 
 /// Creates an iterator that yields no items.
-pub noalloc func empty<T>(): EmptyIter<T>
+pub noalloc notrap func empty<T>(): EmptyIter<T>
 
 /// Creates an iterator that yields `item` exactly once.
-pub noalloc func once<T>(item: T): OnceIter<T>
+pub noalloc notrap func once<T>(item: T): OnceIter<T>
 
 /// A forward cursor over readonly borrows into contiguous storage.
 pub struct ViewIter<T>
@@ -179,6 +187,10 @@ pub struct MutableViewIter<T>
 instance MutableViewIter<T> {
     impl ExactSizeIterator
     impl Iterator { .Item = &+T }
+
+    pub noalloc notrap method &self.remaining_len(): usize
+
+    pub noalloc notrap method &+self.next(): &+T?
 }
 
 construct MutableViewIter<T> {
@@ -194,4 +206,8 @@ construct ViewIter<T> {
 instance ViewIter<T> {
     impl ExactSizeIterator
     impl Iterator { .Item = &T }
+
+    pub noalloc notrap method &self.remaining_len(): usize
+
+    pub noalloc notrap method &+self.next(): &T?
 }

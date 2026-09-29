@@ -4,7 +4,7 @@ see ./index.nct
 
 use /ptr
 
-noalloc func replace_value<T>(place: &+T, replacement: T): T {
+noalloc notrap func replace_value<T>(place: &+T, replacement: T): T {
     let pointer = ptr.from_ref_mut(place)
     let previous: T = take_value_at_ptr(pointer, 0)
     store_value_to_ptr(pointer, 0, move replacement)

@@ -26,21 +26,24 @@ struct TextWindow {
     end: usize
 }
 
-noalloc func advance_exact(cursor: &+ByteCursor, count: usize): bool {
-    if count > cursor.input.len() - cursor.next_offset { return false }
-    cursor.next_offset += count
+noalloc notrap func advance_exact(cursor: &+ByteCursor, count: usize): bool {
+    let input_len = cursor.input.len()
+    if cursor.next_offset > input_len { return false }
+    if count > input_len - cursor.next_offset { return false }
+    let next_offset = cursor.next_offset.checked_add(count) otherwise { return false }
+    cursor.next_offset = next_offset
     return true
 }
 
 construct ByteWindow {
-    noalloc func get(input: &[u8], start: usize, end: usize): Self? from input {
+    noalloc notrap func get(input: &[u8], start: usize, end: usize): Self? from input {
         if start > end || end > input.len() { return none }
         return ByteWindow { input: input, start: start, end: end }
     }
 }
 
 construct TextWindow {
-    noalloc func get(input: &str, start: usize, end: usize): Self? from input {
+    noalloc notrap func get(input: &str, start: usize, end: usize): Self? from input {
         if start > end || !input.is_char_boundary(start) || !input.is_char_boundary(end) {
             return none
         }
@@ -49,11 +52,12 @@ construct TextWindow {
 }
 
 instance ByteWindow {
-    noalloc method &self.offset(): usize {
+    noalloc notrap method &self.offset(): usize {
         return self.start
     }
 
-    noalloc method &self.len(): usize {
+    noalloc notrap method &self.len(): usize {
+        if self.start >= self.end { return 0 }
         return self.end - self.start
     }
 
@@ -65,11 +69,12 @@ instance ByteWindow {
 }
 
 instance TextWindow {
-    noalloc method &self.offset(): usize {
+    noalloc notrap method &self.offset(): usize {
         return self.start
     }
 
-    noalloc method &self.len(): usize {
+    noalloc notrap method &self.len(): usize {
+        if self.start >= self.end { return 0 }
         return self.end - self.start
     }
 
@@ -81,22 +86,24 @@ instance TextWindow {
 }
 
 construct ByteCursor {
-    noalloc func new(input: &[u8]): Self from input {
+    noalloc notrap func new(input: &[u8]): Self from input {
         return ByteCursor { input: input, next_offset: 0 }
     }
 }
 
 instance ByteCursor {
-    noalloc method &self.offset(): usize {
+    noalloc notrap method &self.offset(): usize {
         return self.next_offset
     }
 
-    noalloc method &self.remaining_len(): usize {
-        return self.input.len() - self.next_offset
+    noalloc notrap method &self.remaining_len(): usize {
+        let input_len = self.input.len()
+        if self.next_offset >= input_len { return 0 }
+        return input_len - self.next_offset
     }
 
-    noalloc method &self.is_finished(): bool {
-        return self.next_offset == self.input.len()
+    noalloc notrap method &self.is_finished(): bool {
+        return self.next_offset >= self.input.len()
     }
 
     noalloc method &self.remaining(): &[u8] from self {
@@ -105,12 +112,12 @@ instance ByteCursor {
         }
     }
 
-    noalloc method &self.peek(): u8? {
-        if self.is_finished() { return none }
+    noalloc notrap method &self.peek(): u8? {
+        if self.next_offset >= self.input.len() { return none }
         return self.input[self.next_offset]
     }
 
-    noalloc method &+self.take(count: usize): ByteWindow? from self {
+    noalloc notrap method &+self.take(count: usize): ByteWindow? from self {
         let start = self.next_offset
         if !advance_exact(self, count) { return none }
         let end = self.next_offset
@@ -129,22 +136,24 @@ instance ByteCursor {
 }
 
 construct TextCursor {
-    noalloc func new(input: &str): Self from input {
+    noalloc notrap func new(input: &str): Self from input {
         return TextCursor { input: input, next_offset: 0 }
     }
 }
 
 instance TextCursor {
-    noalloc method &self.offset(): usize {
+    noalloc notrap method &self.offset(): usize {
         return self.next_offset
     }
 
-    noalloc method &self.remaining_len(): usize {
-        return self.input.len() - self.next_offset
+    noalloc notrap method &self.remaining_len(): usize {
+        let input_len = self.input.len()
+        if self.next_offset >= input_len { return 0 }
+        return input_len - self.next_offset
     }
 
-    noalloc method &self.is_finished(): bool {
-        return self.next_offset == self.input.len()
+    noalloc notrap method &self.is_finished(): bool {
+        return self.next_offset >= self.input.len()
     }
 
     noalloc method &self.remaining(): &str from self {
@@ -153,19 +162,21 @@ instance TextCursor {
         }
     }
 
-    noalloc method &self.get_range(start: usize, end: usize): &str? from self {
+    noalloc notrap method &self.get_range(start: usize, end: usize): &str? from self {
         return self.input.get_range(start, end)?
     }
 
-    noalloc method &self.byte_at(index: usize): u8? {
+    noalloc notrap method &self.byte_at(index: usize): u8? {
         if index >= self.input.len() { return none }
         return self.input[index]
     }
 
-    noalloc method &+self.take_bytes(count: usize): TextWindow? from self {
-        if count > self.remaining_len() { return none }
+    noalloc notrap method &+self.take_bytes(count: usize): TextWindow? from self {
+        let input_len = self.input.len()
         let start = self.next_offset
-        let end = start + count
+        if start > input_len { return none }
+        if count > input_len - start { return none }
+        let end = start.checked_add(count) otherwise { return none }
         if !self.input.is_char_boundary(end) { return none }
         self.next_offset = end
         return TextWindow { input: self.input, start: start, end: end }

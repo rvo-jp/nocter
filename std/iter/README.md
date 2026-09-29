@@ -21,6 +21,9 @@ Readonly view iteration retains the source view's storage provenance, and each y
 borrow carries that same origin. Readwrite view iteration retains one exclusive view and exposes one
 exclusive element borrow at a time. Owning Vec iteration yields elements in source order; dropping
 it destroys unconsumed elements in reverse order and releases the transferred storage exactly once.
+Constructing either view iterator, observing its remaining length, and advancing its checked cursor
+are `noalloc notrap`. The empty and one-item sources provide the same guarantee for their closed
+source operations.
 
 Default terminal implementations allocate no collection of their own, but selected `next`,
 callback, comparison, and item-destruction implementations may allocate. They therefore do not

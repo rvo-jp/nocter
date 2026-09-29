@@ -6,24 +6,24 @@ see ./adapters.nct
 use /internal/ptr
 
 /// Constructs an empty iterator.
-noalloc func empty<T>(): EmptyIter<T> {
+noalloc notrap func empty<T>(): EmptyIter<T> {
     return EmptyIter<T> {}
 }
 
 instance EmptyIter<T> {
     /// Returns zero because no item can be yielded.
-    noalloc method &self.remaining_len(): usize {
+    noalloc notrap method &self.remaining_len(): usize {
         return 0
     }
 
     /// Returns `none` for every call.
-    noalloc method &+self.next(): T? {
+    noalloc notrap method &+self.next(): T? {
         return none
     }
 }
 
 /// Constructs an iterator that yields `item` once.
-noalloc func once<T>(item: T): OnceIter<T> {
+noalloc notrap func once<T>(item: T): OnceIter<T> {
     return OnceIter<T> {
         item: move item,
         remaining: 1,
@@ -32,12 +32,12 @@ noalloc func once<T>(item: T): OnceIter<T> {
 
 instance OnceIter<T> {
     /// Returns one while the item remains and zero after it is yielded.
-    noalloc method &self.remaining_len(): usize {
+    noalloc notrap method &self.remaining_len(): usize {
         return self.remaining
     }
 
     /// Transfers the owned item once, then returns `none`.
-    noalloc method &+self.next(): T? {
+    noalloc notrap method &+self.next(): T? {
         if self.remaining == 0 {
             return none
         }

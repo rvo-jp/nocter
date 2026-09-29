@@ -12,7 +12,7 @@ struct Chars {
 }
 
 construct Chars {
-    noalloc func new(text: &str): Self {
+    noalloc notrap func new(text: &str): Self {
         return Chars { text: text, next_offset: 0 }
     }
 }
@@ -39,7 +39,7 @@ noalloc func char_count(text: &str): usize {
 }
 
 instance str {
-    noalloc method &self.chars(): Chars from self {
+    noalloc notrap method &self.chars(): Chars from self {
         return Chars.new(self)
     }
 

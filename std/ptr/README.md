@@ -8,7 +8,7 @@ The public operations convert an existing raw pointer to its numeric address or 
 raw pointer from a readonly or readwrite borrow. They preserve no ownership and grant no new read,
 write, dereference, or lifetime authority. A pointer derived from a borrow may remain as an address
 value after the borrow ends, but the language does not guarantee that the address still identifies
-valid storage.
+valid storage. These identity projections neither allocate nor introduce a source trap.
 
 For a zero-sized pointee, borrow conversion returns a non-null address satisfying the pointee's
 alignment. Distinct logical places or fixed-array elements may have equal numeric addresses, so

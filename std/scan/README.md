@@ -16,6 +16,12 @@ delimiter remains, they return the complete suffix and finish the cursor.
 Text separator matching uses exact non-empty UTF-8 text. An empty separator fails with
 `std.scan.empty_separator`; it never creates a non-progressing cursor operation.
 
+Direct window selection, cursor construction, offset and remaining-length observation, byte peek,
+exact byte take, absolute text range lookup, and boundary-aligned text take are `noalloc notrap`.
+Invalid caller-supplied bounds are represented by `none`; they are not converted into a process
+trap. Operations that still depend on a private cursor invariant keep their weaker declaration
+until that invariant is structurally represented.
+
 Fixed-width numeric advances delegate byte interpretation to [`std/bytes`](../bytes/README.md).
 Insufficient input returns `none` without advancing. A successful advance consumes exactly the
 encoded width; the cursor does not retain a second byte-order or scalar-decoding implementation.

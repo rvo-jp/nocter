@@ -112,7 +112,7 @@ instance str {
         return lines(self)
     }
 
-    noalloc method &self.bytes_iter(): ViewIter<u8> {
+    noalloc notrap method &self.bytes_iter(): ViewIter<u8> {
         return ViewIter.from_view(bytes_from_str(self))
     }
 }

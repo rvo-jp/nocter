@@ -59,11 +59,11 @@ instance Vec<T> {
         return into_iter(move self)
     }
 
-    noalloc method &self.iter(): ViewIter<T> {
+    noalloc notrap method &self.iter(): ViewIter<T> {
         return ViewIter.from_view(view(self))
     }
 
-    noalloc method &+self.iter_mut(): MutableViewIter<T> {
+    noalloc notrap method &+self.iter_mut(): MutableViewIter<T> {
         return MutableViewIter.from_view(view_mut(self))
     }
 

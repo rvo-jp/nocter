@@ -17,11 +17,11 @@ pub(/) noalloc primitive func copy_ptr_to_ptr(destination: *u8, source: *u8, byt
 
 pub(/) noalloc primitive func store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
 
-pub(/) noalloc primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+pub(/) noalloc notrap primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 
 pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
 
-pub(/) noalloc primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+pub(/) noalloc notrap primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
 
 /// Moves one initialized value whose retained storage is bounded by `owner`.
 ///
@@ -33,7 +33,7 @@ pub(/) noalloc primitive func take_value_at_ptr_from_owner<T, O>(
 ): T from owner
 
 /// Replaces one initialized value without exposing an uninitialized place to its caller.
-pub(/) noalloc func replace_value<T>(place: &+T, replacement: T): T
+pub(/) noalloc notrap func replace_value<T>(place: &+T, replacement: T): T
 
 /// Exchanges two initialized slice elements, or returns false without mutation for invalid indices.
 pub(/) noalloc func swap_slice_values<T>(values: &+[T], left: usize, right: usize): bool

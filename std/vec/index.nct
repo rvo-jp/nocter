@@ -78,10 +78,10 @@ instance Vec<T> {
     pub operator (...self): VecIntoIter<T>
 
     /// Returns the readonly iterator explicitly for method-chain construction.
-    pub noalloc method &self.iter(): ViewIter<T>
+    pub noalloc notrap method &self.iter(): ViewIter<T>
 
     /// Returns the readwrite iterator explicitly for mutation algorithms.
-    pub noalloc method &+self.iter_mut(): MutableViewIter<T>
+    pub noalloc notrap method &+self.iter_mut(): MutableViewIter<T>
 
     /// Returns the owning iterator explicitly for method-chain construction.
     pub method self.into_iter(): VecIntoIter<T>
