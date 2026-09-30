@@ -3,17 +3,17 @@
 ## Current State
 
 Nocter v0.72.0 Flow-Proven Safe Operations is published and externally audited. v0.73.0 Relational
-Safety and Verified Traversal is a release candidate. Relational facts, place-sensitive
+Safety and Verified Traversal is a qualified release candidate. Relational facts, place-sensitive
 invalidation, repeatable loop invariants, borrowed range construction, verified traversal
-adoption, and the cross-stage implementation audit are complete. Linux target work remains
-deliberately deferred.
+adoption, the cross-stage implementation audit, and installed-artifact qualification are complete.
+Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Qualify the exact v0.73.0 release-content commit through the complete compiler gate, two
-deterministic package builds, and the installed-home gate. Record the retained archive identity,
-then stop before publication. Do not reopen v0.72.0; preserve its checked safety dispositions,
-qualified artifact, public tag, and external audit as one immutable boundary.
+Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
+commit and upload the retained qualified archive without rebuilding it, then record an independent
+post-publication audit. Do not reopen v0.72.0; preserve its checked safety dispositions, qualified
+artifact, public tag, and external audit as one immutable boundary.
 
 Preserve the v0.72.0 release-content commit, publication tag, retained asset, release notes,
 specification snapshot, and audit without replacement. Any correction to a published artifact
