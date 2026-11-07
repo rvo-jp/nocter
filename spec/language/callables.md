@@ -438,3 +438,52 @@ The current language does not include implementation inheritance, general interf
 dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
 sorting, extension declarations, or implicit interface implementation. Interface prerequisite
 contracts are defined by [Generics and Interfaces](generics-and-interfaces.md#interface-prerequisites).
+
+## Future Direction: v2.0.0 Value Access Callables
+
+The v2.0.0 [Value Access Model](value-access.md) separates environment invocation permission from
+parameter permissions and result permission. This section replaces the current capability
+spellings only at that future boundary.
+
+| Structural callable form | Environment invocation |
+| --- | --- |
+| `func(...)` | Repeated input/read invocation |
+| `&func(...)` | Repeated update invocation |
+| `^func(...)` | Consuming invocation |
+
+The result marker is independently placed immediately before the parameter list, in the position
+left by omitting a callable name. No result marker means I; `&` means U; `^` means X:
+
+```text
+func(): usize
+func ^(u64): File!
+&func ^(u64): File!
+^func ^(u64): File!
+func &(&buffer: Buffer): [u8]
+```
+
+Thus `^func(...)` does not promise an owned result, and `func ^(...)` does not consume the
+environment. All nine environment/result pairs have a recognition form; validity also requires
+the relevant origins and permissions. A consuming callable cannot return access into a capture
+destroyed by consuming its environment.
+
+An annotation, interface witness, generic forwarding operation, or erased callable must preserve
+these independent facts and the result-origin bounds. It cannot replace an unavailable input
+permission by inspecting a body, erase carried dependencies, or choose a mode from the caller's
+last use. Static specialization does not change the selected source contract.
+
+For matching I-result callables with the same result data type, a receiving boundary with Copy
+evidence can materialize the returned read access as an independent Copy answer. This is a checked
+copy operation, not permission substitution: environment/parameter/result modes stay unchanged,
+and dependencies carried inside the copied payload and its storage requirements must still fit
+the receiving contract. A U result cannot be detached this way, and an X result cannot be silently
+reclassified as I. The original callable's generic body and origin contract remain unchanged.
+
+An expected callable contract supplies a closure's result mode before checking its body. Without
+that context, inference must establish one result protocol from its checked returns; later uses
+cannot retroactively select another. A conflicting or underdetermined body needs an ordinary
+callable annotation or named declaration, not a new result keyword.
+
+Do not retain `&+func`, a result prefix beside the return type, or use-site result assertions as
+alternative v2.0.0 styles. Exact source recognition belongs to the
+[future syntax rules](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).

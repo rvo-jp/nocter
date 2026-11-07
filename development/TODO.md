@@ -66,8 +66,19 @@ now selects payload versus carrier authority, origin retention, normal cleanup b
 handoff, active-branch dependencies, generic/interface forwarding, and async output/cancellation.
 Ordinary `return` does not suspend an accessor or extend local guards; return an owned guard when
 it must survive. The new finite result handoff exploration is separate from the original root
-model and does not prove the general model. Next formalize Copy/generic result origins, delegated
-access, joins, and checked cleanup validation, then migrate the owning specification contracts.
+model and does not prove the general model. The
+[typing/migration review](history/reviews/v2.0.0-access-typing.md) now records the boundary recipe
+and the first owning Future Direction sections. The [future value-access chapter](../spec/language/value-access.md)
+owns core operations, Copy materialization, bindings, and return handoff; related chapters own
+future origins, callable modes, unit, and syntax fragments. Copy removes source-place access only
+for the new value, preserving payload/region dependencies and any other live source access.
+Generic source operations use declared Copy evidence, not a later specialization's capabilities.
+The finite typing check passes 3,648 attempts / 588 accepted results / 2,304 specialization checks
+and rejects nine invalid-result mutants. It does not verify general CFGs, reborrowing, type
+constructors, or compiler behavior. Next complete general delegated-access/join/cleanup validation
+and migrate outcome/async, captures, and full type/precedence contracts without mixing old/new
+compiler semantics. Keep the remaining module/construction, effects/CTFE, platform, and tooling
+migration gates explicit rather than claiming all of v2.0.0 is specified.
 The [structural callable result-mode decision](history/reviews/v2.0.0-source-design-decisions.md#structural-callable-result-modes)
 adopts `func ^(...)` in the omitted-name position, independently of environment invocation prefixes.
 No recorded source choice in S1–S6, R1–R3, or this follow-up remains pending. Follow the readiness review's

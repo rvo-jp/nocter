@@ -1193,3 +1193,54 @@ restrictions do not make parsing depend on name or type resolution.
 bare `[elements]` remains a fixed-size array. A mapping body has no spread production.
 The complete ownership and ABI rules live in
 [Argument Packs, Literal Definitions, and Sequence Spread](literals-and-packs.md).
+
+## Future Direction: v2.0.0 Access Syntax
+
+These fragments define the adopted access/result positions for v2.0.0, separately from the
+current complete grammar above. They do not claim that every unrelated v2.0.0 item, outcome,
+module, or deferred-type production has already replaced the current grammar.
+
+```text
+V2ParameterMode = "&" | "^"
+V2ResultMode = "&" | "^"
+V2InvocationMode = "&" | "^"
+
+V2NamedFunctionHead = "func" V2ResultMode? Name
+V2MethodHead = "method" V2ParameterMode? Name "." V2ResultMode? Name
+V2Parameter = "..."? V2ParameterMode? Name ":" V2Type ProvenanceClause?
+
+V2CallableType = CompileTimeModifier? V2InvocationMode? "func" V2ResultMode?
+                 "(" List(V2CallableParameter) ")" ":" V2Type ProvenanceClause?
+V2ErasedCallableType = "any" V2CallableType
+V2CallableParameter = "..."? V2ParameterMode? (Name ":" V2Type | V2Type)
+                      ProvenanceClause?
+
+V2UnitExpression = "(" ")"
+V2TransferExpression = "^" V2TransferPlace
+```
+
+`V2Type` and `V2TransferPlace` refer to the corresponding future type/place contracts; these
+fragments do not reintroduce current first-class borrow types through the metavariable. Function
+heads are followed by their ordinary generic parameters, parameters, result, and body/contract
+tail; method heads similarly precede the ordinary tail. No `pub`, `noalloc`, `notrap`, or
+`blocking` modifier is restored by reusing a current enclosing production.
+
+The parameter marker precedes the name, or the type when a structural parameter name is omitted.
+The invocation marker precedes `func`; the result marker follows `func` and immediately precedes
+the parameter list when the callable has no name. These positions are recognized without name
+or type resolution. For example, `^func ^(u64): File!` has distinct consuming-environment and
+owning-result markers. `func(u64): ^File!` is not an alternative placement.
+
+An unmarked call has neither receiver `.&`/`.^` nor direct argument-mode assertions. This does not
+remove the separate `^place` operation in ordinary binding/storage/return expressions, and a fresh
+owned call result does not need that operation. Parsing and validation must not turn a redundant
+direct call marker into another accepted spelling of the same invocation.
+
+For parentheses, a closure head followed by its optional result annotation and a block selects
+the closure. Otherwise empty `()` selects unit, a single parenthesized expression selects grouping,
+and a comma-separated list selects a tuple. Delimiter and statement-boundary recognition decides
+these forms before type checking. Unit introduces no zero-element tuple type.
+
+Permission, initialized-place, Copy, result-origin, and cleanup checks follow recognition under the
+[Value Access Model](value-access.md). The full v2.0.0 expression-precedence and remaining-type
+grammar must be completed coherently before replacing the current grammar.

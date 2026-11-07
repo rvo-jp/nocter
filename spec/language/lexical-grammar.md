@@ -614,3 +614,15 @@ The following lexical features are intentionally unsupported:
 - raw string literals
 - Unicode escapes outside character literals
 - attribute syntax
+
+## Future Direction: v2.0.0 Access Tokens
+
+For v2.0.0 value-access syntax, `^` is punctuation used by declaration modes and standalone owned
+transfer. `&` denotes update in the designated declaration/access positions; it no longer introduces
+an ordinary readonly borrow type. `&func` and `^func` each consist of a punctuation token followed
+by the `func` keyword, not compound lexical tokens.
+
+`()` consists of the ordinary `(` and `)` tokens. Unit versus closure recognition is syntactic.
+No type lookup changes tokenization or selects an operator meaning. The current lexical rules
+above continue to describe the released language; this section alone does not admit a new
+general-purpose binary `^` operation or split retired `&+` access syntax into a new valid form.

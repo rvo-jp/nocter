@@ -434,3 +434,33 @@ The full literal and sequence rules live in
 - dynamic allocator interface dispatch or arbitrary user allocator plugins
 - concurrency or thread-local context semantics
 - a native backend other than `arm64-darwin`
+
+## Future Direction: v2.0.0 Value Access Origins
+
+The future [Value Access Model](value-access.md) keeps origin containment separate from access
+authority. Its `from` contract remains an upper bound over existing value bindings, not a new
+lifetime name, permission grant, or reason to keep a local resource alive.
+
+An owned result can carry allocation/region requirements without borrowing the allocator as an
+exclusive caller place. An owned closure or future can also carry outside access dependencies.
+Copy materialization preserves those contained dependencies and storage requirements; it removes
+only access to the old containing place when a separate copied value is created.
+
+Resolve receiver and parameter identities before origin relations. Fresh independent storage,
+static storage, and ordinary independent Copy answers need no caller-managed source place.
+A retained I/U result needs surviving eligible storage, and U additionally needs update authority.
+One eligible source can be elided. Multiple eligible sources require a stable explicit public
+bound unless independence is established by the contract; a private body cannot supply the missing
+meaning for a bodyless public declaration.
+
+Owned locals, temporaries, consumed parameters, and consumed environment storage that end at return
+are not eligible escaping access origins. Their already-contained relationships to genuinely
+outside owners can be forwarded only when those owners and access identities remain valid.
+
+An abstract associated result explicitly bounded by a receiver retains that invocation dependency.
+Substitution with a Copy concrete type does not erase the bound by itself. A separate checked Copy
+operation can discharge the source-place access while retaining dependencies inside its payload.
+Wrapping a dependent value in an aggregate or erasing a callable cannot hide its origins.
+
+These rules do not make allocation, failure, cleanup, or address observations unobservable. They
+do not introduce automatic region extension or resource-lifetime repair.
