@@ -617,6 +617,11 @@ The following lexical features are intentionally unsupported:
 
 ## Future Direction: v2.0.0 Access Tokens
 
+The following placement descriptions are the pre-S8 baseline. The adopted
+[type-side direction](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
+requires new declaration/callable/local productions; it does not introduce compound `&T` or `^T`
+lexical tokens. Keep tokenization separate from the still-unfinished qualified-type grammar.
+
 For v2.0.0 value-access syntax, `^` is punctuation used by declaration modes and standalone owned
 transfer. `&` denotes update in the designated declaration/access positions; it no longer introduces
 an ordinary readonly borrow type. `&func` and `^func` each consist of a punctuation token followed

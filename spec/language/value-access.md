@@ -7,6 +7,13 @@ released contract. Current ownership rules remain in [Ownership, Borrowing, and 
 This future chapter owns operation permissions, Copy materialization, access bindings, and result
 handoff; it does not introduce a second current-language borrowing syntax.
 
+**Source migration pending:** the subsequently adopted
+[type-side direction S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
+moves access qualifiers to types. Identifier-side examples and the fixed-mode local binding
+syntax below are the pre-S8 baseline, not alternative spellings. Their operation, initialization,
+dependency, and cleanup obligations remain the semantic basis. Complete qualified-type inference,
+receiver/capture/callable recognition, and coherent replacement grammar remain unfinished.
+
 ### Ownership, Access, and Dependencies
 
 An owned value has one initialized owning place responsible for its eventual transfer or cleanup.

@@ -1196,9 +1196,12 @@ The complete ownership and ABI rules live in
 
 ## Future Direction: v2.0.0 Access Syntax
 
-These fragments define the adopted access/result positions for v2.0.0, separately from the
-current complete grammar above. They do not claim that every unrelated v2.0.0 item, outcome,
-module, or deferred-type production has already replaced the current grammar.
+These fragments record the pre-S8 access/result positions, separately from the current complete
+grammar above. The subsequent [type-side direction S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
+supersedes their identifier-side permission positions and requires a replacement qualified-type,
+receiver/capture/callable, and local-inference grammar. Do not implement these fragments as the
+selected v2.0.0 source grammar or retain them as optional aliases. They also do not claim that
+unrelated v2.0.0 item, outcome, module, or deferred-type productions are complete.
 
 ```text
 V2ParameterMode = "&" | "^"

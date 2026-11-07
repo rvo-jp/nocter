@@ -441,6 +441,12 @@ contracts are defined by [Generics and Interfaces](generics-and-interfaces.md#in
 
 ## Future Direction: v2.0.0 Value Access Callables
 
+**Source migration pending:** [S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
+supersedes the result placement below with type-side qualifiers, such as `func(u64): ^File!`.
+The following forms record the pre-S8 baseline. They are not alternate accepted styles.
+Callable-value access, environment invocation, and result access must remain independent; the
+old `^func` invocation prefix collides with outer type qualification and needs a replacement grammar.
+
 The v2.0.0 [Value Access Model](value-access.md) separates environment invocation permission from
 parameter permissions and result permission. This section replaces the current capability
 spellings only at that future boundary.
