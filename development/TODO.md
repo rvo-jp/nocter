@@ -23,8 +23,14 @@ Audit the derived-ordering selector/text discrepancy separately; the planning fi
 authorize altering qualified or published artifacts. Retain separate `func`/`method` calls without
 UFCS and both outer/inner `impl` roles.
 
+Close the newly adopted evaluator expansion, opaque return contract/body separation, and removal
+of `noalloc`, `notrap`, and `blocking` through inferred effects. Preserve nonblocking future safety
+and checked execution. Specify representation freedom and later-stage proof obligations before
+changing fixed layouts, frame allocation, or stage boundaries. Lifetime automation remains a static
+inference investigation; do not adopt implicit cloning, ARC/GC, or general implicit moves.
+
 Use the milestone for the complete adopted scope, pending grammar questions, and conformance gates,
-including constant eligibility, tuple bindings, directive grouping, capture inference, and explicit
+including expanded constant evaluation, tuple bindings, directive grouping, capture inference, and explicit
 callable arguments. Do not treat remaining ownership-model or syntax proposals as adopted work.
 
 Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
