@@ -16,8 +16,9 @@ execution. Preserve adopted contracts and safety/resource requirements; record d
 research evidence, counterexamples, proof obligations, and distinguishing cases in the v2.0.0
 plan/review. Consult only on source-design alternatives needing human evaluation of writing,
 reading, or learning. Call omission, owned-capture/callable forms, interface disambiguation,
-`throw`, construction entries, and S2's callable-name result mode with unmarked use sites are
-selected. All six principal source directions and `throw reason` without an extra `^` are adopted.
+`throw`, construction entries, and S2's callable-name result mode with unmarked calls are selected.
+S7 now adopts `let name`, `let &name`, and `let ^name`, removing `var` and superseding S2's
+inferred-local policy. All seven source directions and `throw reason` without an extra `^` are adopted.
 The follow-ups also adopt ordinary `some(...)` and the `()` unit literal while retaining ordinary
 optional injection and implicit unit completion. No R1–R3 spelling choice remains pending.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
@@ -46,9 +47,11 @@ S5 adopts interface implementation maps for real binding/default/collision decis
 S4 and its follow-up R1 adopt `throw reason`; the failure exit supplies transfer without extra `^`.
 S6 adopts construction functions and `literal { field_names }` as public structural initializer
 grants; public fields alone do not grant construction or announce a complete representation.
-S2 adopts `func ^open(...)` / corresponding method result prefixes and contract-derived calls
-and bindings. A binding receiving an owned result retains ownership without another assertion.
-Standalone transfer in returns/storage stays explicit. The model's six semantic decisions are adopted: independent owned
+S2 retains `func ^open(...)` / corresponding method result prefixes and contract-derived calls.
+S7 makes local markers binding operations: I never becomes X because of Copy; U updates its
+original place; X owns writable/replaceable/transferable/reinitializable storage. No immutable-owned
+local or separate `var` remains. Fresh X results require X locals. Destination ownership is not a
+source move: retain `let ^next = ^previous` and explicit transfers in returns/storage. The model's six semantic decisions are adopted: independent owned
 storage and uniform transfer across copyability; owned-parameter update permission without a new
 mutable local and no automatic failure rollback; left-to-right preparation/reservation before
 invocation-time transfer/update; explicit projection dependencies; deferred access and ownership
@@ -73,18 +76,20 @@ owns core operations, Copy materialization, bindings, and return handoff; relate
 future origins, callable modes, unit, and syntax fragments. Copy removes source-place access only
 for the new value, preserving payload/region dependencies and any other live source access.
 Generic source operations use declared Copy evidence, not a later specialization's capabilities.
-The finite typing check passes 3,648 attempts / 588 accepted results / 2,304 specialization checks
-and rejects nine invalid-result mutants. It does not verify general CFGs, reborrowing, type
+The revised finite typing check passes 4,864 attempts / 860 accepted results / 3,072 specialization
+checks and 1,152 Copy-independent I/U binding checks. It rejects 11 invalid-result mutants and
+four invalid-assignment mutants, checking six assignment cases and one X-slot transfer/reinitialization.
+It does not verify general CFGs, reborrowing, type
 constructors, or compiler behavior. Next complete general delegated-access/join/cleanup validation
 and migrate outcome/async, captures, and full type/precedence contracts without mixing old/new
 compiler semantics. Keep the remaining module/construction, effects/CTFE, platform, and tooling
 migration gates explicit rather than claiming all of v2.0.0 is specified.
 The [structural callable result-mode decision](history/reviews/v2.0.0-source-design-decisions.md#structural-callable-result-modes)
 adopts `func ^(...)` in the omitted-name position, independently of environment invocation prefixes.
-No recorded source choice in S1–S6, R1–R3, or this follow-up remains pending. Follow the readiness review's
+No recorded source choice in S1–S7, R1–R3, or this follow-up remains pending. Follow the readiness review's
 [remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
-Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
-or choose ownership from copy/move implementation history. The
+Do not restore the superseded inferred-local/Copy-switching policy, optional callee assertions,
+`var`, or the unadopted `with` block. Do not choose ownership from copy/move implementation history. The
 [outcome and unit source decisions](history/reviews/v2.0.0-source-design-decisions.md#outcome-and-unit-source-decisions)
 adopt `throw reason`, ordinary `some(...)`, and the `()` unit literal. Preserve
 `let a: i32? = 10` and implicit unit completion; do not reopen these choices as approval blockers.

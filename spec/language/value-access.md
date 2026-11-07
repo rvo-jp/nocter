@@ -96,8 +96,9 @@ Without Copy evidence the call is invalid; it cannot extract the caller's origin
 insert a clone. This rule does not require an otherwise unnecessary intermediate local.
 
 ```text
-let second = first   // independent Copy; rejects a move-only owned source
-let third = ^first   // transfer; first is unavailable even when its type is Copy
+let read = first      // read access, including when first is Copy
+let ^second = first   // independent Copy; rejects a move-only owned source
+let ^third = ^first   // transfer; first is unavailable even when its type is Copy
 ```
 
 `^place` transfers an existing owned place into standalone storage/return expressions. A fresh
@@ -119,56 +120,78 @@ impl Buffer {
 
 An unmarked name provides I, `&name` provides U, and `^name` provides X. The marker is part of
 the callable contract, not its lookup name or an overload discriminator. Changing it changes the
-API contract. An ordinary call or binding does not repeat it:
+API contract. Calls omit result assertions. Bindings independently declare their local permission:
 
 ```text
 let input = buffer.bytes()
-let editable = buffer.edit_bytes()
-let owned = buffer.copy_bytes()
+let &editable = buffer.edit_bytes()
+let ^owned = buffer.copy_bytes()
 ```
 
 These are separate examples; simultaneous overlapping input/update access is still invalid.
-Bindings derive their category at initialization:
+Only three local binding forms exist. `var` is not a v2.0.0 binding declaration:
 
-| Initializer result | Binding |
-| --- | --- |
-| Fresh X result or explicit transfer | Own the supplied value, preserving its dependencies |
-| Existing owned place without transfer | Own a permitted Copy; reject if Copy is unavailable |
-| I result with checked Copy materialization | Own that separate Copy, preserving payload dependencies |
-| I result without Copy materialization | Retain input access and its owner dependencies |
-| U result | Retain update access, including when the referent is Copy |
+| Declaration | Local permission | Assignment and ownership |
+| --- | --- | --- |
+| `let name = expression` | I: read only | No update, replacement, or transfer of the referent |
+| `let &name = expression` | U: update original storage | Update/replace the original; no unfilled ownership extraction or retargeting |
+| `let ^name = expression` | X: own a writable value | Update, replace, transfer, and valid reinitialization of its own slot |
 
-When an I result's type is proved Copy at that source checking boundary, an ordinary local
-initializer materializes the Copy. Without such evidence it retains access. Do not make the
-choice from later uses or an optimizer's knowledge. A U initializer does not copy its referent
-and silently lose the promised update relationship.
+These markers select different binding operations; they are not optional assertions of the same
+result mode. They cannot select another overload or manufacture authority. A result contract is
+still authoritative about what the expression supplies. `let name = ^open(...)` is not a callee
+assertion style.
 
-`let` fixes a local binding. An owned `let` cannot be reassigned or updated as writable owned
-storage; an access binding instead retains the permission supplied by its initializer, so a
-fixed U binding can update the original referent. Reassigning an owned binding requires `var`. A
-transferred `let` cannot be reinitialized. Writable `var` storage can be reinitialized only after
-the replacement is fully evaluated and initialization checks succeed.
+An I binding to an initialized existing owned place, I access, or U access retains a read
+relationship. It does not become an owning snapshot when T is Copy. An independently produced
+read/Copy answer, such as a scalar literal or `len()` answer, can instead supply its read-only
+value with no outside referent. A fresh X result requires an X binding; do not create an implicit
+owner with extended resource lifetime just to make an unmarked binding valid.
 
-Assignment to a U access targets its identified caller-owned place, including whole-value
-replacement; it does not retarget the access binding. An I access is not an assignment target.
-Writing `var` does not grant missing update/ownership authority or introduce an operation for
-retargeting an access to another owner. Owned binding reassignment remains a separate case.
+A U binding requires an existing writable owned place or supplied U access. It cannot upgrade I,
+and cannot silently retain a fresh owned temporary as an invisible owner. Its source and required
+structure remain protected for the access's live range.
 
-Binding an I/U result does not manufacture a freely storable reference. Access remains bounded
-by its owners, cannot be stored as an independent T, and cannot acquire ownership from a use-site
-assertion. Persistent relationships require an explicitly owned dependent computation/capability
+An X binding receives a fresh owned result or an explicitly transferred existing owner. It may
+also create an independent permitted Copy from a readable existing value, retaining payload and
+storage dependencies. The destination `^name` specifies ownership permission; standalone `^source`
+specifies the transfer operation. Thus `let ^next = ^previous` transfers an existing owner, while
+`let ^copy = previous` copies only when Copy evidence permits it. These are different operations;
+the binding marker does not silently make a move-only initializer transfer.
+
+```text
+let limit = 100
+let ^count = 0
+count += 1
+count = 10
+```
+
+I bindings cannot be assigned. Assignment to U updates its identified caller-owned place, even
+for whole-value replacement; it never retargets the access. Assignment to X replaces its own value
+and performs required old-value cleanup. After transfer or explicit drop, X can be reinitialized
+by assigning a complete replacement; failure before that replacement is ready leaves the slot
+uninitialized. Maybe initialized slots still require definite-initialization checks and conditional
+cleanup. U must remain valid on every outward recoverable edge.
+
+There is no separate immutable-but-transferable owned local form. Update permission follows X
+ownership, as it does for X parameters. Passing temporary I access still restricts the called
+operation without freezing every future operation on its owner.
+
+Binding I/U access does not manufacture a freely storable reference. Access remains bounded
+by its owners and cannot be stored as an independent T. Persistent relationships require an
+explicitly owned dependent computation/capability
 or an owned container with a checked index/range, rather than an implicit clone or lifetime repair.
 
 ### Generic Evidence and Origin Preservation
 
 A generic body uses its declared capabilities. An unconstrained T is potentially move-only.
-Specializing that body with a Copy type does not reselect a checked transfer, convert an access
-binding to an owning binding, erase an origin, or change a public result mode. The caller can
+Specializing that body with a Copy type does not reselect a checked transfer, convert an I
+binding to X, erase an origin, or change a public result mode. The caller can
 perform a separate permitted Copy operation when its own checking context proves Copy.
 
 For example, a generic I accessor can return access to an I parameter. Its checked body remains
 an accessor when specialized with an integer. A caller whose initializer knows the integer type
-can materialize an independent integer answer. An owning generic identity instead always uses
+can request an X binding and materialize an independent integer answer. An owning generic identity instead always uses
 ownership transfer:
 
 ```text

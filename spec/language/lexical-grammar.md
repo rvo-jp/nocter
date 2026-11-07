@@ -622,6 +622,10 @@ transfer. `&` denotes update in the designated declaration/access positions; it 
 an ordinary readonly borrow type. `&func` and `^func` each consist of a punctuation token followed
 by the `func` keyword, not compound lexical tokens.
 
+The local forms similarly tokenize as `let`, optional `&`/`^`, and an identifier. `var` no longer
+introduces a v2.0.0 binding declaration. Its rejection must not fall back to the released
+`let`/`var` declaration grammar.
+
 `()` consists of the ordinary `(` and `)` tokens. Unit versus closure recognition is syntactic.
 No type lookup changes tokenization or selects an operator meaning. The current lexical rules
 above continue to describe the released language; this section alone does not admit a new

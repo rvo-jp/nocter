@@ -1215,6 +1215,12 @@ V2ErasedCallableType = "any" V2CallableType
 V2CallableParameter = "..."? V2ParameterMode? (Name ":" V2Type | V2Type)
                       ProvenanceClause?
 
+V2BindingStatement = "let" V2BindingPattern V2TypeAnnotation? "=" Expression
+V2BindingPattern = V2BindingLeaf
+                 | "(" V2BindingPattern "," V2BindingPattern ("," V2BindingPattern)* ","? ")"
+V2BindingLeaf = V2ParameterMode? Name | "_"
+V2TypeAnnotation = ":" V2Type ProvenanceClause?
+
 V2UnitExpression = "(" ")"
 V2TransferExpression = "^" V2TransferPlace
 ```
@@ -1230,6 +1236,13 @@ The invocation marker precedes `func`; the result marker follows `func` and imme
 the parameter list when the callable has no name. These positions are recognized without name
 or type resolution. For example, `^func ^(u64): File!` has distinct consuming-environment and
 owning-result markers. `func(u64): ^File!` is not an alternative placement.
+
+Local binding markers precede each bound identifier: `let name`, `let &name`, and `let ^name`.
+Their I/U/X meaning is fixed by source, not inferred from Copy or the initializer's result mode.
+Tuple binding leaves use the same name positions; shape, permission, and partial-extraction checks
+remain required. `_` introduces no binding or permission assertion and has no `&`/`^` decoration.
+`var` is not a future binding declaration. No optional plain-`let` spelling is retained for an X
+binding, and a destination `^` does not remove explicit transfer on an existing source expression.
 
 An unmarked call has neither receiver `.&`/`.^` nor direct argument-mode assertions. This does not
 remove the separate `^place` operation in ordinary binding/storage/return expressions, and a fresh

@@ -485,5 +485,7 @@ cannot retroactively select another. A conflicting or underdetermined body needs
 callable annotation or named declaration, not a new result keyword.
 
 Do not retain `&+func`, a result prefix beside the return type, or use-site result assertions as
-alternative v2.0.0 styles. Exact source recognition belongs to the
+alternative v2.0.0 styles. Local `let`/`let &`/`let ^` forms are binding operations, not those
+assertions; in particular a fresh closure environment is owned with `let ^callback = ...`.
+Exact source recognition belongs to the
 [future syntax rules](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).

@@ -3,9 +3,9 @@
 This chapter defines local binding mutability, assignment, initialization state, and
 reinitialization after ownership transfer or explicit drop.
 
-The future v2.0.0 categories for owned and access bindings are defined by the
-[Value Access Model](value-access.md#result-contracts-and-local-bindings). They do not change the
-current rules below.
+The future v2.0.0 [Value Access Model](value-access.md#result-contracts-and-local-bindings)
+replaces `let`/`var` mutability with `let name`, `let &name`, and `let ^name` permissions.
+It does not change the current rules below.
 
 ## Bindings and Mutability
 

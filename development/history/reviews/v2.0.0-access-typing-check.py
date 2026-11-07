@@ -22,6 +22,8 @@ class Source:
 
     @property
     def referent(self):
+        if self.kind == "owner":
+            return frozenset(("local",))
         return frozenset((self.location,)) if self.kind in ("read", "update") else frozenset()
 
 
@@ -36,7 +38,7 @@ class Result:
     source_available: bool = True
 
 
-OPERATIONS = ("bind", "argX", "returnI", "returnU", "returnX", "transfer")
+OPERATIONS = ("bindI", "bindU", "bindX", "argX", "returnI", "returnU", "returnX", "transfer")
 
 
 def result(source, mode, *, copied=False, transferred=False):
@@ -59,15 +61,17 @@ def check_boundary(source, operation):
             answer = result(source, "X", transferred=True)
         elif source.copy_proof:
             answer = result(source, "X", copied=True)
-    elif operation == "bind":
+    elif operation == "bindI":
+        if source.kind in ("owner", "read", "update", "value"):
+            answer = result(source, "I")
+    elif operation == "bindU":
+        if source.kind in ("owner", "update"):
+            answer = result(source, "U")
+    elif operation == "bindX":
         if source.kind == "fresh":
             answer = result(source, "X", transferred=True)
-        elif source.kind == "update":
-            answer = result(source, "U")
         elif source.copy_proof:
             answer = result(source, "X", copied=True)
-        elif source.kind == "read":
-            answer = result(source, "I")
     elif operation == "returnX":
         if source.kind == "fresh":
             answer = result(source, "X", transferred=True)
@@ -104,11 +108,16 @@ def invariant(source, operation, answer):
     if answer.mode == "X":
         assert answer.copied or answer.transferred, "ownership cannot appear by permission strengthening"
     if answer.mode == "U":
-        assert source.kind == "update" and answer.referent == source.referent, "update keeps its target"
+        assert source.kind in ("owner", "update") and answer.referent == source.referent, "update keeps its target"
     if answer.mode == "I" and not answer.copied:
-        assert source.kind in ("read", "update") and answer.referent == source.referent
-    if operation == "bind" and source.kind == "update":
-        assert answer.mode == "U" and not answer.copied, "binding U does not become a snapshot"
+        assert source.kind in ("owner", "read", "update", "value") and answer.referent == source.referent
+    if operation.startswith("bind"):
+        assert answer.mode == operation[-1], "the written local mode is authoritative"
+        if operation in ("bindI", "bindU"):
+            assert source.kind != "fresh", "no invisible lifetime-extended temporary owner"
+            assert not answer.copied and not answer.transferred, "I/U binding keeps its declared access"
+        if operation == "bindX" and source.kind == "owner":
+            assert answer.copied and not answer.transferred, "owning destination alone is not an explicit source move"
     if operation == "argX":
         if source.kind in ("owner", "fresh"):
             assert answer.transferred and not answer.copied, "existing Copy owner still transfers into X"
@@ -136,19 +145,27 @@ def sources():
 
 def scenarios():
     scalar = Source("owner", True, True)
-    assert check_boundary(scalar, "bind").source_available
+    assert check_boundary(scalar, "bindI").mode == "I"
+    assert check_boundary(scalar, "bindU").mode == "U"
+    assert check_boundary(scalar, "bindX").source_available
     assert not check_boundary(scalar, "argX").source_available
     assert not check_boundary(scalar, "transfer").source_available
     assert check_boundary(scalar, "returnX").copied
-    assert check_boundary(Source("owner"), "bind") is None
+    assert check_boundary(Source("owner"), "bindX") is None
+    assert check_boundary(Source("owner"), "bindI").mode == "I"
+    assert check_boundary(Source("fresh", True, True), "bindI") is None
+    assert check_boundary(Source("fresh"), "bindU") is None
+    assert check_boundary(Source("fresh"), "bindX").mode == "X"
     assert check_boundary(Source("fresh"), "transfer") is None
 
     header = Source("read", True, True, "outside", frozenset(("outside",)))
-    copied = check_boundary(header, "bind")
+    copied = check_boundary(header, "bindX")
     assert copied.referent == frozenset() and copied.payload == header.payload
     assert copied.source_available and header.referent == frozenset(("outside",))
     assert check_boundary(header, "argX").copied and check_boundary(header, "argX").source_available
-    assert check_boundary(replace(header, kind="update"), "bind").mode == "U"
+    assert check_boundary(header, "bindI").referent == header.referent
+    assert check_boundary(header, "bindU") is None
+    assert check_boundary(replace(header, kind="update"), "bindU").mode == "U"
     local_scalar = Source("read", True, True, "local")
     assert check_boundary(local_scalar, "returnI").referent == frozenset()
     assert check_boundary(replace(local_scalar, payload=frozenset(("local",))), "returnI") is None
@@ -156,23 +173,27 @@ def scenarios():
     assert check_boundary(Source("read", location="local"), "returnI") is None
 
     generic = Source("read", False, True, "outside")
-    assert check_boundary(generic, "bind").mode == "I"
+    assert check_boundary(generic, "bindI").mode == "I"
+    assert check_boundary(generic, "bindX") is None
     assert check_boundary(generic, "argX") is None
-    assert check_boundary(replace(generic, copy_proof=True), "bind").mode == "X"
+    assert check_boundary(replace(generic, copy_proof=True), "bindI").mode == "I"
+    assert check_boundary(replace(generic, copy_proof=True), "bindX").mode == "X"
 
     update = replace(header, kind="update")
     region_copy = replace(header, storage=frozenset(("outside",)))
     local_dependency = replace(header, payload=frozenset(("local",)))
     invalid_results = (
-        (header, "bind", replace(copied, payload=frozenset())),
-        (region_copy, "bind", replace(check_boundary(region_copy, "bind"), storage=frozenset())),
-        (generic, "bind", result(generic, "X", copied=True)),
-        (update, "bind", copied),
-        (scalar, "argX", check_boundary(scalar, "bind")),
+        (header, "bindX", replace(copied, payload=frozenset())),
+        (region_copy, "bindX", replace(check_boundary(region_copy, "bindX"), storage=frozenset())),
+        (generic, "bindX", result(generic, "X", copied=True)),
+        (header, "bindI", copied),
+        (update, "bindU", copied),
+        (scalar, "argX", check_boundary(scalar, "bindX")),
         (header, "argX", result(header, "X", transferred=True)),
         (local_dependency, "returnX", result(local_dependency, "X", copied=True)),
         (header, "returnU", result(header, "U")),
-        (header, "bind", replace(copied, source_available=False)),
+        (header, "bindX", replace(copied, source_available=False)),
+        (Source("fresh", True, True), "bindI", Result("I", frozenset(), frozenset(), frozenset())),
     )
     for source, operation, answer in invalid_results:
         try:
@@ -184,7 +205,7 @@ def scenarios():
 
 
 def explore():
-    attempts = accepted = stable_specializations = 0
+    attempts = accepted = stable_specializations = stable_bindings = 0
     for source in sources():
         for operation in OPERATIONS:
             attempts += 1
@@ -196,14 +217,91 @@ def explore():
                 other = check_boundary(replace(source, concrete_copy=not source.concrete_copy), operation)
                 assert other == answer, "specialization cannot reselect the checked source operation"
                 stable_specializations += 1
-    return attempts, accepted, stable_specializations
+            if operation in ("bindI", "bindU") and source.kind != "value":
+                other_source = replace(source, copy_proof=not source.copy_proof, concrete_copy=True)
+                assert check_boundary(other_source, operation) == answer, "Copy cannot change an I/U binding"
+                stable_bindings += 1
+    return attempts, accepted, stable_specializations, stable_bindings
+
+
+@dataclass(frozen=True)
+class Slot:
+    mode: str
+    initialized: bool
+
+
+@dataclass(frozen=True)
+class Assignment:
+    slot: Slot
+    destroyed_old: bool = False
+    installed_new: bool = False
+
+
+def assign(slot, succeeded):
+    if slot.mode == "I" or slot.mode == "U" and not slot.initialized:
+        return None
+    if not succeeded:
+        return Assignment(slot)
+    return Assignment(replace(slot, initialized=True), slot.initialized, True)
+
+
+def assignment_invariant(before, succeeded, after):
+    assert before.mode in ("U", "X"), "only update/ownership grants assignment"
+    assert before.mode != "U" or before.initialized, "U cannot expose an extraction hole"
+    assert after.slot.mode == before.mode, "assignment does not change binding permission"
+    if succeeded:
+        assert after.slot.initialized and after.installed_new
+        assert after.destroyed_old == before.initialized, "reinitialization cannot destroy a nonexistent old value"
+    else:
+        assert after.slot == before and not after.installed_new and not after.destroyed_old, "failed RHS preserves prior state"
+
+
+def transfer_slot(slot):
+    if slot.mode != "X" or not slot.initialized:
+        return None
+    return replace(slot, initialized=False)
+
+
+def assignment_checks():
+    accepted = transfers = 0
+    for mode, initialized in product(("I", "U", "X"), (False, True)):
+        before = Slot(mode, initialized)
+        for succeeded in (False, True):
+            after = assign(before, succeeded)
+            if after is not None:
+                assignment_invariant(before, succeeded, after)
+                accepted += 1
+        moved = transfer_slot(before)
+        if moved is not None:
+            assert mode == "X" and initialized and not moved.initialized
+            assert assign(moved, False).slot == moved
+            assert assign(moved, True).slot == before
+            transfers += 1
+    mutants = (
+        (Slot("I", True), True, Assignment(Slot("I", True), True, True)),
+        (Slot("X", False), False, Assignment(Slot("X", True), False, True)),
+        (Slot("X", False), True, Assignment(Slot("X", True), True, True)),
+        (Slot("U", True), False, Assignment(Slot("U", False))),
+    )
+    for before, succeeded, after in mutants:
+        try:
+            assignment_invariant(before, succeeded, after)
+        except AssertionError:
+            continue
+        raise AssertionError("invariant accepted an intentionally invalid assignment")
+    return accepted, transfers, len(mutants)
 
 
 if __name__ == "__main__":
     if not __debug__:
         raise SystemExit("Run without -O: this design check requires assertions")
     mutants = scenarios()
-    attempts, accepted, stable = explore()
+    attempts, accepted, stable, stable_bindings = explore()
+    assignments, transfers, assignment_mutants = assignment_checks()
     print(json.dumps({"boundary_attempts": attempts, "accepted_boundary_checks": accepted,
                       "specialization_stability_checks": stable,
-                      "invalid_result_mutants_rejected": mutants, "result": "pass"}, sort_keys=True))
+                      "binding_permission_stability_checks": stable_bindings,
+                      "invalid_result_mutants_rejected": mutants,
+                      "accepted_assignment_checks": assignments, "accepted_slot_transfers": transfers,
+                      "invalid_assignment_mutants_rejected": assignment_mutants,
+                      "result": "pass"}, sort_keys=True))
