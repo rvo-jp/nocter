@@ -12,9 +12,10 @@ Linux target work remains deliberately deferred.
 
 Use the v2.0.0 plan's human-working-set criteria when closing design: directory structure, root
 contracts, and direct `see` should reduce reading; inference should reduce writing and unnecessary
-decisions without losing semantic or performance information. Evaluate the recorded automatic
-readonly-borrow, consuming-return, disjoint-access, and signature-maintenance proposals as pending
-candidates, not already adopted syntax.
+decisions without losing semantic or performance information. Automatic readonly call borrowing
+and omission of `move` on owned returns are deferred because they can obscure ownership operations.
+Continue internal inference work; evaluate disjoint-access and signature-maintenance proposals as
+pending candidates, not already adopted syntax.
 
 Establish comparable performance baselines and close the detailed contracts in the
 [v2.0.0 language design plan](history/milestones/v2.0.0.md). Prioritize compile-time optimization
