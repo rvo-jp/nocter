@@ -8,7 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Planned Major Version
 
-- [v2.0.0: Learning Cost and Language Design](v2.0.0.md)
+- [v2.0.0: Compile-Time Optimization and Minimal Syntax](v2.0.0.md)
 
 ## Recent Milestones
 

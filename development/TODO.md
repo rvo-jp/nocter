@@ -10,10 +10,12 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Refine the [v2.0.0 language design plan](history/milestones/v2.0.0.md): capture inference and explicit
-callable type arguments are adopted directions; their detailed contracts remain to be specified.
-Reducing advanced annotations in ordinary applications is an adopted goal. Other syntax changes
-and ownership-transparent memory models remain unadopted proposals or investigations.
+Refine the [v2.0.0 language design plan](history/milestones/v2.0.0.md) around faster generated-program
+execution than Rust through compile-time computation and optimization, with only the syntax needed
+to express behavior and information the compiler cannot derive. Establish comparable performance
+baselines and close the detailed contracts for adopted capture inference and explicit callable type
+arguments. Reducing advanced annotations in ordinary applications remains an adopted goal. Other
+syntax changes and ownership-transparent memory models remain unadopted proposals or investigations.
 
 Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
 commit and upload the retained qualified archive without rebuilding it, then record an independent
