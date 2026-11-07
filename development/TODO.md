@@ -26,12 +26,18 @@ effort must not disqualify a better semantic model. Close the adopted Value Acce
 across parameters, receivers, projections, captures, and deferred execution. Unmarked input,
 `&` update, and `^` transfer are adopted; choose a uniform call policy (all explicit or all
 declaration-driven) before closing precedence. The latter is recommended but not adopted; retain
-no optional call-marker aliases. Review the model's pending semantic decisions, starting with
-owned bindings/copies, owned-parameter permissions, and call preparation/failure timing, then
-projections, deferred access, and abstract callable contracts. Next close explicit outcome branch
+no optional call-marker aliases. The model's six semantic decisions are adopted: independent owned
+storage and uniform transfer across copyability; owned-parameter update permission without a new
+mutable local and no automatic failure rollback; left-to-right preparation/reservation before
+invocation-time transfer/update; explicit projection dependencies; deferred access and ownership
+from operation construction; and preservation of modes through abstraction. Close their remaining
+details, starting with the implicit-copy type policy, binding reassignment, safe replacement, and
+nested argument preparation/cleanup. Then close projection syntax/persistent access, cancellation
+and dependent results, and abstract callable syntax/conformance. Call-marker omission remains
+pending separately. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
-fallback, and unhandled-failure/resource
-completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
+fallback, and unhandled-failure/resource completion rules alongside unified `impl Type` and
+interface operation contracts. Resolve their
 interaction with contract-only roots, visibility, ownership, and cleanup before implementation.
 Preserve the single `error` failure payload and cause-preserving propagation; per-API typed failure
 payloads are excluded from the v2.0.0 plan, including when error information is successful data.
