@@ -10,6 +10,12 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+The [four-goal syntax review](history/reviews/v2.0.0-syntax-coherence.md) is a new, unadopted
+candidate following the user's permission to revisit prior choices. It recommends inherited
+implementation heads and destination-directed ownership, which would replace explicit source
+transfers; it also proposes future-output notation and conservative origin defaults. Do not apply
+these proposals to the active future specification or checker until their source policy is selected.
+
 The user delegates Value Access Model semantics, analysis, and optimization design to the agent.
 Resolve remaining model choices without approval, even when they affect accepted programs or
 execution. Preserve adopted contracts and safety/resource requirements; record decisions,
