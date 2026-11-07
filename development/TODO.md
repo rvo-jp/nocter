@@ -13,10 +13,13 @@ Linux target work remains deliberately deferred.
 Establish comparable performance baselines and close the detailed contracts in the
 [v2.0.0 language design plan](history/milestones/v2.0.0.md). Prioritize compile-time optimization
 and minimal application syntax while preserving the distinction between adopted design and current
-compiler support. Next resolve unified `impl Type` members and destruction, interface operation
-identity and implementation/default mappings, and their interaction with contract-only roots and
-path-based visibility. Use `impl` for both the outer type implementation block and inner interface
-conformance declaration. Retain the separate `func`/`method` call forms without UFCS.
+compiler support. Next close explicit outcome branch selection and nested optional states,
+storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
+completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
+interaction with contract-only roots, visibility, ownership, and cleanup before implementation.
+Audit the derived-ordering selector/text discrepancy separately; the planning finding does not
+authorize altering qualified or published artifacts. Retain separate `func`/`method` calls without
+UFCS and both outer/inner `impl` roles.
 
 Use the milestone for the complete adopted scope, pending grammar questions, and conformance gates,
 including constant eligibility, tuple bindings, directive grouping, capture inference, and explicit
