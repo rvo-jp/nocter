@@ -23,8 +23,9 @@ Close the detailed contracts and establish Nocter execution evidence in the
 and minimal application syntax while preserving the distinction between adopted design and current
 compiler support. Rust comparisons and short-term delivery are not prerequisites; implementation
 effort must not disqualify a better semantic model. Close the adopted values/access-operations model
-across parameters, receivers, projections, captures, and deferred execution. Exact single-symbol
-spellings are proposals, not adopted grammar. Next close explicit outcome branch selection
+across parameters, receivers, projections, captures, and deferred execution. Unmarked input,
+`&` update, and `^` transfer are adopted; receiver-marker placement and complete precedence remain
+open. Next close explicit outcome branch selection
 and nested optional states,
 storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
 completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
