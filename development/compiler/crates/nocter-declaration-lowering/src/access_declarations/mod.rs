@@ -247,6 +247,11 @@ impl<'source> Context<'source> {
     pub fn program(&self) -> &Program {
         &self.program
     }
+    /// Shares this exact immutable declaration authority with a semantic query.
+    #[must_use]
+    pub fn program_handle(&self) -> Arc<Program> {
+        Arc::clone(&self.program)
+    }
     #[must_use]
     pub const fn syntax(&self) -> BoundSyntax<'source> {
         self.syntax

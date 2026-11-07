@@ -1745,6 +1745,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-frontend-bindings",
+ "nocter-json",
  "nocter-language",
  "nocter-model",
  "nocter-persistent",

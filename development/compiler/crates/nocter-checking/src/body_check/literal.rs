@@ -77,17 +77,7 @@ pub(super) fn is_signed_integer_type(types: &TypeStore, ty: TypeId) -> bool {
 }
 
 pub(super) fn parse_integer(text: &str) -> Option<u64> {
-    let compact = text
-        .chars()
-        .filter(|character| *character != '_')
-        .collect::<String>();
-    if let Some(digits) = compact.strip_prefix("0x") {
-        u64::from_str_radix(digits, 16).ok()
-    } else if let Some(digits) = compact.strip_prefix("0b") {
-        u64::from_str_radix(digits, 2).ok()
-    } else {
-        compact.parse().ok()
-    }
+    nocter_syntax::decode_integer_literal(text)
 }
 
 pub(super) fn fits_integer(types: &TypeStore, ty: TypeId, value: u64) -> bool {

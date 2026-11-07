@@ -1392,3 +1392,40 @@ requires the stable explicit bound specified by the origin rules when more than 
 eligible. Do not export a private inferred union as a bodyless public contract, consult a callee
 body to select a result mode, or flatten later outcome/access constructor trees into these simple
 built-in contracts.
+
+#### Core Body Typing Boundaries
+
+The fragment's primitive arithmetic and ordering require `i32` operands, and logical operators
+require `bool`. Equality requires the same admitted data type on both sides; its primitive domain
+is defined in [Equality](equality-and-indexing.md#future-direction-v2-0-0-core-primitive-equality).
+Integer literals default to `i32`. Decode their complete lexical magnitude before range checking;
+a minus applied directly through grouping to an integer literal admits `-2147483648`. Arithmetic
+retains checked overflow, division, and remainder semantics; an X operand is not a safety proof.
+
+A local initializer with no normal result cannot infer a data type or access mode. An explicit
+annotation can supply that contract; `never` is control interruption, not an inferred stored unit.
+The discard statement remains exactly `let _ = expression`, without a type annotation. These
+rules do not introduce typed patterns or partial extraction.
+
+An explicit binding, assignment, or result contract can contextualize producing conditional
+branches under the access-boundary rules. A selected call instead types each computed operand
+with its natural permission, then selects preparation from the argument's place/value category
+and the parameter contract. Do not insert a transfer or active update into conditional branches
+merely because the parameter requires X or U. For example, passing an `if` of two plain move-only
+places to X cannot silently move either source. Direct existing-place arguments retain the
+contract-driven reservation/commit rules.
+
+An `if` without `else` completes with unit when it completes normally. Its producing then branch
+must have `void` data; without another explicit expected contract, materialize its Copy unit answer
+and the absent branch as X unit. This does not retain an access from only one branch. A conditional
+with two producing branches still obeys natural permission agreement unless an explicit expected
+boundary applies. Unreachable final expressions are checked in their own expression context but
+cannot contribute a function/block result after a terminating statement. Explicit `return` still
+checks the declared result contract. When a condition itself never completes, do not require its
+unexecuted branches to supply the surrounding result; their own operations and explicit contracts
+remain checked. A non-breaking `loop`, or a literal-`true` `while` without a
+reachable break, supplies no normal completion. Never derive a continuing edge from a dead break.
+
+Typing names, data shapes, structural places, and selected calls is not full program acceptance.
+Initialization, source access liveness, escaping referents, short-circuit/loop flow, and cleanup
+must also succeed before the fragment supplies accepted checked-program evidence.

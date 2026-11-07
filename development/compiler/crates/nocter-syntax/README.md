@@ -43,6 +43,11 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - bidirectional body-local node/token locators for source-neutral semantic recipes
 - the shared direct/reusable source-syntax provider boundary
 
+Integer magnitude decoding has one syntax-owned implementation. It validates the complete lexical
+token and returns an unsigned magnitude; checking and compile-time evaluation retain responsibility
+for sign, target range, and expected type. Future body typing shares that decoder rather than
+maintaining another radix/underscore parser.
+
 ## Invariants
 
 - Every syntax token retains its lexical-token identity and exact normalized range.

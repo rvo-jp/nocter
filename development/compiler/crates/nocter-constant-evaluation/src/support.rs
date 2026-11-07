@@ -41,17 +41,7 @@ pub(crate) fn integer_spec(builtin: BuiltinType) -> Option<IntegerSpec> {
 }
 
 pub(crate) fn parse_integer(text: &str) -> Option<u64> {
-    let compact = text
-        .chars()
-        .filter(|character| *character != '_')
-        .collect::<String>();
-    if let Some(digits) = compact.strip_prefix("0x") {
-        u64::from_str_radix(digits, 16).ok()
-    } else if let Some(digits) = compact.strip_prefix("0b") {
-        u64::from_str_radix(digits, 2).ok()
-    } else {
-        compact.parse().ok()
-    }
+    nocter_syntax::decode_integer_literal(text)
 }
 
 pub(crate) fn shift(

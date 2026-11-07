@@ -214,3 +214,27 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 
 The [checked-program boundary](../../../architecture/pipeline/checked-program.md) documents contracts shared
 with adjacent stages.
+
+
+## Bounded Future Value Access Typing
+
+The development-only private-function goal also has a separate typed-only leaf query. It opens
+from one exact-current access-declaration context and uses its immutable program directly. It
+resolves lexical names, checks data and structural permissions, contextualizes explicit boundaries,
+selects direct callable identities once, and records primitive operations, Copy/materialization,
+transfer/update actions, call argument reservations, assignment order, and structured control.
+It does not construct or convert to the released `CheckedProgram`.
+
+Its body-local semantic arenas contain no source coordinates, syntax identities, names, or symbol
+IDs. A successful reusable query owns its callable, exact declaration authority, exact body bytes,
+and locator recipes beside that typed body. One body projection serves checking and recipe capture.
+Rebinding requires that same authority and unchanged own body, then projects current origins without
+retyping or repeating dispatch. Body-independent header reuse does not imply body-result reuse.
+
+Structural eligibility is separate from initialization, source liveness, escape/origin proofs,
+access conflicts, loop fixed points and conditional cleanup. Those validators remain required;
+even a typed-only body with an uninitialized read or escaping local cannot enter execution. Primitive
+arithmetic retains checked operation kinds, and short-circuit/control interruptions remain explicit.
+The future product has no compatibility adapter, source-version flag, editor recovery product, or
+native consumer. The [adjacent boundary](../../../architecture/pipeline/value-access-declarations.md)
+owns its relationship to declarations and later validation.

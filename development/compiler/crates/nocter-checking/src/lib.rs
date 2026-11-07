@@ -60,6 +60,7 @@ mod syntax;
 mod target_tests;
 mod type_relations;
 mod type_validity;
+pub mod value_access;
 
 #[cfg(test)]
 mod test_support;

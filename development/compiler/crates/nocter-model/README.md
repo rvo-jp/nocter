@@ -18,7 +18,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
-- value-access permission/data-shape descriptors and distinct future callable/input identity domains;
+- value-access permission/data-shape descriptors and distinct future callable/input and body-local/operation/control identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering
 - structural callable capabilities and independent authored allocation/nonblocking guarantee
   identity

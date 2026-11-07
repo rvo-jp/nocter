@@ -16,6 +16,9 @@ with evaluator-domain shapes. This crate never consumes a checked body directly.
 perform body checking, runtime execution, name lookup, overload selection, or target code
 generation.
 
+Integer token decoding delegates to the syntax-owned complete-token magnitude decoder. Evaluation
+still owns contextual numeric type, sign, range, and checked arithmetic.
+
 ## Invariants
 
 - Evaluation order and supported operations follow the public constant contract.

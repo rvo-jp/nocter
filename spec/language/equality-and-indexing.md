@@ -104,3 +104,13 @@ if count > 0 && state == ScanState.inside_word {
     ...
 }
 ```
+
+## Future Direction: v2.0.0 Core Primitive Equality
+
+Within the [first access fragment](syntactic-grammar.md#first-access-validation-fragment), primitive
+`==`/`!=` compare matching `bool`, `i32`, or `void` payloads and produce fresh X `bool`. Reading an
+I/U/X operand does not transfer its owner. Unit has exactly one payload, so unit equality is true
+and inequality false after evaluating both operands in source order. This is not permission to
+remove their effects or access validation. Opaque `error` has no primitive equality. User-defined,
+compound, and interface equality require their own full-language contracts; this bounded rule does
+not derive structural equality for them or change the released primitive domain above.

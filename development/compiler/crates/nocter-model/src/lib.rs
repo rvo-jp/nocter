@@ -27,7 +27,8 @@ pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
 pub use id::{
-    AccessCallableId, AccessParameterId, AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId,
+    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
+    AccessParameterId, AccessStatementId, AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId,
     CallableId, CapabilityEvidenceId, CaptureId, ClosureId, ConstantExpressionId, ConstantId,
     ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, ExecutableStaticId, FieldId,
     GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,

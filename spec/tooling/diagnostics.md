@@ -712,3 +712,34 @@ These are the existing name rules applied at the future header boundary. They do
 overload selection by input mode, body, or declaration order. Wrong parse-goal/source pairing or
 an impossible header representation is a compiler integrity failure, not a fabricated source
 name/type error. Header acceptance does not certify the callable body.
+
+## Future Direction: v2.0.0 Core Body Typing Diagnostics
+
+The bounded private-function goal applies the following categories to structural body typing.
+These failures precede initialization, lifetime, escaping-root, conflict, and cleanup validation;
+passing this stage alone does not accept a checked program.
+
+| Code | Failed structural rule |
+| --- | --- |
+| `E0340` | Unknown local or direct function name |
+| `E0341` | Local conflicts with an active local/input, authored function, or built-in type |
+| `E0370` | Incompatible data/mode, incompatible conditional results, hidden move-only owner under I, or no result from which to infer a local |
+| `E0371` | Owned boundary lacks a transfer or Copy evidence |
+| `E0372` | Non-final expression produces non-unit data |
+| `E0373` | Normally completing non-unit result has no value |
+| `E0375` | Integer literal is outside `i32` range |
+| `E0377` | Explicit transfer does not name an existing X place |
+| `E0382` | `break`/`continue` has no enclosing loop |
+| `E0383` | Explicit drop does not name an X local/input |
+| `E0384` | Assignment target is not an existing X/U place |
+| `E0386` | Compound assignment target is not `i32` |
+| `E0387` | Update creation/delegation does not have an eligible existing place or supplied U |
+| `E0390` | Direct call target is not a function, or its argument count differs |
+| `E0407` | Discard has a type annotation |
+
+Point to the attempted expression, target, name, or missing-result block. A mismatch identifies
+expected and supplied data/modes where available; a conditional mode mismatch identifies both
+branch answers. An existing-place permission failure relates its declaration. Preserve typed
+rule evidence separately from rendered wording. Do not offer removal of `&`/`^` as an automatic
+repair: that changes the intended operation. Explicit transfer/drop of Copy X remains valid;
+released restrictions on moving Copy are not inherited into this future goal.

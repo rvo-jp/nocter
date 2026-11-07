@@ -51,14 +51,15 @@ The [checked-program](pipeline/checked-program.md),
 [machine/native](pipeline/machine-program.md) documents define only the contracts spanning adjacent
 owners. The crate READMEs own internal responsibility splits and invariants.
 
-## Bounded Future Declaration Boundary
+## Bounded Future Access Boundary
 
 The production syntax/declaration owners also expose a bounded internal private-function goal for
-future value-access implementation. Its source-neutral declaration query and exact-current
-context follow the [value-access declaration boundary](pipeline/value-access-declarations.md).
-That product has distinct callable/input identity domains and cannot enter the released checked,
-target, or native products. It has no CLI source-version switch; future body checking and coherent
-full-language replacement remain separate work. This does not create a second semantic authority
+future value-access implementation. Its source-neutral declaration query, typed-only body query,
+and exact-current contexts follow the [value-access boundary](pipeline/value-access-declarations.md).
+These products have distinct callable/input and body-local operation/control identities and cannot
+enter the released checked, target, or native products. There is no CLI source-version switch;
+initialization/liveness/escape/conflict/cleanup validation and coherent full-language replacement
+remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 
 ## Side Authorities

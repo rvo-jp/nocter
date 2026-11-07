@@ -27,8 +27,8 @@ pub use diagnostic::{ExpectedSyntax, ParseDiagnostic, ParseDiagnosticKind};
 pub use lexer::{Comment, CommentKind, LexDiagnostic, LexDiagnosticKind, LexedFile, lex};
 pub use literal::{
     DecodedStringPart, FloatLiteralSpelling, FloatLiteralSuffix, decode_byte_literal,
-    decode_character_literal, decode_plain_string_expression, decode_string_expression,
-    decode_string_literal, decode_string_text,
+    decode_character_literal, decode_integer_literal, decode_plain_string_expression,
+    decode_string_expression, decode_string_literal, decode_string_text,
 };
 pub use name::{is_valid_module_segment, is_valid_name};
 pub use navigation::{

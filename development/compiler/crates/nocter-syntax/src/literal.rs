@@ -1,5 +1,26 @@
 use crate::{NodeId, NodeKind, StringDelimiter, SyntaxElement, TokenKind};
 
+/// Decodes a complete integer token's unsigned mathematical magnitude, without target typing.
+/// Invalid spelling or a magnitude larger than `u64` returns `None`.
+#[must_use]
+pub fn decode_integer_literal(authored: &str) -> Option<u64> {
+    if !valid_integer(authored) {
+        return None;
+    }
+    let compact = authored
+        .chars()
+        .filter(|&character| character != '_')
+        .collect::<String>();
+    let (digits, radix) = if let Some(digits) = compact.strip_prefix("0x") {
+        (digits, 16)
+    } else if let Some(digits) = compact.strip_prefix("0b") {
+        (digits, 2)
+    } else {
+        (compact.as_str(), 10)
+    };
+    u64::from_str_radix(digits, radix).ok()
+}
+
 /// One decoded ordinary string-expression part in exact source order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DecodedStringPart {
@@ -528,6 +549,37 @@ mod decode_tests {
         decode_string_literal,
     };
     use crate::{NodeId, NodeKind, ParseGoal, SyntaxElement, parse};
+
+    #[test]
+    fn integer_magnitude_decoding_validates_complete_tokens_without_target_typing() {
+        use super::decode_integer_literal as decode;
+        for (text, expected) in [
+            ("0", 0),
+            ("12_345", 12345),
+            ("0xDEAD_beef", 0xdead_beef),
+            ("0b10_01", 9),
+            ("18446744073709551615", u64::MAX),
+        ] {
+            assert_eq!(decode(text), Some(expected));
+        }
+        for text in [
+            "",
+            "_1",
+            "1_",
+            "1__0",
+            "0x",
+            "0x_FF",
+            "0b2",
+            "0XFF",
+            "1i32",
+            "-1",
+            "+1",
+            "1.0",
+            "18446744073709551616",
+        ] {
+            assert_eq!(decode(text), None, "{text}");
+        }
+    }
 
     #[test]
     fn quoted_scalar_decoding_has_one_syntax_owned_authority() {

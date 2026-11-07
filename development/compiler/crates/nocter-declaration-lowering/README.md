@@ -107,4 +107,9 @@ Body-only edits can rebind but receive no body-validity certificate from declara
 The source-neutral declaration product remains owned by `nocter-declarations`. The pairing with
 syntax remains here; there is no public parts constructor or conversion to the legacy declaration
 program. The [cross-stage boundary](../../../architecture/pipeline/value-access-declarations.md)
-owns the handoff to subsequent checking, which is not implemented for this goal yet.
+owns the handoff to typed-only body checking and the still-required flow/safety validation.
+
+The current access-declaration context can share its exact immutable program authority with the
+checking-owned typed-body query. Rebinding that body query must prove the same shared authority;
+structurally equal declarations rebuilt by a different query cannot substitute for it. Header/body
+source projection remains outside the semantic program.

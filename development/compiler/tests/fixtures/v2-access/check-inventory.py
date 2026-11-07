@@ -13,7 +13,7 @@ def require(condition, message):
 root = Path(__file__).resolve().parent
 manifest = json.loads((root / 'manifest.json').read_text())
 require(manifest['schema'] == 1 and manifest['parse_goal'] == 'V2CoreUnit', 'unknown fixture schema/goal')
-require(manifest['compiler_status'] == 'declarations-only', 'update validation when body checking begins')
+require(manifest['compiler_status'] == 'body-typing-only', 'unknown implemented front-end boundary')
 seen = set()
 files = set()
 shapes = set()
@@ -42,6 +42,10 @@ for case in manifest['cases']:
         require(isinstance(case.get('diagnostic_count', 1), int) and case.get('diagnostic_count', 1) > 0, 'invalid diagnostic count')
         if 'related_text' in case:
             require(source.count(case['related_text']) == 1, 'related projection must identify one source range')
+    if case['expectation'] in ('accept', 'check-reject'):
+        require(case.get('body_typing') in ('accept', 'reject'), 'missing type-stage expectation')
+        if case['body_typing'] == 'reject':
+            require(case['expectation'] == 'check-reject' and case.get('typing_code'), 'invalid typing rejection')
     counts[case['expectation']] += 1
 require(files == {path.name for path in root.glob('*.nct')}, 'unregistered or missing source fixture')
 require(shapes == {path.name for path in root.glob('*.shape')}, 'unregistered syntax shape')
