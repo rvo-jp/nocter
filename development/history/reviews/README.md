@@ -12,6 +12,7 @@ forcing consumers that use only its contract to change.
 
 - [v2.0.0 Value Access Model](v2.0.0-values-and-access-operations.md)
 - [v2.0.0 Value Access Semantic Closure](v2.0.0-value-access-semantics.md)
+- [v2.0.0 Result Access Contracts](v2.0.0-result-access-contracts.md)
 - [v2.0.0 Source Design Decisions](v2.0.0-source-design-decisions.md)
 - [v2.0.0 Implementation Readiness](v2.0.0-implementation-readiness.md)
 - [v2.0.0 Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md)

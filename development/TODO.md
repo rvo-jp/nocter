@@ -61,10 +61,15 @@ language proof or compiler conformance. Use the [readiness review](history/revie
 for conservative observation-preserving optimization, inferred-effect evidence, CTFE/type
 dependencies, and contract/body identity gates. Review only the human-facing alternatives in
 the [source-design record](history/reviews/v2.0.0-source-design-decisions.md) only for genuinely
-unresolved source forms. The next agent-owned work is result-role closure, not another selection
-of S2: specify result permission/origins and Copy, generic and interface forwarding, callback
-types, outcome payload/carrier layers, async output and cancellation, and ordinary access-return
-safety without `view`/`yield`. Follow the readiness review's
+unresolved source forms. The delegated [result-contract review](history/reviews/v2.0.0-result-access-contracts.md)
+now selects payload versus carrier authority, origin retention, normal cleanup before I/U result
+handoff, active-branch dependencies, generic/interface forwarding, and async output/cancellation.
+Ordinary `return` does not suspend an accessor or extend local guards; return an owned guard when
+it must survive. The new finite result handoff exploration is separate from the original root
+model and does not prove the general model. Next formalize Copy/generic result origins, delegated
+access, joins, and checked cleanup validation, then migrate the owning specification contracts.
+The [structural callable result-mode spelling](history/reviews/v2.0.0-source-design-decisions.md#structural-callable-result-modes-source-decision-required)
+is a human-facing proposal, not a reason to wait on independent internal work. Follow the readiness review's
 [remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
 Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
 or choose ownership from copy/move implementation history. The
@@ -108,8 +113,9 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs source-design
-selection and specification/implementation-contract migration as described above. The current
+No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs the specific
+structural callable result-mode source choice, formal typing/validation closure, and
+specification/implementation-contract migration as described above. The current
 language deliberately rejects `notrap async` because `future T` has no drive-time trap contract;
 v2.0.0 removes the authored modifier rather than adding one to future types.
 
