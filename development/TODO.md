@@ -89,6 +89,14 @@ for all remaining module/construction, effects/CTFE, platform/tooling, and contr
 gates. Migrate each owning specification before implementation. Audit the derived-ordering
 selector/text discrepancy separately without changing qualified or published artifacts.
 
+The [research-to-experiment plan](history/reviews/v2.0.0-runtime-performance-research.md#turning-research-into-nocter-experiments)
+now records CGO 2026 collection enumeration, partial evaluation, reuse/consumption analysis,
+search, and validation. Prioritize structural work removed over source-level tuning annotations.
+Audit allocation observability against each proposed elision/fusion; preserve current exposed
+failure/callback/budget contracts until an owning specification explicitly changes them. No new
+memory model, optimization permission, numerical speed claim, or mandatory comparison gate follows
+from this review. No external artifact has been reproduced for Nocter.
+
 Close the newly adopted evaluator expansion, opaque return contract/body separation, and removal
 of `noalloc`, `notrap`, and `blocking` through inferred effects. Preserve nonblocking future safety
 and checked execution. Specify representation freedom and later-stage proof obligations before
