@@ -22,6 +22,9 @@ Unifying constant eligibility across value/type positions, extending tuple destr
 and closure parameters and `for` bindings, and grouping item directives with order-independent
 attachment are adopted directions. Close their dependency, ownership, grammar, and tooling contracts.
 Generic constraint spelling unification remains unadopted.
+Interface requirements for receiverless construction functions are adopted, preserving separate
+`func` and `method` calls without UFCS. Grouping type-owned behavior under one container remains a
+candidate; ordinary receiverless utilities and the broader interface redesign are not adopted.
 Other syntax changes and ownership-transparent memory models remain unadopted proposals or
 investigations.
 
