@@ -18,8 +18,8 @@ plan/review. Consult only on source-design alternatives needing human evaluation
 reading, or learning. Call omission, owned-capture/callable forms, interface disambiguation,
 `throw`, construction entries, and S2's callable-name result mode with unmarked use sites are
 selected. All six principal source directions and `throw reason` without an extra `^` are adopted.
-Optional/unit construction spellings remain pending. Do not block
-independent internal closure on these forms.
+The follow-ups also adopt ordinary `some(...)` and the `()` unit literal while retaining ordinary
+optional injection and implicit unit completion. No R1–R3 spelling choice remains pending.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
 and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
 delegated by this instruction.
@@ -67,9 +67,10 @@ types, outcome payload/carrier layers, async output and cancellation, and ordina
 safety without `view`/`yield`. Follow the readiness review's
 [remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
 Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
-or choose ownership from copy/move implementation history. Keep optional/unit questions open. The
-[pending syntax recommendations](history/reviews/v2.0.0-source-design-decisions.md#remaining-syntax-recommendations)
-record adopted `throw reason` and propose ordinary `some(...)` and the `()` unit literal.
+or choose ownership from copy/move implementation history. The
+[outcome and unit source decisions](history/reviews/v2.0.0-source-design-decisions.md#outcome-and-unit-source-decisions)
+adopt `throw reason`, ordinary `some(...)`, and the `()` unit literal. Preserve
+`let a: i32? = 10` and implicit unit completion; do not reopen these choices as approval blockers.
 Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
