@@ -2203,6 +2203,7 @@ dependencies = [
 name = "nocter-syntax"
 version = "0.0.0"
 dependencies = [
+ "nocter-json",
  "nocter-language",
  "nocter-source",
 ]

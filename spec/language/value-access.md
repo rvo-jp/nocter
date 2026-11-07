@@ -13,7 +13,7 @@ read/transfer inference are defined here and in the linked future callable secti
 outcomes of access from access to stored outcomes. Complete implementation signatures are
 retained under the [future module contract](modules.md#future-direction-v2-0-0-complete-implementation-signatures).
 Full composition and module migration remain work. This does not reopen the selected lifetime,
-initialization, reservation, or cleanup obligations. No compiler implementation or complete
+initialization, reservation, or cleanup obligations. No complete compiler implementation or
 soundness proof is claimed.
 
 ### Type-Side Declarations and Inferred Locals

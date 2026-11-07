@@ -1,3 +1,4 @@
+mod access;
 mod block;
 mod declaration;
 mod expression;
@@ -24,6 +25,8 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ParseGoal {
     SourceFile,
+    /// Bounded future-language private function unit; not a released package/source file.
+    V2CoreUnit,
 }
 
 impl ParseGoal {
@@ -32,6 +35,7 @@ impl ParseGoal {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SourceFile => "source_file",
+            Self::V2CoreUnit => "v2_0_0_core_unit",
         }
     }
 }
@@ -91,10 +95,14 @@ pub fn parse_reusable(source: &SourceFile, goal: ParseGoal) -> ParsedSyntax {
 }
 
 fn parse_tree(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
-    let lexed = lex(source);
+    let lexed = match goal {
+        ParseGoal::SourceFile => lex(source),
+        ParseGoal::V2CoreUnit => crate::lexer::lex_access_core(source),
+    };
     let mut parser = Parser::new(source, lexed.tokens());
     match goal {
         ParseGoal::SourceFile => root::source_file(&mut parser),
+        ParseGoal::V2CoreUnit => access::unit(&mut parser),
     }
     let (events, diagnostics) = parser.finish();
     let built = build_tree(source.id(), &events);

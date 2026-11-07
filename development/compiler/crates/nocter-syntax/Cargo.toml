@@ -10,5 +10,8 @@ publish = false
 nocter-language = { path = "../nocter-language" }
 nocter-source = { path = "../nocter-source" }
 
+[dev-dependencies]
+nocter-json = { path = "../nocter-json" }
+
 [lints]
 workspace = true

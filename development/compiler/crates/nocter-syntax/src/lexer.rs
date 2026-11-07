@@ -142,7 +142,11 @@ impl LexedFile {
 
 #[must_use]
 pub fn lex(source: &SourceFile) -> LexedFile {
-    Lexer::new(source).run()
+    Lexer::new(source, false).run()
+}
+
+pub(crate) fn lex_access_core(source: &SourceFile) -> LexedFile {
+    Lexer::new(source, true).run()
 }
 
 struct Lexer<'source> {
@@ -153,10 +157,11 @@ struct Lexer<'source> {
     tokens: Vec<Token>,
     comments: Vec<Comment>,
     diagnostics: Vec<LexDiagnostic>,
+    access_core: bool,
 }
 
 impl<'source> Lexer<'source> {
-    fn new(source: &'source SourceFile) -> Self {
+    fn new(source: &'source SourceFile, access_core: bool) -> Self {
         Self {
             source,
             text: source.text(),
@@ -165,6 +170,7 @@ impl<'source> Lexer<'source> {
             tokens: Vec::new(),
             comments: Vec::new(),
             diagnostics: Vec::new(),
+            access_core,
         }
     }
 
@@ -743,7 +749,9 @@ impl<'source> Lexer<'source> {
 
     fn lex_punctuation_or_error(&mut self) {
         let start = self.cursor;
-        if let Some(punctuation) = Punctuation::longest_prefix(&self.text[start..]) {
+        if let Some(punctuation) = Punctuation::longest_prefix(&self.text[start..])
+            .filter(|punctuation| self.access_core || *punctuation != Punctuation::Caret)
+        {
             self.cursor += punctuation.as_str().len();
             self.push_token(TokenKind::Punctuation(punctuation), start, self.cursor);
         } else {

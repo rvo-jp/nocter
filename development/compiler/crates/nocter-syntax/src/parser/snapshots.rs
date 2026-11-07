@@ -192,7 +192,7 @@ fn parse_fixture(text: &str, goal: ParseGoal) -> SyntaxTree {
     parse(sources.get(source).expect("fixture source exists"), goal)
 }
 
-fn syntax_shape(tree: &SyntaxTree) -> String {
+pub(super) fn syntax_shape(tree: &SyntaxTree) -> String {
     let mut output = String::new();
     let mut pending = vec![(tree.root_id(), 0_usize)];
     while let Some((id, depth)) = pending.pop() {
@@ -209,7 +209,7 @@ fn syntax_shape(tree: &SyntaxTree) -> String {
     output
 }
 
-fn assert_token_projection(tree: &SyntaxTree, name: &str) {
+pub(super) fn assert_token_projection(tree: &SyntaxTree, name: &str) {
     let mut pieces = vec![Vec::new(); tree.lexed().tokens().len()];
     let mut pending = vec![tree.root_id()];
     while let Some(id) = pending.pop() {

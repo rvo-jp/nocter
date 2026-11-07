@@ -17,13 +17,16 @@ use comments::{CommentLayout, FormatElement};
 use layout::LayoutPlan;
 
 pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String, FormatError> {
+    if syntax.root().kind() != NodeKind::SourceFile {
+        return Err(FormatError::ChangedSyntax);
+    }
     if syntax.has_errors() {
         return Err(FormatError::Diagnostics(syntax_diagnostics(
             std::slice::from_ref(syntax),
         )));
     }
     let formatted = Formatter::new(source, syntax).run();
-    let candidate = parse_candidate(source, syntax, &formatted)?;
+    let candidate = parse_candidate(source, &formatted)?;
     if !equivalence::same_tree(source, syntax, candidate.source(), &candidate.syntax)
         || !equivalence::same_comments(source, syntax, candidate.source(), &candidate.syntax)
     {
@@ -33,7 +36,7 @@ pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String,
     let Some(rewritten) = rewrites.apply(candidate.source()) else {
         return Ok(formatted);
     };
-    let rewritten_candidate = parse_candidate(candidate.source(), &candidate.syntax, &rewritten)?;
+    let rewritten_candidate = parse_candidate(candidate.source(), &rewritten)?;
     if !rewrites.preserves_tokens(
         candidate.source(),
         &candidate.syntax,
@@ -63,11 +66,7 @@ impl ParsedCandidate {
     }
 }
 
-fn parse_candidate(
-    source: &SourceFile,
-    original: &SyntaxTree,
-    formatted: &str,
-) -> Result<ParsedCandidate, FormatError> {
+fn parse_candidate(source: &SourceFile, formatted: &str) -> Result<ParsedCandidate, FormatError> {
     let mut sources = SourceMap::new();
     let formatted_id = sources
         .add_bytes(
@@ -78,11 +77,8 @@ fn parse_candidate(
     let formatted_source = sources
         .get(formatted_id)
         .ok_or(FormatError::ChangedSyntax)?;
-    let goal = match original.root().kind() {
-        NodeKind::SourceFile => nocter_syntax::ParseGoal::SourceFile,
-        _ => return Err(FormatError::ChangedSyntax),
-    };
-    let formatted_tree = nocter_syntax::parse(formatted_source, goal);
+    let formatted_tree =
+        nocter_syntax::parse(formatted_source, nocter_syntax::ParseGoal::SourceFile);
     if formatted_tree.has_errors() {
         return Err(FormatError::ChangedSyntax);
     }
@@ -406,6 +402,9 @@ fn space_before_punctuation(
     parent: Option<NodeKind>,
 ) -> bool {
     match punctuation {
+        Punctuation::Caret => {
+            unreachable!("future-only punctuation cannot enter the released formatter")
+        }
         Punctuation::LeftParen => {
             !is_attached_left_parenthesis(parent) && !is_prefix_parent(previous_parent)
         }
@@ -1097,5 +1096,28 @@ mod tests {
                 output.push(path);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod future_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn future_goal_is_rejected_before_released_spacing_rules_run() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("core.nct"),
+                b"func f(value: ^i32): ^i32 { ^value }\n",
+            )
+            .unwrap();
+        let source = sources.get(source).unwrap();
+        let tree = nocter_syntax::parse(source, nocter_syntax::ParseGoal::V2CoreUnit);
+        assert!(!tree.has_errors());
+        assert!(matches!(
+            format(source, &tree),
+            Err(FormatError::ChangedSyntax)
+        ));
     }
 }

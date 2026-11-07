@@ -1,16 +1,20 @@
 use std::collections::BTreeSet;
 
-use nocter_source::{SourceMap, SourceName};
+use nocter_source::{SourceFile, SourceMap, SourceName};
 
 use super::*;
 use crate::ContextualSpelling;
 
 fn lex_text(text: &str) -> LexedFile {
+    lex_text_with(text, lex)
+}
+
+fn lex_text_with(text: &str, lexer: fn(&SourceFile) -> LexedFile) -> LexedFile {
     let mut sources = SourceMap::new();
     let id = sources
         .add_bytes(SourceName::new("test.nct"), text.as_bytes())
         .unwrap();
-    lex(sources.get(id).unwrap())
+    lexer(sources.get(id).unwrap())
 }
 
 fn kinds(text: &str) -> Vec<TokenKind> {
@@ -162,12 +166,47 @@ fn uses_longest_match_for_punctuation() {
 }
 
 #[test]
-fn every_punctuation_variant_is_lexable_from_its_canonical_spelling() {
+fn punctuation_vocabulary_has_goal_scoped_lexical_availability() {
     for punctuation in Punctuation::ALL {
+        let extended = lex_text_with(punctuation.as_str(), lex_access_core);
+        let expected = vec![TokenKind::Punctuation(*punctuation), TokenKind::Eof];
         assert_eq!(
-            kinds(punctuation.as_str()),
-            vec![TokenKind::Punctuation(*punctuation), TokenKind::Eof]
+            extended
+                .tokens
+                .iter()
+                .copied()
+                .map(Token::kind)
+                .collect::<Vec<_>>(),
+            expected
         );
+        assert!(extended.diagnostics().is_empty());
+        let released = lex_text(punctuation.as_str());
+        if *punctuation == Punctuation::Caret {
+            assert_eq!(
+                released
+                    .tokens
+                    .iter()
+                    .copied()
+                    .map(Token::kind)
+                    .collect::<Vec<_>>(),
+                vec![TokenKind::Eof]
+            );
+            assert_eq!(
+                released.diagnostics()[0].kind(),
+                LexDiagnosticKind::UnexpectedCharacter
+            );
+        } else {
+            assert_eq!(
+                released
+                    .tokens
+                    .iter()
+                    .copied()
+                    .map(Token::kind)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(released.diagnostics().is_empty());
+        }
     }
 }
 

@@ -119,7 +119,7 @@ impl TargetSelection {
             return Err(TargetSelectionError::InconsistentSnapshot);
         }
         if tree.root().kind() != NodeKind::SourceFile {
-            return Ok(());
+            return Err(TargetSelectionError::InconsistentSyntax(tree.source()));
         }
         let source = sources
             .get(tree.source())
@@ -448,6 +448,31 @@ mod tests {
 
         assert!(!selection.item_is_active(first_item));
         assert!(!selection.item_is_active(second_item));
+    }
+
+    #[test]
+    fn future_private_unit_cannot_enter_released_compilation_as_an_empty_source() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("core.nct"), b"func f(): void {}\n")
+            .unwrap();
+        let future = parse(sources.get(source).unwrap(), ParseGoal::V2CoreUnit);
+        assert!(!future.has_errors());
+        assert!(matches!(
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&future]),
+            Err(TargetSelectionError::InconsistentSyntax(id)) if id == source
+        ));
+        let mut builder = TargetSelectionBuilder::new(CompilationTarget::Arm64Darwin);
+        assert!(matches!(
+            builder.include_tree(&sources, &future),
+            Err(TargetSelectionError::InconsistentSyntax(_))
+        ));
+        let current = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        builder.include_tree(&sources, &current).unwrap();
+        let selection = builder.finish();
+        assert!(selection.matches(CompilationTarget::Arm64Darwin, &sources, [&current]));
+        assert!(!selection.matches(CompilationTarget::Arm64Darwin, &sources, [&future]));
+        assert!(selection.item_is_active(descendants_of_kind(&current, NodeKind::Item)[0]));
     }
 
     #[test]

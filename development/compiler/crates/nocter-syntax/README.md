@@ -22,6 +22,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 ## Internal Responsibilities
 
 - lexing and token subdivision
+- bounded future private-function recognition through the explicit `V2CoreUnit` development parse
+  goal, with a distinct root and access-type/update/transfer/unit nodes; released `SourceFile`
+  parsing and ordinary `lex` retain their released token/grammar meaning
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation
 - canonical source-name and portable directory-module-segment validation
 - event-based parsing and flat tree construction
@@ -56,6 +59,10 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - Callable modifiers have dedicated nodes. One ordered vocabulary recognizes them in every
   supported syntax context; downstream stages never recover guarantees from token text or
   declaration spelling.
+- The future core goal never falls back to released borrow/type/expression productions. Its call
+  operand restriction propagates through grouping only and does not use names or types. Its root
+  cannot be admitted by the released target-selection/compile-input boundary. This goal is not
+  exposed as a CLI language-version switch; declaration/body conformance remains separate.
 - A consumer never infers subtree completeness from file-wide diagnostic presence.
 - Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.
 - Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.

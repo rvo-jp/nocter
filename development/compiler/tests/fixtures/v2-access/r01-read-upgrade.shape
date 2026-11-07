@@ -1,0 +1,22 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+          Parameter
+            Type
+              NamedType
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          BindingStatement
+            BindingPattern
+            Expression
+              UpdateExpression
+                ReferenceExpression
+          AssignmentStatement
+            AssignmentTarget
+              ReferenceExpression
+            Expression
+              ScalarLiteral

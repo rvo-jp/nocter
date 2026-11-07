@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "parse_goal": "V2CoreUnit",
-  "compiler_status": "not-implemented",
+  "compiler_status": "syntax-only",
   "cases": [
     {
       "id": "a01-update-local",
@@ -290,7 +290,7 @@
       "file": "s06-short-implementation.nct",
       "expectation": "syntax-reject",
       "reason": "Complete implementation signatures remain mandatory.",
-      "primary_text": "func wrong"
+      "primary_text": "{"
     }
   ]
 }

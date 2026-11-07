@@ -19,4 +19,8 @@ analysis and are not reconstructed here.
 - Formatting preserves authored callable execution and guarantees in their canonical modifier
   positions.
 - Source token classification never invents semantic identity.
+- Released inspection/formatting retains its `SourceFile` goal. The future private core root is
+  rejected before released formatting rules run; exposing or formatting that language is a separate
+  migration boundary. Expected-syntax projection can retain the typed `unmarked_call_operand`
+  category without reconstructing its rule from text.
 - Invalid syntax remains representable and diagnosable after tooling operations.

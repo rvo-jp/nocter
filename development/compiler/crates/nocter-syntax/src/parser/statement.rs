@@ -143,7 +143,7 @@ fn at_assignment_operator(parser: &Parser<'_>) -> bool {
     is_assignment_operator(parser.current_kind())
 }
 
-fn has_possible_assignment(parser: &Parser<'_>) -> bool {
+pub(super) fn has_possible_assignment(parser: &Parser<'_>) -> bool {
     let mut distance = 0_usize;
     let mut delimiter_depth = 0_usize;
     let mut interpolation_depth = 0_usize;

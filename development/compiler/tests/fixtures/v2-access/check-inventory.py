@@ -13,9 +13,10 @@ def require(condition, message):
 root = Path(__file__).resolve().parent
 manifest = json.loads((root / 'manifest.json').read_text())
 require(manifest['schema'] == 1 and manifest['parse_goal'] == 'V2CoreUnit', 'unknown fixture schema/goal')
-require(manifest['compiler_status'] == 'not-implemented', 'update validation when compiler consumption begins')
+require(manifest['compiler_status'] == 'syntax-only', 'update validation when semantic consumption begins')
 seen = set()
 files = set()
+shapes = set()
 counts = Counter()
 for case in manifest['cases']:
     name = case['file']
@@ -32,7 +33,12 @@ for case in manifest['cases']:
         require('primary_text' not in case, 'accepted input has a failure projection')
     else:
         require(source.count(case['primary_text']) == 1, 'failure projection must identify one source range')
+    if case['expectation'] != 'syntax-reject':
+        shape = Path(name).with_suffix('.shape').name
+        require((root / shape).read_text().startswith('V2CoreUnit\n'), 'missing/wrong-goal syntax shape')
+        shapes.add(shape)
     counts[case['expectation']] += 1
 require(files == {path.name for path in root.glob('*.nct')}, 'unregistered or missing source fixture')
-print(json.dumps({'fixture_inventory': 'valid', 'cases': len(seen), 'expected': dict(sorted(counts.items())),
+require(shapes == {path.name for path in root.glob('*.shape')}, 'unregistered syntax shape')
+print(json.dumps({'syntax_shapes': len(shapes), 'fixture_inventory': 'valid', 'cases': len(seen), 'expected': dict(sorted(counts.items())),
                   'compiled_fixture_cases': 0}, sort_keys=True))

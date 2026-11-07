@@ -681,3 +681,19 @@ help: reinitialize `file` on every path before using it
 Warnings are not part of the current diagnostic surface.
 
 Future warnings may be added for style, portability, or likely mistakes, but warnings must not change language semantics. A warning must not be required for memory safety or type soundness.
+
+
+## Future Direction: v2.0.0 Core Syntax Diagnostics
+
+The [first access fragment](../language/syntactic-grammar.md#first-access-validation-fragment)
+rejects a direct call operand whose root, after stripping grouping, is an update/transfer prefix.
+Report `E0120` at the authored `&` or `^` punctuation, with the required syntax category
+`unmarked_call_operand`. Grouping does not move the diagnostic to the surrounding parentheses.
+For unary lexical `&&`, subdivision retains the first `&` as that prefix's range. Diagnostic
+presentation describes a call operand without an access prefix rather than inventing a source
+keyword for this category. Names, lookup, and operand types cannot select this syntax rule.
+
+An operation nested inside a computed operand is not a direct assertion solely because it contains
+`&` or `^`. Keep non-place prefix operands and assignment targets in their syntax trees for later
+place/permission/initialization diagnostics; do not classify those semantic failures as missing
+syntax. These rules describe the future fragment and do not change current released diagnostics.

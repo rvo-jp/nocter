@@ -23,3 +23,6 @@ reparsed, or foreign-source selection before semantic lowering.
 - Activity queries verify that the supplied node belongs to one selected syntax tree. A node from a
   reparsed or foreign tree is inactive rather than relying on the caller to establish membership.
 - One selection admits at most one syntax tree for a physical source identity.
+- Only the released `SourceFile` root enters this selection. A future private-function core root
+  is an `InconsistentSyntax` integrity error, not an empty inactive source that semantic lowering
+  could mistake for an accepted program. A rejected root cannot mutate the builder's selected set.

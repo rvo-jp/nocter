@@ -10,14 +10,27 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Start the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md): integrate
-its bounded private-function grammar into the owning syntax/declaration/checking contracts and
-consume the [44-case manifest](compiler/tests/fixtures/v2-access/README.md) in actual phase tests.
-The inventory checker does not compile them. Close syntax shapes/diagnostics, checked actions,
-source liveness, joins/backedges and conditional cleanup before claiming this slice complete.
+Continue the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md): integrate
+its declaration/type/permission and body-checking contracts and consume the
+[44-case manifest](compiler/tests/fixtures/v2-access/README.md) in semantic phase tests.
+Production `nocter-syntax` now implements the bounded `V2CoreUnit` goal: 38 parse with shape
+snapshots and six reject at syntax. Syntax, target-selection, diagnostics, and source-tooling
+focused tests pass (204 unit tests). No semantic acceptance or rejection is implemented for the
+future goal. The inventory checker checks registration/shapes/ranges, not source semantics.
+Close checked actions, source liveness, joins/backedges and conditional cleanup before claiming
+this slice complete.
+
 Do not wait for all optimization research, add a parallel Python compiler, silently mix released
-std/borrow semantics, or expose a public source-version compatibility mode. Full v2.0.0 remains
-unimplemented. No human source choice blocks this bounded next task.
+std/borrow semantics, or expose a public source-version compatibility mode. A complete v2.0.0
+compiler remains unimplemented. No human source choice blocks this bounded next task.
+
+Verification follow-up: the full compiler gate passed its workspace/CLI/command stages, then
+reported 131/132 native cases passing. The TLS plain-peer/HTTPS ALPN test failed with image exit
+1; it subsequently passed alone and within all 12 TLS/network tests at four threads. No runtime
+or test assertion was changed. The exact cause is unproved; keep the failed full invocation
+visible. The remaining 118 LSP tests, no-default-features check, Rust documentation, and website
+validation passed separately. See the first-slice review for the evidence boundary; this is not
+one clean full-gate or release-qualification run.
 
 S11 adopts `let edit = &buffer`. It creates active U at expression evaluation from an initialized
 writable X/U place, not a fresh result or I access. A bare read of `edit` still infers I. Direct
@@ -48,10 +61,15 @@ Declared I outputs retain I. An explicit I destination can materialize a fresh C
 normal temporary cleanup and preserved D/S; it cannot retain a hidden move-only X owner.
 Assignment checks start after earlier RHS actions and do not roll an explicit move back on failure.
 
+The syntax goal has distinct root/access/update/transfer/unit nodes and no fallback to released
+borrow productions. Ordinary `lex`/`SourceFile` preserve their current language; released target
+selection rejects a future root rather than silently ignoring it, and formatting rejects it before
+spacing. Do not bypass these integrity gates to reuse old lowering for the new model.
+
 The owning future value-access/callable/token/syntax sections now migrate these selected forms;
 released semantics remain unchanged. Full compound-type/precedence, outcome/async, pattern,
 module/construction, effect/CTFE, platform, tooling, and compiler-contract migration remain gates.
-No v2.0.0 compiler or complete proof is claimed. The finite typing exploration now covers S9;
+No complete v2.0.0 compiler or proof is claimed. The finite typing exploration now covers S9;
 it does not parse sources or validate general CFGs, loan graphs, type constructors, or cleanup.
 
 S10 closes the two latest source questions: qualifiers bind to the following type atom before

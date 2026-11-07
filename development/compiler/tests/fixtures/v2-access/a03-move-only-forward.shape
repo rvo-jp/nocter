@@ -1,0 +1,18 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+          Parameter
+            Type
+              AccessType
+                NamedType
+        Type
+          AccessType
+            NamedType
+      Block
+        ExecutableSequence
+          ReturnStatement
+            Expression
+              TransferExpression
+                ReferenceExpression

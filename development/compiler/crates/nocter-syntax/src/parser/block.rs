@@ -97,7 +97,7 @@ fn executable_sequence(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::ExecutableSequence);
 }
 
-fn only_newlines_before_close(parser: &Parser<'_>) -> bool {
+pub(super) fn only_newlines_before_close(parser: &Parser<'_>) -> bool {
     let mut distance = 0;
     while parser.nth_kind(distance) == TokenKind::Newline {
         distance += 1;

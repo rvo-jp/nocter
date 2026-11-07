@@ -233,6 +233,7 @@ punctuation! {
     Slash => "/",
     Star => "*",
     Ampersand => "&",
+    Caret => "^",
     Less => "<",
     Greater => ">",
     Equal => "=",
