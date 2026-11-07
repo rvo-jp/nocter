@@ -10,7 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
-- [v2.0.0 Values and Access Operations Proposal](v2.0.0-values-and-access-operations.md)
+- [v2.0.0 Values and Access Operations](v2.0.0-values-and-access-operations.md)
 - [v2.0.0 Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md)
 - [v2.0.0 Language Design Independence Review](v2.0.0-language-design-independence.md)
 - [v0.73.0 Phase 5 Qualification Review](v0.73.0-phase-5.md)

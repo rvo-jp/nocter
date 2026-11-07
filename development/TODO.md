@@ -12,8 +12,9 @@ Linux target work remains deliberately deferred.
 
 Use the v2.0.0 plan's human-working-set criteria when closing design: directory structure, root
 contracts, and direct `see` should reduce reading; inference should reduce writing and unnecessary
-decisions without losing semantic or performance information. Automatic readonly call borrowing
-and omission of `move` on owned returns are deferred because they can obscure ownership operations.
+decisions without losing semantic or performance information. Type-driven automatic call borrowing
+and omission of explicit transfer on owned returns remain deferred. The newly adopted access model
+instead gives unmarked inputs one meaning and keeps updates and transfers explicit.
 Continue internal inference work; evaluate disjoint-access and signature-maintenance proposals as
 pending candidates, not already adopted syntax.
 
@@ -21,8 +22,9 @@ Close the detailed contracts and establish Nocter execution evidence in the
 [v2.0.0 language design plan](history/milestones/v2.0.0.md). Prioritize compile-time optimization
 and minimal application syntax while preserving the distinction between adopted design and current
 compiler support. Rust comparisons and short-term delivery are not prerequisites; implementation
-effort must not disqualify a better semantic model. Evaluate the values/access-operations proposal
-as a pending alternative to first-class borrow types. Next close explicit outcome branch selection
+effort must not disqualify a better semantic model. Close the adopted values/access-operations model
+across parameters, receivers, projections, captures, and deferred execution. Exact single-symbol
+spellings are proposals, not adopted grammar. Next close explicit outcome branch selection
 and nested optional states,
 storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
 completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
