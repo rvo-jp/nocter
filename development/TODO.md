@@ -15,8 +15,9 @@ execution than Rust through compile-time computation and optimization, with only
 to express behavior and information the compiler cannot derive. Establish comparable performance
 baselines and close the detailed contracts for adopted capture inference, explicit callable type
 arguments, and contract-only `index.nct` with authored `use` re-exports and retained direct `see`.
-Evaluate a declaration-attached restricted-visibility directive; a special `internal.nct` role has
-not been adopted. Reducing advanced annotations in ordinary applications remains an adopted goal.
+The declaration-attached `#visibility` directive with `/`, `./`, and repeated `../` boundary paths
+is adopted; close its remaining grammar and tooling details. A special `internal.nct` role has not
+been adopted. Reducing advanced annotations in ordinary applications remains an adopted goal.
 Other syntax changes and ownership-transparent memory models remain unadopted proposals or
 investigations.
 
