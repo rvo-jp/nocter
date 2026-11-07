@@ -16,8 +16,8 @@ execution. Preserve adopted contracts and safety/resource requirements; record d
 research evidence, counterexamples, proof obligations, and distinguishing cases in the v2.0.0
 plan/review. Consult only on source-design alternatives needing human evaluation of writing,
 reading, or learning. Call omission, owned-capture/callable forms, interface disambiguation,
-`throw`, and construction entries are selected. Identifier-prefix local binding rules and the
-explicit `^` on an existing `throw` operand remain human-facing source decisions. Optional/unit
+`throw`, and construction entries are selected. The proposed callable-name result mode and its
+uniform use-site policy, plus explicit `^` on an existing `throw` operand, remain human-facing source decisions. Optional/unit
 spellings are separate pending proposals. Do not block independent internal closure on these forms.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
 and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
@@ -57,13 +57,17 @@ dependencies, capture ordering, and deferred cleanup. The bounded root-place mod
 language proof or compiler conformance. Use the [readiness review](history/reviews/v2.0.0-implementation-readiness.md)
 for conservative observation-preserving optimization, inferred-effect evidence, CTFE/type
 dependencies, and contract/body identity gates. Review only the human-facing alternatives in
-the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): the user rejects
-result-side `view`/`&view` and `yield` and proposes `let name`, `let &name`, `let ^name`. The user
-clarifies `^name` means acquiring returned ownership, not consuming a receiver. Close the meaning
-of unmarked binding versus owning results (a copied buffer is also owned), `var` and writability,
-readonly/projected bindings, and sufficient public result contracts before adopting S2. Do not
-invent optional left/right transfer aliases or reintroduce rejected notation. Keep the separate
-`throw` operand marker and optional/unit questions open. Migrate the selected rules
+the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): the latest S2 proposal
+writes the result mode before the callable identifier (`func ^open(...)`). Compare mandatory
+binding assertions, mandatory callee assertions, and contract-derived omission; recommend omission
+at both use-site positions, consistent with S1. Under this recommendation an unmarked binding
+receiving a declared owned result retains ownership; do not apply the superseded, never-adopted
+proposal that every ordinary `let` is I-only. Receiver/parameter modes and result modes are separate;
+Copy versus moved implementation history does not select result ownership. The declaration prefix
+and use-site choice are proposals, not adoptions. Close callable types, origins, outcome layers,
+async output/carrier roles, and local mutability before migration. Do not keep optional assertion
+aliases or reintroduce rejected `view`/`yield`. Keep the separate `throw` operand marker and
+optional/unit questions open. Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
