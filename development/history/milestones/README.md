@@ -6,6 +6,10 @@ the milestone itself, while publication evidence belongs in
 [`development/history/release-audits/`](../release-audits/README.md). Public language behavior belongs only in
 [`spec/`](../../../spec/README.md).
 
+## Planned Major Version
+
+- [v2.0.0: Learning Cost and Language Design](v2.0.0.md)
+
 ## Recent Milestones
 
 - [v0.73.0: Relational Safety and Verified Traversal](v0.73.0.md)

@@ -10,6 +10,11 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+Refine the [v2.0.0 language design plan](history/milestones/v2.0.0.md): capture inference and explicit
+callable type arguments are adopted directions; their detailed contracts remain to be specified.
+Reducing advanced annotations in ordinary applications is an adopted goal. Other syntax changes
+and ownership-transparent memory models remain unadopted proposals or investigations.
+
 Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
 commit and upload the retained qualified archive without rebuilding it, then record an independent
 post-publication audit. Do not reopen v0.72.0; preserve its checked safety dispositions, qualified
