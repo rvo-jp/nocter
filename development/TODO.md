@@ -10,6 +10,17 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+The user delegates Value Access Model semantics, analysis, and optimization design to the agent.
+Resolve remaining model choices without approval, even when they affect accepted programs or
+execution. Preserve adopted contracts and safety/resource requirements; record decisions,
+research evidence, counterexamples, proof obligations, and distinguishing cases in the v2.0.0
+plan/review. Consult only on source-design alternatives needing human evaluation of writing,
+reading, or learning. Call-marker omission/placement, projection forms, and callable-type spelling
+remain human-facing design work. Do not block independent internal closure on these spellings.
+See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
+and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
+delegated by this instruction.
+
 Use the v2.0.0 plan's human-working-set criteria when closing design: directory structure, root
 contracts, and direct `see` should reduce reading; inference should reduce writing and unnecessary
 decisions without losing semantic or performance information. Type-driven automatic call borrowing
@@ -53,7 +64,8 @@ inference investigation; do not adopt implicit cloning, ARC/GC, or general impli
 
 Use the milestone for the complete adopted scope, pending grammar questions, and conformance gates,
 including expanded constant evaluation, tuple bindings, directive grouping, capture inference, and explicit
-callable arguments. Do not treat remaining ownership-model or syntax proposals as adopted work.
+callable arguments. Investigation authorization alone does not adopt unresolved proposals. Record
+autonomously resolved model rules separately from syntax that still needs human evaluation.
 
 Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
 commit and upload the retained qualified archive without rebuilding it, then record an independent

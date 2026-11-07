@@ -40,6 +40,30 @@ requested by the user. They are never evidence for language semantics or new com
 
 ## Specification Closure
 
+### Delegated v2.0.0 Value Access Model Design
+
+The user delegates completion of the v2.0.0 Value Access Model's semantics, analysis, and
+optimization design to the agent. Within this scope, resolve remaining model questions
+autonomously, including questions that affect accepted programs or observable execution. Do not
+ask the user to approve internal model alternatives or merely confirm a recommendation. This
+scoped delegation takes precedence over the general decision procedure below; it does not
+delegate unrelated language decisions or release publication.
+
+Consult the user only for source-language design alternatives that need human evaluation of
+writing, reading, or learning the language. Present concrete source examples, explain the tradeoff,
+and recommend one spelling or rule. This includes call-marker omission/placement, projection
+syntax, and callable-type spelling when materially different user-facing forms remain. Do not
+turn a semantic or analysis decision into a syntax question merely to obtain approval.
+
+Respect adopted model decisions and safety/resource requirements. Use primary research as
+evidence, not authority; record the selected rule, rationale, counterexamples, proof obligations,
+and valid/conflicting/failure/cancellation cases. Distinguish autonomous model decisions from
+syntax awaiting human review and from implemented compiler behavior. Keep v2.0.0 design closure
+in its plan/review until coherent migration into the owning specification chapters; do not
+silently change the current released contract.
+
+### General Closure Procedure
+
 Ask the user only when the specification still permits at least two materially different
 user-visible behaviors after the owning chapter, cross-references, and design principles have been
 audited. Do not ask about internal representation, implementation order, unfixed diagnostic
