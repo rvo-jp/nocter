@@ -24,8 +24,9 @@ and minimal application syntax while preserving the distinction between adopted 
 compiler support. Rust comparisons and short-term delivery are not prerequisites; implementation
 effort must not disqualify a better semantic model. Close the adopted values/access-operations model
 across parameters, receivers, projections, captures, and deferred execution. Unmarked input,
-`&` update, and `^` transfer are adopted; receiver-marker placement and complete precedence remain
-open. Next close explicit outcome branch selection
+`&` update, and `^` transfer are adopted; choose a uniform call policy (all explicit or all
+declaration-driven) before closing precedence. The latter is recommended but not adopted; retain
+no optional call-marker aliases. Next close explicit outcome branch selection
 and nested optional states,
 storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
 completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
