@@ -1,0 +1,5 @@
+func wrong(value: ^i32): void {
+    let edit = &value
+    value += 1
+    edit += 1
+}

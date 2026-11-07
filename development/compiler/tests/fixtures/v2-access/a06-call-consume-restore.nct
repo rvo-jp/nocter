@@ -1,0 +1,7 @@
+func forward(value: ^i32): ^i32 {
+    return ^value
+}
+func restore(value: ^i32): ^i32 {
+    value = forward(value)
+    return ^value
+}

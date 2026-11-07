@@ -1,0 +1,6 @@
+func forward(value: ^error): ^error {
+    return ^value
+}
+func wrong(value: ^error): void {
+    let inspect: error = forward(value)
+}

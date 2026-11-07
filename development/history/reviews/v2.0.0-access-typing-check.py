@@ -2,7 +2,7 @@
 """Finite typing-boundary design check; not a Nocter parser, compiler, or proof.
 
 Checks Copy evidence, source availability, referent versus payload/region dependencies,
-and binding/call/return boundaries, including S9 operation-directed local inference.
+and binding/call/return boundaries, including S9 inference and S11 explicit update delegation.
 It does not parse Nocter or model general CFGs, delegation graphs, or type constructors.
 """
 
@@ -20,7 +20,7 @@ class Source:
     payload: frozenset = frozenset()
     storage: frozenset = frozenset()
     initialized: bool = True
-    access_result: bool = False
+    supplied_access: bool = False
 
     @property
     def referent(self):
@@ -40,13 +40,13 @@ class Result:
     source_available: bool = True
 
 
-OPERATIONS = ("infer", "bindI", "bindU", "bindX", "argX", "returnI", "returnU", "returnX", "transfer")
+OPERATIONS = ("infer", "bindI", "bindU", "bindX", "argX", "returnI", "returnU", "returnX", "transfer", "update")
 
 
 def inferred_binding(source):
     if source.kind == "fresh":
         return "bindX"
-    if source.kind == "update" and source.access_result:
+    if source.kind == "update" and source.supplied_access:
         return "bindU"
     return "bindI"
 
@@ -68,6 +68,9 @@ def check_boundary(source, operation):
     if operation == "transfer":
         if source.kind == "owner":
             answer = result(source, "X", transferred=True)
+    elif operation == "update":
+        if source.kind in ("owner", "update"):
+            answer = result(source, "U")
     elif operation == "argX":
         if source.kind in ("owner", "fresh"):
             answer = result(source, "X", transferred=True)
@@ -135,7 +138,7 @@ def invariant(source, operation, answer):
         if operation == "bindX" and source.kind == "owner":
             assert answer.copied and not answer.transferred, "owning destination alone is not an explicit source move"
     if operation == "infer":
-        expected = "X" if source.kind == "fresh" else "U" if source.kind == "update" and source.access_result else "I"
+        expected = "X" if source.kind == "fresh" else "U" if source.kind == "update" and source.supplied_access else "I"
         assert answer.mode == expected, "infer from the operation, not the named source's stored permission"
         assert not answer.copied, "inference does not silently materialize a Copy"
         assert answer.transferred == (source.kind == "fresh"), "a bare owner read never infers a move"
@@ -144,6 +147,10 @@ def invariant(source, operation, answer):
             assert answer.transferred and not answer.copied, "existing Copy owner still transfers into X"
         else:
             assert answer.copied and answer.source_available, "non-owning X input needs an independent Copy"
+    if operation == "update":
+        assert source.kind in ("owner", "update") and answer.mode == "U"
+        assert not answer.copied and not answer.transferred, "delegation neither copies nor consumes"
+        assert answer.referent == source.referent, "update expression preserves its referent"
     if operation == "transfer":
         assert source.kind == "owner" and answer.transferred, "standalone transfer targets existing owner"
     if operation.startswith("return"):
@@ -160,9 +167,9 @@ def sources():
             if kind == "value" and not proof:
                 continue
             forms = (False, True) if kind in ("read", "update") else (False,)
-            for location, payload, storage, initialized, access_result in product(
+            for location, payload, storage, initialized, supplied_access in product(
                     locations, dependency_sets, dependency_sets, (False, True), forms):
-                yield Source(kind, proof, concrete, location, payload, storage, initialized, access_result)
+                yield Source(kind, proof, concrete, location, payload, storage, initialized, supplied_access)
 
 
 def scenarios():
@@ -200,8 +207,22 @@ def scenarios():
     retained = Source("value", True, True, payload=read_answer.payload, storage=read_answer.storage)
     assert check_boundary(retained, "returnI") is None
     assert check_boundary(Source("update", location="outside"), "infer").mode == "I"
-    assert check_boundary(Source("update", location="outside", access_result=True), "infer").mode == "U"
-    assert check_boundary(Source("read", location="outside", access_result=True), "infer").mode == "I"
+    assert check_boundary(Source("update", location="outside", supplied_access=True), "infer").mode == "U"
+    assert check_boundary(Source("read", location="outside", supplied_access=True), "infer").mode == "I"
+
+    # S11 creates supplied U, unlike reading a named U access. Conflict/liveness is separate.
+    for kind in ("owner", "update"):
+        source = Source(kind, location="outside", payload=frozenset(("outside",)),
+                        storage=frozenset(("outside",)))
+        delegated = check_boundary(source, "update")
+        assert delegated.mode == "U" and delegated.source_available
+        assert delegated.referent == source.referent
+        expression = Source("update", location=next(iter(delegated.referent)),
+                            payload=delegated.payload, storage=delegated.storage, supplied_access=True)
+        assert check_boundary(expression, "infer").mode == "U"
+        assert check_boundary(replace(expression, supplied_access=False), "infer").mode == "I"
+    for kind in ("read", "fresh", "value"):
+        assert check_boundary(Source(kind, True, True, "outside"), "update") is None
 
     # Model first -> ^first -> fresh result -> next -> inspect, preserving carried dependencies.
     first = Source("owner", payload=frozenset(("outside",)))
@@ -239,6 +260,9 @@ def scenarios():
     region_copy = replace(header, storage=frozenset(("outside",)))
     local_dependency = replace(header, payload=frozenset(("local",)))
     invalid_results = (
+        (header, "update", result(header, "U")),
+        (scalar, "update", result(scalar, "X", transferred=True)),
+        (update, "update", replace(result(update, "U"), referent=frozenset())),
         (header, "bindX", replace(copied, payload=frozenset())),
         (region_copy, "bindX", replace(check_boundary(region_copy, "bindX"), storage=frozenset())),
         (generic, "bindX", result(generic, "X", copied=True)),
@@ -252,7 +276,7 @@ def scenarios():
         (Source("fresh", True, True), "bindI", Result("I", frozenset(), frozenset(), frozenset())),
         (scalar, "infer", result(scalar, "X", transferred=True)),
         (Source("update", location="outside"), "infer", result(Source("update", location="outside"), "U")),
-        (Source("update", location="outside", access_result=True), "infer", result(Source("update", location="outside"), "I")),
+        (Source("update", location="outside", supplied_access=True), "infer", result(Source("update", location="outside"), "I")),
         (Source("fresh"), "infer", Result("I", frozenset(), frozenset(), frozenset())),
     )
     for source, operation, answer in invalid_results:
@@ -277,7 +301,7 @@ def explore():
                 other = check_boundary(replace(source, concrete_copy=not source.concrete_copy), operation)
                 assert other == answer, "specialization cannot reselect the checked source operation"
                 stable_specializations += 1
-            if operation in ("infer", "bindI", "bindU") and source.kind != "value":
+            if operation in ("infer", "bindI", "bindU", "update") and source.kind != "value":
                 if operation == "bindI" and source.kind == "fresh":
                     continue  # Copy evidence controls independent I materialization, never inferred mode.
                 other_source = replace(source, copy_proof=not source.copy_proof, concrete_copy=True)

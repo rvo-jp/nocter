@@ -618,8 +618,8 @@ The following lexical features are intentionally unsupported:
 ## Future Direction: v2.0.0 Access Tokens
 
 For v2.0.0, `^` is punctuation for type-side ownership qualifiers and explicit source transfer.
-`&` denotes update in a type qualifier or the special `&self` receiver abbreviation; it does not
-introduce an ordinary readonly borrow type. Neither `&T` nor `^T` is a compound lexical token.
+`&` denotes update in a type qualifier, the `&place` delegation expression, or the special
+`&self` receiver abbreviation; it does not introduce an ordinary readonly borrow type. Neither `&T` nor `^T` is a compound lexical token.
 The selected receiver forms tokenize as optional punctuation followed by `self`.
 
 `mut` and `once` introduce future structural callable invocation kinds alongside `func`.
@@ -630,6 +630,11 @@ invocation. Invocation meaning comes from the callable word, not token adjacency
 
 Local declarations begin with `let` and an undecorated identifier/pattern. Type qualifiers occur
 after a type-annotation colon when written; `^place` in an initializer is a transfer expression.
+`&place` in an initializer creates update access. Neither expression prefix is an optional direct
+call-argument assertion. In the future access expression grammar a unary position containing the
+lexical `&&` token supplies two update prefixes; it does not retain the released readonly meaning.
+Its inner expression is not an existing writable place, so `&&value` fails place checking. Binary
+`left && right` remains logical conjunction. Spacing does not select a different access model.
 `var` is not a v2.0.0 binding declaration. Its rejection must not fall back to the released
 `let`/`var` grammar. The forced-capture prefix uses the same punctuation as source transfer.
 

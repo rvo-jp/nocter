@@ -328,3 +328,102 @@ if should_close {
 file = BlockingFile.open(other_path)?
 file.position_blocking()? // OK: whole-binding assignment restored initialized state
 ```
+
+
+## Future Direction: v2.0.0 Assignment and Flow
+
+These rules refine the future [Value Access Model](value-access.md), separately from the released
+`let`/`var` rules above. A local has one inferred or annotated I/U/X permission. No subsequent
+assignment, branch, use, or specialization changes it.
+
+`let _ = expression` evaluates once and introduces no binding. Dispose of an owned result at that
+point; an I/U result releases only that temporary access and does not destroy its outside referent.
+`drop name` requires a definitely initialized X place without conflicting live access, disposes
+of its value, and leaves that owning slot uninitialized. It cannot extract/destroy a referent
+through I/U. Implicit exit cleanup follows the same ownership obligations but is conditional on
+the actual initialized parts. Neither discard nor drop supplies an implicit clone or move of a
+bare existing source.
+
+### Assignment Order and Reinitialization
+
+Evaluate the entire right-hand expression first. Only after success, evaluate dynamic destination
+components once, check the destination's state after those right-hand actions, dispose of its
+initialized old value when required, and install the complete replacement. Protect a prepared
+replacement and its dependencies through target evaluation and cleanup. Reject a replacement
+that would destroy storage needed by its own retained I/U access or D/S dependencies. Do not
+reserve or read the assignment destination before the right-hand side merely to simplify checking.
+
+An X destination stores a fresh owned value, explicit transfer, or proved Copy; an expected X
+assignment does not silently move an existing move-only source. A U destination replaces its
+original referent under the same complete-value requirements. I is not writable. U does not
+become an uninitialized owning slot and cannot be retargeted to another access.
+
+If the right-hand side fails or terminates, perform no target evaluation, replacement cleanup,
+or store. Previously performed right-hand moves, calls, and effects remain performed. Successful
+reinitialization of an uninitialized X slot performs no old-value destruction. Replacing a maybe
+initialized X slot conditionally cleans only the old value actually present on that path.
+
+```text
+func refresh(value: ^error): ^error {
+    value = ^value
+    return ^value
+}
+```
+
+Here the right-hand transfer leaves `value` uninitialized; assignment installs that same owned
+value without destroying a nonexistent old value. Similarly `value = replace(value)` can consume
+then restore an owner if the selected call returns a compatible X result. An incompatible live
+access still prevents the transfer. A failed call does not restore an owner it has consumed.
+
+Compound assignment also evaluates the right-hand side first, then identifies the target once,
+reads its definitely initialized value, computes the primitive numeric result, and writes it.
+`value += consume(value)` is invalid if preparing/invoking `consume` moved `value` and did not
+restore it. It is not a textual rewrite that reads the old value before the right-hand side.
+Numeric type, overflow, division, and checked-operation rules continue to apply; no arithmetic
+reassociation or effect reordering follows from X permission.
+
+### Conditional Results and Access Duration
+
+For an unannotated conditional result, all normally producing branches must supply the same
+natural permission and compatible data types. A terminating branch supplies no result. A plain
+place supplies I, an explicit `&place` supplies U, and a fresh result or explicit transfer supplies
+X. Do not choose a common mode by inspecting later uses or Copy specialization. An explicit
+expected binding/result contract instead checks each producing branch at that boundary, including
+its permitted Copy materialization. It never supplies an omitted standalone move.
+
+```text
+let source = 10
+let answer = if flag { ^source } else { 20 } // X on both paths
+```
+
+`source` is maybe initialized afterward; its old cleanup is conditional, and an unguarded read
+is invalid. Replacing `^source` with `source` produces I versus X and cannot infer a common mode.
+An explicit `: ^i32` answer could instead copy the I branch under available Copy evidence.
+
+At a join, keep initialization and alternative access dependencies separately. Every operation
+must be safe on every still-possible incoming path. Two branches delegating U to different places
+create alternatives, rather than two simultaneously active U accesses. A use that cannot establish
+which place is accessed must respect both possibilities. Do not assume a branch correlation that
+has not been proved. Assignment to a whole maybe initialized X slot can restore definite state.
+
+End an ordinary scalar access after its last required use, including any dependent cleanup;
+propagate that requirement backward through branches and loop edges. Creating `&place` activates
+U immediately. A selected call's U operand instead uses the separately defined preparation and
+invocation protocol. These have different timing, even when both eventually update the same place.
+A child read restricts update/transfer through its parent while live. An exclusive child update
+also restricts overlapping parent reads. The compiler explains a conflict at the attempted
+operation and identifies the retained access and its later use or cleanup.
+
+### Loops and Exits
+
+Compute a conservative fixed point at each loop header over initialization, live accesses, and
+carried dependencies. Include the zero-iteration path of `while`, every continuing backedge and
+`continue`, and each `break`/return edge at its actual destination. A transfer followed by
+reinitialization only on an exiting path does not make the next iteration safe. A transfer on
+all continuing paths followed by valid reinitialization before the backedge can be safe.
+
+Owned parts are cleaned exactly once on their actual exits; missing or maybe initialized parts
+are not read or destroyed as complete values. U remains initialized on every outward recoverable
+edge. These obligations do not require unrestricted path reasoning or acceptance of every safe
+program. When conservative checking fails, report the specific unproved initialization/access
+relationship locally; do not insert copying, runtime sharing, or a lifetime extension.

@@ -38,6 +38,18 @@ let next = ^first             // ^Buffer, explicitly transferred; first is unava
 let inspect = next            // Buffer, read access; next remains the owner
 ```
 
+An explicit update-access expression supplies U:
+
+```text
+let editable = &next          // &Buffer, delegates update access to next
+```
+
+This is a separate example from keeping `inspect` live. `&place` requires definitely initialized
+writable owned storage or an existing U access. It cannot upgrade I, target a fresh temporary,
+copy a capability, or transfer ownership. Grouping preserves the operation. Reading the resulting
+`editable` into another unannotated local still supplies I. Type-side `&T` declares a contract;
+expression-side `&place` performs delegation. `let &editable` is not another spelling.
+
 Reading an existing place supplies I, even when the place is owned, writable, or Copy. This
 includes an identifier, field, element, or range selected without an explicit transfer. `^place`
 instead supplies X by transferring an initialized owner. A call supplies its selected result
@@ -198,6 +210,14 @@ and required structure stay protected for the access's live range. A bare name n
 still supplies a read when used to initialize another unannotated local; it does not duplicate an
 exclusive capability. An explicit U destination or U-result handoff delegates access, restricting
 the parent while the child is live.
+
+`&place` establishes that delegated access when the expression is evaluated, rather than reserving
+it until a surrounding operation completes. Its target and carried dependencies remain protected
+through its live uses and dependent cleanup. An active U child excludes overlapping access through
+its parent; an I child permits compatible reads but prevents parent update/transfer. Ending a child
+restores only the surviving parent's rights, subject to its other live children. No lexical block,
+explicit lifetime name, or separate release statement is needed for an ordinary access whose last
+use and required cleanup have ended. This does not move a resource destructor earlier.
 
 An X binding receives a fresh owned result or an explicitly transferred owner. An explicitly X
 destination may also materialize a permitted Copy from a readable value, retaining payload and

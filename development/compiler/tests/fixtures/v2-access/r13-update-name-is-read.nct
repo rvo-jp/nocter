@@ -1,0 +1,4 @@
+func wrong(value: &i32): void {
+    let child = value
+    child += 1
+}

@@ -1,0 +1,3 @@
+func wrong(value: ^error): void {
+    let next: ^error = value
+}

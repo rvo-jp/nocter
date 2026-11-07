@@ -1,0 +1,7 @@
+func consume(value: ^i32): void {
+}
+func preserve(value: ^i32): ^i32 {
+    let inspect = value
+    consume(inspect)
+    return ^value
+}

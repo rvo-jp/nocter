@@ -1225,13 +1225,14 @@ V2BindingLeaf = Name | "_"
 V2TypeAnnotation = ":" V2Type ProvenanceClause?
 
 V2UnitExpression = "(" ")"
+V2UpdateExpression = "&" V2UpdatePlace
 V2TransferExpression = "^" V2TransferPlace
 V2ForcedCapture = "^" Name
 ```
 
 `V2TypeAtom` covers the future named/built-in, bracket/tuple, grouped, and callable atoms; their
 complete productions and permitted positions remain a migration gate. It is not the released
-`Type` grammar with old borrow types silently admitted. `V2TransferPlace` likewise denotes a
+`Type` grammar with old borrow types silently admitted. `V2UpdatePlace` and `V2TransferPlace` denote a
 place under its future contract. No `pub`, `noalloc`, `notrap`, or `blocking` modifier is restored
 by reusing a released enclosing production.
 
@@ -1265,12 +1266,14 @@ Retired `^func`/`&func` invocation meanings cannot be recovered from name or typ
 Local binding identifiers have no permission prefix. An annotation states the expected type and
 permission; without it the initialization operation supplies them. In particular `let next = ^first`
 infers X, while `let inspect = next` infers I. Copy does not change either decision. A U-returning
-call supplies U; a bare existing U variable instead supplies I. Tuple shape, component ownership,
+call or explicit `&place` supplies U; a bare existing U variable instead supplies I. The explicit
+update expression activates delegation during its evaluation, not at invocation commit.
+Tuple shape, component ownership,
 partial extraction, and discard cleanup still require the corresponding future pattern/type rules.
 `_` introduces no binding or access assertion. `var` is not a future binding declaration.
 
 Calls have neither receiver `.&`/`.^` nor direct argument-mode assertions. Direct call/argument
-prefix assertions remain invalid under transparent grouping; ordinary source-transfer expressions
+prefix assertions remain invalid under transparent grouping; ordinary update/transfer expressions
 remain available in initialization, storage, and return operations. They transfer existing owned
 places, not fresh call results. Earlier explicit ownership operations during operand computation
 are not rolled back by a later preparation failure.
@@ -1287,3 +1290,83 @@ these forms before type checking. Unit introduces no zero-element tuple type.
 Permission, initialization, Copy, dependency, and cleanup checks follow recognition under the
 [Value Access Model](value-access.md). Remaining constructor, expression-precedence, and full
 module contracts must be migrated coherently before implementing the complete v2.0.0 boundary.
+
+
+### First Access Validation Fragment
+
+The following closes a bounded v2.0.0 function/body fragment for initial front-end conformance.
+It is a subset of the future language, not a new package format, source version switch, or a
+claim that the complete v2.0.0 grammar is closed. `V2CoreUnit` is a test parse goal containing
+private function definitions in one supplied module; it does not authorize executable bodies
+in a contract-only `index.nct`. Module discovery, root/body matching, nominal declarations,
+generics, callable values, outcomes, and async have their separate owning contracts.
+
+This fragment imports only lexical `Name`, `integer_literal`, tokens/trivia/newline rules, and
+the structural `List`/`LineSequence` notation above. It does not inherit the released `Type`,
+`Expression`, callable modifiers, or binding productions.
+
+```text
+V2CoreUnit = LineSequence(V2CoreFunction)
+V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreType V2CoreBlock
+V2CoreParameter = Name ":" V2CoreType
+V2CoreType = V2AccessQualifier? ("bool" | "i32" | "void" | "error")
+
+V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
+V2CoreEntry = V2CoreStatement | V2CoreExpression
+V2CoreStatement = "let" (Name | "_") (":" V2CoreType)? "=" V2CoreExpression
+                | V2CorePostfix V2CoreAssignmentOperator V2CoreExpression
+                | "return" V2CoreExpression?
+                | "drop" Name
+                | "break" | "continue"
+                | "while" V2CoreExpression V2CoreBlock
+                | "loop" V2CoreBlock
+V2CoreAssignmentOperator = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+
+V2CoreExpression = V2CoreOr
+V2CoreOr = V2CoreAnd ("||" V2CoreAnd)*
+V2CoreAnd = V2CoreEquality ("&&" V2CoreEquality)*
+V2CoreEquality = V2CoreOrdering (("==" | "!=") V2CoreOrdering)?
+V2CoreOrdering = V2CoreAdd (("<" | "<=" | ">" | ">=") V2CoreAdd)?
+V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
+V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
+V2CorePrefix = ("!" | "-" | "&" | "^") V2CorePrefix | V2CorePostfix
+V2CorePostfix = V2CorePrimary ("(" List(V2CoreExpression) ")")*
+V2CorePrimary = Name | integer_literal | "true" | "false" | "(" ")"
+              | "(" V2CoreExpression ")" | V2CoreIf
+V2CoreIf = "if" V2CoreExpression V2CoreBlock
+           ("else" (V2CoreBlock | V2CoreIf))?
+```
+
+Calls bind before prefix operations: `^make()` transfers a call result and fails the existing-place
+check; it does not mark the call's return contract. `&` has the same prefix precedence as `^`.
+Only grouping is transparent to a direct call operand's marker restriction: strip outer grouping
+from the callee and each argument and reject a root `&`/`^` expression. Thus `take((^value))`
+does not bypass the single call spelling. An explicit operation inside a genuinely computed
+operand, such as an `if` branch, executes at its authored evaluation point and is not rolled back
+by a later operand failure. No context-dependent alternate parse removes the operation.
+
+The parser retains a prefix with a non-place operand and an assignment with a non-place target;
+the checker rejects their place/permission/initialization violations. In this fragment a place
+is a local or parameter name, including grouping; function names are not storage places. Direct
+calls resolve one named function (possibly grouped) before checking arguments. Indirect callable
+values and postfix member/index access are outside this initial fragment, not forbidden by v2.0.0.
+In unary position, lexical `&&` is subdivided into two update prefixes; the resulting inner access
+is not an existing place. After a left operand it remains logical conjunction.
+
+All repeated binary levels associate left. Equality/ordering have at most one ungrouped operator.
+Short-circuit right operands are conditional flow edges. Newlines separate entries, with ordinary
+lexical continuation inside delimiters; call openers stay on the callee's logical line. `return`
+without a same-line operand is bare return. A final expression supplies the block's result; an
+expression before another entry must complete with `void`. A block without a final expression
+supplies normal unit completion. `if` without `else` normally produces unit and requires unit-producing branches.
+The checker verifies return types, conditions, numeric operands, loop exits, and name uniqueness;
+recognition cannot use their types to select a grammar path.
+
+The built-in `error` is available as an opaque move-only data type in this fragment; no error
+constructor, `throw`, or fallible result is introduced here. `void` has the one value `()` and is
+Copy. Primitive numeric/Boolean/unit construction supplies fresh X; a declared I Copy result
+still supplies an independent I answer. U output needs surviving eligible caller storage, with
+one eligible source elided under the future origin rule. The initial corpus uses no ambiguous
+multi-source output contract. Unsupported constructs must not produce an accepted core product
+or fall back to the released language grammar. This development parse goal is not exposed as an
+alternate user language or compatibility mode.

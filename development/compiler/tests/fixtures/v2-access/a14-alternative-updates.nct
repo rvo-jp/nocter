@@ -1,0 +1,4 @@
+func update(left: ^i32, right: ^i32, flag: bool): void {
+    let edit = if flag { &left } else { &right }
+    edit += 1
+}

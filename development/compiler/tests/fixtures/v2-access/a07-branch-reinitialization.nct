@@ -1,0 +1,7 @@
+func restore(value: ^i32, flag: bool): ^i32 {
+    if flag {
+        drop value
+    }
+    value = 20
+    return ^value
+}

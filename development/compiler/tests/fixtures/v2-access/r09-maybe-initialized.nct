@@ -1,0 +1,6 @@
+func wrong(value: ^error, flag: bool): void {
+    if flag {
+        drop value
+    }
+    let inspect = value
+}

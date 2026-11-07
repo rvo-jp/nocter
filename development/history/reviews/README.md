@@ -16,6 +16,7 @@ forcing consumers that use only its contract to change.
 - [v2.0.0 Access Typing and Specification Migration](v2.0.0-access-typing.md)
 - [v2.0.0 Source Design Decisions](v2.0.0-source-design-decisions.md)
 - [v2.0.0 Syntax Coherence under Four Design Goals](v2.0.0-syntax-coherence.md)
+- [v2.0.0 First Access Validation Slice](v2.0.0-first-access-slice.md)
 - [v2.0.0 Implementation Readiness](v2.0.0-implementation-readiness.md)
 - [v2.0.0 Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md)
 - [v2.0.0 Storage Optimization and Observable Effects](v2.0.0-storage-optimization.md)

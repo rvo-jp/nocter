@@ -5,6 +5,11 @@ runner and does not own expected compiler behavior; each consuming crate test ow
 
 ## Fixture Classes
 
+- [`fixtures/v2-access/`](fixtures/v2-access/README.md) contains future access-model requirements
+  for an explicitly supplied private-module test goal. The manifest is not yet consumed by the
+  production compiler. Its inventory checker validates registration/ranges only; do not include
+  the sources in a released-language glob or count expected outcomes as passing compiler tests.
+
 - `fixtures/syntax/` contains parser and semantic-boundary source corpora plus structural snapshots.
 - `fixtures/standard/` contains source programs used by command and editor integration tests against
   the physical standard library.

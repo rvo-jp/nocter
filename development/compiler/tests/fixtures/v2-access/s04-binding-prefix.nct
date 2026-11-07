@@ -1,0 +1,3 @@
+func wrong(value: ^i32): void {
+    let &edit = value
+}

@@ -1,0 +1,10 @@
+func repeat(value: ^i32, flag: bool): ^i32 {
+    loop {
+        if flag {
+            break
+        }
+        value += 1
+        continue
+    }
+    return ^value
+}

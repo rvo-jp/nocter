@@ -1,0 +1,5 @@
+func consume(value: ^i32): void {
+}
+func wrong(value: ^i32): void {
+    consume((^value))
+}

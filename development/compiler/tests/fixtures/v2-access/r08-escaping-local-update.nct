@@ -1,0 +1,4 @@
+func wrong(input: &i32): &i32 {
+    let local = 0
+    return &local
+}

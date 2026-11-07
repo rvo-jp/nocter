@@ -1,0 +1,4 @@
+func choose(value: ^i32, flag: bool): ^i32 {
+    let answer = if flag { ^value } else { 20 }
+    return ^answer
+}

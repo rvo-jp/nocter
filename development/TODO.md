@@ -10,6 +10,26 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+Start the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md): integrate
+its bounded private-function grammar into the owning syntax/declaration/checking contracts and
+consume the [44-case manifest](compiler/tests/fixtures/v2-access/README.md) in actual phase tests.
+The inventory checker does not compile them. Close syntax shapes/diagnostics, checked actions,
+source liveness, joins/backedges and conditional cleanup before claiming this slice complete.
+Do not wait for all optimization research, add a parallel Python compiler, silently mix released
+std/borrow semantics, or expose a public source-version compatibility mode. Full v2.0.0 remains
+unimplemented. No human source choice blocks this bounded next task.
+
+S11 adopts `let edit = &buffer`. It creates active U at expression evaluation from an initialized
+writable X/U place, not a fresh result or I access. A bare read of `edit` still infers I. Direct
+call markers remain absent, including under grouping; call U activation still follows reservation
+and operand preparation. This source choice is closed, not pending approval. Future owning
+assignment/flow rules now specify RHS-first replacement, same-slot transfer/reinitialization,
+conditional result modes, alternative access worlds, and conservative loop fixed points.
+The new finite flow model reaches 56 states / 364 transitions, checks 1,640 accepted join
+operations and four selected loop scenarios, and rejects ten state/transition mutants. It assumes
+explicit access-end facts and does not calculate source liveness, execute cleanup, or prove the
+full model sound.
+
 S8/S9 now adopt type-side ordinary input/results and operation-directed local inference:
 `let first = Buffer.create(...)?` owns its fresh result; `let next = ^first` transfers it;
 `let inspect = next` reads it. Copy never switches these inferred modes. A U-returning call
@@ -79,9 +99,9 @@ The finite root check covers 3,456 states / 14,144 transitions; the separate res
 its documented small handoff model. Neither is a general proof.
 
 The [typing/migration review](history/reviews/v2.0.0-access-typing.md) now records the revised
-operation-boundary recipe. Its finite check covers 8,928 attempts, 1,848 accepted results, 5,760
-specialization checks, 2,784 Copy-independent binding checks, six assignment cases, and one slot
-transfer. It rejects 15 invalid-result and four invalid-assignment mutants. Root reservation and
+operation-boundary recipe. Its finite check covers 9,920 attempts, 2,088 accepted results, 6,400
+specialization checks, 3,744 Copy-independent binding/update checks, six assignment cases, and one slot
+transfer. It rejects 18 invalid-result and four invalid-assignment mutants. Root reservation and
 result handoff explorations remain separate; no finite count establishes general soundness.
 Continue general CFG/delegation/join/loop/cleanup validation and type/outcome/async composition.
 Follow the [readiness audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-specification-and-validation-work)
@@ -139,8 +159,8 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs exact grammar,
-formal typing/validation closure, and
+No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs the remaining full grammar beyond the first access fragment,
+production checking/formal validation closure, and
 specification/implementation-contract migration as described above. The current
 language deliberately rejects `notrap async` because `future T` has no drive-time trap contract;
 v2.0.0 removes the authored modifier rather than adding one to future types.

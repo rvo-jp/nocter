@@ -1,0 +1,7 @@
+func make(): ^i32 {
+    0
+}
+func wrong(): void {
+    let edit = &make()
+    edit += 1
+}

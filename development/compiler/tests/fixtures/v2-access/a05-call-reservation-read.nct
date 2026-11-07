@@ -1,0 +1,10 @@
+func read(value: i32): i32 {
+    value
+}
+func add(value: &i32, amount: i32): void {
+    value += amount
+}
+func update(value: ^i32): ^i32 {
+    add(value, read(value))
+    return ^value
+}

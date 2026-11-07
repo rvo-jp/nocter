@@ -1,0 +1,10 @@
+func read(value: i32): i32 {
+    value
+}
+func add(value: &i32, amount: i32): void {
+    value += amount
+}
+func wrong(value: ^i32): void {
+    let edit = &value
+    add(edit, read(value))
+}
