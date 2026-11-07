@@ -8,8 +8,11 @@ This future chapter owns operation permissions, Copy materialization, access bin
 handoff; it does not introduce a second current-language borrowing syntax.
 
 Ordinary parameter/result placement, receiver abbreviations, callable invocation, and local
-read/transfer inference are defined here and in the linked future callable section. Full compound-type
-and implementation-contract syntax remain source-design work. This does not reopen the selected lifetime,
+read/transfer inference are defined here and in the linked future callable section. The
+[type-scope rules](values-and-types.md#future-direction-v2-0-0-access-qualifier-scope) distinguish
+outcomes of access from access to stored outcomes. Complete implementation signatures are
+retained under the [future module contract](modules.md#future-direction-v2-0-0-complete-implementation-signatures).
+Full composition and module migration remain work. This does not reopen the selected lifetime,
 initialization, reservation, or cleanup obligations. No compiler implementation or complete
 soundness proof is claimed.
 

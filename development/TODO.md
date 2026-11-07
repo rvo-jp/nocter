@@ -34,11 +34,14 @@ module/construction, effect/CTFE, platform, tooling, and compiler-contract migra
 No v2.0.0 compiler or complete proof is claimed. The finite typing exploration now covers S9;
 it does not parse sources or validate general CFGs, loan graphs, type constructors, or cleanup.
 
-Two human source questions are currently presented: qualifier scope through optional/fallible
-wrappers, and mandatory inherited implementation heads for matched public contracts. Await those
-answers for dependent grammar, while continuing independent delegated model work. C2's general
-destination-directed standalone transfer was not selected; do not restore it. General stored
-access-qualified components remain a separate design extension, not implied by qualifier placement.
+S10 closes the two latest source questions: qualifiers bind to the following type atom before
+outcome suffixes (`&File?` versus `&(File?)`), and implementations retain complete signatures.
+C1's abbreviated implementation heads are rejected because they force a body reader to open
+another file to recover inputs and permissions. Keep the root authoritative, repeat full body
+headers, and diagnose canonical mismatch/duplicates without private-overload fallback. Do not
+reopen these selections as approval blockers. General stored access-qualified components remain
+a separate extension, not implied by qualifier scope. C2's destination-directed standalone
+transfer was not selected; retain explicit `^place`.
 The earlier [four-goal proposal](history/reviews/v2.0.0-syntax-coherence.md) records its original
 alternatives; the [source decisions](history/reviews/v2.0.0-source-design-decisions.md) own current
 adoption status and [typing review](history/reviews/v2.0.0-access-typing.md) records validation scope.

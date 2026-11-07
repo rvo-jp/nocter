@@ -1204,6 +1204,11 @@ type, expression-precedence, outcome, module, or implementation-body grammar.
 V2AccessQualifier = "&" | "^"
 V2InvocationKind = "func" | "mut" | "once"
 
+V2Type = V2QualifiedAtom V2OutcomeSuffix?
+V2QualifiedAtom = V2AccessQualifier? V2TypeAtom
+V2OutcomeSuffix = "?" "?"* "!"? | "!"
+V2GroupedType = "(" V2Type ")"
+
 V2NamedFunctionHead = "func" Name
 V2MethodHead = "method" V2AccessQualifier? "self" "." Name
 V2Parameter = "..."? Name ":" V2Type ProvenanceClause?
@@ -1224,17 +1229,33 @@ V2TransferExpression = "^" V2TransferPlace
 V2ForcedCapture = "^" Name
 ```
 
-`V2Type` is the future type contract, including type-side access qualifiers, not the released
-`Type` grammar with old borrow types silently admitted. `V2TransferPlace` denotes an owned place
-under the future place contract. Full qualifier composition/precedence must be selected and
-migrated before these metavariables form a complete grammar. No `pub`, `noalloc`, `notrap`, or
-`blocking` modifier is restored by reusing a released enclosing production.
+`V2TypeAtom` covers the future named/built-in, bracket/tuple, grouped, and callable atoms; their
+complete productions and permitted positions remain a migration gate. It is not the released
+`Type` grammar with old borrow types silently admitted. `V2TransferPlace` likewise denotes a
+place under its future contract. No `pub`, `noalloc`, `notrap`, or `blocking` modifier is restored
+by reusing a released enclosing production.
+
+A qualifier binds to the following atom before outcome suffixes. Thus `&File?` wraps an update
+access in optionality, while `&(File?)` updates an optional object. `^File!` supplies an owned
+successful File. Repeated `?` retains distinct optional layers. `T!?` and `T!!` do not acquire an
+ungrouped production; grouping and existing single-failure validity checks govern other nesting.
+Do not flatten the type tree while expanding aliases or checking contract headers. The
+[future type-scope rules](values-and-types.md#future-direction-v2-0-0-access-qualifier-scope)
+own these meanings and their storage/cleanup limits.
+
+A callable's result consumes its full `V2Type`, including outcomes, before an enclosing type can
+finish. An outcome on the callable value itself therefore needs a grouped callable atom, as in
+`(func(i32): ^File)!`; `func(i32): ^File!` instead has a fallible call result. The full
+provenance and remaining constructor grammar must preserve this distinction.
 
 An ordinary parameter puts its access qualifier beside its type, as in `buffer: &Buffer` or
 `job: ^Job`. A result does likewise: `func open(id: u64): ^File!`. No result marker occurs before
 the callable name or before an anonymous parameter list. Function heads take their ordinary
 generic/parameter/result tail. Receiver abbreviations are solely `self`, `&self`, and `^self`;
 expanded typed receiver aliases are not added. A method head has no result-name prefix.
+Matched implementations repeat that complete head and tail before their block; no
+`method append { ... }` or `func name { ... }` implementation shortcut is added. Header agreement
+follows the [future contract/body rules](modules.md#future-direction-v2-0-0-complete-implementation-signatures).
 
 The structural invocation word is `func`, `mut`, or `once`. An outer type-side qualifier describes
 access to that entire callable value. For example `^func(i32): ^Product` owns a read-invoked
@@ -1264,5 +1285,5 @@ and a comma-separated list selects a tuple. Delimiter and statement-boundary rec
 these forms before type checking. Unit introduces no zero-element tuple type.
 
 Permission, initialization, Copy, dependency, and cleanup checks follow recognition under the
-[Value Access Model](value-access.md). Remaining type/precedence and implementation-contract
-source decisions must be migrated coherently before implementing the complete v2.0.0 boundary.
+[Value Access Model](value-access.md). Remaining constructor, expression-precedence, and full
+module contracts must be migrated coherently before implementing the complete v2.0.0 boundary.

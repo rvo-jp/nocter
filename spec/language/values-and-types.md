@@ -5,6 +5,8 @@ associated projections, built-in literals, and aliases.
 
 The [future unit rules](#future-direction-v2-0-0-storable-void) are separate from the current
 completion-type restrictions below.
+The [future access-qualifier rules](#future-direction-v2-0-0-access-qualifier-scope) likewise
+describe a separate major-language direction, not the released borrow notation.
 
 ## Built-in and Structural Types
 
@@ -324,3 +326,41 @@ The adopted storable-unit direction does not broaden `never` to arbitrary data-b
 `()` is value syntax; `void` is its type name. Do not add `void()` or `unit()` constructor aliases.
 Unit/closure recognition is defined by the
 [future grammar](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).
+
+## Future Direction: v2.0.0 Access Qualifier Scope
+
+The future [Value Access Model](value-access.md) uses unqualified T for input/read, `&T` for
+update, and `^T` for ownership. A qualifier applies to the following type atom. An optional or
+fallible suffix outside that atom wraps the qualified type. Parentheses put a complete inner
+type, including its outcomes, inside the qualifier's scope.
+
+| Type | Contract |
+| --- | --- |
+| `&File?` | Optional update access to File; absence supplies no File access |
+| `&(File?)` | Update access to an existing optional slot, including when that slot is absent |
+| `^File!` | Owned successful File, or the one owned error failure |
+
+These are scope distinctions, not permission conversions. For example, a successful call returning
+`&(File?)` retains access to the slot even when its stored tag is absent. Inspecting that tag must
+not release the slot's lease. A call returning `&File?` may instead produce absence with no File
+lease. Replacing a slot through U must still leave it initialized; the qualifier does not authorize
+an unfilled extraction or an owning clone.
+
+Preserve the constructor order when resolving aliases, substituting generic arguments, comparing
+contracts, or displaying types. An alias naming `File?` is a complete atom: applying `&` to that
+alias qualifies the optional object, not just File. Alias expansion cannot move an access qualifier
+through an optional/fallible wrapper. Parentheses may be removed by formatting only when doing so
+preserves the type's constructor tree.
+
+For callable types the result consumes its complete type, including outcome suffixes. Thus
+`^func(i32): ^File!` owns a read-invoked callable whose call can fail and whose successful File is
+owned. An outcome on the callable value itself requires grouping, such as `(func(i32): ^File)!`.
+Invocation kind, value permission, and output permission remain independent under the
+[future callable rules](callables.md#future-direction-v2-0-0-value-access-callables).
+
+Repeated optional layers retain their separate tags; they do not flatten. The existing selected
+single-failure rules, permitted type positions, origin obligations, and carrier/payload distinctions
+still apply. Recognizing a type does not authorize propagating a move-only error out of non-owning
+storage. Nor does this scope rule alone admit general stored access-qualified components such as
+an owned aggregate containing update accesses; that extension needs its own dependency, duplication, and
+cleanup validation. Full compound-value checking remains a migration gate.
