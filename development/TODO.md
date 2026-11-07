@@ -16,7 +16,7 @@ execution. Preserve adopted contracts and safety/resource requirements; record d
 research evidence, counterexamples, proof obligations, and distinguishing cases in the v2.0.0
 plan/review. Consult only on source-design alternatives needing human evaluation of writing,
 reading, or learning. Call omission and owned-capture/callable forms are now selected; projection,
-outcome-construction, interface-disambiguation, and public-construction forms remain human-facing
+outcome-construction and public-construction forms remain human-facing
 design work. Do not block independent internal closure on these spellings.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
 and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
@@ -39,6 +39,8 @@ across parameters, receivers, projections, captures, and deferred execution. Unm
 `&` update, and `^` transfer are adopted on declarations. Source-review S1 now adopts uniform
 declaration-driven calls, with no optional receiver/argument markers. S3 adopts `^name` in the
 closure capture segment for forced owned capture and `func`/`&func`/`^func` invocation types.
+S5 adopts interface implementation maps for real binding/default/collision decisions and
+`value.(Interface.member)(...)` only when ordinary lookup is ambiguous, with no redundant aliases.
 Standalone transfer in returns/storage stays explicit. The model's six semantic decisions are adopted: independent owned
 storage and uniform transfer across copyability; owned-parameter update permission without a new
 mutable local and no automatic failure rollback; left-to-right preparation/reservation before
@@ -51,11 +53,12 @@ dependencies, capture ordering, and deferred cleanup. The bounded root-place mod
 language proof or compiler conformance. Use the [readiness review](history/reviews/v2.0.0-implementation-readiness.md)
 for conservative observation-preserving optimization, inferred-effect evidence, CTFE/type
 dependencies, and contract/body identity gates. Review only the human-facing alternatives in
-the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): S2 reconsiders the
-extra local `view` binding keyword; S4 constructor/unit spelling is pending while success/failure
-separation remains adopted; S5 distinguishes implementation binding from genuinely ambiguous
-interface calls; S6 withdraws the hidden-remainder `...` recommendation and moves the question
-to public construction contracts. These revisions are not adoptions. Migrate the selected rules
+the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): S2 proposes result
+conventions `view T` / `&view T` on existing callables, `yield` bodies, and ordinary local bindings;
+S4 now recommends a current-callable `throw` failure exit while keeping unified errors and explicit
+propagation; S6 proposes named construction functions and `literal { field_names }` as an explicit
+public structural initializer grant. The optional/unit spellings remain separately pending.
+These revisions are not adoptions. Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
