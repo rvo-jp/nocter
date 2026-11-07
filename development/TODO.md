@@ -10,23 +10,16 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Refine the [v2.0.0 language design plan](history/milestones/v2.0.0.md) around faster generated-program
-execution than Rust through compile-time computation and optimization, with only the syntax needed
-to express behavior and information the compiler cannot derive. Establish comparable performance
-baselines and close the detailed contracts for adopted capture inference, explicit callable type
-arguments, and contract-only `index.nct` with authored `use` re-exports and retained direct `see`.
-The declaration-attached `#visibility` directive with `/`, `./`, and repeated `../` boundary paths
-is adopted; close its remaining grammar and tooling details. A special `internal.nct` role has not
-been adopted. Reducing advanced annotations in ordinary applications remains an adopted goal.
-Unifying constant eligibility across value/type positions, extending tuple destructuring to function
-and closure parameters and `for` bindings, and grouping item directives with order-independent
-attachment are adopted directions. Close their dependency, ownership, grammar, and tooling contracts.
-Generic constraint spelling unification remains unadopted.
-Interface requirements for receiverless construction functions are adopted, preserving separate
-`func` and `method` calls without UFCS. Grouping type-owned behavior under one container remains a
-candidate; ordinary receiverless utilities and the broader interface redesign are not adopted.
-Other syntax changes and ownership-transparent memory models remain unadopted proposals or
-investigations.
+Establish comparable performance baselines and close the detailed contracts in the
+[v2.0.0 language design plan](history/milestones/v2.0.0.md). Prioritize compile-time optimization
+and minimal application syntax while preserving the distinction between adopted design and current
+compiler support. Next resolve unified `instance` members and destruction, interface operation
+identity and implementation/default mappings, and their interaction with contract-only roots and
+path-based visibility. Retain the separate `func`/`method` call forms without UFCS.
+
+Use the milestone for the complete adopted scope, pending grammar questions, and conformance gates,
+including constant eligibility, tuple bindings, directive grouping, capture inference, and explicit
+callable arguments. Do not treat remaining ownership-model or syntax proposals as adopted work.
 
 Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
 commit and upload the retained qualified archive without rebuilding it, then record an independent
