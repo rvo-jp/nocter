@@ -18,6 +18,10 @@ arguments, and contract-only `index.nct` with authored `use` re-exports and reta
 The declaration-attached `#visibility` directive with `/`, `./`, and repeated `../` boundary paths
 is adopted; close its remaining grammar and tooling details. A special `internal.nct` role has not
 been adopted. Reducing advanced annotations in ordinary applications remains an adopted goal.
+Unifying constant eligibility across value/type positions, extending tuple destructuring to function
+and closure parameters and `for` bindings, and grouping item directives with order-independent
+attachment are adopted directions. Close their dependency, ownership, grammar, and tooling contracts.
+Generic constraint spelling unification remains unadopted.
 Other syntax changes and ownership-transparent memory models remain unadopted proposals or
 investigations.
 
