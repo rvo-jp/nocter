@@ -89,13 +89,31 @@ for all remaining module/construction, effects/CTFE, platform/tooling, and contr
 gates. Migrate each owning specification before implementation. Audit the derived-ordering
 selector/text discrepancy separately without changing qualified or published artifacts.
 
+The [storage-optimization closure](history/reviews/v2.0.0-storage-optimization.md) now resolves
+the first research prerequisite under delegation. Separate semantic R/D/S from physical placement
+P; optional compiler-private backing may be removed with only its implementation-specific OOM
+termination when a checked contract permits it. Preserve required/recoverable requests, validation,
+callbacks, budgets, capacity/ABI deadlines, origin/allocator affinity, and logical cleanup. No
+new source annotations, GC, implicit clones, or caller controls are introduced. Do not infer an
+elision certificate from a name, X result, or missing authored modifier.
+
+The owning future memory, callable/async, and std/mem/std/vec behavior sections now state the
+boundary. The new finite storage check covers 64 storage profiles, accepts eight narrow elision
+observations, rejects 62 unsafe schemas/eight mutants, checks 768 reuse cases (27 accepted), and
+720 fusion trace pairs (200 accepted, 13 unsafe unconditional schemas rejected). These are assumed
+certificate/finite-trace checks, not real summary inference, Nocter compilation, a general proof,
+or performance measurements. It exposes a first-failure counterexample even with no I/O.
+
+Next implement/validate interprocedural storage/effect certificates and path-sensitive byte-use,
+cleanup, materialization-deadline, and drive-safety obligations. Account for runtime helpers by
+executable graph closure. A stronger reuse/fusion plan may preserve metadata or logical cleanup;
+do not turn this simple model's rejected cases into permanent language restrictions. No new
+human source choice is pending from this audit.
+
 The [research-to-experiment plan](history/reviews/v2.0.0-runtime-performance-research.md#turning-research-into-nocter-experiments)
-now records CGO 2026 collection enumeration, partial evaluation, reuse/consumption analysis,
-search, and validation. Prioritize structural work removed over source-level tuning annotations.
-Audit allocation observability against each proposed elision/fusion; preserve current exposed
-failure/callback/budget contracts until an owning specification explicitly changes them. No new
-memory model, optimization permission, numerical speed claim, or mandatory comparison gate follows
-from this review. No external artifact has been reproduced for Nocter.
+continues to prioritize structural work removed over annotations. Preserve released contracts;
+no broader resource-request elision, numerical speed claim, or mandatory comparison gate follows.
+No external artifact has yet been reproduced for Nocter.
 
 Close the newly adopted evaluator expansion, opaque return contract/body separation, and removal
 of `noalloc`, `notrap`, and `blocking` through inferred effects. Preserve nonblocking future safety

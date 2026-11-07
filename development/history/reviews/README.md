@@ -18,6 +18,7 @@ forcing consumers that use only its contract to change.
 - [v2.0.0 Syntax Coherence under Four Design Goals](v2.0.0-syntax-coherence.md)
 - [v2.0.0 Implementation Readiness](v2.0.0-implementation-readiness.md)
 - [v2.0.0 Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md)
+- [v2.0.0 Storage Optimization and Observable Effects](v2.0.0-storage-optimization.md)
 - [v2.0.0 Language Design Independence Review](v2.0.0-language-design-independence.md)
 - [v0.73.0 Phase 5 Qualification Review](v0.73.0-phase-5.md)
 - [v0.73.0 Phase 4 Verified Traversal Adoption Review](v0.73.0-phase-4.md)

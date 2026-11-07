@@ -464,3 +464,64 @@ Wrapping a dependent value in an aggregate or erasing a callable cannot hide its
 
 These rules do not make allocation, failure, cleanup, or address observations unobservable. They
 do not introduce automatic region extension or resource-lifetime repair.
+
+## Future Direction: v2.0.0 Storage Optimization
+
+These future rules refine v2.0.0 representation freedom. They do not change the released
+allocation/region rules above or the current checked standard-library declarations.
+
+### Logical Obligations and Physical Backing
+
+Keep the value's initialization, access roots, carried dependencies, semantic allocator/storage
+origins, cleanup, and outcomes separate from its physical placement. Registers, stack slots,
+frame fields, or heap blocks are implementation choices only to the extent the owning contract
+permits them. Removing backing does not remove a declared origin, allocator affinity, retained
+access, or user destructor. In particular, a region-dependent value cannot escape merely because
+its current bytes disappeared.
+
+A checked implementation-storage certificate may allow eliding, scalarizing, or reusing backing.
+The certificate must preserve the selected language/library contract and relevant effects. A fresh
+owned result, a factory's name, or absence of authored modifiers grants no such permission by
+itself. Calls with unknown effects retain conservative obligations. No new source attribute,
+execution-effect modifier, allocation primitive name, or caller annotation expresses this certificate.
+
+### Allocation Observations
+
+Automatic frame/environment/transport storage does not promise one heap request or the allocation
+failure of a particular heap-backed plan. When a valid representation removes an optional private
+request, it may also remove termination attributable solely to that request. Do not insert an
+allocation probe to preserve a failure that the abstract storage contract did not require.
+
+This permission does not erase exposed resource operations. Preserve recoverable errors, required
+failure boundaries, allocator callbacks, budget/accounting effects, capacity promises, backend
+identity, supported addresses/ABI, and resource-completion order wherever their contract exposes
+them. A known inert path may discharge an obligation; neither `Allocator` nor `TryAllocator` is a
+name-based optimization rule. An unused buffer alone does not prove that its request is inert.
+Ordinary validation, checked arithmetic, input evaluation, and non-storage errors remain required
+even when no backing is materialized.
+
+### Materialization and Reuse
+
+Discharge backing obligations by the earliest contract deadline: before required capacity is
+published, a concrete representation is exposed, an opaque consumer needs it, or ownership commits
+to an operation requiring that backing. Alternatively prove that the value remains virtual on all
+relevant paths and still satisfies the same contract. Do not defer a necessary allocation or wait
+into a reserved append, getter, future drive, cancellation, or destructor that does not allow it.
+Actual required frame/environment storage and validation precede invocation-time X/U commit.
+
+Reuse requires compatible capacity, alignment, allocator/domain obligations, and no future use of
+the overwritten bytes through access, captured dependencies, foreign addresses, or cleanup.
+Retain user destruction at its defined semantic point. A plan may retain needed cleanup data
+separately; it must not skip destruction or present corrupted/uninitialized fields. Preserve
+logical capacity, initialization, failure atomicity, and allocator affinity even if physical
+storage is removed or shared between nonoverlapping backing lifetimes.
+
+Revalidate physical-dependency and actual resource-effect obligations after placement changes.
+An earlier proof of asynchronous drive safety cannot justify a newly introduced waiting backend
+operation. Unknown demand or missing proof selects a valid conservative representation; it does
+not introduce GC, cloning, lifetime extension, or unchecked execution.
+
+The standard-library obligations remain owned by
+[Allocation and Failure](../../std/mem/README.md#future-direction-v2-0-0-storage-optimization) and
+[Vectors](../../std/vec/README.md#future-direction-v2-0-0-storage-optimization). Full interprocedural
+certificates, compound-value, cleanup, and platform validation remain required before implementation.

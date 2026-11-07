@@ -513,6 +513,12 @@ Binding another existing callable variable with plain `let alias = callback` ins
 access, regardless of whether the environment is Copy. Capture and output dependencies still
 restrict both callable aliases and owners through invocation, destruction, or escape.
 
+The [future storage rules](memory-and-regions.md#future-direction-v2-0-0-storage-optimization)
+allow environment scalarization/reuse only while preserving capture transfers, dependency bounds,
+observable identity, and cleanup. They do not reschedule explicit capture evaluation or roll back
+earlier transfers after later formation effects fail. Opaque/foreign use may require backing by
+its contract deadline; invocation kind alone is not an allocation-elision certificate.
+
 Do not restore retired `&+func`, result markers before callable names, or call-site permission
 assertions as aliases. Source recognition belongs to the
 [future syntax rules](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).

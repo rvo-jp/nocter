@@ -48,3 +48,12 @@ I/O, or code generation. A query-count regression is structural even when a fast
 
 Performance results are milestone evidence, not a stable promise about absolute duration on other
 machines.
+
+## v2.0.0 Storage-Optimization Experiments
+
+Distinguish logical resource requests, compiler-reported possible materialization sites, and actual
+runtime backing requests. Static site counts are not dynamic allocation counts. External profiling
+or post-optimization instrumentation must not silently add an application-visible allocator callback
+or budget that changes optimization legality. Instrumented runs carry their own source/binary and
+observation identity, and their timing includes instrumentation overhead; retain ordinary product
+measurements separately. No new source annotation or CLI option is defined by this methodology.
