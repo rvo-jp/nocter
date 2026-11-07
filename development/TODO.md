@@ -17,8 +17,8 @@ research evidence, counterexamples, proof obligations, and distinguishing cases 
 plan/review. Consult only on source-design alternatives needing human evaluation of writing,
 reading, or learning. Call omission, owned-capture/callable forms, interface disambiguation,
 `throw`, construction entries, and S2's callable-name result mode with unmarked use sites are
-selected. All six principal source directions are adopted. Explicit `^` on an existing `throw`
-operand and optional/unit construction spellings remain separately pending. Do not block
+selected. All six principal source directions and `throw reason` without an extra `^` are adopted.
+Optional/unit construction spellings remain pending. Do not block
 independent internal closure on these forms.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
 and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
@@ -43,7 +43,7 @@ declaration-driven calls, with no optional receiver/argument markers. S3 adopts 
 closure capture segment for forced owned capture and `func`/`&func`/`^func` invocation types.
 S5 adopts interface implementation maps for real binding/default/collision decisions and
 `value.(Interface.member)(...)` only when ordinary lookup is ambiguous, with no redundant aliases.
-S4 adopts `throw` failure exit but explicitly leaves `throw reason` versus `throw ^reason` open.
+S4 and its follow-up R1 adopt `throw reason`; the failure exit supplies transfer without extra `^`.
 S6 adopts construction functions and `literal { field_names }` as public structural initializer
 grants; public fields alone do not grant construction or announce a complete representation.
 S2 adopts `func ^open(...)` / corresponding method result prefixes and contract-derived calls
@@ -67,10 +67,9 @@ types, outcome payload/carrier layers, async output and cancellation, and ordina
 safety without `view`/`yield`. Follow the readiness review's
 [remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
 Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
-or choose ownership from copy/move implementation history. Keep the separate `throw` operand
-marker and optional/unit questions open. The
+or choose ownership from copy/move implementation history. Keep optional/unit questions open. The
 [pending syntax recommendations](history/reviews/v2.0.0-source-design-decisions.md#remaining-syntax-recommendations)
-prefer `throw reason`, ordinary `some(...)`, and the `()` unit literal; these remain proposals.
+record adopted `throw reason` and propose ordinary `some(...)` and the `()` unit literal.
 Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
