@@ -11,8 +11,35 @@ handoff; it does not introduce a second current-language borrowing syntax.
 [type-side direction S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
 moves access qualifiers to types. Identifier-side examples and the fixed-mode local binding
 syntax below are the pre-S8 baseline, not alternative spellings. Their operation, initialization,
-dependency, and cleanup obligations remain the semantic basis. Complete qualified-type inference,
-receiver/capture/callable recognition, and coherent replacement grammar remain unfinished.
+dependency, and cleanup obligations remain the semantic basis. Qualified-type local inference is
+now adopted; existing-place disposition, compound inference, receiver/capture/callable recognition,
+and coherent replacement grammar remain unfinished.
+
+### Type-Side Declarations and Inferred Locals
+
+For the adopted replacement, an ordinary declaration writes its permission with its type:
+
+```text
+func open(id: u64): ^File!
+func append(buffer: &Buffer, value: u8): void
+```
+
+Unqualified T provides input/read, `&T` update, and `^T` ownership. `&T` does not regain its
+released readonly meaning. Declarations and interface contracts remain authoritative; calls
+do not repeat parameter or result permission markers.
+
+An unannotated local infers the complete qualified initializer type, not only its data type.
+For example, `let file = open(42)?` infers `^File`; an accessor declared to return `&[u8]` supplies
+that update access to an inferred local. An explicit `: T`, `: &T`, or `: ^T` annotation instead
+requests that permission and data type, subject to source eligibility and lifetime checks.
+An annotation cannot manufacture authority. No `: ^_` placeholder is mandatory for inferred
+owned results. `var` remains removed, and inference never changes a checked binding's mode
+retrospectively based on later uses.
+
+This supersedes the fixed-I meaning and identifier-side local markers in the baseline below.
+Rules for existing-place read/copy/transfer, compound inference, receiver/capture abbreviations,
+and callable invocation/type composition still require coherent closure. The source recommendations
+linked above are not all adopted by selecting this inference rule.
 
 ### Ownership, Access, and Dependencies
 

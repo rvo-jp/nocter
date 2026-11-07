@@ -16,14 +16,21 @@ permission placement rather than retaining aliases. S2/S7 and the structural cal
 remain marked pre-S8 records. Future specification sections explicitly flag their old fragments
 as awaiting coherent migration; do not implement them as the selected source grammar.
 
-Complete qualified-type inference is recommended, not yet a complete adopted replacement binding
-policy: `let file = File.open(...)?` can infer `^File` without `: ^_`. That requires replacing
-S7's fixed-I unannotated `let`. Preserve `var` removal and the I/U/X semantic obligations. Next
-close local inference, existing-place expression disposition, receiver/forced-capture grammar,
+The user also adopts complete qualified-type inference for unannotated locals:
+`let file = File.open(...)?` infers `^File` without `: ^_`. This replaces S7's fixed-I unannotated
+`let`. Preserve `var` removal and the I/U/X semantic obligations. Next
+close detailed inference, existing-place expression disposition, receiver/forced-capture grammar,
 callable-value authority versus invocation authority, qualifier scope through compound types,
 and corresponding typing/diagnostic cases. Existing S7 finite checks validate their stated old
-baseline, not the new qualified-type proposal. Do not count documentation checks as compiler or
+baseline, not the adopted inference revision. Do not count documentation checks as compiler or
 soundness evidence.
+
+The [new source recommendations](history/reviews/v2.0.0-source-design-decisions.md#recommendations-for-receivers-captures-and-callable-invocation)
+remain unadopted: canonical abbreviated receivers without an optional expanded style; inferred
+captures with a typed forced-owned entry; `func`/`mut`/`once` invocation types; type-atom qualifier
+scope and checked stored access components; and a revised C2 ownership-destination rule with
+qualified local inference. Treat `once` as consuming invocation at most once, not an exactly-once
+obligation or an ownership qualifier on the callable value.
 
 The [four-goal syntax review](history/reviews/v2.0.0-syntax-coherence.md) otherwise remains an
 unadopted candidate. C1 implementation-signature inheritance, C2 destination-directed ownership,
