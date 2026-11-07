@@ -42,10 +42,19 @@ storage and uniform transfer across copyability; owned-parameter update permissi
 mutable local and no automatic failure rollback; left-to-right preparation/reservation before
 invocation-time transfer/update; explicit projection dependencies; deferred access and ownership
 from operation construction; and preservation of modes through abstraction. Close their remaining
-details, starting with the implicit-copy type policy, binding reassignment, safe replacement, and
-nested argument preparation/cleanup. Then close projection syntax/persistent access, cancellation
-and dependent results, and abstract callable syntax/conformance. Call-marker omission remains
-pending separately. Next close explicit outcome branch
+details using the now-recorded [semantic closure](history/reviews/v2.0.0-value-access-semantics.md),
+which resolves Copy eligibility, writable parameter slots, nested reservations, projection
+dependencies, capture ordering, and deferred cleanup. The bounded root-place model check passes
+3,456 states / 14,144 allowed transitions and rejects four invalid-state mutants; it is not a full
+language proof or compiler conformance. Use the [readiness review](history/reviews/v2.0.0-implementation-readiness.md)
+for conservative observation-preserving optimization, inferred-effect evidence, CTFE/type
+dependencies, and contract/body identity gates. Review only the human-facing alternatives in
+the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): call markers,
+projection bindings, owned capture/callable types, outcome/unit construction, interface
+mapping/qualification, and public field/private representation contracts. Those proposals are not
+yet selected grammar. Migrate the selected rules
+into their owning specification chapters and adjacent compiler contracts before implementation;
+retain all proof and conformance obligations. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
 fallback, and unhandled-failure/resource completion rules alongside unified `impl Type` and
 interface operation contracts. Resolve their
@@ -80,8 +89,10 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains. `notrap async` is deliberately rejected because `future T` does not retain a
-drive-time trap contract.
+No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs source-design
+selection and specification/implementation-contract migration as described above. The current
+language deliberately rejects `notrap async` because `future T` has no drive-time trap contract;
+v2.0.0 removes the authored modifier rather than adding one to future types.
 
 ## Non-negotiable Boundaries
 

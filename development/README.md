@@ -23,7 +23,11 @@ are not behavioral or architectural inputs.
 ## Specification Workflow
 
 When a public rule is incomplete, implementation pauses. The ambiguity is reduced to a minimal
-program, alternatives are compared, and the user selects the language behavior. The adopted rule
+program and alternatives are compared. Under an explicitly delegated design scope, the agent
+resolves the decision and records its evidence; otherwise the user selects the language behavior.
+The [v2.0.0 Value Access Model plan](history/milestones/v2.0.0.md#define-values-through-input-update-and-transfer-operations)
+delegates internal model closure while reserving human-facing source-design alternatives for user
+evaluation. The adopted rule
 is written in the owning specification chapter before implementation or conformance tests proceed.
 
 The specification is the sole source for:

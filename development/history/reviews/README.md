@@ -11,6 +11,9 @@ forcing consumers that use only its contract to change.
 ## Review Catalog
 
 - [v2.0.0 Value Access Model](v2.0.0-values-and-access-operations.md)
+- [v2.0.0 Value Access Semantic Closure](v2.0.0-value-access-semantics.md)
+- [v2.0.0 Source Design Decisions](v2.0.0-source-design-decisions.md)
+- [v2.0.0 Implementation Readiness](v2.0.0-implementation-readiness.md)
 - [v2.0.0 Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md)
 - [v2.0.0 Language Design Independence Review](v2.0.0-language-design-independence.md)
 - [v0.73.0 Phase 5 Qualification Review](v0.73.0-phase-5.md)
