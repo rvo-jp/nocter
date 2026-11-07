@@ -10,33 +10,38 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-The user now adopts [S8's type-side access qualifiers](history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types).
-Use `buffer: &Buffer`, `job: ^Job`, and `func open(...): ^File!` as direction; retire identifier-side
-permission placement rather than retaining aliases. S2/S7 and the structural callable examples
-remain marked pre-S8 records. Future specification sections explicitly flag their old fragments
-as awaiting coherent migration; do not implement them as the selected source grammar.
+S8/S9 now adopt type-side ordinary input/results and operation-directed local inference:
+`let first = Buffer.create(...)?` owns its fresh result; `let next = ^first` transfers it;
+`let inspect = next` reads it. Copy never switches these inferred modes. A U-returning call
+supplies U, while reading that U variable supplies I. Explicit destination ownership cannot
+supply a missing standalone move. Calls keep their contract-driven X transfer and prep/commit.
 
-The user also adopts complete qualified-type inference for unannotated locals:
-`let file = File.open(...)?` infers `^File` without `: ^_`. This replaces S7's fixed-I unannotated
-`let`. Preserve `var` removal and the I/U/X semantic obligations. Next
-close detailed inference, existing-place expression disposition, receiver/forced-capture grammar,
-callable-value authority versus invocation authority, qualifier scope through compound types,
-and corresponding typing/diagnostic cases. Existing S7 finite checks validate their stated old
-baseline, not the adopted inference revision. Do not count documentation checks as compiler or
-soundness evidence.
+The user also explicitly selects canonical `self`/`&self`/`^self` receivers and `func`/`mut`/`once`
+invocation types. Do not offer expanded receiver aliases or old invocation-prefix meanings.
+Retain forced capture `(^buffer; ...)` as the same explicit transfer operation, not an identifier
+annotation. The proposed `buffer: ^_` capture form is withdrawn. `once` consumes an owned instance
+at most once; it does not require invocation or imply owning captures.
 
-The [new source recommendations](history/reviews/v2.0.0-source-design-decisions.md#recommendations-for-receivers-captures-and-callable-invocation)
-remain unadopted: canonical abbreviated receivers without an optional expanded style; inferred
-captures with a typed forced-owned entry; `func`/`mut`/`once` invocation types; type-atom qualifier
-scope and checked stored access components; and a revised C2 ownership-destination rule with
-qualified local inference. Treat `once` as consuming invocation at most once, not an exactly-once
-obligation or an ownership qualifier on the callable value.
+Autonomous initialization closure gives freshly constructed numeric/Boolean/unit and computed
+primitive scalar values X, permitting `let count = 0; count += 1` without later-use inference.
+Declared I outputs retain I. An explicit I destination can materialize a fresh Copy answer with
+normal temporary cleanup and preserved D/S; it cannot retain a hidden move-only X owner.
+Assignment checks start after earlier RHS actions and do not roll an explicit move back on failure.
 
-The [four-goal syntax review](history/reviews/v2.0.0-syntax-coherence.md) otherwise remains an
-unadopted candidate. C1 implementation-signature inheritance, C2 destination-directed ownership,
-future-output grammar, and conservative origin defaults are not selected by S8. In particular,
-do not silently remove explicit source transfers or infer moves from later uses. Present new
-human-facing forms concretely; do not ask for approval of delegated internal model decisions.
+The owning future value-access/callable/token/syntax sections now migrate these selected forms;
+released semantics remain unchanged. Full compound-type/precedence, outcome/async, pattern,
+module/construction, effect/CTFE, platform, tooling, and compiler-contract migration remain gates.
+No v2.0.0 compiler or complete proof is claimed. The finite typing exploration now covers S9;
+it does not parse sources or validate general CFGs, loan graphs, type constructors, or cleanup.
+
+Two human source questions are currently presented: qualifier scope through optional/fallible
+wrappers, and mandatory inherited implementation heads for matched public contracts. Await those
+answers for dependent grammar, while continuing independent delegated model work. C2's general
+destination-directed standalone transfer was not selected; do not restore it. General stored
+access-qualified components remain a separate design extension, not implied by qualifier placement.
+The earlier [four-goal proposal](history/reviews/v2.0.0-syntax-coherence.md) records its original
+alternatives; the [source decisions](history/reviews/v2.0.0-source-design-decisions.md) own current
+adoption status and [typing review](history/reviews/v2.0.0-access-typing.md) records validation scope.
 
 The user delegates Value Access Model semantics, analysis, and optimization design to the agent.
 Resolve remaining model choices without approval, even when they affect accepted programs or
@@ -70,17 +75,16 @@ can depend on outside owners; ready outputs and cancellation retain the required
 The finite root check covers 3,456 states / 14,144 transitions; the separate result check covers
 its documented small handoff model. Neither is a general proof.
 
-The [typing/migration review](history/reviews/v2.0.0-access-typing.md) records the pre-S8 boundary
-recipe. Its finite check covers 4,864 attempts, 860 accepted results, 3,072 specialization checks,
-1,152 Copy-independent I/U binding checks, six assignment cases, and one slot transfer; it rejects
-11 invalid-result and four invalid-assignment mutants. Rework its local-source policy with the
-selected inference rules, then validate general CFGs, delegation, joins, loops, cleanup, type
-composition, outcome/async, captures, and full precedence. Follow the
-[readiness audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions),
-with its S8 status amendment, for remaining module/construction, effects/CTFE, platform, tooling,
-and contract/body identity gates. Migrate each owning future specification before implementation;
-do not claim all of v2.0.0 is specified. Audit the derived-ordering selector/text discrepancy
-separately without altering qualified or published artifacts.
+The [typing/migration review](history/reviews/v2.0.0-access-typing.md) now records the revised
+operation-boundary recipe. Its finite check covers 8,928 attempts, 1,848 accepted results, 5,760
+specialization checks, 2,784 Copy-independent binding checks, six assignment cases, and one slot
+transfer. It rejects 15 invalid-result and four invalid-assignment mutants. Root reservation and
+result handoff explorations remain separate; no finite count establishes general soundness.
+Continue general CFG/delegation/join/loop/cleanup validation and type/outcome/async composition.
+Follow the [readiness audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-specification-and-validation-work)
+for all remaining module/construction, effects/CTFE, platform/tooling, and contract/body identity
+gates. Migrate each owning specification before implementation. Audit the derived-ordering
+selector/text discrepancy separately without changing qualified or published artifacts.
 
 Close the newly adopted evaluator expansion, opaque return contract/body separation, and removal
 of `noalloc`, `notrap`, and `blocking` through inferred effects. Preserve nonblocking future safety

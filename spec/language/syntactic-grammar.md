@@ -1196,69 +1196,73 @@ The complete ownership and ABI rules live in
 
 ## Future Direction: v2.0.0 Access Syntax
 
-These fragments record the pre-S8 access/result positions, separately from the current complete
-grammar above. The subsequent [type-side direction S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
-supersedes their identifier-side permission positions and requires a replacement qualified-type,
-receiver/capture/callable, and local-inference grammar. The follow-up adopts inferring the whole
-qualified type for unannotated locals, replacing the fixed-I default described below.
-Do not implement these fragments as the
-selected v2.0.0 source grammar or retain them as optional aliases. They also do not claim that
-unrelated v2.0.0 item, outcome, module, or deferred-type productions are complete.
+These fragments record the adopted ordinary access, receiver, callable, and local-binding
+positions, separately from the complete released grammar above. They are not a complete v2.0.0
+type, expression-precedence, outcome, module, or implementation-body grammar.
 
 ```text
-V2ParameterMode = "&" | "^"
-V2ResultMode = "&" | "^"
-V2InvocationMode = "&" | "^"
+V2AccessQualifier = "&" | "^"
+V2InvocationKind = "func" | "mut" | "once"
 
-V2NamedFunctionHead = "func" V2ResultMode? Name
-V2MethodHead = "method" V2ParameterMode? Name "." V2ResultMode? Name
-V2Parameter = "..."? V2ParameterMode? Name ":" V2Type ProvenanceClause?
+V2NamedFunctionHead = "func" Name
+V2MethodHead = "method" V2AccessQualifier? "self" "." Name
+V2Parameter = "..."? Name ":" V2Type ProvenanceClause?
 
-V2CallableType = CompileTimeModifier? V2InvocationMode? "func" V2ResultMode?
+V2CallableType = CompileTimeModifier? V2InvocationKind
                  "(" List(V2CallableParameter) ")" ":" V2Type ProvenanceClause?
 V2ErasedCallableType = "any" V2CallableType
-V2CallableParameter = "..."? V2ParameterMode? (Name ":" V2Type | V2Type)
-                      ProvenanceClause?
+V2CallableParameter = "..."? (Name ":" V2Type | V2Type) ProvenanceClause?
 
 V2BindingStatement = "let" V2BindingPattern V2TypeAnnotation? "=" Expression
 V2BindingPattern = V2BindingLeaf
                  | "(" V2BindingPattern "," V2BindingPattern ("," V2BindingPattern)* ","? ")"
-V2BindingLeaf = V2ParameterMode? Name | "_"
+V2BindingLeaf = Name | "_"
 V2TypeAnnotation = ":" V2Type ProvenanceClause?
 
 V2UnitExpression = "(" ")"
 V2TransferExpression = "^" V2TransferPlace
+V2ForcedCapture = "^" Name
 ```
 
-`V2Type` and `V2TransferPlace` refer to the corresponding future type/place contracts; these
-fragments do not reintroduce current first-class borrow types through the metavariable. Function
-heads are followed by their ordinary generic parameters, parameters, result, and body/contract
-tail; method heads similarly precede the ordinary tail. No `pub`, `noalloc`, `notrap`, or
-`blocking` modifier is restored by reusing a current enclosing production.
+`V2Type` is the future type contract, including type-side access qualifiers, not the released
+`Type` grammar with old borrow types silently admitted. `V2TransferPlace` denotes an owned place
+under the future place contract. Full qualifier composition/precedence must be selected and
+migrated before these metavariables form a complete grammar. No `pub`, `noalloc`, `notrap`, or
+`blocking` modifier is restored by reusing a released enclosing production.
 
-The parameter marker precedes the name, or the type when a structural parameter name is omitted.
-The invocation marker precedes `func`; the result marker follows `func` and immediately precedes
-the parameter list when the callable has no name. These positions are recognized without name
-or type resolution. For example, `^func ^(u64): File!` has distinct consuming-environment and
-owning-result markers. `func(u64): ^File!` is not an alternative placement.
+An ordinary parameter puts its access qualifier beside its type, as in `buffer: &Buffer` or
+`job: ^Job`. A result does likewise: `func open(id: u64): ^File!`. No result marker occurs before
+the callable name or before an anonymous parameter list. Function heads take their ordinary
+generic/parameter/result tail. Receiver abbreviations are solely `self`, `&self`, and `^self`;
+expanded typed receiver aliases are not added. A method head has no result-name prefix.
 
-Local binding markers precede each bound identifier: `let name`, `let &name`, and `let ^name`.
-Their I/U/X meaning is fixed by source, not inferred from Copy or the initializer's result mode.
-Tuple binding leaves use the same name positions; shape, permission, and partial-extraction checks
-remain required. `_` introduces no binding or permission assertion and has no `&`/`^` decoration.
-`var` is not a future binding declaration. No optional plain-`let` spelling is retained for an X
-binding, and a destination `^` does not remove explicit transfer on an existing source expression.
+The structural invocation word is `func`, `mut`, or `once`. An outer type-side qualifier describes
+access to that entire callable value. For example `^func(i32): ^Product` owns a read-invoked
+callable with an owned result; `^once(i32): ^Product` independently adds consuming invocation.
+Retired `^func`/`&func` invocation meanings cannot be recovered from name or type lookup.
 
-An unmarked call has neither receiver `.&`/`.^` nor direct argument-mode assertions. This does not
-remove the separate `^place` operation in ordinary binding/storage/return expressions, and a fresh
-owned call result does not need that operation. Parsing and validation must not turn a redundant
-direct call marker into another accepted spelling of the same invocation.
+Local binding identifiers have no permission prefix. An annotation states the expected type and
+permission; without it the initialization operation supplies them. In particular `let next = ^first`
+infers X, while `let inspect = next` infers I. Copy does not change either decision. A U-returning
+call supplies U; a bare existing U variable instead supplies I. Tuple shape, component ownership,
+partial extraction, and discard cleanup still require the corresponding future pattern/type rules.
+`_` introduces no binding or access assertion. `var` is not a future binding declaration.
+
+Calls have neither receiver `.&`/`.^` nor direct argument-mode assertions. Direct call/argument
+prefix assertions remain invalid under transparent grouping; ordinary source-transfer expressions
+remain available in initialization, storage, and return operations. They transfer existing owned
+places, not fresh call results. Earlier explicit ownership operations during operand computation
+are not rolled back by a later preparation failure.
+
+The existing capture segment accepts `V2ForcedCapture`: `(^buffer; value: u8) { ... }` explicitly
+moves the source into the inferred environment. That entry is a transfer operation, not a
+name-side access annotation or a second typed-capture style.
 
 For parentheses, a closure head followed by its optional result annotation and a block selects
 the closure. Otherwise empty `()` selects unit, a single parenthesized expression selects grouping,
 and a comma-separated list selects a tuple. Delimiter and statement-boundary recognition decides
 these forms before type checking. Unit introduces no zero-element tuple type.
 
-Permission, initialized-place, Copy, result-origin, and cleanup checks follow recognition under the
-[Value Access Model](value-access.md). The full v2.0.0 expression-precedence and remaining-type
-grammar must be completed coherently before replacing the current grammar.
+Permission, initialization, Copy, dependency, and cleanup checks follow recognition under the
+[Value Access Model](value-access.md). Remaining type/precedence and implementation-contract
+source decisions must be migrated coherently before implementing the complete v2.0.0 boundary.

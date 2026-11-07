@@ -4,9 +4,10 @@ This chapter defines local binding mutability, assignment, initialization state,
 reinitialization after ownership transfer or explicit drop.
 
 The future v2.0.0 [Value Access Model](value-access.md#result-contracts-and-local-bindings)
-removes `var` and distinguishes read, update, and ownership. Its later adopted type-side placement
-requires a new binding/inference grammar; earlier identifier-side examples are marked as a
-superseded source baseline there. These future directions do not change the current rules below.
+removes `var` and infers read, update, or ownership from the initialization operation. Reading an
+existing place supplies read access; `^place` transfers ownership; a call supplies its declared
+result permission. Explicit permissions belong beside types, not identifiers. These future rules
+do not change the current released rules below.
 
 ## Bindings and Mutability
 

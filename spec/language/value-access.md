@@ -7,17 +7,15 @@ released contract. Current ownership rules remain in [Ownership, Borrowing, and 
 This future chapter owns operation permissions, Copy materialization, access bindings, and result
 handoff; it does not introduce a second current-language borrowing syntax.
 
-**Source migration pending:** the subsequently adopted
-[type-side direction S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
-moves access qualifiers to types. Identifier-side examples and the fixed-mode local binding
-syntax below are the pre-S8 baseline, not alternative spellings. Their operation, initialization,
-dependency, and cleanup obligations remain the semantic basis. Qualified-type local inference is
-now adopted; existing-place disposition, compound inference, receiver/capture/callable recognition,
-and coherent replacement grammar remain unfinished.
+Ordinary parameter/result placement, receiver abbreviations, callable invocation, and local
+read/transfer inference are defined here and in the linked future callable section. Full compound-type
+and implementation-contract syntax remain source-design work. This does not reopen the selected lifetime,
+initialization, reservation, or cleanup obligations. No compiler implementation or complete
+soundness proof is claimed.
 
 ### Type-Side Declarations and Inferred Locals
 
-For the adopted replacement, an ordinary declaration writes its permission with its type:
+An ordinary declaration writes its permission with its type:
 
 ```text
 func open(id: u64): ^File!
@@ -26,20 +24,36 @@ func append(buffer: &Buffer, value: u8): void
 
 Unqualified T provides input/read, `&T` update, and `^T` ownership. `&T` does not regain its
 released readonly meaning. Declarations and interface contracts remain authoritative; calls
-do not repeat parameter or result permission markers.
+repeat neither parameter nor result permission markers.
 
-An unannotated local infers the complete qualified initializer type, not only its data type.
-For example, `let file = open(42)?` infers `^File`; an accessor declared to return `&[u8]` supplies
-that update access to an inferred local. An explicit `: T`, `: &T`, or `: ^T` annotation instead
-requests that permission and data type, subject to source eligibility and lifetime checks.
-An annotation cannot manufacture authority. No `: ^_` placeholder is mandatory for inferred
-owned results. `var` remains removed, and inference never changes a checked binding's mode
-retrospectively based on later uses.
+An unannotated local infers the qualified result of the initialization operation, not the stored
+permission of a named source variable:
 
-This supersedes the fixed-I meaning and identifier-side local markers in the baseline below.
-Rules for existing-place read/copy/transfer, compound inference, receiver/capture abbreviations,
-and callable invocation/type composition still require coherent closure. The source recommendations
-linked above are not all adopted by selecting this inference rule.
+```text
+let first = Buffer.create(64)? // ^Buffer, supplied by the factory's successful result
+let next = ^first             // ^Buffer, explicitly transferred; first is unavailable
+let inspect = next            // Buffer, read access; next remains the owner
+```
+
+Reading an existing place supplies I, even when the place is owned, writable, or Copy. This
+includes an identifier, field, element, or range selected without an explicit transfer. `^place`
+instead supplies X by transferring an initialized owner. A call supplies its selected result
+permission; binding a U-returning call therefore infers U without another marker. Parentheses
+preserve the operation rather than turning a read into a transfer. Successful `?` extraction and
+`await` preserve the selected payload/output permission, not ownership of the outer carrier.
+
+An explicit `: T`, `: &T`, or `: ^T` annotation requests that permission and data type, subject to
+source eligibility. It cannot manufacture authority or replace a missing source-transfer operation.
+No `: ^_` placeholder is mandatory for inferred owned results. Independent I answers supplied by
+a declared read-result contract retain I unless an explicit destination requests a checked Copy.
+Numeric, Boolean, and unit literals and newly computed primitive scalar values construct fresh
+X values; they do not access an existing place. A literal denoting static storage instead follows
+that storage contract without introducing an allocation. Inference does not inspect later uses,
+Copy specialization, or an optimizer's storage choice to change an already checked binding. `var` remains removed.
+
+The distinction is between initialization operations, not two interchangeable styles of the
+same operation. The type qualifier `^T` states an ownership contract; the expression `^place`
+performs a transfer. There is no alternative inferred move spelling `let next = first`.
 
 ### Ownership, Access, and Dependencies
 
@@ -67,8 +81,8 @@ Parameter and receiver declarations select one permission:
 | Declaration | Permission | Responsibility |
 | --- | --- | --- |
 | `value: T` | Input/read | Leave caller ownership intact; do not update through this access |
-| `&value: T` | Update | Update the original writable place; leave it initialized on recoverable exits |
-| `^value: T` | Ownership transfer | Receive ownership and dispose of or forward each live owned part once |
+| `value: &T` | Update | Update the original writable place; leave it initialized on recoverable exits |
+| `value: ^T` | Ownership transfer | Receive ownership and dispose of or forward each live owned part once |
 
 These permissions are called I, U, and X in descriptions of the model. Those letters are not
 language keywords. A type T is not rewritten into a freely storable `&T` or `&+T` value type.
@@ -88,8 +102,8 @@ mutable local declaration.
 Calls uniformly derive receiver and argument permissions from the selected declaration:
 
 ```text
-func append(&buffer: Buffer, value: u8): void
-func enqueue(^job: Job): void
+func append(buffer: &Buffer, value: u8): void
+func enqueue(job: ^Job): void
 
 append(buffer, 42)
 enqueue(job)
@@ -130,9 +144,9 @@ Without Copy evidence the call is invalid; it cannot extract the caller's origin
 insert a clone. This rule does not require an otherwise unnecessary intermediate local.
 
 ```text
-let read = first      // read access, including when first is Copy
-let ^second = first   // independent Copy; rejects a move-only owned source
-let ^third = ^first   // transfer; first is unavailable even when its type is Copy
+let read = first        // read access, including when first is Copy
+let second: ^T = first  // explicit Copy request; requires Copy evidence for T
+let third = ^first      // transfer; first is unavailable even when T is Copy
 ```
 
 `^place` transfers an existing owned place into standalone storage/return expressions. A fresh
@@ -141,61 +155,56 @@ become implicit because the source has no later use.
 
 ### Result Contracts and Local Bindings
 
-A callable declares result permission before its identifier, independently of its input modes:
+A callable declares result permission beside the result type, independently of its input modes:
 
 ```text
-impl Buffer {
-    method self.bytes(): [u8]
-    method &self.&edit_bytes(): [u8]
-    method self.^copy_bytes(): Vec<u8>
-    method ^self.^move_bytes(): Vec<u8>
-}
+func bytes(buffer: Buffer): [u8]
+func edit_bytes(buffer: &Buffer): &[u8]
+func copy_bytes(buffer: Buffer): ^Vec<u8>
 ```
 
-An unmarked name provides I, `&name` provides U, and `^name` provides X. The marker is part of
-the callable contract, not its lookup name or an overload discriminator. Changing it changes the
-API contract. Calls omit result assertions. Bindings independently declare their local permission:
+Permission is part of the contract, not the lookup name or an overload discriminator. Changing it
+changes the API contract. Calls omit result assertions. Locals infer what their initialization
+operation supplies:
 
 ```text
-let input = buffer.bytes()
-let &editable = buffer.edit_bytes()
-let ^owned = buffer.copy_bytes()
+let input = bytes(buffer)
+let editable = edit_bytes(buffer)
+let owned = copy_bytes(buffer)
 ```
 
 These are separate examples; simultaneous overlapping input/update access is still invalid.
-Only three local binding forms exist. `var` is not a v2.0.0 binding declaration:
+The resulting permission determines assignment and transfer:
 
-| Declaration | Local permission | Assignment and ownership |
-| --- | --- | --- |
-| `let name = expression` | I: read only | No update, replacement, or transfer of the referent |
-| `let &name = expression` | U: update original storage | Update/replace the original; no unfilled ownership extraction or retargeting |
-| `let ^name = expression` | X: own a writable value | Update, replace, transfer, and valid reinitialization of its own slot |
+| Resulting local permission | Assignment and ownership |
+| --- | --- |
+| I: read | No update, replacement, or transfer of the referent |
+| U: update original storage | Update/replace the original; no unfilled ownership extraction or retargeting |
+| X: own a writable value | Update, replace, transfer, and valid reinitialization of its own slot |
 
-These markers select different binding operations; they are not optional assertions of the same
-result mode. They cannot select another overload or manufacture authority. A result contract is
-still authoritative about what the expression supplies. `let name = ^open(...)` is not a callee
-assertion style.
+An I binding to an existing place/access retains a read relationship regardless of Copy. An
+independent read/Copy answer has no outside referent of its own. An explicitly I/U destination
+cannot retain a fresh X temporary as an invisible owner; an unannotated binding instead receives
+that X value openly as its own owner. An explicit I destination can materialize a separate Copy
+answer from a fresh Copy value when proved, preserving its D/S dependencies and finishing the
+source temporary's cleanup. This retains no hidden owning parent and does not promote I to X.
+Fresh noncopyable X cannot satisfy that I binding.
 
-An I binding to an initialized existing owned place, I access, or U access retains a read
-relationship. It does not become an owning snapshot when T is Copy. An independently produced
-read/Copy answer, such as a scalar literal or `len()` answer, can instead supply its read-only
-value with no outside referent. A fresh X result requires an X binding; do not create an implicit
-owner with extended resource lifetime just to make an unmarked binding valid.
+A U binding requires an existing writable owned place or supplied U access. Its original place
+and required structure stay protected for the access's live range. A bare name naming a U binding
+still supplies a read when used to initialize another unannotated local; it does not duplicate an
+exclusive capability. An explicit U destination or U-result handoff delegates access, restricting
+the parent while the child is live.
 
-A U binding requires an existing writable owned place or supplied U access. It cannot upgrade I,
-and cannot silently retain a fresh owned temporary as an invisible owner. Its source and required
-structure remain protected for the access's live range.
-
-An X binding receives a fresh owned result or an explicitly transferred existing owner. It may
-also create an independent permitted Copy from a readable existing value, retaining payload and
-storage dependencies. The destination `^name` specifies ownership permission; standalone `^source`
-specifies the transfer operation. Thus `let ^next = ^previous` transfers an existing owner, while
-`let ^copy = previous` copies only when Copy evidence permits it. These are different operations;
-the binding marker does not silently make a move-only initializer transfer.
+An X binding receives a fresh owned result or an explicitly transferred owner. An explicitly X
+destination may also materialize a permitted Copy from a readable value, retaining payload and
+storage dependencies. Thus `let next = ^previous` transfers an existing owner, while
+`let snapshot: ^T = previous` requests a checked Copy. A move-only source in the latter form is
+an error. Destination ownership never supplies an omitted source-transfer operation.
 
 ```text
-let limit = 100
-let ^count = 0
+let limit: i32 = 100
+let count = 0
 count += 1
 count = 10
 ```
@@ -205,7 +214,9 @@ for whole-value replacement; it never retargets the access. Assignment to X repl
 and performs required old-value cleanup. After transfer or explicit drop, X can be reinitialized
 by assigning a complete replacement; failure before that replacement is ready leaves the slot
 uninitialized. Maybe initialized slots still require definite-initialization checks and conditional
-cleanup. U must remain valid on every outward recoverable edge.
+cleanup. A failed replacement does not itself clean or install a destination value, but it does
+not undo explicit moves or other side effects already performed by the right-hand expression.
+U must remain valid on every outward recoverable edge.
 
 There is no separate immutable-but-transferable owned local form. Update permission follows X
 ownership, as it does for X parameters. Passing temporary I access still restricts the called
@@ -229,7 +240,7 @@ can request an X binding and materialize an independent integer answer. An ownin
 ownership transfer:
 
 ```text
-func ^identity<T>(^value: T): T {
+func identity<T>(value: ^T): ^T {
     return ^value
 }
 ```
@@ -288,6 +299,14 @@ possible live dependencies. Mutually exclusive branch accesses are alternatives,
 active updates; a use after the join must nevertheless be safe for every incoming alternative.
 Loops preserve these obligations on every backedge. Conditional cleanup disposes only initialized
 owned parts and never grants source permissions to a maybe initialized value.
+
+Moving an owned field also changes the parent's initialization state. A user destructor that
+requires the complete parent may run only with that state restored on every path reaching it,
+including failure and cancellation. Do not silently skip that destructor or call it with missing
+fields. This is a path-sensitive obligation, not a blanket prohibition on moving fields from
+every type with a destructor: a verified reinitialization before all affected exits can satisfy
+it. Without a user destructor, ordinary partial cleanup disposes only the remaining initialized
+parts. A complete-value transfer cannot carry an uninitialized required field.
 
 ### Boundaries with Other Contracts
 

@@ -441,46 +441,58 @@ contracts are defined by [Generics and Interfaces](generics-and-interfaces.md#in
 
 ## Future Direction: v2.0.0 Value Access Callables
 
-**Source migration pending:** [S8](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
-supersedes the result placement below with type-side qualifiers, such as `func(u64): ^File!`.
-The following forms record the pre-S8 baseline. They are not alternate accepted styles.
-Callable-value access, environment invocation, and result access must remain independent; the
-old `^func` invocation prefix collides with outer type qualification and needs a replacement grammar.
+The v2.0.0 [Value Access Model](value-access.md) separates access to the callable value,
+environment invocation permission, explicit parameter permissions, and result permission.
+These are adopted future contracts, not current released syntax.
 
-The v2.0.0 [Value Access Model](value-access.md) separates environment invocation permission from
-parameter permissions and result permission. This section replaces the current capability
-spellings only at that future boundary.
-
-| Structural callable form | Environment invocation |
+| Structural callable type | Environment invocation |
 | --- | --- |
-| `func(...)` | Repeated input/read invocation |
-| `&func(...)` | Repeated update invocation |
-| `^func(...)` | Consuming invocation |
+| `func(T): R` | Repeated input/read invocation |
+| `mut(T): R` | Repeated update invocation |
+| `once(T): R` | Consuming invocation, at most once per owned callable instance |
 
-The result marker is independently placed immediately before the parameter list, in the position
-left by omitting a callable name. No result marker means I; `&` means U; `^` means X:
+`mut` describes access to the environment, not purity or the modes of explicit arguments.
+`once` does not require an invocation: an uninvoked owned callable can be dropped normally.
+Invocation consumes its owned instance even when that particular body only reads captures.
+Copying, when separately permitted, creates another instance; it does not let one instance be
+consumed twice. A move-only environment cannot acquire Copy from an invocation type.
+
+Type-side qualifiers independently describe how the callable value is supplied:
 
 ```text
-func(): usize
-func ^(u64): File!
-&func ^(u64): File!
-^func ^(u64): File!
-func &(&buffer: Buffer): [u8]
+^func(i32): ^Product // own the callable; read invocation; owned result
+&mut(i32): ^Product // update caller's callable; update invocation; owned result
+^once(i32): ^Product // own the callable; consume it on invocation; owned result
+func(&Buffer): &[u8] // read invocation; update argument; update result
 ```
 
-Thus `^func(...)` does not promise an owned result, and `func ^(...)` does not consume the
-environment. All nine environment/result pairs have a recognition form; validity also requires
-the relevant origins and permissions. A consuming callable cannot return access into a capture
-destroyed by consuming its environment.
+The return qualifier is beside the result type. Unqualified T offers I, `&T` U, and `^T` X.
+No marker appears in the callable-name position. The three invocation kinds admit all nine
+invocation/result mode pairs; origin and cleanup checks may still reject a particular type/body.
+For example, consuming an environment cannot return access into a capture destroyed by that exit.
 
-An annotation, interface witness, generic forwarding operation, or erased callable must preserve
-these independent facts and the result-origin bounds. It cannot replace an unavailable input
-permission by inspecting a body, erase carried dependencies, or choose a mode from the caller's
-last use. Static specialization does not change the selected source contract.
+`^func(...)` now means ownership of a read-invoked callable, not consuming invocation;
+`&func(...)` means update access to that callable value, not an update-invocation contract.
+The latter access can permit replacing the caller's callable value while calls themselves only
+read its environment. There is no optional old invocation-prefix interpretation.
+
+A call has no receiver/argument mode assertions. Read invocation requires readable environment
+access, update invocation requires writable environment access, and consuming invocation follows
+the selected X-operand preparation/commit rules. In particular an existing Copy owner still
+transfers; a non-owning actual can only supply a separate snapshot when checked Copy evidence
+permits it. Environment preparation precedes explicit arguments. Direct `^callback(...)` is not
+an invocation-mode assertion or an alternative spelling of the selected callable type.
+
+An annotation, interface witness, generic forwarding operation, or erased callable preserves
+invocation kind, parameter modes, result mode/shape, and result-origin bounds. It cannot infer
+new authority from a private body, remove carried dependencies, or choose a mode from later use.
+Static specialization does not change the selected source contract. No implicit conversion among
+`func`, `mut`, and `once` contracts is introduced by naming them; exact matching and the separately
+checked Copy-answer adaptation remain the basis.
 
 For matching I-result callables with the same result data type, a receiving boundary with Copy
 evidence can materialize the returned read access as an independent Copy answer. This is a checked
-copy operation, not permission substitution: environment/parameter/result modes stay unchanged,
+copy operation, not permission substitution: invocation/parameter/result modes stay unchanged,
 and dependencies carried inside the copied payload and its storage requirements must still fit
 the receiving contract. A U result cannot be detached this way, and an X result cannot be silently
 reclassified as I. The original callable's generic body and origin contract remain unchanged.
@@ -490,8 +502,17 @@ that context, inference must establish one result protocol from its checked retu
 cannot retroactively select another. A conflicting or underdetermined body needs an ordinary
 callable annotation or named declaration, not a new result keyword.
 
-Do not retain `&+func`, a result prefix beside the return type, or use-site result assertions as
-alternative v2.0.0 styles. Local `let`/`let &`/`let ^` forms are binding operations, not those
-assertions; in particular a fresh closure environment is owned with `let ^callback = ...`.
-Exact source recognition belongs to the
+Ordinary captures are inferred. Retain `(^buffer; value: u8) { ... }` for deliberately moving an
+owner into the environment when body use alone would only require reading/updating it. Here
+`^buffer` is the existing source-transfer operation, not an identifier-side type annotation.
+No `buffer: ^_` capture alias is added. Owned capture does not itself select `once`: an owning
+closure that only reads its captures can retain a `func` invocation contract.
+
+A fresh closure expression supplies X to an inferred local, for example `let callback = ...`.
+Binding another existing callable variable with plain `let alias = callback` instead creates I
+access, regardless of whether the environment is Copy. Capture and output dependencies still
+restrict both callable aliases and owners through invocation, destruction, or escape.
+
+Do not restore retired `&+func`, result markers before callable names, or call-site permission
+assertions as aliases. Source recognition belongs to the
 [future syntax rules](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).

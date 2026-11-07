@@ -617,21 +617,24 @@ The following lexical features are intentionally unsupported:
 
 ## Future Direction: v2.0.0 Access Tokens
 
-The following placement descriptions are the pre-S8 baseline. The adopted
-[type-side direction](../../development/history/reviews/v2.0.0-source-design-decisions.md#s8-place-access-qualifiers-on-types)
-requires new declaration/callable/local productions; it does not introduce compound `&T` or `^T`
-lexical tokens. Keep tokenization separate from the still-unfinished qualified-type grammar.
+For v2.0.0, `^` is punctuation for type-side ownership qualifiers and explicit source transfer.
+`&` denotes update in a type qualifier or the special `&self` receiver abbreviation; it does not
+introduce an ordinary readonly borrow type. Neither `&T` nor `^T` is a compound lexical token.
+The selected receiver forms tokenize as optional punctuation followed by `self`.
 
-For v2.0.0 value-access syntax, `^` is punctuation used by declaration modes and standalone owned
-transfer. `&` denotes update in the designated declaration/access positions; it no longer introduces
-an ordinary readonly borrow type. `&func` and `^func` each consist of a punctuation token followed
-by the `func` keyword, not compound lexical tokens.
+`mut` and `once` introduce future structural callable invocation kinds alongside `func`.
+They are contextual type heads when followed by a callable parameter list; elsewhere ordinary
+identifier rules apply. Recognition does not depend on whether a nominal type with that name exists.
+In `^func(...)`, the punctuation qualifies the callable value; it no longer selects consuming
+invocation. Invocation meaning comes from the callable word, not token adjacency or lookup.
 
-The local forms similarly tokenize as `let`, optional `&`/`^`, and an identifier. `var` no longer
-introduces a v2.0.0 binding declaration. Its rejection must not fall back to the released
-`let`/`var` declaration grammar.
+Local declarations begin with `let` and an undecorated identifier/pattern. Type qualifiers occur
+after a type-annotation colon when written; `^place` in an initializer is a transfer expression.
+`var` is not a v2.0.0 binding declaration. Its rejection must not fall back to the released
+`let`/`var` grammar. The forced-capture prefix uses the same punctuation as source transfer.
 
 `()` consists of the ordinary `(` and `)` tokens. Unit versus closure recognition is syntactic.
-No type lookup changes tokenization or selects an operator meaning. The current lexical rules
-above continue to describe the released language; this section alone does not admit a new
-general-purpose binary `^` operation or split retired `&+` access syntax into a new valid form.
+No type lookup changes tokenization. The current lexical rules above continue to describe the
+released language; this future section does not admit a general binary `^` operation or restore
+retired `&+` borrow syntax by splitting it into tokens. Full recognition belongs to the
+[future syntax fragments](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).
