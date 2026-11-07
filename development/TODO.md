@@ -17,10 +17,13 @@ and omission of `move` on owned returns are deferred because they can obscure ow
 Continue internal inference work; evaluate disjoint-access and signature-maintenance proposals as
 pending candidates, not already adopted syntax.
 
-Establish comparable performance baselines and close the detailed contracts in the
+Close the detailed contracts and establish Nocter execution evidence in the
 [v2.0.0 language design plan](history/milestones/v2.0.0.md). Prioritize compile-time optimization
 and minimal application syntax while preserving the distinction between adopted design and current
-compiler support. Next close explicit outcome branch selection and nested optional states,
+compiler support. Rust comparisons and short-term delivery are not prerequisites; implementation
+effort must not disqualify a better semantic model. Evaluate the values/access-operations proposal
+as a pending alternative to first-class borrow types. Next close explicit outcome branch selection
+and nested optional states,
 storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
 completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
 interaction with contract-only roots, visibility, ownership, and cleanup before implementation.
