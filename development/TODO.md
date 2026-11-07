@@ -17,6 +17,8 @@ compiler support. Next close explicit outcome branch selection and nested option
 storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
 completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
 interaction with contract-only roots, visibility, ownership, and cleanup before implementation.
+Preserve the single `error` failure payload and cause-preserving propagation; per-API typed failure
+payloads are excluded from the v2.0.0 plan, including when error information is successful data.
 Audit the derived-ordering selector/text discrepancy separately; the planning finding does not
 authorize altering qualified or published artifacts. Retain separate `func`/`method` calls without
 UFCS and both outer/inner `impl` roles.

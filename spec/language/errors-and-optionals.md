@@ -23,6 +23,19 @@ T! = fallible T with built-in error
 The failure type is not written at each call site. All fallible values use the same failure payload
 type, `error`. An `error` is an owned, move-only handle; it is not a pair of borrowed fields.
 
+This is a deliberate composition rule. Callers should not have to introduce wrapper error types,
+write conversions between each library's failure type and their own, or replace failures with less
+informative values merely to make fallible signatures compatible. A function can propagate
+failures from unrelated Nocter APIs through the same `T!` boundary without an error-type conversion
+step. A declaration cannot select a different failure payload type.
+
+One failure type does not mean one failure classification. Stable codes distinguish failure kinds,
+and context can explain the operation being attempted while preserving the original failure. Their
+storage and observation behavior belongs to the [recoverable-error guide](../../std/error/README.md).
+Ordinary propagation preserves the failure; adding context, deliberately reclassifying a failure,
+recovering locally, and intentionally suppressing it are separate application decisions. None is
+required merely to reconcile error types.
+
 Rules:
 
 - `error` is a named compiler built-in type declared by the selected `std/error` module with
@@ -241,25 +254,31 @@ Rules:
 
 Postfix `?` propagates the original failure.
 
-`catch` is used for explicit local handling or error replacement.
+Use `?` for ordinary propagation. Use a named catch binding when adding context or handling a
+failure locally. The following example retains the original failure and adds the operation that
+failed:
 
 ```nct
-func read_all(
-    path: &str,
-): String! {
-    var file = BlockingFile.open(path) catch _ {
-        return error.new("app.open_failed", "failed to open input")
+blocking func read_all(path: &str): String! {
+    var file = BlockingFile.open(path) catch failure {
+        return failure.context("while opening the input file")
     }
 
-    let text = file.read_to_string_blocking() catch _ {
-        return error.new("app.read_failed", "failed to read UTF-8 input")
+    let text = file.read_to_string_blocking() catch failure {
+        return failure.context("while reading UTF-8 input")
     }
 
     return move text
 }
 ```
 
-`map_error` is not a language operation. It may be provided as an ordinary standard-library API in the future, but the compiler does not special-case that name.
+Construct a replacement error for a deliberate application policy, such as reclassification, not
+to make result signatures compatible. `catch _` deliberately discards the original failure; it is
+appropriate for intentional recovery or suppression, not routine propagation or signature
+compatibility.
+
+`map_error` is not a language operation and is unnecessary for propagating failures between
+Nocter APIs.
 
 Fallible values are not pattern matched.
 

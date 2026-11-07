@@ -10,6 +10,12 @@ handle, preserves its root code, snapshots the new message, and returns a new ou
 Code and message accessors return readonly views tied to the error handle; exact code comparison
 returns an independent boolean.
 
+The single-payload [composition rule](../../spec/language/errors-and-optionals.md#fallible-types)
+lets unrelated fallible APIs propagate failures without type adapters. Ordinary propagation retains
+the same failure. When an enclosing operation needs more explanation, add context while preserving
+the root classification and cause. Replacing an error or discarding its cause is a deliberate
+classification or recovery policy, not a requirement for combining library calls.
+
 Error codes are open UTF-8 strings. Standard-library codes use stable dotted names such as
 `std.io.not_found`, `std.mem.out_of_memory`, and `std.process.invalid_encoding`; applications and
 packages may define their own prefixes. No `Error` or `ErrorCode` compatibility alias exists.

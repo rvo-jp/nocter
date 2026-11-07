@@ -48,6 +48,14 @@ source file.
 Simplicity does not mean weak APIs. It means APIs and syntax should earn their
 place by reducing the amount a user, maintainer, or AI assistant must remember.
 
+Fallible APIs should compose without making callers reconcile independently chosen error types.
+Nocter deliberately uses one recoverable failure payload so ordinary propagation does not require
+wrapper error types, conversion implementations, or mappings that discard the original failure
+merely to satisfy a caller's result signature. Classification and diagnostic context remain part
+of the error information. The [error specification](language/errors-and-optionals.md#fallible-types)
+owns this boundary; the [recoverable-error guide](../std/error/README.md) explains how classification
+and context are preserved.
+
 ## Encapsulation
 
 Nocter makes privacy the default. Public API is the exception and must be marked
