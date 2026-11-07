@@ -68,7 +68,10 @@ safety without `view`/`yield`. Follow the readiness review's
 [remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
 Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
 or choose ownership from copy/move implementation history. Keep the separate `throw` operand
-marker and optional/unit questions open. Migrate the selected rules
+marker and optional/unit questions open. The
+[pending syntax recommendations](history/reviews/v2.0.0-source-design-decisions.md#remaining-syntax-recommendations)
+prefer `throw reason`, ordinary `some(...)`, and the `()` unit literal; these remain proposals.
+Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
