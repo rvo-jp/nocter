@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v2.0.0 Language Design Independence Review](v2.0.0-language-design-independence.md)
 - [v0.73.0 Phase 5 Qualification Review](v0.73.0-phase-5.md)
 - [v0.73.0 Phase 4 Verified Traversal Adoption Review](v0.73.0-phase-4.md)
 - [v0.73.0 Phase 3 Borrowed Range Construction Review](v0.73.0-phase-3.md)
