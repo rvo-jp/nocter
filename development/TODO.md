@@ -68,8 +68,9 @@ Ordinary `return` does not suspend an accessor or extend local guards; return an
 it must survive. The new finite result handoff exploration is separate from the original root
 model and does not prove the general model. Next formalize Copy/generic result origins, delegated
 access, joins, and checked cleanup validation, then migrate the owning specification contracts.
-The [structural callable result-mode spelling](history/reviews/v2.0.0-source-design-decisions.md#structural-callable-result-modes-source-decision-required)
-is a human-facing proposal, not a reason to wait on independent internal work. Follow the readiness review's
+The [structural callable result-mode decision](history/reviews/v2.0.0-source-design-decisions.md#structural-callable-result-modes)
+adopts `func ^(...)` in the omitted-name position, independently of environment invocation prefixes.
+No recorded source choice in S1–S6, R1–R3, or this follow-up remains pending. Follow the readiness review's
 [remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
 Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
 or choose ownership from copy/move implementation history. The
@@ -113,8 +114,8 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs the specific
-structural callable result-mode source choice, formal typing/validation closure, and
+No blocker remains for the qualified v0.73.0 release candidate. v2.0.0 still needs exact grammar,
+formal typing/validation closure, and
 specification/implementation-contract migration as described above. The current
 language deliberately rejects `notrap async` because `future T` has no drive-time trap contract;
 v2.0.0 removes the authored modifier rather than adding one to future types.
