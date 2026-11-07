@@ -15,9 +15,10 @@ Resolve remaining model choices without approval, even when they affect accepted
 execution. Preserve adopted contracts and safety/resource requirements; record decisions,
 research evidence, counterexamples, proof obligations, and distinguishing cases in the v2.0.0
 plan/review. Consult only on source-design alternatives needing human evaluation of writing,
-reading, or learning. Call omission and owned-capture/callable forms are now selected; projection,
-outcome-construction and public-construction forms remain human-facing
-design work. Do not block independent internal closure on these spellings.
+reading, or learning. Call omission, owned-capture/callable forms, interface disambiguation,
+`throw`, and construction entries are selected. Identifier-prefix local binding rules and the
+explicit `^` on an existing `throw` operand remain human-facing source decisions. Optional/unit
+spellings are separate pending proposals. Do not block independent internal closure on these forms.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
 and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
 delegated by this instruction.
@@ -41,6 +42,9 @@ declaration-driven calls, with no optional receiver/argument markers. S3 adopts 
 closure capture segment for forced owned capture and `func`/`&func`/`^func` invocation types.
 S5 adopts interface implementation maps for real binding/default/collision decisions and
 `value.(Interface.member)(...)` only when ordinary lookup is ambiguous, with no redundant aliases.
+S4 adopts `throw` failure exit but explicitly leaves `throw reason` versus `throw ^reason` open.
+S6 adopts construction functions and `literal { field_names }` as public structural initializer
+grants; public fields alone do not grant construction or announce a complete representation.
 Standalone transfer in returns/storage stays explicit. The model's six semantic decisions are adopted: independent owned
 storage and uniform transfer across copyability; owned-parameter update permission without a new
 mutable local and no automatic failure rollback; left-to-right preparation/reservation before
@@ -53,12 +57,13 @@ dependencies, capture ordering, and deferred cleanup. The bounded root-place mod
 language proof or compiler conformance. Use the [readiness review](history/reviews/v2.0.0-implementation-readiness.md)
 for conservative observation-preserving optimization, inferred-effect evidence, CTFE/type
 dependencies, and contract/body identity gates. Review only the human-facing alternatives in
-the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): S2 proposes result
-conventions `view T` / `&view T` on existing callables, `yield` bodies, and ordinary local bindings;
-S4 now recommends a current-callable `throw` failure exit while keeping unified errors and explicit
-propagation; S6 proposes named construction functions and `literal { field_names }` as an explicit
-public structural initializer grant. The optional/unit spellings remain separately pending.
-These revisions are not adoptions. Migrate the selected rules
+the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): the user rejects
+result-side `view`/`&view` and `yield` and proposes `let name`, `let &name`, `let ^name`. The user
+clarifies `^name` means acquiring returned ownership, not consuming a receiver. Close the meaning
+of unmarked binding versus owning results (a copied buffer is also owned), `var` and writability,
+readonly/projected bindings, and sufficient public result contracts before adopting S2. Do not
+invent optional left/right transfer aliases or reintroduce rejected notation. Keep the separate
+`throw` operand marker and optional/unit questions open. Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
