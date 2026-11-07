@@ -13,9 +13,12 @@ Linux target work remains deliberately deferred.
 Refine the [v2.0.0 language design plan](history/milestones/v2.0.0.md) around faster generated-program
 execution than Rust through compile-time computation and optimization, with only the syntax needed
 to express behavior and information the compiler cannot derive. Establish comparable performance
-baselines and close the detailed contracts for adopted capture inference and explicit callable type
-arguments. Reducing advanced annotations in ordinary applications remains an adopted goal. Other
-syntax changes and ownership-transparent memory models remain unadopted proposals or investigations.
+baselines and close the detailed contracts for adopted capture inference, explicit callable type
+arguments, and contract-only `index.nct` with authored `use` re-exports and retained direct `see`.
+Evaluate a declaration-attached restricted-visibility directive; a special `internal.nct` role has
+not been adopted. Reducing advanced annotations in ordinary applications remains an adopted goal.
+Other syntax changes and ownership-transparent memory models remain unadopted proposals or
+investigations.
 
 Await explicit publication authorization. Publication must tag the exact v0.73.0 release-content
 commit and upload the retained qualified archive without rebuilding it, then record an independent
