@@ -22,13 +22,15 @@ Close the detailed contracts and establish Nocter execution evidence in the
 [v2.0.0 language design plan](history/milestones/v2.0.0.md). Prioritize compile-time optimization
 and minimal application syntax while preserving the distinction between adopted design and current
 compiler support. Rust comparisons and short-term delivery are not prerequisites; implementation
-effort must not disqualify a better semantic model. Close the adopted values/access-operations model
+effort must not disqualify a better semantic model. Close the adopted Value Access Model
 across parameters, receivers, projections, captures, and deferred execution. Unmarked input,
 `&` update, and `^` transfer are adopted; choose a uniform call policy (all explicit or all
 declaration-driven) before closing precedence. The latter is recommended but not adopted; retain
-no optional call-marker aliases. Next close explicit outcome branch selection
-and nested optional states,
-storable one-value `void`, direct comparison without view fallback, and unhandled-failure/resource
+no optional call-marker aliases. Review the model's pending semantic decisions, starting with
+owned bindings/copies, owned-parameter permissions, and call preparation/failure timing, then
+projections, deferred access, and abstract callable contracts. Next close explicit outcome branch
+selection and nested optional states, storable one-value `void`, direct comparison without view
+fallback, and unhandled-failure/resource
 completion rules alongside unified `impl Type` and interface operation contracts. Resolve their
 interaction with contract-only roots, visibility, ownership, and cleanup before implementation.
 Preserve the single `error` failure payload and cause-preserving propagation; per-API typed failure
