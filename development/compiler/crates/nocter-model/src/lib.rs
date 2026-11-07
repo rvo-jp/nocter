@@ -20,19 +20,20 @@ mod target;
 mod type_projection;
 mod type_store;
 mod type_transaction;
+mod value_access;
 
 pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
 pub use id::{
-    AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId,
-    ClosureId, ConstantExpressionId, ConstantId, ConstructionId, DeclarationSiteId, DropId,
-    ExecutableItemId, ExecutableStaticId, FieldId, GenericParameterId, ImportId, InstanceId,
-    InterfaceId, InterfaceImplementationId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId,
-    MirLocalId, MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId, OpaqueTypeId,
-    PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId,
-    TypeId, VariantId,
+    AccessCallableId, AccessParameterId, AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId,
+    CallableId, CapabilityEvidenceId, CaptureId, ClosureId, ConstantExpressionId, ConstantId,
+    ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, ExecutableStaticId, FieldId,
+    GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
+    LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
+    MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,
+    PlaceId, RequirementId, StaticId, TestId, TypeAliasId, TypeId, VariantId,
 };
 pub use numeric::{BuiltinNumericType, lossless_builtin_numeric_conversion};
 pub use origin::{
@@ -50,3 +51,4 @@ pub use type_store::{
     TupleElements, TypeCursor, TypeKind, TypeStore, UnknownTypeId,
 };
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};
+pub use value_access::{ValueAccessMode, ValueAccessType};

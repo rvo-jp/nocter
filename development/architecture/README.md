@@ -25,6 +25,7 @@ These documents own handoffs between semantic products and tooling projections:
 
 - [Checked Program](pipeline/checked-program.md)
 - [Declaration Diagnostics](pipeline/declaration-diagnostics.md)
+- [Future Private Value Access Declarations](pipeline/value-access-declarations.md)
 - [Target, Executable, and MIR Programs](pipeline/target-program.md)
 - [Machine Program and Native Target](pipeline/machine-program.md)
 - [Incremental Computation](pipeline/incremental-computation.md)

@@ -15,6 +15,9 @@ coordinates, or checking internals.
 ## Internal Responsibilities
 
 - declaration and member arenas
+- the bounded future private-function declaration authority under `value_access`: canonical
+  reservations, define-once scalar contracts, input ownership, namespace validation, and resolved
+  result-referent upper bounds, without borrowing/source-syntax representations
 - one sparse structural-constant table and one independently validated dense declaration-value
   table, both separate from constant and static metadata
 - module, import, and prelude namespaces
@@ -61,3 +64,24 @@ coordinates, or checking internals.
   boundary.
 - Dependency-cycle validation follows every interface predicate; member inheritance follows only
   contextual `Self impl Interface` predicates.
+
+
+## Future Private-Function Boundary
+
+The value-access product owns one immutable program for the future private core goal. It is not
+an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline. Its
+builder reserves identities before definitions and freezes only after all header checks. Defining
+headers in a different order cannot change parameter or origin identities. The lowering owner
+reserves functions in canonical namespace order.
+
+Data identities come from a privately owned type authority. The exposed data lookup/Copy-evidence
+operations admit only `bool`, `i32`, `void`, and opaque move-only `error`; they do not expose the
+released type-store eligibility helpers or its borrow constructors. Unit is a value in this
+product. Permission is independent of payload Copy evidence. Aggregate/outcome access trees are
+outside this bounded product and must not be flattened into scalar contracts when implemented.
+
+Result referent bounds concern R only. Concrete I Copy answers and X outputs have no outside
+referent for the result itself; that fact cannot erase payload D/storage S. Other results retain
+the eligible input identities, including empty or alternative sets. An empty set grants no
+independent U, and checking must validate every actual return. Public-contract origin closure
+is not delegated to this private product.

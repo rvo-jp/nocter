@@ -14,6 +14,7 @@ use nocter_compile_input::{
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::PackageIdentity;
 
+pub mod access_declarations;
 mod authority_projection;
 mod callable_contract;
 mod contract;

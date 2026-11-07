@@ -25,6 +25,8 @@ mod static_value;
 mod structural_constants;
 mod target;
 mod validate;
+#[allow(clippy::disallowed_types)]
+pub mod value_access;
 mod value_shape;
 mod value_table;
 mod visibility;

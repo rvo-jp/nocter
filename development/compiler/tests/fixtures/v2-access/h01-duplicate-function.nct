@@ -1,0 +1,2 @@
+func shared(): void {}
+func shared(value: i32): i32 { value }

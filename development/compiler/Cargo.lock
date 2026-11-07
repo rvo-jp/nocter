@@ -1893,6 +1893,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-frontend-bindings",
+ "nocter-json",
  "nocter-model",
  "nocter-package",
  "nocter-runtime-contract",

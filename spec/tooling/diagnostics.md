@@ -697,3 +697,18 @@ An operation nested inside a computed operand is not a direct assertion solely b
 `&` or `^`. Keep non-place prefix operands and assignment targets in their syntax trees for later
 place/permission/initialization diagnostics; do not classify those semantic failures as missing
 syntax. These rules describe the future fragment and do not change current released diagnostics.
+
+
+## Future Direction: v2.0.0 Private Header Diagnostics
+
+The bounded private-function declaration goal resolves all headers before checking bodies.
+A duplicate function uses `E0241`, with the later name primary and the first declaration related.
+A duplicate parameter uses `E0341`, with every duplicate referring to the first binding, even
+when it is the third or later occurrence. An input that shadows an authored function also uses
+`E0341` and identifies that function regardless of source order. Reserved built-in function names
+use `E0240`; reserved built-in parameter names use `E0341`.
+
+These are the existing name rules applied at the future header boundary. They do not permit
+overload selection by input mode, body, or declaration order. Wrong parse-goal/source pairing or
+an impossible header representation is a compiler integrity failure, not a fabricated source
+name/type error. Header acceptance does not certify the callable body.

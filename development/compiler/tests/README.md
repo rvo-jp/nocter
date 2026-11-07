@@ -6,8 +6,8 @@ runner and does not own expected compiler behavior; each consuming crate test ow
 ## Fixture Classes
 
 - [`fixtures/v2-access/`](fixtures/v2-access/README.md) contains future access-model requirements
-  for an explicitly supplied private-module test goal. Production syntax tests consume the
-  manifest; declaration/body checking remains pending. Its inventory checker validates only
+  for an explicitly supplied private-module test goal. Production syntax and declaration tests consume the
+  manifest; body checking remains pending. Its inventory checker validates only
   registration/ranges/shapes. Do not include sources in a released-language glob or count parsing
   as semantic acceptance.
 

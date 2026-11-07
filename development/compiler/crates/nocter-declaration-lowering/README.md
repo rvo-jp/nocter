@@ -17,6 +17,9 @@ does not check callable bodies.
 ## Internal Responsibilities
 
 - deterministic identity reservation and definition
+- a bounded private access-declaration leaf query and exact-current context, sharing the syntax
+  owner's declaration-surface/locator projection rather than a second parser or released borrow
+  lowering; header/body checking and public-module migration remain separate
 - constant/static metadata defined independently of initializer eligibility or value production
 - one restricted dependency query for fixed-array lengths and their scalar structural constants,
   keyed by semantic identities rather than evaluation-pass order
@@ -84,3 +87,24 @@ beside their owning modules.
   declaration graph then freezes the effective identity so later stages do not repeat this binding.
 - Declaration recovery remains one closed product across the computation and session boundary;
   consumers cannot recombine its graph, type authority, source ownership, and source projection.
+
+
+## Future Private Access Declarations
+
+The access-declaration query accepts only complete `V2CoreUnit` syntax. It collects all headers,
+canonicalizes declaration symbols, reserves functions by name order, and resolves data types,
+permissions, namespaces and eligible input referents before examining body semantics. Existing
+built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain
+the first conflicting declaration; forward references cannot alter collision selection.
+
+The reusable result owns a single immutable value-access declaration program, its exact neutral
+header surface, and projection locators. It contains no current syntax IDs, source identity,
+body syntax, or source coordinates. Binding an equal surface constructs one current context
+with that same program and the current header/body nodes. Changed headers, a wrong parse goal,
+invalid syntax, and mismatched locators cannot create a context or trigger fallback lowering.
+Body-only edits can rebind but receive no body-validity certificate from declaration reuse.
+
+The source-neutral declaration product remains owned by `nocter-declarations`. The pairing with
+syntax remains here; there is no public parts constructor or conversion to the legacy declaration
+program. The [cross-stage boundary](../../../architecture/pipeline/value-access-declarations.md)
+owns the handoff to subsequent checking, which is not implemented for this goal yet.

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "parse_goal": "V2CoreUnit",
-  "compiler_status": "syntax-only",
+  "compiler_status": "declarations-only",
   "cases": [
     {
       "id": "a01-update-local",
@@ -116,6 +116,59 @@
       "file": "a19-loop-continue.nct",
       "expectation": "accept",
       "reason": "A continue edge with an initialized owner feeds the header; break feeds the exit."
+    },
+    {
+      "id": "h01-duplicate-function",
+      "file": "h01-duplicate-function.nct",
+      "expectation": "declaration-reject",
+      "reason": "Two declarations cannot select an overload by source order.",
+      "primary_text": "func shared(value: i32)",
+      "code": "E0241",
+      "related_text": "func shared(): void"
+    },
+    {
+      "id": "h02-duplicate-parameter",
+      "file": "h02-duplicate-parameter.nct",
+      "expectation": "declaration-reject",
+      "reason": "The second parameter repeats an existing header binding.",
+      "primary_text": "value: &i32",
+      "code": "E0341",
+      "related_text": "value: i32"
+    },
+    {
+      "id": "h03-reserved-function",
+      "file": "h03-reserved-function.nct",
+      "expectation": "declaration-reject",
+      "reason": "A function cannot reuse a built-in type name.",
+      "primary_text": "bool",
+      "code": "E0240"
+    },
+    {
+      "id": "h04-reserved-parameter",
+      "file": "h04-reserved-parameter.nct",
+      "expectation": "declaration-reject",
+      "reason": "A parameter cannot shadow a built-in type name.",
+      "primary_text": "i32: i32",
+      "code": "E0341"
+    },
+    {
+      "id": "h05-parameter-shadows-function",
+      "file": "h05-parameter-shadows-function.nct",
+      "expectation": "declaration-reject",
+      "reason": "Authored function visibility does not depend on declaration order.",
+      "primary_text": "other: i32",
+      "code": "E0341",
+      "related_text": "func other()"
+    },
+    {
+      "id": "h06-first-parameter-origin",
+      "file": "h06-first-parameter-origin.nct",
+      "expectation": "declaration-reject",
+      "reason": "All repeated parameters identify the first binding, not the previous duplicate.",
+      "primary_text": "value: ^i32",
+      "code": "E0341",
+      "related_text": "value: i32",
+      "diagnostic_count": 2
     },
     {
       "id": "r01-read-upgrade",

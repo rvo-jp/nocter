@@ -6,8 +6,8 @@ They are not released-language programs or runnable packages. A test harness sup
 module and uses `V2CoreUnit`; the filenames do not make these bodies public root contracts.
 
 `manifest.json` records expected acceptance, syntax rejection (including the direct-marker
-structural restriction), or checked-program rejection. Each rejected case identifies one unique
-primary source substring and its distinguishing rule. Exact diagnostic wording/codes remain
+structural restriction), declaration rejection, or checked-program rejection. Each rejected case
+identifies one unique primary source substring and its distinguishing rule. Exact diagnostic wording/codes remain
 owned by the eventual diagnostic specification and consuming test; the manifest does not invent them.
 
 The corpus covers explicit update, delegated reads, Copy versus transfer, immediate U versus call
@@ -19,14 +19,16 @@ construction or the released standard library. The
 entry and completion gates.
 
 The `nocter-syntax` tests explicitly consume this manifest through the production `V2CoreUnit`
-parse goal. All 38 inputs requiring later checking have lossless node-shape snapshots; the six
-syntax rejections retain their source tokens and point at the required region. Additional tests
+parse goal. All 44 inputs requiring declaration processing have lossless node-shape snapshots;
+the six syntax rejections retain their source tokens and point at the required region. Additional tests
 cover precedence, grouping restrictions, boundaries, recovery, token subdivision, depth limits,
-and reusable-source rebinding. `compiler_status: syntax-only` does not claim semantic acceptance
-or execution. The 19 `check-reject` cases must parse successfully before later checking rejects them.
+and reusable-source rebinding. The production declaration query consumes all 50 entries: six fail
+syntax, six fail header validation, and 38 produce declaration metadata. `compiler_status: declarations-only` does not
+claim body acceptance or execution. The 19 `check-reject` cases must pass both earlier stages
+before later checking rejects them.
 
 Do not add these files to a released-language glob, mark current rejection as success, or implement
-a second parser/checker in test support. Declaration/body-checking consumers remain pending.
+a second parser/checker in test support. The body-checking consumer remains pending.
 Extend cases/snapshots at the owning phase as implementation closes each grammar edge; this
 inventory alone does not establish exhaustive grammar or diagnostic coverage.
 
@@ -37,12 +39,13 @@ python3 development/compiler/tests/fixtures/v2-access/check-inventory.py
 ```
 
 That command checks file/shape registration, schema, expectation classes, and source projections only.
-The actual parser tests run with:
+The actual parser and header tests run with:
 
 ```sh
 cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-syntax parser::access
+cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-declaration-lowering access_declarations
 ```
 
-To deliberately regenerate node-shape snapshots, run that focused command with
+To deliberately regenerate node-shape snapshots, run the parser command with
 `NOCTER_UPDATE_ACCESS_SHAPES=1`, then review the changed structures before accepting them.
 The inventory command does not parse source, infer liveness, or validate a semantic result.

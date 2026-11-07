@@ -1370,3 +1370,25 @@ one eligible source elided under the future origin rule. The initial corpus uses
 multi-source output contract. Unsupported constructs must not produce an accepted core product
 or fall back to the released language grammar. This development parse goal is not exposed as an
 alternate user language or compatibility mode.
+
+Within this private-function fragment, resolve every header before checking bodies. Function
+names must be unique in the supplied module and parameter names unique in their own header.
+Parameter/result data types and I/U/X modes never depend on a body or declaration order.
+Concrete I results of `bool`, `i32`, and `void` normalize to independent Copy answers. This
+normalization does not change their declared I permission. X results need no outside referent
+for the result itself; neither fact erases dependencies carried inside a value.
+
+For a retained I `error` result, the header's possible caller referents are its I/U `error`
+parameters. For U results, they are its U parameters of exactly the result's data type. Consumed
+X parameters are not eligible referents. Record these resolved parameter identities as an upper
+bound, retaining zero, one, or several candidates. An empty bound does not create independent U
+or make a local eligible: no normally producing return can satisfy that access in this fragment.
+A body that never produces a result can still satisfy its result contract. Multiple private
+candidates are alternatives; body checking must prove each actual return and can establish a
+narrower private summary. Do not treat every candidate as simultaneously active U.
+
+This private bound is not an inferred public `from` contract. A future public root/header still
+requires the stable explicit bound specified by the origin rules when more than one source is
+eligible. Do not export a private inferred union as a bodyless public contract, consult a callee
+body to select a result mode, or flatten later outcome/access constructor trees into these simple
+built-in contracts.

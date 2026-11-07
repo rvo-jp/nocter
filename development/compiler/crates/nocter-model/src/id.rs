@@ -44,6 +44,8 @@ semantic_ids! {
     ConstantExpressionId,
     StaticId,
     CallableId,
+    AccessCallableId,
+    AccessParameterId,
     ConstructionId,
     InstanceId,
     InterfaceImplementationId,

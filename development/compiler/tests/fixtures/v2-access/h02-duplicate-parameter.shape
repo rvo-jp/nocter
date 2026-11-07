@@ -1,0 +1,15 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+          Parameter
+            Type
+              NamedType
+          Parameter
+            Type
+              AccessType
+                NamedType
+        Type
+          NamedType
+      Block

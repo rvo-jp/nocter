@@ -84,7 +84,7 @@ fn manifest_sources_parse_or_reject_at_the_owning_stage() {
             accepted += 1;
         }
     }
-    assert_eq!((accepted, rejected), (38, 6));
+    assert_eq!((accepted, rejected), (44, 6));
 }
 
 #[test]

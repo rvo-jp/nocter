@@ -10,13 +10,16 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Continue the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md): integrate
-its declaration/type/permission and body-checking contracts and consume the
-[44-case manifest](compiler/tests/fixtures/v2-access/README.md) in semantic phase tests.
-Production `nocter-syntax` now implements the bounded `V2CoreUnit` goal: 38 parse with shape
-snapshots and six reject at syntax. Syntax, target-selection, diagnostics, and source-tooling
-focused tests pass (204 unit tests). No semantic acceptance or rejection is implemented for the
-future goal. The inventory checker checks registration/shapes/ranges, not source semantics.
+Continue the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md): implement
+body typing, selected calls, access actions and flow validation using the declaration context.
+Consume the [50-case manifest](compiler/tests/fixtures/v2-access/README.md) in semantic phase tests.
+Production syntax parses 44 and rejects six. The new declaration query then rejects six
+headers and produces metadata for 38, retaining typed modes/data IDs, caller-input origin bounds,
+canonical callable/input IDs and namespace decisions. Its source-neutral query uses the syntax
+owner's header surface/locators and binds one exact-current context without old borrow lowering.
+Body changes can reuse the same authority; header changes cannot. Model/declaration/lowering/syntax
+focused tests pass 356 unit tests and Clippy. Body acceptance/rejection remains unimplemented.
+The inventory checker checks registration/shapes/ranges, not source semantics.
 Close checked actions, source liveness, joins/backedges and conditional cleanup before claiming
 this slice complete.
 
@@ -24,13 +27,11 @@ Do not wait for all optimization research, add a parallel Python compiler, silen
 std/borrow semantics, or expose a public source-version compatibility mode. A complete v2.0.0
 compiler remains unimplemented. No human source choice blocks this bounded next task.
 
-Verification follow-up: the full compiler gate passed its workspace/CLI/command stages, then
-reported 131/132 native cases passing. The TLS plain-peer/HTTPS ALPN test failed with image exit
-1; it subsequently passed alone and within all 12 TLS/network tests at four threads. No runtime
-or test assertion was changed. The exact cause is unproved; keep the failed full invocation
-visible. The remaining 118 LSP tests, no-default-features check, Rust documentation, and website
-validation passed separately. See the first-slice review for the evidence boundary; this is not
-one clean full-gate or release-qualification run.
+The declaration checkpoint passed one complete compiler verification invocation, including
+132 native and 118 language-server tests, no-default-features checking, and Rust documentation.
+The earlier non-reproduced TLS failure remains documented in the first-slice review; that case
+passed in this full run. Do not claim its cause was determined or repaired by declaration metadata.
+Documentation validation/build and the 50-input inventory also passed.
 
 S11 adopts `let edit = &buffer`. It creates active U at expression evaluation from an initialized
 writable X/U place, not a fresh result or I access. A bare read of `edit` still infers I. Direct
