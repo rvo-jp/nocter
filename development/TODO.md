@@ -16,9 +16,10 @@ execution. Preserve adopted contracts and safety/resource requirements; record d
 research evidence, counterexamples, proof obligations, and distinguishing cases in the v2.0.0
 plan/review. Consult only on source-design alternatives needing human evaluation of writing,
 reading, or learning. Call omission, owned-capture/callable forms, interface disambiguation,
-`throw`, and construction entries are selected. The proposed callable-name result mode and its
-uniform use-site policy, plus explicit `^` on an existing `throw` operand, remain human-facing source decisions. Optional/unit
-spellings are separate pending proposals. Do not block independent internal closure on these forms.
+`throw`, construction entries, and S2's callable-name result mode with unmarked use sites are
+selected. All six principal source directions are adopted. Explicit `^` on an existing `throw`
+operand and optional/unit construction spellings remain separately pending. Do not block
+independent internal closure on these forms.
 See the model's [closure scope](history/reviews/v2.0.0-values-and-access-operations.md#design-responsibility-and-closure)
 and the scoped rule in `development/AGENTS.md`; unrelated language decisions/publication are not
 delegated by this instruction.
@@ -45,6 +46,8 @@ S5 adopts interface implementation maps for real binding/default/collision decis
 S4 adopts `throw` failure exit but explicitly leaves `throw reason` versus `throw ^reason` open.
 S6 adopts construction functions and `literal { field_names }` as public structural initializer
 grants; public fields alone do not grant construction or announce a complete representation.
+S2 adopts `func ^open(...)` / corresponding method result prefixes and contract-derived calls
+and bindings. A binding receiving an owned result retains ownership without another assertion.
 Standalone transfer in returns/storage stays explicit. The model's six semantic decisions are adopted: independent owned
 storage and uniform transfer across copyability; owned-parameter update permission without a new
 mutable local and no automatic failure rollback; left-to-right preparation/reservation before
@@ -57,17 +60,15 @@ dependencies, capture ordering, and deferred cleanup. The bounded root-place mod
 language proof or compiler conformance. Use the [readiness review](history/reviews/v2.0.0-implementation-readiness.md)
 for conservative observation-preserving optimization, inferred-effect evidence, CTFE/type
 dependencies, and contract/body identity gates. Review only the human-facing alternatives in
-the [source-design review](history/reviews/v2.0.0-source-design-decisions.md): the latest S2 proposal
-writes the result mode before the callable identifier (`func ^open(...)`). Compare mandatory
-binding assertions, mandatory callee assertions, and contract-derived omission; recommend omission
-at both use-site positions, consistent with S1. Under this recommendation an unmarked binding
-receiving a declared owned result retains ownership; do not apply the superseded, never-adopted
-proposal that every ordinary `let` is I-only. Receiver/parameter modes and result modes are separate;
-Copy versus moved implementation history does not select result ownership. The declaration prefix
-and use-site choice are proposals, not adoptions. Close callable types, origins, outcome layers,
-async output/carrier roles, and local mutability before migration. Do not keep optional assertion
-aliases or reintroduce rejected `view`/`yield`. Keep the separate `throw` operand marker and
-optional/unit questions open. Migrate the selected rules
+the [source-design record](history/reviews/v2.0.0-source-design-decisions.md) only for genuinely
+unresolved source forms. The next agent-owned work is result-role closure, not another selection
+of S2: specify result permission/origins and Copy, generic and interface forwarding, callback
+types, outcome payload/carrier layers, async output and cancellation, and ordinary access-return
+safety without `view`/`yield`. Follow the readiness review's
+[remaining-work audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-work-after-the-six-source-decisions).
+Do not apply the never-adopted I-only ordinary `let` proposal, retain optional result assertions,
+or choose ownership from copy/move implementation history. Keep the separate `throw` operand
+marker and optional/unit questions open. Migrate the selected rules
 into their owning specification chapters and adjacent compiler contracts before implementation;
 retain all proof and conformance obligations. Next close explicit outcome branch
 selection and nested optional states, storable one-value `void`, direct comparison without view
