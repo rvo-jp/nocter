@@ -1,9 +1,12 @@
 # Future Access Conformance Inputs
 
-These inputs target the future
-[first access validation fragment](../../../../../spec/language/syntactic-grammar.md#first-access-validation-fragment).
-They are not released-language programs or runnable packages. A test harness supplies one private
-module and uses `V2CoreUnit`; the filenames do not make these bodies public root contracts.
+These inputs qualify the **pre-S12 private-access checkpoint**, not the subsequently adopted
+value-binding language. The [checkpoint contract](../../../../history/reviews/v2.0.0-access-checkpoint-contracts.md)
+identifies the former source rules. They are not released programs or runnable packages. A test
+harness supplies one private module and uses `V2CoreUnit`; filenames do not make bodies public
+root contracts. Retain current expectations until the complete parser/checker authority is
+replaced under the [S12 implementation design](../../../../history/reviews/v2.0.0-value-binding-implementation.md).
+Do not advertise these passes as new-language conformance or add an old-language compatibility flag.
 
 `manifest.json` records expected acceptance, syntax rejection (including the direct-marker
 structural restriction), declaration rejection, or checked-program rejection. Each rejected case

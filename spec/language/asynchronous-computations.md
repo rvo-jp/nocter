@@ -309,7 +309,7 @@ heap-frame or user-authored pinning requirement. This does not change the releas
 and effect contracts above or complete the remaining future output/type grammar.
 
 Eliminating physical frame or capture fields does not release an input dependency retained by the
-selected public contract, promote an I/U output to X, change source transfer availability, or make
+selected public contract, erase a value output's outside dependencies, change source availability, or make
 access into a destroyed local valid. Pending and ready computations retain the dependencies needed
 by their output and cleanup. Cancellation preserves child-before-owner cleanup; an unconsumed ready
 output is destroyed before its dependencies are released.

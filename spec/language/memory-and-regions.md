@@ -437,33 +437,90 @@ The full literal and sequence rules live in
 
 ## Future Direction: v2.0.0 Value Access Origins
 
-The future [Value Access Model](value-access.md) keeps origin containment separate from access
-authority. Its `from` contract remains an upper bound over existing value bindings, not a new
-lifetime name, permission grant, or reason to keep a local resource alive.
+The [Value Access Model](value-access.md) separates access authority from carried origins.
+`from` is an upper bound over resolved input/environment identities, not a lifetime name,
+ownership grant, or reason to postpone destruction. Resolve the complete input set before these
+relations. A source identifies both eligible direct storage and carried dependency slots; the
+checked relation preserves their distinction and access strength. A name alone does not authorize
+reading/updating every part of that source.
 
-An owned result can carry allocation/region requirements without borrowing the allocator as an
-exclusive caller place. An owned closure or future can also carry outside access dependencies.
-Copy materialization preserves those contained dependencies and storage requirements; it removes
-only access to the old containing place when a separate copied value is created.
+Ordinary results deliver values. Independent values need no caller-place origin. A capability or
+dependent result needs a bound for each externally dependent slot. One eligible source may be
+elided; multiple sources need a stable explicit public bound, such as `from first | second`.
+Eligibility follows the public type/dependency schema, not arbitrary matching type names or a
+private method body. Index projections additionally declare a direct-place result protocol,
+independently of the element data type. Ordinary scalar value results cannot acquire outside
+access merely because they have inputs.
+`static` admits program-lifetime origins; an independent value also satisfies that upper bound.
+It is not a promise about the physical address or allocation strategy of independent owned data.
 
-Resolve receiver and parameter identities before origin relations. Fresh independent storage,
-static storage, and ordinary independent Copy answers need no caller-managed source place.
-A retained I/U result needs surviving eligible storage, and U additionally needs update authority.
-One eligible source can be elided. Multiple eligible sources require a stable explicit public
-bound unless independence is established by the contract; a private body cannot supply the missing
-meaning for a bodyless public declaration.
+Owned locals, evaluation temporaries, consumed inputs and consumed environment storage that end
+on return cannot be escaping direct roots. Dependencies they already carry into genuinely
+surviving outside storage can be forwarded. Copy removes access to the source descriptor slot,
+never carried dependencies/storage requirements. Returning a view into a taken caller-Copy
+buffer is still invalid if the callee's separate buffer dies; no retargeting to the caller occurs.
+Local guards that revoke access are roots even when the raw backing bytes survive.
 
-Owned locals, temporaries, consumed parameters, and consumed environment storage that end at return
-are not eligible escaping access origins. Their already-contained relationships to genuinely
-outside owners can be forwarded only when those owners and access identities remain valid.
+### Edited-State Origins
 
-An abstract associated result explicitly bounded by a receiver retains that invocation dependency.
-Substitution with a Copy concrete type does not erase the bound by itself. A separate checked Copy
-operation can discharge the source-place access while retaining dependencies inside its payload.
-Wrapping a dependent value in an aggregate or erasing a callable cannot hide its origins.
+A clause on an edit input bounds its complete post-call dependency state, on normal and outward
+recoverable exits. For example:
 
-These rules do not make allocation, failure, cleanup, or address observations unobservable. They
-do not introduce automatic region extension or resource-lifetime repair.
+```text
+func remember(edit holder: Holder from buffer, buffer: Buffer): void
+func append_view(edit holder: Holder from holder | buffer, buffer: Buffer): void
+func clear(edit holder: Holder from static): void
+```
+
+`remember` permits only buffer-derived outside dependencies in the resulting holder; if it also
+retains old holder-derived dependencies, it needs `holder | buffer`. `clear` promises no
+caller-dependent origins afterward, not merely no result. Such a promise must hold on failure
+and cancellation too. A body cannot silently weaken it. The clause describes the edited value's
+post-state, not a requirement that the incoming holder already has those origins.
+
+The complete relation includes mutated referents reachable through an edited value's capability
+slots, not merely the value's descriptor fields. A captured update target has its own post-state
+and surviving owner identity. Applying an abstract callback/guard relation updates that state in
+the caller's dependency graph. Dropping the callback/guard releases only its access/owned resources;
+it cannot erase dependencies newly stored in an outside owner. Preserve this checked write
+footprint and slot mapping through generic forwarding, interface matching, erasure and adapters.
+A shared-state API that mutates through a safe protocol must supply the same evidence; read access
+to its handle is not proof of an empty write footprint.
+
+Without an explicit edit clause, preserve an upper bound consisting of its incoming dependency
+slots and compatible dependencies already carried by supplied input values. The latter supports
+ordinary insertion of a delivered dependent value into a container; actual Copy/transfer must
+still be authorized. It does not admit creating a new view into another input's direct storage.
+Such retention requires an explicit origin clause. Do not infer a direct-retention promise from
+an inaccessible body or from the caller's long-lived argument.
+
+Contracts distinguish carried read/update identities, not just root sets. Receiving an exclusive
+capability cannot make its source retain a usable duplicate, and copying a read descriptor does
+not shorten its referent requirement. The caller applies the post-state relation on every
+recoverable successor, including `void` calls and failures after partial mutation. Conservatively
+retain permitted alternatives until dependency-free state is established by a sufficient contract.
+Private bodies may prove a narrower internal transition, but cannot narrow a bodyless caller's
+public obligations by hidden lookup. An explicit bound can remove old dependencies only when
+body verification proves that result on every affected exit.
+
+The same rule describes an updated callable environment. `mut from input (input: Buffer): void`
+bounds its post-call state by input; `mut from self | input (...)` also permits previous environment
+dependencies. Without that clause the default above admits carried input dependencies, but not
+new direct-input views. A `func` environment cannot be edited through ordinary read invocation;
+a `once` environment does not survive invocation. Neither gets a mutating-environment clause.
+A method receiver with a clause uses the existing parenthesized receiver shape, for example
+`method (edit self from self | buffer).remember(buffer: Buffer): void`.
+
+Result origins and edited-state origins are separate relations, even if both name the same input.
+Callable `self` means its environment; method `self` means its receiver. Each invocation introduces
+fresh symbolic extents for its inputs. Generic/interface/erased contracts preserve these relations
+and their quantification instead of assuming one persistent callback-input lifetime.
+
+Wrapping a dependent value in an aggregate/outcome or erasing a callable cannot hide its schema.
+Region/storage requirements remain separate from direct access; an allocator dependency is not
+an exclusive borrow of the allocator. No origin rule permits hidden cloning/sharing, automatic
+region extension, destructor postponement, or resource-lifetime repair. Full library schema and
+platform realization remain separate migration obligations.
 
 ## Future Direction: v2.0.0 Storage Optimization
 

@@ -1,10 +1,12 @@
 # Future Private Value Access Declarations
 
 This document owns the currently implemented bounded handoff between syntax, declaration lowering,
-declaration metadata, typed bodies and accepted front-end units for the future private-function goal. Language meaning remains in the
-[future grammar and header rules](../../../spec/language/syntactic-grammar.md#first-access-validation-fragment)
-and [Value Access Model](../../../spec/language/value-access.md). This is not the complete
-v2.0.0 pipeline, a second user-facing language version, or a native execution contract.
+metadata, typed bodies and accepted private units. It describes the **pre-S12 checkpoint**, whose
+source contract is preserved in the [checkpoint record](../../history/reviews/v2.0.0-access-checkpoint-contracts.md).
+The adopted [future Value Access Model](../../../spec/language/value-access.md) has changed;
+this implementation is not S12 conformance. Replace it coherently under the
+[implementation design](../../history/reviews/v2.0.0-value-binding-implementation.md), without a
+compatibility mode. This is neither a complete v2.0.0 pipeline nor a native execution contract.
 
 ```text
 V2CoreUnit syntax + exact source

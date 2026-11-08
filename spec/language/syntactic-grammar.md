@@ -1196,244 +1196,152 @@ The complete ownership and ABI rules live in
 
 ## Future Direction: v2.0.0 Access Syntax
 
-These fragments record the adopted ordinary access, receiver, callable, and local-binding
-positions, separately from the complete released grammar above. They are not a complete v2.0.0
-type, expression-precedence, outcome, module, or implementation-body grammar.
+These productions close the S12 value/input/callable/alias source boundary. They are separate
+from the released grammar. The complete declaration/module, literal/operator, generic-requirement,
+platform and standard-library migrations are not implied by these productions. The implementation
+design records their remaining entry gates; no old grammar is used as a fallback.
 
 ```text
-V2AccessQualifier = "&" | "^"
+V2InputOperation = "edit" | "take"
+V2BindingOperation = "let" | "var" | "read" | "edit"
 V2InvocationKind = "func" | "mut" | "once"
 
-V2Type = V2QualifiedAtom V2OutcomeSuffix?
-V2QualifiedAtom = V2AccessQualifier? V2TypeAtom
+V2Type = V2TypeHead V2OutcomeSuffix?
 V2OutcomeSuffix = "?" "?"* "!"? | "!"
-V2GroupedType = "(" V2Type ")"
+V2TypeHead = "*" V2TypeHead | "future" V2Type | V2TypeAtom
+V2TypeAtom = BuiltinScalarType | "str" | "error" | "void" | "never"
+           | V2NamedType | "[" V2Type "]" | "[" V2Type ";" V2Expression "]"
+           | "(" V2Type ")" | "(" V2Type "," V2Type ("," V2Type)* ","? ")"
+           | V2CallableType | "any" V2CallableType
+V2NamedType = (Name V2GenericArguments? | "Self") ("." Name V2GenericArguments?)*
+V2GenericArguments = "<" NonEmptyList(V2GenericArgument) ">"
+V2GenericArgument = V2Type | StructuralConstantExpression
 
-V2NamedFunctionHead = "func" Name
-V2MethodHead = "method" V2AccessQualifier? "self" "." Name
-V2Parameter = "..."? Name ":" V2Type ProvenanceClause?
+V2OriginClause = "from" V2Origin ("|" V2Origin)*
+V2Origin = Name | "self" | "static"
 
-V2CallableType = CompileTimeModifier? V2InvocationKind
-                 "(" List(V2CallableParameter) ")" ":" V2Type ProvenanceClause?
-V2ErasedCallableType = "any" V2CallableType
-V2CallableParameter = "..."? (Name ":" V2Type | V2Type) ProvenanceClause?
+V2Parameter = V2OrdinaryParameter | V2KeyedParameter
+V2OrdinaryParameter = "..."? V2InputOperation? V2Pattern ":" V2Type V2OriginClause?
+V2KeyedParameter = "..." V2InputOperation? Name ":" V2Type ":" V2Type V2OriginClause?
+V2Parameters = "(" List(V2Parameter) ")"
+V2CallableType = "const"? V2CallableKind "(" List(V2CallableParameter) ")"
+                 ":" V2Type V2OriginClause?
+V2CallableKind = "func" | "once" | "mut" V2OriginClause?
+V2CallableParameter = V2KeyedParameter | V2OrdinaryCallableParameter
+V2OrdinaryCallableParameter = "..."? V2InputOperation?
+                              (V2Pattern ":" V2Type | V2Type) V2OriginClause?
 
-V2BindingStatement = "let" V2BindingPattern V2TypeAnnotation? "=" Expression
-V2BindingPattern = V2BindingLeaf
-                 | "(" V2BindingPattern "," V2BindingPattern ("," V2BindingPattern)* ","? ")"
-V2BindingLeaf = Name | "_"
-V2TypeAnnotation = ":" V2Type ProvenanceClause?
+V2FunctionHead = "const"? "async"? "func" Name
+V2MethodHead = "const"? "async"? "method" V2Receiver "." Name
+V2Receiver = V2InputOperation? "self"
+           | "(" "edit" "self" V2OriginClause ")"
+V2CallableTail = ":" (V2Type | "some" InterfaceApplication V2OutcomeSuffix?)
+                  V2OriginClause? V2WhereClause?
 
-V2UnitExpression = "(" ")"
-V2UpdateExpression = "&" V2UpdatePlace
-V2TransferExpression = "^" V2TransferPlace
-V2ForcedCapture = "^" Name
+V2Pattern = Name | "_" | "(" V2Pattern "," V2Pattern ("," V2Pattern)* ","? ")"
+V2Binding = V2BindingOperation V2Pattern (":" V2Type)? "=" V2Expression
+V2Return = "return" V2Expression?
+V2Throw = "throw" V2Expression
+V2Drop = "drop" Name
+V2IndexProjection = "operator" "(" "edit"? "self" "[" V2Parameter "]" ")"
+                    ":" V2Type V2OriginClause? V2WhereClause? V2Block?
+
+V2Closure = "(" V2ClosureHead ")" (":" V2Type V2OriginClause?)? V2Block
+V2ClosureHead = (V2ValueCaptures ";" V2ClosureParameters? | V2ClosureParameters)?
+V2ValueCaptures = NonEmptyList(Name)
+V2ClosureParameters = NonEmptyList(V2ClosureParameter)
+V2ClosureParameter = V2InputOperation? V2Pattern (":" V2Type)?
 ```
 
-`V2TypeAtom` covers the future named/built-in, bracket/tuple, grouped, and callable atoms; their
-complete productions and permitted positions remain a migration gate. It is not the released
-`Type` grammar with old borrow types silently admitted. `V2UpdatePlace` and `V2TransferPlace` denote a
-place under its future contract. No `pub`, `noalloc`, `notrap`, or `blocking` modifier is restored
-by reusing a released enclosing production.
+`BuiltinScalarType`, `Name`, `List`, `NonEmptyList`, `InterfaceApplication` and the constant-expression
+subset denote their lexical/structural responsibilities, with recursively used types replaced by
+V2 types. `V2WhereClause` retains the selected generic requirement families; its complete migration
+must remove retired authored effect guarantees before any parser claims the full declaration
+grammar. These are intentional named dependencies, not a claim that the fragment is a closed
+standalone parser grammar. Named function/method heads take the full generic list, parameter list
+and callable tail before an optional body under the owning module rules.
 
-A qualifier binds to the following atom before outcome suffixes. Thus `&File?` wraps an update
-access in optionality, while `&(File?)` updates an optional object. `^File!` supplies an owned
-successful File. Repeated `?` retains distinct optional layers. `T!?` and `T!!` do not acquire an
-ungrouped production; grouping and existing single-failure validity checks govern other nesting.
-Do not flatten the type tree while expanding aliases or checking contract headers. The
-[future type-scope rules](values-and-types.md#future-direction-v2-0-0-access-qualifier-scope)
-own these meanings and their storage/cleanup limits.
+No ordinary type or expression has an `&`/`^` access prefix. No result marker occurs before a
+name. Parameters use `edit value: T` or `take value: T`; anonymous callable inputs use `edit T`
+or `take T`. Recognize a contextual input-operation word only when a following pattern/type
+completes that production; an identifier such as `edit: T` is an ordinary unmarked name.
+Variadic `...` precedes the input operation and remains limited to an eligible final parameter.
+Pattern recognition does not prove arity, Copy, extraction rights or drop validity.
+A keyed pack always names its binding, including in a callable type:
+`func(... entries: K: V): R` or `func(... take entries: K: V): R`.
+`func(... K: V): R` has only the ordinary named-pack interpretation (name K, element type V),
+never a key/value interpretation selected by type lookup. Keyed pack names bind semantic input
+positions just as other named callable inputs do; the names are not part of type identity.
+Recognition does not bypass the separate pack/body/ABI migration gate.
 
-A callable's result consumes its full `V2Type`, including outcomes, before an enclosing type can
-finish. An outcome on the callable value itself therefore needs a grouped callable atom, as in
-`(func(i32): ^File)!`; `func(i32): ^File!` instead has a fallible call result. The full
-provenance and remaining constructor grammar must preserve this distinction.
+An origin on an edit input is its post-state bound. Origins on read/take inputs constrain incoming
+carried provenance under the owning type/schema contract; they never turn a read into an edit or
+an owner. Names resolve against the complete header, including later inputs, not source order.
+The parenthesized edit receiver permits its own post-state bound without overloading the method
+result's clause. Unqualified `self`, `edit self` and `take self` are the only simple receiver forms;
+there is no expanded typed receiver or optional symbolic form.
 
-An ordinary parameter puts its access qualifier beside its type, as in `buffer: &Buffer` or
-`job: ^Job`. A result does likewise: `func open(id: u64): ^File!`. No result marker occurs before
-the callable name or before an anonymous parameter list. Function heads take their ordinary
-generic/parameter/result tail. Receiver abbreviations are solely `self`, `&self`, and `^self`;
-expanded typed receiver aliases are not added. A method head has no result-name prefix.
-Matched implementations repeat that complete head and tail before their block; no
-`method append { ... }` or `func name { ... }` implementation shortcut is added. Header agreement
-follows the [future contract/body rules](modules.md#future-direction-v2-0-0-complete-implementation-signatures).
+`mut from input (...)` describes the surviving environment's post-state. The clause after the
+result type instead describes the result. A `func` or `once` head cannot have the mutating-state
+clause. A callable result consumes its complete V2 type, so `func(i32): File!` and
+`(func(i32): File)!` have different constructor trees. Grouping preserves those distinctions.
 
-The structural invocation word is `func`, `mut`, or `once`. An outer type-side qualifier describes
-access to that entire callable value. For example `^func(i32): ^Product` owns a read-invoked
-callable with an owned result; `^once(i32): ^Product` independently adds consuming invocation.
-Retired `^func`/`&func` invocation meanings cannot be recovered from name or type lookup.
+An explicit value-capture segment must be nonempty and ends with `;`. `(file; path: Path) { ... }`
+and `(file;) { ... }` capture values; `(path: Path) { ... }` has no explicit capture segment.
+The old `(^file; ...)` has no production. An expected callable contract can supply omitted closure
+input operations; explicit operations must agree. Without context, checked body requirements
+infer them before publishing the callable type. Modes are never chosen from the spelling of a
+call or its later use. A closure result annotation does not duplicate a result access permission.
 
-Local binding identifiers have no permission prefix. An annotation states the expected type and
-permission; without it the initialization operation supplies them. In particular `let next = ^first`
-infers X, while `let inspect = next` infers I. Copy does not change either decision. A U-returning
-call or explicit `&place` supplies U; a bare existing U variable instead supplies I. The explicit
-update expression activates delegation during its evaluation, not at invocation commit.
-Tuple shape, component ownership,
-partial extraction, and discard cleanup still require the corresponding future pattern/type rules.
-`_` introduces no binding or access assertion. `var` is not a future binding declaration.
+An index projection is the special existing-element protocol defined by the
+[future indexing rules](equality-and-indexing.md#future-direction-v2-0-0-index-projections).
+Its `return place`/final place result is not an ordinary function's value result. Read/edit
+projection identities are selected from the source operation before authority checking; no
+permission-based fallback is admitted.
 
-Calls have neither receiver `.&`/`.^` nor direct argument-mode assertions. Direct call/argument
-prefix assertions remain invalid under transparent grouping; ordinary update/transfer expressions
-remain available in initialization, storage, and return operations. They transfer existing owned
-places, not fresh call results. Earlier explicit ownership operations during operand computation
-are not rolled back by a later preparation failure.
+### Expressions, Places and Statement Boundaries
 
-The existing capture segment accepts `V2ForcedCapture`: `(^buffer; value: u8) { ... }` explicitly
-moves the source into the inferred environment. That entry is a transfer operation, not a
-name-side access annotation or a second typed-capture style.
+The binary arithmetic, conversion, comparison, short-circuit and recovery precedence levels keep
+their structural order. At unary level retain `!` and `-`, with `await` and postfix outcome
+extraction in their existing precedence positions. Remove unary `&`, `&+`, `^` and the `move`
+production. A unary `&&` token cannot be split into access operators. Binary `&&`/`||` remain
+short-circuit operations. An expression outcome layer still admits one suffix, `?` or `!`;
+nested layers need grouping. Repeated type optionality is not repeated expression extraction.
 
-For parentheses, a closure head followed by its optional result annotation and a block selects
-the closure. Otherwise empty `()` selects unit, a single parenthesized expression selects grouping,
-and a comma-separated list selects a tuple. Delimiter and statement-boundary recognition decides
-these forms before type checking. Unit introduces no zero-element tuple type.
+Postfix member, tuple-position, index and call structure is retained. A selected generic call
+also admits explicit type/constant arguments under the existing generic-call disambiguation
+contract, including `decode<Config>(bytes)`. Interface disambiguation uses the adopted
+`value.(Interface.member)(...)` form when ordinary lookup is ambiguous. No UFCS, call-site
+receiver assertions or direct argument-mode assertions are added.
 
-Permission, initialization, Copy, dependency, and cleanup checks follow recognition under the
-[Value Access Model](value-access.md). Remaining constructor, expression-precedence, and full
-module contracts must be migrated coherently before implementing the complete v2.0.0 boundary.
+A `read`/`edit` initializer must denote an existing place: a name, a grouped place, or its checked
+field/element/range projection. Parsing retains a non-place initializer for a focused diagnostic;
+lookup/type analysis does not reparse it. These declarations activate access immediately. A plain
+value-binding initializer instead constructs a value even if it is a bare place. Calls select
+their input operations before planning direct-place preparation; a computed conditional operand
+has already constructed its ordinary branch value and cannot be reinterpreted as an alias.
 
+Blocks retain a prefix of local `use` declarations, newline-separated statements, a possible
+final expression and ordinary unit completion. A non-final expression must be unit or terminating.
+Assignment remains a statement with RHS-first semantics; it has no expression precedence.
+`return` without a same-line operand is bare unit return. `throw` requires an operand. `_` discards
+one leaf; a complete discard statement uses only `let _`, without a type annotation. Alias
+patterns require at least one named leaf. Neither aliases nor fixed owners can be retargeted by
+assignment. Control/iteration patterns use the selected common tuple-pattern contract; a binding
+pattern's operation applies consistently to its leaves.
+
+A valid source program cannot depend on the retired `pub`/`construct`/`instance` or authored
+`noalloc`/`notrap`/`blocking` roles. Complete future item grammar must enforce contract-only roots,
+one-item path visibility and unified `impl` before module discovery is integrated. Reusing the
+released `SourceFile` or `Item` productions without that migration is not permitted.
 
 ### First Access Validation Fragment
 
-The following closes a bounded v2.0.0 function/body fragment for initial front-end conformance.
-It is a subset of the future language, not a new package format, source version switch, or a
-claim that the complete v2.0.0 grammar is closed. `V2CoreUnit` is a test parse goal containing
-private function definitions in one supplied module; it does not authorize executable bodies
-in a contract-only `index.nct`. Module discovery, root/body matching, nominal declarations,
-generics, callable values, outcomes, and async have their separate owning contracts.
-
-This fragment imports only lexical `Name`, `integer_literal`, tokens/trivia/newline rules, and
-the structural `List`/`LineSequence` notation above. It does not inherit the released `Type`,
-`Expression`, callable modifiers, or binding productions.
-
-```text
-V2CoreUnit = LineSequence(V2CoreFunction)
-V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreType V2CoreBlock
-V2CoreParameter = Name ":" V2CoreType
-V2CoreType = V2AccessQualifier? ("bool" | "i32" | "void" | "error")
-
-V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
-V2CoreEntry = V2CoreStatement | V2CoreExpression
-V2CoreStatement = "let" (Name | "_") (":" V2CoreType)? "=" V2CoreExpression
-                | V2CorePostfix V2CoreAssignmentOperator V2CoreExpression
-                | "return" V2CoreExpression?
-                | "drop" Name
-                | "break" | "continue"
-                | "while" V2CoreExpression V2CoreBlock
-                | "loop" V2CoreBlock
-V2CoreAssignmentOperator = "=" | "+=" | "-=" | "*=" | "/=" | "%="
-
-V2CoreExpression = V2CoreOr
-V2CoreOr = V2CoreAnd ("||" V2CoreAnd)*
-V2CoreAnd = V2CoreEquality ("&&" V2CoreEquality)*
-V2CoreEquality = V2CoreOrdering (("==" | "!=") V2CoreOrdering)?
-V2CoreOrdering = V2CoreAdd (("<" | "<=" | ">" | ">=") V2CoreAdd)?
-V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
-V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
-V2CorePrefix = ("!" | "-" | "&" | "^") V2CorePrefix | V2CorePostfix
-V2CorePostfix = V2CorePrimary ("(" List(V2CoreExpression) ")")*
-V2CorePrimary = Name | integer_literal | "true" | "false" | "(" ")"
-              | "(" V2CoreExpression ")" | V2CoreIf
-V2CoreIf = "if" V2CoreExpression V2CoreBlock
-           ("else" (V2CoreBlock | V2CoreIf))?
-```
-
-Calls bind before prefix operations: `^make()` transfers a call result and fails the existing-place
-check; it does not mark the call's return contract. `&` has the same prefix precedence as `^`.
-Only grouping is transparent to a direct call operand's marker restriction: strip outer grouping
-from the callee and each argument and reject a root `&`/`^` expression. Thus `take((^value))`
-does not bypass the single call spelling. An explicit operation inside a genuinely computed
-operand, such as an `if` branch, executes at its authored evaluation point and is not rolled back
-by a later operand failure. No context-dependent alternate parse removes the operation.
-
-The parser retains a prefix with a non-place operand and an assignment with a non-place target;
-the checker rejects their place/permission/initialization violations. In this fragment a place
-is a local or parameter name, including grouping; function names are not storage places. Direct
-calls resolve one named function (possibly grouped) before checking arguments. Indirect callable
-values and postfix member/index access are outside this initial fragment, not forbidden by v2.0.0.
-In unary position, lexical `&&` is subdivided into two update prefixes; the resulting inner access
-is not an existing place. After a left operand it remains logical conjunction.
-
-All repeated binary levels associate left. Equality/ordering have at most one ungrouped operator.
-Short-circuit right operands are conditional flow edges. Newlines separate entries, with ordinary
-lexical continuation inside delimiters; call openers stay on the callee's logical line. `return`
-without a same-line operand is bare return. A final expression supplies the block's result; an
-expression before another entry must complete with `void`. A block without a final expression
-supplies normal unit completion. `if` without `else` normally produces unit and requires unit-producing branches.
-The checker verifies return types, conditions, numeric operands, loop exits, and name uniqueness;
-recognition cannot use their types to select a grammar path.
-
-The built-in `error` is available as an opaque move-only data type in this fragment; no error
-constructor, `throw`, or fallible result is introduced here. `void` has the one value `()` and is
-Copy. Primitive numeric/Boolean/unit construction supplies fresh X; a declared I Copy result
-still supplies an independent I answer. U output needs surviving eligible caller storage, with
-one eligible source elided under the future origin rule. The initial corpus uses no ambiguous
-multi-source output contract. Unsupported constructs must not produce an accepted core product
-or fall back to the released language grammar. This development parse goal is not exposed as an
-alternate user language or compatibility mode.
-
-Within this private-function fragment, resolve every header before checking bodies. Function
-names must be unique in the supplied module and parameter names unique in their own header.
-Parameter/result data types and I/U/X modes never depend on a body or declaration order.
-Concrete I results of `bool`, `i32`, and `void` normalize to independent Copy answers. This
-normalization does not change their declared I permission. X results need no outside referent
-for the result itself; neither fact erases dependencies carried inside a value.
-
-For a retained I `error` result, the header's possible caller referents are its I/U `error`
-parameters. For U results, they are its U parameters of exactly the result's data type. Consumed
-X parameters are not eligible referents. Record these resolved parameter identities as an upper
-bound, retaining zero, one, or several candidates. An empty bound does not create independent U
-or make a local eligible: no normally producing return can satisfy that access in this fragment.
-A body that never produces a result can still satisfy its result contract. Multiple private
-candidates are alternatives; body checking must prove each actual return and can establish a
-narrower private summary. Do not treat every candidate as simultaneously active U.
-
-This private bound is not an inferred public `from` contract. A future public root/header still
-requires the stable explicit bound specified by the origin rules when more than one source is
-eligible. Do not export a private inferred union as a bodyless public contract, consult a callee
-body to select a result mode, or flatten later outcome/access constructor trees into these simple
-built-in contracts.
-
-#### Core Body Typing Boundaries
-
-The fragment's primitive arithmetic and ordering require `i32` operands, and logical operators
-require `bool`. Equality requires the same admitted data type on both sides; its primitive domain
-is defined in [Equality](equality-and-indexing.md#future-direction-v2-0-0-core-primitive-equality).
-Integer literals default to `i32`. Decode their complete lexical magnitude before range checking;
-a minus applied directly through grouping to an integer literal admits `-2147483648`. Arithmetic
-retains checked overflow, division, and remainder semantics; an X operand is not a safety proof.
-
-Primitive scalar operands are read once in left-to-right order. Preserve each prepared scalar
-payload before evaluating a later operand; do not reread a changed or transferred place afterward.
-For example, `value + consume(value)` can read the left scalar before an X call consumes its owner.
-This is the built-in primitive operand rule, not snapshot semantics for an ordinary I call argument.
-Explicit transfers still occur at their authored points, even for Copy data. Test a condition before
-entering either branch, and evaluate only the selected short-circuit operand. Physical copies may
-be elided when the compiler preserves these values, effects and ownership operations.
-
-A local initializer with no normal result cannot infer a data type or access mode. An explicit
-annotation can supply that contract; `never` is control interruption, not an inferred stored unit.
-The discard statement remains exactly `let _ = expression`, without a type annotation. These
-rules do not introduce typed patterns or partial extraction.
-
-An explicit binding, assignment, or result contract can contextualize producing conditional
-branches under the access-boundary rules. A selected call instead types each computed operand
-with its natural permission, then selects preparation from the argument's place/value category
-and the parameter contract. Do not insert a transfer or active update into conditional branches
-merely because the parameter requires X or U. For example, passing an `if` of two plain move-only
-places to X cannot silently move either source. Direct existing-place arguments retain the
-contract-driven reservation/commit rules.
-
-An `if` without `else` completes with unit when it completes normally. Its producing then branch
-must have `void` data; without another explicit expected contract, materialize its Copy unit answer
-and the absent branch as X unit. This does not retain an access from only one branch. A conditional
-with two producing branches still obeys natural permission agreement unless an explicit expected
-boundary applies. Unreachable final expressions are checked in their own expression context but
-cannot contribute a function/block result after a terminating statement. Explicit `return` still
-checks the declared result contract. When a condition itself never completes, do not require its
-unexecuted branches to supply the surrounding result; their own operations and explicit contracts
-remain checked. A non-breaking `loop`, or a literal-`true` `while` without a
-reachable break, supplies no normal completion. Never derive a continuing edge from a dead break.
-
-Typing names, data shapes, structural places, and selected calls is not full program acceptance.
-Initialization, source access liveness, escaping referents, short-circuit/loop flow, and cleanup
-must also succeed before the fragment supplies accepted checked-program evidence.
+The pre-S12 `V2CoreUnit` implementation used a different grammar and value model. Its former
+contract is preserved in the non-normative
+[checkpoint snapshot](../../development/history/reviews/v2.0.0-access-checkpoint-contracts.md).
+It is not a subset of the adopted S12 language and must not be exposed as a compatibility mode.
+The [implementation design](../../development/history/reviews/v2.0.0-value-binding-implementation.md)
+sets the replacement boundary: migrate declarations, typing, initialization, accesses, resources
+and source fixtures together before qualifying one S12 accepted private unit. Existing corpus
+passes are evidence for the earlier checkpoint only.

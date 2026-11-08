@@ -2,386 +2,272 @@
 
 ## Future Direction: v2.0.0
 
-This chapter defines the adopted v2.0.0 value-access rules. They are not part of the current
-released contract. Current ownership rules remain in [Ownership, Borrowing, and Drop](ownership.md).
-This future chapter owns operation permissions, Copy materialization, access bindings, and result
-handoff; it does not introduce a second current-language borrowing syntax.
+This chapter owns the adopted v2.0.0 value-binding foundation. It is not part of the current
+released contract; current ownership remains in [Ownership, Borrowing, and Drop](ownership.md).
+Ordinary data types describe values. Binding and parameter operations describe how those values
+are accessed. Capability values and callable contracts retain the access/dependency information
+needed for safety; that information is not removed from the type system.
 
-Ordinary parameter/result placement, receiver abbreviations, callable invocation, and local
-read/transfer inference are defined here and in the linked future callable section. The
-[type-scope rules](values-and-types.md#future-direction-v2-0-0-access-qualifier-scope) distinguish
-outcomes of access from access to stored outcomes. Complete implementation signatures are
-retained under the [future module contract](modules.md#future-direction-v2-0-0-complete-implementation-signatures).
-Full composition and module migration remain work. This does not reopen the selected lifetime,
-initialization, reservation, or cleanup obligations. No complete compiler implementation or
-soundness proof is claimed.
+This direction replaces the earlier future type-side `&T`/`^T`, explicit `&place`/`^place`, and
+permission-inferred `let` rules. They are not optional aliases. The earlier private-unit compiler
+checkpoint has not been migrated to this direction. Full-language conformance, target realization
+and a general soundness proof are not claimed. Other chapters state the extent of their future
+migration; an unchanged released production does not silently become a v2.0.0 production.
 
-### Type-Side Declarations and Inferred Locals
+### Values and Scoped Aliases
 
-An ordinary declaration writes its permission with its type:
-
-```text
-func open(id: u64): ^File!
-func append(buffer: &Buffer, value: u8): void
-```
-
-Unqualified T provides input/read, `&T` update, and `^T` ownership. `&T` does not regain its
-released readonly meaning. Declarations and interface contracts remain authoritative; calls
-repeat neither parameter nor result permission markers.
-
-An unannotated local infers the qualified result of the initialization operation, not the stored
-permission of a named source variable:
-
-```text
-let first = Buffer.create(64)? // ^Buffer, supplied by the factory's successful result
-let next = ^first             // ^Buffer, explicitly transferred; first is unavailable
-let inspect = next            // Buffer, read access; next remains the owner
-```
-
-An explicit update-access expression supplies U:
-
-```text
-let editable = &next          // &Buffer, delegates update access to next
-```
-
-This is a separate example from keeping `inspect` live. `&place` requires definitely initialized
-writable owned storage or an existing U access. It cannot upgrade I, target a fresh temporary,
-copy a capability, or transfer ownership. Grouping preserves the operation. Reading the resulting
-`editable` into another unannotated local still supplies I. Type-side `&T` declares a contract;
-expression-side `&place` performs delegation. `let &editable` is not another spelling.
-
-Reading an existing place supplies I, even when the place is owned, writable, or Copy. This
-includes an identifier, field, element, or range selected without an explicit transfer. `^place`
-instead supplies X by transferring an initialized owner. A call supplies its selected result
-permission; binding a U-returning call therefore infers U without another marker. Parentheses
-preserve the operation rather than turning a read into a transfer. Successful `?` extraction and
-`await` preserve the selected payload/output permission, not ownership of the outer carrier.
-
-An explicit `: T`, `: &T`, or `: ^T` annotation requests that permission and data type, subject to
-source eligibility. It cannot manufacture authority or replace a missing source-transfer operation.
-No `: ^_` placeholder is mandatory for inferred owned results. Independent I answers supplied by
-a declared read-result contract retain I unless an explicit destination requests a checked Copy.
-Numeric, Boolean, and unit literals and newly computed primitive scalar values construct fresh
-X values; they do not access an existing place. A literal denoting static storage instead follows
-that storage contract without introducing an allocation. Inference does not inspect later uses,
-Copy specialization, or an optimizer's storage choice to change an already checked binding. `var` remains removed.
-
-The distinction is between initialization operations, not two interchangeable styles of the
-same operation. The type qualifier `^T` states an ownership contract; the expression `^place`
-performs a transfer. There is no alternative inferred move spelling `let next = first`.
-
-### Ownership, Access, and Dependencies
-
-An owned value has one initialized owning place responsible for its eventual transfer or cleanup.
-Access to that value does not itself create another owner. A place includes a binding, field,
-element, or range selected by an expression; distinct places need not have distinct numeric
-addresses, particularly for zero-sized values.
-
-The compiler tracks three different relationships:
-
-- Access to a particular existing place, which prevents conflicting operations while that access
-  is live.
-- Dependencies contained inside a value, such as a closure's access to captured outside data.
-- Storage requirements, such as an allocation region that must remain valid.
-
-Owning a value does not imply that the last two sets are empty. Copying a closure does not copy
-the data it accesses. Storage requirements do not by themselves grant read or update permission.
-The [future storage rules](memory-and-regions.md#future-direction-v2-0-0-value-access-origins)
-define the public origin bounds.
-
-### Input, Update, and Ownership Transfer
-
-Parameter and receiver declarations select one permission:
-
-| Declaration | Permission | Responsibility |
-| --- | --- | --- |
-| `value: T` | Input/read | Leave caller ownership intact; do not update through this access |
-| `value: &T` | Update | Update the original writable place; leave it initialized on recoverable exits |
-| `value: ^T` | Ownership transfer | Receive ownership and dispose of or forward each live owned part once |
-
-These permissions are called I, U, and X in descriptions of the model. Those letters are not
-language keywords. A type T is not rewritten into a freely storable `&T` or `&+T` value type.
-
-Inputs may overlap inputs. Overlapping input/update, update/update, and transfer/access cannot
-be simultaneously active. Proved-disjoint fields or ranges can be accessed independently.
-Delegation is different from two independent accesses: the parent is restricted or suspended
-while its child access is live. A parent update can delegate input or update; an input cannot
-delegate update. Neither transfers ownership of the caller's place.
-
-U must leave a valid initialized value on success, failure, and cancellation. It need not undo
-completed changes. An exchange operation must prepare a replacement before removing the old
-owned value; it cannot expose a fallible uninitialized gap. An X parameter instead owns a
-writable local slot, including the right to replace or transfer its contents, without another
-mutable local declaration.
-
-Calls uniformly derive receiver and argument permissions from the selected declaration:
-
-```text
-func append(buffer: &Buffer, value: u8): void
-func enqueue(job: ^Job): void
-
-append(buffer, 42)
-enqueue(job)
-```
-
-Do not retain direct argument-mode prefixes or method `.&`/`.^` markers as alternate call styles.
-An unavailable permission is an error; it does not select another overload, silently clone a
-value, or change the declaration.
-
-### Copying Is a Separate Operation
-
-Implicit copying requires a checked Copy capability. Nominal structs opt in with `copy struct`;
-private copyable fields alone do not make an ordinary nominal type Copy. Copying is structural,
-has no custom hook or resource acquisition, and does not allocate. Copy does not promise that a
-large value is cheap to copy.
-
-Scalar primitives, unit, payloadless enums, and supported raw boundary values permit Copy.
-Tuples, fixed arrays, and optionals require Copy for every component type, independently of the
-active branch or array length. Generic code needs declared Copy evidence. `error`, fallible
-outcomes, and futures remain move-only. A Copy type cannot have a destructor.
-
-A closure can be Copy when its owned captures are Copy and its remaining captures only retain
-input access. Every copied closure retains those outside dependencies. Update captures prohibit
-Copy. Opaque values expose only capabilities promised by their contracts.
-
-Copy materialization creates a separate owned value. It removes the new value's need to access
-the old value's containing place, but preserves dependencies inside the copied payload and its
-storage requirements. For example, copying a read-capturing closure can allow the old closure
-header to be discarded; it cannot allow the captured outside data to be destroyed.
-
-An ordinary owned initializer, assignment, or owned success return can perform a permitted
-Copy. An I call argument still accesses the original place even for Copy T; it does not acquire
-snapshot semantics merely because bits could be copied. An X call with an existing owned place
-transfers it uniformly for Copy and move-only types. It does not choose a non-invalidating copy.
-An I/U access is not ownership of its referent. Supplying it to X requires checked Copy evidence:
-preparation materializes a separate owned snapshot and the invocation receives that snapshot.
-Without Copy evidence the call is invalid; it cannot extract the caller's original value or
-insert a clone. This rule does not require an otherwise unnecessary intermediate local.
-
-```text
-let read = first        // read access, including when first is Copy
-let second: ^T = first  // explicit Copy request; requires Copy evidence for T
-let third = ^first      // transfer; first is unavailable even when T is Copy
-```
-
-`^place` transfers an existing owned place into standalone storage/return expressions. A fresh
-owned result already supplies ownership and needs no transfer prefix. General transfers do not
-become implicit because the source has no later use.
-
-### Result Contracts and Local Bindings
-
-A callable declares result permission beside the result type, independently of its input modes:
-
-```text
-func bytes(buffer: Buffer): [u8]
-func edit_bytes(buffer: &Buffer): &[u8]
-func copy_bytes(buffer: Buffer): ^Vec<u8>
-```
-
-Permission is part of the contract, not the lookup name or an overload discriminator. Changing it
-changes the API contract. Calls omit result assertions. Locals infer what their initialization
-operation supplies:
-
-```text
-let input = bytes(buffer)
-let editable = edit_bytes(buffer)
-let owned = copy_bytes(buffer)
-```
-
-These are separate examples; simultaneous overlapping input/update access is still invalid.
-The resulting permission determines assignment and transfer:
-
-| Resulting local permission | Assignment and ownership |
+| Declaration | Meaning |
 | --- | --- |
-| I: read | No update, replacement, or transfer of the referent |
-| U: update original storage | Update/replace the original; no unfilled ownership extraction or retargeting |
-| X: own a writable value | Update, replace, transfer, and valid reinitialization of its own slot |
+| `let value = expression` | Construct a fixed value binding |
+| `var value = expression` | Construct a mutable value binding |
+| `read alias = place` | Read existing storage through a scoped alias |
+| `edit alias = place` | Update existing writable storage through a scoped alias |
 
-An I binding to an existing place/access retains a read relationship regardless of Copy. An
-independent read/Copy answer has no outside referent of its own. An explicitly I/U destination
-cannot retain a fresh X temporary as an invisible owner; an unannotated binding instead receives
-that X value openly as its own owner. An explicit I destination can materialize a separate Copy
-answer from a fresh Copy value when proved, preserving its D/S dependencies and finishing the
-source temporary's cleanup. This retains no hidden owning parent and does not promote I to X.
-Fresh noncopyable X cannot satisfy that I binding.
-
-A U binding requires an existing writable owned place or supplied U access. Its original place
-and required structure stay protected for the access's live range. A bare name naming a U binding
-still supplies a read when used to initialize another unannotated local; it does not duplicate an
-exclusive capability. An explicit U destination or U-result handoff delegates access, restricting
-the parent while the child is live.
-
-`&place` establishes that delegated access when the expression is evaluated, rather than reserving
-it until a surrounding operation completes. Its target and carried dependencies remain protected
-through its live uses and dependent cleanup. An active U child excludes overlapping access through
-its parent; an I child permits compatible reads but prevents parent update/transfer. Ending a child
-restores only the surviving parent's rights, subject to its other live children. No lexical block,
-explicit lifetime name, or separate release statement is needed for an ordinary access whose last
-use and required cleanup have ended. This does not move a resource destructor earlier.
-
-Infer the permission still required by later uses and cleanup. After an access's last update
-requirement, compatible read access may suffice for its remaining reads. This does not change its
-declared type or reselect operations: a later U argument, U result, explicit update delegation or
-write keeps the update requirement live. Explicit `&place` still requires exclusive eligibility
-at its evaluation point, even if its answer will only be read. No runtime upgrade is introduced.
-
-When an intermediate access has no remaining use or cleanup obligation, reparent its live children
-to the surviving authority for the same root. Preserve each child's permission and dependencies.
-An unused U intermediary does not keep exclusive access merely because a live I child was created
-through it: that child still prevents update/transfer, while compatible reads can resume. A U child
-continues to exclude overlapping reads after reparenting. Retain an intermediary needed by a later
-operation or prepared call at the permission that call requires. A pending I request does not
-retain an otherwise unused U intermediary: preserve its identity reservation and read authority
-without activating an input early. Never upgrade I, duplicate U, or keep a destroyed root alive.
-
-An X binding receives a fresh owned result or an explicitly transferred owner. An explicitly X
-destination may also materialize a permitted Copy from a readable value, retaining payload and
-storage dependencies. Thus `let next = ^previous` transfers an existing owner, while
-`let snapshot: ^T = previous` requests a checked Copy. A move-only source in the latter form is
-an error. Destination ownership never supplies an omitted source-transfer operation.
+`let` and `var` construct values under the same Copy-or-move rule. Both can deliver their values
+elsewhere; only `var` permits ordinary updates/replacement. A `let` value cannot be reinitialized
+after transfer/drop. A `var` slot can be reinitialized by a complete replacement. Optional type
+annotations constrain the data type, never change the binding operation.
 
 ```text
-let limit: i32 = 100
-let count = 0
-count += 1
-count = 10
+var count = 10
+let snapshot = count       // independent i32 value
+count = 20                 // snapshot is still 10
+let file = open(path)?
+let next = file            // move-only value; file is now unavailable
+read inspect = next       // next stays responsible for the file
 ```
 
-I bindings cannot be assigned. Assignment to U updates its identified caller-owned place, even
-for whole-value replacement; it never retargets the access. Assignment to X replaces its own value
-and performs required old-value cleanup. After transfer or explicit drop, X can be reinitialized
-by assigning a complete replacement; failure before that replacement is ready leaves the slot
-uninitialized. Maybe initialized slots still require definite-initialization checks and conditional
-cleanup. A failed replacement does not itself clean or install a destination value, but it does
-not undo explicit moves or other side effects already performed by the right-hand expression.
-U must remain valid on every outward recoverable edge.
+`read`/`edit` evaluate an initialized place and its dynamic projections once. They introduce no
+new owner, hidden clone, retargetable reference slot or runtime allocation. Their optional type
+annotation checks the referent's data type. Assigning through `edit` updates its original place;
+it does not retarget the alias. `read` cannot update or extract a non-Copy referent. Neither alias
+can be explicitly dropped as an owner. A fresh temporary/call result is not a place for these
+binding forms: receive its value with `let`/`var` instead. A returned capability descriptor is a
+value and follows that rule too.
 
-There is no separate immutable-but-transferable owned local form. Update permission follows X
-ownership, as it does for X parameters. Passing temporary I access still restricts the called
-operation without freezing every future operation on its owner.
+Creating `edit` requires initialized writable storage or existing edit authority. Creating
+`read` requires initialized readable storage. A parent update may delegate read or update access;
+a parent read cannot delegate update. Aliases cannot be stored or returned as plain data T.
+Persistent/returned access uses a capability value with a checked dependency contract. Indexing can
+also expose an existing element place through its separately declared
+[projection protocol](equality-and-indexing.md#future-direction-v2-0-0-index-projections); it does
+not make an ordinary function return an alias.
 
-Binding I/U access does not manufacture a freely storable reference. Access remains bounded
-by its owners and cannot be stored as an independent T. Persistent relationships require an
-explicitly owned dependent computation/capability
-or an owned container with a checked index/range, rather than an implicit clone or lifetime repair.
+### Value Construction and Copy
 
-### Generic Evidence and Origin Preservation
+Every value-producing boundary delivers a value: `let`/`var` initialization, replacement,
+aggregate component construction, ordinary block/return results, selected outcome payload
+construction and `take` argument supply. Resolve the data type and capabilities, then apply:
 
-A generic body uses its declared capabilities. An unconstrained T is potentially move-only.
-Specializing that body with a Copy type does not reselect a checked transfer, convert an I
-binding to X, erase an origin, or change a public result mode. The caller can
-perform a separate permitted Copy operation when its own checking context proves Copy.
+1. An already constructed value transfers to the destination, preserving its dependencies.
+2. An initialized readable place with source-level Copy evidence supplies a separate snapshot.
+3. Otherwise an initialized owning place eligible for extraction transfers its value and becomes
+   unavailable. Ordinary read/edit aliases cannot supply this extraction.
+4. Otherwise reject the boundary. Do not silently create an alias, invoke a clone, infer Copy from
+   later specialization, or choose the operation from whether the source has a later use.
 
-For example, a generic I accessor can return access to an I parameter. Its checked body remains
-an accessor when specialized with an integer. A caller whose initializer knows the integer type
-can request an X binding and materialize an independent integer answer. An owning generic identity instead always uses
-ownership transfer:
+A fixed owner is eligible for transfer, subject to access/initialization checks. Copyable inputs
+remain available after supplying values, including `take` arguments. Copy is structural, has no
+user hook, allocation or resource acquisition, and does not mean that a large value is cheap.
+A permitted Copy can be optimized away only while preserving snapshot semantics.
+
+Nominal structs opt in with `copy struct`; private Copy fields alone do not make an ordinary
+nominal Copy. Scalars, unit, payloadless enums and supported raw boundary values permit Copy.
+Tuples, fixed arrays and optionals require Copy for every component, independently of active
+branch or length. Generic code needs declared evidence. `error`, fallible outcomes and futures
+remain move-only. Copy types cannot have user destructors. A closure's Copy evidence depends on
+its captures, not its invocation kind. Exclusive update capabilities are non-Copy even when their
+element type is Copy.
+
+Copy removes only the need to read the old containing place. Dependencies carried inside the
+copied payload and external storage requirements survive. Copying a read-view descriptor does not
+copy its referent. For an existing owner, selection of Copy versus move is fixed by the checking
+context; monomorphization cannot rewrite an unconstrained generic move into a non-invalidating Copy.
 
 ```text
-func identity<T>(value: ^T): ^T {
-    return ^value
+func identity<T>(take value: T): T {
+    return value
 }
 ```
 
-Copy removes only the access needed to read the source value, not dependencies already carried
-inside T. An explicit receiver-origin bound on an abstract associated result remains authoritative
-until a checked materialization or other independence operation discharges the particular access.
+The generic body transfers its received value. A caller knowing `T = i32` can supply a snapshot to
+`take`; that does not change the body's operation. A generic read input without Copy evidence
+cannot be returned as a plain T. A separate capability result can expose checked access instead.
 
-### Preparation and Invocation
+### Input Operations and Receivers
 
-Select one callable and its complete contract before checking operand permissions. Evaluate the
-callable/receiver and arguments exactly once, left to right. Preparing an existing place reserves
-that place against destruction, transfer, replacement, and conflicting update while later operands
-are evaluated. Temporary reads that finish before invocation can remain valid:
+| Input | Contract |
+| --- | --- |
+| `value: T` | Read caller storage; leave caller ownership intact |
+| `edit value: T` | Update caller storage; leave it initialized on outward recoverable exits |
+| `take value: T` | Receive a value and its transfer/cleanup responsibility |
+
+Read inputs do not acquire snapshot semantics even for Copy T. A `take` input receives its own
+locally writable slot; updates to it do not update the caller's original slot. This is the
+explicit full-value operation, not a reason to make every owning local mutable. A fixed local can
+be delivered to `take`: any recipient's mutation applies to that recipient's slot. A local
+snapshot `var copy = input` can similarly be updated without granting authority over `input`.
+
+Methods use the same operations: `method self.len()`, `method edit self.append(...)`, and
+`method take self.finish(...)`. No expanded `self: T` receiver alias or symbolic receiver form
+is supplied alongside these. Receiver operation and explicit input operations are independent.
 
 ```text
-buffer.append(buffer.len())
+impl Buffer {
+    func create(capacity: usize): Self!
+    method self.len(): usize
+    method edit self.append(value: u8): void
+    method take self.finish(): Product!
+}
+
+var buffer = Buffer.create(64)?
+buffer.append(42)
+let product = buffer.finish()?
 ```
 
-When a non-owning Copy argument is materialized for X, take that snapshot during its left-to-right
-preparation, preserving payload dependencies and storage requirements. It becomes a prepared
-owned temporary; later operands do not change its copied answer. Other live uses of the original
-access still retain their normal restrictions. An existing owned X source instead remains
-reserved for invocation-time transfer, with no Copy fallback.
+Calls uniformly omit input/receiver assertions. Lookup selects one operation before access
+checking. Missing authority is an error, not permission to select another body, clone a value,
+or add a call-site marker. Keep complete signatures in both public contract and implementation.
 
-After all preparation succeeds, check the complete access bundle and activate updates/transfers
-as one non-fallible transition. Reservations are protections, not already-active I/U permissions.
-A source's active children must permit the requested operation at commit; a child that finishes
-during operand preparation need not prevent reserving the address. Actual replacement, transfer
-and conflicting writes remain forbidden while reserved. An already-active computed access keeps
-its own restrictions during preparation. No user callback, allocation, or destructor occurs between the
-first and last committed ownership transfer. Required allocation and place validation precede
-that transition.
+Read accesses may overlap reads. Overlapping read/update, update/update and transfer/access may
+not be simultaneously active. Proved-disjoint projections may be used independently. Delegation
+restricts/suspends a parent while a child needs that authority; it does not duplicate exclusivity.
+An update must remain initialized on success, recoverable failure and cancellation. Removing a
+value through an update requires an exchange with a ready replacement; an unfilled fallible gap
+is invalid. Completed changes need not be rolled back.
 
-Failure during later argument preparation releases reservations and cleans constructed temporaries;
-it does not consume an earlier merely reserved owned place. Earlier side effects and separate
-ownership operations are not rolled back. Failure after invocation leaves transferred ownership
-with the callee and leaves U inputs valid with their completed changes.
+### Values Can Carry Dependencies
 
-### Evaluation Temporaries
+The compiler distinguishes:
 
-An I call input may read a fresh X value without requiring Copy. Keep that explicitly evaluated
-temporary alive through the enclosing statement, loop condition, or block-result evaluation,
-including use of the call's answer. This is temporary storage, not an invisible owning local.
-After the destination is installed or the result staged, release remaining evaluation temporaries
-in reverse construction order, before leaving the containing block. A retained result cannot
-outlive a temporary it accesses. Copying a scalar answer can remove that referent; binding access
-cannot extend the temporary's lifetime.
+- R: access to a particular existing place, needed by a scoped alias or an operation;
+- D: access relationships carried inside a value, including views, records and closures;
+- S: external storage/allocator/region validity requirements.
 
-Moving a temporary into a local, returned owner, or X call input transfers its cleanup obligation.
-Preparing an I input does not transfer that obligation to the callee. Cancellation destroys only
-the successfully prepared owned arguments, in reverse preparation order, then releases other
-temporaries in the exited evaluation frames. A merely reserved named owner remains intact.
-Nested evaluation, call, and lexical frames unwind in their actual nesting order. Traps that
-terminate without unwinding do not acquire source cleanup from these rules.
+A value and its cleanup responsibility do not imply empty D/S. A result T delivers a value,
+including when that value is a descriptor accessing outside storage. A read capability may be
+Copy; an exclusive update capability is non-Copy. Their exact standard-library names and members
+belong to checked library declarations, not to new built-in `View`/`EditView` type constructors.
 
-For the bounded first fragment, `bool`, `i32`, and `void` have no contained access or external
-storage requirements and need no resource destructor. The opaque built-in `error` follows its
-[owned snapshot contract](../../std/error/README.md): it owns its private immutable failure graph,
-has no access into input views or caller-managed region dependency, and releases that graph when
-destroyed. It remains move-only. These are exact data contracts, not consequences of Copy or X;
-no such independence is inferred for a future aggregate, closure, future, or generic value.
+Aggregates, optionals, generic substitution and erasure preserve component dependencies. Private
+fields cannot hide required dependencies from the public value contract. A destructor's accesses
+keep dependencies live through that cleanup, not merely through the last ordinary read. Moving
+an inline self-reference does not become valid just because the enclosing type owns its data;
+stability needs a checked representation/relocation contract.
 
-### Return and Cleanup
+An alias can end after its last required use and dependent cleanup. Propagate those requirements
+through branches/loops and delegated children. Weaken retained update demand to read demand when
+only reads remain; do not change declarations or reselect operations. An unused intermediary can
+release its own demand and reparent children to a surviving authority, preserving identities,
+permissions, dependencies and pending call reservations. Never extend a root's lifetime to make
+reparenting succeed. Ending access does not move observable resource destruction earlier.
 
-An X result returns a fresh owned value, a permitted Copy, or an explicitly transferred existing
-owner. An I result exposes eligible surviving storage or a permitted Copy answer; a U result
-exposes writable surviving caller storage. A scalar answer such as `len(): usize` can be copied
-before cleanup, without retaining access to the source counter.
+### Result Origins and Retained Update State
 
-Ordinary `return` evaluates the result once, protects its referent and dependencies during exit
-cleanup, performs normal callee cleanup, and hands the result to the caller. Escaping delegated
-access is reparented without an interval that permits conflicting access or creates two exclusive
-authorities. A cleanup operation conflicting with the staged result is invalid.
+Ordinary T results deliver values; there is no separate result permission or `yield`/`view`
+return syntax. The [origin rules](memory-and-regions.md#future-direction-v2-0-0-value-access-origins)
+constrain outside dependencies. A single eligible source may be elided. Ambiguous public origins
+need an explicit `from` upper bound, resolved without a private body.
 
-Returning access into an owned local, temporary, or consumed parameter that is destroyed on exit
-is invalid. The compiler must not suspend the ordinary callable, delay a local guard's destructor,
-extend a region, or insert reference counting to make that return valid. Return an owned guard or
-capability when its resource must survive; access through that live owner remains separately checked.
-Neither `yield` nor a `view` return form is introduced.
+An edited destination can gain dependencies even when the result is `void`. A clause after its
+type bounds the outside origins of its complete post-call value:
 
-Control-flow joins require definite initialization for every use and conservatively retain all
-possible live dependencies. Mutually exclusive branch accesses are alternatives, not simultaneously
-active updates; a use after the join must nevertheless be safe for every incoming alternative.
-Loops preserve these obligations on every backedge. Conditional cleanup disposes only initialized
-owned parts and never grants source permissions to a maybe initialized value.
+```text
+func remember(edit holder: Holder from buffer, buffer: Buffer): void
+```
 
-Moving an owned field also changes the parent's initialization state. A user destructor that
-requires the complete parent may run only with that state restored on every path reaching it,
-including failure and cancellation. Do not silently skip that destructor or call it with missing
-fields. This is a path-sensitive obligation, not a blanket prohibition on moving fields from
-every type with a destructor: a verified reinitialization before all affected exits can satisfy
-it. Without a user destructor, ordinary partial cleanup disposes only the remaining initialized
-parts. A complete-value transfer cannot carry an uninitialized required field.
+This allows, but does not promise, retaining access into `buffer` in `holder`. Retaining old
+holder-derived dependencies as well needs `from holder | buffer`. It is not an origin requirement
+on the incoming holder. It grants no permission beyond the inputs and no ownership
+of buffer. The caller validates the resulting dependency state before releasing any roots. The
+same mechanism applies to callable environments; the callable contract must retain their
+post-state relation. No result is not proof of no retained dependency.
 
-### Boundaries with Other Contracts
+State changes can target storage reached through a capability or capture, not just the descriptor
+being edited. Preserve the checked write footprint and post-state of those referent owners too.
+For example, if a closure stores a view in an outside holder, destroying the closure releases its
+capture access but does not erase the view now stored in that holder. A guard releasing update
+access similarly cannot erase dependency changes made to its protected owner's payload. Public
+capability/callable schemas must describe these reachable-state transitions; opaque wrappers and
+readable shared-state APIs cannot hide them as descriptor-local mutation. No extra application
+annotation is required merely because of implementation layout.
 
-Result modes survive generic forwarding, interface matching, and callable abstraction. Environment
-invocation and output permission are distinct; see the
-[future callable contract](callables.md#future-direction-v2-0-0-value-access-callables).
+A complete contract distinguishes access to an input's storage from dependencies carried by its
+value. It also distinguishes environment storage from dependencies carried by captures. Forwarding
+an owned view can preserve outside dependencies without retaining its dying descriptor slot.
+Taking an ordinary buffer cannot return a view into that buffer when callee cleanup destroys it.
+Copying the taken buffer at the caller does not redirect the view into the caller's different slot.
 
-Optional/fallible result tags and future ownership do not turn a non-owning success payload into
-an owner. Their complete v2.0.0 composition must preserve the result access and carried
-dependencies defined here. This chapter does not silently replace current outcome/future syntax,
-standard-library contracts, or target ABI rules. Those owning contracts must be migrated coherently
-before the complete v2.0.0 language boundary takes effect.
+### Preparation, Invocation and Evaluation Temporaries
+
+Evaluate the callable/receiver and explicit inputs exactly once, left to right. A direct read or
+edit place is reserved while later operands are evaluated, then its operation activates at
+invocation. A direct non-Copy `take` source is reserved for transfer. A Copy `take` operand is
+snapshotted when that operand is prepared. The snapshot is not reread after later operands.
+Primitive scalar operations likewise preserve each prepared scalar value.
+
+Reservations prevent destruction, transfer, replacement and conflicting writes, but are not
+already-active read/edit calls. This permits `buffer.append(buffer.len())` when the inner read
+finishes before edit activation. A computed/explicit local `edit` alias is already active and
+keeps its own restrictions; it is not an invocation-time reservation. A read input of Copy type
+still accesses original storage: a later conflicting write is not permitted merely because a
+snapshot could have been made.
+
+After preparation, validate the complete bundle, including captures and carried capabilities.
+Commit transfers and activation without an intervening user callback, destructor or fallible
+operation. Required allocation/validation precedes commit. Later preparation failure releases
+reservations, cleans constructed prepared values in reverse order, and does not consume a merely
+reserved owner. Earlier executed moves in nested value construction and other effects are not
+rolled back. Once invoked, received values belong to the callee even if it fails.
+
+A read call may use a fresh non-Copy value without cloning. Its evaluation temporary survives
+through the enclosing statement, loop condition or block-result evaluation. Install/stage a
+result before cleaning remaining evaluation temporaries in reverse construction order. A result
+cannot escape while still depending on a temporary that is cleaned. Moving a temporary into an
+owner transfers its cleanup obligation. Cancellation unwinds nested evaluation/call/lexical frames
+in actual order. A terminal trap without unwinding does not acquire cleanup from these rules.
+
+### Return, Replacement and Cleanup
+
+Evaluate a return once under the ordinary value-construction rule, stage its value/dependencies,
+perform callee cleanup, and then hand off. Protect returned capabilities through cleanup and
+reparent any delegated access without an unprotected interval. Reject access into a destroyed
+local, temporary, consumed parameter/environment or revoked guard. Do not suspend a normal
+function, postpone a guard destructor, extend a region, or add reference counting to repair it.
+Return the actual guard/owner when the resource must survive.
+
+Assignment is RHS-first under [assignment and flow](bindings-and-initialization.md#future-direction-v2-0-0-assignment-and-flow).
+Old-value cleanup must be valid with the replacement's retained dependencies. Recoverable failure,
+`throw`, `?` and cancellation preserve exactly the initialized resources of their path. Conditional
+cleanup is not permission to read maybe-initialized data or skip a required user destructor.
+
+A field can move when no live access prevents it. If a user destructor needs the complete parent,
+all paths reaching it must restore required fields, including failure/cancellation paths. Do not
+blanket-ban such moves, call a destructor with missing fields, or silently skip it. Without a
+user destructor, partial cleanup destroys only initialized owned parts.
+
+An explicit `drop name` destroys a definitely initialized owning binding, including a fixed or
+Copy binding, and makes it unavailable. It is destruction, not supplying another value; therefore
+it does not choose a non-invalidating Copy. It cannot destroy an outside referent through an alias.
+Unit and scalar payloads have no destructor work; their logical initialization still matters.
+The opaque error owns its private immutable failure graph under its
+[error contract](../../std/error/README.md), not a special exemption from these operations.
+
+### Generic, Outcome, Async and Optimization Boundaries
+
+Function types, interface witnesses and generic forwarding retain input operations, invocation
+kind, result origins, edited-state relations, effects and cleanup obligations. Call-site inference
+and specialization cannot invent capabilities omitted by a public contract. Names/source
+locations are presentation, never semantic operation or dependency identities.
+
+Optional/fallible tags do not erase carried dependencies. `?`/`await` deliver value payloads under
+their owning contracts; they cannot extract a move-only payload through read/edit access. Successful
+error-valued results use ordinary `return`; `throw` constructs failure with the single error
+payload. Explicit `some(...)`, ordinary optional lifting and `()` keep their adopted meanings.
+
+Deferred calls retain needed input/capture roots until drive/output/cancellation no longer needs
+them. Constructing a frame does not make references independent. Resource cleanup order and drive
+safety survive backing-store/frame optimizations under the
+[future storage rules](memory-and-regions.md#future-direction-v2-0-0-storage-optimization).
+No authored `noalloc`, `notrap` or `blocking` annotation is restored. No rule here promises a
+physical copy, allocation, universal optimal code, or a measured speedup.

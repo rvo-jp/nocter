@@ -441,84 +441,91 @@ contracts are defined by [Generics and Interfaces](generics-and-interfaces.md#in
 
 ## Future Direction: v2.0.0 Value Access Callables
 
-The v2.0.0 [Value Access Model](value-access.md) separates access to the callable value,
-environment invocation permission, explicit parameter permissions, and result permission.
-These are adopted future contracts, not current released syntax.
+The [Value Access Model](value-access.md) separates the callable binding's operation, environment
+invocation, explicit input operations, value result, result origins, and edited-state relation.
+These future rules replace the earlier outer `&`/`^` and result-permission callable forms.
 
-| Structural callable type | Environment invocation |
+| Type | Invocation of the supplied environment |
 | --- | --- |
-| `func(T): R` | Repeated input/read invocation |
-| `mut(T): R` | Repeated update invocation |
-| `once(T): R` | Consuming invocation, at most once per owned callable instance |
+| `func(T): R` | Read, repeatable |
+| `mut(T): R` | Update, repeatable with valid state |
+| `once(T): R` | Receive a value instance and consume it, at most once per instance |
 
-`mut` describes access to the environment, not purity or the modes of explicit arguments.
-`once` does not require an invocation: an uninvoked owned callable can be dropped normally.
-Invocation consumes its owned instance even when that particular body only reads captures.
-Copying, when separately permitted, creates another instance; it does not let one instance be
-consumed twice. A move-only environment cannot acquire Copy from an invocation type.
-
-Type-side qualifiers independently describe how the callable value is supplied:
+`mut` is not a purity claim and does not select explicit input operations. `once` does not require
+an invocation: an uninvoked value can be destroyed. Copy evidence can supply separate callable
+instances; it does not allow consuming the same instance twice. Mutable/update captures prohibit
+Copy. An immutable value binding can move to a taking input; ordinary mut invocation instead
+requires mutable/edit authority over its environment.
 
 ```text
-^func(i32): ^Product // own the callable; read invocation; owned result
-&mut(i32): ^Product // update caller's callable; update invocation; owned result
-^once(i32): ^Product // own the callable; consume it on invocation; owned result
-func(&Buffer): &[u8] // read invocation; update argument; update result
+func update(action: func(edit Buffer): void, edit buffer: Buffer): void
+func repeat(edit action: mut(i32): void, value: i32): void
+func finish(take action: once(take Job): Product, take job: Job): Product
 ```
 
-The return qualifier is beside the result type. Unqualified T offers I, `&T` U, and `^T` X.
-No marker appears in the callable-name position. The three invocation kinds admit all nine
-invocation/result mode pairs; origin and cleanup checks may still reject a particular type/body.
-For example, consuming an environment cannot return access into a capture destroyed by that exit.
+Callable input operations remain in the structural type even with names omitted. Every ordinary
+result R delivers a value. Annotating, forwarding, implementing an interface or erasing preserves
+all input modes, result/state origins, reachable write footprints, capture/dependency schemas
+and cleanup obligations. Origin
+names bind input positions; names themselves are not type identity. Invocation environment access
+is prepared before explicit inputs; validate hidden capture overlaps in the complete bundle.
 
-`^func(...)` now means ownership of a read-invoked callable, not consuming invocation;
-`&func(...)` means update access to that callable value, not an update-invocation contract.
-The latter access can permit replacing the caller's callable value while calls themselves only
-read its environment. There is no optional old invocation-prefix interpretation.
+Each invocation has fresh symbolic input extents. A callback permitted to run with arbitrary
+short-lived read inputs cannot store such an input for a later call unless its public environment
+post-state contract permits it and the caller establishes a sufficiently long-lived source.
+Returning `void` does not erase this obligation. The environment's explicit post-state clause follows `mut`, as in
+`mut from input (input: Buffer): void`; the result's separate clause stays after its type.
+The state relation includes writes to captured outside targets. Their new dependencies persist
+after the closure is destroyed, even when the environment no longer retains an input descriptor.
+A bodyless contract cannot infer either from a hidden implementation. The
+[origin rules](memory-and-regions.md#edited-state-origins) define defaults and all-exit obligations.
+`func`/`once` do not admit a mutating-environment clause.
 
-A call has no receiver/argument mode assertions. Read invocation requires readable environment
-access, update invocation requires writable environment access, and consuming invocation follows
-the selected X-operand preparation/commit rules. In particular an existing Copy owner still
-transfers; a non-owning actual can only supply a separate snapshot when checked Copy evidence
-permits it. Environment preparation precedes explicit arguments. Direct `^callback(...)` is not
-an invocation-mode assertion or an alternative spelling of the selected callable type.
+A result origin can refer to a named input or the callable's implicit `self` environment, using the
+existing `from` relation. Multiple eligible sources require an explicit upper bound. Access into
+environment storage differs from the outside dependencies already carried by a capture. Consuming
+invocation cannot deliver access into a capture that its cleanup destroys. It can transfer an
+owned capture or forward an already dependent descriptor when the outside roots remain valid.
+At a callable boundary, a checked invocation adapter may supply `func` to `mut`, or `func`/`mut`
+to `once`, with exact explicit input operations and compatible data/result contracts. `func` to
+`mut` preserves the environment state and must satisfy the receiving post-state bound. Taking
+adaptation receives its own environment value under Copy-or-move, invokes it with the required
+read/edit access, and completes normal environment cleanup before handing off the answer. Reject
+any answer depending on that destroyed environment storage. Forwarded carried dependencies remain.
 
-An annotation, interface witness, generic forwarding operation, or erased callable preserves
-invocation kind, parameter modes, result mode/shape, and result-origin bounds. It cannot infer
-new authority from a private body, remove carried dependencies, or choose a mode from later use.
-Static specialization does not change the selected source contract. No implicit conversion among
-`func`, `mut`, and `once` contracts is introduced by naming them; exact matching and the separately
-checked Copy-answer adaptation remain the basis.
+Check the complete origin/state/effect/cleanup relation before selecting and freezing the adapter.
+This is a recorded boundary operation, not type equality, private-body lookup or a second dispatch
+attempt. `mut` cannot become `func`; `once` cannot become a repeatable contract, even if a body
+appears to use fewer rights. A failed proof is an error, never a search for another target.
 
-For matching I-result callables with the same result data type, a receiving boundary with Copy
-evidence can materialize the returned read access as an independent Copy answer. This is a checked
-copy operation, not permission substitution: invocation/parameter/result modes stay unchanged,
-and dependencies carried inside the copied payload and its storage requirements must still fit
-the receiving contract. A U result cannot be detached this way, and an X result cannot be silently
-reclassified as I. The original callable's generic body and origin contract remain unchanged.
+Ordinary captures are inferred from checked body operations. To deliberately capture a value,
+use the name-only segment before `;`:
 
-An expected callable contract supplies a closure's result mode before checking its body. Without
-that context, inference must establish one result protocol from its checked returns; later uses
-cannot retroactively select another. A conflicting or underdetermined body needs an ordinary
-callable annotation or named declaration, not a new result keyword.
+```text
+let reader = (file; path: Path) {
+    file.read(path)
+}
+```
 
-Ordinary captures are inferred. Retain `(^buffer; value: u8) { ... }` for deliberately moving an
-owner into the environment when body use alone would only require reading/updating it. Here
-`^buffer` is the existing source-transfer operation, not an identifier-side type annotation.
-No `buffer: ^_` capture alias is added. Owned capture does not itself select `once`: an owning
-closure that only reads its captures can retain a `func` invocation contract.
+A listed name constructs an environment value under the same source-level Copy-or-move rule as
+`let next = file`. Repeated names are invalid. Unlisted captures use inferred read/update/value
+operations; no escape use silently upgrades a read capture into a move. A value-capture list
+cannot copy an exclusive capability. Capture ownership alone does not choose `once`: the body can
+read an owned capture repeatedly. Inferred update captures suspend the parent's conflicting access.
 
-A fresh closure expression supplies X to an inferred local, for example `let callback = ...`.
-Binding another existing callable variable with plain `let alias = callback` instead creates I
-access, regardless of whether the environment is Copy. Capture and output dependencies still
-restrict both callable aliases and owners through invocation, destruction, or escape.
+Explicit capture entries are evaluated left to right at closure formation. Earlier executed
+moves are not rolled back after a later formation failure; constructed captures are cleaned in
+reverse order. An inferred capture activates at formation, not at its first invocation. All
+captures retain the dependencies needed by future invocation/output/destruction. Capturing access
+to a local does not permit the closure to escape that local's lifetime.
 
-The [future storage rules](memory-and-regions.md#future-direction-v2-0-0-storage-optimization)
-allow environment scalarization/reuse only while preserving capture transfers, dependency bounds,
-observable identity, and cleanup. They do not reschedule explicit capture evaluation or roll back
-earlier transfers after later formation effects fail. Opaque/foreign use may require backing by
-its contract deadline; invocation kind alone is not an allocation-elision certificate.
+A fresh closure constructs a value. `let second = callback` copies with evidence or moves a
+non-Copy callable; it no longer creates an implicit read alias. Use `read alias = callback` for
+that operation. `var` permits a locally stored mutable callback to be invoked/updated. A function
+parameter's operation independently determines whether it can read/update/take the callable.
 
-Do not restore retired `&+func`, result markers before callable names, or call-site permission
-assertions as aliases. Source recognition belongs to the
-[future syntax rules](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).
+An expected callable type supplies input operations, output type and origin/state bounds before
+checking a closure. Without it, checked uses infer input requirements and a single output value
+type; insufficient information needs an ordinary type annotation. Later use cannot retroactively
+select another capture, invocation kind or ownership operation. Erased contracts retain the same
+facts; they introduce no run-time name lookup or authority repair.

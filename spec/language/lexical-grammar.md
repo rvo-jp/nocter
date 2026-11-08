@@ -617,29 +617,30 @@ The following lexical features are intentionally unsupported:
 
 ## Future Direction: v2.0.0 Access Tokens
 
-For v2.0.0, `^` is punctuation for type-side ownership qualifiers and explicit source transfer.
-`&` denotes update in a type qualifier, the `&place` delegation expression, or the special
-`&self` receiver abbreviation; it does not introduce an ordinary readonly borrow type. Neither `&T` nor `^T` is a compound lexical token.
-The selected receiver forms tokenize as optional punctuation followed by `self`.
+Relative to the released reserved-keyword inventory, v2.0.0 adds `throw` and removes
+`pub`, `construct`, `instance`, `move`, `noalloc`, `notrap` and `blocking`. Other reserved words
+remain. Removed words can be ordinary names but have no retired declaration/operator role;
+this is not acceptance of old syntax. This delta defines future tokenization only, leaving
+the released lexer/highlighter inventory above unchanged until implementation migration.
 
-`mut` and `once` introduce future structural callable invocation kinds alongside `func`.
-They are contextual type heads when followed by a callable parameter list; elsewhere ordinary
-identifier rules apply. Recognition does not depend on whether a nominal type with that name exists.
-In `^func(...)`, the punctuation qualifies the callable value; it no longer selects consuming
-invocation. Invocation meaning comes from the callable word, not token adjacency or lookup.
+Future value/alias declarations begin with `let`, `var`, `read` or `edit`. `read` and `edit` are
+contextual spellings in binding positions. `edit` and `take` are contextual parameter/receiver
+operations. `mut` and `once` are structural callable type heads alongside `func`; no nominal-name
+lookup selects their grammar. Contextual spellings remain identifier-shaped outside their defined
+positions. A v2.0.0 parser must use its complete contextual catalog, not silently inherit the
+released one above.
 
-Local declarations begin with `let` and an undecorated identifier/pattern. Type qualifiers occur
-after a type-annotation colon when written; `^place` in an initializer is a transfer expression.
-`&place` in an initializer creates update access. Neither expression prefix is an optional direct
-call-argument assertion. In the future access expression grammar a unary position containing the
-lexical `&&` token supplies two update prefixes; it does not retain the released readonly meaning.
-Its inner expression is not an existing writable place, so `&&value` fails place checking. Binary
-`left && right` remains logical conjunction. Spacing does not select a different access model.
-`var` is not a v2.0.0 binding declaration. Its rejection must not fall back to the released
-`let`/`var` grammar. The forced-capture prefix uses the same punctuation as source transfer.
+Ordinary data types have no `&`/`^` access qualifier, and expressions have no unary access/transfer
+prefix or `move` expression. Receiver operations are words, not `&self`/`^self`. Binary `&&`
+remains conjunction; unary `&&value` has no access-prefix interpretation. Capture-list names
+before `;` select value construction, not a punctuation-prefix operation.
 
-`()` consists of the ordinary `(` and `)` tokens. Unit versus closure recognition is syntactic.
-No type lookup changes tokenization. The current lexical rules above continue to describe the
-released language; this future section does not admit a general binary `^` operation or restore
-retired `&+` borrow syntax by splitting it into tokens. Full recognition belongs to the
-[future syntax fragments](syntactic-grammar.md#future-direction-v2-0-0-access-syntax).
+`from` retains its contextual contract role. On an edit parameter it describes post-call state;
+on a result it describes the delivered value. Origin names resolve after the complete input set
+is collected, allowing a later parameter as the source. Tokenization never depends on this lookup.
+Unit `()` uses ordinary parentheses; closure versus unit/group/tuple recognition is syntactic.
+
+Retired `pub`, `construct`, `instance`, `noalloc`, `notrap` and `blocking` have no future declaration
+role. This section changes future recognition only, not the released keyword inventory or website
+highlighter. The [future grammar](syntactic-grammar.md#future-direction-v2-0-0-access-syntax) owns
+precise positions; full declaration/module grammar migration is a separate stated gate.

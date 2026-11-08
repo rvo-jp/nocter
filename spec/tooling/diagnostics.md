@@ -685,102 +685,78 @@ Future warnings may be added for style, portability, or likely mistakes, but war
 
 ## Future Direction: v2.0.0 Core Syntax Diagnostics
 
-The [first access fragment](../language/syntactic-grammar.md#first-access-validation-fragment)
-rejects a direct call operand whose root, after stripping grouping, is an update/transfer prefix.
-Report `E0120` at the authored `&` or `^` punctuation, with the required syntax category
-`unmarked_call_operand`. Grouping does not move the diagnostic to the surrounding parentheses.
-For unary lexical `&&`, subdivision retains the first `&` as that prefix's range. Diagnostic
-presentation describes a call operand without an access prefix rather than inventing a source
-keyword for this category. Names, lookup, and operand types cannot select this syntax rule.
+The future [value/alias grammar](../language/syntactic-grammar.md#future-direction-v2-0-0-access-syntax)
+replaces the pre-S12 prefix-based checkpoint. Ordinary parser failures use `E0120` and identify
+the expected production. There is no surviving direct-marker assertion grammar or unary `&&`
+subdivision. Retired prefix spelling is not an automatic repair opportunity: replacing a prefix
+with a binding/input operation requires knowing its intended behavior.
 
-An operation nested inside a computed operand is not a direct assertion solely because it contains
-`&` or `^`. Keep non-place prefix operands and assignment targets in their syntax trees for later
-place/permission/initialization diagnostics; do not classify those semantic failures as missing
-syntax. These rules describe the future fragment and do not change current released diagnostics.
-
+Retain non-place alias initializers/assignment targets in syntax for semantic diagnostics. A
+contextual `read`/`edit`/`take` spelling is recognized from grammar position, never type lookup.
+The [earlier checkpoint snapshot](../../development/history/reviews/v2.0.0-access-checkpoint-contracts.md)
+preserves old diagnostic requirements; the current private checker has not been migrated.
+These rules do not change released code assignments or diagnostic behavior.
 
 ## Future Direction: v2.0.0 Private Header Diagnostics
 
-The bounded private-function declaration goal resolves all headers before checking bodies.
-A duplicate function uses `E0241`, with the later name primary and the first declaration related.
-A duplicate parameter uses `E0341`, with every duplicate referring to the first binding, even
-when it is the third or later occurrence. An input that shadows an authored function also uses
-`E0341` and identifies that function regardless of source order. Reserved built-in function names
-use `E0240`; reserved built-in parameter names use `E0341`.
-
-These are the existing name rules applied at the future header boundary. They do not permit
-overload selection by input mode, body, or declaration order. Wrong parse-goal/source pairing or
-an impossible header representation is a compiler integrity failure, not a fabricated source
-name/type error. Header acceptance does not certify the callable body.
+Resolve all headers before bodies. Duplicate function names use `E0241`, duplicate/shadowing
+input names use `E0341`, and reserved function names use `E0240`, retaining the existing related
+first-declaration locations. These rules do not permit overload selection by input operation,
+body or declaration order. Header/body mismatch reports both declarations and differing modes,
+types and origin/state relations. An impossible source/product pairing remains an integrity
+failure, never a fabricated source name error.
 
 ## Future Direction: v2.0.0 Core Body Typing Diagnostics
 
-The bounded private-function goal applies the following categories to structural body typing.
-These failures precede initialization, lifetime, escaping-root, conflict, and cleanup validation;
-passing this stage alone does not accept a checked program.
+Use source operations in messages, rather than old I/U/X-qualified local types. Distinguish:
 
-| Code | Failed structural rule |
+| Existing code family | Future failed obligation |
 | --- | --- |
-| `E0340` | Unknown local or direct function name |
-| `E0341` | Local conflicts with an active local/input, authored function, or built-in type |
-| `E0370` | Incompatible data/mode, incompatible conditional results, hidden move-only owner under I, or no result from which to infer a local |
-| `E0371` | Owned boundary lacks a transfer or Copy evidence |
-| `E0372` | Non-final expression produces non-unit data |
-| `E0373` | Normally completing non-unit result has no value |
-| `E0375` | Integer literal is outside `i32` range |
-| `E0377` | Explicit transfer does not name an existing X place |
-| `E0382` | `break`/`continue` has no enclosing loop |
-| `E0383` | Explicit drop does not name an X local/input |
-| `E0384` | Assignment target is not an existing X/U place |
-| `E0386` | Compound assignment target is not `i32` |
-| `E0387` | Update creation/delegation does not have an eligible existing place or supplied U |
-| `E0390` | Direct call target is not a function, or its argument count differs |
-| `E0407` | Discard has a type annotation |
+| `E0340`, `E0341` | Name resolution or conflicting binding |
+| `E0370` | Data/type/result mismatch or insufficient local type information |
+| `E0371`, `E0377` | Value construction has neither Copy evidence nor an eligible owning source |
+| `E0372`, `E0373` | Non-unit intermediate expression or missing normal result |
+| `E0375` | Integer outside the selected data type's range |
+| `E0382` | Loop exit outside a loop |
+| `E0383` | Explicit drop does not name an owning value binding |
+| `E0384`, `E0386` | Non-writable assignment target or invalid numeric compound target |
+| `E0387` | Alias creation/update input lacks the required initialized place/authority |
+| `E0390` | Invalid selected call target or argument count |
+| `E0407` | Invalid typed discard |
 
-Point to the attempted expression, target, name, or missing-result block. A mismatch identifies
-expected and supplied data/modes where available; a conditional mode mismatch identifies both
-branch answers. An existing-place permission failure relates its declaration. Preserve typed
-rule evidence separately from rendered wording. Do not offer removal of `&`/`^` as an automatic
-repair: that changes the intended operation. Explicit transfer/drop of Copy X remains valid;
-released restrictions on moving Copy are not inherited into this future goal.
-
+Exact allocation within an existing family is fixed before implementing its compiler migration;
+this table does not duplicate numeric registration. A generic read input cannot deliver T without
+Copy merely because one future instantiation is an integer. Explain the missing capability or
+owning source, not a missing `^` prefix. A fixed value supplied to an edit input needs an intentional
+mutable binding; do not silently rewrite it. A view descriptor Copy still retains its dependencies.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
 
-The first access fragment uses `E0378` when a reached read, update, transfer, explicit drop,
-compound target, or prepared/committed direct-place argument lacks definite named-slot
-initialization. A complete X assignment can restore an uninitialized slot; it is not such a use.
-Check compound assignment after its complete right-hand evaluation, and check every potentially
-continuing loop backedge and zero-iteration edge. Code unreachable after terminating control does
-not acquire fictitious initialization obligations, while its structural typing rules still apply.
+`E0378` identifies a reached read/update/extraction/drop/compound operation that lacks definite
+initialization. Relate the declaration and contributing transfers/drops/backedges. A Copy boundary
+is not a transfer of its source; an explicit drop is destruction even for Copy. A mutable owning
+slot can be restored by a complete replacement; a fixed binding cannot be assigned after transfer.
+Check RHS-first compound targets after all right-hand effects. Unreachable code keeps structural
+typing requirements without acquiring fictitious runtime initialization obligations.
 
-Point at the attempted operation, relate the slot's declaration, and identify ownership-removal
-actions on contributing paths. An earlier loop iteration may contribute the same authored action;
-explain that reaching-path/backedge relationship rather than suggesting a missing type annotation.
-Distinguish a definitely unavailable slot from one whose initialization is unproved across paths.
-
-This diagnostic proves neither the validity of a retained access's outside root nor the absence of
-conflicts. An initialized I/U holder can still refer to invalid or conflicting storage. Those
-failures require their own lifetime/access evidence. Initialization conditions for potential cleanup
-are not permission to skip required destruction or emit an executable cleanup schedule.
+Initialization does not establish dependency survival or absence of conflicts. Conditional cleanup
+is not permission to read missing parts or skip required user destruction.
 
 ## Future Direction: v2.0.0 Referent and Access Diagnostics
 
-The bounded first access fragment applies these codes after named-slot initialization succeeds:
+Retain the existing `E0395`–`E0398` access/lifetime families for failing origin, conflicting access,
+reserved-place and surviving-root obligations. Explain the attempted source operation, affected
+place, originating alias/capability, and later use or cleanup requiring it. In particular:
 
-| Code | Failed referent/permission rule |
-| --- | --- |
-| `E0395` | Returned access lacks an allowed surviving input root |
-| `E0396` | Read/call bundle overlaps incompatible authority, or an operation modifies a reserved place |
-| `E0397` | Update, replacement, drop or transfer conflicts with a required access |
-| `E0398` | Required referent root no longer survives |
+- An ordinary value return into destroyed local/guard storage identifies that cleanup boundary.
+- A `void` call that retains a dependency identifies the edited destination/environment and the
+  selected post-state clause/default, rather than claiming it returned a reference.
+- An omitted public multi-origin bound identifies eligible source inputs without reading a body.
+- A callback retaining a fresh invocation input identifies the escaping state and required extent.
+- A fixed capability holder that needs ordinary update distinguishes holder mutability from
+  whether the pointed-to element type is Copy.
 
-Identify the attempted operation and referent declaration. For a retained access/reservation,
-relate its creation and a later operation requiring it; identify a staged result when exit cleanup
-must protect that answer. A declaration's U permission is not itself proof that exclusivity must
-last until lexical scope end: use the future permission demands and cleanup obligations defined
-in the value-access chapter. Do not propose removing an access marker, cloning a value, or prolonging
-an owner's lifetime as an automatic repair.
-
-These diagnostics concern referents and operation permissions. Passing them does not certify
-carried payload/storage dependencies, destructor effects or an executable cleanup schedule.
+Keep these causes separate from missing generic Copy evidence and data-type mismatch. The
+compiler can end access after the last required use/cleanup; do not recommend broader scopes,
+clones, resource-lifetime extension or symbols on every call as automatic repairs. Passing these
+checks still requires resource/cleanup and native realization validation.

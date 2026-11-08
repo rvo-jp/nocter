@@ -3,11 +3,11 @@
 This chapter defines local binding mutability, assignment, initialization state, and
 reinitialization after ownership transfer or explicit drop.
 
-The future v2.0.0 [Value Access Model](value-access.md#result-contracts-and-local-bindings)
-removes `var` and infers read, update, or ownership from the initialization operation. Reading an
-existing place supplies read access; `^place` transfers ownership; a call supplies its declared
-result permission. Explicit permissions belong beside types, not identifiers. These future rules
-do not change the current released rules below.
+The future v2.0.0 [Value Access Model](value-access.md#values-and-scoped-aliases)
+keeps fixed/mutable value bindings and adds explicit `read`/`edit` aliases. Value-producing
+boundaries Copy when proved and otherwise move an eligible owner. Input operations live in the
+declaration, not ordinary type qualifiers. These future rules do not change the released rules
+below.
 
 ## Bindings and Mutability
 
@@ -332,98 +332,64 @@ file.position_blocking()? // OK: whole-binding assignment restored initialized s
 
 ## Future Direction: v2.0.0 Assignment and Flow
 
-These rules refine the future [Value Access Model](value-access.md), separately from the released
-`let`/`var` rules above. A local has one inferred or annotated I/U/X permission. No subsequent
-assignment, branch, use, or specialization changes it.
+The future [Value Access Model](value-access.md) uses fixed `let` and mutable `var` value
+bindings, with `read`/`edit` for scoped aliases. Type annotations constrain data types; they do
+not infer a binding's operation or turn a value binding into an alias.
 
-`let _ = expression` evaluates once and introduces no binding. Dispose of an owned result at that
-point; an I/U result releases only that temporary access and does not destroy its outside referent.
-`drop name` requires a definitely initialized X place without conflicting live access, disposes
-of its value, and leaves that owning slot uninitialized. It cannot extract/destroy a referent
-through I/U. Implicit exit cleanup follows the same ownership obligations but is conditional on
-the actual initialized parts. Neither discard nor drop supplies an implicit clone or move of a
-bare existing source.
+`let _ = expression` constructs/discards one value under the ordinary Copy-or-move rule. For a
+non-Copy owner this removes and destroys that value. For a Copy place this discards a snapshot,
+leaving the source available. An unhandled fallible outcome still requires its diagnostic; discard
+is not handling failure. A non-final expression must produce `void` or terminate. A final block
+expression is an ordinary value-producing boundary, not an implicit scoped alias.
 
 ### Assignment Order and Reinitialization
 
-Evaluate the entire right-hand expression first. Only after success, evaluate dynamic destination
-components once, check the destination's state after those right-hand actions, dispose of its
-initialized old value when required, and install the complete replacement. Protect a prepared
-replacement and its dependencies through target evaluation and cleanup. Reject a replacement
-that would destroy storage needed by its own retained I/U access or D/S dependencies. Do not
-reserve or read the assignment destination before the right-hand side merely to simplify checking.
+Evaluate/construct the entire replacement first, then evaluate dynamic destination components
+once, check the destination's resulting state, clean any initialized old value, and install the
+replacement. Protect the replacement and its dependencies through target evaluation and cleanup.
+Reject destruction of storage that the replacement still needs. The right-hand side can move
+an eligible non-Copy owner without a prefix; Copy snapshots instead. No destination reservation
+or old-value read is introduced before the right-hand evaluation.
 
-An X destination stores a fresh owned value, explicit transfer, or proved Copy; an expected X
-assignment does not silently move an existing move-only source. A U destination replaces its
-original referent under the same complete-value requirements. I is not writable. U does not
-become an uninitialized owning slot and cannot be retargeted to another access.
+A writable destination is a mutable owner, locally writable `take` slot, or `edit` referent.
+Fixed owners/read aliases are not writable. An edit replacement never retargets the alias and
+must preserve complete initialization on every outward recoverable edge. Mutable owning slots
+can be reinitialized after move/drop; fixed bindings cannot. Maybe-initialized old owners receive
+conditional cleanup, never an invented complete-value read.
 
-If the right-hand side fails or terminates, perform no target evaluation, replacement cleanup,
-or store. Previously performed right-hand moves, calls, and effects remain performed. Successful
-reinitialization of an uninitialized X slot performs no old-value destruction. Replacing a maybe
-initialized X slot conditionally cleans only the old value actually present on that path.
+If replacement computation fails, do not evaluate the target, clean its old value, or store.
+Completed nested moves/calls/effects are not rolled back. In `value = value`, a non-Copy mutable
+owner first transfers out and is then reinstalled without old-value destruction; a Copy value
+supplies a snapshot. `value = replace(value)` follows the selected callee contract and can leave
+an owning slot uninitialized on failure if that callee has consumed its value.
 
-```text
-func refresh(value: ^error): ^error {
-    value = ^value
-    return ^value
-}
-```
+Compound assignment is likewise RHS-first, then target identification/read/computation/write.
+`value += consume(value)` cannot read an unavailable target; for a Copy `take` input the source
+instead remains available. Numeric/overflow rules do not change. Ordinary update cannot leave an
+uninitialized external referent while evaluating a fallible replacement.
 
-Here the right-hand transfer leaves `value` uninitialized; assignment installs that same owned
-value without destroying a nonexistent old value. Similarly `value = replace(value)` can consume
-then restore an owner if the selected call returns a compatible X result. An incompatible live
-access still prevents the transfer. A failed call does not restore an owner it has consumed.
+### Conditional Values, Aliases and Loops
 
-Compound assignment also evaluates the right-hand side first, then identifies the target once,
-reads its definitely initialized value, computes the primitive numeric result, and writes it.
-`value += consume(value)` is invalid if preparing/invoking `consume` moved `value` and did not
-restore it. It is not a textual rewrite that reads the old value before the right-hand side.
-Numeric type, overflow, division, and checked-operation rules continue to apply; no arithmetic
-reassociation or effect reordering follows from X permission.
+Every normally producing branch of an ordinary conditional/block result constructs the common
+value type. Each branch applies Copy-or-move using evidence available in that branch's checking
+context. A terminating branch supplies no value. Type inference cannot invent an alias or choose
+Copy from later uses. For example, an integer branch snapshots a named source while a move-only
+branch transfers its owner. A computed conditional supplied to a read input has already constructed
+its value; it is not a direct alias selection. `read`/`edit` binding initializers require places.
 
-### Conditional Results and Access Duration
+At joins, keep initialization and alternative dependency/access worlds separate. An operation must
+be safe on every possible incoming path; distinct exclusive accesses on mutually exclusive paths
+are alternatives, not simultaneous accesses. Moving a source on one path can make it unavailable
+after the join. A complete `var` assignment can restore definite initialization.
 
-For an unannotated conditional result, all normally producing branches must supply the same
-natural permission and compatible data types. A terminating branch supplies no result. A plain
-place supplies I, an explicit `&place` supplies U, and a fresh result or explicit transfer supplies
-X. Do not choose a common mode by inspecting later uses or Copy specialization. An explicit
-expected binding/result contract instead checks each producing branch at that boundary, including
-its permitted Copy materialization. It never supplies an omitted standalone move.
+Access duration includes later uses, retained-state effects, prepared calls, and dependent cleanup.
+An `edit` declaration activates delegation immediately. A direct edit call operand reserves its
+place and activates at invocation under the distinct preparation rules. Report a conflict at the
+attempted operation and identify the access creation plus later demand/cleanup.
 
-```text
-let source = 10
-let answer = if flag { ^source } else { 20 } // X on both paths
-```
-
-`source` is maybe initialized afterward; its old cleanup is conditional, and an unguarded read
-is invalid. Replacing `^source` with `source` produces I versus X and cannot infer a common mode.
-An explicit `: ^i32` answer could instead copy the I branch under available Copy evidence.
-
-At a join, keep initialization and alternative access dependencies separately. Every operation
-must be safe on every still-possible incoming path. Two branches delegating U to different places
-create alternatives, rather than two simultaneously active U accesses. A use that cannot establish
-which place is accessed must respect both possibilities. Do not assume a branch correlation that
-has not been proved. Assignment to a whole maybe initialized X slot can restore definite state.
-
-End an ordinary scalar access after its last required use, including any dependent cleanup;
-propagate that requirement backward through branches and loop edges. Creating `&place` activates
-U immediately. A selected call's U operand instead uses the separately defined preparation and
-invocation protocol. These have different timing, even when both eventually update the same place.
-A child read restricts update/transfer through its parent while live. An exclusive child update
-also restricts overlapping parent reads. The compiler explains a conflict at the attempted
-operation and identifies the retained access and its later use or cleanup.
-
-### Loops and Exits
-
-Compute a conservative fixed point at each loop header over initialization, live accesses, and
-carried dependencies. Include the zero-iteration path of `while`, every continuing backedge and
-`continue`, and each `break`/return edge at its actual destination. A transfer followed by
-reinitialization only on an exiting path does not make the next iteration safe. A transfer on
-all continuing paths followed by valid reinitialization before the backedge can be safe.
-
-Owned parts are cleaned exactly once on their actual exits; missing or maybe initialized parts
-are not read or destroyed as complete values. U remains initialized on every outward recoverable
-edge. These obligations do not require unrestricted path reasoning or acceptance of every safe
-program. When conservative checking fails, report the specific unproved initialization/access
-relationship locally; do not insert copying, runtime sharing, or a lifetime extension.
+Loops compute a conservative fixed point over initialization, active/reserved accesses, carried
+dependencies and resource responsibility. Include zero iterations, continuing backedges and every
+actual exit. A move followed by replacement only on an exiting path does not make another iteration
+safe. Exits dispose exactly the initialized resources and keep edited external places valid;
+terminal traps without unwinding follow their own contract. No lifetime extension, hidden clone,
+or runtime sharing repairs an unproved relationship.

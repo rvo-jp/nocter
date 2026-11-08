@@ -581,7 +581,7 @@ authority to declare registered primitives and provide compiler-owned runtime ro
 ## Future Direction: v2.0.0 Complete Implementation Signatures
 
 Keep complete signatures in both the root contract and its corresponding implementation. This
-future rule is adopted alongside contract-only `index.nct` roots, type-side permissions, and
+future rule is adopted alongside contract-only `index.nct` roots, operation-bearing inputs, and
 unified `impl`; it does not change the released syntax above. The implementation remains readable
 without opening the root merely to recover receiver/parameter names, types, or permissions.
 
@@ -589,7 +589,7 @@ without opening the root merely to recover receiver/parameter names, types, or p
 // index.nct; the Buffer contract is assumed to be in scope.
 see ./buffer.nct
 impl Buffer {
-    method &self.append(value: u8): void
+    method edit self.append(value: u8): void
 }
 ```
 
@@ -597,7 +597,7 @@ impl Buffer {
 // buffer.nct
 see ./index.nct
 impl Buffer {
-    method &self.append(value: u8): void {
+    method edit self.append(value: u8): void {
         self.storage.append(value)
     }
 }
@@ -620,8 +620,8 @@ and public declaration documentation. A body cannot strengthen the API from infe
 A signature mismatch is a diagnostic at the differing components with both declaration locations;
 it must not become a new private overload or trigger a search for a better-fitting body. Missing
 and duplicate definitions remain errors independent of source traversal order. In particular,
-`&File?` and `&(File?)` cannot match merely because their leaf File type agrees: they qualify
-different objects under the [future type-scope rules](values-and-types.md#future-direction-v2-0-0-access-qualifier-scope).
+`ReadView<File>?` and `ReadView<File?>` cannot match merely because their leaf File type agrees:
+the illustrative capability types have different constructor order under the [future type-scope rules](values-and-types.md#future-direction-v2-0-0-access-qualifier-scope).
 
 This chooses source readability over eliminating repeated header text. The compiler checks that
 repetition; editor navigation may link the two declarations but is not needed to recover an
