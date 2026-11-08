@@ -1,1 +1,1 @@
-func apply(action: func(i32): i32): i32 { action(1) }
+func rejected(action: func(func(i32): i32): i32): void {}

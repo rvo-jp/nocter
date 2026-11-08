@@ -7,6 +7,7 @@ mod checker;
 mod construction;
 mod expressions;
 pub mod flow;
+mod inputs;
 mod ir;
 mod selection;
 mod statements;
@@ -16,6 +17,7 @@ mod tests;
 pub use ir::{
     Argument, ArgumentAction, Binary, Block, BoundaryAction, Expression, ExpressionKind,
     FieldValue, Local, LocalOrigin, Place, SelectionAction, Statement, TypedBody, Unary, ValueType,
+    WitnessBinding,
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;

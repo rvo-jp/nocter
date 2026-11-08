@@ -85,6 +85,14 @@ impl ValueBindingKind {
     }
 }
 
+/// A concrete code declaration or the statically bound witness supplied to a formal input.
+/// A parameter origin is symbolic, never a runtime-erased function pointer.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueFunctionOrigin {
+    Declaration(crate::AccessCallableId),
+    Parameter(crate::AccessParameterId),
+}
+
 /// Invocation access, independent of a callable value's binding or explicit inputs.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueInvocation {
@@ -130,7 +138,7 @@ mod tests {
             ids.push(
                 types
                     .intern(TypeKind::ValueFunction {
-                        declaration,
+                        origin: ValueFunctionOrigin::Declaration(declaration),
                         invocation,
                     })
                     .unwrap(),
@@ -143,5 +151,34 @@ mod tests {
             let projected = types.project(id).unwrap();
             assert_eq!(projected.types().get(projected.root()), types.get(id));
         }
+    }
+}
+
+#[cfg(test)]
+mod formal_tests {
+    use super::*;
+    use crate::{AccessParameterId, ArenaBuilder, TypeAuthority, TypeKind};
+    #[test]
+    fn formal_witnesses_preserve_symbolic_storage_and_identity_on_projection() {
+        let mut parameters = ArenaBuilder::<AccessParameterId, ()>::new();
+        let first = parameters.insert(());
+        let second = parameters.insert(());
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let mut ids = Vec::new();
+        for parameter in [first, second] {
+            let data = types
+                .intern(TypeKind::ValueFunction {
+                    origin: ValueFunctionOrigin::Parameter(parameter),
+                    invocation: ValueInvocation::Read,
+                })
+                .unwrap();
+            assert_eq!(types.is_concrete(data), Some(false));
+            assert!(types.may_carry_storage(data));
+            let projected = types.project(data).unwrap();
+            assert_eq!(projected.types().get(projected.root()), types.get(data));
+            ids.push(data);
+        }
+        assert_ne!(ids[0], ids[1]);
     }
 }

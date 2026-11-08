@@ -273,6 +273,7 @@ fn literal_control_does_not_invent_normal_loop_exits() {
     ));
 }
 
+mod callbacks;
 mod construction;
 mod functions;
 mod records;

@@ -752,6 +752,11 @@ ordinary assignment/join match merely because their signatures agree. Explain th
 constraint instead of selecting another target or silently erasing dispatch. A scoped alias cannot
 construct an invocation adapter; explain that the adapted value needs its own binding. Invalid
 callee data or call arity belongs to `E0390`; a non-writable `mut` environment belongs to `E0387`.
+A formal callable contract supplies no Copy evidence: value extraction or taking forwarding from
+read access uses `E0371`, regardless of the callbacks currently supplied by callers. Consuming or
+dropping an owning formal participates in ordinary availability (`E0378`) and retained-access
+checks. Equal signatures cannot repair a formal-witness identity mismatch. Callback header leaves
+use the same unknown/unsupported data diagnostics as other private headers.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
 

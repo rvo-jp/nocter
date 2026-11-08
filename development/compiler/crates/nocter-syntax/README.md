@@ -27,9 +27,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
   named data types, structural record values and member suffixes. Structural initializers use
   comma-delimited named fields. Control-header parsing leaves the first outer brace to its body,
   while nested delimiters restore ordinary expression recognition without type lookup.
-  Local annotations additionally recognize bounded `func`/`mut`/`once` callable constraints with
-  unnamed data/input-operation parameters. Header types remain data names; accepting a local
-  constraint does not admit callable parameter/result headers. `mut` and `once` are contextual
+  Local annotations and formal parameter headers recognize bounded `func`/`mut`/`once` callable
+  contracts with unnamed data/input-operation parameters. Callable results and nested callback
+  contracts remain outside this goal; record fields remain data names. `mut` and `once` are contextual
   only at an invocation head followed by `(`. Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`

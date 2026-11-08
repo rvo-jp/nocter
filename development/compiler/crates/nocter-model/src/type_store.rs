@@ -556,10 +556,10 @@ pub enum TypeKind {
         arguments: GenericApplication,
     },
     Callable(CallableType),
-    /// A capture-free v2 named-function witness with its selected invocation view.
-    /// This is not a structural callback constraint or an erased runtime function pointer.
+    /// A v2 function witness with its selected invocation view. A formal input is a symbolic
+    /// witness, not a structural contract or an erased runtime function pointer.
     ValueFunction {
-        declaration: crate::AccessCallableId,
+        origin: crate::ValueFunctionOrigin,
         invocation: crate::ValueInvocation,
     },
     Optional(TypeId),
@@ -816,7 +816,10 @@ impl TypeProperties {
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => false,
-            TypeKind::Builtin(_) | TypeKind::ValueFunction { .. } => true,
+            TypeKind::Builtin(_) => true,
+            TypeKind::ValueFunction { origin, .. } => {
+                matches!(origin, crate::ValueFunctionOrigin::Declaration(_))
+            }
             TypeKind::Nominal { arguments, .. }
             | TypeKind::Opaque { arguments, .. }
             | TypeKind::Closure { arguments, .. } => application_concrete(arguments),
@@ -862,7 +865,10 @@ impl TypeProperties {
             TypeKind::FixedArray { element, .. }
             | TypeKind::Optional(element)
             | TypeKind::Fallible(element) => child(*element).may_carry_storage,
-            TypeKind::Builtin(_) | TypeKind::ValueFunction { .. } => false,
+            TypeKind::Builtin(_) => false,
+            TypeKind::ValueFunction { origin, .. } => {
+                matches!(origin, crate::ValueFunctionOrigin::Parameter(_))
+            }
         };
         Self {
             may_carry_storage,

@@ -48,13 +48,9 @@ where
 {
     Ok(match kind {
         TypeKind::Builtin(builtin) => TypeKind::Builtin(builtin),
-        TypeKind::ValueFunction {
-            declaration,
-            invocation,
-        } => TypeKind::ValueFunction {
-            declaration,
-            invocation,
-        },
+        TypeKind::ValueFunction { origin, invocation } => {
+            TypeKind::ValueFunction { origin, invocation }
+        }
         TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
         TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
         TypeKind::Closure {

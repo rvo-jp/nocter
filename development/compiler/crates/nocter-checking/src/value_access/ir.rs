@@ -106,9 +106,18 @@ pub enum ArgumentAction {
     Interrupted,
 }
 
+/// A selected formal-to-actual edge for later substitution, never runtime-erased dispatch.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WitnessBinding {
+    pub parameter: AccessParameterId,
+    pub witness: nocter_declarations::value_access::FunctionWitness,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Argument {
     pub operation: ValueInputOperation,
+    /// Present for a callable formal with known source data; a terminating unknown source binds none.
+    pub binding: Option<WitnessBinding>,
     pub value: AccessExpressionId,
     pub action: ArgumentAction,
 }
@@ -177,7 +186,7 @@ pub enum ExpressionKind {
         right: AccessExpressionId,
     },
     Call {
-        target: AccessCallableId,
+        target: nocter_model::ValueFunctionOrigin,
         arguments: Box<[Argument]>,
     },
     If {

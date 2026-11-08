@@ -1358,7 +1358,7 @@ distinguishes that replacement from the earlier checkpoint and from full-languag
 The bounded S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
 supplied private module. This is its new source contract, not a compatibility variant or a public
 package format. Its implementation and qualification are tracked in the
-[development record](../../development/history/reviews/v2.0.0-record-source-integration.md).
+[development record](../../development/history/reviews/v2.0.0-callable-input-witnesses.md).
 The old corpus cannot qualify this grammar by relabeling its status. No bodies are thereby
 permitted in contract-only `index.nct`.
 
@@ -1369,7 +1369,7 @@ This fragment imports future Name/literal/trivia/token/newline rules, `List`/`Li
 V2CoreUnit = LineSequence(V2CoreFunction | V2CoreRecord)
 V2CoreRecord = "copy"? "struct" Name "{" LineSequence(Name ":" V2CoreType) "}"
 V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreType V2CoreBlock
-V2CoreParameter = V2InputOperation? Name ":" V2CoreType
+V2CoreParameter = V2InputOperation? Name ":" V2CoreAnnotation
 V2CoreType = Name | "void"
 V2CoreAnnotation = V2CoreType | V2InvocationKind "(" List(V2InputOperation? V2CoreType) ")" ":" V2CoreType
 V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
@@ -1475,9 +1475,10 @@ before admitting dependent aggregates or general callable environments.
 
 Within the bounded value-binding fragment, named function values and local callable annotations
 use [named function witnesses](callables.md#named-function-witnesses). Such an annotation has
-unnamed, nonvariadic inputs over `V2CoreType`; it checks the exact named declaration's input
-operations/data and result, and may select its permitted invocation adapter. Calls through these
-values remain statically selected. Callable parameters/results, record fields containing callable
-contracts, anonymous closures, captured environments and erased callables remain outside this
-bounded fragment. This limit does not change their full future grammar or justify treating every
+unnamed, nonvariadic inputs over `V2CoreType`; it checks the selected named or formal witness's
+input operations/data and result, and may select its permitted invocation adapter. Calls through these
+values remain statically selected. Top-level callable parameters also admit these flat contracts
+under [statically witnessed inputs](callables.md#statically-witnessed-callable-inputs). Callable
+results, nested callback contracts, record fields containing callable contracts, anonymous closures,
+captured environments and erased callables remain outside this bounded fragment. This limit does not change their full future grammar or justify treating every
 structural callable contract as a capture-free Copy value.

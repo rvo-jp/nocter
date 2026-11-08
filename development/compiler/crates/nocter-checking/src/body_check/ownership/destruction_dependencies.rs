@@ -152,7 +152,11 @@ impl<'program> DestructionDependencyResolver<'program> {
             .cloned()
             .ok_or(BodyCheckInternalError::CleanupPlanning)?;
         match kind {
-            TypeKind::GenericParameter(_)
+            TypeKind::ValueFunction {
+                origin: nocter_model::ValueFunctionOrigin::Parameter(_),
+                ..
+            }
+            | TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }
             | TypeKind::Future(_) => *unknown = true,
@@ -183,7 +187,10 @@ impl<'program> DestructionDependencyResolver<'program> {
                 }
             }
             TypeKind::Builtin(_)
-            | TypeKind::ValueFunction { .. }
+            | TypeKind::ValueFunction {
+                origin: nocter_model::ValueFunctionOrigin::Declaration(_),
+                ..
+            }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)

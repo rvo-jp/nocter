@@ -1,0 +1,4 @@
+func increment(value: i32): i32 { value + 1 }
+func apply(action: func(i32): i32): i32 { read alias = action
+alias(1) + action(2) }
+func run(): i32 { apply(increment) }

@@ -272,13 +272,16 @@ impl Checker<'_, '_> {
                 super::annotations::invocation_label(witness.invocation),
                 self.program()
                     .symbols()
-                    .spelling(
-                        self.program()
-                            .callables()
-                            .get(witness.declaration)
-                            .expect("witness")
-                            .name()
-                    )
+                    .spelling(match witness.origin {
+                        nocter_model::ValueFunctionOrigin::Declaration(id) =>
+                            self.program().callables().get(id).expect("witness").name(),
+                        nocter_model::ValueFunctionOrigin::Parameter(id) => self
+                            .program()
+                            .parameters()
+                            .get(id)
+                            .expect("formal witness")
+                            .name(),
+                    })
                     .expect("function name")
             ),
         }

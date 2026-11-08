@@ -1,0 +1,2 @@
+func unused(take first: func(i32): i32, take second: func(i32): i32, flag: bool): i32 { let action = if flag { first } else { second }
+action(1) }

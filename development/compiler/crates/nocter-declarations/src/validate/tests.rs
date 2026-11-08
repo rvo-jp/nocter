@@ -808,7 +808,7 @@ fn future_named_witnesses_cannot_enter_the_released_declaration_program() {
     program
         .types_mut()
         .intern(TypeKind::ValueFunction {
-            declaration,
+            origin: nocter_model::ValueFunctionOrigin::Declaration(declaration),
             invocation: nocter_model::ValueInvocation::Read,
         })
         .unwrap();

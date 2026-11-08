@@ -1,0 +1,2 @@
+func unused(take action: once(i32): i32): i32 { let first = action(1)
+action(first) }

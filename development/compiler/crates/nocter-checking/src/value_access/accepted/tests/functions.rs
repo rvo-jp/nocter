@@ -28,9 +28,16 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 1);
     assert_eq!(
-        unit.program()
-            .symbols()
-            .spelling(unit.program().callables().get(calls[0].0).unwrap().name()),
+        unit.program().symbols().spelling(
+            unit.program()
+                .callables()
+                .get(match calls[0].0 {
+                    nocter_model::ValueFunctionOrigin::Declaration(id) => id,
+                    nocter_model::ValueFunctionOrigin::Parameter(_) => panic!("concrete target"),
+                })
+                .unwrap()
+                .name()
+        ),
         Some("update")
     );
     assert_eq!(calls[0].1.len(), 2);
@@ -53,7 +60,7 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
     let Some(PayloadSchema::Function(to)) = unit.program().data_schema(views[0].1.data()) else {
         panic!("named target");
     };
-    assert_eq!(from.declaration, to.declaration);
+    assert_eq!(from.origin, to.origin);
     assert_eq!(
         (from.invocation, to.invocation),
         (ValueInvocation::Read, ValueInvocation::Edit)

@@ -1,12 +1,13 @@
-//! Named code identity and structural constraints are distinct, declaration-owned facts.
-use super::{PayloadSchema, Program};
+//! Named/formal witness identity and structural contracts are distinct declaration-owned facts.
+use super::{DataReference, PayloadSchema, Program};
 use nocter_model::{
-    AccessCallableId, TypeAuthority, TypeId, TypeKind, ValueInputOperation, ValueInvocation,
+    AccessCallableId, TypeAuthority, TypeId, TypeKind, ValueFunctionOrigin, ValueInputOperation,
+    ValueInvocation,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FunctionWitness {
-    pub declaration: AccessCallableId,
+    pub origin: ValueFunctionOrigin,
     pub invocation: ValueInvocation,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,7 +15,7 @@ pub struct FunctionInput {
     pub data: TypeId,
     pub operation: ValueInputOperation,
 }
-/// An annotation constrains a concrete witness; it is not a runtime representation or data type.
+/// A structural contract constrains a witness; it is not a runtime representation or data type.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionConstraint {
     pub invocation: ValueInvocation,
@@ -43,13 +44,80 @@ pub enum FunctionMismatch {
     },
     Integrity,
 }
+/// Construction-time structural input contract; leaves resolve in the same data namespace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FunctionDefinition {
+    pub invocation: ValueInvocation,
+    pub inputs: Box<[(ValueInputOperation, DataReference)]>,
+    pub result: DataReference,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ParameterData {
+    Data(DataReference),
+    Function(FunctionDefinition),
+}
+impl From<DataReference> for ParameterData {
+    fn from(data: DataReference) -> Self {
+        Self::Data(data)
+    }
+}
+impl From<nocter_model::BuiltinType> for ParameterData {
+    fn from(data: nocter_model::BuiltinType) -> Self {
+        Self::Data(data.into())
+    }
+}
+impl ParameterData {
+    pub(super) fn visit_data(&self, mut visit: impl FnMut(DataReference)) {
+        match self {
+            Self::Data(data) => visit(*data),
+            Self::Function(contract) => {
+                for (_, data) in &contract.inputs {
+                    visit(*data);
+                }
+                visit(contract.result);
+            }
+        }
+    }
+}
 impl Program {
+    /// The contract of an already selected concrete or formal witness. No candidate search occurs.
+    #[must_use]
+    pub fn function_contract(&self, witness: FunctionWitness) -> Option<FunctionConstraint> {
+        let mut contract = match witness.origin {
+            ValueFunctionOrigin::Declaration(id) => {
+                let callable = self.callables.get(id)?;
+                let inputs = callable
+                    .parameters()
+                    .iter()
+                    .map(|id| {
+                        let parameter = self.parameters.get(*id)?;
+                        Some(FunctionInput {
+                            data: parameter.data(),
+                            operation: parameter.operation(),
+                        })
+                    })
+                    .collect::<Option<_>>()?;
+                FunctionConstraint {
+                    invocation: witness.invocation,
+                    inputs,
+                    result: callable.result(),
+                }
+            }
+            ValueFunctionOrigin::Parameter(id) => self.parameters.get(id)?.contract()?.clone(),
+        };
+        if !contract.invocation.can_supply(witness.invocation) {
+            return None;
+        }
+        contract.invocation = witness.invocation;
+        Some(contract)
+    }
+
     /// Validate one selected invocation adapter without reopening signature or witness selection.
     #[must_use]
     pub fn function_adapter(&self, from: TypeId, to: TypeId) -> bool {
         match (self.data_schema(from), self.data_schema(to)) {
             (Some(PayloadSchema::Function(from)), Some(PayloadSchema::Function(to))) => {
-                from.declaration == to.declaration && from.invocation.can_supply(to.invocation)
+                from.origin == to.origin && from.invocation.can_supply(to.invocation)
             }
             _ => false,
         }
@@ -57,9 +125,16 @@ impl Program {
 
     #[must_use]
     pub fn function_data(&self, witness: FunctionWitness) -> Option<TypeId> {
-        self.callables.get(witness.declaration)?;
+        match witness.origin {
+            ValueFunctionOrigin::Declaration(id) => {
+                self.callables.get(id)?;
+            }
+            ValueFunctionOrigin::Parameter(id) => {
+                self.parameters.get(id)?.contract()?;
+            }
+        }
         self.types.store().identity(&TypeKind::ValueFunction {
-            declaration: witness.declaration,
+            origin: witness.origin,
             invocation: witness.invocation,
         })
     }
@@ -84,8 +159,7 @@ impl Program {
             return Err(FunctionMismatch::Integrity);
         }
         let callable = self
-            .callables
-            .get(witness.declaration)
+            .function_contract(witness)
             .ok_or(FunctionMismatch::Integrity)?;
         if !witness.invocation.can_supply(expected.invocation) {
             return Err(FunctionMismatch::Invocation {
@@ -93,26 +167,18 @@ impl Program {
                 expected: expected.invocation,
             });
         }
-        if callable.parameters().len() != expected.inputs.len() {
+        if callable.inputs.len() != expected.inputs.len() {
             return Err(FunctionMismatch::InputCount {
-                actual: callable.parameters().len(),
+                actual: callable.inputs.len(),
                 expected: expected.inputs.len(),
             });
         }
-        for (position, (parameter, input)) in callable
-            .parameters()
+        for (position, (&actual, input)) in callable
+            .inputs
             .iter()
             .zip(expected.inputs.iter())
             .enumerate()
         {
-            let parameter = self
-                .parameters
-                .get(*parameter)
-                .ok_or(FunctionMismatch::Integrity)?;
-            let actual = FunctionInput {
-                data: parameter.data(),
-                operation: parameter.operation(),
-            };
             if actual != *input {
                 return Err(FunctionMismatch::Input {
                     position,
@@ -121,14 +187,14 @@ impl Program {
                 });
             }
         }
-        if callable.result() != expected.result {
+        if callable.result != expected.result {
             return Err(FunctionMismatch::Result {
-                actual: callable.result(),
+                actual: callable.result,
                 expected: expected.result,
             });
         }
         self.function_data(FunctionWitness {
-            declaration: witness.declaration,
+            origin: witness.origin,
             invocation: expected.invocation,
         })
         .ok_or(FunctionMismatch::Integrity)
@@ -149,7 +215,7 @@ pub(super) fn publish_witnesses(
         ] {
             types
                 .intern(TypeKind::ValueFunction {
-                    declaration,
+                    origin: ValueFunctionOrigin::Declaration(declaration),
                     invocation,
                 })
                 .expect("a named witness has no structural type edges");

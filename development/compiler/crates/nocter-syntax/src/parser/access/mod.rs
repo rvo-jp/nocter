@@ -84,7 +84,7 @@ fn parameter(parser: &mut Parser<'_>) {
     }
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
-    type_(parser);
+    annotation_type(parser);
     parser.complete(marker, NodeKind::Parameter);
 }
 

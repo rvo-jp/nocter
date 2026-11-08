@@ -1,0 +1,4 @@
+struct Count { value: i32 }
+func increment(value: Count): Count { Count { value: value.value + 1 } }
+func apply(action: func(Count): Count, value: Count): Count { action(value) }
+func run(): i32 { apply(increment, Count { value: 1 }).value }

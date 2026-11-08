@@ -31,7 +31,8 @@ of information:
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).
-3. **Implemented scope and verification:** the [named function witnesses](history/reviews/v2.0.0-function-witnesses.md),
+3. **Implemented scope and verification:** the [callable input witnesses](history/reviews/v2.0.0-callable-input-witnesses.md),
+   [named function witnesses](history/reviews/v2.0.0-function-witnesses.md),
    [record source integration](history/reviews/v2.0.0-record-source-integration.md),
    earlier [bounded front-end record](history/reviews/v2.0.0-value-binding-front-end.md), and
    [production source corpus](compiler/tests/fixtures/value-bindings/README.md).

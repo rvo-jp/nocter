@@ -128,7 +128,7 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
         operation: ValueInputOperation::Read,
     };
     builder
-        .define(f, [parameter, parameter], BuiltinType::F64)
+        .define(f, [parameter.clone(), parameter], BuiltinType::F64)
         .unwrap();
     let violations = builder.finish().unwrap_err();
     assert!(
@@ -164,13 +164,13 @@ fn callable_constraints_keep_the_selected_witness_and_report_exact_mismatch_doma
     };
     let source = program
         .function_data(FunctionWitness {
-            declaration: first,
+            origin: nocter_model::ValueFunctionOrigin::Declaration(first),
             invocation: ValueInvocation::Read,
         })
         .unwrap();
     let alternate = program
         .function_data(FunctionWitness {
-            declaration: other,
+            origin: nocter_model::ValueFunctionOrigin::Declaration(other),
             invocation: ValueInvocation::Read,
         })
         .unwrap();
@@ -213,7 +213,7 @@ fn named_function_views_have_exact_copy_payloads_without_upgrading_restricted_vi
     .map(|invocation| {
         program
             .function_data(FunctionWitness {
-                declaration,
+                origin: nocter_model::ValueFunctionOrigin::Declaration(declaration),
                 invocation,
             })
             .unwrap()

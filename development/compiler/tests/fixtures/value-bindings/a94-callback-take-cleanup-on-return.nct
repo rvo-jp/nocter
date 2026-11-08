@@ -1,0 +1,2 @@
+func apply(take action: once(i32): i32, done: bool): i32 { if done { return 7 }
+action(1) }

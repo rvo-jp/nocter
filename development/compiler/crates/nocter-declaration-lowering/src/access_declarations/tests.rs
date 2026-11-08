@@ -156,3 +156,42 @@ fn corpus_validates_every_header_and_rebinds_valid_declarations() {
     }
     assert!(counts.iter().all(|&count| count > 0));
 }
+
+#[test]
+fn callback_contracts_freeze_formal_identity_before_body_use_and_rebind_exactly() {
+    use nocter_declarations::value_access::PayloadSchema;
+    use nocter_model::ValueFunctionOrigin;
+    let (sources, tree) = input(
+        "func apply(action: func(edit i32): i32): i32 { unknown }",
+        ParseGoal::V2CoreUnit,
+    );
+    let query = Query::prepare(bound(&sources, &tree)).unwrap();
+    let (id, parameter) = query.program().parameters().iter().next().unwrap();
+    let Some(PayloadSchema::Function(witness)) = query.program().data_schema(parameter.data())
+    else {
+        panic!("formal schema");
+    };
+    assert_eq!(witness.origin, ValueFunctionOrigin::Parameter(id));
+    assert_eq!(
+        parameter.contract().unwrap().inputs[0].operation,
+        ValueInputOperation::Edit
+    );
+    assert_eq!(query.program().data_copyable(parameter.data()), Some(false));
+    let (edited, edited_tree) = input(
+        "// changed body only\nfunc apply(action: func(edit i32): i32): i32 { 1 }",
+        ParseGoal::V2CoreUnit,
+    );
+    let context = query.bind(bound(&edited, &edited_tree)).unwrap();
+    assert!(Arc::ptr_eq(
+        &context.program_handle(),
+        &query.bind(bound(&sources, &tree)).unwrap().program_handle()
+    ));
+    let (changed, changed_tree) = input(
+        "func apply(action: func(take i32): i32): i32 { 1 }",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(matches!(
+        query.bind(bound(&changed, &changed_tree)),
+        Err(Failure::ChangedHeader)
+    ));
+}

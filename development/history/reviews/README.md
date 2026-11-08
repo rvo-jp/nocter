@@ -34,6 +34,8 @@ they do not make reviews normative or register compiler support.
 
 - [Named Function Witnesses](v2.0.0-function-witnesses.md) — static local function values, exact constraints, invocation views and shared environment/input cleanup
 
+- [Callable Input Witnesses](v2.0.0-callable-input-witnesses.md) — formal callback contracts, static binding/forwarding and symbolic environment cleanup
+
 #### Research and Adoption Audits
 
 - [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance

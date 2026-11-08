@@ -1,0 +1,2 @@
+func apply(action: func(i32): i32): i32 { action(1) }
+func run(): i32 { apply(if true { return 7 } else { return 8 }) }

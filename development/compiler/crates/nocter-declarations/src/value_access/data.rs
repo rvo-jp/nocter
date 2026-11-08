@@ -43,7 +43,10 @@ impl Program {
         self.data_schema(data).and_then(|schema| match schema {
             PayloadSchema::Builtin(data) => builtin_copyable(data),
             PayloadSchema::Record(record) => Some(record.copyable()),
-            PayloadSchema::Function(_) => Some(true),
+            PayloadSchema::Function(witness) => Some(matches!(
+                witness.origin,
+                nocter_model::ValueFunctionOrigin::Declaration(_)
+            )),
         })
     }
     /// The exact closed payload shape, without borrow types or generic eligibility fallbacks.
@@ -53,15 +56,15 @@ impl Program {
             TypeKind::Builtin(builtin) if supported(*builtin) => {
                 Some(PayloadSchema::Builtin(*builtin))
             }
-            TypeKind::ValueFunction {
-                declaration,
-                invocation,
-            } => self.callables.get(*declaration).map(|_| {
-                PayloadSchema::Function(super::FunctionWitness {
-                    declaration: *declaration,
+            TypeKind::ValueFunction { origin, invocation } => {
+                let witness = super::FunctionWitness {
+                    origin: *origin,
                     invocation: *invocation,
-                })
-            }),
+                };
+                // Schema/property queries validate identity, not an allocated signature copy.
+                self.function_data(witness)
+                    .map(|_| PayloadSchema::Function(witness))
+            }
             TypeKind::Nominal {
                 definition,
                 arguments,

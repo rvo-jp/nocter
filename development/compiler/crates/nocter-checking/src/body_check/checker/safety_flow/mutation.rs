@@ -147,7 +147,10 @@ impl BodyChecker<'_, '_> {
         let result = match self.types.get(ty) {
             Some(
                 TypeKind::Builtin(_)
-                | TypeKind::ValueFunction { .. }
+                | TypeKind::ValueFunction {
+                    origin: nocter_model::ValueFunctionOrigin::Declaration(_),
+                    ..
+                }
                 | TypeKind::Borrow {
                     capability: BorrowCapability::Readonly,
                     ..
@@ -162,6 +165,10 @@ impl BodyChecker<'_, '_> {
                 | TypeKind::InterfaceSelf(_)
                 | TypeKind::Nominal { .. }
                 | TypeKind::AssociatedProjection { .. }
+                | TypeKind::ValueFunction {
+                    origin: nocter_model::ValueFunctionOrigin::Parameter(_),
+                    ..
+                }
                 | TypeKind::Opaque { .. }
                 | TypeKind::Pointer(_)
                 | TypeKind::Future(_)

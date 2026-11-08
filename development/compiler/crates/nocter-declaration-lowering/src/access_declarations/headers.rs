@@ -1,5 +1,5 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
-use super::{Failure, text};
+use super::{Failure, ParameterTypeSyntax, parameter_type, text, type_syntax::data_token};
 use nocter_model::ValueInputOperation;
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
@@ -9,7 +9,7 @@ use nocter_syntax::{
 #[derive(Clone, Debug)]
 pub(super) struct ParameterHeader {
     pub name: SyntaxToken,
-    pub data: SyntaxToken,
+    pub data: ParameterTypeSyntax,
     pub ty: NodeId,
     pub operation: ValueInputOperation,
 }
@@ -43,7 +43,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
             let operation = super::input_operation(syntax, parameter)?;
             Ok(ParameterHeader {
                 name,
-                data: type_token(syntax, ty)?,
+                data: parameter_type(syntax, ty)?,
                 ty,
                 operation,
             })
@@ -55,7 +55,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         name,
         parameters,
         result_syntax,
-        result_data: type_token(syntax, result_syntax)?,
+        result_data: data_token(syntax, result_syntax)?,
         body: direct_node(tree, declaration, NodeKind::Block).ok_or(Failure::InconsistentSyntax)?,
     })
 }
@@ -72,15 +72,10 @@ pub(super) fn record(
         .map(|field| {
             let name = direct_identifier(tree, field).ok_or(Failure::InconsistentSyntax)?;
             let ty = direct_node(tree, field, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            Ok((name, type_token(syntax, ty)?, ty))
+            Ok((name, data_token(syntax, ty)?, ty))
         })
         .collect::<Result<_, _>>()?;
     Ok(RecordHeader { name, copy, fields })
-}
-fn type_token(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<SyntaxToken, Failure> {
-    let named =
-        direct_node(syntax.tree(), ty, NodeKind::NamedType).ok_or(Failure::InconsistentSyntax)?;
-    first_direct_token(syntax.tree(), named).ok_or(Failure::InconsistentSyntax)
 }
 
 pub(super) fn collect(

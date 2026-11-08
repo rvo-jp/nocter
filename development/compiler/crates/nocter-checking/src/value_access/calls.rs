@@ -1,28 +1,44 @@
-//! Select static dispatch once and prepare invocation environments through the ordinary input plan.
+//! Select concrete or formal dispatch once; all inputs share the same preparation contract.
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{Argument, ArgumentAction, ExpressionKind, value_type},
+    ir::{ExpressionKind, value_type},
 };
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, PayloadSchema};
-use nocter_model::{AccessExpressionId, ValueAccessMode as Mode, ValueInvocation};
+use nocter_model::{
+    AccessCallableId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin,
+    ValueInvocation,
+};
 use nocter_syntax::NodeId;
 
+struct Callee {
+    witness: FunctionWitness,
+    environment: Option<(AccessExpressionId, FunctionInput)>,
+    completes: bool,
+}
 impl Checker<'_, '_> {
-    pub fn reference_value(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
-        let name = self.name_token(node)?.ok_or(Failure::InconsistentSyntax)?;
+    fn declared_function(&self, node: NodeId) -> Result<Option<AccessCallableId>, Failure> {
+        let Some(name) = self.name_token(node)? else {
+            return Ok(None);
+        };
         let spelling = self.text(name)?;
-        if self.lookup(spelling).is_none()
-            && let Some(target) = self
-                .program()
-                .symbols()
-                .get(spelling)
-                .and_then(|name| self.program().resolve(name))
-        {
+        Ok(self
+            .lookup(spelling)
+            .is_none()
+            .then(|| {
+                self.program()
+                    .symbols()
+                    .get(spelling)
+                    .and_then(|name| self.program().resolve(name))
+            })
+            .flatten())
+    }
+    pub fn reference_value(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
+        if let Some(target) = self.declared_function(node)? {
             let data = self
                 .program()
                 .function_data(FunctionWitness {
-                    declaration: target,
+                    origin: ValueFunctionOrigin::Declaration(target),
                     invocation: ValueInvocation::Read,
                 })
                 .ok_or(Failure::InconsistentSyntax)?;
@@ -34,138 +50,68 @@ impl Checker<'_, '_> {
         }
         self.place_value(node, Rule::TypeMismatch)
     }
-
-    pub fn call(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
-        let children = self.children(node);
-        let [callee, suffix] = children.as_slice() else {
-            return Err(Failure::InconsistentSyntax);
+    fn callee(&mut self, node: NodeId, reachable: bool) -> Result<Callee, Failure> {
+        if let Some(target) = self.declared_function(node)? {
+            return Ok(Callee {
+                witness: FunctionWitness {
+                    origin: ValueFunctionOrigin::Declaration(target),
+                    invocation: ValueInvocation::Read,
+                },
+                environment: None,
+                completes: true,
+            });
+        }
+        let value = self.expression(node, None, reachable)?;
+        let Some(access) = self.ty(value).access() else {
+            return self.reject(Rule::InvalidCall, node);
         };
-        let direct = if let Some(name) = self.name_token(*callee)? {
-            let spelling = self.text(name)?;
-            self.lookup(spelling)
-                .is_none()
-                .then(|| {
-                    self.program()
-                        .symbols()
-                        .get(spelling)
-                        .and_then(|name| self.program().resolve(name))
-                })
-                .flatten()
-        } else {
-            None
+        let Some(PayloadSchema::Function(witness)) = self.program().data_schema(access.data())
+        else {
+            return self.reject(Rule::InvalidCall, node);
         };
-        let mut plans = Vec::new();
-        let mut continues = true;
-        let mut environment = None;
-        let target = if let Some(target) = direct {
-            target
-        } else {
-            let value = self.expression(*callee, None, reachable)?;
-            let Some(access) = self.ty(value).access() else {
-                return self.reject(Rule::InvalidCall, *callee);
-            };
-            let Some(PayloadSchema::Function(witness)) = self.program().data_schema(access.data())
-            else {
-                return self.reject(Rule::InvalidCall, *callee);
-            };
-            continues = self.ty(value).may_complete();
-            environment = Some((
+        Ok(Callee {
+            witness,
+            completes: self.ty(value).may_complete(),
+            environment: Some((
                 value,
                 FunctionInput {
                     data: access.data(),
                     operation: witness.invocation.operation(),
                 },
-            ));
-            witness.declaration
+            )),
+        })
+    }
+    pub fn call(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
+        let children = self.children(node);
+        let [callee, suffix] = children.as_slice() else {
+            return Err(Failure::InconsistentSyntax);
         };
-        let declaration = self
+        let selected = self.callee(*callee, reachable)?;
+        let contract = self
             .program()
-            .callables()
-            .get(target)
+            .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
-        let expected = declaration
-            .parameters()
-            .iter()
-            .map(|id| {
-                let p = self
-                    .program()
-                    .parameters()
-                    .get(*id)
-                    .expect("frozen parameter");
-                FunctionInput {
-                    data: p.data(),
-                    operation: p.operation(),
-                }
-            })
-            .collect::<Vec<_>>();
-        let result = declaration.result();
         let arguments = self.children(*suffix);
-        if arguments.len() != expected.len() {
+        if arguments.len() != contract.inputs.len() {
             return self.reject(Rule::InvalidCall, node);
         }
-        if let Some((value, expected)) = environment {
-            plans.push(self.input_plan(*callee, value, expected)?);
+        let mut plans = Vec::new();
+        let mut continues = selected.completes;
+        if let Some((value, expected)) = selected.environment {
+            plans.push(self.input_plan(*callee, value, expected, None)?);
         }
-        for (syntax, expected) in arguments.into_iter().zip(expected) {
+        for (syntax, expected) in arguments.into_iter().zip(contract.inputs) {
             let value = self.expression(syntax, None, reachable && continues)?;
             continues &= self.ty(value).may_complete();
-            plans.push(self.input_plan(syntax, value, expected)?);
+            plans.push(self.prepare_input(syntax, value, expected)?);
         }
         self.emit(
             node,
-            value_type(result, Mode::Own).with_continuation(continues),
+            value_type(contract.result, Mode::Own).with_continuation(continues),
             ExpressionKind::Call {
-                target,
+                target: selected.witness.origin,
                 arguments: plans.into_boxed_slice(),
             },
         )
-    }
-
-    fn input_plan(
-        &self,
-        syntax: NodeId,
-        value: AccessExpressionId,
-        expected: FunctionInput,
-    ) -> Result<Argument, Failure> {
-        self.require_data(value, expected.data, syntax)?;
-        let mode = expected.operation.access_mode();
-        let action = if let Some(actual) = self.ty(value).normal() {
-            if let Some(place) = self.place_expression(value) {
-                match mode {
-                    Mode::Read => ArgumentAction::ReserveRead(place),
-                    Mode::Update => {
-                        if !self.writable_place(place) {
-                            return self.reject_local(
-                                Rule::InvalidUpdate,
-                                syntax,
-                                self.selected_place(place).local,
-                            );
-                        }
-                        ArgumentAction::ReserveUpdate(place)
-                    }
-                    Mode::Own if self.copyable(actual.data()) => ArgumentAction::CopyPayload,
-                    Mode::Own if self.place_ty(place).mode() == Mode::Own => {
-                        ArgumentAction::ReserveTransfer(place)
-                    }
-                    Mode::Own => return self.reject(Rule::MissingTransfer, syntax),
-                }
-            } else {
-                if actual.mode() != Mode::Own {
-                    return Err(Failure::InconsistentSyntax);
-                }
-                match mode {
-                    Mode::Read => ArgumentAction::ReadOwnedValue,
-                    Mode::Own => ArgumentAction::TakeValue,
-                    Mode::Update => return self.reject(Rule::InvalidUpdate, syntax),
-                }
-            }
-        } else {
-            ArgumentAction::Interrupted
-        };
-        Ok(Argument {
-            value,
-            operation: expected.operation,
-            action,
-        })
     }
 }

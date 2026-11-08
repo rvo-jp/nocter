@@ -1,0 +1,4 @@
+func increment(value: i32): i32 { value + 1 }
+func apply(take action: once(i32): i32): i32 { action(1) }
+func forward(take action: func(i32): i32): i32 { apply(action) }
+func run(): i32 { forward(increment) }

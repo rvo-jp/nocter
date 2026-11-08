@@ -1,0 +1,8 @@
+func update(edit value: i32): void { value += 1 }
+func apply(edit action: mut(edit i32): void, edit value: i32): void { edit alias = action
+alias(value)
+action(value) }
+func run(): i32 { var action: mut(edit i32): void = update
+var value = 1
+apply(action, value)
+value }

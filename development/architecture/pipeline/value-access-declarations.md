@@ -35,8 +35,8 @@ source names, physical offsets or an access grant.
 
 `nocter-declarations` owns the source-independent program, namespace, closed data authority,
 ordered input identities and operations, data-only value results, and concrete named-function
-witnesses. Local structural callable annotations are constraints on those witnesses, not erased
-runtime datatypes. Invocation compatibility and exact input/result matching belong to declarations;
+witnesses. A flat callable input introduces a symbolic formal witness. Structural callable
+annotations constrain these witnesses rather than introducing erased runtime datatypes. Invocation compatibility and exact input/result matching belong to declarations;
 checking freezes the selected witness/view. Header freeze interns every named invocation view in
 the same TypeAuthority, so body annotations cannot affect type availability or declaration reuse.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
@@ -80,8 +80,8 @@ intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-compound header types, generic/interface evidence, symbolic callable parameters/results, captured
-environments, outcomes, async/effects, layouts,
+general compound header types, generic/interface evidence, callable results, nested callback
+contracts, captured environments, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -108,8 +108,12 @@ same-witness joins. A selected invocation adapter materializes a value and chang
 initialization and replacement share that boundary. Environment preparation follows the same
 reservation, atomic commit, cancellation and cleanup graph as explicit arguments. Exact
 capture-free witness schemas justify Copy, trivial destruction and empty outside D/S; structural
-annotations alone do not justify any of those payload facts. Callable parameters/results and
-captured environments need their own witness/dependency propagation before admission.
+annotations alone do not justify any of those payload facts. Formal inputs have no Copy evidence
+and retain symbolic cleanup. Each selected argument can bind a callee formal to a named or caller
+formal witness; invocation through the formal retains that semantic target. All definitions are
+checked against their declared contracts, including unused/recursive bodies. The supported producer
+domain still excludes captured environments. Callable results, general dependency footprints and
+concrete executable specialization require their own closure before admission.
 
 Known result types and possible normal completion are independent typed facts. Interrupted
 operands do not erase declared callable/record data, while the shared graph cannot evaluate an

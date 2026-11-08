@@ -79,7 +79,7 @@ reserves functions and records in canonical namespace order.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable headers admit `bool`, `i32`, `void`, opaque move-only
-`error`, and closed nominal records. Construction-time `DataReference` values resolve to TypeIds
+`error`, closed nominal records, and flat callable parameter contracts. Construction-time `DataReference` values resolve to TypeIds
 before publication; they do not expose released type-store eligibility helpers or borrow constructors. Unit is a value in this product. Input operation is
 separate from data identity and payload Copy evidence. Stored parameter records carry a data
 TypeId and Read/Edit/Take operation; callable results carry only a data TypeId. No result
@@ -100,7 +100,7 @@ Only validated metadata can be published; no partial schema authority escapes a 
 owner, without looking up names or inferring access permissions. An empty path preserves its
 validated data type; a scalar projection or a field from another owner is rejected.
 
-`data_schema` exposes the exact admitted builtin, nominal or concrete named-function shape.
+`data_schema` exposes the admitted builtin, nominal or named/formal function-witness schema.
 `data_copyable` consumes that validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
 publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current
 nominal schemas contain only values over the four closed builtin leaves and other such records.
@@ -108,15 +108,20 @@ They are metadata, not proof of body acceptance, partial initialization, surviva
 native execution. Selected source places consume these schemas through the private body checker;
 only closed unit acceptance establishes the combined body/flow/resource proofs.
 
-`value_access::functions` owns concrete named-function witnesses and structural annotation
-constraints as different products. All three invocation views are interned in the same header
-TypeAuthority before body checking. A local annotation validates exact input operations, data and
+`value_access::functions` owns named/formal function witnesses and structural contracts as distinct
+products. `publication` freezes formal input identities and normalized callback contracts in the
+same header TypeAuthority. Named functions publish all invocation views; formals publish only the
+views their declared invocation can supply, independently of body use. A local annotation validates exact input operations, data and
 result, then selects a permitted view of that same witness. Typed mismatch domains and the view
 adapter policy belong here; consumers cannot substitute another declaration with an equal
 signature. Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
 under their exact schema. This is not evidence about arbitrary structural callback contracts.
-Released declaration validation rejects these private witness keys.
+Formal witnesses deliberately have no Copy evidence. Their environment cleanup remains symbolic;
+a formal cannot inherit payload properties from one currently known caller. `function_contract`
+projects the selected named or formal contract without searching for an implementation. Distinct
+formals retain distinct witness identities even with equal structural signatures. Released
+declaration validation rejects all private witness keys.
 
-Outcome/capability/generic/user-destructor schemas, structural callback parameters/results and
-captured environments remain outside this product. Exact scalar/unit/error independence is checked
+Outcome/capability/generic/user-destructor schemas, structural callback results, nested callback
+contracts and captured environments remain outside this product. Exact scalar/unit/error independence is checked
 under its owning data contracts, never inferred from Copy or value receipt for arbitrary future types.

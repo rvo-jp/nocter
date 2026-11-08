@@ -76,11 +76,14 @@ impl Place {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Disposal {
+    /// The supplied environment's destructor, retained symbolically until witness specialization.
+    FunctionEnvironment,
     Trivial,
     OwnedError,
     Record,
 }
-/// An exhaustive concrete data contract. Independence is never inferred from Copy or ownership.
+/// A schema-selected cleanup obligation, concrete or tied to a formal environment witness.
+/// Independence is never inferred from Copy, ownership or the absence of known captures.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Payload {
     data: TypeId,
@@ -212,7 +215,10 @@ pub(super) fn payload(program: &Program, data: TypeId) -> Result<Payload> {
         }
         PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
         PayloadSchema::Record(_) => Disposal::Record,
-        PayloadSchema::Function(_) => Disposal::Trivial,
+        PayloadSchema::Function(witness) => match witness.origin {
+            nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
+            nocter_model::ValueFunctionOrigin::Parameter(_) => Disposal::FunctionEnvironment,
+        },
         PayloadSchema::Builtin(_) => return Err(INVALID),
     };
     Ok(Payload { data, disposal })

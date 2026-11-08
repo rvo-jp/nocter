@@ -1,0 +1,4 @@
+func identity(value: i32): i32 { value }
+func unused(action: func(i32): i32): void { let value = action
+drop value }
+func run(): void { unused(identity) }

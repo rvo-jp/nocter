@@ -1,7 +1,7 @@
 //! Declaration authority for the bounded future private-function language.
 //!
 //! This product cannot be converted to a released borrow-based declaration program. Its
-//! source boundary admits closed data and named-function witnesses. It does not flatten the
+//! source boundary admits closed data and named/formal function witnesses. It does not flatten the
 //! complete future aggregate/callable/outcome grammar into released borrow-based types.
 use std::collections::BTreeMap;
 
@@ -14,10 +14,14 @@ use crate::DefinitionError;
 
 mod data;
 mod functions;
-pub use functions::{FunctionConstraint, FunctionInput, FunctionMismatch, FunctionWitness};
+pub use functions::{
+    FunctionConstraint, FunctionDefinition, FunctionInput, FunctionMismatch, FunctionWitness,
+    ParameterData,
+};
+mod publication;
 mod records;
 pub use data::DataReference;
-use data::{data_reference, resolved_data, supported};
+use data::{data_reference, supported};
 pub use records::{Field, FieldDefinition, PayloadSchema, Record};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,10 +33,10 @@ pub enum DeclarationId {
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParameterDefinition {
     pub name: Symbol,
-    pub data: DataReference,
+    pub data: ParameterData,
     pub operation: ValueInputOperation,
 }
 
@@ -92,34 +96,40 @@ impl Callable {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameter {
     owner: AccessCallableId,
     name: Symbol,
     position: usize,
     data: TypeId,
     operation: ValueInputOperation,
+    contract: Option<FunctionConstraint>,
 }
 
 impl Parameter {
     #[must_use]
-    pub const fn owner(self) -> AccessCallableId {
+    pub const fn contract(&self) -> Option<&FunctionConstraint> {
+        self.contract.as_ref()
+    }
+
+    #[must_use]
+    pub const fn owner(&self) -> AccessCallableId {
         self.owner
     }
     #[must_use]
-    pub const fn name(self) -> Symbol {
+    pub const fn name(&self) -> Symbol {
         self.name
     }
     #[must_use]
-    pub const fn position(self) -> usize {
+    pub const fn position(&self) -> usize {
         self.position
     }
     #[must_use]
-    pub const fn data(self) -> TypeId {
+    pub const fn data(&self) -> TypeId {
         self.data
     }
     #[must_use]
-    pub const fn operation(self) -> ValueInputOperation {
+    pub const fn operation(&self) -> ValueInputOperation {
         self.operation
     }
 }
@@ -286,16 +296,7 @@ impl Builder {
         }
         for (id, reservation) in reserved.iter() {
             if let Some(definition) = &reservation.definition {
-                for (position, data) in definition
-                    .parameters
-                    .iter()
-                    .enumerate()
-                    .map(|(i, p)| (HeaderPosition::Parameter(i), p.data))
-                    .chain(std::iter::once((
-                        HeaderPosition::Result,
-                        definition.result_data,
-                    )))
-                {
+                let mut validate = |position, data| {
                     if let DataReference::Record(record) = data
                         && !records.contains(record)
                     {
@@ -305,53 +306,24 @@ impl Builder {
                             rule: DeclarationRule::UnknownRecordType { record },
                         });
                     }
+                };
+                for (position, parameter) in definition.parameters.iter().enumerate() {
+                    parameter
+                        .data
+                        .visit_data(|data| validate(HeaderPosition::Parameter(position), data));
                 }
+                validate(HeaderPosition::Result, definition.result_data);
             }
         }
         if !violations.is_empty() {
             return Err(violations);
         }
-        let (base_types, records) = records.publish();
-        let types = functions::publish_witnesses(&base_types, reserved.iter().map(|(id, _)| id));
-        let mut parameters = ArenaBuilder::new();
-        let callables = reserved.try_map(
-            |id, reservation| -> Result<Callable, Vec<DeclarationViolation>> {
-                let definition = reservation.definition.as_ref().ok_or_else(|| {
-                    vec![DeclarationViolation {
-                        declaration: DeclarationId::Callable(id),
-                        position: HeaderPosition::Name,
-                        rule: DeclarationRule::MissingDefinition,
-                    }]
-                })?;
-                let parameter_ids = definition
-                    .parameters
-                    .iter()
-                    .enumerate()
-                    .map(|(position, parameter)| {
-                        parameters.insert(Parameter {
-                            owner: id,
-                            name: parameter.name,
-                            position,
-                            data: resolved_data(&types, &records, parameter.data),
-                            operation: parameter.operation,
-                        })
-                    })
-                    .collect::<Vec<_>>();
-                Ok(Callable {
-                    name: reservation.name,
-                    parameters: parameter_ids.into_boxed_slice(),
-                    result: resolved_data(&types, &records, definition.result_data),
-                })
-            },
-        )?;
-        Ok(Program {
-            symbols: self.symbols,
-            types,
-            callables,
-            parameters: parameters.finish(),
+        Ok(publication::publish(
+            self.symbols,
+            &reserved,
             namespace,
             records,
-        })
+        ))
     }
 }
 
@@ -427,12 +399,9 @@ fn validate_definition(
                 rule,
             });
         }
-        validate_data(
-            id,
-            HeaderPosition::Parameter(position),
-            parameter.data,
-            violations,
-        );
+        parameter.data.visit_data(|data| {
+            validate_data(id, HeaderPosition::Parameter(position), data, violations);
+        });
     }
     validate_data(
         id,

@@ -1,0 +1,1 @@
+func unused(action: func(i32): f64): void {}

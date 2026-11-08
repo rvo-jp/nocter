@@ -17,23 +17,24 @@ default. Uncontextualized closure inputs default to read; a selected expected co
 omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-The bounded front end includes closed records, named/computed fields and now
-[named function values](history/reviews/v2.0.0-function-witnesses.md). The source corpus contains
-149 cases: 76 accepted private units, 63 checking rejections, 4 header rejections and 6 syntax
-rejections. Concrete function witnesses retain static targets through local values, exact
-structural annotations, invocation adapters, aliases, joins and replacement. Environments and
-explicit arguments share one frozen input plan and resource ledger. This is private front-end
-evidence; no released adapter, CLI mode, native output or performance claim follows.
+The bounded front end includes closed records, named/computed fields, local named function values
+and now [statically witnessed callable inputs](history/reviews/v2.0.0-callable-input-witnesses.md).
+The source corpus has 189 cases: 96 accepted units, 81 checking rejections, 6 header rejections
+and 6 syntax rejections. Formal contracts are checked once independently of caller/body use;
+selected argument plans retain formal-to-actual witness bindings. Forwarding/recurse uses finite
+semantic identities. Owning formals preserve symbolic cleanup without acquiring Copy or empty D/S.
+The producer domain remains named code/formal forwarding, with no captured environment producer.
+No CLI mode, native output or performance claim follows.
 
-Next implement symbolic witness propagation for structural callable parameters/results, before
-anonymous closures or captured environments. Close header representation, exact identity-preserving
-instantiation/forwarding, recursive dependency termination and return-witness joins under the
-owning future specification. Do not turn `func`/`mut`/`once` annotations into runtime-erased types
-or choose call targets again downstream. Keep invocation independent of value ownership and input
-Read/Edit/Take. Preserve concrete payload evidence: a structural contract does not establish Copy,
-trivial cleanup or empty D/S. Add production source acceptance/rejection and environment-preparation,
-interruption, cleanup and cross-body authority assertions. Then extend captured environments with
-R/D/S and retained-state obligations before accepting them.
+Next close callable results and executable witness specialization together: represent a result
+witness as a checked relation over named/formal producers, preserve return/break/conditional joins,
+reject heterogeneous/ambiguous or unsupported recursive witness equations, and instantiate already
+selected targets by substitution rather than retyping bodies or searching contracts. Preserve each
+formal's authored operation and source-level capabilities even for a currently Copy named caller.
+Add source-to-unit proof for returned forwarding, recursive closure/termination, distinct witness
+rejection, interruption and cleanup. The current argument binding recipes are not a concrete
+specialization graph or a native certificate. Then admit captured environments only after R/D/S,
+retained-state/write footprints and environment destruction are closed under that same authority.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

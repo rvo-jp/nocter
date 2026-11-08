@@ -228,8 +228,13 @@ Read inputs never become take from body use. Copyable value supply snapshots bef
 move-only extraction; alias creation never manufactures an owner. Direct call selection is frozen
 before access checking and has no permission-driven alternative target.
 
-`calls` resolves a function reference to its concrete named witness and freezes static dispatch
-through local values, aliases and computed callees. `annotations` projects local structural
+`calls` resolves function references and freezes declaration or formal-input dispatch through
+local values, aliases and computed callees. `inputs` alone freezes ordinary preparation actions
+and optional formal-to-actual witness bindings. Forwarding records the source formal identity;
+recursive forwarding keeps a finite semantic edge instead of expanding witness expressions.
+Binding a callback checks its complete flat contract and retains the selected actual view/data;
+it never coerces the actual environment into the receiving formal's type identity. A terminating
+unknown-shaped input carries neither an environment nor a witness binding. `annotations` projects local structural
 constraints through the declaration-owned matcher, retaining witness identity. It does not create
 an erased structural datatype. The ordinary value boundary applies the selected invocation
 adapter after Copy-or-move; initialization and replacement use that same transition. Aliases
@@ -352,9 +357,12 @@ snapshot contracts, plus its closed records over those leaves and exact capture-
 witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; records
 retain their own schema cleanup rather than becoming scalars.
 Empty external D/S for those records follows the exact component contracts, not Copy, ownership,
-or a missing outside R. Named-function evidence follows its exact declaration schema; an arbitrary
-structural callback does not inherit Copy, trivial cleanup or empty D/S. Dependent aggregates,
-user destructors, capabilities, captured environments, structural callback parameters/results, generics,
+or a missing outside R. Named-function evidence follows its exact declaration schema; a formal callback does not inherit
+Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment cleanup operation
+tied to their witness. The current producer domain admits named code and formal forwarding, with
+no captured-environment producer; general retained footprints and concrete executable witness
+specialization remain separate obligations. Dependent aggregates,
+user destructors, capabilities, captured environments, structural callback results, nested callback contracts, generics,
 outcomes, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record headers and local/input-rooted field selections through
@@ -366,7 +374,9 @@ rejection. Computed-selection tests inspect exact value transfers, preserved Cop
 read-temporary and remainder cleanup, interrupted known types, precise field diagnostics and a
 64-level shared computed field chain. Named-function tests inspect static dispatch, environment
 input ordering, view adaptation, explicit taking-input indices, Copy-before-drop and interrupted
-preparation without invocation or result receipt. Indexing remains outside this fragment. Resource
+preparation without invocation or result receipt. Formal-input tests inspect exact binding edges,
+distinct positions, recursive forwarding, non-Copy environment consumption, symbolic adapter cleanup
+and early return. Indexing remains outside this fragment. Resource
 transitions alone cannot replace the combined source proofs or establish executable/native behavior.
 
 ## Closed Accepted Private Units

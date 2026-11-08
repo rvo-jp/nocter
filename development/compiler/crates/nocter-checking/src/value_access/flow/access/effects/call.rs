@@ -6,7 +6,7 @@ use crate::value_access::ExpressionKind;
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 impl Context<'_, '_> {
     pub(super) fn commit(&mut self, call: AccessExpressionId) -> Result<Vec<World>> {
-        let ExpressionKind::Call { target, arguments } = &self
+        let ExpressionKind::Call { arguments, .. } = &self
             .typed
             .body()
             .expressions()
@@ -16,11 +16,6 @@ impl Context<'_, '_> {
         else {
             return Err(Failure::Integrity);
         };
-        self.typed
-            .program()
-            .callables()
-            .get(*target)
-            .ok_or(Failure::Integrity)?;
         let prepared = (0..arguments.len())
             .map(|index| {
                 self.world

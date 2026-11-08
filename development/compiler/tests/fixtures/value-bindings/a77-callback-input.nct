@@ -1,0 +1,3 @@
+func increment(value: i32): i32 { value + 1 }
+func apply(action: func(i32): i32, value: i32): i32 { action(value) }
+func run(): i32 { apply(increment, 1) }

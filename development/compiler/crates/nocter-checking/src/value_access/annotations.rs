@@ -2,7 +2,7 @@
 use super::{Failure, Rule, checker::Checker};
 use nocter_declarations::value_access::{FunctionConstraint, FunctionInput, FunctionMismatch};
 use nocter_model::{AccessExpressionId, TypeId, ValueInvocation};
-use nocter_syntax::{ContextualSpelling, Keyword, NodeId, NodeKind, TokenKind};
+use nocter_syntax::{ContextualSpelling, Keyword, NodeId, SyntaxToken};
 
 pub(super) fn invocation_label(invocation: ValueInvocation) -> &'static str {
     match invocation {
@@ -25,47 +25,37 @@ impl Annotation {
     }
 }
 impl Checker<'_, '_> {
-    fn annotation_data(&self, node: NodeId) -> Result<TypeId, Failure> {
-        let token = self.token(self.direct(node, NodeKind::NamedType)?)?;
+    fn annotation_data_token(&self, token: SyntaxToken) -> Result<TypeId, Failure> {
         self.program()
             .type_named(self.text(token)?)
             .map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
     }
     pub fn annotation(&self, node: NodeId) -> Result<Annotation, Failure> {
-        let Ok(contract) = self.direct(node, NodeKind::CallableType) else {
-            return self.annotation_data(node).map(Annotation::Data);
+        use nocter_declaration_lowering::access_declarations::{
+            ParameterTypeSyntax, parameter_type,
         };
-        let token = self.token(contract)?;
-        let invocation = match (
-            token.kind(),
-            ContextualSpelling::from_spelling(self.text(token)?),
-        ) {
-            (TokenKind::Keyword(Keyword::Func), _) => ValueInvocation::Read,
-            (_, Some(ContextualSpelling::Mut)) => ValueInvocation::Edit,
-            (_, Some(ContextualSpelling::Once)) => ValueInvocation::Take,
-            _ => return Err(Failure::InconsistentSyntax),
-        };
-        let parameters = self.direct(contract, NodeKind::CallableParameters)?;
-        let inputs = self
-            .children(parameters)
-            .into_iter()
-            .map(|parameter| {
-                let operation = nocter_declaration_lowering::access_declarations::input_operation(
-                    self.syntax(),
-                    parameter,
-                )
-                .map_err(|_| Failure::InconsistentSyntax)?;
-                Ok(FunctionInput {
-                    data: self.annotation_data(self.direct(parameter, NodeKind::Type)?)?,
-                    operation,
-                })
-            })
-            .collect::<Result<_, Failure>>()?;
-        Ok(Annotation::Function(FunctionConstraint {
-            invocation,
-            inputs,
-            result: self.annotation_data(self.direct(contract, NodeKind::Type)?)?,
-        }))
+        match parameter_type(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
+            ParameterTypeSyntax::Data(token) => {
+                self.annotation_data_token(token).map(Annotation::Data)
+            }
+            ParameterTypeSyntax::Function(contract) => {
+                let inputs = contract
+                    .inputs
+                    .iter()
+                    .map(|&(operation, token)| {
+                        Ok(FunctionInput {
+                            data: self.annotation_data_token(token)?,
+                            operation,
+                        })
+                    })
+                    .collect::<Result<_, Failure>>()?;
+                Ok(Annotation::Function(FunctionConstraint {
+                    invocation: contract.invocation,
+                    inputs,
+                    result: self.annotation_data_token(contract.result)?,
+                }))
+            }
+        }
     }
     pub fn function_constraint_data(
         &mut self,

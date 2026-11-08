@@ -956,13 +956,273 @@
       "id": "s06-callable-parameter-boundary",
       "file": "s06-callable-parameter-boundary.nct",
       "expectation": "syntax-reject",
-      "reason": "Callable parameters need later symbolic-witness propagation and remain outside this private source fragment."
+      "reason": "Nested callback contracts remain outside the bounded parameter grammar."
     },
     {
       "id": "a76-function-view-replacement",
       "file": "a76-function-view-replacement.nct",
       "expectation": "accept",
       "reason": "Initialization and replacement use the same selected invocation adapter while preserving concrete witness identity."
+    },
+    {
+      "id": "a77-callback-input",
+      "file": "a77-callback-input.nct",
+      "expectation": "accept",
+      "reason": "A selected call binds a formal callable witness to one named function."
+    },
+    {
+      "id": "a78-callback-repeat-read",
+      "file": "a78-callback-repeat-read.nct",
+      "expectation": "accept",
+      "reason": "A read invocation may repeat without copying the symbolic environment."
+    },
+    {
+      "id": "a79-callback-once-take",
+      "file": "a79-callback-once-take.nct",
+      "expectation": "accept",
+      "reason": "A taking formal supplies the owning environment to consuming invocation."
+    },
+    {
+      "id": "a80-callback-edit",
+      "file": "a80-callback-edit.nct",
+      "expectation": "accept",
+      "reason": "An edit callback formal can repeatedly update the selected environment and explicit input."
+    },
+    {
+      "id": "a81-callback-owned-mut",
+      "file": "a81-callback-owned-mut.nct",
+      "expectation": "accept",
+      "reason": "A taking formal owns writable environment storage independently of its mut invocation."
+    },
+    {
+      "id": "a82-callback-forward-read",
+      "file": "a82-callback-forward-read.nct",
+      "expectation": "accept",
+      "reason": "Forwarding a read callback retains the original formal witness identity."
+    },
+    {
+      "id": "a83-callback-forward-take",
+      "file": "a83-callback-forward-take.nct",
+      "expectation": "accept",
+      "reason": "Taking forwarding moves the symbolic environment once."
+    },
+    {
+      "id": "a84-callback-forward-adapter",
+      "file": "a84-callback-forward-adapter.nct",
+      "expectation": "accept",
+      "reason": "An owning formal can supply a consuming view without changing witness origin."
+    },
+    {
+      "id": "a85-callback-drop",
+      "file": "a85-callback-drop.nct",
+      "expectation": "accept",
+      "reason": "Unused owning callback environments retain symbolic destruction obligations."
+    },
+    {
+      "id": "a86-callback-read-alias",
+      "file": "a86-callback-read-alias.nct",
+      "expectation": "accept",
+      "reason": "A read alias can invoke a formal callback without materializing its value."
+    },
+    {
+      "id": "a87-callback-edit-alias",
+      "file": "a87-callback-edit-alias.nct",
+      "expectation": "accept",
+      "reason": "Scoped update delegation and parent restoration apply to callback formals."
+    },
+    {
+      "id": "a88-callback-recursive-forward",
+      "file": "a88-callback-recursive-forward.nct",
+      "expectation": "accept",
+      "reason": "Recursive forwarding references finite formal identities rather than expanding witness terms."
+    },
+    {
+      "id": "a89-callback-two-witnesses",
+      "file": "a89-callback-two-witnesses.nct",
+      "expectation": "accept",
+      "reason": "Equal structural signatures preserve different concrete bindings at distinct input positions."
+    },
+    {
+      "id": "a90-callback-higher-function-value",
+      "file": "a90-callback-higher-function-value.nct",
+      "expectation": "accept",
+      "reason": "A named higher-order function value freezes the same callback bindings as a direct call."
+    },
+    {
+      "id": "a91-callback-record",
+      "file": "a91-callback-record.nct",
+      "expectation": "accept",
+      "reason": "Flat callback contracts share the existing nominal data authority."
+    },
+    {
+      "id": "a92-callback-taking-error",
+      "file": "a92-callback-taking-error.nct",
+      "expectation": "accept",
+      "reason": "Callback environment preparation preserves an explicit move-only taking input."
+    },
+    {
+      "id": "a93-callback-interrupted-input",
+      "file": "a93-callback-interrupted-input.nct",
+      "expectation": "accept",
+      "reason": "Interrupted higher-order input evaluation cleans the prepared named environment without invocation."
+    },
+    {
+      "id": "a94-callback-take-cleanup-on-return",
+      "file": "a94-callback-take-cleanup-on-return.nct",
+      "expectation": "accept",
+      "reason": "Returning before invocation cleans an owning formal environment."
+    },
+    {
+      "id": "a95-callback-local-view",
+      "file": "a95-callback-local-view.nct",
+      "expectation": "accept",
+      "reason": "A local invocation adapter preserves the formal origin and its cleanup obligation."
+    },
+    {
+      "id": "r64-callback-no-copy",
+      "file": "r64-callback-no-copy.nct",
+      "expectation": "check-reject",
+      "reason": "A structural callback contract supplies no source-level Copy evidence.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r65-callback-once-read",
+      "file": "r65-callback-once-read.nct",
+      "expectation": "check-reject",
+      "reason": "A read formal cannot supply an owning environment to consuming invocation.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r66-callback-mut-read",
+      "file": "r66-callback-mut-read.nct",
+      "expectation": "check-reject",
+      "reason": "A read formal cannot invoke a mutating environment.",
+      "diagnostic": "E0387"
+    },
+    {
+      "id": "r67-callback-after-once",
+      "file": "r67-callback-after-once.nct",
+      "expectation": "check-reject",
+      "reason": "Consuming a non-Copy formal invalidates that environment for later calls.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r68-callback-drop-live-alias",
+      "file": "r68-callback-drop-live-alias.nct",
+      "expectation": "check-reject",
+      "reason": "A retained callback alias protects its owning formal from destruction.",
+      "diagnostic": "E0397"
+    },
+    {
+      "id": "r69-callback-forward-read-to-take",
+      "file": "r69-callback-forward-read-to-take.nct",
+      "expectation": "check-reject",
+      "reason": "Forwarding does not upgrade read access to ownership.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r70-callback-wrong-input",
+      "file": "r70-callback-wrong-input.nct",
+      "expectation": "check-reject",
+      "reason": "Binding a concrete callback requires exact explicit input operations.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r71-callback-wrong-result",
+      "file": "r71-callback-wrong-result.nct",
+      "expectation": "check-reject",
+      "reason": "Binding a concrete callback requires exact result data.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r72-callback-no-upgrade",
+      "file": "r72-callback-no-upgrade.nct",
+      "expectation": "check-reject",
+      "reason": "A consuming formal cannot recover a repeatable contract from a receiving signature.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r73-callback-witness-replacement",
+      "file": "r73-callback-witness-replacement.nct",
+      "expectation": "check-reject",
+      "reason": "Editing a formal cannot replace its statically bound witness with another declaration.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r74-callback-adapter-from-read",
+      "file": "r74-callback-adapter-from-read.nct",
+      "expectation": "check-reject",
+      "reason": "Constructing an invocation adapter needs an eligible environment value.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r75-callback-explicit-count",
+      "file": "r75-callback-explicit-count.nct",
+      "expectation": "check-reject",
+      "reason": "Formal invocation retains the exact explicit input count.",
+      "diagnostic": "E0390"
+    },
+    {
+      "id": "r76-callback-distinct-formal-join",
+      "file": "r76-callback-distinct-formal-join.nct",
+      "expectation": "check-reject",
+      "reason": "Different formal witnesses do not merge merely because their contracts agree.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r77-callback-conflicting-edit-inputs",
+      "file": "r77-callback-conflicting-edit-inputs.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0396",
+      "reason": "Conflicting callback edits fail the shared atomic input bundle."
+    },
+    {
+      "id": "r78-callback-reserved-environment-drop",
+      "file": "r78-callback-reserved-environment-drop.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "Dropping a prepared non-Copy environment makes its final transfer unavailable."
+    },
+    {
+      "id": "r79-callback-move-then-use",
+      "file": "r79-callback-move-then-use.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "A formal callback has no Copy evidence; value supply moves its environment."
+    },
+    {
+      "id": "h05-callback-unknown-data",
+      "file": "h05-callback-unknown-data.nct",
+      "expectation": "header-reject",
+      "diagnostic": "E0290",
+      "reason": "Callback leaves resolve in the same declaration data namespace."
+    },
+    {
+      "id": "h06-callback-unsupported-result",
+      "file": "h06-callback-unsupported-result.nct",
+      "expectation": "header-reject",
+      "diagnostic": "E0291",
+      "reason": "Callback leaf contracts cannot bypass the bounded data validator."
+    },
+    {
+      "id": "a96-callback-terminated-witness",
+      "file": "a96-callback-terminated-witness.nct",
+      "expectation": "accept",
+      "reason": "A terminating callback input does not invent an environment or require an unreachable witness."
+    },
+    {
+      "id": "r80-callback-reserved-environment-replacement",
+      "file": "r80-callback-reserved-environment-replacement.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0396",
+      "reason": "A later input cannot move and restore a reserved callback environment even when initialization is restored."
+    },
+    {
+      "id": "r81-callback-interrupted-known-mismatch",
+      "file": "r81-callback-interrupted-known-mismatch.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Interruption does not suppress a known scalar-versus-callable contract mismatch."
     }
   ],
   "parse_goal": "V2CoreUnit"

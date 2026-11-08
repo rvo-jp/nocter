@@ -1,0 +1,2 @@
+func unused(take action: func(i32): i32): i32 { let next = action
+next(action(1)) }

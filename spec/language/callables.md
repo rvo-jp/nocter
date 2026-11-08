@@ -560,3 +560,32 @@ witness. Aliases can check an already matching view but cannot construct an adap
 Neither a hidden original declaration nor the absence of captures may upgrade a restricted view
 back to a stronger invocation contract. Invoke the selected view and validate the complete
 prepared bundle before explicit inputs or the environment are consumed.
+
+### Statically Witnessed Callable Inputs
+
+A structural callable parameter introduces a witness bound by the selected call. The body uses the
+parameter's declared invocation and input/result contract; it cannot select a different operation
+from a known caller or inspect a concrete callback body. Forwarding retains that witness and any
+selected invocation adapter. This is static parameterization, not implicit runtime erasure.
+
+```text
+func apply(action: func(i32): i32, value: i32): i32 {
+    action(value)
+}
+
+func increment(value: i32): i32 { value + 1 }
+func run(): i32 { apply(increment, 1) }
+```
+
+The call binds `apply`'s `action` witness to `increment`; the invocation inside `apply` targets the
+formal witness. Forwarding that formal to another function preserves the binding rather than
+searching its signature for a candidate. Recursive forwarding retains the same finite declaration
+and formal-input identities, without constructing an expanding series of witness names.
+
+A callable parameter's structural contract does not establish Copy. Extracting a value from a
+read callable input therefore fails without separate Copy evidence, even when a current caller
+supplies a capture-free named function. A taking callback may move or be dropped; an edit callback
+may delegate update access. A consuming invocation requires an owning source or Copy evidence.
+Cleanup of an owning formal environment remains an obligation tied to its witness, not a claim
+that the environment is trivial or independent. The concrete supplied environment must satisfy
+that obligation and retain its carried dependencies.

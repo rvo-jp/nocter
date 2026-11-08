@@ -435,7 +435,10 @@ impl CopyabilityTransaction {
                 | BuiltinType::Isize
                 | BuiltinType::Void,
             )
-            | TypeKind::ValueFunction { .. }
+            | TypeKind::ValueFunction {
+                origin: nocter_model::ValueFunctionOrigin::Declaration(_),
+                ..
+            }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow {
                 capability: BorrowCapability::Readonly,
@@ -453,6 +456,10 @@ impl CopyabilityTransaction {
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }
             | TypeKind::Opaque { .. }
+            | TypeKind::ValueFunction {
+                origin: nocter_model::ValueFunctionOrigin::Parameter(_),
+                ..
+            }
             | TypeKind::Fallible(_) => Some(CopyCondition::Impossible),
             TypeKind::Closure {
                 definition,

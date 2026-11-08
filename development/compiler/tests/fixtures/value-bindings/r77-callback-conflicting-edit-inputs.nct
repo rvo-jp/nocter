@@ -1,0 +1,4 @@
+func update(value: i32): i32 { value }
+func both(edit first: mut(i32): i32, edit second: mut(i32): i32): void {}
+func run(): void { var action: mut(i32): i32 = update
+both(action, action) }
