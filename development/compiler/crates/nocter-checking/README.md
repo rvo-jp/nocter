@@ -266,7 +266,42 @@ owners. Scope exits retain reverse binding order, while a protected result is st
 or cancellation cleanup. Source projection reuses the typed query's exact-current binding without
 reconstructing flow or solving again.
 
-This product does not validate referent roots, access liveness, reservation/alias conflicts,
-result-origin bounds, temporary cleanup or destruction dependencies. It cannot construct accepted
-checked evidence or enter execution. An initialized slot and an initialized referent are distinct
-facts; later validation must consume the existing graph and add the remaining proofs.
+The referent/access analysis below now consumes this graph and named-slot prerequisite. Temporary
+resource cleanup, carried dependencies and destructor effects remain separate. An initialized slot
+and an initialized referent are distinct facts. Neither intermediate product can construct accepted
+checked evidence or enter execution.
+
+
+## Future Referents and Permission Demand
+
+Backward fixed-point liveness tracks semantic carriers and their read/update demands. Carriers are
+locals, computed answers and prepared arguments; witnesses retain source-neutral action locations.
+Scalar operand/condition preparation consumes a read without keeping its source access for later
+primitive computation. Cancellation retains its prepared prefix for cleanup, but releasing a
+non-owning access does not dereference its root. Owned payload cleanup dependencies are not inferred
+from that fact.
+
+The forward analysis retains alternative worlds across control flow and private result-origin
+candidates. Each world tracks named owning roots, external input roots, delegated accesses,
+prepared reservations and a staged result. It never unions mutually exclusive U roots into
+simultaneous permissions. Equivalent worlds converge over a finite domain of existing semantic
+identities, parent relations and permissions; there is no arbitrary iteration cutoff.
+
+A use checks its actual root and required permission. Removing an unused intermediary reparents
+live children; after the last update requirement, remaining reads need only read authority. Source
+types, selected operations and interface contracts stay fixed. Explicit update creation still
+requires update eligibility at its authored point. A later U call/result keeps exclusivity live,
+while a pending I request need not retain an otherwise unused U intermediary.
+
+Reservations protect identity/value changes throughout preparation and cancellation. They activate
+as a complete checked bundle at commit. Computed access answers are already active; duplicate X,
+U/U and I/U inputs cannot be made safe merely by sequentially activating them. Result referent
+candidates are alternative input roots; output accesses are reparented through ordinary cleanup
+without retaining callee parameter storage. Root removal checks live accesses and staged results.
+
+This is a referent/permission report under the selected callable contracts. A zero private access
+origin bound has no normally producing access result in this closed fragment; every callee body
+must independently satisfy that bound before whole-program acceptance. `NoReferent` describes R
+only, not empty carried payload or storage requirements. Bodies with initialization failures are
+explicitly blocked from this analysis. Even an analyzed report without violations supplies no
+accepted-program constructor, destructor/resource proof, native adapter or ABI qualification.

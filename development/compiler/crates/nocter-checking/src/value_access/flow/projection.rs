@@ -49,7 +49,7 @@ impl Context<'_, '_> {
     pub const fn typed(&self) -> &TypedContext<'_, '_> {
         &self.typed
     }
-    fn origin(&self, location: Location) -> Result<SyntaxOrigin, Failure> {
+    pub(super) fn origin(&self, location: Location) -> Result<SyntaxOrigin, Failure> {
         let origin = self
             .query
             .graph

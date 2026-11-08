@@ -16,7 +16,8 @@ V2CoreUnit syntax + exact source
        same declaration authority + selected typed operations + body/source recipe
   -> exact-current typed-body projection
   -> source-neutral control/evaluation graph + named-slot initialization facts
-  -> referent/liveness/escape/conflict/cleanup validation (pending)
+  -> permission-demand liveness + alternative referent/access worlds
+  -> carried-payload/storage and executable cleanup validation (pending)
 ```
 
 ## Responsibilities
@@ -59,8 +60,8 @@ invalid update, escaping local, or unsafe backedge may rebind that same declarat
 must later fail checking. Body typing consumes those identities/contracts and performs lexical body resolution,
 structural data/access checks, and direct-call selection. It cannot recover parameter/result modes
 from body tokens, redo declaration normalization, or treat source projection as dispatch authority.
-Named-slot initialization is checked from a source-neutral body-flow graph. Referent validity,
-liveness, escape, conflict and cleanup validation remain a subsequent required boundary;
+Named-slot initialization and referent/permission validation share a source-neutral body-flow
+graph. Carried dependency and executable cleanup validation remain a subsequent required boundary;
 intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
@@ -90,8 +91,8 @@ query only after the declaration query binds the current complete syntax.
 No public constructor assembles a typed body or its semantic/source pairing from separate parts.
 Structural failures expose their typed rule and current diagnostic; no partial typed body escapes.
 A structurally valid transfer still requires initialization and conflict proofs; a structurally
-valid access return still requires a surviving allowed referent. Seven of the eleven eventual flow rejections now fail named-slot initialization; four still require
-access/lifetime rejection. Passing an intermediate query never accepts those programs. This product
+valid access return still requires a surviving allowed referent. Seven of the eleven eventual flow rejections fail named-slot initialization; the four others now
+fail referent/permission validation. Passing an intermediate query still does not accept a program. This product
 has no adapter to released checked evidence and no executable consumer.
 
 
@@ -106,6 +107,21 @@ changed authority/body is rejected before diagnostics can use stale coordinates.
 
 The initialization report distinguishes unreachable points from maybe initialized slots and
 preserves reaching invalidation evidence and potential cleanup conditions. These are not an
-access-root proof or executable cleanup schedule. Later liveness, origin, conflict and cleanup
-validation must share this graph and authority rather than reconstructing control or dispatch.
+access-root proof or executable cleanup schedule. The referent analysis now shares this graph and authority rather than reconstructing control or
+dispatch. It preserves alternative origin worlds and staged return protection. Carried dependencies,
+prepared owned resources and executable cleanup remain required proof boundaries.
 The development product still has no public language-version switch or released/native adapter.
+
+
+## Referent Report Boundary
+
+The same flow query now owns read/update demand liveness and the referent/permission report.
+Initialization failure is an explicit prerequisite status, not an empty access proof. Root and
+creation/use identities remain semantic; exact-current diagnostics bind through the owning typed
+query and locate the attempted operation, retained access, required use and referent declaration.
+
+Only R is established here. An owned answer with no outside referent can still carry D/S, and
+non-owning access release differs from destroying a prepared owned resource. No consumer may
+reinterpret an empty violation list as a complete accepted-body, execution or native certificate.
+The remaining cleanup/dependency proof must consume the same operation authority and preserve
+source-selected effects and ownership transitions.

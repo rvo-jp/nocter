@@ -219,6 +219,21 @@ restores only the surviving parent's rights, subject to its other live children.
 explicit lifetime name, or separate release statement is needed for an ordinary access whose last
 use and required cleanup have ended. This does not move a resource destructor earlier.
 
+Infer the permission still required by later uses and cleanup. After an access's last update
+requirement, compatible read access may suffice for its remaining reads. This does not change its
+declared type or reselect operations: a later U argument, U result, explicit update delegation or
+write keeps the update requirement live. Explicit `&place` still requires exclusive eligibility
+at its evaluation point, even if its answer will only be read. No runtime upgrade is introduced.
+
+When an intermediate access has no remaining use or cleanup obligation, reparent its live children
+to the surviving authority for the same root. Preserve each child's permission and dependencies.
+An unused U intermediary does not keep exclusive access merely because a live I child was created
+through it: that child still prevents update/transfer, while compatible reads can resume. A U child
+continues to exclude overlapping reads after reparenting. Retain an intermediary needed by a later
+operation or prepared call at the permission that call requires. A pending I request does not
+retain an otherwise unused U intermediary: preserve its identity reservation and read authority
+without activating an input early. Never upgrade I, duplicate U, or keep a destroyed root alive.
+
 An X binding receives a fresh owned result or an explicitly transferred owner. An explicitly X
 destination may also materialize a permitted Copy from a readable value, retaining payload and
 storage dependencies. Thus `let next = ^previous` transfers an existing owner, while
@@ -290,7 +305,11 @@ access still retain their normal restrictions. An existing owned X source instea
 reserved for invocation-time transfer, with no Copy fallback.
 
 After all preparation succeeds, check the complete access bundle and activate updates/transfers
-as one non-fallible transition. No user callback, allocation, or destructor occurs between the
+as one non-fallible transition. Reservations are protections, not already-active I/U permissions.
+A source's active children must permit the requested operation at commit; a child that finishes
+during operand preparation need not prevent reserving the address. Actual replacement, transfer
+and conflicting writes remain forbidden while reserved. An already-active computed access keeps
+its own restrictions during preparation. No user callback, allocation, or destructor occurs between the
 first and last committed ownership transfer. Required allocation and place validation precede
 that transition.
 

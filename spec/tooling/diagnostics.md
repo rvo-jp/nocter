@@ -763,3 +763,24 @@ This diagnostic proves neither the validity of a retained access's outside root 
 conflicts. An initialized I/U holder can still refer to invalid or conflicting storage. Those
 failures require their own lifetime/access evidence. Initialization conditions for potential cleanup
 are not permission to skip required destruction or emit an executable cleanup schedule.
+
+## Future Direction: v2.0.0 Referent and Access Diagnostics
+
+The bounded first access fragment applies these codes after named-slot initialization succeeds:
+
+| Code | Failed referent/permission rule |
+| --- | --- |
+| `E0395` | Returned access lacks an allowed surviving input root |
+| `E0396` | Read/call bundle overlaps incompatible authority, or an operation modifies a reserved place |
+| `E0397` | Update, replacement, drop or transfer conflicts with a required access |
+| `E0398` | Required referent root no longer survives |
+
+Identify the attempted operation and referent declaration. For a retained access/reservation,
+relate its creation and a later operation requiring it; identify a staged result when exit cleanup
+must protect that answer. A declaration's U permission is not itself proof that exclusivity must
+last until lexical scope end: use the future permission demands and cleanup obligations defined
+in the value-access chapter. Do not propose removing an access marker, cloning a value, or prolonging
+an owner's lifetime as an automatic repair.
+
+These diagnostics concern referents and operation permissions. Passing them does not certify
+carried payload/storage dependencies, destructor effects or an executable cleanup schedule.

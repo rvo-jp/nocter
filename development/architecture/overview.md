@@ -58,9 +58,9 @@ future value-access implementation. Its source-neutral declaration query, typed-
 and exact-current contexts follow the [value-access boundary](pipeline/value-access-declarations.md).
 These products have distinct callable/input and body-local operation/control identities and cannot
 enter the released checked, target, or native products. There is no CLI source-version switch;
-a shared source-neutral flow graph now supplies named-slot initialization facts. Referent,
-liveness, escape, conflict and cleanup validation and coherent full-language replacement remain
-separate work. This does not create a second semantic authority
+a shared source-neutral flow graph now supplies named-slot initialization and alternative-world
+referent/permission reports with permission-demand liveness. Carried payload/storage dependencies,
+executable cleanup and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 
 ## Side Authorities

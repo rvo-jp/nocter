@@ -11,17 +11,19 @@ Linux target work remains deliberately deferred.
 ## Next Work
 
 Continue the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md) with
-access liveness, surviving referent roots, alternative access worlds, reservation/conflict checks,
-returned-root bounds and validated cleanup. Consume the existing immutable control/evaluation graph
-and named-slot fixed-point facts; do not reconstruct control, parsing, types or callable selection.
+carried payload/storage dependencies and complete cleanup validation for prepared owned values,
+ordinary exits and returned results. Consume the existing control/evaluation graph, named-slot
+facts and referent/permission report; do not reconstruct control, parsing, types or selection.
 
-Production syntax/declarations, typed bodies, one source-neutral flow graph and named-slot
-initialization are implemented for the bounded private goal. Of the [50-case manifest](compiler/tests/fixtures/v2-access/README.md), six fail
+Production syntax/declarations, typed bodies, control flow, named-slot initialization,
+permission-demand liveness and alternative-world referent validation are implemented for the bounded
+private goal. Of the [50-case manifest](compiler/tests/fixtures/v2-access/README.md), six fail
 syntax, six fail headers, eight fail structural body typing, and thirty produce typed-only evidence.
-Seven of those thirty now report named-slot initialization failures. Four still require
-access/lifetime rejection; nineteen are eventual acceptance cases. Initialization of an access
-holder does not prove its referent survives, and potential cleanup conditions are not executable
-cleanup schedules. Add these remaining proofs before constructing any accepted checked product. In particular,
+Seven of those thirty report named-slot initialization failures; four fail referent/permission
+validation. Nineteen positive units pass these intermediate checks. The full 50-unit corpus now
+reaches its expected distinguishing validation stages, but passing R does not prove D/S or actual
+resource cleanup. Add the remaining dependency/resource proofs before constructing any accepted
+checked product. In particular,
 reserve direct-place call access until commit, retain earlier explicit operations during operand
 preparation, validate RHS-first reinitialization, and prove access returns against surviving inputs.
 Source recipes rebind only under the same immutable declaration authority and exact own body.

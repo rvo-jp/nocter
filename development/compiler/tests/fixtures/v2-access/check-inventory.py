@@ -13,7 +13,7 @@ def require(condition, message):
 root = Path(__file__).resolve().parent
 manifest = json.loads((root / 'manifest.json').read_text())
 require(manifest['schema'] == 1 and manifest['parse_goal'] == 'V2CoreUnit', 'unknown fixture schema/goal')
-require(manifest['compiler_status'] == 'slot-initialization-only', 'unknown implemented front-end boundary')
+require(manifest['compiler_status'] == 'referent-access-only', 'unknown implemented front-end boundary')
 seen = set()
 files = set()
 shapes = set()
@@ -50,6 +50,11 @@ for case in manifest['cases']:
         require(case.get('slot_initialization') in ('pass', 'reject'), 'missing slot-initialization expectation')
     else:
         require('slot_initialization' not in case, 'untyped source cannot have slot facts')
+    if case.get('body_typing') == 'accept':
+        require(case.get('referent_access') in ('pass', 'reject', 'blocked'), 'missing referent/access expectation')
+        require((case['referent_access'] == 'blocked') == (case['slot_initialization'] == 'reject'), 'incorrect prerequisite status')
+    else:
+        require('referent_access' not in case, 'untyped source cannot have access facts')
     counts[case['expectation']] += 1
 require(files == {path.name for path in root.glob('*.nct')}, 'unregistered or missing source fixture')
 require(shapes == {path.name for path in root.glob('*.shape')}, 'unregistered syntax shape')

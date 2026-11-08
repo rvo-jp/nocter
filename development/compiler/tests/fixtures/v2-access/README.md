@@ -26,13 +26,15 @@ and reusable-source rebinding. The production declaration query consumes all 50 
 syntax, six fail header validation, and 38 produce declaration metadata. The body-typing query
 rejects eight at structural typing and produces typed-only evidence for 30: 19 eventual acceptance
 cases and eleven still awaiting flow rejection. Each `body_typing` expectation describes that intermediate result. The shared flow query now
-reports named-slot initialization failures in seven; 23 have no such failure, including four still
-requiring lifetime/conflict rejection. `compiler_status: slot-initialization-only` and
-`slot_initialization` record this additional boundary, not checked-program acceptance or execution. The nineteen `check-reject` cases remain eventual rejections; passing typing does not
+reports named-slot initialization failures in seven. The referent/permission query then rejects
+the four remaining access/lifetime cases and retains all nineteen positive units. The
+`referent_access` field distinguishes pass, rejection and a blocked initialization prerequisite.
+`compiler_status: referent-access-only` records these intermediate facts, not complete
+checked-program acceptance or execution. The nineteen `check-reject` cases remain eventual rejections; passing typing does not
 change their expectation.
 
 Do not add these files to a released-language glob, mark current rejection as success, or implement
-a second parser/checker in test support. Referent validity, access-liveness, escape, conflict, and validated cleanup remain pending.
+a second parser/checker in test support. Carried payload/storage dependencies and complete executable cleanup remain pending.
 Extend cases/snapshots at the owning phase as implementation closes each grammar edge; this
 inventory alone does not establish exhaustive grammar or diagnostic coverage.
 

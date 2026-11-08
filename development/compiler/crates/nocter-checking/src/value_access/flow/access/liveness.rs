@@ -1,0 +1,275 @@
+use super::super::{Graph, Initialization, IntegrityError, Location, Operation};
+use crate::value_access::{
+    ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, ValueType,
+};
+use nocter_model::{AccessExpressionId, AccessFlowPointId, AccessLocalId, ValueAccessMode as Mode};
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Carrier {
+    Local(AccessLocalId),
+    Expression(AccessExpressionId),
+    Argument {
+        call: AccessExpressionId,
+        index: usize,
+    },
+}
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(super) struct Demand {
+    pub uses: BTreeSet<Location>,
+    pub updates: BTreeSet<Location>,
+}
+pub(super) type Live = BTreeMap<Carrier, Demand>;
+#[derive(Clone, Debug, Default)]
+pub struct Liveness {
+    entries: BTreeMap<AccessFlowPointId, Live>,
+    before: BTreeMap<Location, Live>,
+    after: BTreeMap<Location, Live>,
+}
+impl Liveness {
+    #[must_use]
+    pub fn required_after(&self, location: Location, carrier: Carrier) -> bool {
+        self.after(location)
+            .is_some_and(|live| live.contains_key(&carrier))
+    }
+    #[must_use]
+    pub fn required_use(&self, location: Location, carrier: Carrier) -> Option<Location> {
+        self.before(location)?.get(&carrier)?.uses.first().copied()
+    }
+    #[must_use]
+    pub fn required_update(&self, location: Location, carrier: Carrier) -> Option<Location> {
+        self.before(location)?
+            .get(&carrier)?
+            .updates
+            .first()
+            .copied()
+    }
+    pub(super) fn entry(&self, point: AccessFlowPointId) -> Option<&Live> {
+        self.entries.get(&point)
+    }
+    pub(super) fn before(&self, location: Location) -> Option<&Live> {
+        self.before.get(&location)
+    }
+    pub(super) fn after(&self, location: Location) -> Option<&Live> {
+        self.after.get(&location)
+    }
+}
+const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
+fn union(to: &mut Live, from: &Live) {
+    for (&carrier, uses) in from {
+        let demand = to.entry(carrier).or_default();
+        demand.uses.extend(&uses.uses);
+        demand.updates.extend(&uses.updates);
+    }
+}
+fn updating(live: &Live, carrier: Carrier) -> bool {
+    live.get(&carrier)
+        .is_some_and(|demand| !demand.updates.is_empty())
+}
+fn argument(
+    typed: &TypedQuery,
+    call: AccessExpressionId,
+    index: usize,
+) -> Result<&crate::value_access::Argument, IntegrityError> {
+    let ExpressionKind::Call { arguments, .. } =
+        &typed.body().expressions().get(call).ok_or(INVALID)?.kind
+    else {
+        return Err(INVALID);
+    };
+    arguments.get(index).ok_or(INVALID)
+}
+fn argument_updates(action: ArgumentAction) -> bool {
+    matches!(
+        action,
+        ArgumentAction::ReserveUpdate(_) | ArgumentAction::UpdateValue
+    )
+}
+#[derive(Clone, Copy)]
+enum Need {
+    Release,
+    Read,
+    Update,
+}
+impl From<bool> for Need {
+    fn from(update: bool) -> Self {
+        if update { Self::Update } else { Self::Read }
+    }
+}
+type Uses = Vec<(Carrier, Need)>;
+fn plan(
+    typed: &TypedQuery,
+    operation: &Operation,
+    after: &Live,
+) -> Result<(Uses, Vec<Carrier>), IntegrityError> {
+    let mut uses: Vec<(Carrier, bool)> = Vec::new();
+    let mut definitions = Vec::new();
+    let mut releases = Vec::new();
+    match operation {
+        Operation::Evaluate(id) => {
+            definitions.push(Carrier::Expression(*id));
+            uses.extend(expression_uses(typed, *id)?);
+        }
+        Operation::PrepareOperand { value, .. }
+        | Operation::Condition(value)
+        | Operation::Discard(value) => uses.push((Carrier::Expression(*value), false)),
+        Operation::StageReturn(value) => {
+            let update = matches!(typed.body().expressions().get(*value).ok_or(INVALID)?.ty,ValueType::Value(ty) if ty.mode()==Mode::Update);
+            uses.push((Carrier::Expression(*value), update));
+        }
+        Operation::Forward { source, result } => {
+            uses.push((
+                Carrier::Expression(*source),
+                updating(after, Carrier::Expression(*result)),
+            ));
+            definitions.push(Carrier::Expression(*result));
+        }
+        Operation::BooleanAnswer { source, result } => {
+            uses.push((Carrier::Expression(*source), false));
+            definitions.push(Carrier::Expression(*result));
+        }
+        Operation::BooleanConstant { result, .. } => definitions.push(Carrier::Expression(*result)),
+        Operation::Bind { local, value } => {
+            uses.push((
+                Carrier::Expression(*value),
+                updating(after, Carrier::Local(*local)),
+            ));
+            definitions.push(Carrier::Local(*local));
+        }
+        Operation::Assign { target, value } => {
+            uses.push((Carrier::Expression(*value), false));
+            if typed.body().locals().get(*target).ok_or(INVALID)?.ty.mode() == Mode::Own {
+                definitions.push(Carrier::Local(*target));
+            } else {
+                uses.push((Carrier::Local(*target), true));
+            }
+        }
+        Operation::CompoundAssign { target, value, .. } => {
+            uses.push((Carrier::Expression(*value), false));
+            uses.push((Carrier::Local(*target), true));
+        }
+        Operation::Drop(local) => {
+            uses.push((Carrier::Local(*local), true));
+            definitions.push(Carrier::Local(*local));
+        }
+        Operation::ExitScope { locals, .. } => {
+            definitions.extend(locals.iter().copied().map(Carrier::Local));
+        }
+        Operation::PrepareArgument {
+            call,
+            argument: index,
+        } => {
+            let arg = argument(typed, *call, *index)?;
+            let carrier = match arg.action {
+                ArgumentAction::ReserveRead(local)
+                | ArgumentAction::ReserveUpdate(local)
+                | ArgumentAction::ReserveTransfer(local) => Carrier::Local(local),
+                _ => Carrier::Expression(arg.value),
+            };
+            uses.push((carrier, argument_updates(arg.action)));
+            definitions.push(Carrier::Argument {
+                call: *call,
+                index: *index,
+            });
+        }
+        Operation::CommitCall(call) => {
+            let ExpressionKind::Call { arguments, .. } =
+                &typed.body().expressions().get(*call).ok_or(INVALID)?.kind
+            else {
+                return Err(INVALID);
+            };
+            for (index, arg) in arguments.iter().enumerate() {
+                let carrier = Carrier::Argument { call: *call, index };
+                uses.push((carrier, argument_updates(arg.action)));
+                definitions.push(carrier);
+            }
+            definitions.push(Carrier::Expression(*call));
+        }
+        Operation::CancelCall { call, prepared } => {
+            for index in 0..*prepared {
+                let carrier = Carrier::Argument { call: *call, index };
+                releases.push(carrier);
+                definitions.push(carrier);
+            }
+        }
+    }
+    Ok((
+        uses.into_iter()
+            .map(|(carrier, update)| (carrier, Need::from(update)))
+            .chain(releases.into_iter().map(|carrier| (carrier, Need::Release)))
+            .collect(),
+        definitions,
+    ))
+}
+pub(super) fn analyze(
+    typed: &TypedQuery,
+    graph: &Graph,
+    initialization: &Initialization,
+) -> Result<Liveness, IntegrityError> {
+    let mut result = Liveness::default();
+    let points = graph
+        .points()
+        .iter()
+        .filter(|(id, _)| initialization.reachable(*id))
+        .collect::<Vec<_>>();
+    loop {
+        let mut changed = false;
+        for &(point, body) in points.iter().rev() {
+            let mut live = Live::new();
+            for next in body.terminator.successors() {
+                if let Some(entry) = result.entries.get(&next) {
+                    union(&mut live, entry);
+                }
+            }
+            for (action, event) in body.actions.iter().enumerate().rev() {
+                let location = Location { point, action };
+                result.after.insert(location, live.clone());
+                let (uses, definitions) = plan(typed, &event.operation, &live)?;
+                for definition in definitions {
+                    live.remove(&definition);
+                }
+                for (used, update) in uses {
+                    let demand = live.entry(used).or_default();
+                    if !matches!(update, Need::Release) {
+                        demand.uses.insert(location);
+                    }
+                    if matches!(update, Need::Update) {
+                        demand.updates.insert(location);
+                    }
+                }
+                result.before.insert(location, live.clone());
+            }
+            changed |= result.entries.get(&point) != Some(&live);
+            result.entries.insert(point, live);
+        }
+        if !changed {
+            return Ok(result);
+        }
+    }
+}
+
+fn expression_uses(
+    typed: &TypedQuery,
+    id: AccessExpressionId,
+) -> Result<Vec<(Carrier, bool)>, IntegrityError> {
+    let mut uses = Vec::new();
+    match typed.body().expressions().get(id).ok_or(INVALID)?.kind {
+        ExpressionKind::Place(local) => uses.push((Carrier::Local(local), false)),
+        ExpressionKind::Update(local) | ExpressionKind::Transfer(local) => {
+            uses.push((Carrier::Local(local), true));
+        }
+        ExpressionKind::Boundary { source, action } => {
+            let carrier = match typed.body().expressions().get(source).ok_or(INVALID)?.kind {
+                ExpressionKind::Place(local) => Carrier::Local(local),
+                _ => Carrier::Expression(source),
+            };
+            uses.push((carrier, action == BoundaryAction::DelegateUpdate));
+        }
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::Unit
+        | ExpressionKind::Unary { .. }
+        | ExpressionKind::Binary { .. } => {}
+        ExpressionKind::Call { .. } | ExpressionKind::If { .. } => return Err(INVALID),
+    }
+    Ok(uses)
+}

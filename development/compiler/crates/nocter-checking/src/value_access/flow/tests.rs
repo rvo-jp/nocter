@@ -7,7 +7,7 @@ use nocter_declaration_lowering::access_declarations as declarations;
 use nocter_json::Value;
 use std::{fs, path::PathBuf, sync::Arc};
 
-fn queries(text: &str) -> Vec<Query> {
+pub(super) fn queries(text: &str) -> Vec<Query> {
     let (sources, tree) = input(text);
     let header = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
     let current = header.bind(bound(&sources, &tree)).unwrap();
@@ -20,7 +20,7 @@ fn queries(text: &str) -> Vec<Query> {
         })
         .collect()
 }
-fn named<'a>(queries: &'a [Query], name: &str) -> &'a Query {
+pub(super) fn named<'a>(queries: &'a [Query], name: &str) -> &'a Query {
     queries
         .iter()
         .find(|query| {

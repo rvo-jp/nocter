@@ -1,5 +1,6 @@
 //! Source-neutral evaluation/control authority and named-slot initialization.
 //! Passing initialization does not prove referent lifetime, access conflicts or safe cleanup.
+pub mod access;
 mod build;
 mod initialization;
 mod projection;
@@ -144,6 +145,7 @@ pub struct Query {
     typed: Arc<TypedQuery>,
     graph: Graph,
     initialization: Initialization,
+    access: access::Analysis,
 }
 impl Query {
     /// Builds evaluation/control once, then solves named-slot initialization to a fixed point.
@@ -152,10 +154,12 @@ impl Query {
     pub fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
         let graph = build::build(typed.body())?;
         let initialization = initialization::analyze(&typed, &graph)?;
+        let access = access::analyze(&typed, &graph, &initialization)?;
         Ok(Self {
             typed,
             graph,
             initialization,
+            access,
         })
     }
     #[must_use]
@@ -169,5 +173,9 @@ impl Query {
     #[must_use]
     pub const fn initialization(&self) -> &Initialization {
         &self.initialization
+    }
+    #[must_use]
+    pub const fn access(&self) -> &access::Analysis {
+        &self.access
     }
 }
