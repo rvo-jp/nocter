@@ -7,8 +7,8 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, NominalTypeId, Symbol,
-    SymbolTable, TypeAuthority, TypeId, TypeKind, ValueInputOperation,
+    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, FieldPath,
+    NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, TypeKind, ValueInputOperation,
 };
 
 use crate::DefinitionError;
@@ -171,6 +171,23 @@ impl Program {
                 .map(PayloadSchema::Record),
             _ => None,
         }
+    }
+    /// Validates an already selected logical path against its exact record/field owners.
+    /// No name lookup, permission inference or physical offset participates in this projection.
+    #[must_use]
+    pub fn project_data(&self, mut data: TypeId, path: &FieldPath) -> Option<TypeId> {
+        self.data_schema(data)?;
+        for &field in path.fields() {
+            let PayloadSchema::Record(record) = self.data_schema(data)? else {
+                return None;
+            };
+            let field = self.fields().get(field)?;
+            if self.records().get(field.owner())?.data() != record.data() {
+                return None;
+            }
+            data = field.data();
+        }
+        Some(data)
     }
     #[must_use]
     pub const fn records(&self) -> &Arena<NominalTypeId, Record> {

@@ -28,7 +28,8 @@ they do not make reviews normative or register compiler support.
 #### Implementation and Verification
 
 - [Bounded Value Binding Front End](v2.0.0-value-binding-front-end.md) — implemented private-unit scope, production tests, qualification, and limits
-- [Nominal Payload Schema Checkpoint](v2.0.0-nominal-payload-schemas.md) — closed record metadata; source/body admission remains pending
+- [Nominal Payload Schema Checkpoint](v2.0.0-nominal-payload-schemas.md) — declaration schema evidence
+- [Partial Payload Resource Checkpoint](v2.0.0-partial-payload-resources.md) — sparse moves, replacement and cleanup in the shared ledger; nominal source/body admission remains pending
 
 #### Research and Adoption Audits
 

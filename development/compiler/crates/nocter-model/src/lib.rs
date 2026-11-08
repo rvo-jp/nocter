@@ -11,6 +11,7 @@ mod attachment_family;
 mod closure_sequence;
 mod constant;
 mod construction_identity;
+mod field_path;
 mod id;
 mod numeric;
 mod origin;
@@ -26,6 +27,7 @@ pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
+pub use field_path::FieldPath;
 pub use id::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessFlowPointId,
     AccessLocalId, AccessLoopId, AccessParameterId, AccessStatementId, AssociatedTypeId, BodyId,

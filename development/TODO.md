@@ -24,15 +24,29 @@ twelve checking rejections and four syntax rejections. No CLI mode, released-pro
 parallel accepted authority or duplicate owner-survival set was added. Ordinary results are
 values; input operations and local mutability/aliasing remain separate from data TypeId.
 
-Closed nominal record metadata now shares that private declaration/type authority. It validates
-finite containment, field identities/types and explicit Copy evidence; it does not yet admit
-nominal source or body operations. See the [schema checkpoint](history/reviews/v2.0.0-nominal-payload-schemas.md).
+Closed nominal record metadata shares that private declaration/type authority. The same resource
+ledger now handles logical field places, sparse partial moves/restoration, complete replacement,
+remaining-region cleanup and evaluation frames. Container presence and complete initialization
+are distinct queries over that one ledger; intact record schemas remain shared. These Rust-level
+checks do not yet admit nominal source or body operations. See the
+[schema checkpoint](history/reviews/v2.0.0-nominal-payload-schemas.md) and
+[partial-resource checkpoint](history/reviews/v2.0.0-partial-payload-resources.md).
 
-Next connect selected-place projections to the existing shared flow/resource authority, then
-admit private record headers and operations under their owning specification.
-Preserve schema sharing, one selected operation and one shared control/access/resource authority;
-track selected subplaces without expanding the full payload tree. Prove partial moves, overlapping/disjoint places, replacement cleanup and dependency survival before accepting
-these data shapes. Then extend generic/callable/interface contracts, capabilities, outcomes/async
+Next introduce selected field places coherently into typed bodies and the shared control graph,
+initialization, permission-demand liveness, reservations and source diagnostics, then admit
+private record headers/operations under their owning specification. Preserve schema sharing and
+one selected operation/control/access/resource authority. Prove partial-move paths, disjoint and
+overlapping accesses, replacement cleanup and survival together before accepting these shapes.
+
+The next integration target must be real `V2CoreUnit` source cases, not another
+resource-only completion claim: declare a two-error-field record; accept extraction and return of
+one field with cleanup of its sibling; accept restoration before whole-value return and partial
+`drop`; reject whole-value use after extraction and overlapping call accesses. Admit the source
+only with typing, projected initialization, permission and resource evidence together. Use direct
+source tests and affected-crate checks during this work; reserve the complete downstream gate for
+integration closure under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).
+
+Then extend generic/callable/interface contracts, capabilities, outcomes/async
 and public modules under closed owning contracts, followed by target/ABI and native lifecycle
 realization. The four-type fragment's empty D/S evidence is an exact contract, not a generic
 inference result. Full-language grammar assembly remains a draft.

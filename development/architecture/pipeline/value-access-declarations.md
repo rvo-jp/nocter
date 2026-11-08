@@ -29,14 +29,18 @@ and stable locators that exclude body contents. The lowered query uses that one 
 does not parse source again or invent a second declaration fingerprint.
 
 `nocter-model` owns distinct access-callable/input identities and the independent input operations, local binding
-kinds and transient operation access. Data types are independent; access is not a borrow-type
-constructor or a general coercion rank.
+kinds, transient operation access and logical field paths. Data types are independent; access is
+not a borrow-type constructor or a general coercion rank. A path contains field identities, not
+source names, physical offsets or an access grant.
 
-`nocter-declarations` owns the source-independent program, namespace, scalar data authority,
+`nocter-declarations` owns the source-independent program, namespace, closed data authority,
 ordered input identities and operations, and data-only value results.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
-Only the admitted built-in data shapes cross this boundary. No borrowed wrapper or released
-storable-type heuristic supplies a missing future contract.
+Only the admitted built-in data shapes cross the current parsed callable/body boundary. The same
+program separately owns closed nominal record schemas before source admission. Declaration-owned
+projection validates each selected field's containing record and data identity. Checking consumes
+those schemas to certify concrete payload operations; it does not rebuild nominal type meaning.
+No borrowed wrapper or released storable-type heuristic supplies a missing future contract.
 
 `nocter-declaration-lowering` owns canonical header collection, normalization and diagnostic
 projection. It reserves functions in namespace order and maps resolved identities to neutral
@@ -141,6 +145,13 @@ normal return preserves exactly its declared value result and no live evaluation
 does not disappear when access liveness ends. A fresh value supplied to a read input retains one
 temporary owner until its enclosing evaluation frame ends or unwinds. Call results are values;
 they do not carry an implicit alias to an input.
+
+Resource transitions use logical holder/field places and retain sparse unavailable selections.
+Container presence is distinct from complete-value initialization, but both derive from the same
+ownership ledger. Closed nominal cleanup can retain an intact subtree as one schema operation;
+this does not imply native realization or permission to bypass source/body admission. Typed
+nominal projections, projected initialization, access demand/reservation and source diagnostic
+integration remain required before that admission can expand.
 
 The accepted private-unit constructor derives its membership from the declaration authority and
 checks every definition before publication. A caller cannot omit an unsafe unused callee, combine

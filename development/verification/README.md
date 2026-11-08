@@ -43,6 +43,31 @@ and removes it on exit. Verification therefore cannot add another Cargo hash gen
 `development/compiler/target/`. The fast and full tiers differ only in selected consumers of the
 same source, workspace, and tests; neither tier owns independent expected behavior.
 
+### Selecting Evidence for a Change
+
+Select tests by the behavior changed and the consumers reached, not by the number of passing
+cases. Record direct feature evidence separately from existing-product regression evidence.
+
+- For a private future front-end change, run the owning model/declaration/checking tests and
+  source cases that exercise its actual production path. Workspace compilation and
+  warnings-denied Clippy check shared API compatibility. A private resource test proves its
+  resource operation, not source parsing, projected initialization, access safety or execution.
+- CLI, native-session and language-server tests directly apply when their active pipeline or
+  observable contracts can be affected. When that pipeline does not consume the future product,
+  those suites provide broad regression evidence; they are not evidence that the future feature
+  works. Do not repeatedly run them for each small internal checkpoint merely because they are
+  part of the complete gate.
+- Keep the complete gate for phase/integration closure, changes crossing the active compiler and
+  its consumers, release qualification and scheduled regression runs. A coherent internal commit
+  need not be declared a completed phase. Use focused checks during its implementation and
+  state the scope of any remaining verification explicitly.
+
+For a language feature, the source acceptance/rejection boundary is the integration target.
+Internal schemas and resource kernels can be necessary milestones, but passing their tests alone
+does not close that feature. Add source cases that demonstrate the new behavior and the unsafe
+counterexamples; then select broader checks from the affected dependency path. No focused tier
+or test double may substitute different semantic rules or expected behavior.
+
 Compiler workspace crates use test-profile optimization level 1 because the integration suite
 executes the compiler itself as its dominant workload. Third-party dependencies remain
 unoptimized, bounding clean compilation cost. The language-server and native-session test binaries

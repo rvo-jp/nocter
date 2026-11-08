@@ -25,9 +25,11 @@ impl Context<'_, '_> {
     }
     fn dispose_expression(&mut self, id: AccessExpressionId) -> Result<()> {
         if self.owns_expression(id)? {
-            self.world
-                .resources
-                .dispose(Holder::Expression(id), &mut self.steps)?;
+            self.world.resources.dispose(
+                self.typed.program(),
+                &Holder::Expression(id).place(),
+                &mut self.steps,
+            )?;
         }
         Ok(())
     }
@@ -50,8 +52,9 @@ impl Context<'_, '_> {
             let argument = arguments.get(index).ok_or(Failure::Integrity)?;
             if argument.action == ArgumentAction::ReadOwnedValue {
                 self.world.resources.move_to(
-                    Holder::Expression(argument.value),
-                    Holder::Prepared { call, index },
+                    self.typed.program(),
+                    &Holder::Expression(argument.value).place(),
+                    &Holder::Prepared { call, index }.place(),
                     false,
                     &mut self.steps,
                 )?;
@@ -64,7 +67,11 @@ impl Context<'_, '_> {
             Operation::BeginEvaluation(id) => self.world.resources.begin(id)?,
             Operation::EndEvaluation(id) => {
                 for holder in self.world.resources.ending(id)? {
-                    self.world.resources.dispose(holder, &mut self.steps)?;
+                    self.world.resources.dispose(
+                        self.typed.program(),
+                        &holder.place(),
+                        &mut self.steps,
+                    )?;
                 }
                 self.world.resources.end(id)?;
             }
@@ -84,8 +91,9 @@ impl Context<'_, '_> {
             Operation::Forward { source, result } => {
                 if self.owns_expression(source)? {
                     self.world.resources.move_to(
-                        Holder::Expression(source),
-                        Holder::Expression(result),
+                        self.typed.program(),
+                        &Holder::Expression(source).place(),
+                        &Holder::Expression(result).place(),
                         true,
                         &mut self.steps,
                     )?;
@@ -94,30 +102,35 @@ impl Context<'_, '_> {
             Operation::Bind { local, value } => {
                 if self.local_mode(local)? == Mode::Own {
                     self.world.resources.move_to(
-                        Holder::Expression(value),
-                        Holder::Local(local),
+                        self.typed.program(),
+                        &Holder::Expression(value).place(),
+                        &Holder::Local(local).place(),
                         false,
                         &mut self.steps,
                     )?;
                 }
             }
             Operation::Assign { target, value } => self.assign_ownership(target, value)?,
-            Operation::Drop(local) => self
-                .world
-                .resources
-                .dispose(Holder::Local(local), &mut self.steps)?,
+            Operation::Drop(local) => self.world.resources.dispose(
+                self.typed.program(),
+                &Holder::Local(local).place(),
+                &mut self.steps,
+            )?,
             Operation::StageReturn(value) => self.world.resources.move_to(
-                Holder::Expression(value),
-                Holder::Return,
+                self.typed.program(),
+                &Holder::Expression(value).place(),
+                &Holder::Return.place(),
                 false,
                 &mut self.steps,
             )?,
             Operation::ExitScope { ref locals, .. } => {
                 for &local in locals {
                     if self.world.resources.contains(Holder::Local(local)) {
-                        self.world
-                            .resources
-                            .dispose(Holder::Local(local), &mut self.steps)?;
+                        self.world.resources.dispose(
+                            self.typed.program(),
+                            &Holder::Local(local).place(),
+                            &mut self.steps,
+                        )?;
                     }
                 }
             }
@@ -130,7 +143,11 @@ impl Context<'_, '_> {
                 for index in (0..prepared).rev() {
                     let holder = Holder::Prepared { call, index };
                     if self.world.resources.contains(holder) {
-                        self.world.resources.dispose(holder, &mut self.steps)?;
+                        self.world.resources.dispose(
+                            self.typed.program(),
+                            &holder.place(),
+                            &mut self.steps,
+                        )?;
                     }
                 }
             }
@@ -147,8 +164,9 @@ impl Context<'_, '_> {
             .kind;
         match *kind {
             ExpressionKind::Move(local) => self.world.resources.move_to(
-                Holder::Local(local),
-                Holder::Expression(id),
+                self.typed.program(),
+                &Holder::Local(local).place(),
+                &Holder::Expression(id).place(),
                 false,
                 &mut self.steps,
             )?,
@@ -156,8 +174,9 @@ impl Context<'_, '_> {
                 source,
                 action: BoundaryAction::TakeValue,
             } => self.world.resources.move_to(
-                Holder::Expression(source),
-                Holder::Expression(id),
+                self.typed.program(),
+                &Holder::Expression(source).place(),
+                &Holder::Expression(id).place(),
                 false,
                 &mut self.steps,
             )?,
@@ -189,21 +208,16 @@ impl Context<'_, '_> {
         let (root, _) = self.base(target)?.ok_or(Failure::Integrity)?;
         match root {
             Root::Owned(local) => {
-                if self.world.resources.contains(Holder::Local(local)) {
-                    self.world
-                        .resources
-                        .dispose(Holder::Local(local), &mut self.steps)?;
-                }
-                self.world.resources.move_to(
-                    Holder::Expression(value),
-                    Holder::Local(local),
-                    false,
+                self.world.resources.replace(
+                    self.typed.program(),
+                    &Holder::Expression(value).place(),
+                    &Holder::Local(local).place(),
                     &mut self.steps,
                 )?;
             }
             Root::Input(parameter) => {
-                let source = Holder::Expression(value);
-                let payload = self.world.resources.take(source)?;
+                let source = Holder::Expression(value).place();
+                let payload = self.world.resources.take(self.typed.program(), &source)?;
                 self.steps.push(Step::ReplaceInput {
                     parameter,
                     source,
@@ -237,8 +251,9 @@ impl Context<'_, '_> {
                     .construct(holder, payload, &mut self.steps)?;
             }
             ArgumentAction::TakeValue => self.world.resources.move_to(
-                Holder::Expression(argument.value),
-                holder,
+                self.typed.program(),
+                &Holder::Expression(argument.value).place(),
+                &holder.place(),
                 false,
                 &mut self.steps,
             )?,
@@ -270,9 +285,13 @@ impl Context<'_, '_> {
         for (index, argument) in arguments.iter().enumerate() {
             let prepared = Holder::Prepared { call, index };
             if let ArgumentAction::ReserveTransfer(local) = argument.action {
-                self.world
-                    .resources
-                    .invoke(Holder::Local(local), call, index, &mut self.steps)?;
+                self.world.resources.invoke(
+                    self.typed.program(),
+                    &Holder::Local(local).place(),
+                    call,
+                    index,
+                    &mut self.steps,
+                )?;
             } else if self.world.resources.contains(prepared) {
                 let mode = self
                     .typed
@@ -288,13 +307,18 @@ impl Context<'_, '_> {
                     .operation()
                     .access_mode();
                 if mode == Mode::Own {
-                    self.world
-                        .resources
-                        .invoke(prepared, call, index, &mut self.steps)?;
+                    self.world.resources.invoke(
+                        self.typed.program(),
+                        &prepared.place(),
+                        call,
+                        index,
+                        &mut self.steps,
+                    )?;
                 } else {
                     self.world.resources.move_to(
-                        prepared,
-                        Holder::Temporary { call, index },
+                        self.typed.program(),
+                        &prepared.place(),
+                        &Holder::Temporary { call, index }.place(),
                         false,
                         &mut self.steps,
                     )?;

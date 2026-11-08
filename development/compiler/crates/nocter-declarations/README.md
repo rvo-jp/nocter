@@ -93,6 +93,10 @@ payload expansion. It rejects non-finite containment with a field witness and re
 Copy request containing a non-Copy component. Ordinary records never acquire Copy implicitly.
 Only validated metadata can be published; no partial schema authority escapes a rejected build.
 
+`project_data` validates selected field paths against the exact containing record and field
+owner, without looking up names or inferring access permissions. An empty path preserves its
+validated data type; a scalar projection or a field from another owner is rejected.
+
 `data_schema` exposes the exact admitted builtin or nominal shape. `data_copyable` consumes that
 validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
 publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current

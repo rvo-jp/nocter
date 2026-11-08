@@ -1,0 +1,270 @@
+//! One ownership ledger: whole values, selected fields, and lexical/evaluation cleanup frames.
+use super::{
+    Frame, Holder, INVALID, OwnedValue, Payload, Place, Program, Result, State, Step, TypedQuery,
+    payload,
+};
+use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
+
+impl State {
+    pub fn entry(typed: &TypedQuery) -> Result<Self> {
+        let mut state = Self::default();
+        for (id, local) in typed.body().locals().iter() {
+            if matches!(local.origin, crate::value_access::LocalOrigin::Parameter(_))
+                && local.access().mode() == Mode::Own
+            {
+                state.owned.insert(
+                    Holder::Local(id),
+                    OwnedValue::new(payload(typed.program(), local.data)?),
+                );
+            }
+        }
+        Ok(state)
+    }
+    /// Presence of an owning container, including one with unavailable fields.
+    pub fn contains(&self, holder: Holder) -> bool {
+        self.owned.contains_key(&holder)
+    }
+    pub fn initialized_root(&self, holder: Holder) -> bool {
+        self.owned
+            .get(&holder)
+            .is_some_and(|value| value.missing.is_empty())
+    }
+    pub fn initialized(&self, program: &Program, place: &Place) -> Result<bool> {
+        let Some(value) = self.owned.get(&place.holder()) else {
+            return Ok(false);
+        };
+        value.selected(program, place.fields())?;
+        Ok(value.complete(place.fields()))
+    }
+    pub fn begin(&mut self, id: AccessExpressionId) -> Result<()> {
+        if self.frames.iter().any(|frame| frame.id == id) {
+            return Err(INVALID);
+        }
+        self.frames.push(Frame {
+            id,
+            temporaries: Vec::new(),
+        });
+        Ok(())
+    }
+    pub fn ending(&self, id: AccessExpressionId) -> Result<Vec<Holder>> {
+        let frame = self.frames.last().ok_or(INVALID)?;
+        if frame.id != id {
+            return Err(INVALID);
+        }
+        Ok(frame.temporaries.iter().rev().copied().collect())
+    }
+    pub fn end(&mut self, id: AccessExpressionId) -> Result<()> {
+        let frame = self.frames.last().ok_or(INVALID)?;
+        if frame.id != id || !frame.temporaries.is_empty() {
+            return Err(INVALID);
+        }
+        self.frames.pop();
+        Ok(())
+    }
+    fn insert(&mut self, holder: Holder, value: Payload, outer: bool) -> Result<()> {
+        if self.owned.contains_key(&holder) {
+            return Err(INVALID);
+        }
+        let frame = if matches!(holder, Holder::Expression(_) | Holder::Temporary { .. }) {
+            let index = self
+                .frames
+                .len()
+                .checked_sub(if outer { 2 } else { 1 })
+                .ok_or(INVALID)?;
+            self.frames.get(index).ok_or(INVALID)?;
+            Some(index)
+        } else {
+            None
+        };
+        self.owned.insert(holder, OwnedValue::new(value));
+        if let Some(index) = frame {
+            self.frames[index].temporaries.push(holder);
+        }
+        Ok(())
+    }
+    fn remove_root(&mut self, holder: Holder) -> Result<OwnedValue> {
+        let value = self.owned.remove(&holder).ok_or(INVALID)?;
+        for frame in &mut self.frames {
+            frame.temporaries.retain(|&item| item != holder);
+        }
+        Ok(value)
+    }
+    pub fn take(&mut self, program: &Program, source: &Place) -> Result<Payload> {
+        let value = self.owned.get(&source.holder()).ok_or(INVALID)?;
+        let selected = value.selected(program, source.fields())?;
+        if !self.initialized(program, source)? {
+            return Err(INVALID);
+        }
+        if source.fields().is_root() {
+            self.remove_root(source.holder())?;
+        } else {
+            self.owned
+                .get_mut(&source.holder())
+                .ok_or(INVALID)?
+                .remove(source.fields());
+        }
+        Ok(selected)
+    }
+    fn install(
+        &mut self,
+        program: &Program,
+        destination: &Place,
+        value: Payload,
+        outer: bool,
+    ) -> Result<()> {
+        if destination.fields().is_root() {
+            return self.insert(destination.holder(), value, outer);
+        }
+        let owner = self.owned.get_mut(&destination.holder()).ok_or(INVALID)?;
+        if owner.container(program, destination.fields())? != value
+            || !owner.missing.contains(destination.fields())
+        {
+            return Err(INVALID);
+        }
+        owner.missing.remove(destination.fields());
+        Ok(())
+    }
+    pub fn construct(
+        &mut self,
+        holder: Holder,
+        value: Payload,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        self.insert(holder, value, false)?;
+        steps.push(Step::Construct {
+            destination: holder,
+            payload: value,
+        });
+        Ok(())
+    }
+    pub fn receive(
+        &mut self,
+        call: AccessExpressionId,
+        value: Payload,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        let destination = Holder::Expression(call);
+        self.insert(destination, value, false)?;
+        steps.push(Step::Receive {
+            call,
+            destination,
+            payload: value,
+        });
+        Ok(())
+    }
+    /// Transfer only a complete selected value into an unavailable destination.
+    pub fn move_to(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        destination: &Place,
+        outer: bool,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        self.transfer(program, source, destination, outer, false, steps)
+    }
+    /// The replacement is already fully evaluated. Clean the old initialized remainder once.
+    pub fn replace(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        destination: &Place,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        self.transfer(program, source, destination, false, true, steps)
+    }
+    fn transfer(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        destination: &Place,
+        outer: bool,
+        replace: bool,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        // Integrity rejection cannot publish half a transfer, cleanup, or frame registration.
+        let mut staged = self.clone();
+        let value = staged.take(program, source)?;
+        let mut changes = Vec::new();
+        if let Some(owner) = staged.owned.get(&destination.holder())
+            && owner.container(program, destination.fields())? != value
+        {
+            return Err(INVALID);
+        }
+        if replace {
+            staged.clear(program, destination, true, &mut changes)?;
+        }
+        staged.install(program, destination, value, outer)?;
+        changes.push(Step::Move {
+            source: source.clone(),
+            destination: destination.clone(),
+            payload: value,
+        });
+        *self = staged;
+        steps.extend(changes);
+        Ok(())
+    }
+    fn clear(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        allow_missing: bool,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        let Some(value) = self.owned.get(&source.holder()) else {
+            return if allow_missing && source.fields().is_root() {
+                Ok(())
+            } else {
+                Err(INVALID)
+            };
+        };
+        if !allow_missing && value.missing.contains(source.fields()) {
+            return Err(INVALID);
+        }
+        let cleanup = value.cleanup(program, source)?;
+        if source.fields().is_root() {
+            self.remove_root(source.holder())?;
+        } else {
+            self.owned
+                .get_mut(&source.holder())
+                .ok_or(INVALID)?
+                .remove(source.fields());
+        }
+        steps.extend(cleanup);
+        Ok(())
+    }
+    /// Cleanup disposes the remaining initialized regions of a present, possibly incomplete owner.
+    pub fn dispose(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        self.clear(program, source, false, steps)
+    }
+    pub fn invoke(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        call: AccessExpressionId,
+        index: usize,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        let value = self.take(program, source)?;
+        steps.push(Step::Invoke {
+            source: source.clone(),
+            call,
+            index,
+            payload: value,
+        });
+        Ok(())
+    }
+    pub fn returned(&self, data: TypeId) -> bool {
+        self.frames.is_empty()
+            && self.owned.len() == 1
+            && self
+                .owned
+                .get(&Holder::Return)
+                .is_some_and(|value| value.payload.data() == data && value.missing.is_empty())
+    }
+}

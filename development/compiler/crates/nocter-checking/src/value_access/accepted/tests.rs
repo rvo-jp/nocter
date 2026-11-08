@@ -149,7 +149,7 @@ fn read_of_a_fresh_noncopy_result_disposes_one_evaluation_temporary() {
                     if let Step::Dispose { source, payload } = step
                         && payload.disposal() == Disposal::OwnedError
                     {
-                        disposed.push(*source);
+                        disposed.push(source.holder());
                     }
                 }
             }

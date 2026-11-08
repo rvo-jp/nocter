@@ -261,10 +261,33 @@ all paths reaching it must restore required fields, including failure/cancellati
 blanket-ban such moves, call a destructor with missing fields, or silently skip it. Without a
 user destructor, partial cleanup destroys only initialized owned parts.
 
-An explicit `drop name` destroys a definitely initialized owning binding, including a fixed or
-Copy binding, and makes it unavailable. It is destruction, not supplying another value; therefore
-it does not choose a non-invalidating Copy. It cannot destroy an outside referent through an alias.
-Unit and scalar payloads have no destructor work; their logical initialization still matters.
+For a record without a user destructor, moving a field makes that selected value unavailable,
+not its initialized siblings. A containing value is incomplete while any of its fields is
+unavailable: it cannot be read, copied, transferred or passed as a complete input. Operations on initialized disjoint fields remain possible, subject
+to access conflicts. These are logical places; identical physical offsets do not merge fields.
+
+A writable owner can restore a moved field with a complete replacement. Replacing a partially
+initialized field first cleans its remaining initialized parts and then installs the complete
+new value. Moving an entire containing value removes its field containers too; writing a deeper
+field does not reconstruct that missing parent. Reconstruct the missing parent as a complete
+value instead. Fixed owners cannot restore fields merely because they could previously move them.
+
+Implicit cleanup of a completed record without a user destructor visits its remaining initialized
+fields in reverse declaration order, recursively applying each field's cleanup contract and
+skipping moved fields. It does not read an incomplete parent or invent initialization for absent
+parts. If every field has moved, cleanup releases the empty containing slot without disposing any
+field again. This completed-value rule is separate from cleaning a failed construction, whose
+successfully initialized operands are cleaned in reverse actual initialization order under the
+construction contract.
+
+An explicit `drop name` ends a definitely present owning container, including a fixed or Copy
+binding, and makes it unavailable. For a record without a user destructor it cleans remaining
+initialized parts even after partial moves, including the all-fields-moved case. It is cleanup,
+not reading or supplying a complete value; it neither requires restoring moved fields merely to
+end ownership nor chooses a non-invalidating Copy. A user destructor's checked prerequisites
+still apply and cannot be bypassed. A wholly moved/dropped container is absent and cannot be
+dropped again. An alias cannot destroy an outside referent. Unit and scalar payloads have no
+destructor work; their logical initialization still matters.
 The opaque error owns its private immutable failure graph under its
 [error contract](../../std/error/README.md), not a special exemption from these operations.
 

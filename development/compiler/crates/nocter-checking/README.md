@@ -263,18 +263,42 @@ survival reads the resource ledger directly: there is no second alive-root autho
 worlds preserve mutually exclusive branch states and converge over finite identities, relations,
 resource holders and lexical/evaluation frame shape, without a dynamic history or iteration cutoff.
 
-The resource ledger alone tracks initialized owner responsibility. Its ordered steps construct,
+The resource ledger alone tracks initialized owner responsibility. Logical places combine one
+holder with a resolved field path; overlap uses field identity and containment, never physical
+offsets. `resources::places` owns sparse unavailable selections and ordered cleanup frontiers;
+`resources::storage` owns transfers, replacements and frame registration. Missing siblings stay
+separate because their containing slot still permits restoring an individual field. No complete
+payload-tree expansion or second alive-owner registry is introduced.
+
+Only a complete selected value can transfer or be invoked. Replacement cleans the selected old
+initialized remainder before installing the already-evaluated value. A missing parent cannot be
+reconstructed by writing a deeper child. Cleanup keeps intact subtrees as single record operations
+and expands only around unavailable paths, visiting surviving regions in reverse declaration
+order. Partial containers emit an explicit ownership-end operation after surviving-field cleanup,
+including the all-fields-moved case, without destroying moved fields again or choosing a physical
+deallocation policy. Integrity rejection commits no partial ownership, cleanup steps or frame registration. Local
+mutability and access permission remain prerequisites proved by body checking, not permissions
+granted by a resource place.
+
+Its ordered steps construct,
 move, receive, dispose, invoke and replace outside inputs. A dead access holder is not automatic
 early resource destruction. A staged return survives evaluation/lexical cleanup, whose order is
 reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
 Return owner with the declaration's result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
 
-Payload evidence matches exactly bool/i32/void and the opaque owned-error snapshot contract:
-scalars/unit have trivial disposal; error owns graph cleanup. All four have empty external D/S by
-those exact contracts. Neither Copy, owning a value nor a missing outside R proves general
-independence. Dependent aggregates, user destructors, capabilities/callables, generics, outcomes,
-async and regions require their own later schemas/validation and cannot enter this bounded product.
+Payload evidence consumes the declaration authority's exact bool/i32/void and opaque owned-error
+snapshot contracts, plus its closed records over those leaves. Scalars/unit have trivial disposal;
+error owns graph cleanup; records retain their own schema cleanup rather than becoming scalars.
+Empty external D/S for those records follows the exact component contracts, not Copy, ownership,
+or a missing outside R. Dependent aggregates, user destructors, capabilities/callables, generics,
+outcomes, async and regions require their own later schemas/validation.
+
+The source/body goal still admits the four builtin types only. Nominal resource tests exercise
+this same ledger below source admission; they are not accepted nominal Nocter programs. Selected
+field places must still enter typed bodies, initialization, permission liveness, reservations and
+source diagnostics coherently before nominal source can be accepted. Resource transitions alone
+cannot replace those proofs or establish executable/native behavior.
 
 ## Closed Accepted Private Units
 

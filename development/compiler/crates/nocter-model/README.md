@@ -18,6 +18,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
+- logical field paths with prefix/overlap relations; the declaration owner validates each field
+  against its containing data schema, independently of memory offsets
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
   and distinct future callable/input/field and body-local/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering
