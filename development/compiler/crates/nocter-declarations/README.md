@@ -16,8 +16,11 @@ coordinates, or checking internals.
 
 - declaration and member arenas
 - the bounded future private-function declaration authority under `value_access`: canonical
-  reservations, define-once scalar contracts, input ownership, namespace validation, and resolved
+  reservations, define-once callable contracts, input ownership, namespace validation, and resolved
   data-only value results, without borrowing/source-syntax representations
+- closed nominal payload schemas under `value_access::records`: define-once records, resolved
+  field identities and types, local member namespaces, finite-containment validation, and
+  explicit structural Copy evidence, published in that same private program/type authority
 - one sparse structural-constant table and one independently validated dense declaration-value
   table, both separate from constant and static metadata
 - module, import, and prelude namespaces
@@ -66,7 +69,7 @@ coordinates, or checking internals.
   contextual `Self impl Interface` predicates.
 
 
-## Future Private-Function Boundary
+## Future Value Declaration Boundary
 
 The value-access product owns one immutable program for the future private core goal. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline. Its
@@ -74,12 +77,28 @@ builder reserves identities before definitions and freezes only after all header
 headers in a different order cannot change parameter identities. The lowering owner
 reserves functions in canonical namespace order.
 
-Data identities come from a privately owned type authority. The exposed data lookup/Copy-evidence
-operations admit only `bool`, `i32`, `void`, and opaque move-only `error`; they do not expose the
-released type-store eligibility helpers or its borrow constructors. Unit is a value in this
-product. Input operation is separate from data identity and payload Copy evidence. Stored parameter
-records carry a data TypeId and Read/Edit/Take operation; callable results carry only a data TypeId. No
-result mode/referent set or old read-result normalization remains. Aggregate/outcome dependency
-schemas are outside this product and cannot be inferred from Copy or value receipt. Every result
-in this bounded product delivers a value; exact scalar/unit/error independence is validated by
-checking under their owning data contracts, not promised for arbitrary future types.
+Data identities come from a privately owned type authority. Callable headers still admit only
+`bool`, `i32`, `void`, and opaque move-only `error`; they do not expose released type-store
+eligibility helpers or borrow constructors. Unit is a value in this product. Input operation is
+separate from data identity and payload Copy evidence. Stored parameter records carry a data
+TypeId and Read/Edit/Take operation; callable results carry only a data TypeId. No result
+mode/referent set or old read-result normalization remains.
+
+The same program can publish closed nominal record metadata before source/body admission. Record
+reservations use nominal identities; fields have a distinct value-field identity domain. Record
+schemas retain declared field order, resolved TypeIds and a frozen local member namespace.
+Definition order cannot affect those identities. Record and callable names cannot collide.
+Structural validation visits the containment graph from leaves to parents without recursion or
+payload expansion. It rejects non-finite containment with a field witness and rejects an explicit
+Copy request containing a non-Copy component. Ordinary records never acquire Copy implicitly.
+Only validated metadata can be published; no partial schema authority escapes a rejected build.
+
+`data_schema` exposes the exact admitted builtin or nominal shape. `data_copyable` consumes that
+validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
+publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current
+nominal schemas contain only values over the four closed builtin leaves and other such records.
+They are metadata, not proof of body acceptance, partial initialization, survival, destruction or
+native execution. The source goal still rejects nominal syntax until selected places and shared
+flow/resource checking are extended. Outcome/capability/callable/generic/user-destructor schemas
+remain outside this product. Exact scalar/unit/error independence is checked under its owning
+data contracts, never inferred from Copy or value receipt for arbitrary future types.

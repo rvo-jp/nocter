@@ -24,9 +24,14 @@ twelve checking rejections and four syntax rejections. No CLI mode, released-pro
 parallel accepted authority or duplicate owner-survival set was added. Ordinary results are
 values; input operations and local mutability/aliasing remain separate from data TypeId.
 
-Next extend place projections and nominal payload schemas under their owning specification.
-Preserve one selected operation and one shared control/access/resource authority; prove partial
-moves, overlapping/disjoint places, replacement cleanup and dependency survival before accepting
+Closed nominal record metadata now shares that private declaration/type authority. It validates
+finite containment, field identities/types and explicit Copy evidence; it does not yet admit
+nominal source or body operations. See the [schema checkpoint](history/reviews/v2.0.0-nominal-payload-schemas.md).
+
+Next connect selected-place projections to the existing shared flow/resource authority, then
+admit private record headers and operations under their owning specification.
+Preserve schema sharing, one selected operation and one shared control/access/resource authority;
+track selected subplaces without expanding the full payload tree. Prove partial moves, overlapping/disjoint places, replacement cleanup and dependency survival before accepting
 these data shapes. Then extend generic/callable/interface contracts, capabilities, outcomes/async
 and public modules under closed owning contracts, followed by target/ABI and native lifecycle
 realization. The four-type fragment's empty D/S evidence is an exact contract, not a generic

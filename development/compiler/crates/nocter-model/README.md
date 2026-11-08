@@ -19,7 +19,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - deterministic symbols and package identities
 - structural type interning and projections
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
-  and distinct future callable/input and body-local/operation/control-flow-point identity domains;
+  and distinct future callable/input/field and body-local/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering
 - structural callable capabilities and independent authored allocation/nonblocking guarantee
   identity

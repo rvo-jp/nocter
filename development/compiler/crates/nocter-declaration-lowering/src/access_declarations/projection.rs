@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use nocter_declarations::value_access::{DeclarationRule, DeclarationViolation, HeaderPosition};
+use nocter_declarations::value_access::{
+    DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
+};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::AccessCallableId;
 use nocter_source_index::SourceOrigin;
@@ -46,11 +48,16 @@ fn project(
     sources: &BTreeMap<AccessCallableId, CallableSource>,
     violation: DeclarationViolation,
 ) -> Option<HeaderDiagnostic> {
-    let source = sources.get(&violation.callable)?;
+    // Nominal source headers are not yet admitted by V2CoreUnit. A record violation cannot
+    // originate from this syntax surface; do not invent a source mapping or another authority.
+    let DeclarationId::Callable(callable) = violation.declaration else {
+        return None;
+    };
+    let source = sources.get(&callable)?;
     let primary = match violation.position {
         HeaderPosition::Name => source.name,
         HeaderPosition::Parameter(index) => *source.parameters.get(index)?,
-        HeaderPosition::Result => return None, // No authored valid core syntax can select an unsupported data shape.
+        HeaderPosition::Result | HeaderPosition::Field(_) => return None, // No authored valid core syntax can select an unsupported data shape.
     };
     let (code, message, related) = match violation.rule {
         DeclarationRule::DuplicateCallable { first } => (
@@ -79,7 +86,14 @@ fn project(
         ),
         DeclarationRule::MissingDefinition
         | DeclarationRule::UnknownSymbol
-        | DeclarationRule::UnsupportedDataType { .. } => return None,
+        | DeclarationRule::UnsupportedDataType { .. }
+        | DeclarationRule::ParameterShadowsRecord { .. }
+        | DeclarationRule::DuplicateRecord { .. }
+        | DeclarationRule::RecordShadowsCallable { .. }
+        | DeclarationRule::DuplicateField { .. }
+        | DeclarationRule::UnknownRecordType { .. }
+        | DeclarationRule::RecursivePayload { .. }
+        | DeclarationRule::NonCopyField { .. } => return None,
     };
     let primary = origin(tree, primary)?;
     let notes = if let Some(token) = related {

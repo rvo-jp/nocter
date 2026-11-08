@@ -1,16 +1,26 @@
 //! Declaration authority for the bounded future private-function language.
 //!
-//! This product cannot be converted to a released borrow-based declaration program. Its data
-//! shapes are currently the four built-ins admitted by the first access grammar, not a flattened
-//! representation of the future aggregate/outcome type grammar.
+//! This product cannot be converted to a released borrow-based declaration program. Its
+//! source boundary still admits four built-ins. Nominal payload schemas are validated here before
+//! source projection and body checking can admit records; they are not a flattened representation
+//! of the future aggregate/outcome type grammar.
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, Symbol, SymbolTable,
-    TypeAuthority, TypeId, TypeKind, ValueInputOperation,
+    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, NominalTypeId, Symbol,
+    SymbolTable, TypeAuthority, TypeId, TypeKind, ValueInputOperation,
 };
 
 use crate::DefinitionError;
+
+mod records;
+pub use records::{Field, FieldData, FieldDefinition, PayloadSchema, Record};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeclarationId {
+    Callable(AccessCallableId),
+    Record(NominalTypeId),
+}
 
 #[cfg(test)]
 mod tests;
@@ -27,6 +37,7 @@ pub enum HeaderPosition {
     Name,
     Parameter(usize),
     Result,
+    Field(usize),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,12 +48,19 @@ pub enum DeclarationRule {
     DuplicateCallable { first: AccessCallableId },
     DuplicateParameter { first: usize },
     ParameterShadowsCallable { declaration: AccessCallableId },
+    ParameterShadowsRecord { declaration: NominalTypeId },
     UnsupportedDataType { data: BuiltinType },
+    DuplicateRecord { first: NominalTypeId },
+    RecordShadowsCallable { declaration: AccessCallableId },
+    DuplicateField { first: usize },
+    UnknownRecordType { record: NominalTypeId },
+    RecursivePayload { through: NominalTypeId },
+    NonCopyField { data: FieldData },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DeclarationViolation {
-    pub callable: AccessCallableId,
+    pub declaration: DeclarationId,
     pub position: HeaderPosition,
     pub rule: DeclarationRule,
 }
@@ -109,6 +127,7 @@ pub struct Program {
     callables: Arena<AccessCallableId, Callable>,
     parameters: Arena<AccessParameterId, Parameter>,
     namespace: BTreeMap<Symbol, AccessCallableId>,
+    records: records::Schemas,
 }
 
 impl Program {
@@ -130,7 +149,40 @@ impl Program {
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
     #[must_use]
     pub fn data_copyable(&self, data: TypeId) -> Option<bool> {
-        self.data_kind(data).map(|data| data != BuiltinType::Error)
+        self.data_schema(data).and_then(|schema| match schema {
+            PayloadSchema::Builtin(data) => builtin_copyable(data),
+            PayloadSchema::Record(record) => Some(record.copyable()),
+        })
+    }
+    /// The exact closed payload shape, without borrow types or generic eligibility fallbacks.
+    #[must_use]
+    pub fn data_schema(&self, data: TypeId) -> Option<PayloadSchema<'_>> {
+        match self.types.store().get(data)? {
+            TypeKind::Builtin(builtin) if supported(*builtin) => {
+                Some(PayloadSchema::Builtin(*builtin))
+            }
+            TypeKind::Nominal {
+                definition,
+                arguments,
+            } if arguments.as_slice().is_empty() => self
+                .records
+                .records
+                .get(*definition)
+                .map(PayloadSchema::Record),
+            _ => None,
+        }
+    }
+    #[must_use]
+    pub const fn records(&self) -> &Arena<NominalTypeId, Record> {
+        &self.records.records
+    }
+    #[must_use]
+    pub const fn fields(&self) -> &Arena<nocter_model::AccessFieldId, Field> {
+        &self.records.fields
+    }
+    #[must_use]
+    pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {
+        self.records.namespace.get(&name).copied()
     }
     #[must_use]
     pub const fn callables(&self) -> &Arena<AccessCallableId, Callable> {
@@ -163,6 +215,7 @@ struct Reservation {
 pub struct Builder {
     symbols: SymbolTable,
     reservations: ArenaBuilder<AccessCallableId, Reservation>,
+    records: records::Builder,
 }
 
 impl Builder {
@@ -171,6 +224,7 @@ impl Builder {
         Self {
             symbols,
             reservations: ArenaBuilder::new(),
+            records: records::Builder::default(),
         }
     }
 
@@ -179,6 +233,24 @@ impl Builder {
             name,
             definition: None,
         })
+    }
+
+    /// Reserve records in canonical namespace order, independently of definition order.
+    pub fn reserve_record(&mut self, name: Symbol) -> NominalTypeId {
+        self.records.reserve(name)
+    }
+
+    /// Defines an ordinary or explicitly Copy record. Every field stores a value, not an access.
+    ///
+    /// # Errors
+    /// Rejects an unknown reservation or a second definition without changing the first one.
+    pub fn define_record(
+        &mut self,
+        id: NominalTypeId,
+        copy: bool,
+        fields: impl Into<Box<[FieldDefinition]>>,
+    ) -> Result<(), DefinitionError> {
+        self.records.define(id, copy, fields.into())
     }
 
     /// # Errors
@@ -204,7 +276,7 @@ impl Builder {
     }
 
     /// # Errors
-    /// Returns all header violations in reservation/parameter order, with no partial program.
+    /// Returns callable and record header/shape violations without publishing a partial program.
     pub fn finish(self) -> Result<Program, Vec<DeclarationViolation>> {
         let reserved = self.reservations.finish();
         let mut violations = Vec::new();
@@ -212,16 +284,36 @@ impl Builder {
         for (id, reservation) in reserved.iter() {
             validate_definition(&self.symbols, &namespace, id, reservation, &mut violations);
         }
+        let records = match self.records.validate(&self.symbols, &namespace) {
+            Ok(records) => records,
+            Err(errors) => {
+                violations.extend(errors);
+                return Err(violations);
+            }
+        };
+        for (id, reservation) in reserved.iter() {
+            if let Some(definition) = &reservation.definition {
+                for (position, parameter) in definition.parameters.iter().enumerate() {
+                    if let Some(declaration) = records.resolve(parameter.name) {
+                        violations.push(DeclarationViolation {
+                            declaration: DeclarationId::Callable(id),
+                            position: HeaderPosition::Parameter(position),
+                            rule: DeclarationRule::ParameterShadowsRecord { declaration },
+                        });
+                    }
+                }
+            }
+        }
         if !violations.is_empty() {
             return Err(violations);
         }
-        let types = TypeAuthority::new();
+        let (types, records) = records.publish();
         let mut parameters = ArenaBuilder::new();
         let callables = reserved.try_map(
             |id, reservation| -> Result<Callable, Vec<DeclarationViolation>> {
                 let definition = reservation.definition.as_ref().ok_or_else(|| {
                     vec![DeclarationViolation {
-                        callable: id,
+                        declaration: DeclarationId::Callable(id),
                         position: HeaderPosition::Name,
                         rule: DeclarationRule::MissingDefinition,
                     }]
@@ -253,6 +345,7 @@ impl Builder {
             callables,
             parameters: parameters.finish(),
             namespace,
+            records,
         })
     }
 }
@@ -280,7 +373,7 @@ fn validate_namespace(
         };
         if let Some(rule) = rule {
             violations.push(DeclarationViolation {
-                callable: id,
+                declaration: DeclarationId::Callable(id),
                 position: HeaderPosition::Name,
                 rule,
             });
@@ -298,7 +391,7 @@ fn validate_definition(
 ) {
     let Some(definition) = &reservation.definition else {
         violations.push(DeclarationViolation {
-            callable: id,
+            declaration: DeclarationId::Callable(id),
             position: HeaderPosition::Name,
             rule: DeclarationRule::MissingDefinition,
         });
@@ -324,7 +417,7 @@ fn validate_definition(
         };
         if let Some(rule) = rule {
             violations.push(DeclarationViolation {
-                callable: id,
+                declaration: DeclarationId::Callable(id),
                 position: HeaderPosition::Parameter(position),
                 rule,
             });
@@ -352,7 +445,7 @@ fn validate_data(
 ) {
     if !supported(data) {
         violations.push(DeclarationViolation {
-            callable,
+            declaration: DeclarationId::Callable(callable),
             position,
             rule: DeclarationRule::UnsupportedDataType { data },
         });
@@ -360,8 +453,13 @@ fn validate_data(
 }
 
 fn supported(data: BuiltinType) -> bool {
-    matches!(
-        data,
-        BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void | BuiltinType::Error
-    )
+    builtin_copyable(data).is_some()
+}
+
+fn builtin_copyable(data: BuiltinType) -> Option<bool> {
+    match data {
+        BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void => Some(true),
+        BuiltinType::Error => Some(false),
+        _ => None,
+    }
 }

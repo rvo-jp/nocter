@@ -295,3 +295,61 @@ Rules:
 - Payload names are not available in `else` or later `else if` branches.
 - `if is` does not apply to fallible values `T!`.
 - `if is` does not apply to optional values `T?`.
+
+## Future Direction (v2.0.0): Nominal Value Payloads
+
+This section adopts the value-binding direction; it does not change released struct syntax or
+claim that the bounded future source front end already accepts struct declarations. Input
+operations, local bindings and value construction follow [Value Access](value-access.md).
+
+A struct field contains a value of its declared data type. Read/edit access to that field is an
+operation on the containing place, not a different field data type. The declaration supplies one
+ordered field schema. Distinct fields remain distinct semantic places even when their data types
+and names in other structs are identical. Field names are unique within their struct. A field
+name does not reserve the same spelling in another struct or in the type namespace.
+
+Ordinary structs are move-only. `copy struct` explicitly permits structural Copy only when every
+field has Copy evidence and the struct has no user destructor. An ordinary empty struct and an
+ordinary struct containing only Copy fields remain move-only. An empty `copy struct` satisfies
+the field condition. Copy evidence for a nested ordinary struct cannot be inferred from its
+private fields or bypassed by an enclosing `copy struct`.
+
+```nct
+copy struct Point {
+    x: i32
+    y: i32
+}
+
+struct Failure {
+    cause: error
+}
+```
+
+`Point` has structural Copy evidence. `Failure` does not. Changing `Failure` to `copy struct`
+is invalid because `error` is move-only. Copy eligibility does not erase a payload's carried
+accesses, dependencies or cleanup obligations.
+
+Direct by-value record containment must have a finite schema. Reject self-containment, mutual
+containment and a containing record whose schema necessarily expands into such a cycle. Report
+the field whose declared type leads into the non-finite schema. A separately specified owner or
+container capability can terminate direct containment; mentioning an element type behind that
+capability does not itself imply direct containment. This rule does not forbid recursive data
+structures through those independently checked contracts or prescribe physical storage placement.
+
+```nct
+struct Invalid {
+    next: Invalid // Invalid: direct by-value containment has no finite payload schema.
+}
+```
+
+For the bounded proof case consisting only of records and `bool`, `i32`, `void` and `error`
+leaves, with no user destructors, external payload dependencies are empty by the exact leaf
+contracts and component composition. This is not a general inference from receiving a value,
+nominal identity, move-only status or Copy evidence. Adding views, capabilities, callables,
+generic arguments, outcomes or user destructors requires their own payload contracts before
+those shapes can be admitted.
+
+Field schemas retain declaration order and nested types rather than flattening a record into a
+scalar or a list of destruction effects. Partial initialization, selected-place conflicts,
+replacement and surviving-field cleanup must be checked under
+[Value Access](value-access.md#return-replacement-and-cleanup) before record operations are accepted.
