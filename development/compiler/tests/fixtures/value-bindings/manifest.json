@@ -1494,6 +1494,32 @@
       "expectation": "check-reject",
       "reason": "An overwritten named value cannot anchor the recursive producer of the replacement.",
       "diagnostic": "E0370"
+    },
+    {
+      "id": "a120-copy-input-before-update",
+      "file": "a120-copy-input-before-update.nct",
+      "expectation": "accept",
+      "reason": "A taking Copy input snapshots before a later argument updates its original place."
+    },
+    {
+      "id": "a121-result-snapshot-before-drop",
+      "file": "a121-result-snapshot-before-drop.nct",
+      "expectation": "accept",
+      "reason": "Pending consuming result supply closes before initialization and snapshots before later destruction."
+    },
+    {
+      "id": "r99-result-snapshot-after-drop",
+      "file": "r99-result-snapshot-after-drop.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "Resolving a result to Copy cannot read its already destroyed source at argument preparation."
+    },
+    {
+      "id": "r100-copy-input-after-drop",
+      "file": "r100-copy-input-after-drop.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "A direct taking Copy input requires initialized storage at its preparation."
     }
   ],
   "parse_goal": "V2CoreUnit"

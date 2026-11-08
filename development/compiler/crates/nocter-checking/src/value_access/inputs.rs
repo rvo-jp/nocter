@@ -70,16 +70,21 @@ impl Checker<'_, '_> {
                         }
                         ArgumentAction::ReserveUpdate(place)
                     }
-                    Mode::Own
-                        if self.copyable(actual.data())
-                            || super::results::is_result(self.program(), actual.data()) =>
-                    {
-                        ArgumentAction::CopyPayload
+                    Mode::Own => {
+                        use super::supply::PlaceSupply;
+                        match super::supply::select(
+                            self.program(),
+                            actual.data(),
+                            self.place_ty(place).mode(),
+                        )? {
+                            PlaceSupply::Pending => ArgumentAction::PendingValue(place),
+                            PlaceSupply::Copy => ArgumentAction::CopyPlace(place),
+                            PlaceSupply::Transfer => ArgumentAction::ReserveTransfer(place),
+                            PlaceSupply::MissingOwner => {
+                                return self.reject(Rule::MissingTransfer, syntax);
+                            }
+                        }
                     }
-                    Mode::Own if self.place_ty(place).mode() == Mode::Own => {
-                        ArgumentAction::ReserveTransfer(place)
-                    }
-                    Mode::Own => return self.reject(Rule::MissingTransfer, syntax),
                 }
             } else {
                 if actual.mode() != Mode::Own {

@@ -181,32 +181,27 @@ impl Query {
     }
 }
 
-/// Control and initialization are prepared once, before result identities are closed. Ownership
-/// consumes the same graph after identity-only projection; this product has no public constructor.
+/// Control is prepared once, independently of unresolved value supply. Initialization and ownership
+/// consume this graph only after result identities and supply close; no public constructor exists.
 pub(super) struct Control {
     pub(super) typed: Arc<TypedQuery>,
     pub(super) graph: Graph,
-    pub(super) initialization: Initialization,
 }
 impl Control {
     pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
         let graph = build::build(typed.body())?;
-        let initialization = initialization::analyze(&typed, &graph)?;
-        Ok(Self {
-            typed,
-            graph,
-            initialization,
-        })
+        Ok(Self { typed, graph })
     }
     pub(super) fn finish(self) -> Result<Query, IntegrityError> {
         if !self.typed.results_closed() {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }
-        let access = access::analyze(&self.typed, &self.graph, &self.initialization)?;
+        let initialization = initialization::analyze(&self.typed, &self.graph)?;
+        let access = access::analyze(&self.typed, &self.graph, &initialization)?;
         Ok(Query {
             typed: self.typed,
             graph: self.graph,
-            initialization: self.initialization,
+            initialization,
             access,
         })
     }

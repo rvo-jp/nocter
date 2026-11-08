@@ -356,6 +356,7 @@ impl Context<'_, '_> {
                         }
                         Ok(Value::without_referent(ty.mode()))
                     }
+                    BoundaryAction::PendingValue => Err(Failure::Integrity),
                     BoundaryAction::TakeValue => {
                         let value = self.world.value(source)?;
                         if value.mode != Mode::Own {
@@ -419,8 +420,11 @@ impl Context<'_, '_> {
                     Prepared::Value(Value::without_referent(mode))
                 }
             }
-            ArgumentAction::CopyPayload => {
-                self.read(self.world.value(argument.value)?)?;
+            ArgumentAction::CopyPlace(place) => {
+                if let Some((region, actor)) = self.base(place)? {
+                    self.world
+                        .check(&region, actor, Mode::Read, self.at, self.live)?;
+                }
                 Prepared::Value(Value::without_referent(Mode::Own))
             }
             ArgumentAction::ReadOwnedValue => Prepared::Reserved {
@@ -430,7 +434,9 @@ impl Context<'_, '_> {
                 at: self.at,
             },
             ArgumentAction::TakeValue => Prepared::Value(self.world.value(argument.value)?),
-            ArgumentAction::Interrupted => return Err(Failure::Integrity),
+            ArgumentAction::PendingValue(_) | ArgumentAction::Interrupted => {
+                return Err(Failure::Integrity);
+            }
         };
         if self
             .world

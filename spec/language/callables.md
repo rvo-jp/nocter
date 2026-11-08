@@ -595,8 +595,8 @@ that obligation and retain its carried dependencies.
 A structural callable result delivers an owning environment value satisfying its invocation and
 explicit input/result contract. The compiler retains the returned code witness; the signature
 does not select runtime erasure. A result contract alone does not grant Copy. The exact
-established producer schema may separately prove Copy; no conditional Copy operation can enter
-complete flow/resource acceptance before that proof. Receiving and forwarding the value follows
+established producer schema may separately prove Copy. Value supply must establish Copy or an
+eligible owning source; the result signature cannot substitute for that evidence. Receiving and forwarding the value follows
 ordinary value supply, and reading an owning result keeps it alive for the selected operation.
 
 The bounded private fragment first admits results whose reachable return producers establish one

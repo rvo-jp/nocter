@@ -1,0 +1,4 @@
+func consume(take value: i32): void {}
+func invalid(): void { let value = 1
+drop value
+consume(value) }

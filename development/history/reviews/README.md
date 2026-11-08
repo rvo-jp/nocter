@@ -40,6 +40,8 @@ they do not make reviews normative or register compiler support.
 
 - [Callable Result Witnesses](v2.0.0-callable-result-witnesses.md) — reachable named producers, anchored recursive results, identity/Copy closure and dependency-safe source reuse
 
+- [Deferred Value Supply](v2.0.0-deferred-value-supply.md) — result supply before initialization and one direct-place snapshot at argument preparation
+
 #### Research and Adoption Audits
 
 - [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance

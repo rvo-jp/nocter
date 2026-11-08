@@ -117,7 +117,7 @@ fn taking_copy_input_does_not_reserve_a_transfer_of_the_original() {
             }
         })
         .collect();
-    assert_eq!(actions, [ArgumentAction::CopyPayload]);
+    assert!(matches!(actions.as_slice(), [ArgumentAction::CopyPlace(_)]));
 }
 #[test]
 fn body_use_never_strengthens_a_read_input_or_fixed_local() {

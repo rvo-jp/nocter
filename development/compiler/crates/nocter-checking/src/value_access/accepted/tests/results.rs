@@ -1,4 +1,4 @@
-//! Source-backed result closure, staging, conditional Copy and dependency-safe reuse.
+//! Source-backed result closure, staging, proved Copy and dependency-safe reuse.
 use super::support::{source_case, steps};
 use super::*;
 use crate::value_access::{BoundaryAction, ExpressionKind, Query as TypedQuery};

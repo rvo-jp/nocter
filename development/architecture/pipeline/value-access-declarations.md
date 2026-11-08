@@ -16,9 +16,10 @@ V2CoreUnit syntax + exact source
   -> reusable typed-body query
        same declaration authority + selected typed operations + body/source recipe
   -> exact-current typed-body projection
-  -> source-neutral control/evaluation graph + projected initialization facts
-  -> reachable callable-result producers + recursive closure + identity/Copy proof
-       same graph/initialization; closed existing TypeIds, no second type authority
+  -> source-neutral control/evaluation graph
+  -> reachable callable-result producers + recursive closure + identity/value-supply closure
+       same graph; closed existing TypeIds, no second type authority
+  -> projected initialization facts over the frozen supply operations
   -> permission-demand liveness + alternative referent/access worlds
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated)
@@ -68,8 +69,10 @@ source-surface cache entry but must preserve canonical semantic identities when 
 Every callable result delivers a value of its declared data type. Parameters separately state
 Read/Edit/Take, and locals separately state value mutability or scoped aliasing. Type annotations
 cannot change those operations. Source/body/definition order cannot infer a new input operation.
-Copy-or-move is selected once for value supply; existing Copy taking inputs snapshot rather than
-transfer the original. Exact payload contracts remain checking evidence, not a generic D/S promise.
+Copy-or-move is selected once for value supply. A result whose payload evidence is unresolved
+retains a pending operation until witness closure, before initialization. Existing Copy taking
+inputs snapshot rather than transfer the original. Exact payload contracts remain checking
+evidence, not a generic D/S promise.
 
 Declaration acceptance proves only header integrity. A syntax-valid body with an invalid non-Copy extraction,
 invalid update, unavailable local, or unsafe backedge may rebind that same declaration program and
@@ -95,14 +98,18 @@ Checking owns one leaf query per callable. The declaration context shares the ex
 program authority; the query owns that authority and callable together with source-neutral body
 arenas. Place reads, update/transfer operations, boundary Copy/delegation, argument preparations,
 RHS-first stores, checked primitive arithmetic and structured control retain separate operations.
-Direct and value calls store one statically selected callable and one operation/preparation action
-per ordered input. A value call prepends its environment to explicit inputs; direct declaration
+Direct and value calls store one statically selected callable and one input operation per ordered
+input. Value-supply preparation can remain pending until result closure, without changing that
+authored operation. A value call prepends its environment to explicit inputs; direct declaration
 calls have no runtime environment input. Downstream validation consumes frozen operations rather
 than reinterpreting indices against declaration parameters. A direct
 place reservation is not an early read/update/transfer; explicit computed operations execute at
-their own operand point. Later validation must consume those plans, not repeat dispatch or infer
-intent from source punctuation. Structural record values retain the declaration-selected field
-and one ordinary value operation for each initializer in authored order. Their component values
+their own operand point. A direct Copy input snapshots its selected place at preparation,
+without a child read or retained source access. Copy/transfer/pending direct supply share one
+graph topology; closure cannot reorder nested evaluation or cancellation. Later validation must
+consume those plans, not repeat dispatch or infer intent from source punctuation. Structural
+record values retain the declaration-selected field and one ordinary value operation for each
+initializer in authored order. Their component values
 remain owned evaluation temporaries until a single assembly step transfers them into the complete
 record. An interrupted initializer follows existing evaluation-frame cleanup; it cannot publish
 a partially assembled record or introduce a constructor-only resource authority.
@@ -158,14 +165,14 @@ program can influence this computation. Binding goes through the query's own typ
 changed authority/body is rejected before diagnostics can use stale coordinates.
 
 Before access/resource validation, checking propagates static code/view producer facts through
-this same graph and initialization reachability. Actual staged return values, rather than a
-conditional's provisional type, establish result equations. Finite monotone closure requires a
-named anchor, preserves invocation views and proves deferred identity equalities. A symbolic
-result's conditional Copy operation must be justified by the exact established payload schema.
-Projection changes only existing type/witness identities; it does not repeat typing, graph
-construction or initialization, and cannot change a source move into Copy. Supporting move-only
-results later requires resolving Copy-versus-move before initialization. Producer facts do not
-prove owner availability and cannot replace resource validation.
+this same graph's reachable successors, without depending on initialization. Actual staged
+return values, rather than a conditional's provisional type, establish result equations. Finite
+monotone closure requires a named anchor, preserves invocation views and proves deferred identity
+equalities. Projection closes existing type/witness identities and freezes pending value supply
+from the exact payload schema and source access. It does not repeat typing or graph construction;
+known moves remain moves. Initialization then runs once over the frozen operations, followed by
+access/resource validation. Producer facts do not prove owner availability and cannot replace
+resource validation.
 
 The initialization report distinguishes unreachable points, selected-value completeness and
 container presence. Sparse abstract states join projected availability and preserve reaching

@@ -510,6 +510,8 @@ impl Builder<'_> {
                 ArgumentAction::ReserveRead(_)
                     | ArgumentAction::ReserveUpdate(_)
                     | ArgumentAction::ReserveTransfer(_)
+                    | ArgumentAction::CopyPlace(_)
+                    | ArgumentAction::PendingValue(_)
             ) {
                 Some(point)
             } else {

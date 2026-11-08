@@ -307,13 +307,14 @@ fn transfer(
                 {
                     ArgumentAction::ReserveRead(place)
                     | ArgumentAction::ReserveUpdate(place)
-                    | ArgumentAction::ReserveTransfer(place) => {
+                    | ArgumentAction::ReserveTransfer(place)
+                    | ArgumentAction::CopyPlace(place) => {
                         require_place(typed, state, place, location, violations)?;
                     }
-                    ArgumentAction::ReadOwnedValue
-                    | ArgumentAction::CopyPayload
-                    | ArgumentAction::TakeValue => {}
-                    ArgumentAction::Interrupted => return Err(INVALID),
+                    ArgumentAction::ReadOwnedValue | ArgumentAction::TakeValue => {}
+                    ArgumentAction::PendingValue(_) | ArgumentAction::Interrupted => {
+                        return Err(INVALID);
+                    }
                 }
             }
             Operation::CommitCall(call) => {
@@ -402,6 +403,13 @@ fn evaluate(
             require_place(typed, state, *place, location, violations)?;
             remove_place(typed, state, *place, location)?;
         }
+        // Pending supply has no availability semantics. Calls/control use their own graph events.
+        ExpressionKind::Boundary {
+            action: crate::value_access::BoundaryAction::PendingValue,
+            ..
+        }
+        | ExpressionKind::Call { .. }
+        | ExpressionKind::If { .. } => return Err(INVALID),
         ExpressionKind::Boundary { source, .. } => {
             if let ExpressionKind::Place(place) =
                 typed.body().expressions().get(*source).ok_or(INVALID)?.kind
@@ -418,8 +426,6 @@ fn evaluate(
         | ExpressionKind::Unit
         | ExpressionKind::Unary { .. }
         | ExpressionKind::Binary { .. } => {}
-        // Structured control and calls have their own ordered graph operations.
-        ExpressionKind::Call { .. } | ExpressionKind::If { .. } => return Err(INVALID),
     }
     Ok(())
 }

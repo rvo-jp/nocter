@@ -403,6 +403,6 @@ fn returned_once_views_copy_only_after_the_source_result_proof() {
     assert_eq!(consuming.len(), 2);
     for argument in consuming {
         assert_eq!(argument.operation, ValueInputOperation::Take);
-        assert_eq!(argument.action, ArgumentAction::CopyPayload);
+        assert!(matches!(argument.action, ArgumentAction::CopyPlace(_)));
     }
 }

@@ -5,6 +5,7 @@ mod annotations;
 mod calls;
 mod checker;
 mod construction;
+mod diagnostics;
 mod expressions;
 pub mod flow;
 mod inputs;
@@ -12,6 +13,7 @@ mod ir;
 mod results;
 mod selection;
 mod statements;
+mod supply;
 #[cfg(test)]
 mod tests;
 

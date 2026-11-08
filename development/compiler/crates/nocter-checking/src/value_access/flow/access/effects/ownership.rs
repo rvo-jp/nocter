@@ -295,8 +295,7 @@ impl Context<'_, '_> {
         let argument = arguments.get(index).ok_or(Failure::Integrity)?;
         let holder = Holder::Prepared { call, index };
         match argument.action {
-            ArgumentAction::CopyPayload => {
-                self.dispose_expression(argument.value)?;
+            ArgumentAction::CopyPlace(_) => {
                 let payload = resources::expression_payload(self.typed, argument.value)?;
                 self.world
                     .resources
@@ -313,7 +312,9 @@ impl Context<'_, '_> {
             | ArgumentAction::ReserveUpdate(_)
             | ArgumentAction::ReserveTransfer(_)
             | ArgumentAction::ReadOwnedValue => {}
-            ArgumentAction::Interrupted => return Err(Failure::Integrity),
+            ArgumentAction::PendingValue(_) | ArgumentAction::Interrupted => {
+                return Err(Failure::Integrity);
+            }
         }
         Ok(())
     }

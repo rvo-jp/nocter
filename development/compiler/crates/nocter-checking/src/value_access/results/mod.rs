@@ -107,8 +107,11 @@ pub(super) fn close(
         if control.typed.results_closed() {
             continue;
         }
-        projection::project(Arc::make_mut(&mut control.typed), &evidence)
+        let query = Arc::make_mut(&mut control.typed);
+        projection::project(context, query, &evidence)
             .map_err(|failure| accepted::Failure::Body { callable, failure })?;
+        query.results_closed = true;
+        query.result_evidence = Some(evidence.clone());
     }
     Ok(evidence)
 }
@@ -119,28 +122,14 @@ fn reject(
     origin: Option<AccessExpressionId>,
     message: &str,
 ) -> accepted::Failure {
-    let failure = (|| {
-        let current = query.bind(context)?;
-        let origin = match origin {
-            Some(id) => current.expression_origin(id),
-            None => current.block_origin(query.body.root()),
-        }
-        .ok_or(Failure::InconsistentSyntax)?;
-        let source = super::source_origin(current.syntax(), origin)?;
-        Ok::<_, Failure>(Failure::Rejected(Box::new(super::BodyDiagnostic {
-            rule: super::Rule::TypeMismatch,
-            source: nocter_diagnostics::SourceDiagnostic::new(
-                nocter_diagnostics::DiagnosticCode::E0370,
-                message,
-                source,
-                Vec::new(),
-                None::<&str>,
-            ),
-        })))
-    })()
-    .unwrap_or_else(|failure| failure);
     accepted::Failure::Body {
         callable: query.callable,
-        failure,
+        failure: super::diagnostics::query_rejection(
+            context,
+            query,
+            origin,
+            super::Rule::TypeMismatch,
+            message,
+        ),
     }
 }

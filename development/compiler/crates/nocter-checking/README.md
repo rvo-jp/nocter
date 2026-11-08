@@ -229,9 +229,10 @@ move-only extraction; alias creation never manufactures an owner. Direct call se
 before access checking and has no permission-driven alternative target.
 
 `calls` resolves function references and freezes declaration or formal-input dispatch through
-local values, aliases and computed callees. `inputs` alone freezes ordinary preparation actions
-and optional formal-to-actual witness bindings. Forwarding records the source formal identity;
-recursive forwarding keeps a finite semantic edge instead of expanding witness expressions.
+local values, aliases and computed callees. `inputs` freezes input operations and optional
+formal-to-actual witness bindings. `supply` alone selects Copy, transfer or a pending result-supply
+obligation for a place; both ordinary value boundaries and call preparation use that decision.
+Forwarding records the source formal identity; recursive forwarding keeps a finite semantic edge instead of expanding witness expressions.
 Binding a callback checks its complete flat contract and retains the selected actual view/data;
 it never coerces the actual environment into the receiving formal's type identity. A terminating
 unknown-shaped input carries neither an environment nor a witness binding. `annotations` projects local structural
@@ -248,9 +249,10 @@ consumer infers the environment's presence from argument count. Every frozen arg
 never reopen the callable parameter list or infer an environment offset. Direct and value calls
 share argument preparation, atomic commit, interruption and cleanup.
 
-Typed bodies record selected Copy/materialization, implicit moves, scoped delegation, call input
-preparation, RHS-first replacement and structured control. `construction` freezes record
-components in authored order and applies the ordinary value boundary. Its `FieldValue` plans
+Typed bodies record known Copy/materialization, implicit moves, scoped delegation, call input
+preparation, RHS-first replacement and structured control. Unresolved result supply stays pending
+until its exact witness closes; it does not acquire a provisional Copy operation. `construction`
+freezes record components in authored order and applies the ordinary value boundary. Its `FieldValue` plans
 contain resolved identities and no source names. Empty, nested and reordered structural values
 have no constructor-specific access operation. Ordinary block/conditional results construct values;
 no old read/update result or standalone-prefix IR path remains.
@@ -281,12 +283,12 @@ products.
 
 `results::typing` checks result constraints while retaining the actual environment identity.
 Compatible joins/replacements involving symbolic results retain exact identity equalities; equal
-signatures never erase distinct code identities. Typing may record conditional Copy for a result
-family, but the query remains pending and public flow admission rejects it. Structural contracts
-alone still grant neither Copy nor trivial cleanup to formal inputs or unresolved results.
+signatures never erase distinct code identities. A result-family value supply records a pending
+obligation, and public flow admission rejects the query until closure. Structural contracts alone
+still grant neither Copy nor trivial cleanup to formal inputs or unresolved results.
 
-The private `flow::Control` prepares the selected graph and initialization once. Over that same
-graph, `results::producers` propagates code/view facts through actual reachable evaluations,
+The private `flow::Control` prepares only the selected graph. Over its reachable successors,
+`results::producers` propagates code/view facts through actual reachable evaluations,
 local bindings, strong replacement, conditional forwarding and staged returns. Provisional data
 types cannot anchor a recursive result. These are static producer facts, not a second owner or
 availability ledger. Moves and drops remain subject to initialization/access/resource validation.
@@ -294,16 +296,20 @@ availability ledger. Moves and drops remain subject to initialization/access/res
 `results::solve` closes finite producer sets across functions, requiring one established named
 witness per result family, then proves deferred identity equalities. Unanchored recursion,
 distinct returned witnesses and input-dependent producers reject this bounded admission.
-`results::projection` replaces only symbolic identities in the existing body arenas with already
-interned named keys. It also discharges every conditional Copy against that exact payload schema.
-No preparation action, control identity, type authority or initialization result is rebuilt.
-Only then does Control finish access and resource validation. A future move-only result cannot
-reuse this conditional-Copy path without resolving supply before initialization.
+`results::projection` replaces symbolic identities in the existing body arenas with already
+interned named keys. During that same traversal, `supply` freezes pending operations against the
+resolved data and source access. Known generic formal transfers remain transfers; later concrete
+payload Copy cannot reinterpret them. Only then does Control compute initialization and
+access/resource validation, once each. Control IDs and the type authority do not change, and no
+graph is rebuilt. Input-dependent/move-only result relations remain separate source work; the
+ordering no longer assumes that every successful result must be Copy.
 
 All closed queries share one result-evidence object with producer-body byte dependencies.
 Standalone query rebinding checks those dependencies; complete Unit projection verifies them once
 and lends an opaque proof to its body projections. A sibling factory edit therefore cannot reuse
-a stale closed result, even when the caller's own body and header are unchanged.
+a stale closed result, even when the caller's own body and header are unchanged. Reusable-query
+rejection projection lives in `diagnostics`, shared by result closure and pending supply; it binds
+the owning query to current source without influencing semantic selection.
 
 ## Shared Flow, Access and Resource Validation
 
@@ -311,8 +317,12 @@ One selected-operation graph supplies initialization, backward permission demand
 access/resource states. It preserves scalar snapshots, short-circuit/conditional edges, loop
 successors, scope exits, staged value results, evaluation frames and interrupted call prefixes.
 Read/edit direct operands reserve without early activation; non-Copy take reserves transfer,
-whereas Copy take constructs a prepared snapshot. Commit checks the full bundle before any source
-is transferred; no sequential activation makes conflicting arguments valid. Earlier nested moves
+whereas Copy take constructs a prepared snapshot. Direct inputs skip child place evaluation;
+`CopyPlace` reads its selected place and constructs exactly one snapshot at preparation. Its
+initialization and read-demand obligations occur there, without retaining a read access through
+later arguments or commit. Pending supply uses that same graph shape and cannot enter
+initialization. Commit checks the full bundle before any source is transferred; no sequential
+activation makes conflicting arguments valid. Earlier nested moves
 are not rolled back. A read of a fresh non-Copy result retains its evaluation temporary until the
 owning frame ends. Return survival is proved by the resource ledger alone; no parallel staged
 referent state, old result-referent alternatives or callable-result permission survives.

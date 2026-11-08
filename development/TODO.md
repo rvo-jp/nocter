@@ -20,23 +20,34 @@ Do not stop for approval of ordinary design alternatives or work order; publicat
 The bounded front end includes closed records, named/computed fields, local named function values,
 [statically witnessed callable inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
 [named callable results](history/reviews/v2.0.0-callable-result-witnesses.md). The source corpus has
-231 cases: 119 accepted units, 98 checking rejections, 8 header rejections and 6 syntax rejections.
+235 cases: 121 accepted units, 100 checking rejections, 8 header rejections and 6 syntax rejections.
 Formal contracts are checked independently of caller/body use and retain symbolic cleanup without
 Copy or empty D/S. Callable results now close from actual reachable values to one named witness,
 including forwarding, anchored recursion and joins/replacement. The same checked body/control/type
 authorities feed the target owner's [private InstanceProgram](history/reviews/v2.0.0-private-instance-closure.md).
 No CLI mode, native output or performance claim follows.
 
+[Deferred value supply](history/reviews/v2.0.0-deferred-value-supply.md) now closes Copy-versus-move
+before initialization. One place-supply selector serves ordinary values and call inputs; unresolved
+results remain pending. Producer closure follows the existing control graph without an
+initialization prerequisite. Direct Copy inputs snapshot once at preparation, with no child read
+or retained access. The graph and header TypeAuthority are shared unchanged.
+
 Next extend callable results to preserve input-dependent witness relations. A single result family
 per function cannot distinguish `forward(first)` from `forward(second)`; merely accepting formal
 producers would conflate their identities. Establish canonical call-application witness identities
 and substitution in the same semantic/type authority, with finite recursive equations rather than
-expanding source names or a second call graph. Resolve Copy-versus-move before initialization for
-potentially move-only environments: the named-result conditional-Copy proof is not a generic
-fallback. Retain authored input operations and exact view/dependency/cleanup evidence independently
-of a known caller. Add production cases for different input witnesses, forwarding and return joins,
+expanding source names or a second call graph. Use the existing pending-supply closure before
+initialization for potentially move-only environments; do not restore conditional Copy or
+retroactively change a generic formal transfer from a known caller. Retain authored input
+operations and exact view/dependency/cleanup evidence independently of a known caller. Add production cases for different input witnesses, forwarding and return joins,
 recursive relations, interruption and environment cleanup; target closure must consume selected
 relations without retyping or searching signatures.
+
+If application types require body-local construction, extend and canonically freeze the
+checking-owned type product rather than making the header cache depend on body syntax. Its
+immutable header prefix and body extensions must have one final authority and complete ID
+projection; consumers cannot choose between a header store and a body store as lookup fallbacks.
 
 Then close physical environment/argument realization and executable cleanup before MIR/native
 admission. Captured producers remain separate until R/D/S, retained-state/write footprints and

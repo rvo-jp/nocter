@@ -83,6 +83,8 @@ pub enum BoundaryAction {
     ReadPlace,
     DelegateUpdate,
     CopyPayload,
+    /// Intermediate value supply; result identity must close before Copy or move is selected.
+    PendingValue,
     TakeValue,
 }
 
@@ -101,7 +103,10 @@ pub enum ArgumentAction {
     ReserveTransfer(AccessPlaceId),
     /// Read a fresh owned temporary without Copy; its caller retains cleanup responsibility.
     ReadOwnedValue,
-    CopyPayload,
+    /// Snapshot a selected place at this input preparation, without a retained access.
+    CopyPlace(AccessPlaceId),
+    /// Intermediate direct supply; cannot enter initialization or accepted products.
+    PendingValue(AccessPlaceId),
     TakeValue,
     Interrupted,
 }

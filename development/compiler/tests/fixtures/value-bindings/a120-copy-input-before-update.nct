@@ -1,0 +1,5 @@
+func add(take first: i32, second: i32): i32 { first + second }
+func reset(edit value: i32): i32 { value = 20
+value }
+func run(): i32 { var value = 10
+add(value, reset(value)) }

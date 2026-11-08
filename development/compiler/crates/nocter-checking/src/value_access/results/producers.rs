@@ -101,9 +101,6 @@ pub(super) fn returns(
             }
         }
         for next in block.terminator.successors() {
-            if !control.initialization.reachable(next) {
-                continue;
-            }
             let changed = if let Some(entry) = entries.get_mut(&next) {
                 join(entry, &state)
             } else {

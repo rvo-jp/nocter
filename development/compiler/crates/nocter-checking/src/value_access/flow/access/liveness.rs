@@ -100,7 +100,8 @@ fn prepared_use(
     let carrier = match arg.action {
         ArgumentAction::ReserveRead(place)
         | ArgumentAction::ReserveUpdate(place)
-        | ArgumentAction::ReserveTransfer(place) => Carrier::Local(root(typed, place)?),
+        | ArgumentAction::ReserveTransfer(place)
+        | ArgumentAction::CopyPlace(place) => Carrier::Local(root(typed, place)?),
         _ => Carrier::Expression(arg.value),
     };
     Ok((carrier, argument_updates(arg.action)))

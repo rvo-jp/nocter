@@ -6,17 +6,18 @@ and [input/value rules](../../../../../spec/language/value-access.md). Each file
 private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
-`manifest.json` as the sole per-source expectation catalog. All 231 inputs have compiler assertions:
-6 syntax rejections, 8 header rejections, 98 checking rejections and 119 whole-unit acceptances.
-Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 217
+`manifest.json` as the sole per-source expectation catalog. All 235 inputs have compiler assertions:
+6 syntax rejections, 8 header rejections, 100 checking rejections and 121 whole-unit acceptances.
+Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 221
 header-valid units without claiming body acceptance and reject the eight invalid headers.
-The 225 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
+The 229 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
 also check token/source projection. Neither shape equality nor manifest registration proves
 memory safety; the closed checker owns the semantic verdicts.
 
 The compiler tests retain their assertions. The manifest identifies the source and distinguishing
 requirement; the owning specification remains normative. No second parser/checker or source-text
 semantic oracle belongs in corpus tooling. The
+[deferred supply review](../../../../history/reviews/v2.0.0-deferred-value-supply.md),
 [callable result review](../../../../history/reviews/v2.0.0-callable-result-witnesses.md),
 [private instance review](../../../../history/reviews/v2.0.0-private-instance-closure.md),
 [callable input review](../../../../history/reviews/v2.0.0-callable-input-witnesses.md),
@@ -53,7 +54,8 @@ Callable-result cases add named producers, forwarded factories, explicit/final r
 recursive equations, local/conditional joins and replacement, invocation adapters, proved Copy,
 callback input supply, staged cleanup and interrupted calls. Rejections include incompatible
 contracts/identities, missing producers, input-dependent returns, invalid updates and retained
-aliases. Dead branches and overwritten values cannot anchor recursive results.
+aliases. Dead branches and overwritten values cannot anchor recursive results. Direct Copy preparation
+also covers a later input updating/destroying its original and rejection after source destruction.
 These passes do not implement indexing, dependent aggregates, input-dependent callback results,
 captured environments, erased callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch or released-program
 adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
