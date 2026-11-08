@@ -3,6 +3,8 @@
 use std::{path::PathBuf, sync::OnceLock};
 
 mod public_examples;
+mod value_source;
+pub use value_source::ValueSourceFixture;
 
 pub use public_examples::{
     PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleEnvironment, PublicExampleFixture,

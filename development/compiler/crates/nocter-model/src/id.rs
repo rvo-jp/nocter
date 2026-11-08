@@ -45,6 +45,7 @@ semantic_ids! {
     StaticId,
     CallableId,
     AccessCallableId,
+    AccessInstanceId,
     AccessFieldId,
     AccessParameterId,
     AccessLocalId,

@@ -243,7 +243,8 @@ merely because their signatures match.
 
 A value call prepares its environment as input zero, before explicit inputs. Its invocation view
 selects Read/Edit/Take independently of data ownership. Direct declaration calls need no runtime
-environment preparation. Every frozen argument plan carries its input operation; later passes
+environment preparation. Each call records direct versus value invocation explicitly, so no
+consumer infers the environment's presence from argument count. Every frozen argument plan carries its input operation; later passes
 never reopen the callable parameter list or infer an environment offset. Direct and value calls
 share argument preparation, atomic commit, interruption and cleanup.
 
@@ -385,6 +386,9 @@ The whole-unit constructor validates every definition, including unused/recursiv
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
 same frozen declaration program and all body/flow reports. Binding validates every original body
 before exposing current projections. An equal but separately rebuilt program or changed sibling
-cannot substitute for that authority. There is no public parts constructor, compatibility
-adapter, source-version CLI, native consumer or general D/S solver. Qualification and remaining
+cannot substitute for that authority. The sole body catalog exposes exact semantic-ID lookup for
+the target owner's private instance consumer. That consumer receives only the complete Unit,
+never typed-only evidence. The schema-to-payload projection exposes a cleanup obligation without
+constructing an initialized owner. There is no public parts constructor, compatibility adapter,
+source-version CLI, native consumer or general D/S solver. Qualification and remaining
 work belong in the linked review/plan, not a duplicate crate-internal status table.

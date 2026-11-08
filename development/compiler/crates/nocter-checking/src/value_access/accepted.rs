@@ -74,6 +74,11 @@ impl Unit {
     pub fn program(&self) -> &Program {
         &self.program
     }
+    /// The exact checked body in this accepted unit's sole body catalog.
+    #[must_use]
+    pub fn body(&self, callable: AccessCallableId) -> Option<&flow::Query> {
+        self.bodies.get(&callable)
+    }
     #[must_use]
     pub fn bodies(&self) -> impl ExactSizeIterator<Item = (AccessCallableId, &flow::Query)> {
         self.bodies.iter().map(|(&id, query)| (id, query))

@@ -12,7 +12,9 @@ fn calls(query: &flow::Query) -> Vec<(Origin, &[Argument])> {
         .expressions()
         .iter()
         .filter_map(|(_, expression)| match &expression.kind {
-            ExpressionKind::Call { target, arguments } => Some((*target, arguments.as_ref())),
+            ExpressionKind::Call {
+                target, arguments, ..
+            } => Some((*target, arguments.as_ref())),
             _ => None,
         })
         .collect()

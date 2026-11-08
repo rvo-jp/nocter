@@ -23,3 +23,7 @@ production validation on behalf of tests.
 - Physical standard-package tests do not copy the active release number or repository traversal.
 - Test-only convenience cannot manufacture an accepted production product that normal APIs reject.
 - The crate remains a development dependency.
+
+`ValueSourceFixture` owns exact source and production private-goal syntax for value-binding tests.
+It can load the shared physical corpus through the repository-root authority. It creates no
+accepted declaration/body/unit product; integration tests must use the normal production APIs.

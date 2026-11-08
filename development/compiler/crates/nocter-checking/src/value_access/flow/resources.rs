@@ -208,7 +208,11 @@ impl Report {
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 type Result<T> = std::result::Result<T, IntegrityError>;
-pub(super) fn payload(program: &Program, data: TypeId) -> Result<Payload> {
+/// Project the declaration-owned schema into its logical cleanup obligation.
+/// This grants no initialized owner, acceptance, layout or native execution evidence.
+/// # Errors
+/// Rejects a type outside the supplied private program's supported payload domain.
+pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
     let disposal = match program.data_schema(data).ok_or(INVALID)? {
         PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void) => {
             Disposal::Trivial

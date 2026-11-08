@@ -62,7 +62,9 @@ enter the released checked, target, or native products. There is no CLI source-v
 a shared source-neutral flow graph supplies projected initialization and alternative-world
 referent/permission reports with permission-demand liveness and logical ownership/cleanup
 transitions. A closed private-unit constructor checks all definitions and the exact admitted
-payload contracts before publishing front-end acceptance. General carried dependencies,
+payload contracts before publishing front-end acceptance. The target owner then closes an explicit
+root into a private instance program by substituting checked witness edges and data obligations;
+this is separate from released target admission and has no native consumer. General carried dependencies,
 target realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 

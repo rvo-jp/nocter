@@ -26,15 +26,22 @@ semantic identities. Owning formals preserve symbolic cleanup without acquiring 
 The producer domain remains named code/formal forwarding, with no captured environment producer.
 No CLI mode, native output or performance claim follows.
 
-Next close callable results and executable witness specialization together: represent a result
-witness as a checked relation over named/formal producers, preserve return/break/conditional joins,
-reject heterogeneous/ambiguous or unsupported recursive witness equations, and instantiate already
-selected targets by substitution rather than retyping bodies or searching contracts. Preserve each
-formal's authored operation and source-level capabilities even for a currently Copy named caller.
-Add source-to-unit proof for returned forwarding, recursive closure/termination, distinct witness
-rejection, interruption and cleanup. The current argument binding recipes are not a concrete
-specialization graph or a native certificate. Then admit captured environments only after R/D/S,
-retained-state/write footprints and environment destruction are closed under that same authority.
+The target owner now closes an explicit root into a
+[private InstanceProgram](history/reviews/v2.0.0-private-instance-closure.md). Selected witness
+bindings produce finite concrete instances and call edges; source data maps to concrete cleanup
+obligations in the same TypeAuthority. Source moves/reservations remain unchanged. Root callback
+formals must already be bound; there is no public CLI, ABI/layout or native admission.
+
+Next close callable results into this same instance authority. Represent checked result-witness
+relations over named/formal producers, preserve explicit return and conditional/block joins,
+reject heterogeneous/ambiguous or unsupported recursive result equations, and substitute already
+selected targets rather than retyping bodies or searching contracts. Retain each formal's authored
+operation and source-level capabilities even for a currently Copy named caller. Add source-to-unit
+and instance tests for returned forwarding, recursive closure/termination, identity separation,
+interruption and cleanup. Do not create another graph or infer environment presence from arity;
+typing now records direct/value invocation explicitly. Then close physical environment/argument
+realization and executable cleanup before MIR/native admission. Captured producers remain separate
+until R/D/S, retained-state/write footprints and destruction are proved under the same authority.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

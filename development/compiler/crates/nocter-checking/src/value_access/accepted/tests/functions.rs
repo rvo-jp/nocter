@@ -18,6 +18,7 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
             if let ExpressionKind::Call {
                 target,
                 ref arguments,
+                ..
             } = expression.kind
             {
                 Some((target, arguments))

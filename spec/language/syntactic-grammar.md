@@ -1469,8 +1469,8 @@ Stage value results before normal cleanup. Track owner responsibility in one led
 reservation relationships in the shared graph; access validation cannot invent a second survival
 set. Validate all definitions, including unused/recursive ones, before publishing an accepted unit.
 Exact source rebinding preserves the same immutable declaration identities and every body.
-No target product, native ABI, CLI mode or released-program adapter follows from this private
-front-end acceptance. The complete model's capability/state-footprint obligations remain required
+Private front-end acceptance alone grants no target admission, native ABI, CLI mode or
+released-program adapter. The complete model's capability/state-footprint obligations remain required
 before admitting dependent aggregates or general callable environments.
 
 Within the bounded value-binding fragment, named function values and local callable annotations

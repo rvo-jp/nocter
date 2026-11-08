@@ -15,7 +15,7 @@ mod statements;
 mod tests;
 
 pub use ir::{
-    Argument, ArgumentAction, Binary, Block, BoundaryAction, Expression, ExpressionKind,
+    Argument, ArgumentAction, Binary, Block, BoundaryAction, CallKind, Expression, ExpressionKind,
     FieldValue, Local, LocalOrigin, Place, SelectionAction, Statement, TypedBody, Unary, ValueType,
     WitnessBinding,
 };

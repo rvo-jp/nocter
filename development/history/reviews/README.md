@@ -36,6 +36,8 @@ they do not make reviews normative or register compiler support.
 
 - [Callable Input Witnesses](v2.0.0-callable-input-witnesses.md) — formal callback contracts, static binding/forwarding and symbolic environment cleanup
 
+- [Private Instance Closure](v2.0.0-private-instance-closure.md) — root-driven concrete witness substitution, recursive instance sharing and frozen data/cleanup projections
+
 #### Research and Adoption Audits
 
 - [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance

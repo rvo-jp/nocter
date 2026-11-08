@@ -16,7 +16,8 @@ memory safety; the closed checker owns the semantic verdicts.
 
 The compiler tests retain their assertions. The manifest identifies the source and distinguishing
 requirement; the owning specification remains normative. No second parser/checker or source-text
-semantic oracle belongs in corpus tooling. The [callable input review](../../../../history/reviews/v2.0.0-callable-input-witnesses.md),
+semantic oracle belongs in corpus tooling. The [private instance review](../../../../history/reviews/v2.0.0-private-instance-closure.md),
+[callable input review](../../../../history/reviews/v2.0.0-callable-input-witnesses.md),
 [function witness review](../../../../history/reviews/v2.0.0-function-witnesses.md)
 and earlier [record review](../../../../history/reviews/v2.0.0-record-source-integration.md)
 record qualification and limits. The [input-default decision](../../../../history/reviews/v2.0.0-parameter-defaults.md)
@@ -50,12 +51,17 @@ These passes do not implement indexing, dependent aggregates, structural callbac
 captured environments, erased callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch or released-program
 adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
 
+Target-program integration tests also consume selected accepted sources through the shared
+`ValueSourceFixture`, then construct a normal accepted Unit before closing concrete instances.
+The corpus counts remain source/header/checking verdicts; they do not qualify ABI or native code.
+
 Run focused production tests from the repository root:
 
 ```sh
 cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-syntax parser::access
 cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-declaration-lowering access_declarations
 cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-checking value_access
+cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-target-program value_access
 ```
 
 To update structural snapshots deliberately, set `NOCTER_UPDATE_ACCESS_SHAPES=1` for the syntax

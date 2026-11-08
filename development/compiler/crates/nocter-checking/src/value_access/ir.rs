@@ -153,6 +153,13 @@ pub struct FieldValue {
     pub value: AccessExpressionId,
 }
 
+/// Whether the frozen argument bundle starts with a runtime environment input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallKind {
+    Direct,
+    Value,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
     Function(AccessCallableId),
@@ -186,6 +193,7 @@ pub enum ExpressionKind {
         right: AccessExpressionId,
     },
     Call {
+        kind: CallKind,
         target: nocter_model::ValueFunctionOrigin,
         arguments: Box<[Argument]>,
     },

@@ -20,10 +20,12 @@ does not inspect syntax or repeat checking decisions.
 - executable and test root selection
 - concrete instance, closure, and drop reachability
 - monomorphized item and representation closure
+- private value-binding instance closure under `value_access`, consuming a complete accepted Unit
+  and explicit root without granting released/native target admission
 
 ## Invariants
 
-- Target validation runs once before executable specialization.
+- Released target validation runs once before executable specialization.
 - Target validation consumes only `CheckedProgram`; this crate has no source-projection dependency.
   The checking-owned output maps that semantic component into `TargetProgram` and preserves or
   restores the exact projection pair outside this layer.
@@ -53,3 +55,31 @@ does not inspect syntax or repeat checking decisions.
 
 The cross-stage contract is documented in
 [Target, Executable, and MIR Program Design](../../../architecture/pipeline/target-program.md).
+
+## Private Value Instance Boundary
+
+`value_access::InstanceProgram` owns the future private product's root-driven static instances.
+It retains the exact accepted Unit and its body/type authority; no released CheckedProgram or
+TargetProgram adapter exists. Roots requiring externally supplied callback witnesses reject as
+unbound. Scalar/record runtime inputs remain ordinary data rather than specialization arguments.
+This product grants no ABI, layout, executable cleanup or backend capability.
+
+`build` interns keys of one callable and its concrete formal-witness bindings, reserves before
+following recursive edges, and freezes only after every reachable instance is defined. Only
+checking-reachable invocation commits create call edges. A function reference or interrupted
+argument does not force an uninvoked body into the graph. Construction indexes are discarded;
+one immutable instance arena is the published authority.
+
+`projection` substitutes already selected named/formal origins and invocation views. It verifies
+formal identity coverage without repeating signature matching or target search. One table maps
+source data IDs to concrete payload obligations in the existing program type authority. Schema
+cleanup classification remains checking-owned. Record closure visits shared schemas iteratively,
+without expanding payload trees. No symbolic environment destruction remains in this concrete
+projection, while the original body's source-selected moves/reservations stay unchanged.
+
+Each instance pairs frozen call edges and data projections with its original checked body. Later
+consumers must use those edges/projections and the recorded direct/value invocation kind; they
+cannot infer an environment offset from arity, recheck a body, select by names, or reinterpret
+source-level Copy from the concrete payload. Callable results and captured producers require
+further closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
+owns the handoff; the review/handoff own work status.

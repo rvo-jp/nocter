@@ -26,6 +26,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
   and distinct future callable/input/field and body-local/selected-place/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering
+- a distinct private instance identity domain for the target owner's root-closed value program
 - structural callable capabilities and independent authored allocation/nonblocking guarantee
   identity
 - canonical structural callable input/result provenance and one order-independent graph implication

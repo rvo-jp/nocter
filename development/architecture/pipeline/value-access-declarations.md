@@ -19,7 +19,8 @@ V2CoreUnit syntax + exact source
   -> source-neutral control/evaluation graph + projected initialization facts
   -> permission-demand liveness + alternative referent/access worlds
        + exact payload contracts + logical resource/cleanup transitions
-  -> accepted private unit (all definitions validated; no native consumer)
+  -> accepted private unit (all definitions validated)
+  -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
 ```
 
 ## Responsibilities
@@ -135,7 +136,8 @@ Structural failures expose their typed rule and current diagnostic; no partial t
 A structurally valid transfer still requires initialization and conflict proofs. An ordinary
 return must leave one value resource of its declared data type after frame cleanup. Passing an
 intermediate query does not accept a unit. This product has no adapter to released checked
-evidence and no executable consumer.
+evidence. Its complete accepted Unit is consumed by the target owner's private instance closure;
+typed-only evidence cannot enter that consumer.
 
 
 ## Flow and Initialization Handoff
@@ -204,3 +206,30 @@ This is closed front-end evidence for the exact private fragment. Target layout,
 runtime realization, executable cleanup/code generation, module/package integration, general
 dependencies, user destructors, outcomes and async remain separate contracts. There is no released
 checked-program conversion or public compatibility mode.
+
+## Private Instance Closure Handoff
+
+`nocter-target-program` consumes the complete accepted Unit and an explicit semantic root to produce
+one private InstanceProgram. It retains the exact Unit/body/type authority, never a released-program
+adapter or source context. An entry with unbound callback formals is not a concrete root. This
+internal failure does not introduce a public CLI or target ABI rule.
+
+Checking supplies selected declaration/formal targets, formal-to-actual bindings, direct/value
+invocation kind, explicit preparation actions, initialization reachability and resource obligations.
+The target owner substitutes these facts into concrete instance keys and call edges. It does not
+repeat name lookup, signature compatibility, body checking, access proof or Copy selection. The
+source-level generic move remains selected even if its concrete named payload is Copy.
+
+One immutable instance arena closes root reachability; recursive keys are reserved before their
+edges are followed. Only reachable invocation commits add instances. Interrupted inputs lacking a
+witness therefore create no unbound executable edge. Source data IDs map once to concrete payload
+obligations in the same declaration TypeAuthority. Checking owns the payload classifier; the
+projection resolves a symbolic named-code environment to its exact cleanup contract without
+inventing an owner. Closed record schemas are visited once per data identity, not expanded by path.
+Consumers receive each instance with its exact checked body and those frozen maps.
+
+Callable results, captured environments and general retained footprints still need their own
+closure. Layout, physical environment/argument realization, executable cleanup, target services,
+MIR and native output are not established by this graph. Later implementation must extend this
+same instance authority rather than create another call graph or infer environment shape from
+parameter counts.

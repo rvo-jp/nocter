@@ -2,7 +2,7 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{ExpressionKind, value_type},
+    ir::{CallKind, ExpressionKind, value_type},
 };
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, PayloadSchema};
 use nocter_model::{
@@ -97,6 +97,11 @@ impl Checker<'_, '_> {
         }
         let mut plans = Vec::new();
         let mut continues = selected.completes;
+        let kind = if selected.environment.is_some() {
+            CallKind::Value
+        } else {
+            CallKind::Direct
+        };
         if let Some((value, expected)) = selected.environment {
             plans.push(self.input_plan(*callee, value, expected, None)?);
         }
@@ -109,6 +114,7 @@ impl Checker<'_, '_> {
             node,
             value_type(contract.result, Mode::Own).with_continuation(continues),
             ExpressionKind::Call {
+                kind,
                 target: selected.witness.origin,
                 arguments: plans.into_boxed_slice(),
             },

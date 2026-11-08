@@ -18,6 +18,7 @@ mod runtime_storage_contracts;
 mod snapshot;
 mod target_service_contracts;
 mod test_entry;
+pub mod value_access;
 
 pub use body_dependencies::{
     BodyDependencyError, CheckedBodyDependencies, CheckedDestruction, PreparedBorrow,
