@@ -166,7 +166,14 @@ fn numeric_checks_and_local_diagnostics_are_preserved() {
     );
     let all = queries("func f(): void { let fixed = 1 }").unwrap();
     assert!(
-        matches!(named(&all,"f").body().blocks().get(named(&all,"f").body().root()).unwrap().ty,ValueType::Value(access) if access.mode()==Mode::Own)
+        named(&all, "f")
+            .body()
+            .blocks()
+            .get(named(&all, "f").body().root())
+            .unwrap()
+            .ty
+            .normal()
+            .is_some_and(|access| access.mode() == Mode::Own)
     );
 }
 #[test]

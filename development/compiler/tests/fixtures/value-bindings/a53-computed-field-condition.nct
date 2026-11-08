@@ -1,0 +1,2 @@
+struct Flag { ready: bool }
+func run(input: bool): i32 { if (Flag { ready: input }).ready { 1 } else { 0 } }

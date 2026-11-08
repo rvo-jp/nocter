@@ -409,7 +409,8 @@ fn evaluate(
                 require_place(typed, state, place, location, violations)?;
             }
         }
-        ExpressionKind::Record { .. }
+        ExpressionKind::Select { .. }
+        | ExpressionKind::Record { .. }
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit

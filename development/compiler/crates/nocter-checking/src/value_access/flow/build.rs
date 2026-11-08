@@ -406,6 +406,7 @@ impl Builder<'_> {
             } => return self.logical(id, *left, *right, entry),
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
             ExpressionKind::Record { fields } => self.record(entry, fields)?,
+            ExpressionKind::Select { source, .. } => self.expression(*source, entry)?,
             ExpressionKind::Boundary { source, .. } => {
                 // A selected place boundary uses the address directly. Do not invent an I child
                 // before delegation, or perform an early read for a later reserved call input.

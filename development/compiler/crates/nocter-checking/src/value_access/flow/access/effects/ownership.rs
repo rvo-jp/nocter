@@ -4,15 +4,20 @@ use super::super::super::{
 };
 use super::super::Root;
 use super::{Context, Failure, Result};
-use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, ValueType};
+use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, SelectionAction};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 
 impl Context<'_, '_> {
     fn owns_expression(&self, id: AccessExpressionId) -> Result<bool> {
-        Ok(
-            matches!(self.typed.body().expressions().get(id).ok_or(Failure::Integrity)?.ty,
-            ValueType::Value(ty) if ty.mode() == Mode::Own),
-        )
+        Ok(self
+            .typed
+            .body()
+            .expressions()
+            .get(id)
+            .ok_or(Failure::Integrity)?
+            .ty
+            .normal()
+            .is_some_and(|ty| ty.mode() == Mode::Own))
     }
     fn construct(&mut self, id: AccessExpressionId) -> Result<()> {
         if self.owns_expression(id)? {
@@ -175,6 +180,31 @@ impl Context<'_, '_> {
                     &fields,
                     &mut self.steps,
                 )?;
+            }
+            ExpressionKind::Select {
+                source,
+                ref fields,
+                action,
+            } => {
+                let selected = Holder::Expression(source).place().project_path(fields);
+                if action == SelectionAction::MovePayload {
+                    self.world.resources.move_to(
+                        self.typed.program(),
+                        &selected,
+                        &Holder::Expression(id).place(),
+                        false,
+                        &mut self.steps,
+                    )?;
+                } else {
+                    if !self
+                        .world
+                        .resources
+                        .initialized(self.typed.program(), &selected)?
+                    {
+                        return Err(Failure::Integrity);
+                    }
+                    self.construct(id)?;
+                }
             }
             ExpressionKind::Move(place) => self.world.resources.move_to(
                 self.typed.program(),

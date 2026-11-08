@@ -1,0 +1,27 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          BodyResult
+            Expression
+              ScalarLiteral
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          BodyResult
+            Expression
+              PostfixExpression
+                PostfixExpression
+                  ReferenceExpression
+                  CallSuffix
+                MemberSuffix

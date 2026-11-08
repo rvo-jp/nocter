@@ -275,4 +275,5 @@ fn literal_control_does_not_invent_normal_loop_exits() {
 
 mod construction;
 mod records;
+mod selection;
 mod support;

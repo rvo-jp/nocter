@@ -4,11 +4,49 @@ use nocter_model::{
     ValueAccess, ValueAccessMode, ValueBindingKind,
 };
 
-/// A type-only value proof; never is control interruption, not a storable data shape.
+/// Known result data/access and normal completion are independent typing facts.
+/// An interrupted operation can retain its declared result shape without producing a value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ValueType {
-    Never,
-    Value(ValueAccess),
+pub struct ValueType {
+    access: Option<ValueAccess>,
+    may_complete: bool,
+}
+impl ValueType {
+    /// No known result shape and no normal continuation; never a storable data type.
+    pub const NEVER: Self = Self {
+        access: None,
+        may_complete: false,
+    };
+    #[must_use]
+    pub const fn known(access: ValueAccess) -> Self {
+        Self {
+            access: Some(access),
+            may_complete: true,
+        }
+    }
+    /// The statically known result operation, including on an interrupted evaluation.
+    #[must_use]
+    pub const fn access(self) -> Option<ValueAccess> {
+        self.access
+    }
+    /// Typing has not excluded a normal continuation. This is not a termination guarantee.
+    #[must_use]
+    pub const fn may_complete(self) -> bool {
+        self.may_complete
+    }
+    /// Known result access when a normal continuation remains possible.
+    #[must_use]
+    pub const fn normal(self) -> Option<ValueAccess> {
+        if self.may_complete { self.access } else { None }
+    }
+    /// Restrict continuation without erasing a known result shape.
+    #[must_use]
+    pub const fn with_continuation(self, may_complete: bool) -> Self {
+        Self {
+            access: self.access,
+            may_complete: self.may_complete && may_complete,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,6 +84,13 @@ pub enum BoundaryAction {
     DelegateUpdate,
     CopyPayload,
     TakeValue,
+}
+
+/// A computed record's selected component supplies a snapshot or a transferred value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SelectionAction {
+    CopyPayload,
+    MovePayload,
 }
 
 /// Preparation of a selected direct call, before its atomic invocation commit.
@@ -105,6 +150,11 @@ pub enum ExpressionKind {
     Unit,
     Record {
         fields: Box<[FieldValue]>,
+    },
+    Select {
+        source: AccessExpressionId,
+        fields: FieldPath,
+        action: SelectionAction,
     },
     Place(AccessPlaceId),
     Move(AccessPlaceId),
@@ -236,5 +286,5 @@ impl Boundary {
 }
 
 pub(super) const fn value_type(data: TypeId, mode: ValueAccessMode) -> ValueType {
-    ValueType::Value(ValueAccess::new(data, mode))
+    ValueType::known(ValueAccess::new(data, mode))
 }

@@ -95,6 +95,39 @@ The generic body transfers its received value. A caller knowing `T = i32` can su
 `take`; that does not change the body's operation. A generic read input without Copy evidence
 cannot be returned as a plain T. A separate capability result can expose checked access instead.
 
+A data type known from a callable contract, structural value, operator or compatible branch
+remains known even if evaluating an operand exits before producing that value. Normal completion
+is a separate control fact, not permission to erase the known type or manufacture a runtime
+value. Inference and structural type/field validation use that known type; execution, ownership
+and cleanup follow only reached operations. A control expression with no known result shape
+cannot supply a record field type merely because its continuation is unreachable.
+
+### Field Selection from Values
+
+A field selected from existing storage remains a place. Transparent grouping does not change
+that operation. A field selected from a computed record value instead delivers a value: evaluate
+the record expression once, resolve the complete field chain through its declared schemas, and
+use the selected component's Copy evidence to choose a snapshot or an owning extraction. These
+are distinct source categories, not a call-site choice or permission-based overload.
+
+```text
+let result = make_pair().first
+let count = (Counts { first: 1, second: 2 }).first
+```
+
+A Copy selection leaves the computed record intact; a non-Copy selection transfers only the
+selected component. The remainder stays owned until the existing evaluation frame's cleanup,
+which applies the same remaining-field rules as named storage. A chain such as
+`make_outer().inner.first` selects that full path without first moving every containing record.
+It neither reruns `make_outer` nor changes logical field identity because of grouping.
+
+The selected value may be bound, returned, stored, passed to `take`, or supplied as a fresh read
+input under the ordinary value rules. It is not an alias initializer, assignment target or edit
+input. Bind a computed result to an intentional `let`/`var` before requesting scoped access or
+mutation; do not create an invisible owner or extend a temporary's lifetime to satisfy those
+operations. Selecting a non-Copy field from a grouped read/edit alias remains an invalid
+extraction from that existing place; grouping cannot launder permission into ownership.
+
 ### Input Operations and Receivers
 
 | Input | Contract |

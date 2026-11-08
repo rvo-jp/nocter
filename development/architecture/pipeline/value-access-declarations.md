@@ -76,7 +76,7 @@ intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-computed-value projections, compound type expressions, generic/interface/callable evidence, outcomes, async/effects, layouts,
+compound type expressions, generic/interface/callable evidence, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -94,6 +94,14 @@ and one ordinary value operation for each initializer in authored order. Their c
 remain owned evaluation temporaries until a single assembly step transfers them into the complete
 record. An interrupted initializer follows existing evaluation-frame cleanup; it cannot publish
 a partially assembled record or introduce a constructor-only resource authority.
+
+Known result types and possible normal completion are independent typed facts. Interrupted
+operands do not erase declared callable/record data, while the shared graph cannot evaluate an
+unreached value merely because its data is known. A computed member chain retains one producer,
+resolved field path and selected Copy/Move operation. Its producer executes once; later passes
+consume the path without member lookup. Existing-place selection and construction use that same
+field-resolution boundary. Computed selection delivers a value and cannot supply a scoped alias,
+assignment target or edit input by extending a temporary's lifetime.
 
 The semantic body has no source/syntax IDs, ranges, names, or symbol IDs. Exact body bytes and
 body-local locators form a separate reusable source recipe. One locator projection serves the
@@ -151,7 +159,10 @@ retained-read-temporary and staged-result owners without dynamic execution count
 normal return preserves exactly its declared value result and no live evaluation frames. Cleanup
 does not disappear when access liveness ends. A fresh value supplied to a read input retains one
 temporary owner until its enclosing evaluation frame ends or unwinds. Call results are values;
-they do not carry an implicit alias to an input.
+they do not carry an implicit alias to an input. Computed field extraction transfers only the
+selected component, leaving the source remainder in its existing evaluation frame. Copy leaves
+the source complete. The same resource ledger proves result staging, read retention and remainder
+cleanup; known-but-interrupted types are not resource owners.
 
 Resource transitions use logical holder/field places and retain sparse unavailable selections.
 Container presence is distinct from complete-value initialization. The ledger proves both in

@@ -2,7 +2,7 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{Boundary, ExpressionKind, FieldValue, ValueType, value_type},
+    ir::{Boundary, ExpressionKind, FieldValue, value_type},
 };
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
@@ -31,17 +31,7 @@ impl Checker<'_, '_> {
         for field in self.children(initializer) {
             let name = direct_identifier(self.syntax().tree(), field)
                 .ok_or(Failure::InconsistentSyntax)?;
-            let Some(PayloadSchema::Record(record)) = self.program().data_schema(data) else {
-                return Err(Failure::InconsistentSyntax);
-            };
-            let selected = self
-                .program()
-                .symbols()
-                .get(self.text(name)?)
-                .and_then(|name| record.resolve_field(name));
-            let Some(selected) = selected else {
-                return self.reject(Rule::UnknownField, name);
-            };
+            let selected = self.field(data, name)?;
             if !seen.insert(selected) {
                 return self.reject(Rule::InvalidConstruction, name);
             }
@@ -57,7 +47,7 @@ impl Checker<'_, '_> {
                 Some(Boundary::Value(data)),
                 reachable && continues,
             )?;
-            continues &= self.ty(value) != ValueType::Never;
+            continues &= self.ty(value).may_complete();
             fields.push(FieldValue {
                 field: selected,
                 value,
@@ -68,11 +58,7 @@ impl Checker<'_, '_> {
         }
         self.emit(
             node,
-            if continues {
-                value_type(data, Mode::Own)
-            } else {
-                ValueType::Never
-            },
+            value_type(data, Mode::Own).with_continuation(continues),
             ExpressionKind::Record {
                 fields: fields.into_boxed_slice(),
             },

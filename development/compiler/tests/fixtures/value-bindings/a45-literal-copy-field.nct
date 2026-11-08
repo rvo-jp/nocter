@@ -1,0 +1,5 @@
+struct Counts {
+    first: i32
+    second: i32
+}
+func run(): i32 { (Counts { first: 1, second: 2 }).first }

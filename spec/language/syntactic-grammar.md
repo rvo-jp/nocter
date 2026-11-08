@@ -1411,7 +1411,8 @@ named function (including transparent grouping) and its argument count/contract 
 checks. Functions are not storage places. A place here is a local/input name followed by zero or more declared record-field selections,
 with transparent grouping. Resolve each field once through its containing record; two distinct
 fields are disjoint logical places, while a field overlaps its containing place. Member selection
-from computed values and indexing remain outside this bounded fragment. Structural record values
+from computed record values follows [value selection](value-access.md#field-selection-from-values);
+indexing remains outside this bounded fragment. Structural record values
 initialize every field exactly once in authored order under ordinary value construction; follow
 the nominal payload construction and interrupted-cleanup contract. At the outer level of `if`/
 `while` conditions, the first `{` starts the control body; nested delimiters restore record-value

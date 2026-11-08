@@ -227,17 +227,32 @@ move-only extraction; alias creation never manufactures an owner. Direct call se
 before access checking and has no permission-driven alternative target.
 
 Typed bodies record selected Copy/materialization, implicit moves, scoped delegation, call input
-preparation, RHS-first replacement and structured control. `construction` selects the exact record
-and every field identity once, freezes components in authored order, and applies the same value
-boundary used for other value supply. Its `FieldValue` plans contain no source names. Empty,
-nested and reordered structural values have no constructor-specific access operation. Ordinary block/conditional results
-construct values; no old read/update result or standalone-prefix IR path remains. `place_typing` resolves local-rooted field chains once into body-owned selected places containing
-the root local, resolved field path and selected data TypeId. Grouping preserves place identity;
-computed-value member access remains outside this fragment. The construction-only place index is
-discarded when the immutable body is published. Data annotations do not select local binding operations. Body-local arenas have no source coordinates, syntax IDs,
-names or symbols. Successful queries own exact authority/body bytes and locator recipes. Rebinding
-requires the same immutable program and exact own body, with current projection but no retyping.
-This product cannot convert to released CheckedProgram or native products.
+preparation, RHS-first replacement and structured control. `construction` freezes record
+components in authored order and applies the ordinary value boundary. Its `FieldValue` plans
+contain resolved identities and no source names. Empty, nested and reordered structural values
+have no constructor-specific access operation. Ordinary block/conditional results construct values;
+no old read/update result or standalone-prefix IR path remains.
+
+`selection` owns member-chain decomposition and one declaration-backed field resolver, also used
+by construction. Existing local-rooted chains become body-owned selected places containing the
+root local, field path and data TypeId. Computed-rooted chains instead become one value selection
+with the producing expression, full field path and selected Copy/Move action. Transparent grouping
+does not change either category. No intermediate container extraction, second field lookup path
+or implicit temporary alias is introduced. The construction-only place index is discarded on
+publication. Alias creation and mutation still require existing storage.
+
+`ValueType` keeps known result access separately from possible normal completion. Calls,
+construction, operators and compatible branches retain known data on interruption. Type inference
+and field validation read that known access; flow/resource consumers require a possible normal
+result. An absent result shape cannot be treated as an arbitrary record. Private constructors
+exclude an unknown-shaped normal value, and continuation restriction cannot invent a runtime
+value. Possible completion is not a termination guarantee.
+
+Data annotations do not select local binding operations. Body-local arenas have no source
+coordinates, syntax IDs, names or symbols. Successful queries own exact authority/body bytes and
+locator recipes. Rebinding requires the same immutable program and exact own body, with current
+projection but no retyping. This product cannot convert to released CheckedProgram or native
+products.
 
 ## Shared Flow, Access and Resource Validation
 
@@ -300,8 +315,14 @@ partial-constructor state or whole-record destruction. `Step::Assemble` retains 
 field/source pairs in authored order. Once complete, cleanup consumes the declaration schema's
 field order. Integrity rejection preserves all original component owners and emits no partial step.
 
-Its ordered steps construct, assemble, move, receive, dispose, invoke and replace outside inputs. A dead access holder is not automatic
-early resource destruction. A staged return survives evaluation/lexical cleanup, whose order is
+Computed component moves use the same selected resource-place transfer as named fields. Copy
+selection preserves the complete source temporary and constructs only the selected snapshot.
+The source remainder stays in its original evaluation frame; reading the selected result retains
+that result's owner through the read call. Neither operation changes the source's frame or adds
+an independent temporary-survival registry.
+
+Its ordered steps construct, assemble, move, receive, dispose, invoke and replace outside inputs.
+A dead access holder is not automatic early resource destruction. A staged return survives evaluation/lexical cleanup, whose order is
 reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
 Return owner with the declaration's result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
@@ -318,8 +339,10 @@ this same typing, initialization, access and resource path. Source integration t
 selected field cleanup, Copy versus move, restoration, partial drop, disjoint/overlapping access
 and sparse traversal of deeply shared schemas. Construction tests cover nested values, exact
 component mapping, scalar snapshots before later mutation, branch/loop interruption and atomic
-rejection. Member selection from computed values and indexing remain outside this fragment. Resource transitions alone cannot replace the
-combined source proofs or establish executable/native behavior.
+rejection. Computed-selection tests inspect exact value transfers, preserved Copy sources,
+read-temporary and remainder cleanup, interrupted known types, precise field diagnostics and a
+64-level shared computed field chain. Indexing remains outside this fragment. Resource transitions
+alone cannot replace the combined source proofs or establish executable/native behavior.
 
 ## Closed Accepted Private Units
 

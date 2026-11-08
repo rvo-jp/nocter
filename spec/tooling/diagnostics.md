@@ -719,7 +719,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | Existing code family | Future failed obligation |
 | --- | --- |
 | `E0340`, `E0341` | Name resolution or conflicting binding |
-| `E0370` | Data/type/result mismatch, unknown field/body data type, invalid/missing/duplicate record initializer, or insufficient local type information |
+| `E0370` | Data/type/result mismatch, unknown field/body data type, invalid/missing/duplicate record initializer, or insufficient local/result type information |
 | `E0371`, `E0377` | Value construction has neither Copy evidence nor an eligible owning source |
 | `E0372`, `E0373` | Non-unit intermediate expression or missing normal result |
 | `E0375` | Integer outside the selected data type's range |
@@ -738,6 +738,13 @@ body extraction cannot silently change it to take. If an expected callable suppl
 operation, relate that selected contract when explaining its mismatch. Do not describe a data-type
 annotation as overriding that input operation. A fixed value supplied to an edit input needs an intentional
 mutable binding; do not silently rewrite it. A view descriptor Copy still retains its dependencies.
+
+A field of a computed record value delivers a value, not existing mutable storage. Reject alias
+creation, assignment or edit-input supply at that attempted operation; explain the need to bind
+an intentional owner before taking scoped access. Grouping a read/edit alias does not convert
+its referent into an owning result. Preserve known result types on interrupted evaluation, so
+unknown fields and data mismatches still report their structural cause without inventing a
+runtime access on that path.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
 

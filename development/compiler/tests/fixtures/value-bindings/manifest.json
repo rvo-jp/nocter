@@ -549,6 +549,187 @@
       "file": "a43-maybe-interrupted-record-value.nct",
       "expectation": "accept",
       "reason": "Continuing and returning initializer branches retain distinct component ownership and cleanup states."
+    },
+    {
+      "id": "a44-call-result-field",
+      "file": "a44-call-result-field.nct",
+      "expectation": "accept",
+      "reason": "A call result is evaluated once and transfers only its selected non-Copy field."
+    },
+    {
+      "id": "a45-literal-copy-field",
+      "file": "a45-literal-copy-field.nct",
+      "expectation": "accept",
+      "reason": "Selecting a Copy component snapshots it while preserving the ordinary move-only record temporary."
+    },
+    {
+      "id": "a46-nested-call-result-field",
+      "file": "a46-nested-call-result-field.nct",
+      "expectation": "accept",
+      "reason": "Transparent grouping preserves one full field path without moving intermediate containers."
+    },
+    {
+      "id": "a47-conditional-result-field",
+      "file": "a47-conditional-result-field.nct",
+      "expectation": "accept",
+      "reason": "Conditional results deliver values before selection; both branch remainders retain precise cleanup."
+    },
+    {
+      "id": "a48-interrupted-call-field",
+      "file": "a48-interrupted-call-field.nct",
+      "expectation": "accept",
+      "reason": "An interrupted call keeps its declared result type for selection without invoking or consuming a reserved take prefix."
+    },
+    {
+      "id": "a49-interrupted-literal-field",
+      "file": "a49-interrupted-literal-field.nct",
+      "expectation": "accept",
+      "reason": "A known record shape survives an interrupted component; the inferred local does not fabricate a runtime result."
+    },
+    {
+      "id": "a50-read-computed-field",
+      "file": "a50-read-computed-field.nct",
+      "expectation": "accept",
+      "reason": "A selected non-Copy value can supply read through its ordinary owned evaluation temporary."
+    },
+    {
+      "id": "a51-take-computed-field",
+      "file": "a51-take-computed-field.nct",
+      "expectation": "accept",
+      "reason": "A selected value transfers to take without reserving its already consumed record input again."
+    },
+    {
+      "id": "a52-computed-field-replacement",
+      "file": "a52-computed-field-replacement.nct",
+      "expectation": "accept",
+      "reason": "RHS computation and field extraction precede replacement of an existing owning slot."
+    },
+    {
+      "id": "a53-computed-field-condition",
+      "file": "a53-computed-field-condition.nct",
+      "expectation": "accept",
+      "reason": "Nested delimiters permit selecting a Boolean field from a structural value in a control header."
+    },
+    {
+      "id": "a54-computed-field-operand-order",
+      "file": "a54-computed-field-operand-order.nct",
+      "expectation": "accept",
+      "reason": "A produced scalar field is a snapshot before a later argument updates the original input."
+    },
+    {
+      "id": "a55-literal-nested-field",
+      "file": "a55-literal-nested-field.nct",
+      "expectation": "accept",
+      "reason": "Nested structural values expose the exact deepest owned component without retaining an alias."
+    },
+    {
+      "id": "a56-interrupted-conditional-field",
+      "file": "a56-interrupted-conditional-field.nct",
+      "expectation": "accept",
+      "reason": "A statically terminating conditional keeps a compatible known record shape while emitting no field use."
+    },
+    {
+      "id": "a57-computed-field-loop",
+      "file": "a57-computed-field-loop.nct",
+      "expectation": "accept",
+      "reason": "Repeated selection cleans source and result temporaries on every continuing loop backedge."
+    },
+    {
+      "id": "r34-unknown-computed-field",
+      "file": "r34-unknown-computed-field.nct",
+      "expectation": "check-reject",
+      "reason": "Computed selection resolves field names only through the selected record schema.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r35-scalar-result-field",
+      "file": "r35-scalar-result-field.nct",
+      "expectation": "check-reject",
+      "reason": "A scalar result has no record field namespace.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r36-read-alias-computed-field",
+      "file": "r36-read-alias-computed-field.nct",
+      "expectation": "check-reject",
+      "reason": "A value selected from a temporary is not an existing place for a read alias.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r37-edit-alias-computed-field",
+      "file": "r37-edit-alias-computed-field.nct",
+      "expectation": "check-reject",
+      "reason": "An edit alias cannot manufacture a hidden owner for a selected temporary.",
+      "diagnostic": "E0387"
+    },
+    {
+      "id": "r38-assign-computed-field",
+      "file": "r38-assign-computed-field.nct",
+      "expectation": "check-reject",
+      "reason": "Assignment requires intentional writable storage rather than an unnamed computed value.",
+      "diagnostic": "E0384"
+    },
+    {
+      "id": "r39-edit-input-computed-field",
+      "file": "r39-edit-input-computed-field.nct",
+      "expectation": "check-reject",
+      "reason": "A computed field value cannot supply edit authority without an existing mutable binding.",
+      "diagnostic": "E0387"
+    },
+    {
+      "id": "r40-grouped-read-field-extraction",
+      "file": "r40-grouped-read-field-extraction.nct",
+      "expectation": "check-reject",
+      "reason": "Grouping an existing read alias preserves its access operation and cannot launder non-Copy extraction.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r41-interrupted-call-unknown-field",
+      "file": "r41-interrupted-call-unknown-field.nct",
+      "expectation": "check-reject",
+      "reason": "Known call result data still rejects unknown fields even when an operand returns before invocation.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r42-interrupted-literal-unknown-field",
+      "file": "r42-interrupted-literal-unknown-field.nct",
+      "expectation": "check-reject",
+      "reason": "An interrupted structural value retains its exact field namespace for structural validation.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r43-interrupted-result-type-mismatch",
+      "file": "r43-interrupted-result-type-mismatch.nct",
+      "expectation": "check-reject",
+      "reason": "An explicit local data annotation must agree with a known result even if its evaluation exits.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r44-unknown-result-shape",
+      "file": "r44-unknown-result-shape.nct",
+      "expectation": "check-reject",
+      "reason": "Pure control exits supply no record shape from which a field can be resolved.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r45-computed-source-reuse",
+      "file": "r45-computed-source-reuse.nct",
+      "expectation": "check-reject",
+      "reason": "Selecting a call result does not undo transfers already committed into that call.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r46-field-chain-scalar-leaf",
+      "file": "r46-field-chain-scalar-leaf.nct",
+      "expectation": "check-reject",
+      "reason": "Every selected field is resolved against its immediate containing schema, including scalar leaf rejection.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "a58-nominal-copy-result-field",
+      "file": "a58-nominal-copy-result-field.nct",
+      "expectation": "accept",
+      "reason": "Copy evidence belongs to the selected nominal component, preserving its move-only containing record and schema cleanup."
     }
   ],
   "parse_goal": "V2CoreUnit"

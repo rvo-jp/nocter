@@ -6,9 +6,7 @@ use super::{
     liveness::Carrier,
     state::{Key, Node, Prepared, Value, World},
 };
-use crate::value_access::{
-    ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, ValueType,
-};
+use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery};
 use nocter_model::{AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode};
 
 pub(super) enum Failure {
@@ -317,7 +315,7 @@ impl Context<'_, '_> {
             .expressions()
             .get(id)
             .ok_or(Failure::Integrity)?;
-        let ValueType::Value(ty) = expression.ty else {
+        let Some(ty) = expression.ty.normal() else {
             return Err(Failure::Integrity);
         };
         match expression.kind {
@@ -367,7 +365,8 @@ impl Context<'_, '_> {
                     }
                 }
             }
-            ExpressionKind::Record { .. }
+            ExpressionKind::Select { .. }
+            | ExpressionKind::Record { .. }
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit

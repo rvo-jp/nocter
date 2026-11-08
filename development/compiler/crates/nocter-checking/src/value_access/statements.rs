@@ -37,7 +37,7 @@ impl Checker<'_, '_> {
                     reachable && continues,
                 )?;
                 if expected.is_none()
-                    && let ValueType::Value(ty) = self.ty(value)
+                    && let Some(ty) = self.ty(value).access()
                 {
                     value = self.boundary(
                         expression,
@@ -45,7 +45,7 @@ impl Checker<'_, '_> {
                         Boundary::Binding(Ty::new(ty.data(), Mode::Own)),
                     )?;
                 }
-                if self.ty(value) == ValueType::Never {
+                if !self.ty(value).may_complete() {
                     continues = false;
                 }
                 result = Some(value);
@@ -67,11 +67,9 @@ impl Checker<'_, '_> {
             }
             result = Some(unit);
         }
-        let ty = if continues {
-            result.map_or(ValueType::Never, |value| self.ty(value))
-        } else {
-            ValueType::Never
-        };
+        let ty = result
+            .map_or(ValueType::NEVER, |value| self.ty(value))
+            .with_continuation(continues);
         self.scopes.pop();
         self.emit_block(node, statements, result, ty)
     }
@@ -86,15 +84,12 @@ impl Checker<'_, '_> {
             NodeKind::ExpressionStatement => {
                 let expression = self.first_child(node)?;
                 let value = self.expression(expression, None, reachable)?;
-                if let ValueType::Value(ty) = self.ty(value)
+                if let Some(ty) = self.ty(value).normal()
                     && ty.data() != self.data(BuiltinType::Void)
                 {
                     return self.reject(Rule::UnusedValue, node);
                 }
-                (
-                    Statement::Evaluate(value),
-                    self.ty(value) != ValueType::Never,
-                )
+                (Statement::Evaluate(value), self.ty(value).may_complete())
             }
             NodeKind::ReturnStatement => {
                 let value = if let Some(expression) = self.children(node).first() {
@@ -168,17 +163,14 @@ impl Checker<'_, '_> {
                 return self.reject(Rule::AnnotatedDiscard, name);
             }
             let mut value = self.expression(expression, None, reachable)?;
-            if let ValueType::Value(ty) = self.ty(value) {
+            if let Some(ty) = self.ty(value).normal() {
                 value = self.boundary(
                     expression,
                     value,
                     Boundary::Binding(Ty::new(ty.data(), Mode::Own)),
                 )?;
             }
-            return Ok((
-                Statement::Discard(value),
-                self.ty(value) != ValueType::Never,
-            ));
+            return Ok((Statement::Discard(value), self.ty(value).may_complete()));
         }
         let spelling = self.text(name)?.to_owned();
         if self.lookup(&spelling).is_some()
@@ -214,10 +206,10 @@ impl Checker<'_, '_> {
                 reachable,
             )?
         };
-        let data = match (annotation, self.ty(value)) {
+        let data = match (annotation, self.ty(value).access()) {
             (Some(data), _) => data,
-            (None, ValueType::Value(ty)) => ty.data(),
-            (None, ValueType::Never) => return self.reject(Rule::TypeMismatch, name),
+            (None, Some(ty)) => ty.data(),
+            (None, None) => return self.reject(Rule::TypeMismatch, name),
         };
         if annotation.is_none() || alias {
             value = self.boundary(expression, value, Boundary::Binding(Ty::new(data, mode)))?;
@@ -236,7 +228,7 @@ impl Checker<'_, '_> {
             .insert(spelling, local);
         Ok((
             Statement::Bind { local, value },
-            self.ty(value) != ValueType::Never,
+            self.ty(value).may_complete(),
         ))
     }
 
@@ -269,7 +261,7 @@ impl Checker<'_, '_> {
                 value,
             }
         };
-        Ok((statement, self.ty(value) != ValueType::Never))
+        Ok((statement, self.ty(value).may_complete()))
     }
     fn loop_statement(
         &mut self,
@@ -295,11 +287,11 @@ impl Checker<'_, '_> {
             None,
             reachable
                 && condition.is_none_or(|expr| {
-                    self.ty(expr) != ValueType::Never && self.literal_bool(expr) != Some(false)
+                    self.ty(expr).may_complete() && self.literal_bool(expr) != Some(false)
                 }),
         )?;
         let frame = self.loop_stack.pop().expect("own loop frame");
-        if let ValueType::Value(ty) = self.block_ty(body)
+        if let Some(ty) = self.block_ty(body).normal()
             && ty.data() != self.data(BuiltinType::Void)
         {
             return self.reject(Rule::UnusedValue, node);
@@ -312,7 +304,7 @@ impl Checker<'_, '_> {
                     condition,
                     body,
                 },
-                self.ty(condition) != ValueType::Never && (!always_true || frame.reachable_break),
+                self.ty(condition).may_complete() && (!always_true || frame.reachable_break),
             ))
         } else {
             Ok((Statement::Loop { loop_id, body }, frame.reachable_break))

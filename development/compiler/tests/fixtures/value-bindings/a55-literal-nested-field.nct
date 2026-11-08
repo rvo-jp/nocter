@@ -1,0 +1,8 @@
+struct Pair {
+    first: error
+    second: error
+}
+struct Outer { inner: Pair }
+func run(take a: error, take b: error): error {
+    (Outer { inner: Pair { first: a, second: b } }).inner.first
+}

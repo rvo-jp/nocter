@@ -1,0 +1,9 @@
+struct Counts {
+    first: i32
+    second: i32
+}
+func make(value: i32): Counts { Counts { first: value, second: value } }
+func run(edit value: i32, again: bool): void {
+    while again { let _ = make(value).first
+value += 1 }
+}

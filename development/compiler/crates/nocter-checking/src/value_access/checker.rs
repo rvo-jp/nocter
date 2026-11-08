@@ -369,7 +369,7 @@ impl Checker<'_, '_> {
         data: TypeId,
         node: NodeId,
     ) -> Result<(), Failure> {
-        if let ValueType::Value(ty) = self.ty(expr)
+        if let Some(ty) = self.ty(expr).access()
             && ty.data() != data
         {
             return self.mismatch(node, Ty::new(data, ty.mode()), ty);
@@ -382,7 +382,7 @@ impl Checker<'_, '_> {
         source: AccessExpressionId,
         boundary: Boundary,
     ) -> Result<AccessExpressionId, Failure> {
-        let ValueType::Value(actual) = self.ty(source) else {
+        let Some(actual) = self.ty(source).access() else {
             return Ok(source);
         };
         let expected = boundary.ty();
@@ -418,7 +418,8 @@ impl Checker<'_, '_> {
                     } else if self.place_ty(local).mode() == Mode::Own {
                         return self.emit(
                             node,
-                            ValueType::Value(expected),
+                            ValueType::known(expected)
+                                .with_continuation(self.ty(source).may_complete()),
                             ExpressionKind::Move(local),
                         );
                     } else {
@@ -437,7 +438,7 @@ impl Checker<'_, '_> {
         };
         self.emit(
             node,
-            ValueType::Value(expected),
+            ValueType::known(expected).with_continuation(self.ty(source).may_complete()),
             ExpressionKind::Boundary { source, action },
         )
     }

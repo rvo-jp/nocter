@@ -1,0 +1,7 @@
+struct Pair {
+    first: error
+    second: error
+}
+func run(take a: error, take b: error, choose: bool): error {
+    (if choose { Pair { first: a, second: b } } else { Pair { second: a, first: b } }).first
+}

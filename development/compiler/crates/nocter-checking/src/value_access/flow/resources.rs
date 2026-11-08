@@ -1,7 +1,7 @@
 //! Finite logical ownership and sparse partial-payload cleanup for the closed data contracts.
 //! These transitions retain obligations; they do not choose physical storage or an ABI.
 use super::{IntegrityError, Location};
-use crate::value_access::{Query as TypedQuery, ValueType};
+use crate::value_access::Query as TypedQuery;
 use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, TypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -209,7 +209,14 @@ pub(super) fn payload(program: &Program, data: TypeId) -> Result<Payload> {
     Ok(Payload { data, disposal })
 }
 pub(super) fn expression_payload(typed: &TypedQuery, id: AccessExpressionId) -> Result<Payload> {
-    let ValueType::Value(ty) = typed.body().expressions().get(id).ok_or(INVALID)?.ty else {
+    let Some(ty) = typed
+        .body()
+        .expressions()
+        .get(id)
+        .ok_or(INVALID)?
+        .ty
+        .normal()
+    else {
         return Err(INVALID);
     };
     payload(typed.program(), ty.data())

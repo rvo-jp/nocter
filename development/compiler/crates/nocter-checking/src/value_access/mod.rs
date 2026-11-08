@@ -6,14 +6,14 @@ mod construction;
 mod expressions;
 pub mod flow;
 mod ir;
-mod place_typing;
+mod selection;
 mod statements;
 #[cfg(test)]
 mod tests;
 
 pub use ir::{
     Argument, ArgumentAction, Binary, Block, BoundaryAction, Expression, ExpressionKind,
-    FieldValue, Local, LocalOrigin, Place, Statement, TypedBody, Unary, ValueType,
+    FieldValue, Local, LocalOrigin, Place, SelectionAction, Statement, TypedBody, Unary, ValueType,
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -31,6 +31,7 @@ pub enum Rule {
     UnknownName,
     UnknownField,
     UnknownType,
+    UnknownResultType,
     ShadowedName,
     TypeMismatch,
     MissingTransfer,
@@ -53,7 +54,14 @@ impl Rule {
                 DiagnosticCode::E0370,
                 "record construction requires each declared field exactly once",
             ),
-            Self::UnknownField => (DiagnosticCode::E0370, "this record has no selected field"),
+            Self::UnknownResultType => (
+                DiagnosticCode::E0370,
+                "field selection needs a known record result type",
+            ),
+            Self::UnknownField => (
+                DiagnosticCode::E0370,
+                "the selected field does not exist in this data type",
+            ),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),
             Self::ShadowedName => (

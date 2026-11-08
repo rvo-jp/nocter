@@ -274,6 +274,7 @@ fn expression_uses(
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
         }
+        ExpressionKind::Select { source, .. } => uses.push((Carrier::Expression(source), false)),
         ExpressionKind::Record { ref fields } => {
             uses.extend(
                 fields

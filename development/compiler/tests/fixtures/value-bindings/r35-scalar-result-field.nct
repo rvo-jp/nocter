@@ -1,0 +1,2 @@
+func scalar(): i32 { 1 }
+func run(): i32 { scalar().first }

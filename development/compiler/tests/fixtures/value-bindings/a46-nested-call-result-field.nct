@@ -1,0 +1,10 @@
+struct Pair {
+    first: error
+    second: error
+}
+struct Outer { inner: Pair
+other: error }
+func make(take a: error, take b: error, take c: error): Outer {
+    Outer { inner: Pair { first: a, second: b }, other: c }
+}
+func run(take a: error, take b: error, take c: error): error { ((make(a, b, c)).inner).first }

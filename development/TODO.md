@@ -18,7 +18,7 @@ omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-d
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
 The bounded value-binding front end now includes [record source integration](history/reviews/v2.0.0-record-source-integration.md).
-Its production source corpus contains 85 cases: 43 accepted private units, 33 checking rejections,
+Its production source corpus contains 113 cases: 58 accepted private units, 46 checking rejections,
 4 header rejections and 5 syntax rejections. Closed nongeneric records, selected field places,
 partial moves/restoration/drop, projected initialization, disjoint/overlapping permissions and
 precise cleanup pass through the same private syntax/declaration/body/flow/resource path.
@@ -29,14 +29,20 @@ Declaration schemas and namespaces own type/field meaning once; downstream passe
 selected IDs. Ordinary results remain values, independent of input operation and local binding.
 No CLI mode, released-program adapter, native consumer or duplicate owner-survival set was added.
 
-Next close field selection from computed values under the owning future specification. Current
-structural values can be bound, passed or returned, but a member selection still requires an
-existing local/input-rooted place. Distinguish obtaining a value from retaining scoped access to
-a temporary. Prove the selected component's Copy-or-move and the remaining temporary's cleanup,
-including read-input supply and interruption, through the same selected operation/resource graph.
-Keep scoped alias initializers restricted to existing places unless their owning contract changes;
-do not silently create an unnamed owner to make an alias live longer. Preserve schema sharing and
-one field resolver, rather than implementing computed projections as a second lookup path.
+Computed field selection now shares one member-chain/field resolver with existing places and
+structural construction. It freezes the producer, complete field path and Copy/Move action, then
+uses the same resource ledger for selected-value supply and remainder cleanup. Known result data
+and normal completion are separate typing facts; interrupted calls/constructors preserve declared
+types without creating runtime owners. Scoped aliases and updates still require existing storage.
+
+Next close monomorphic callable-value contracts under the owning future specification. Start with
+structural invocation/input/result contracts and exact payload schemas for noncapturing callable
+values before admitting captured environments or generic/interface forwarding. Keep `func`/`mut`/
+`once` invocation separate from value ownership, preserve unmarked read and explicit edit/take,
+and select each direct or indirect call once. Add production source acceptance and rejection for
+value receipt, invocation, argument preparation/interruption and cleanup; do not classify callable
+payload dependencies from an empty capture list alone without its exact contract. Then extend
+captured environments with their R/D/S and retained-state obligations before accepting them.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

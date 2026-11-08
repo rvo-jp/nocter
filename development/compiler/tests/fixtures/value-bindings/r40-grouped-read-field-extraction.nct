@@ -1,0 +1,6 @@
+struct Pair {
+    first: error
+    second: error
+}
+func run(pair: Pair): error { read alias = pair
+(alias).first }

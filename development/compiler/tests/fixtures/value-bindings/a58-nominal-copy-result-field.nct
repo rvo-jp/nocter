@@ -1,0 +1,8 @@
+copy struct Point { value: i32 }
+struct Outer {
+    point: Point
+    other: error
+}
+func run(take failure: error): Point {
+    (Outer { point: Point { value: 1 }, other: failure }).point
+}
