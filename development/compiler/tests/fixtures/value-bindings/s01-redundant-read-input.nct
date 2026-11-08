@@ -1,0 +1,1 @@
+func invalid(read value: i32): void {}

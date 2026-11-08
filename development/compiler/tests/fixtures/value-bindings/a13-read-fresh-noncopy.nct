@@ -1,0 +1,5 @@
+func forward(take input: error): error { return input }
+func inspect(value: error): void {}
+func sample(take input: error): void {
+    inspect(forward(input))
+}

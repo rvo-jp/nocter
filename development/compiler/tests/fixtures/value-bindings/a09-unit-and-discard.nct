@@ -1,0 +1,5 @@
+func sample(): void {
+    let value = ()
+    let _ = value
+    return value
+}

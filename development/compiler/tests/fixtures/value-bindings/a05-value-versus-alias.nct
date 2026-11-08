@@ -1,0 +1,8 @@
+func sample(): i32 {
+    var value = 10
+    let snapshot = value
+    edit changing = value
+    changing = 20
+    read observed = value
+    return snapshot + observed
+}

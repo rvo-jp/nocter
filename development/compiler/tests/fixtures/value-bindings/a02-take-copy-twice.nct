@@ -1,0 +1,9 @@
+func increment(take value: i32): i32 {
+    value += 1
+    return value
+}
+func preserve(value: i32): i32 {
+    let first = increment(value)
+    let second = increment(value)
+    return value + first + second
+}

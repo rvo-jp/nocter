@@ -524,8 +524,17 @@ non-Copy callable; it no longer creates an implicit read alias. Use `read alias 
 that operation. `var` permits a locally stored mutable callback to be invoked/updated. A function
 parameter's operation independently determines whether it can read/update/take the callable.
 
-An expected callable type supplies input operations, output type and origin/state bounds before
-checking a closure. Without it, checked uses infer input requirements and a single output value
-type; insufficient information needs an ordinary type annotation. Later use cannot retroactively
-select another capture, invocation kind or ownership operation. Erased contracts retain the same
-facts; they introduce no run-time name lookup or authority repair.
+An expected callable type supplies omitted closure input operations, output type and origin/state
+bounds before checking the body. Explicit `edit`/`take` operations must agree with that contract;
+a parameter data-type annotation alone does not assert an operation. This is contextual completion
+of an anonymous implementation, not re-inference of a named declaration's default.
+
+Without an expected callable contract, every unmarked closure input is read, just as in a named
+function. The body may infer data types, captures, environment invocation and result shape; it
+cannot silently change an unmarked input to edit/take because its operations need those rights.
+A stand-alone identity of non-Copy data therefore needs `(take value: File) { value }`. An inline
+`(value) { value }` can instead inherit take from a previously selected expected callable contract.
+A read identity with source-level Copy evidence can return a snapshot normally. Insufficient data
+information requires an ordinary annotation. Later uses cannot retroactively select input/capture
+operations or invocation kind. Erased contracts preserve the same facts without run-time name
+lookup or authority repair.

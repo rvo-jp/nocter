@@ -1289,9 +1289,10 @@ clause. A callable result consumes its complete V2 type, so `func(i32): File!` a
 An explicit value-capture segment must be nonempty and ends with `;`. `(file; path: Path) { ... }`
 and `(file;) { ... }` capture values; `(path: Path) { ... }` has no explicit capture segment.
 The old `(^file; ...)` has no production. An expected callable contract can supply omitted closure
-input operations; explicit operations must agree. Without context, checked body requirements
-infer them before publishing the callable type. Modes are never chosen from the spelling of a
-call or its later use. A closure result annotation does not duplicate a result access permission.
+input operations; explicit operations must agree. Without an expected callable contract,
+unmarked closure inputs default to read before checking the body. Body use cannot silently select
+edit/take. Capture and data-type inference remain separate. Modes are never chosen from a call's
+spelling or its later use. A closure result annotation does not duplicate a result access permission.
 
 An index projection is the special existing-element protocol defined by the
 [future indexing rules](equality-and-indexing.md#future-direction-v2-0-0-index-projections).
@@ -1345,3 +1346,108 @@ The [implementation design](../../development/history/reviews/v2.0.0-value-bindi
 sets the replacement boundary: migrate declarations, typing, initialization, accesses, resources
 and source fixtures together before qualifying one S12 accepted private unit. Existing corpus
 passes are evidence for the earlier checkpoint only.
+
+### Bounded Value Binding Fragment
+
+The first S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
+supplied private module. This is its new source contract, not a compatibility variant or a public
+package format. The production implementation still follows the pre-S12 checkpoint until its
+entire accepted-unit boundary is replaced. The old corpus cannot qualify this grammar by relabeling
+its status. No bodies are thereby permitted in contract-only `index.nct`.
+
+This fragment imports future Name/literal/trivia/token/newline rules, `List`/`LineSequence`, and
+`V2InputOperation`. It imports no released type, statement or expression root:
+
+```text
+V2CoreUnit = LineSequence(V2CoreFunction)
+V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreType V2CoreBlock
+V2CoreParameter = V2InputOperation? Name ":" V2CoreType
+V2CoreType = "bool" | "i32" | "void" | "error"
+V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
+V2CoreEntry = V2CoreStatement | V2CoreExpression
+V2CoreStatement = ("let" | "var" | "read" | "edit") (Name | "_")
+                   (":" V2CoreType)? "=" V2CoreExpression
+                 | V2CorePostfix V2CoreAssignment V2CoreExpression
+                 | "return" V2CoreExpression? | "drop" Name
+                 | "break" | "continue"
+                 | "while" V2CoreExpression V2CoreBlock | "loop" V2CoreBlock
+V2CoreAssignment = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+V2CoreExpression = V2CoreOr
+V2CoreOr = V2CoreAnd ("||" V2CoreAnd)*
+V2CoreAnd = V2CoreEquality ("&&" V2CoreEquality)*
+V2CoreEquality = V2CoreOrdering (("==" | "!=") V2CoreOrdering)?
+V2CoreOrdering = V2CoreAdd (("<" | "<=" | ">" | ">=") V2CoreAdd)?
+V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
+V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
+V2CorePrefix = ("!" | "-") V2CorePrefix | V2CorePostfix
+V2CorePostfix = V2CorePrimary ("(" List(V2CoreExpression) ")")*
+V2CorePrimary = Name | integer_literal | "true" | "false" | "(" ")"
+               | "(" V2CoreExpression ")" | V2CoreIf
+V2CoreIf = "if" V2CoreExpression V2CoreBlock
+           ("else" (V2CoreBlock | V2CoreIf))?
+```
+
+Call openers stay on their callee's logical line. Parentheses preserve a place's category. Binary levels
+associate left; comparisons allow one ungrouped operator; short-circuit right operands are
+conditional edges. A return without a same-line operand is bare unit return. Blocks supply their
+final expression or normal unit completion. A non-final expression must be unit or terminating.
+Recognized non-place alias initializers/assignment targets are semantic errors, not alternate parses.
+A complete discard is exactly `let _ = expression`, without an annotation; other `_` bindings
+in this bounded grammar fail validation.
+
+Resolve all named headers before bodies. Every parameter's mode comes from its head: read when
+unmarked, otherwise edit/take. The result is always a delivered value, never I/U access. No
+body-selected mode, result qualifier, `from`, generic, receiver, closure, nominal, projection,
+pack, outcome, async, const or module production is inherited into this fragment. Such constructs
+are outside this private goal, not prohibited in the complete language. Direct calls resolve one
+named function (including transparent grouping) and its argument count/contract before permission
+checks. Functions are not storage places. A place here is an initialized local/input name with
+transparent grouping; dynamic projections are a later extension.
+
+Use the owning value-binding algorithm: Copy snapshots readable admitted data; otherwise move an
+eligible owner. Read/edit aliases never supply non-Copy extraction. Fixed owners may transfer/drop
+but cannot be assigned; mutable owners and take inputs can update/reinitialize their slots. Edit
+aliases/inputs update their original places and must remain valid on outward recoverable exits.
+Read inputs remain read even for Copy data, and a read Copy input can supply a separate take
+snapshot. Two taking uses of a known-Copy scalar can succeed; two transfers of one non-Copy owner
+cannot commit together. There are no source-level access/transfer prefix operations.
+
+`bool`, `i32` and `void` are Copy and have empty carried-access/external-storage requirements and
+trivial cleanup. The opaque move-only `error` owns its private immutable graph under the
+[error contract](../../std/error/README.md#future-direction-v2-0-0-value-access); it has empty
+outside D/S and graph cleanup. These are exact admitted data contracts, not implications of Copy
+or value ownership. No constructor or failure outcome is introduced for error by this fragment.
+A read error parameter therefore cannot be returned as an error value; a take error can transfer
+it. All value results are independent of callee-local storage of these four types. Ordinary read/
+edit aliases can still have R into local/input storage and need ordinary access validation.
+
+Primitive arithmetic/ordering use i32, logic uses bool, and equality compares matching bool/i32/
+void values under the [primitive equality rule](equality-and-indexing.md#future-direction-v2-0-0-core-primitive-equality).
+Uncontextualized integer literals default to i32; decode magnitude before range checks and admit
+`-2147483648` through grouping of its literal operand. Preserve checked overflow/division/remainder
+semantics and each prepared scalar payload. Unit `()` is the one void value. A non-producing local
+initializer cannot infer a data type; an annotation can provide it. Termination does not invent a
+stored value or a continuing flow edge.
+
+At ordinary conditional/block value boundaries, normally producing branches apply Copy-or-move
+to a common inferred/expected data type. A terminating branch contributes no answer. An if without
+else completes with unit and its normally producing then branch must be unit. A computed conditional
+operand has already constructed its answer; a direct named operand instead follows the selected
+call's read/edit/take preparation. Do not reinterpret computed moves as delayed direct reservations.
+A condition that terminates contributes no continuing branch; structurally unreachable code still
+has its own name/type obligations without fictitious runtime resource reads.
+
+Assignment is RHS-first. Reinitialize only writable owning slots; clean initialized old values
+conditionally and never read missing ones. Compound assignment reads its target only after the
+right-hand side. Propagate definite initialization, access demand and owner state through every
+reachable branch/backedge/exit; include zero-iteration while paths and actual break/continue
+successors. Non-breaking loops and literal-true while without a reachable break have no normal
+completion. Never derive a continuing edge from a dead break or choose Copy from later liveness.
+
+Stage value results before normal cleanup. Track owner responsibility in one ledger and alias/
+reservation relationships in the shared graph; access validation cannot invent a second survival
+set. Validate all definitions, including unused/recursive ones, before publishing an accepted unit.
+Exact source rebinding preserves the same immutable declaration identities and every body.
+No target product, native ABI, CLI mode or released-program adapter follows from this private
+front-end acceptance. The complete model's capability/state-footprint obligations remain required
+before admitting dependent aggregates or callable values.

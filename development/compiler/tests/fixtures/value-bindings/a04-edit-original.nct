@@ -1,0 +1,4 @@
+func increment(edit value: i32): void {
+    edit working = value
+    working += 1
+}

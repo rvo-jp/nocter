@@ -1,0 +1,1 @@
+func invalid(value: i32): void { drop value }

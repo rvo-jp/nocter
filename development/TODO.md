@@ -10,21 +10,30 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-The user adopted the value-binding foundation as
-[S12–S15](history/reviews/v2.0.0-source-design-decisions.md#s12-separate-values-binding-operations-and-capabilities).
-The [implementation design](history/reviews/v2.0.0-value-binding-implementation.md) owns replacement
-work, a whole-source grammar assembly draft, 36 additional adversarial requirements and
-proof/qualification gates. Owning future chapters
-now state value/alias/input/callable/result/state-origin rules and tooling requirements. This is
-specification/design work; no S12 compiler or executable acceptance is implemented.
+S12–S16 define the adopted value-binding direction. The user delegated the input-default decision
+and subsequent v2.0.0 source/design/planning/work to the agent. The selected default remains
+unmarked read, with edit/take explicit; no explicit-read input alias or type/name/body-based
+default. Uncontextualized closure inputs default to read; a selected expected contract can supply
+omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
+Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-Next close the named declaration/module/generic grammar dependencies relevant to a first S12
-private unit, derive fixtures from the 44 reviewed and 36 additional cases, and replace the current
-parser/declarations/typing/init/access/resource boundary coherently. Read each crate README before
-changing it. Preserve one selected-operation/control graph, one resource-survival authority and
-sealed whole-unit acceptance; do not retain old qualified results, source prefixes, implicit aliases
-or a compatibility adapter under the new parser. Capability schemas and result/edited-state
-relations must survive abstract/generic/erased use. No human source choice blocks this design task.
+The [bounded value-binding grammar](../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
+now closes the next private-module source/checking scope. The
+[planned source corpus](compiler/tests/fixtures/value-bindings/README.md) contains thirty intended
+verdicts and is explicitly unconsumed. Next replace the production `V2CoreUnit` parser,
+declarations/value-result metadata, binding/input typing, shared flow/init/access/resource plans
+as one sealed accepted-unit boundary; wire the planned corpus into production tests and retire
+incompatible old expectations then. No new CLI version switch, parallel parser/checker, old-mode
+adapter, duplicate owner-survival set or partial accepted-unit publication is permitted.
+
+Read each owning crate README before editing. The
+[implementation design](history/reviews/v2.0.0-value-binding-implementation.md) retains the broader
+36 adversarial requirements, capability/result/state-footprint and proof/qualification gates.
+No S12 implementation/native conformance follows from source inventories or documentation builds.
+After this bounded replacement, extend projections/nominals, generic/callable/interface schemas,
+outcomes/async and public modules under their own closed owning contracts; then realize target/ABI
+and native lifecycle behavior. Keep whole-source grammar assembly a draft until its semantic
+subjects migrate coherently; it does not block the closed four-type private fragment.
 
 The [first-access slice](history/reviews/v2.0.0-first-access-slice.md) and
 [checkpoint snapshot](history/reviews/v2.0.0-access-checkpoint-contracts.md) preserve the existing

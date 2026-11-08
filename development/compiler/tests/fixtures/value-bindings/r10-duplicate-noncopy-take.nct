@@ -1,0 +1,2 @@
+func consume(take first: error, take second: error): void {}
+func invalid(take input: error): void { consume(input, input) }

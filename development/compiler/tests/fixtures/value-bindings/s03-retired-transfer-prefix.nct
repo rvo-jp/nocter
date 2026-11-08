@@ -1,0 +1,1 @@
+func invalid(take input: error): error { return ^input }

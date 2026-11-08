@@ -1,0 +1,188 @@
+{
+  "schema": 1,
+  "intended_parse_goal": "V2CoreUnit",
+  "contract": "../../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment",
+  "compiler_status": "planned-not-consumed",
+  "cases": [
+    {
+      "id": "a01-observe-noncopy-twice",
+      "file": "a01-observe-noncopy-twice.nct",
+      "expectation": "accept",
+      "reason": "Default read preserves a non-Copy caller value through repeated observations."
+    },
+    {
+      "id": "a02-take-copy-twice",
+      "file": "a02-take-copy-twice.nct",
+      "expectation": "accept",
+      "reason": "Taking a known Copy input constructs separate snapshots and preserves the source."
+    },
+    {
+      "id": "a03-fixed-owner-transfer",
+      "file": "a03-fixed-owner-transfer.nct",
+      "expectation": "accept",
+      "reason": "Fixed value bindings can transfer a move-only payload without a prefix."
+    },
+    {
+      "id": "a04-edit-original",
+      "file": "a04-edit-original.nct",
+      "expectation": "accept",
+      "reason": "An edit alias delegates update authority and restores its parent after demand ends."
+    },
+    {
+      "id": "a05-value-versus-alias",
+      "file": "a05-value-versus-alias.nct",
+      "expectation": "accept",
+      "reason": "A value snapshot is independent while an edit alias writes the original slot."
+    },
+    {
+      "id": "a06-copy-through-read-alias",
+      "file": "a06-copy-through-read-alias.nct",
+      "expectation": "accept",
+      "reason": "Copy ends the destination dependence on the alias referent before a later update."
+    },
+    {
+      "id": "a07-rhs-first-self-transfer",
+      "file": "a07-rhs-first-self-transfer.nct",
+      "expectation": "accept",
+      "reason": "A move-only replacement moves out before target cleanup and then reinstalls the value."
+    },
+    {
+      "id": "a08-consume-and-restore",
+      "file": "a08-consume-and-restore.nct",
+      "expectation": "accept",
+      "reason": "An owning mutable slot can receive the value returned by a taking call."
+    },
+    {
+      "id": "a09-unit-and-discard",
+      "file": "a09-unit-and-discard.nct",
+      "expectation": "accept",
+      "reason": "Unit is a Copy value; ordinary Copy discard does not destroy its source slot."
+    },
+    {
+      "id": "a10-branch-value-transfer",
+      "file": "a10-branch-value-transfer.nct",
+      "expectation": "accept",
+      "reason": "Ordinary branch results transfer the chosen owner and clean only initialized remaining parts."
+    },
+    {
+      "id": "a11-reserve-then-read",
+      "file": "a11-reserve-then-read.nct",
+      "expectation": "accept",
+      "reason": "A direct edit operand reserves the place while a nested read finishes before activation."
+    },
+    {
+      "id": "a12-loop-restores-owner",
+      "file": "a12-loop-restores-owner.nct",
+      "expectation": "accept",
+      "reason": "Each continuing backedge restores the mutable non-Copy owner before reuse."
+    },
+    {
+      "id": "a13-read-fresh-noncopy",
+      "file": "a13-read-fresh-noncopy.nct",
+      "expectation": "accept",
+      "reason": "A read call can use a fresh move-only temporary without Copy; its evaluation frame owns cleanup."
+    },
+    {
+      "id": "a14-interrupted-preparation",
+      "file": "a14-interrupted-preparation.nct",
+      "expectation": "accept",
+      "reason": "A return in later operand computation releases a merely reserved taking source before outer cleanup."
+    },
+    {
+      "id": "r01-read-noncopy-result",
+      "file": "r01-read-noncopy-result.nct",
+      "expectation": "check-reject",
+      "reason": "A read non-Copy input cannot be extracted to supply an ordinary value result."
+    },
+    {
+      "id": "r02-update-read-input",
+      "file": "r02-update-read-input.nct",
+      "expectation": "check-reject",
+      "reason": "An unmarked input remains read despite a body that attempts mutation."
+    },
+    {
+      "id": "r03-drop-read-input",
+      "file": "r03-drop-read-input.nct",
+      "expectation": "check-reject",
+      "reason": "Read access is not an owning slot even when the data type is Copy."
+    },
+    {
+      "id": "r04-update-fixed-value",
+      "file": "r04-update-fixed-value.nct",
+      "expectation": "check-reject",
+      "reason": "A fixed value binding cannot be updated."
+    },
+    {
+      "id": "r05-extract-read-alias",
+      "file": "r05-extract-read-alias.nct",
+      "expectation": "check-reject",
+      "reason": "A read alias cannot supply a non-Copy owner to a value binding."
+    },
+    {
+      "id": "r06-edit-fixed-value",
+      "file": "r06-edit-fixed-value.nct",
+      "expectation": "check-reject",
+      "reason": "An edit alias needs writable storage; ownership alone does not make let writable."
+    },
+    {
+      "id": "r07-use-after-transfer",
+      "file": "r07-use-after-transfer.nct",
+      "expectation": "check-reject",
+      "reason": "Moving a non-Copy value leaves its previous owning slot unavailable."
+    },
+    {
+      "id": "r08-use-after-copy-drop",
+      "file": "r08-use-after-copy-drop.nct",
+      "expectation": "check-reject",
+      "reason": "Explicit drop destroys the named owner; it does not discard a non-invalidating snapshot."
+    },
+    {
+      "id": "r09-reinitialize-fixed-slot",
+      "file": "r09-reinitialize-fixed-slot.nct",
+      "expectation": "check-reject",
+      "reason": "A fixed binding cannot be reinitialized after moving its value."
+    },
+    {
+      "id": "r10-duplicate-noncopy-take",
+      "file": "r10-duplicate-noncopy-take.nct",
+      "expectation": "check-reject",
+      "reason": "One invocation bundle cannot transfer the same non-Copy owner twice."
+    },
+    {
+      "id": "r11-update-before-last-read",
+      "file": "r11-update-before-last-read.nct",
+      "expectation": "check-reject",
+      "reason": "An alias needed after a write keeps its read protection live."
+    },
+    {
+      "id": "r12-loop-missing-restoration",
+      "file": "r12-loop-missing-restoration.nct",
+      "expectation": "check-reject",
+      "reason": "A second reachable iteration cannot drop a slot left unavailable by the first."
+    },
+    {
+      "id": "s01-redundant-read-input",
+      "file": "s01-redundant-read-input.nct",
+      "expectation": "syntax-reject",
+      "reason": "The read input operation is unmarked; read is not an additional input modifier."
+    },
+    {
+      "id": "s02-retired-type-qualifier",
+      "file": "s02-retired-type-qualifier.nct",
+      "expectation": "syntax-reject",
+      "reason": "The bounded data types do not admit old ownership qualifiers."
+    },
+    {
+      "id": "s03-retired-transfer-prefix",
+      "file": "s03-retired-transfer-prefix.nct",
+      "expectation": "syntax-reject",
+      "reason": "Value construction handles transfer; standalone caret transfer is retired."
+    },
+    {
+      "id": "s04-retired-update-prefix",
+      "file": "s04-retired-update-prefix.nct",
+      "expectation": "syntax-reject",
+      "reason": "Scoped update uses edit rather than a standalone ampersand expression."
+    }
+  ]
+}

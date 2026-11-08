@@ -1,0 +1,4 @@
+func invalid(): void {
+    let value = 1
+    value = 2
+}

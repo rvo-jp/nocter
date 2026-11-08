@@ -1,0 +1,10 @@
+func cycle(take input: error, rounds: i32): error {
+    var current = input
+    var left = rounds
+    while left > 0 {
+        let next = current
+        current = next
+        left -= 1
+    }
+    return current
+}

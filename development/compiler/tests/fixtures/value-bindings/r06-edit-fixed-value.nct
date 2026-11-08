@@ -1,0 +1,6 @@
+func invalid(): i32 {
+    let value = 1
+    edit changing = value
+    changing += 1
+    return value
+}

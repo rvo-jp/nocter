@@ -1,0 +1,7 @@
+func measure(value: i32): i32 { return value }
+func replace(edit value: i32, replacement: i32): void { value = replacement }
+func sample(): i32 {
+    var value = 1
+    replace(value, measure(value) + 1)
+    return value
+}

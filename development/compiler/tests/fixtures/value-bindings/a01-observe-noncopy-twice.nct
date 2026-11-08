@@ -1,0 +1,6 @@
+func inspect(value: error): void {}
+func preserve(take value: error): error {
+    inspect(value)
+    inspect(value)
+    return value
+}

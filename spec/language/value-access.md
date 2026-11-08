@@ -102,6 +102,20 @@ cannot be returned as a plain T. A separate capability result can expose checked
 | `edit value: T` | Update caller storage; leave it initialized on outward recoverable exits |
 | `take value: T` | Receive a value and its transfer/cleanup responsibility |
 
+Read is the sole default input operation for named functions, methods, constructors, interface
+requirements and structural callable types, independently of Copy, representation, naming or
+body use. Do not add explicit `read value: T` as an equivalent input spelling. Plain `self` reads
+the receiver. Ordinary value-producing boundaries remain Copy-or-move; a colon followed by T
+states the data type and does not impose one universal operation on every declaration position.
+
+This default lets an observation retain its argument without constructing another value, including
+when the argument is non-Copy. Receiving an independent value remains explicit with `take`.
+A constructor that stores an input as a non-Copy component must declare that input `take`; its
+name or constructor role cannot silently change the default. A read input cannot be returned as
+an independent T without Copy evidence. Report that attempted value construction locally rather
+than changing the public input contract from the body. These are semantic operation rules, not a
+requirement to pass every read input by machine pointer or a guarantee of better performance.
+
 Read inputs do not acquire snapshot semantics even for Copy T. A `take` input receives its own
 locally writable slot; updates to it do not update the caller's original slot. This is the
 explicit full-value operation, not a reason to make every owning local mutable. A fixed local can

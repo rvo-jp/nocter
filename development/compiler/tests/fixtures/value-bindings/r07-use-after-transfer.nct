@@ -1,0 +1,6 @@
+func inspect(value: error): void {}
+func invalid(take input: error): error {
+    let result = input
+    inspect(input)
+    return result
+}

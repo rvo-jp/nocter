@@ -1,0 +1,4 @@
+func invalid(take input: error, again: bool): void {
+    var value = input
+    while again { drop value }
+}

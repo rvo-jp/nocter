@@ -1,0 +1,4 @@
+func consume(take value: error, number: i32): void {}
+func sample(take input: error, finish: bool): void {
+    consume(input, if finish { return } else { 0 })
+}

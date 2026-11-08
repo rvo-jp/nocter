@@ -1,0 +1,3 @@
+func invalid(edit value: i32): void {
+    let changing = &value
+}

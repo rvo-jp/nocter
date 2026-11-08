@@ -40,27 +40,28 @@ requested by the user. They are never evidence for language semantics or new com
 
 ## Specification Closure
 
-### Delegated v2.0.0 Value Access Model Design
+### Delegated v2.0.0 Design and Work
 
-The user delegates completion of the v2.0.0 Value Access Model's semantics, analysis, and
-optimization design to the agent. Within this scope, resolve remaining model questions
-autonomously, including questions that affect accepted programs or observable execution. Do not
-ask the user to approve internal model alternatives or merely confirm a recommendation. This
-scoped delegation takes precedence over the general decision procedure below; it does not
-delegate unrelated language decisions or release publication.
+The user delegates v2.0.0 language design, semantics, analysis, optimization, planning,
+verification and implementation decisions to the agent. On 2026-11-08 they explicitly delegated
+the input-default choice and subsequent work, extending the earlier internal-model delegation
+to source alternatives that previously awaited human evaluation. Resolve those alternatives
+and choose ordinary work order autonomously, including decisions affecting accepted programs
+or observable execution. Do not ask the user merely to approve a design recommendation or
+next task. This scoped delegation takes precedence over the general procedure below.
 
-Consult the user only for source-language design alternatives that need human evaluation of
-writing, reading, or learning the language. Present concrete source examples, explain the tradeoff,
-and recommend one spelling or rule. This includes call-marker omission/placement, projection
-syntax, and callable-type spelling when materially different user-facing forms remain. Do not
-turn a semantic or analysis decision into a syntax question merely to obtain approval.
+Existing user goals/preferences and later corrections remain authoritative. Ask only for genuinely
+missing requirements that cannot be established from the session/repository, or for an action
+outside authorization. Delegated design/work does not authorize release publication, replacement
+of qualified artifacts, external messages, or unrelated product decisions. Explain consequential
+choices and tradeoffs with concrete source examples, without turning them into approval blockers.
 
-Respect adopted model decisions and safety/resource requirements. Use primary research as
-evidence, not authority; record the selected rule, rationale, counterexamples, proof obligations,
-and valid/conflicting/failure/cancellation cases. Distinguish autonomous model decisions from
-syntax awaiting human review and from implemented compiler behavior. Keep v2.0.0 design closure
-in its plan/review until coherent migration into the owning specification chapters; do not
-silently change the current released contract.
+Respect adopted safety/resource requirements. Use primary research as evidence, not authority;
+record selected rules, rationale, counterexamples, proof obligations and valid/conflicting/failure/
+cancellation cases. Distinguish adopted source design, autonomous model closure and implemented
+compiler support. Keep design closure in the plan/review until coherent migration into owning
+specification chapters. Do not silently change the current released contract or count planned
+source fixtures as production conformance.
 
 ### General Closure Procedure
 

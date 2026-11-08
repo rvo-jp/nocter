@@ -727,7 +727,10 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 Exact allocation within an existing family is fixed before implementing its compiler migration;
 this table does not duplicate numeric registration. A generic read input cannot deliver T without
 Copy merely because one future instantiation is an integer. Explain the missing capability or
-owning source, not a missing `^` prefix. A fixed value supplied to an edit input needs an intentional
+owning source, not a missing `^` prefix. An uncontextualized closure's unmarked input is read;
+body extraction cannot silently change it to take. If an expected callable supplies a different
+operation, relate that selected contract when explaining its mismatch. Do not describe a data-type
+annotation as overriding that input operation. A fixed value supplied to an edit input needs an intentional
 mutable binding; do not silently rewrite it. A view descriptor Copy still retains its dependencies.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics

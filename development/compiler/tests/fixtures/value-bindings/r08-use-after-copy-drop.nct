@@ -1,0 +1,5 @@
+func invalid(): i32 {
+    let value = 1
+    drop value
+    return value
+}

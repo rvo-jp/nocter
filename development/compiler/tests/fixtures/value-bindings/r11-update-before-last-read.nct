@@ -1,0 +1,6 @@
+func invalid(): i32 {
+    var value = 1
+    read observed = value
+    value = 2
+    return observed
+}
