@@ -1,0 +1,6 @@
+func increment(value: i32): i32 { value + 1 }
+func make(): func(i32): i32 { increment }
+func run(): i32 { let action = make()
+read alias = action
+let copy = alias
+copy(action(1)) }

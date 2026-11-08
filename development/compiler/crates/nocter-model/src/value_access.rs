@@ -91,6 +91,8 @@ impl ValueBindingKind {
 pub enum ValueFunctionOrigin {
     Declaration(crate::AccessCallableId),
     Parameter(crate::AccessParameterId),
+    /// A declared callable result, closed by checking its reachable return producers.
+    Result(crate::AccessCallableId),
 }
 
 /// Invocation access, independent of a callable value's binding or explicit inputs.
@@ -180,5 +182,35 @@ mod formal_tests {
             ids.push(data);
         }
         assert_ne!(ids[0], ids[1]);
+    }
+}
+
+#[cfg(test)]
+mod result_tests {
+    use super::*;
+    use crate::{AccessCallableId, ArenaBuilder, TypeAuthority, TypeKind};
+    #[test]
+    fn result_signature_identity_is_symbolic_until_its_producer_is_closed() {
+        let mut declarations = ArenaBuilder::<AccessCallableId, ()>::new();
+        let id = declarations.insert(());
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let result = types
+            .intern(TypeKind::ValueFunction {
+                origin: ValueFunctionOrigin::Result(id),
+                invocation: ValueInvocation::Read,
+            })
+            .unwrap();
+        let named = types
+            .intern(TypeKind::ValueFunction {
+                origin: ValueFunctionOrigin::Declaration(id),
+                invocation: ValueInvocation::Read,
+            })
+            .unwrap();
+        assert_ne!(result, named);
+        assert_eq!(types.is_concrete(result), Some(false));
+        assert!(types.may_carry_storage(result));
+        let projected = types.project(result).unwrap();
+        assert_eq!(projected.types().get(projected.root()), types.get(result));
     }
 }

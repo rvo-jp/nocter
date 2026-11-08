@@ -1,0 +1,4 @@
+func increment(value: i32): i32 { value + 1 }
+func make(take value: error): func(i32): i32 { drop value
+increment }
+func run(take value: error): i32 { make(value)(1) }

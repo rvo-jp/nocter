@@ -5,7 +5,7 @@ use nocter_model::{
     ValueInvocation,
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FunctionWitness {
     pub origin: ValueFunctionOrigin,
     pub invocation: ValueInvocation,
@@ -52,21 +52,21 @@ pub struct FunctionDefinition {
     pub result: DataReference,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ParameterData {
+pub enum ValueDefinition {
     Data(DataReference),
     Function(FunctionDefinition),
 }
-impl From<DataReference> for ParameterData {
+impl From<DataReference> for ValueDefinition {
     fn from(data: DataReference) -> Self {
         Self::Data(data)
     }
 }
-impl From<nocter_model::BuiltinType> for ParameterData {
+impl From<nocter_model::BuiltinType> for ValueDefinition {
     fn from(data: nocter_model::BuiltinType) -> Self {
         Self::Data(data.into())
     }
 }
-impl ParameterData {
+impl ValueDefinition {
     pub(super) fn visit_data(&self, mut visit: impl FnMut(DataReference)) {
         match self {
             Self::Data(data) => visit(*data),
@@ -104,6 +104,7 @@ impl Program {
                 }
             }
             ValueFunctionOrigin::Parameter(id) => self.parameters.get(id)?.contract()?.clone(),
+            ValueFunctionOrigin::Result(id) => self.callables.get(id)?.result_contract()?.clone(),
         };
         if !contract.invocation.can_supply(witness.invocation) {
             return None;
@@ -131,6 +132,9 @@ impl Program {
             }
             ValueFunctionOrigin::Parameter(id) => {
                 self.parameters.get(id)?.contract()?;
+            }
+            ValueFunctionOrigin::Result(id) => {
+                self.callables.get(id)?.result_contract()?;
             }
         }
         self.types.store().identity(&TypeKind::ValueFunction {

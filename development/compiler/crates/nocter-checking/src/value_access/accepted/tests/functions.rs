@@ -34,7 +34,8 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
                 .callables()
                 .get(match calls[0].0 {
                     nocter_model::ValueFunctionOrigin::Declaration(id) => id,
-                    nocter_model::ValueFunctionOrigin::Parameter(_) => panic!("concrete target"),
+                    nocter_model::ValueFunctionOrigin::Parameter(_)
+                    | nocter_model::ValueFunctionOrigin::Result(_) => panic!("concrete target"),
                 })
                 .unwrap()
                 .name()

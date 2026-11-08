@@ -13,11 +13,11 @@ pub struct FunctionTypeSyntax {
     pub result: SyntaxToken,
 }
 #[derive(Clone, Debug)]
-pub enum ParameterTypeSyntax {
+pub enum ValueTypeSyntax {
     Data(SyntaxToken),
     Function(FunctionTypeSyntax),
 }
-impl ParameterTypeSyntax {
+impl ValueTypeSyntax {
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
             Self::Data(token) => vec![*token],
@@ -33,9 +33,9 @@ impl ParameterTypeSyntax {
 /// Project complete private type syntax without resolving a name or interpreting body use.
 /// # Errors
 /// Rejects a product inconsistent with the bounded grammar.
-pub fn parameter_type(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<ParameterTypeSyntax, Failure> {
+pub fn value_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<ValueTypeSyntax, Failure> {
     let Some(contract) = direct_node(syntax.tree(), ty, NodeKind::CallableType) else {
-        return data_token(syntax, ty).map(ParameterTypeSyntax::Data);
+        return data_token(syntax, ty).map(ValueTypeSyntax::Data);
     };
     let token = first_direct_token(syntax.tree(), contract).ok_or(Failure::InconsistentSyntax)?;
     let invocation = match (
@@ -58,7 +58,7 @@ pub fn parameter_type(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<ParameterTy
         .collect::<Result<_, Failure>>()?;
     let result =
         direct_node(syntax.tree(), contract, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-    Ok(ParameterTypeSyntax::Function(FunctionTypeSyntax {
+    Ok(ValueTypeSyntax::Function(FunctionTypeSyntax {
         invocation,
         inputs,
         result: data_token(syntax, result)?,

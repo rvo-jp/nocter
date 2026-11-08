@@ -297,12 +297,13 @@ impl TypedBody {
 pub(super) enum Boundary {
     Binding(ValueAccess),
     Value(TypeId),
+    Result(TypeId),
 }
 impl Boundary {
     pub(super) const fn ty(self) -> ValueAccess {
         match self {
             Self::Binding(ty) => ty,
-            Self::Value(data) => ValueAccess::new(data, ValueAccessMode::Own),
+            Self::Value(data) | Self::Result(data) => ValueAccess::new(data, ValueAccessMode::Own),
         }
     }
 }

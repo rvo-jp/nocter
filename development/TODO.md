@@ -17,31 +17,30 @@ default. Uncontextualized closure inputs default to read; a selected expected co
 omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-The bounded front end includes closed records, named/computed fields, local named function values
-and now [statically witnessed callable inputs](history/reviews/v2.0.0-callable-input-witnesses.md).
-The source corpus has 189 cases: 96 accepted units, 81 checking rejections, 6 header rejections
-and 6 syntax rejections. Formal contracts are checked once independently of caller/body use;
-selected argument plans retain formal-to-actual witness bindings. Forwarding/recurse uses finite
-semantic identities. Owning formals preserve symbolic cleanup without acquiring Copy or empty D/S.
-The producer domain remains named code/formal forwarding, with no captured environment producer.
+The bounded front end includes closed records, named/computed fields, local named function values,
+[statically witnessed callable inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
+[named callable results](history/reviews/v2.0.0-callable-result-witnesses.md). The source corpus has
+231 cases: 119 accepted units, 98 checking rejections, 8 header rejections and 6 syntax rejections.
+Formal contracts are checked independently of caller/body use and retain symbolic cleanup without
+Copy or empty D/S. Callable results now close from actual reachable values to one named witness,
+including forwarding, anchored recursion and joins/replacement. The same checked body/control/type
+authorities feed the target owner's [private InstanceProgram](history/reviews/v2.0.0-private-instance-closure.md).
 No CLI mode, native output or performance claim follows.
 
-The target owner now closes an explicit root into a
-[private InstanceProgram](history/reviews/v2.0.0-private-instance-closure.md). Selected witness
-bindings produce finite concrete instances and call edges; source data maps to concrete cleanup
-obligations in the same TypeAuthority. Source moves/reservations remain unchanged. Root callback
-formals must already be bound; there is no public CLI, ABI/layout or native admission.
+Next extend callable results to preserve input-dependent witness relations. A single result family
+per function cannot distinguish `forward(first)` from `forward(second)`; merely accepting formal
+producers would conflate their identities. Establish canonical call-application witness identities
+and substitution in the same semantic/type authority, with finite recursive equations rather than
+expanding source names or a second call graph. Resolve Copy-versus-move before initialization for
+potentially move-only environments: the named-result conditional-Copy proof is not a generic
+fallback. Retain authored input operations and exact view/dependency/cleanup evidence independently
+of a known caller. Add production cases for different input witnesses, forwarding and return joins,
+recursive relations, interruption and environment cleanup; target closure must consume selected
+relations without retyping or searching signatures.
 
-Next close callable results into this same instance authority. Represent checked result-witness
-relations over named/formal producers, preserve explicit return and conditional/block joins,
-reject heterogeneous/ambiguous or unsupported recursive result equations, and substitute already
-selected targets rather than retyping bodies or searching contracts. Retain each formal's authored
-operation and source-level capabilities even for a currently Copy named caller. Add source-to-unit
-and instance tests for returned forwarding, recursive closure/termination, identity separation,
-interruption and cleanup. Do not create another graph or infer environment presence from arity;
-typing now records direct/value invocation explicitly. Then close physical environment/argument
-realization and executable cleanup before MIR/native admission. Captured producers remain separate
-until R/D/S, retained-state/write footprints and destruction are proved under the same authority.
+Then close physical environment/argument realization and executable cleanup before MIR/native
+admission. Captured producers remain separate until R/D/S, retained-state/write footprints and
+destruction are proved under the same authority. No human-decision blocker remains for this work.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

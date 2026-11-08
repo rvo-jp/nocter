@@ -6,17 +6,19 @@ and [input/value rules](../../../../../spec/language/value-access.md). Each file
 private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
-`manifest.json` as the sole per-source expectation catalog. All 189 inputs have compiler assertions:
-6 syntax rejections, 6 header rejections, 81 checking rejections and 96 whole-unit acceptances.
-Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 177
-header-valid units without claiming body acceptance and reject the six invalid headers.
-The 183 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
+`manifest.json` as the sole per-source expectation catalog. All 231 inputs have compiler assertions:
+6 syntax rejections, 8 header rejections, 98 checking rejections and 119 whole-unit acceptances.
+Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 217
+header-valid units without claiming body acceptance and reject the eight invalid headers.
+The 225 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
 also check token/source projection. Neither shape equality nor manifest registration proves
 memory safety; the closed checker owns the semantic verdicts.
 
 The compiler tests retain their assertions. The manifest identifies the source and distinguishing
 requirement; the owning specification remains normative. No second parser/checker or source-text
-semantic oracle belongs in corpus tooling. The [private instance review](../../../../history/reviews/v2.0.0-private-instance-closure.md),
+semantic oracle belongs in corpus tooling. The
+[callable result review](../../../../history/reviews/v2.0.0-callable-result-witnesses.md),
+[private instance review](../../../../history/reviews/v2.0.0-private-instance-closure.md),
 [callable input review](../../../../history/reviews/v2.0.0-callable-input-witnesses.md),
 [function witness review](../../../../history/reviews/v2.0.0-function-witnesses.md)
 and earlier [record review](../../../../history/reviews/v2.0.0-record-source-integration.md)
@@ -47,7 +49,12 @@ positions, higher-order named values, record/error contracts, non-Copy supply, s
 invocation adapters and interrupted input evaluation. Invalid unused bodies still reject even
 when a known caller supplies a Copy named function. Availability and atomic conflict diagnostics
 remain separate; terminating unknown-shaped inputs do not hide known contract mismatches.
-These passes do not implement indexing, dependent aggregates, structural callback results,
+Callable-result cases add named producers, forwarded factories, explicit/final returns, anchored
+recursive equations, local/conditional joins and replacement, invocation adapters, proved Copy,
+callback input supply, staged cleanup and interrupted calls. Rejections include incompatible
+contracts/identities, missing producers, input-dependent returns, invalid updates and retained
+aliases. Dead branches and overwritten values cannot anchor recursive results.
+These passes do not implement indexing, dependent aggregates, input-dependent callback results,
 captured environments, erased callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch or released-program
 adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
 

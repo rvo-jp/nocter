@@ -1,0 +1,4 @@
+func increment(value: i32): i32 { value + 1 }
+func decrement(value: i32): i32 { value - 1 }
+func make(flag: bool): func(i32): i32 { if flag { return increment }
+return decrement }

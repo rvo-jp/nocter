@@ -38,6 +38,8 @@ they do not make reviews normative or register compiler support.
 
 - [Private Instance Closure](v2.0.0-private-instance-closure.md) — root-driven concrete witness substitution, recursive instance sharing and frozen data/cleanup projections
 
+- [Callable Result Witnesses](v2.0.0-callable-result-witnesses.md) — reachable named producers, anchored recursive results, identity/Copy closure and dependency-safe source reuse
+
 #### Research and Adoption Audits
 
 - [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance

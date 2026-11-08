@@ -1,0 +1,1 @@
+func make(): func(Unknown): i32 {}

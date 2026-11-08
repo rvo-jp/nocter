@@ -152,14 +152,7 @@ pub(super) fn analyze(
         }
         for world in worlds {
             if block.terminator == Terminator::Return {
-                if !world.resources.returned(
-                    typed
-                        .program()
-                        .callables()
-                        .get(typed.callable())
-                        .ok_or(INVALID)?
-                        .result(),
-                ) {
+                if !world.resources.returned(typed.result_data()) {
                     return Err(INVALID);
                 }
             } else {

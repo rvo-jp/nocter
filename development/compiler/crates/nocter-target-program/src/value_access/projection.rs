@@ -14,6 +14,7 @@ pub(super) fn witness(
 ) -> Result<ConcreteWitness, Failure> {
     let declaration = match selected.origin {
         ValueFunctionOrigin::Declaration(id) => id,
+        ValueFunctionOrigin::Result(_) => return Err(Failure::InvalidAcceptedUnit),
         ValueFunctionOrigin::Parameter(id) => {
             let supplied = key.witnesses.get(&id).ok_or(Failure::InvalidAcceptedUnit)?;
             if !supplied.invocation.can_supply(selected.invocation) {
@@ -36,6 +37,7 @@ pub(super) fn callee(
 ) -> Result<InstanceKey, Failure> {
     let callable = match target {
         ValueFunctionOrigin::Declaration(id) => id,
+        ValueFunctionOrigin::Result(_) => return Err(Failure::InvalidAcceptedUnit),
         ValueFunctionOrigin::Parameter(id) => {
             caller
                 .witnesses
@@ -104,13 +106,7 @@ pub(super) fn data(
             .iter()
             .filter_map(|(_, b)| b.ty.access().map(nocter_model::ValueAccess::data)),
     );
-    pending.insert(
-        program
-            .callables()
-            .get(key.callable)
-            .ok_or(Failure::InvalidAcceptedUnit)?
-            .result(),
-    );
+    pending.insert(body.typed().result_data());
     let mut concrete = BTreeMap::new();
     while let Some(source) = pending.pop_first() {
         if concrete.contains_key(&source) {

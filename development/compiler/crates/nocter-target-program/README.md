@@ -70,7 +70,9 @@ checking-reachable invocation commits create call edges. A function reference or
 argument does not force an uninvoked body into the graph. Construction indexes are discarded;
 one immutable instance arena is the published authority.
 
-`projection` substitutes already selected named/formal origins and invocation views. It verifies
+`projection` substitutes already selected named/formal origins and invocation views. Callable
+results arrive with checking-closed named witnesses; the body's resolved result data enters the
+same projection table. No target-side result inference or second instance graph exists. It verifies
 formal identity coverage without repeating signature matching or target search. One table maps
 source data IDs to concrete payload obligations in the existing program type authority. Schema
 cleanup classification remains checking-owned. Record closure visits shared schemas iteratively,
@@ -80,6 +82,6 @@ projection, while the original body's source-selected moves/reservations stay un
 Each instance pairs frozen call edges and data projections with its original checked body. Later
 consumers must use those edges/projections and the recorded direct/value invocation kind; they
 cannot infer an environment offset from arity, recheck a body, select by names, or reinterpret
-source-level Copy from the concrete payload. Callable results and captured producers require
-further closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
+source-level Copy from the concrete payload. Input-dependent results and captured producers require
+further source closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
 owns the handoff; the review/handoff own work status.

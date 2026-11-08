@@ -3,7 +3,7 @@ mod definitions;
 mod headers;
 mod projection;
 mod type_syntax;
-pub use type_syntax::{FunctionTypeSyntax, ParameterTypeSyntax, parameter_type};
+pub use type_syntax::{FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]
 mod tests;
 
@@ -96,13 +96,11 @@ impl Query {
             functions
                 .iter()
                 .flat_map(|h| {
-                    std::iter::once(h.name)
-                        .chain(std::iter::once(h.result_data))
-                        .chain(
-                            h.parameters
-                                .iter()
-                                .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
-                        )
+                    std::iter::once(h.name).chain(h.result_data.tokens()).chain(
+                        h.parameters
+                            .iter()
+                            .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
+                    )
                 })
                 .chain(records.iter().flat_map(|r| {
                     std::iter::once(r.name)

@@ -43,6 +43,17 @@ impl Query {
         })
     }
 }
+impl Query {
+    pub(in crate::value_access) fn bind_verified<'query, 'source>(
+        &'query self,
+        verified: &crate::value_access::results::Verified<'_, 'source>,
+    ) -> Result<Context<'query, 'source>, Failure> {
+        Ok(Context {
+            query: self,
+            typed: self.typed.bind_verified(verified)?,
+        })
+    }
+}
 impl Context<'_, '_> {
     #[must_use]
     pub const fn query(&self) -> &Query {

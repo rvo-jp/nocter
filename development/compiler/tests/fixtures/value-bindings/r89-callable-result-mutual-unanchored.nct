@@ -1,0 +1,2 @@
+func first(): func(i32): i32 { second() }
+func second(): func(i32): i32 { first() }

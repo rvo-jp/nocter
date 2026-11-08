@@ -1,0 +1,2 @@
+func truth(value: i32): bool { true }
+func make(): func(i32): i32 { truth }

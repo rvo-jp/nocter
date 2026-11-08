@@ -26,6 +26,8 @@ pub(super) struct LoopFrame {
 pub(super) struct Checker<'a, 's> {
     pub context: &'a DeclarationContext<'s>,
     pub result: TypeId,
+    pub pending_results: bool,
+    pub equalities: Vec<super::results::Equality>,
     pub projection: BodySyntaxProjection,
     pub origins: Origins,
     pub locals: ArenaBuilder<AccessLocalId, Local>,
@@ -55,6 +57,8 @@ pub(super) fn prepare(
     let mut checker = Checker {
         context,
         result: declaration.result(),
+        pending_results: declaration.result_contract().is_some(),
+        equalities: Vec::new(),
         projection: BodySyntaxProjection::for_root(syntax.tree(), source.body())
             .ok_or(Failure::InconsistentSyntax)?,
         origins: Origins::default(),
@@ -88,7 +92,7 @@ pub(super) fn prepare(
     }
     let root = checker.block(
         source.body(),
-        Some(Boundary::Value(declaration.result())),
+        Some(Boundary::Result(declaration.result())),
         true,
     )?;
     let body_bytes = syntax
@@ -100,6 +104,10 @@ pub(super) fn prepare(
         program: context.program_handle(),
         callable,
         body_bytes,
+        result_data: declaration.result(),
+        results_closed: !checker.pending_results,
+        result_evidence: None,
+        equalities: checker.equalities,
         origins: checker.origins,
         body: TypedBody {
             root,
@@ -196,6 +204,9 @@ impl Checker<'_, '_> {
         ty: ValueType,
         kind: ExpressionKind,
     ) -> Result<AccessExpressionId, Failure> {
+        self.pending_results |= ty
+            .access()
+            .is_some_and(|access| super::results::is_result(self.program(), access.data()));
         let site = self.site(SyntaxOrigin::Node(node))?;
         let id = self.expressions.insert(Expression { ty, kind });
         self.origins.expressions.insert(id, site);
@@ -273,7 +284,8 @@ impl Checker<'_, '_> {
                 self.program()
                     .symbols()
                     .spelling(match witness.origin {
-                        nocter_model::ValueFunctionOrigin::Declaration(id) =>
+                        nocter_model::ValueFunctionOrigin::Declaration(id)
+                        | nocter_model::ValueFunctionOrigin::Result(id) =>
                             self.program().callables().get(id).expect("witness").name(),
                         nocter_model::ValueFunctionOrigin::Parameter(id) => self
                             .program()
@@ -404,7 +416,26 @@ impl Checker<'_, '_> {
             return Ok(source);
         };
         let expected = boundary.ty();
-        if actual.data() != expected.data() {
+        if matches!(boundary, Boundary::Result(_))
+            && let Some(value) = self.result_boundary(node, source, expected.data())?
+        {
+            return Ok(value);
+        }
+        if actual.data() != expected.data()
+            && !self
+                .program()
+                .function_adapter(actual.data(), expected.data())
+        {
+            if let Some(value) = self.result_assignment(node, source, expected)? {
+                source = value;
+                actual = self
+                    .ty(source)
+                    .access()
+                    .ok_or(Failure::InconsistentSyntax)?;
+            } else {
+                return self.mismatch(node, expected, actual);
+            }
+        } else if actual.data() != expected.data() {
             if expected.mode() != Mode::Own
                 || !self
                     .program()
@@ -444,7 +475,9 @@ impl Checker<'_, '_> {
             }
             Mode::Own => {
                 if let Some(local) = place {
-                    if self.copyable(actual.data()) {
+                    if self.copyable(actual.data())
+                        || super::results::is_result(self.program(), actual.data())
+                    {
                         BoundaryAction::CopyPayload
                     } else if self.place_ty(local).mode() == Mode::Own {
                         return self.emit(

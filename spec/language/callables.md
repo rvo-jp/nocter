@@ -589,3 +589,34 @@ may delegate update access. A consuming invocation requires an owning source or 
 Cleanup of an owning formal environment remains an obligation tied to its witness, not a claim
 that the environment is trivial or independent. The concrete supplied environment must satisfy
 that obligation and retain its carried dependencies.
+
+### Statically Witnessed Callable Results
+
+A structural callable result delivers an owning environment value satisfying its invocation and
+explicit input/result contract. The compiler retains the returned code witness; the signature
+does not select runtime erasure. A result contract alone does not grant Copy. The exact
+established producer schema may separately prove Copy; no conditional Copy operation can enter
+complete flow/resource acceptance before that proof. Receiving and forwarding the value follows
+ordinary value supply, and reading an owning result keeps it alive for the selected operation.
+
+The bounded private fragment first admits results whose reachable return producers establish one
+named function witness, possibly through other such results. Explicit and block-final returns
+participate in the same result relation. Different reachable named witnesses are incompatible;
+a recursive relation needs an established producer and cannot choose a witness from its signature.
+A callable result depending on an input's witness remains outside this bounded fragment. This is
+an implementation boundary, not a prohibition in the complete value model.
+
+```text
+func increment(value: i32): i32 { value + 1 }
+func make(): func(i32): i32 { increment }
+func forward(): func(i32): i32 { make() }
+func run(): i32 { let action = forward()
+    action(1)
+}
+```
+
+Selected invocation adapters remain part of the result relation. A result may not recover a
+stronger invocation view from its concrete producer. Known structural type errors remain errors
+on interrupted paths; termination never creates a returned environment or relaxes a result
+contract. Result relations close before complete body/resource acceptance and concrete instance
+closure. No native capability follows from an unresolved relation.

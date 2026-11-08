@@ -16,7 +16,7 @@ mod data;
 mod functions;
 pub use functions::{
     FunctionConstraint, FunctionDefinition, FunctionInput, FunctionMismatch, FunctionWitness,
-    ParameterData,
+    ValueDefinition,
 };
 mod publication;
 mod records;
@@ -36,7 +36,7 @@ mod tests;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParameterDefinition {
     pub name: Symbol,
-    pub data: ParameterData,
+    pub data: ValueDefinition,
     pub operation: ValueInputOperation,
 }
 
@@ -79,9 +79,14 @@ pub struct Callable {
     name: Symbol,
     parameters: Box<[AccessParameterId]>,
     result: TypeId,
+    result_contract: Option<FunctionConstraint>,
 }
 
 impl Callable {
+    #[must_use]
+    pub const fn result_contract(&self) -> Option<&FunctionConstraint> {
+        self.result_contract.as_ref()
+    }
     #[must_use]
     pub const fn name(&self) -> Symbol {
         self.name
@@ -179,7 +184,7 @@ impl Program {
 #[derive(Debug)]
 struct Definition {
     parameters: Box<[ParameterDefinition]>,
-    result_data: DataReference,
+    result_data: ValueDefinition,
 }
 
 #[derive(Debug)]
@@ -249,7 +254,7 @@ impl Builder {
         &mut self,
         id: AccessCallableId,
         parameters: impl Into<Box<[ParameterDefinition]>>,
-        result_data: impl Into<DataReference>,
+        result_data: impl Into<ValueDefinition>,
     ) -> Result<(), DefinitionError> {
         let reservation = self
             .reservations
@@ -312,7 +317,9 @@ impl Builder {
                         .data
                         .visit_data(|data| validate(HeaderPosition::Parameter(position), data));
                 }
-                validate(HeaderPosition::Result, definition.result_data);
+                definition
+                    .result_data
+                    .visit_data(|data| validate(HeaderPosition::Result, data));
             }
         }
         if !violations.is_empty() {
@@ -403,12 +410,9 @@ fn validate_definition(
             validate_data(id, HeaderPosition::Parameter(position), data, violations);
         });
     }
-    validate_data(
-        id,
-        HeaderPosition::Result,
-        definition.result_data,
-        violations,
-    );
+    definition
+        .result_data
+        .visit_data(|data| validate_data(id, HeaderPosition::Result, data, violations));
 }
 
 fn validate_data(

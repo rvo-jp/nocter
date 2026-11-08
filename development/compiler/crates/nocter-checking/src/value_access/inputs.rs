@@ -70,7 +70,12 @@ impl Checker<'_, '_> {
                         }
                         ArgumentAction::ReserveUpdate(place)
                     }
-                    Mode::Own if self.copyable(actual.data()) => ArgumentAction::CopyPayload,
+                    Mode::Own
+                        if self.copyable(actual.data())
+                            || super::results::is_result(self.program(), actual.data()) =>
+                    {
+                        ArgumentAction::CopyPayload
+                    }
                     Mode::Own if self.place_ty(place).mode() == Mode::Own => {
                         ArgumentAction::ReserveTransfer(place)
                     }

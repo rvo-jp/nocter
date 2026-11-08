@@ -25,19 +25,29 @@ pub enum Failure {
 pub struct Unit {
     program: Arc<Program>,
     bodies: BTreeMap<AccessCallableId, flow::Query>,
+    result_evidence: Arc<super::results::Evidence>,
 }
 impl Unit {
     /// Checks all definitions, including unreachable and mutually recursive callees.
     /// # Errors
     /// Returns source-backed typing/flow rejection, or an inconsistent compiler product.
     pub fn prepare(context: &DeclarationContext<'_>) -> Result<Self, Failure> {
-        let mut bodies = BTreeMap::new();
+        let mut controls = BTreeMap::new();
         for (callable, _) in context.program().callables().iter() {
             let body = TypedQuery::prepare(context, callable)
                 .map_err(|failure| Failure::Body { callable, failure })?;
-            let query = flow::Query::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
+            let control = flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
+            controls.insert(callable, control);
+        }
+        let result_evidence = super::results::close(context, &mut controls)?;
+        let verified = result_evidence
+            .verify(context)
+            .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+        let mut bodies = BTreeMap::new();
+        for (callable, control) in controls {
+            let query = control.finish().map_err(Failure::Integrity)?;
             let bound = query
-                .bind(context)
+                .bind_verified(&verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             let mut diagnostics = bound
                 .diagnostics()
@@ -68,7 +78,16 @@ impl Unit {
         Ok(Self {
             program: context.program_handle(),
             bodies,
+            result_evidence,
         })
+    }
+    /// The named producer established for a callable result in this bounded unit.
+    #[must_use]
+    pub fn result_witness(
+        &self,
+        callable: AccessCallableId,
+    ) -> Option<nocter_declarations::value_access::FunctionWitness> {
+        self.result_evidence.producer(callable)
     }
     #[must_use]
     pub fn program(&self) -> &Program {
@@ -93,10 +112,11 @@ impl Unit {
         if !Arc::ptr_eq(&self.program, &context.program_handle()) {
             return Err(BodyFailure::ChangedAuthority);
         }
+        let verified = self.result_evidence.verify(context)?;
         let bodies = self
             .bodies
             .iter()
-            .map(|(&id, query)| Ok((id, query.bind(context)?)))
+            .map(|(&id, query)| Ok((id, query.bind_verified(&verified)?)))
             .collect::<Result<_, BodyFailure>>()?;
         Ok(Context { unit: self, bodies })
     }

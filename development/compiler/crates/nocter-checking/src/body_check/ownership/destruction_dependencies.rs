@@ -153,7 +153,9 @@ impl<'program> DestructionDependencyResolver<'program> {
             .ok_or(BodyCheckInternalError::CleanupPlanning)?;
         match kind {
             TypeKind::ValueFunction {
-                origin: nocter_model::ValueFunctionOrigin::Parameter(_),
+                origin:
+                    nocter_model::ValueFunctionOrigin::Parameter(_)
+                    | nocter_model::ValueFunctionOrigin::Result(_),
                 ..
             }
             | TypeKind::GenericParameter(_)

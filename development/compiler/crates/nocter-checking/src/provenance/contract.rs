@@ -199,7 +199,9 @@ pub(crate) fn type_can_carry_loan(
                 | TypeKind::InterfaceSelf(_)
                 | TypeKind::AssociatedProjection { .. }
                 | TypeKind::ValueFunction {
-                    origin: nocter_model::ValueFunctionOrigin::Parameter(_),
+                    origin:
+                        nocter_model::ValueFunctionOrigin::Parameter(_)
+                        | nocter_model::ValueFunctionOrigin::Result(_),
                     ..
                 }
                 | TypeKind::Opaque { .. }

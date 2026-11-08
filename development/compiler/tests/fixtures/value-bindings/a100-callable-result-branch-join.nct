@@ -1,0 +1,4 @@
+func increment(value: i32): i32 { value + 1 }
+func make(): func(i32): i32 { increment }
+func run(flag: bool): i32 { let action = if flag { make() } else { increment }
+action(1) }

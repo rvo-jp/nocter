@@ -756,7 +756,16 @@ A formal callable contract supplies no Copy evidence: value extraction or taking
 read access uses `E0371`, regardless of the callbacks currently supplied by callers. Consuming or
 dropping an owning formal participates in ordinary availability (`E0378`) and retained-access
 checks. Equal signatures cannot repair a formal-witness identity mismatch. Callback header leaves
-use the same unknown/unsupported data diagnostics as other private headers.
+use the same unknown/unsupported data diagnostics as other private headers, including callable
+result annotations.
+
+Callable-result closure uses `E0370` when reachable returned values establish distinct code
+witnesses, an unanchored recursive relation establishes none, or a result depends on an input
+witness outside the bounded implementation. Explain that specific failed obligation; never guess
+a target from a matching signature. A named value in a dead branch or overwritten before return
+cannot establish a producer. Retain known structural mismatches even when input evaluation
+interrupts the call. The exact closed producer can establish Copy for its result; this does not
+change the lack of Copy evidence for a generic formal contract.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
 

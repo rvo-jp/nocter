@@ -221,7 +221,8 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
         PayloadSchema::Record(_) => Disposal::Record,
         PayloadSchema::Function(witness) => match witness.origin {
             nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
-            nocter_model::ValueFunctionOrigin::Parameter(_) => Disposal::FunctionEnvironment,
+            nocter_model::ValueFunctionOrigin::Parameter(_)
+            | nocter_model::ValueFunctionOrigin::Result(_) => Disposal::FunctionEnvironment,
         },
         PayloadSchema::Builtin(_) => return Err(INVALID),
     };

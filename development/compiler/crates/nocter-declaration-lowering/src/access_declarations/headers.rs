@@ -1,5 +1,5 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
-use super::{Failure, ParameterTypeSyntax, parameter_type, text, type_syntax::data_token};
+use super::{Failure, ValueTypeSyntax, text, type_syntax::data_token, value_type_syntax};
 use nocter_model::ValueInputOperation;
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
@@ -9,7 +9,7 @@ use nocter_syntax::{
 #[derive(Clone, Debug)]
 pub(super) struct ParameterHeader {
     pub name: SyntaxToken,
-    pub data: ParameterTypeSyntax,
+    pub data: ValueTypeSyntax,
     pub ty: NodeId,
     pub operation: ValueInputOperation,
 }
@@ -18,7 +18,7 @@ pub(super) struct Header {
     pub name: SyntaxToken,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
-    pub result_data: SyntaxToken,
+    pub result_data: ValueTypeSyntax,
     pub body: NodeId,
 }
 #[derive(Clone, Debug)]
@@ -43,7 +43,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
             let operation = super::input_operation(syntax, parameter)?;
             Ok(ParameterHeader {
                 name,
-                data: parameter_type(syntax, ty)?,
+                data: value_type_syntax(syntax, ty)?,
                 ty,
                 operation,
             })
@@ -55,7 +55,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         name,
         parameters,
         result_syntax,
-        result_data: data_token(syntax, result_syntax)?,
+        result_data: value_type_syntax(syntax, result_syntax)?,
         body: direct_node(tree, declaration, NodeKind::Block).ok_or(Failure::InconsistentSyntax)?,
     })
 }

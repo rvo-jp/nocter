@@ -235,3 +235,49 @@ fn named_function_views_have_exact_copy_payloads_without_upgrading_restricted_vi
             && !program.function_adapter(views[1], views[0])
     );
 }
+
+#[test]
+fn callable_result_headers_publish_signatures_without_inventing_producers_or_copy() {
+    let symbols = SymbolTable::from_spellings(["make"]);
+    let mut builder = Builder::new(symbols.clone());
+    let id = builder.reserve(symbols.get("make").unwrap());
+    builder
+        .define(
+            id,
+            [],
+            ValueDefinition::Function(FunctionDefinition {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([(ValueInputOperation::Edit, BuiltinType::I32.into())]),
+                result: BuiltinType::Void.into(),
+            }),
+        )
+        .unwrap();
+    let program = builder.finish().unwrap();
+    let callable = program.callables().get(id).unwrap();
+    let Some(PayloadSchema::Function(witness)) = program.data_schema(callable.result()) else {
+        panic!("result schema");
+    };
+    assert_eq!(
+        witness.origin,
+        nocter_model::ValueFunctionOrigin::Result(id)
+    );
+    assert_eq!(program.data_copyable(callable.result()), Some(false));
+    assert_eq!(
+        callable.result_contract().unwrap().inputs[0].operation,
+        ValueInputOperation::Edit
+    );
+    for invocation in [
+        ValueInvocation::Read,
+        ValueInvocation::Edit,
+        ValueInvocation::Take,
+    ] {
+        assert!(
+            program
+                .function_data(FunctionWitness {
+                    origin: witness.origin,
+                    invocation
+                })
+                .is_some()
+        );
+    }
+}

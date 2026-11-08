@@ -338,3 +338,71 @@ func run(): i32 { bounce(increment, decrement, false) }",
         assert!(!instance.calls.values().any(|target| target == id));
     }
 }
+
+#[test]
+fn callable_results_enter_the_same_instance_graph_with_resolved_payloads() {
+    for (case, expected) in [
+        ("a99-callable-result-forward.nct", 4),
+        ("a102-callable-result-recursive-anchor.nct", 3),
+        ("a107-callable-result-callback-input.nct", 4),
+    ] {
+        let graph = close_case(case);
+        assert_eq!(graph.instances().len(), expected);
+        let increment = callable(graph.unit(), "increment");
+        assert!(
+            graph
+                .instances()
+                .iter()
+                .any(|(_, instance)| instance.key.callable == increment)
+        );
+        for (id, instance) in graph.instances().iter() {
+            assert!(graph.body(id).unwrap().typed().results_closed());
+            for payload in instance.payloads().values() {
+                assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
+                assert!(
+                    !matches!(graph.unit().program().data_schema(payload.data()), Some(nocter_declarations::value_access::PayloadSchema::Function(w)) if matches!(w.origin, ValueFunctionOrigin::Result(_)))
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn interrupted_factory_calls_retain_types_without_reaching_factory_or_result_code() {
+    let graph = close_case("a111-callable-result-interruption.nct");
+    assert_eq!(graph.instances().len(), 1);
+    assert!(
+        graph
+            .instances()
+            .get(graph.root())
+            .unwrap()
+            .calls
+            .is_empty()
+    );
+}
+
+#[test]
+fn returned_once_views_copy_only_after_the_source_result_proof() {
+    use nocter_model::ValueInputOperation;
+    let graph = close_case("a104-callable-result-once.nct");
+    let query = graph.body(graph.root()).unwrap();
+    let consuming = query
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .filter_map(|(_, expression)| match &expression.kind {
+            ExpressionKind::Call {
+                kind: nocter_checking::value_access::CallKind::Value,
+                arguments,
+                ..
+            } => Some(&arguments[0]),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(consuming.len(), 2);
+    for argument in consuming {
+        assert_eq!(argument.operation, ValueInputOperation::Take);
+        assert_eq!(argument.action, ArgumentAction::CopyPayload);
+    }
+}

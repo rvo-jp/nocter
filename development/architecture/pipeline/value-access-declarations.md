@@ -17,6 +17,8 @@ V2CoreUnit syntax + exact source
        same declaration authority + selected typed operations + body/source recipe
   -> exact-current typed-body projection
   -> source-neutral control/evaluation graph + projected initialization facts
+  -> reachable callable-result producers + recursive closure + identity/Copy proof
+       same graph/initialization; closed existing TypeIds, no second type authority
   -> permission-demand liveness + alternative referent/access worlds
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated)
@@ -35,11 +37,12 @@ not a borrow-type constructor or a general coercion rank. A path contains field 
 source names, physical offsets or an access grant.
 
 `nocter-declarations` owns the source-independent program, namespace, closed data authority,
-ordered input identities and operations, data-only value results, and concrete named-function
-witnesses. A flat callable input introduces a symbolic formal witness. Structural callable
+ordered input identities and operations, value results, and concrete named-function
+witnesses. A flat callable input introduces a symbolic formal witness; a flat callable result
+introduces a symbolic result family. Structural callable
 annotations constrain these witnesses rather than introducing erased runtime datatypes. Invocation compatibility and exact input/result matching belong to declarations;
-checking freezes the selected witness/view. Header freeze interns every named invocation view in
-the same TypeAuthority, so body annotations cannot affect type availability or declaration reuse.
+checking freezes the selected witness/view. Header freeze interns every named invocation view and
+all permitted formal/result-family views in the same TypeAuthority, so body annotations cannot affect type availability or declaration reuse.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
 Admitted built-in data and finite nongeneric record schemas share the parsed callable/body
 boundary. Data-name resolution belongs to that declaration namespace; lowering holds no parallel
@@ -81,8 +84,8 @@ intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-general compound header types, generic/interface evidence, callable results, nested callback
-contracts, captured environments, outcomes, async/effects, layouts,
+general compound header types, generic/interface evidence, input-dependent callable results,
+nested callback contracts, captured environments, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -113,8 +116,10 @@ annotations alone do not justify any of those payload facts. Formal inputs have 
 and retain symbolic cleanup. Each selected argument can bind a callee formal to a named or caller
 formal witness; invocation through the formal retains that semantic target. All definitions are
 checked against their declared contracts, including unused/recursive bodies. The supported producer
-domain still excludes captured environments. Callable results, general dependency footprints and
-concrete executable specialization require their own closure before admission.
+domain still excludes captured environments. Result-producing bodies establish one named witness
+through reachable value flow; signatures alone cannot select it. Input-dependent results and
+general dependency footprints require further source closure. Concrete instance closure consumes
+only the already selected witnesses.
 
 Known result types and possible normal completion are independent typed facts. Interrupted
 operands do not erase declared callable/record data, while the shared graph cannot evaluate an
@@ -127,9 +132,12 @@ assignment target or edit input by extending a temporary's lifetime.
 The semantic body has no source/syntax IDs, ranges, names, or symbol IDs. Exact body bytes and
 body-local locators form a separate reusable source recipe. One locator projection serves the
 initial checking context. Rebinding checks shared declaration-authority identity and exact own
-body bytes, then resolves current origins without repeating typing. Equal declarations rebuilt by
-an unrelated query cannot substitute for that authority. Changing another body can reuse this
-query only after the declaration query binds the current complete syntax.
+body bytes, then resolves current origins without repeating typing. A result-closed query also
+verifies its shared producer-body dependencies; changing a factory body invalidates that proof
+even when the caller is unchanged. Complete-unit binding verifies this evidence once before
+lending an opaque proof to body projections. Equal declarations rebuilt by an unrelated query
+cannot substitute for that authority. A raw pending query can rebind its own unchanged body but
+cannot enter flow or accepted-unit consumers until result closure succeeds.
 
 No public constructor assembles a typed body or its semantic/source pairing from separate parts.
 Structural failures expose their typed rule and current diagnostic; no partial typed body escapes.
@@ -148,6 +156,16 @@ Semantic operations reference the already selected expressions, statements, loca
 call plans. No source identity, syntax node, rendered name or independently supplied declaration
 program can influence this computation. Binding goes through the query's own typed source recipe;
 changed authority/body is rejected before diagnostics can use stale coordinates.
+
+Before access/resource validation, checking propagates static code/view producer facts through
+this same graph and initialization reachability. Actual staged return values, rather than a
+conditional's provisional type, establish result equations. Finite monotone closure requires a
+named anchor, preserves invocation views and proves deferred identity equalities. A symbolic
+result's conditional Copy operation must be justified by the exact established payload schema.
+Projection changes only existing type/witness identities; it does not repeat typing, graph
+construction or initialization, and cannot change a source move into Copy. Supporting move-only
+results later requires resolving Copy-versus-move before initialization. Producer facts do not
+prove owner availability and cannot replace resource validation.
 
 The initialization report distinguishes unreachable points, selected-value completeness and
 container presence. Sparse abstract states join projected availability and preserve reaching
@@ -228,8 +246,9 @@ projection resolves a symbolic named-code environment to its exact cleanup contr
 inventing an owner. Closed record schemas are visited once per data identity, not expanded by path.
 Consumers receive each instance with its exact checked body and those frozen maps.
 
-Callable results, captured environments and general retained footprints still need their own
-closure. Layout, physical environment/argument realization, executable cleanup, target services,
+The body's checking-closed result data enters that same payload projection. The target owner
+never re-infers a result producer. Input-dependent results, captured environments and general
+retained footprints still need their own source closure. Layout, physical environment/argument realization, executable cleanup, target services,
 MIR and native output are not established by this graph. Later implementation must extend this
 same instance authority rather than create another call graph or infer environment shape from
 parameter counts.

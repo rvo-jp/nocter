@@ -57,7 +57,7 @@ impl Checker<'_, '_> {
             }
         }
         if result.is_none() && continues {
-            if let Some(Boundary::Value(ty)) = expected
+            if let Some(Boundary::Value(ty) | Boundary::Result(ty)) = expected
                 && ty != self.data(BuiltinType::Void)
             {
                 return self.reject(Rule::MissingResult, node);
@@ -94,13 +94,13 @@ impl Checker<'_, '_> {
             }
             NodeKind::ReturnStatement => {
                 let value = if let Some(expression) = self.children(node).first() {
-                    self.expression(*expression, Some(Boundary::Value(self.result)), reachable)?
+                    self.expression(*expression, Some(Boundary::Result(self.result)), reachable)?
                 } else {
                     if self.result != self.data(BuiltinType::Void) {
                         return self.reject(Rule::MissingResult, node);
                     }
                     let unit = self.unit(node)?;
-                    self.boundary(node, unit, Boundary::Value(self.result))?
+                    self.boundary(node, unit, Boundary::Result(self.result))?
                 };
                 (Statement::Return(value), false)
             }

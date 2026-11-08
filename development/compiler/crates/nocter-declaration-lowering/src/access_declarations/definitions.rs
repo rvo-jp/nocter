@@ -1,12 +1,12 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    Failure, ParameterTypeSyntax,
+    Failure, ValueTypeSyntax,
     headers::{Header, RecordHeader},
     text,
 };
 use nocter_declarations::value_access::{
     Builder, DataReference, DeclarationId, DeclarationViolation, FieldDefinition,
-    FunctionDefinition, HeaderPosition, ParameterData, ParameterDefinition,
+    FunctionDefinition, HeaderPosition, ParameterDefinition, ValueDefinition,
 };
 use nocter_model::{AccessCallableId, NominalTypeId, Symbol, SymbolTable};
 use nocter_syntax::{BoundSyntax, SyntaxToken};
@@ -90,39 +90,47 @@ impl Definitions<'_, '_> {
         }
         Ok(())
     }
+    fn value(
+        &mut self,
+        ty: &ValueTypeSyntax,
+        owner: DeclarationId,
+        position: HeaderPosition,
+    ) -> Result<Option<ValueDefinition>, Failure> {
+        Ok(match ty {
+            ValueTypeSyntax::Data(token) => self
+                .data(*token, owner, position)?
+                .map(ValueDefinition::Data),
+            ValueTypeSyntax::Function(contract) => {
+                let inputs = contract
+                    .inputs
+                    .iter()
+                    .map(|&(operation, token)| {
+                        Ok(self
+                            .data(token, owner, position)?
+                            .map(|data| (operation, data)))
+                    })
+                    .collect::<Result<Option<Vec<_>>, Failure>>()?;
+                let result = self.data(contract.result, owner, position)?;
+                match (inputs, result) {
+                    (Some(inputs), Some(result)) => {
+                        Some(ValueDefinition::Function(FunctionDefinition {
+                            invocation: contract.invocation,
+                            inputs: inputs.into_boxed_slice(),
+                            result,
+                        }))
+                    }
+                    _ => None,
+                }
+            }
+        })
+    }
     fn function(&mut self, id: AccessCallableId, header: &Header) -> Result<(), Failure> {
         let mut parameters = Vec::new();
         let mut complete = true;
         for (index, parameter) in header.parameters.iter().enumerate() {
             let owner = DeclarationId::Callable(id);
             let position = HeaderPosition::Parameter(index);
-            let data = match &parameter.data {
-                ParameterTypeSyntax::Data(token) => {
-                    self.data(*token, owner, position)?.map(ParameterData::Data)
-                }
-                ParameterTypeSyntax::Function(contract) => {
-                    let inputs = contract
-                        .inputs
-                        .iter()
-                        .map(|&(operation, token)| {
-                            Ok(self
-                                .data(token, owner, position)?
-                                .map(|data| (operation, data)))
-                        })
-                        .collect::<Result<Option<Vec<_>>, Failure>>()?;
-                    let result = self.data(contract.result, owner, position)?;
-                    match (inputs, result) {
-                        (Some(inputs), Some(result)) => {
-                            Some(ParameterData::Function(FunctionDefinition {
-                                invocation: contract.invocation,
-                                inputs: inputs.into_boxed_slice(),
-                                result,
-                            }))
-                        }
-                        _ => None,
-                    }
-                }
-            };
+            let data = self.value(&parameter.data, owner, position)?;
             if let Some(data) = data {
                 parameters.push(ParameterDefinition {
                     name: self.symbol(parameter.name)?,
@@ -134,8 +142,8 @@ impl Definitions<'_, '_> {
             }
         }
 
-        if let Some(data) = self.data(
-            header.result_data,
+        if let Some(data) = self.value(
+            &header.result_data,
             DeclarationId::Callable(id),
             HeaderPosition::Result,
         )? && complete

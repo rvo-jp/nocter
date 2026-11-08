@@ -32,13 +32,11 @@ impl Checker<'_, '_> {
     }
     pub fn annotation(&self, node: NodeId) -> Result<Annotation, Failure> {
         use nocter_declaration_lowering::access_declarations::{
-            ParameterTypeSyntax, parameter_type,
+            ValueTypeSyntax, value_type_syntax,
         };
-        match parameter_type(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
-            ParameterTypeSyntax::Data(token) => {
-                self.annotation_data_token(token).map(Annotation::Data)
-            }
-            ParameterTypeSyntax::Function(contract) => {
+        match value_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
+            ValueTypeSyntax::Data(token) => self.annotation_data_token(token).map(Annotation::Data),
+            ValueTypeSyntax::Function(contract) => {
                 let inputs = contract
                     .inputs
                     .iter()

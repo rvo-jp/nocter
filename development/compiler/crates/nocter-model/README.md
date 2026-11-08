@@ -18,9 +18,10 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
-- future function-witness keys pairing a concrete declaration or symbolic formal input with an
-  invocation view; projection preserves both without source names or runtime layout. Formal
-  witnesses remain nonconcrete and may carry storage; named witnesses are concrete capture-free leaves
+- future function-witness keys pairing a concrete declaration, symbolic formal input or symbolic
+  result family with an invocation view; projection preserves both without source names or runtime
+  layout. Formal/result witnesses remain nonconcrete and may carry storage; named witnesses are
+  concrete capture-free leaves. Result closure selects existing keys in the same type authority
 - logical field paths with concatenation and prefix/overlap relations; the declaration owner validates each field
   against its containing data schema, independently of memory offsets
 - independent value-input operations, local binding kinds, transient operation-access descriptors,

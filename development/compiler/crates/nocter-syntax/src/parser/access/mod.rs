@@ -65,7 +65,7 @@ fn function(parser: &mut Parser<'_>) {
     }
     parser.complete(parameters, NodeKind::Parameters);
     parser.expect_punctuation(Punctuation::Colon);
-    type_(parser);
+    annotation_type(parser);
     parser.complete(tail, NodeKind::CallableTail);
     required_block(parser);
     parser.complete(marker, NodeKind::FunctionDeclaration);

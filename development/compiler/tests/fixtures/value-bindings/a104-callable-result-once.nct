@@ -1,0 +1,5 @@
+func increment(value: i32): i32 { value + 1 }
+func make(): once(i32): i32 { increment }
+func run(): i32 { let action = make()
+let first = action(1)
+action(first) }

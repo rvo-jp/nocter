@@ -1,0 +1,7 @@
+func increment(value: i32): i32 { value + 1 }
+func decrement(value: i32): i32 { value - 1 }
+func first(): func(i32): i32 { increment }
+func second(): func(i32): i32 { decrement }
+func run(): i32 { var action = first()
+action = second()
+action(1) }

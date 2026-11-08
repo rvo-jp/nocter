@@ -1223,6 +1223,277 @@
       "expectation": "check-reject",
       "diagnostic": "E0370",
       "reason": "Interruption does not suppress a known scalar-versus-callable contract mismatch."
+    },
+    {
+      "id": "a97-callable-result",
+      "file": "a97-callable-result.nct",
+      "expectation": "accept",
+      "reason": "A callable result retains a named producer and invokes its returned environment."
+    },
+    {
+      "id": "a98-callable-result-explicit-return",
+      "file": "a98-callable-result-explicit-return.nct",
+      "expectation": "accept",
+      "reason": "Explicit return and block-final callable results share producer closure."
+    },
+    {
+      "id": "a99-callable-result-forward",
+      "file": "a99-callable-result-forward.nct",
+      "expectation": "accept",
+      "reason": "Forwarded results close through other declared result relations."
+    },
+    {
+      "id": "a100-callable-result-branch-join",
+      "file": "a100-callable-result-branch-join.nct",
+      "expectation": "accept",
+      "reason": "A conditional equates a result witness with its established named producer."
+    },
+    {
+      "id": "a101-callable-result-factory-join",
+      "file": "a101-callable-result-factory-join.nct",
+      "expectation": "accept",
+      "reason": "Different result declarations can establish the same concrete witness."
+    },
+    {
+      "id": "a102-callable-result-recursive-anchor",
+      "file": "a102-callable-result-recursive-anchor.nct",
+      "expectation": "accept",
+      "reason": "Recursive result equations close from a reachable named producer."
+    },
+    {
+      "id": "a103-callable-result-mutual-anchor",
+      "file": "a103-callable-result-mutual-anchor.nct",
+      "expectation": "accept",
+      "reason": "Mutual result recursion shares one established producer without rechecking bodies."
+    },
+    {
+      "id": "a104-callable-result-once",
+      "file": "a104-callable-result-once.nct",
+      "expectation": "accept",
+      "reason": "A named returned environment supplies separate Copy instances for consuming invocation."
+    },
+    {
+      "id": "a105-callable-result-mut",
+      "file": "a105-callable-result-mut.nct",
+      "expectation": "accept",
+      "reason": "A returned mutating view still requires writable local environment storage."
+    },
+    {
+      "id": "a106-callable-result-copy",
+      "file": "a106-callable-result-copy.nct",
+      "expectation": "accept",
+      "reason": "Copy supply waits for exact named result schema evidence before body acceptance."
+    },
+    {
+      "id": "a107-callable-result-callback-input",
+      "file": "a107-callable-result-callback-input.nct",
+      "expectation": "accept",
+      "reason": "Returned witnesses bind ordinary callable input contracts without erasure."
+    },
+    {
+      "id": "a108-callable-result-take-input",
+      "file": "a108-callable-result-take-input.nct",
+      "expectation": "accept",
+      "reason": "Result-based Copy evidence permits a separate taking instance while retaining the source."
+    },
+    {
+      "id": "a109-callable-result-replacement",
+      "file": "a109-callable-result-replacement.nct",
+      "expectation": "accept",
+      "reason": "Replacement preserves result identity through the same equality relation as joins."
+    },
+    {
+      "id": "a110-callable-result-input-cleanup",
+      "file": "a110-callable-result-input-cleanup.nct",
+      "expectation": "accept",
+      "reason": "The result is staged independently of cleanup of an owning error input."
+    },
+    {
+      "id": "a111-callable-result-interruption",
+      "file": "a111-callable-result-interruption.nct",
+      "expectation": "accept",
+      "reason": "An interrupted factory retains known result identity without creating an owner or call edge."
+    },
+    {
+      "id": "a112-callable-result-read-alias",
+      "file": "a112-callable-result-read-alias.nct",
+      "expectation": "accept",
+      "reason": "A read alias supplies a snapshot only after the result producer proves Copy."
+    },
+    {
+      "id": "a113-callable-result-local-return",
+      "file": "a113-callable-result-local-return.nct",
+      "expectation": "accept",
+      "reason": "A copied named environment can be staged before its original local is cleaned."
+    },
+    {
+      "id": "a114-callable-result-loop-return",
+      "file": "a114-callable-result-loop-return.nct",
+      "expectation": "accept",
+      "reason": "A reachable explicit return inside a loop establishes the result producer."
+    },
+    {
+      "id": "a115-callable-result-dead-return",
+      "file": "a115-callable-result-dead-return.nct",
+      "expectation": "accept",
+      "reason": "Unreachable returns retain local type checks but do not establish a runtime producer."
+    },
+    {
+      "id": "a116-callable-result-view-forward",
+      "file": "a116-callable-result-view-forward.nct",
+      "expectation": "accept",
+      "reason": "Invocation weakening composes through result relations without changing code identity."
+    },
+    {
+      "id": "r82-callable-result-wrong-input",
+      "file": "r82-callable-result-wrong-input.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Result contracts preserve exact explicit input operations."
+    },
+    {
+      "id": "r83-callable-result-wrong-data",
+      "file": "r83-callable-result-wrong-data.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Result contracts preserve exact result data."
+    },
+    {
+      "id": "r84-callable-result-scalar",
+      "file": "r84-callable-result-scalar.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "A scalar cannot establish a callable result witness."
+    },
+    {
+      "id": "r85-callable-result-distinct-returns",
+      "file": "r85-callable-result-distinct-returns.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Distinct reachable return witnesses cannot be erased by equal signatures."
+    },
+    {
+      "id": "r86-callable-result-distinct-join",
+      "file": "r86-callable-result-distinct-join.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Conditional result identity is checked after producer closure."
+    },
+    {
+      "id": "r87-callable-result-distinct-replacement",
+      "file": "r87-callable-result-distinct-replacement.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Replacement cannot change a static result witness."
+    },
+    {
+      "id": "r88-callable-result-unanchored",
+      "file": "r88-callable-result-unanchored.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "An unanchored recursive result cannot invent a witness from its signature."
+    },
+    {
+      "id": "r89-callable-result-mutual-unanchored",
+      "file": "r89-callable-result-mutual-unanchored.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Mutual result equations require an established producer."
+    },
+    {
+      "id": "r90-callable-result-dependent-input",
+      "file": "r90-callable-result-dependent-input.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Input-dependent result witnesses remain outside this first bounded result slice."
+    },
+    {
+      "id": "r91-callable-result-no-upgrade",
+      "file": "r91-callable-result-no-upgrade.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Known concrete code does not upgrade a consuming result contract."
+    },
+    {
+      "id": "r92-callable-result-fixed-mut",
+      "file": "r92-callable-result-fixed-mut.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0387",
+      "reason": "A fixed result binding cannot supply update access to a mut invocation."
+    },
+    {
+      "id": "r93-callable-result-drop-alias",
+      "file": "r93-callable-result-drop-alias.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0397",
+      "reason": "Returned environment owners still protect retained aliases from destruction."
+    },
+    {
+      "id": "r94-callable-result-missing-return",
+      "file": "r94-callable-result-missing-return.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0373",
+      "reason": "A normally completing callable factory must produce its environment."
+    },
+    {
+      "id": "r95-callable-result-empty-producer",
+      "file": "r95-callable-result-empty-producer.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "This bounded result slice requires an established producer even for a divergent definition."
+    },
+    {
+      "id": "h07-callable-result-unknown",
+      "file": "h07-callable-result-unknown.nct",
+      "expectation": "header-reject",
+      "diagnostic": "E0290",
+      "reason": "Result leaves resolve in the same declaration data namespace."
+    },
+    {
+      "id": "h08-callable-result-unsupported",
+      "file": "h08-callable-result-unsupported.nct",
+      "expectation": "header-reject",
+      "diagnostic": "E0291",
+      "reason": "Callable results cannot bypass the bounded leaf data validator."
+    },
+    {
+      "id": "a117-callable-result-staged-cleanup",
+      "file": "a117-callable-result-staged-cleanup.nct",
+      "expectation": "accept",
+      "reason": "The staged callable result survives automatic cleanup of an owning error input."
+    },
+    {
+      "id": "r96-callable-result-dead-anchor",
+      "file": "r96-callable-result-dead-anchor.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "An unreachable branch cannot seed a recursive result through its provisional join type."
+    },
+    {
+      "id": "r97-callable-result-dead-local-anchor",
+      "file": "r97-callable-result-dead-local-anchor.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Storing a conditional result does not turn its unreachable named branch into a producer."
+    },
+    {
+      "id": "a118-callable-result-expression-recursion",
+      "file": "a118-callable-result-expression-recursion.nct",
+      "expectation": "accept",
+      "reason": "Conditional value forwarding establishes both the named anchor and recursive return relation."
+    },
+    {
+      "id": "a119-callable-result-local-branch",
+      "file": "a119-callable-result-local-branch.nct",
+      "expectation": "accept",
+      "reason": "A local retains the actual producer alternatives forwarded by a conditional."
+    },
+    {
+      "id": "r98-callable-result-overwritten-anchor",
+      "file": "r98-callable-result-overwritten-anchor.nct",
+      "expectation": "check-reject",
+      "reason": "An overwritten named value cannot anchor the recursive producer of the replacement.",
+      "diagnostic": "E0370"
     }
   ],
   "parse_goal": "V2CoreUnit"

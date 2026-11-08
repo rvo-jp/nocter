@@ -9,6 +9,7 @@ mod expressions;
 pub mod flow;
 mod inputs;
 mod ir;
+mod results;
 mod selection;
 mod statements;
 #[cfg(test)]
@@ -168,7 +169,11 @@ struct Origins {
 pub struct Query {
     program: Arc<Program>,
     callable: AccessCallableId,
-    body_bytes: Box<[u8]>,
+    body_bytes: Arc<[u8]>,
+    result_data: nocter_model::TypeId,
+    results_closed: bool,
+    result_evidence: Option<Arc<results::Evidence>>,
+    equalities: Vec<results::Equality>,
     body: TypedBody,
     origins: Origins,
 }
@@ -181,6 +186,14 @@ impl Query {
         callable: AccessCallableId,
     ) -> Result<Self, Failure> {
         checker::prepare(context, callable)
+    }
+    #[must_use]
+    pub const fn results_closed(&self) -> bool {
+        self.results_closed
+    }
+    #[must_use]
+    pub const fn result_data(&self) -> nocter_model::TypeId {
+        self.result_data
     }
     #[must_use]
     pub const fn callable(&self) -> AccessCallableId {
@@ -199,6 +212,30 @@ impl Query {
     /// # Errors
     /// Rejects a different declaration authority, changed body, or inconsistent locator.
     pub fn bind<'query, 'source>(
+        &'query self,
+        context: &DeclarationContext<'source>,
+    ) -> Result<Context<'query, 'source>, Failure> {
+        if !Arc::ptr_eq(&self.program, &context.program_handle()) {
+            return Err(Failure::ChangedAuthority);
+        }
+        if let Some(evidence) = &self.result_evidence {
+            let verified = evidence.verify(context)?;
+            return self.bind_verified(&verified);
+        }
+        self.bind_current(context)
+    }
+    fn bind_verified<'query, 'source>(
+        &'query self,
+        verified: &results::Verified<'_, 'source>,
+    ) -> Result<Context<'query, 'source>, Failure> {
+        if let Some(evidence) = &self.result_evidence
+            && !std::ptr::eq(evidence.as_ref(), verified.evidence)
+        {
+            return Err(Failure::ChangedAuthority);
+        }
+        self.bind_current(verified.context)
+    }
+    fn bind_current<'query, 'source>(
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {

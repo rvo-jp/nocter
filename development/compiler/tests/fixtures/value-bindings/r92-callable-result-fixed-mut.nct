@@ -1,0 +1,5 @@
+func update(edit value: i32): void { value += 1 }
+func make(): mut(edit i32): void { update }
+func run(): void { let action = make()
+var value = 1
+action(value) }

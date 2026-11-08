@@ -272,9 +272,38 @@ value. Possible completion is not a termination guarantee.
 
 Data annotations do not select local binding operations. Body-local arenas have no source
 coordinates, syntax IDs, names or symbols. Successful queries own exact authority/body bytes and
-locator recipes. Rebinding requires the same immutable program and exact own body, with current
-projection but no retyping. This product cannot convert to released CheckedProgram or native
+locator recipes. Rebinding requires the same immutable program and exact own body; a result-closed
+query also verifies the producer-body evidence supporting its result identities. It constructs
+current projection without retyping. This product cannot convert to released CheckedProgram or native
 products.
+
+## Callable Result Closure
+
+`results::typing` checks result constraints while retaining the actual environment identity.
+Compatible joins/replacements involving symbolic results retain exact identity equalities; equal
+signatures never erase distinct code identities. Typing may record conditional Copy for a result
+family, but the query remains pending and public flow admission rejects it. Structural contracts
+alone still grant neither Copy nor trivial cleanup to formal inputs or unresolved results.
+
+The private `flow::Control` prepares the selected graph and initialization once. Over that same
+graph, `results::producers` propagates code/view facts through actual reachable evaluations,
+local bindings, strong replacement, conditional forwarding and staged returns. Provisional data
+types cannot anchor a recursive result. These are static producer facts, not a second owner or
+availability ledger. Moves and drops remain subject to initialization/access/resource validation.
+
+`results::solve` closes finite producer sets across functions, requiring one established named
+witness per result family, then proves deferred identity equalities. Unanchored recursion,
+distinct returned witnesses and input-dependent producers reject this bounded admission.
+`results::projection` replaces only symbolic identities in the existing body arenas with already
+interned named keys. It also discharges every conditional Copy against that exact payload schema.
+No preparation action, control identity, type authority or initialization result is rebuilt.
+Only then does Control finish access and resource validation. A future move-only result cannot
+reuse this conditional-Copy path without resolving supply before initialization.
+
+All closed queries share one result-evidence object with producer-body byte dependencies.
+Standalone query rebinding checks those dependencies; complete Unit projection verifies them once
+and lends an opaque proof to its body projections. A sibling factory edit therefore cannot reuse
+a stale closed result, even when the caller's own body and header are unchanged.
 
 ## Shared Flow, Access and Resource Validation
 
@@ -350,7 +379,7 @@ uses the existing resource/frame ledger, with no function-specific owner registr
 Its ordered steps construct, assemble, adapt function views, move, receive, dispose, invoke and
 replace outside inputs. A dead access holder is not automatic early resource destruction. A staged
 return survives evaluation/lexical cleanup, whose order is reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
-Return owner with the declaration's result data type, including unit. Trapping/diverging paths do
+Return owner with the checking-closed result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
 
 Payload evidence consumes the declaration authority's exact bool/i32/void and opaque owned-error
@@ -363,7 +392,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The current producer domain admits named code and formal forwarding, with
 no captured-environment producer; general retained footprints and concrete executable witness
 specialization remain separate obligations. Dependent aggregates,
-user destructors, capabilities, captured environments, structural callback results, nested callback contracts, generics,
+user destructors, capabilities, captured environments, input-dependent callback results, nested callback contracts, generics,
 outcomes, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record headers and local/input-rooted field selections through
@@ -384,8 +413,8 @@ transitions alone cannot replace the combined source proofs or establish executa
 
 The whole-unit constructor validates every definition, including unused/recursive callees, and
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
-same frozen declaration program and all body/flow reports. Binding validates every original body
-before exposing current projections. An equal but separately rebuilt program or changed sibling
+same frozen declaration program, closed result evidence and all body/flow reports. Binding
+validates every original body before exposing current projections. An equal but separately rebuilt program or changed sibling
 cannot substitute for that authority. The sole body catalog exposes exact semantic-ID lookup for
 the target owner's private instance consumer. That consumer receives only the complete Unit,
 never typed-only evidence. The schema-to-payload projection exposes a cleanup obligation without

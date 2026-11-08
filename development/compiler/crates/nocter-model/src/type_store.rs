@@ -867,7 +867,11 @@ impl TypeProperties {
             | TypeKind::Fallible(element) => child(*element).may_carry_storage,
             TypeKind::Builtin(_) => false,
             TypeKind::ValueFunction { origin, .. } => {
-                matches!(origin, crate::ValueFunctionOrigin::Parameter(_))
+                matches!(
+                    origin,
+                    crate::ValueFunctionOrigin::Parameter(_)
+                        | crate::ValueFunctionOrigin::Result(_)
+                )
             }
         };
         Self {

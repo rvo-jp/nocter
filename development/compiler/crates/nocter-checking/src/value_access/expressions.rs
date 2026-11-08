@@ -247,6 +247,7 @@ impl Checker<'_, '_> {
             match (left.access(), right.access()) {
                 (None, other) | (other, None) => other,
                 (Some(a), Some(b)) if a == b => Some(a),
+                (Some(a), Some(b)) if self.defer_equal(a, b) => Some(a),
                 (Some(a), Some(b)) => return self.reject_message(
                     Rule::TypeMismatch,
                     node,

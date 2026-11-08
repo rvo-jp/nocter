@@ -142,6 +142,7 @@ impl Graph {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntegrityError {
     InconsistentTypedBody,
+    UnclosedResultWitnesses,
 }
 
 /// Shared typed authority, its control graph and fixed-point slot facts. Not a checked program.
@@ -157,15 +158,10 @@ impl Query {
     /// # Errors
     /// Returns an integrity failure if the closed typed product contains inconsistent identities.
     pub fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
-        let graph = build::build(typed.body())?;
-        let initialization = initialization::analyze(&typed, &graph)?;
-        let access = access::analyze(&typed, &graph, &initialization)?;
-        Ok(Self {
-            typed,
-            graph,
-            initialization,
-            access,
-        })
+        if !typed.results_closed() {
+            return Err(IntegrityError::UnclosedResultWitnesses);
+        }
+        Control::prepare(typed)?.finish()
     }
     #[must_use]
     pub fn typed(&self) -> &TypedQuery {
@@ -182,5 +178,36 @@ impl Query {
     #[must_use]
     pub const fn access(&self) -> &access::Analysis {
         &self.access
+    }
+}
+
+/// Control and initialization are prepared once, before result identities are closed. Ownership
+/// consumes the same graph after identity-only projection; this product has no public constructor.
+pub(super) struct Control {
+    pub(super) typed: Arc<TypedQuery>,
+    pub(super) graph: Graph,
+    pub(super) initialization: Initialization,
+}
+impl Control {
+    pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
+        let graph = build::build(typed.body())?;
+        let initialization = initialization::analyze(&typed, &graph)?;
+        Ok(Self {
+            typed,
+            graph,
+            initialization,
+        })
+    }
+    pub(super) fn finish(self) -> Result<Query, IntegrityError> {
+        if !self.typed.results_closed() {
+            return Err(IntegrityError::UnclosedResultWitnesses);
+        }
+        let access = access::analyze(&self.typed, &self.graph, &self.initialization)?;
+        Ok(Query {
+            typed: self.typed,
+            graph: self.graph,
+            initialization: self.initialization,
+            access,
+        })
     }
 }

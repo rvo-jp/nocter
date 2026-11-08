@@ -1,6 +1,6 @@
 //! Freeze data contracts, formal witness identities and callables in one declaration authority.
 use super::{
-    Callable, FunctionConstraint, FunctionInput, Parameter, ParameterData, Program, Reservation,
+    Callable, FunctionConstraint, FunctionInput, Parameter, Program, Reservation, ValueDefinition,
     data::resolved_data, functions, records,
 };
 use nocter_model::{
@@ -30,45 +30,13 @@ pub(super) fn publish(
             .enumerate()
             .map(|(position, parameter)| {
                 let next = parameters.next_id();
-                let (data, contract) = match &parameter.data {
-                    ParameterData::Data(data) => {
-                        (resolved_data(&base_types, &records, *data), None)
-                    }
-                    ParameterData::Function(contract) => {
-                        let contract = FunctionConstraint {
-                            invocation: contract.invocation,
-                            inputs: contract
-                                .inputs
-                                .iter()
-                                .map(|&(operation, data)| FunctionInput {
-                                    data: resolved_data(&base_types, &records, data),
-                                    operation,
-                                })
-                                .collect(),
-                            result: resolved_data(&base_types, &records, contract.result),
-                        };
-                        let mut selected = None;
-                        for invocation in [
-                            ValueInvocation::Read,
-                            ValueInvocation::Edit,
-                            ValueInvocation::Take,
-                        ] {
-                            if !contract.invocation.can_supply(invocation) {
-                                continue;
-                            }
-                            let data = types
-                                .intern(TypeKind::ValueFunction {
-                                    origin: ValueFunctionOrigin::Parameter(next),
-                                    invocation,
-                                })
-                                .expect("formal witness is a leaf");
-                            if invocation == contract.invocation {
-                                selected = Some(data);
-                            }
-                        }
-                        (selected.expect("declared invocation view"), Some(contract))
-                    }
-                };
+                let (data, contract) = publish_value(
+                    &base_types,
+                    &mut types,
+                    &records,
+                    ValueFunctionOrigin::Parameter(next),
+                    &parameter.data,
+                );
                 parameters.insert(Parameter {
                     owner: id,
                     name: parameter.name,
@@ -79,10 +47,18 @@ pub(super) fn publish(
                 })
             })
             .collect::<Box<[_]>>();
+        let (result, result_contract) = publish_value(
+            &base_types,
+            &mut types,
+            &records,
+            ValueFunctionOrigin::Result(id),
+            &definition.result_data,
+        );
         Callable {
             name: reservation.name,
             parameters: parameter_ids,
-            result: resolved_data(&base_types, &records, definition.result_data),
+            result,
+            result_contract,
         }
     });
     Program {
@@ -95,4 +71,46 @@ pub(super) fn publish(
         namespace,
         records,
     }
+}
+
+fn publish_value(
+    base: &nocter_model::TypeAuthority,
+    types: &mut nocter_model::TypeTransaction,
+    records: &records::Schemas,
+    origin: ValueFunctionOrigin,
+    definition: &ValueDefinition,
+) -> (nocter_model::TypeId, Option<FunctionConstraint>) {
+    let definition = match definition {
+        ValueDefinition::Data(data) => return (resolved_data(base, records, *data), None),
+        ValueDefinition::Function(definition) => definition,
+    };
+    let contract = FunctionConstraint {
+        invocation: definition.invocation,
+        inputs: definition
+            .inputs
+            .iter()
+            .map(|&(operation, data)| FunctionInput {
+                data: resolved_data(base, records, data),
+                operation,
+            })
+            .collect(),
+        result: resolved_data(base, records, definition.result),
+    };
+    let mut selected = None;
+    for invocation in [
+        ValueInvocation::Read,
+        ValueInvocation::Edit,
+        ValueInvocation::Take,
+    ] {
+        if !contract.invocation.can_supply(invocation) {
+            continue;
+        }
+        let data = types
+            .intern(TypeKind::ValueFunction { origin, invocation })
+            .expect("witness is a leaf");
+        if invocation == contract.invocation {
+            selected = Some(data);
+        }
+    }
+    (selected.expect("declared invocation view"), Some(contract))
 }
