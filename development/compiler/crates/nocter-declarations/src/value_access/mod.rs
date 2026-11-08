@@ -12,6 +12,8 @@ use nocter_model::{
 
 use crate::DefinitionError;
 
+mod applications;
+pub use applications::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
 mod data;
 mod functions;
 pub use functions::{
@@ -92,7 +94,7 @@ impl Callable {
         self.name
     }
     #[must_use]
-    pub const fn parameters(&self) -> &[AccessParameterId] {
+    pub fn parameters(&self) -> &[AccessParameterId] {
         &self.parameters
     }
     #[must_use]
@@ -142,25 +144,26 @@ impl Parameter {
 /// Immutable declaration metadata; body acceptance and native execution are separate products.
 #[derive(Clone, Debug)]
 pub struct Program {
-    symbols: SymbolTable,
+    symbols: std::sync::Arc<SymbolTable>,
     types: TypeAuthority,
-    callables: Arena<AccessCallableId, Callable>,
-    parameters: Arena<AccessParameterId, Parameter>,
-    namespace: BTreeMap<Symbol, AccessCallableId>,
-    records: records::Schemas,
+    header_type_count: usize,
+    callables: std::sync::Arc<Arena<AccessCallableId, Callable>>,
+    parameters: std::sync::Arc<Arena<AccessParameterId, Parameter>>,
+    namespace: std::sync::Arc<BTreeMap<Symbol, AccessCallableId>>,
+    records: std::sync::Arc<records::Schemas>,
 }
 
 impl Program {
     #[must_use]
-    pub const fn symbols(&self) -> &SymbolTable {
+    pub fn symbols(&self) -> &SymbolTable {
         &self.symbols
     }
     #[must_use]
-    pub const fn records(&self) -> &Arena<NominalTypeId, Record> {
+    pub fn records(&self) -> &Arena<NominalTypeId, Record> {
         &self.records.records
     }
     #[must_use]
-    pub const fn fields(&self) -> &Arena<nocter_model::AccessFieldId, Field> {
+    pub fn fields(&self) -> &Arena<nocter_model::AccessFieldId, Field> {
         &self.records.fields
     }
     #[must_use]
@@ -168,11 +171,11 @@ impl Program {
         self.records.namespace.get(&name).copied()
     }
     #[must_use]
-    pub const fn callables(&self) -> &Arena<AccessCallableId, Callable> {
+    pub fn callables(&self) -> &Arena<AccessCallableId, Callable> {
         &self.callables
     }
     #[must_use]
-    pub const fn parameters(&self) -> &Arena<AccessParameterId, Parameter> {
+    pub fn parameters(&self) -> &Arena<AccessParameterId, Parameter> {
         &self.parameters
     }
     #[must_use]

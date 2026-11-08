@@ -18,36 +18,35 @@ omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-d
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
 The bounded front end includes closed records, named/computed fields, local named function values,
-[statically witnessed callable inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
-[named callable results](history/reviews/v2.0.0-callable-result-witnesses.md). The source corpus has
-235 cases: 121 accepted units, 100 checking rejections, 8 header rejections and 6 syntax rejections.
-Formal contracts are checked independently of caller/body use and retain symbolic cleanup without
-Copy or empty D/S. Callable results now close from actual reachable values to one named witness,
-including forwarding, anchored recursion and joins/replacement. The same checked body/control/type
-authorities feed the target owner's [private InstanceProgram](history/reviews/v2.0.0-private-instance-closure.md).
-No CLI mode, native output or performance claim follows.
+[statically witnessed inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
+[input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md).
+The source corpus has 263 cases: 136 accepted units, 113 checking rejections, 8 header rejections
+and 6 syntax rejections. Returning a taking formal now preserves that input witness; each call
+application substitutes its own selected actual bindings. Distinct calls cannot conflate their
+results, including through joins/replacement or recursive permutations. Generic formal values
+retain transfer and symbolic cleanup; an exact named caller result can separately establish Copy.
 
-[Deferred value supply](history/reviews/v2.0.0-deferred-value-supply.md) now closes Copy-versus-move
-before initialization. One place-supply selector serves ordinary values and call inputs; unresolved
-results remain pending. Producer closure follows the existing control graph without an
-initialization prerequisite. Direct Copy inputs snapshot once at preparation, with no child read
-or retained access. The graph and header TypeAuthority are shared unchanged.
+Body-owned application types replay over the immutable header prefix into one canonical authority.
+A shared visitor projects every body data slot; header source binding remains separate from type
+lookup. Result summaries use reachable returned values and prepared producers. Static application
+instantiation uses those established summaries and frozen bindings. Both use one finite equation
+solver; no retyping, signature search or expanding witness names. The same private instance graph
+consumes closed named/formal results through its existing binding/payload maps. No CLI/native or
+performance claim follows.
 
-Next extend callable results to preserve input-dependent witness relations. A single result family
-per function cannot distinguish `forward(first)` from `forward(second)`; merely accepting formal
-producers would conflate their identities. Establish canonical call-application witness identities
-and substitution in the same semantic/type authority, with finite recursive equations rather than
-expanding source names or a second call graph. Use the existing pending-supply closure before
-initialization for potentially move-only environments; do not restore conditional Copy or
-retroactively change a generic formal transfer from a known caller. Retain authored input
-operations and exact view/dependency/cleanup evidence independently of a known caller. Add production cases for different input witnesses, forwarding and return joins,
-recursive relations, interruption and environment cleanup; target closure must consume selected
-relations without retyping or searching signatures.
+[Deferred supply](history/reviews/v2.0.0-deferred-value-supply.md) closes Copy-versus-move before
+initialization over one unchanged control graph. Do not recover Copy for a generic formal from a
+known concrete caller or make a header cache depend on body syntax.
 
-If application types require body-local construction, extend and canonically freeze the
-checking-owned type product rather than making the header cache depend on body syntax. Its
-immutable header prefix and body extensions must have one final authority and complete ID
-projection; consumers cannot choose between a header store and a body store as lookup fallbacks.
+Next close signature-only callable result evidence on interrupted evaluation. A dependent call
+whose required input is unknown-shaped currently rejects E0370, even when no invocation can
+commit (`r110-dependent-result-unknown-input.nct`). Preserve the known structural result contract
+without inventing a code witness, environment owner, cleanup obligation or executable edge.
+Extend the existing result/type and target payload projection boundaries; do not guess a producer
+or use header/body store fallback. Validate dead local bindings, chained invocation, forwarding,
+recursive relations and precise source diagnostics. Keep every actually produced callable value
+witnessed. Then extend captured producers with explicit retained access/state, destruction and
+R/D/S proofs before claiming general environment safety.
 
 Then close physical environment/argument realization and executable cleanup before MIR/native
 admission. Captured producers remain separate until R/D/S, retained-state/write footprints and

@@ -6,17 +6,18 @@ and [input/value rules](../../../../../spec/language/value-access.md). Each file
 private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
-`manifest.json` as the sole per-source expectation catalog. All 235 inputs have compiler assertions:
-6 syntax rejections, 8 header rejections, 100 checking rejections and 121 whole-unit acceptances.
-Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 221
+`manifest.json` as the sole per-source expectation catalog. All 263 inputs have compiler assertions:
+6 syntax rejections, 8 header rejections, 113 checking rejections and 136 whole-unit acceptances.
+Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 249
 header-valid units without claiming body acceptance and reject the eight invalid headers.
-The 229 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
+The 257 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
 also check token/source projection. Neither shape equality nor manifest registration proves
 memory safety; the closed checker owns the semantic verdicts.
 
 The compiler tests retain their assertions. The manifest identifies the source and distinguishing
 requirement; the owning specification remains normative. No second parser/checker or source-text
 semantic oracle belongs in corpus tooling. The
+[dependent result review](../../../../history/reviews/v2.0.0-dependent-callable-results.md),
 [deferred supply review](../../../../history/reviews/v2.0.0-deferred-value-supply.md),
 [callable result review](../../../../history/reviews/v2.0.0-callable-result-witnesses.md),
 [private instance review](../../../../history/reviews/v2.0.0-private-instance-closure.md),
@@ -53,12 +54,17 @@ remain separate; terminating unknown-shaped inputs do not hide known contract mi
 Callable-result cases add named producers, forwarded factories, explicit/final returns, anchored
 recursive equations, local/conditional joins and replacement, invocation adapters, proved Copy,
 callback input supply, staged cleanup and interrupted calls. Rejections include incompatible
-contracts/identities, missing producers, input-dependent returns, invalid updates and retained
-aliases. Dead branches and overwritten values cannot anchor recursive results. Direct Copy preparation
+contracts/identities, missing producers, invalid updates and retained aliases. Dead branches and overwritten values cannot anchor recursive results. Direct Copy preparation
 also covers a later input updating/destroying its original and rejection after source destruction.
-These passes do not implement indexing, dependent aggregates, input-dependent callback results,
-captured environments, erased callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch or released-program
-adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
+Input-dependent result cases add independent applications, composed forwarding, recursive input
+anchors/permutations, selected formal positions, exact Copy versus generic transfer, adapters,
+factory values and known-witness interruption. Negative cases cover distinct application/formal
+joins and replacement, read extraction, consumed owners, view upgrades, retained aliases, and
+dead/overwritten argument anchors. An unknown-shaped required input still cannot establish a
+dependent result witness in this bounded implementation.
+These passes do not implement indexing, dependent aggregates, captured environments, erased
+callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch
+or released-program adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
 
 Target-program integration tests also consume selected accepted sources through the shared
 `ValueSourceFixture`, then construct a normal accepted Unit before closing concrete instances.

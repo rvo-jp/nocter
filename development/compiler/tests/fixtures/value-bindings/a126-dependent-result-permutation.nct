@@ -1,0 +1,9 @@
+func increment(value: i32): i32 { value + 1 }
+func decrement(value: i32): i32 { value - 1 }
+func first(take a: func(i32): i32, take b: func(i32): i32, done: bool): func(i32): i32 {
+if done { a } else { second(b, a, true) }
+}
+func second(take x: func(i32): i32, take y: func(i32): i32, done: bool): func(i32): i32 {
+if done { y } else { first(y, x, true) }
+}
+func run(): i32 { first(increment, decrement, false)(1) }

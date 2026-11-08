@@ -1401,11 +1401,10 @@
       "reason": "Mutual result equations require an established producer."
     },
     {
-      "id": "r90-callable-result-dependent-input",
-      "file": "r90-callable-result-dependent-input.nct",
-      "expectation": "check-reject",
-      "diagnostic": "E0370",
-      "reason": "Input-dependent result witnesses remain outside this first bounded result slice."
+      "id": "a122-callable-result-dependent-input",
+      "file": "a122-callable-result-dependent-input.nct",
+      "expectation": "accept",
+      "reason": "A taking callable result preserves its own input witness without claiming Copy."
     },
     {
       "id": "r91-callable-result-no-upgrade",
@@ -1520,6 +1519,188 @@
       "expectation": "check-reject",
       "diagnostic": "E0378",
       "reason": "A direct taking Copy input requires initialized storage at its preparation."
+    },
+    {
+      "id": "a123-distinct-result-applications",
+      "file": "a123-distinct-result-applications.nct",
+      "expectation": "accept",
+      "reason": "Distinct actual witnesses at two applications of the same factory stay distinct."
+    },
+    {
+      "id": "a124-dependent-result-relay",
+      "file": "a124-dependent-result-relay.nct",
+      "expectation": "accept",
+      "reason": "A result relation composes through another taking factory."
+    },
+    {
+      "id": "a125-dependent-result-recursion",
+      "file": "a125-dependent-result-recursion.nct",
+      "expectation": "accept",
+      "reason": "A reachable input anchor closes recursive application equations."
+    },
+    {
+      "id": "a126-dependent-result-permutation",
+      "file": "a126-dependent-result-permutation.nct",
+      "expectation": "accept",
+      "reason": "Mutual recursive factories substitute formal positions without conflating equal signatures."
+    },
+    {
+      "id": "a127-dependent-result-same-join",
+      "file": "a127-dependent-result-same-join.nct",
+      "expectation": "accept",
+      "reason": "Different applications returning the same actual witness can join."
+    },
+    {
+      "id": "a128-dependent-result-alias-copy",
+      "file": "a128-dependent-result-alias-copy.nct",
+      "expectation": "accept",
+      "reason": "The established actual named result permits copying through a read alias."
+    },
+    {
+      "id": "a129-dependent-result-once-transfer",
+      "file": "a129-dependent-result-once-transfer.nct",
+      "expectation": "accept",
+      "reason": "A returned generic once environment transfers instead of acquiring caller-specific Copy."
+    },
+    {
+      "id": "a130-dependent-result-view",
+      "file": "a130-dependent-result-view.nct",
+      "expectation": "accept",
+      "reason": "A returned input retains the selected weakened invocation view."
+    },
+    {
+      "id": "a131-dependent-result-interruption",
+      "file": "a131-dependent-result-interruption.nct",
+      "expectation": "accept",
+      "reason": "Interrupted input with a known witness retains result types without committing calls."
+    },
+    {
+      "id": "a132-dependent-result-callback-input",
+      "file": "a132-dependent-result-callback-input.nct",
+      "expectation": "accept",
+      "reason": "A selected callable result can bind another callback formal."
+    },
+    {
+      "id": "a133-dependent-result-replacement",
+      "file": "a133-dependent-result-replacement.nct",
+      "expectation": "accept",
+      "reason": "Distinct applications can replace a local after proving the same actual witness."
+    },
+    {
+      "id": "a134-dependent-result-second-input",
+      "file": "a134-dependent-result-second-input.nct",
+      "expectation": "accept",
+      "reason": "A result preserves the second formal identity and cleans the unused first environment."
+    },
+    {
+      "id": "a135-dependent-result-value-factory",
+      "file": "a135-dependent-result-value-factory.nct",
+      "expectation": "accept",
+      "reason": "Value invocation binds explicit callback parameters independently of its environment offset."
+    },
+    {
+      "id": "a136-dependent-result-mut",
+      "file": "a136-dependent-result-mut.nct",
+      "expectation": "accept",
+      "reason": "A returned update-invocation witness retains ordinary local writability requirements."
+    },
+    {
+      "id": "r101-distinct-result-application-join",
+      "file": "r101-distinct-result-application-join.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Equal factory signatures cannot erase distinct actual results at a join."
+    },
+    {
+      "id": "r102-distinct-result-application-store",
+      "file": "r102-distinct-result-application-store.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "A mutable slot cannot replace one application witness with a different actual witness."
+    },
+    {
+      "id": "r103-dependent-result-read-extraction",
+      "file": "r103-dependent-result-read-extraction.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0371",
+      "reason": "A known Copy caller cannot grant Copy to a generic read input."
+    },
+    {
+      "id": "r104-dependent-result-source-reuse",
+      "file": "r104-dependent-result-source-reuse.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "Forwarding into a returned environment consumes the generic taking source."
+    },
+    {
+      "id": "r105-dependent-result-once-reuse",
+      "file": "r105-dependent-result-once-reuse.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "A generic returned once environment cannot be supplied to two consuming invocations."
+    },
+    {
+      "id": "r106-dependent-result-unanchored",
+      "file": "r106-dependent-result-unanchored.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Forwarding an input into recursion does not establish that input as a returned producer."
+    },
+    {
+      "id": "r107-dependent-result-dead-input-anchor",
+      "file": "r107-dependent-result-dead-input-anchor.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "An unreachable formal return cannot anchor recursive result equations."
+    },
+    {
+      "id": "r108-dependent-result-dead-argument-anchor",
+      "file": "r108-dependent-result-dead-argument-anchor.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "An application must use the prepared argument producers, not a dead provisional named type."
+    },
+    {
+      "id": "r109-dependent-result-overwritten-argument",
+      "file": "r109-dependent-result-overwritten-argument.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Overwriting a local before application cannot leave its initial named value as a return anchor."
+    },
+    {
+      "id": "r110-dependent-result-unknown-input",
+      "file": "r110-dependent-result-unknown-input.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "This bounded fragment cannot establish a dependent witness from an unknown-shaped interrupted input."
+    },
+    {
+      "id": "r111-dependent-result-view-upgrade",
+      "file": "r111-dependent-result-view-upgrade.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "A dependent result cannot upgrade an input invocation contract."
+    },
+    {
+      "id": "r112-dependent-result-alias-extraction",
+      "file": "r112-dependent-result-alias-extraction.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0371",
+      "reason": "A read alias of a generic owning callback cannot extract its non-Copy environment."
+    },
+    {
+      "id": "r113-dependent-result-formal-join",
+      "file": "r113-dependent-result-formal-join.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Two independent formal identities do not join because their signatures or current callers agree."
+    },
+    {
+      "id": "r114-dependent-result-live-alias",
+      "file": "r114-dependent-result-live-alias.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0397",
+      "reason": "The returned generic owner still protects an alias used after attempted destruction."
     }
   ],
   "parse_goal": "V2CoreUnit"

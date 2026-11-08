@@ -42,6 +42,8 @@ they do not make reviews normative or register compiler support.
 
 - [Deferred Value Supply](v2.0.0-deferred-value-supply.md) — result supply before initialization and one direct-place snapshot at argument preparation
 
+- [Input-dependent Callable Results](v2.0.0-dependent-callable-results.md) — canonical application types, own-input result relations and per-call witness substitution
+
 #### Research and Adoption Audits
 
 - [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance

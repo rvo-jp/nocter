@@ -61,15 +61,18 @@ pub(super) fn publish(
             result_contract,
         }
     });
+    let types = types
+        .commit(&base_types)
+        .expect("exact declaration lineage");
+    let header_type_count = types.store().type_count();
     Program {
-        symbols,
-        types: types
-            .commit(&base_types)
-            .expect("exact declaration lineage"),
-        callables,
-        parameters: parameters.finish(),
-        namespace,
-        records,
+        symbols: symbols.into(),
+        types,
+        header_type_count,
+        callables: callables.into(),
+        parameters: parameters.finish().into(),
+        namespace: namespace.into(),
+        records: records.into(),
     }
 }
 

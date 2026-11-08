@@ -16,6 +16,7 @@ mod statements;
 mod supply;
 #[cfg(test)]
 mod tests;
+mod types;
 
 pub use ir::{
     Argument, ArgumentAction, Binary, Block, BoundaryAction, CallKind, Expression, ExpressionKind,
@@ -170,6 +171,7 @@ struct Origins {
 #[derive(Clone, Debug)]
 pub struct Query {
     program: Arc<Program>,
+    header: Arc<Program>,
     callable: AccessCallableId,
     body_bytes: Arc<[u8]>,
     result_data: nocter_model::TypeId,
@@ -217,7 +219,7 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        if !Arc::ptr_eq(&self.program, &context.program_handle()) {
+        if !Arc::ptr_eq(&self.header, &context.program_handle()) {
             return Err(Failure::ChangedAuthority);
         }
         if let Some(evidence) = &self.result_evidence {
@@ -241,7 +243,7 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        if !Arc::ptr_eq(&self.program, &context.program_handle()) {
+        if !Arc::ptr_eq(&self.header, &context.program_handle()) {
             return Err(Failure::ChangedAuthority);
         }
         let source = context

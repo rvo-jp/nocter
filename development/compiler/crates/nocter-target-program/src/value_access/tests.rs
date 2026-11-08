@@ -406,3 +406,69 @@ fn returned_once_views_copy_only_after_the_source_result_proof() {
         assert!(matches!(argument.action, ArgumentAction::CopyPlace(_)));
     }
 }
+
+#[test]
+fn separate_result_applications_close_to_their_own_factory_and_callback_instances() {
+    let graph = close_case("a123-distinct-result-applications.nct");
+    assert_eq!(graph.instances().len(), 5);
+    let forward = callable(graph.unit(), "forward");
+    let producers = graph
+        .instances()
+        .iter()
+        .filter(|(_, i)| i.key.callable == forward)
+        .map(|(_, i)| i.key.witnesses.values().next().unwrap().declaration)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        producers,
+        std::collections::BTreeSet::from([
+            callable(graph.unit(), "increment"),
+            callable(graph.unit(), "decrement")
+        ])
+    );
+    let root = graph.instances().get(graph.root()).unwrap();
+    assert_eq!(root.calls.len(), 4);
+}
+
+#[test]
+fn dependent_result_relations_share_the_existing_instance_graph_and_payload_projection() {
+    for (case, expected) in [
+        ("a124-dependent-result-relay.nct", 4),
+        ("a125-dependent-result-recursion.nct", 3),
+        ("a126-dependent-result-permutation.nct", 4),
+        ("a129-dependent-result-once-transfer.nct", 4),
+        ("a132-dependent-result-callback-input.nct", 4),
+        ("a135-dependent-result-value-factory.nct", 3),
+        ("a136-dependent-result-mut.nct", 3),
+    ] {
+        let graph = close_case(case);
+        assert_eq!(graph.instances().len(), expected, "{case}");
+        for (id, instance) in graph.instances().iter() {
+            let body = graph.body(id).unwrap();
+            assert!(
+                instance
+                    .payloads()
+                    .contains_key(&body.typed().result_data())
+            );
+            assert!(
+                instance
+                    .payloads()
+                    .values()
+                    .all(|payload| payload.disposal() != Disposal::FunctionEnvironment)
+            );
+        }
+    }
+}
+
+#[test]
+fn interrupted_dependent_application_adds_no_factory_or_callback_instance() {
+    let graph = close_case("a131-dependent-result-interruption.nct");
+    assert_eq!(graph.instances().len(), 1);
+    assert!(
+        graph
+            .instances()
+            .get(graph.root())
+            .unwrap()
+            .calls
+            .is_empty()
+    );
+}

@@ -1,25 +1,29 @@
 //! One closure of callable result producers, followed by identity-only body projection.
 mod producers;
 mod projection;
+mod relations;
 mod solve;
 mod typing;
 
 use super::{Failure, Query, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
-use nocter_model::{AccessCallableId, AccessExpressionId, TypeId, ValueFunctionOrigin};
+use nocter_model::{
+    AccessCallableId, AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin,
+};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub(super) struct Equality {
-    left: TypeId,
-    right: TypeId,
+    pub(super) left: TypeId,
+    pub(super) right: TypeId,
     /// The boundary or conditional operation emits this reserved identity immediately next.
     origin: AccessExpressionId,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
     producers: BTreeMap<AccessCallableId, FunctionWitness>,
+    applications: BTreeMap<ValueApplication, FunctionWitness>,
     bodies: BTreeMap<AccessCallableId, Arc<[u8]>>,
 }
 pub(super) struct Verified<'a, 'source> {
@@ -59,11 +63,33 @@ impl Evidence {
             context,
         })
     }
+    fn selected(&self, origin: ValueFunctionOrigin) -> Option<FunctionWitness> {
+        match origin {
+            ValueFunctionOrigin::Result(id) => self.producers.get(&id).copied(),
+            ValueFunctionOrigin::Application(application) => {
+                self.applications.get(&application).copied()
+            }
+            _ => None,
+        }
+    }
+    fn origin(&self, origin: ValueFunctionOrigin) -> Result<ValueFunctionOrigin, Failure> {
+        match origin {
+            ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Parameter(_) => Ok(origin),
+            _ => self
+                .selected(origin)
+                .map(|w| w.origin)
+                .ok_or(Failure::InconsistentSyntax),
+        }
+    }
     fn witness(&self, witness: FunctionWitness) -> Result<FunctionWitness, Failure> {
-        let ValueFunctionOrigin::Result(id) = witness.origin else {
-            return Ok(witness);
+        let Some(producer) = self.selected(witness.origin) else {
+            return match witness.origin {
+                ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Parameter(_) => {
+                    Ok(witness)
+                }
+                _ => Err(Failure::InconsistentSyntax),
+            };
         };
-        let producer = self.producers.get(&id).ok_or(Failure::InconsistentSyntax)?;
         if !producer.invocation.can_supply(witness.invocation) {
             return Err(Failure::InconsistentSyntax);
         }
@@ -78,7 +104,10 @@ impl Evidence {
             .ok_or(Failure::InconsistentSyntax)?
         {
             PayloadSchema::Function(witness)
-                if matches!(witness.origin, ValueFunctionOrigin::Result(_)) =>
+                if matches!(
+                    witness.origin,
+                    ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_)
+                ) =>
             {
                 program
                     .function_data(self.witness(witness)?)
@@ -92,7 +121,7 @@ pub(super) fn is_result(program: &Program, data: TypeId) -> bool {
     matches!(
         program.data_schema(data),
         Some(PayloadSchema::Function(FunctionWitness {
-            origin: ValueFunctionOrigin::Result(_),
+            origin: ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_),
             ..
         }))
     )

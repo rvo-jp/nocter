@@ -71,7 +71,7 @@ argument does not force an uninvoked body into the graph. Construction indexes a
 one immutable instance arena is the published authority.
 
 `projection` substitutes already selected named/formal origins and invocation views. Callable
-results arrive with checking-closed named witnesses; the body's resolved result data enters the
+results arrive with checking-closed named or caller-formal witnesses; the body's resolved result data enters the
 same projection table. No target-side result inference or second instance graph exists. It verifies
 formal identity coverage without repeating signature matching or target search. One table maps
 source data IDs to concrete payload obligations in the existing program type authority. Schema
@@ -82,6 +82,7 @@ projection, while the original body's source-selected moves/reservations stay un
 Each instance pairs frozen call edges and data projections with its original checked body. Later
 consumers must use those edges/projections and the recorded direct/value invocation kind; they
 cannot infer an environment offset from arity, recheck a body, select by names, or reinterpret
-source-level Copy from the concrete payload. Input-dependent results and captured producers require
-further source closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
+source-level Copy from the concrete payload. A generic returned environment keeps its selected
+transfer even when concrete payload projection establishes a named Copy value. Captured producers
+require further source closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
 owns the handoff; the review/handoff own work status.

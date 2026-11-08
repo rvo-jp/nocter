@@ -24,6 +24,7 @@ pub enum Failure {
 #[derive(Clone, Debug)]
 pub struct Unit {
     program: Arc<Program>,
+    header: Arc<Program>,
     bodies: BTreeMap<AccessCallableId, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
@@ -32,13 +33,22 @@ impl Unit {
     /// # Errors
     /// Returns source-backed typing/flow rejection, or an inconsistent compiler product.
     pub fn prepare(context: &DeclarationContext<'_>) -> Result<Self, Failure> {
-        let mut controls = BTreeMap::new();
+        let mut queries = BTreeMap::new();
         for (callable, _) in context.program().callables().iter() {
             let body = TypedQuery::prepare(context, callable)
                 .map_err(|failure| Failure::Body { callable, failure })?;
-            let control = flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
-            controls.insert(callable, control);
+            queries.insert(callable, body);
         }
+        let program = super::types::canonicalize(context, &mut queries)?;
+        let mut controls = queries
+            .into_iter()
+            .map(|(id, body)| {
+                Ok((
+                    id,
+                    flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?,
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, Failure>>()?;
         let result_evidence = super::results::close(context, &mut controls)?;
         let verified = result_evidence
             .verify(context)
@@ -76,12 +86,13 @@ impl Unit {
             bodies.insert(callable, query);
         }
         Ok(Self {
-            program: context.program_handle(),
+            program,
+            header: context.program_handle(),
             bodies,
             result_evidence,
         })
     }
-    /// The named producer established for a callable result in this bounded unit.
+    /// The named or own-input witness established for a callable result in this bounded unit.
     #[must_use]
     pub fn result_witness(
         &self,
@@ -109,7 +120,7 @@ impl Unit {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, BodyFailure> {
-        if !Arc::ptr_eq(&self.program, &context.program_handle()) {
+        if !Arc::ptr_eq(&self.header, &context.program_handle()) {
             return Err(BodyFailure::ChangedAuthority);
         }
         let verified = self.result_evidence.verify(context)?;

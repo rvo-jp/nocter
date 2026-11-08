@@ -105,6 +105,11 @@ impl Program {
             }
             ValueFunctionOrigin::Parameter(id) => self.parameters.get(id)?.contract()?.clone(),
             ValueFunctionOrigin::Result(id) => self.callables.get(id)?.result_contract()?.clone(),
+            ValueFunctionOrigin::Application(application) => self
+                .callables
+                .get(application.callee)?
+                .result_contract()?
+                .clone(),
         };
         if !contract.invocation.can_supply(witness.invocation) {
             return None;
@@ -135,6 +140,10 @@ impl Program {
             }
             ValueFunctionOrigin::Result(id) => {
                 self.callables.get(id)?.result_contract()?;
+            }
+            ValueFunctionOrigin::Application(application) => {
+                self.callables.get(application.owner)?;
+                self.callables.get(application.callee)?.result_contract()?;
             }
         }
         self.types.store().identity(&TypeKind::ValueFunction {

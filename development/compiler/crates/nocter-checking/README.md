@@ -220,7 +220,11 @@ with adjacent stages.
 
 ## Bounded Future Value Binding Typing
 
-The private-function goal has one typed-body query over the immutable access-declaration authority.
+The private-function goal has one typed-body query over shared immutable declaration facts and
+an owner-scoped body-type extension. `types` canonically replays those extensions and projects all
+data-bearing body slots before control construction. Every accepted body shares the Unit's final
+program/type authority. Its separate header handle proves source reuse; it is never a type-lookup
+fallback. The common data projection also serves result closure, without parallel slot walkers.
 Its inputs/results are data types; input Read/Edit/Take and local FixedValue/MutableValue/ReadAlias/
 EditAlias are separate facts. Transient operation access descriptors are not qualified data types.
 Take inputs receive writable local value slots; fixed local owners can transfer but cannot update.
@@ -232,7 +236,8 @@ before access checking and has no permission-driven alternative target.
 local values, aliases and computed callees. `inputs` freezes input operations and optional
 formal-to-actual witness bindings. `supply` alone selects Copy, transfer or a pending result-supply
 obligation for a place; both ordinary value boundaries and call preparation use that decision.
-Forwarding records the source formal identity; recursive forwarding keeps a finite semantic edge instead of expanding witness expressions.
+Forwarding records the source formal identity; recursive forwarding keeps a finite semantic edge
+instead of expanding witness expressions.
 Binding a callback checks its complete flat contract and retains the selected actual view/data;
 it never coerces the actual environment into the receiving formal's type identity. A terminating
 unknown-shaped input carries neither an environment nor a witness binding. `annotations` projects local structural
@@ -274,7 +279,7 @@ value. Possible completion is not a termination guarantee.
 
 Data annotations do not select local binding operations. Body-local arenas have no source
 coordinates, syntax IDs, names or symbols. Successful queries own exact authority/body bytes and
-locator recipes. Rebinding requires the same immutable program and exact own body; a result-closed
+locator recipes. Rebinding requires the same immutable header authority and exact own body; a result-closed
 query also verifies the producer-body evidence supporting its result identities. It constructs
 current projection without retyping. This product cannot convert to released CheckedProgram or native
 products.
@@ -289,20 +294,27 @@ still grant neither Copy nor trivial cleanup to formal inputs or unresolved resu
 
 The private `flow::Control` prepares only the selected graph. Over its reachable successors,
 `results::producers` propagates code/view facts through actual reachable evaluations,
-local bindings, strong replacement, conditional forwarding and staged returns. Provisional data
-types cannot anchor a recursive result. These are static producer facts, not a second owner or
+local bindings, strong replacement, conditional forwarding, prepared arguments and staged returns.
+Actual prepared producer facts, rather than provisional data types, establish recursive anchors. These are static producer facts, not a second owner or
 availability ledger. Moves and drops remain subject to initialization/access/resource validation.
 
-`results::solve` closes finite producer sets across functions, requiring one established named
-witness per result family, then proves deferred identity equalities. Unanchored recursion,
-distinct returned witnesses and input-dependent producers reject this bounded admission.
-`results::projection` replaces symbolic identities in the existing body arenas with already
-interned named keys. During that same traversal, `supply` freezes pending operations against the
-resolved data and source access. Known generic formal transfers remain transfers; later concrete
+`results::solve` first closes reachable result relations to one named or own-input witness per
+function. `results::relations` owns one finite positive-equation solver for unions and selected
+applications. Recursive substitution uses formal IDs and finite application nodes rather than
+expanding witness names. Unanchored recursion and heterogeneous return relations reject.
+The established summaries then instantiate every typed call application through its frozen
+actual bindings, retaining known types even on interruption. An unknown-shaped input cannot
+establish a required dependent witness in this bounded fragment. Prepared value flow establishes
+return anchors; declared argument types alone cannot do so.
+
+After deferred identity equalities are proved, `results::projection` replaces result/application
+identities with already interned named or caller-formal keys. During that same traversal, `supply`
+freezes pending operations against the resolved data and source access. Known generic formal transfers remain transfers; later concrete
 payload Copy cannot reinterpret them. Only then does Control compute initialization and
 access/resource validation, once each. Control IDs and the type authority do not change, and no
-graph is rebuilt. Input-dependent/move-only result relations remain separate source work; the
-ordering no longer assumes that every successful result must be Copy.
+graph is rebuilt. A taking formal environment can therefore pass through a result without
+acquiring Copy, while a concrete named result at a caller can independently prove Copy. Captured
+producers and their general dependency footprints remain separate work.
 
 All closed queries share one result-evidence object with producer-body byte dependencies.
 Standalone query rebinding checks those dependencies; complete Unit projection verifies them once
@@ -402,7 +414,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The current producer domain admits named code and formal forwarding, with
 no captured-environment producer; general retained footprints and concrete executable witness
 specialization remain separate obligations. Dependent aggregates,
-user destructors, capabilities, captured environments, input-dependent callback results, nested callback contracts, generics,
+user destructors, capabilities, captured environments, nested callback contracts, generics,
 outcomes, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record headers and local/input-rooted field selections through
@@ -423,7 +435,8 @@ transitions alone cannot replace the combined source proofs or establish executa
 
 The whole-unit constructor validates every definition, including unused/recursive callees, and
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
-same frozen declaration program, closed result evidence and all body/flow reports. Binding
+same shared declaration facts, canonical type authority, closed result evidence and all body/flow
+reports. Binding
 validates every original body before exposing current projections. An equal but separately rebuilt program or changed sibling
 cannot substitute for that authority. The sole body catalog exposes exact semantic-ID lookup for
 the target owner's private instance consumer. That consumer receives only the complete Unit,

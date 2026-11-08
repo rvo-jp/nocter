@@ -599,12 +599,17 @@ established producer schema may separately prove Copy. Value supply must establi
 eligible owning source; the result signature cannot substitute for that evidence. Receiving and forwarding the value follows
 ordinary value supply, and reading an owning result keeps it alive for the selected operation.
 
-The bounded private fragment first admits results whose reachable return producers establish one
-named function witness, possibly through other such results. Explicit and block-final returns
-participate in the same result relation. Different reachable named witnesses are incompatible;
-a recursive relation needs an established producer and cannot choose a witness from its signature.
-A callable result depending on an input's witness remains outside this bounded fragment. This is
-an implementation boundary, not a prohibition in the complete value model.
+In the bounded private fragment, reachable return producers establish one named code witness or
+one of the function's own input witnesses, possibly through other such results. Explicit and
+block-final returns participate in the same relation. Each call substitutes its selected actual
+witnesses into that relation; two calls to the same factory can therefore return distinct code
+witnesses. Their identical result signatures cannot conflate those identities.
+
+Different reachable return witnesses are incompatible within one function's unspecialized
+contract. A recursive relation needs an established code or input witness and cannot choose one
+from its signature. A taking callback may transfer its environment into the returned value;
+a read callback cannot deliver an owning result without separate Copy evidence, regardless of
+a currently known caller. The relation preserves invocation views and ordinary value supply.
 
 ```text
 func increment(value: i32): i32 { value + 1 }
@@ -614,6 +619,23 @@ func run(): i32 { let action = forward()
     action(1)
 }
 ```
+
+A taking relay preserves its formal witness without claiming that the formal has Copy:
+
+```text
+func relay(take action: func(i32): i32): func(i32): i32 { action }
+func decrement(value: i32): i32 { value - 1 }
+func example(): i32 {
+    let first = relay(increment)
+    let second = relay(decrement)
+    first(second(10))
+}
+```
+
+For an input-dependent result, a call must establish each witness used by the result relation.
+An unknown-shaped terminating argument cannot supply such a witness in this bounded fragment;
+it remains an implementation limit rather than permission to invent an environment. A result
+independent of that input still retains its known witness on interrupted evaluation.
 
 Selected invocation adapters remain part of the result relation. A result may not recover a
 stronger invocation view from its concrete producer. Known structural type errors remain errors

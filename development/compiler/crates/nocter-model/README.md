@@ -19,9 +19,10 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - deterministic symbols and package identities
 - structural type interning and projections
 - future function-witness keys pairing a concrete declaration, symbolic formal input or symbolic
-  result family with an invocation view; projection preserves both without source names or runtime
-  layout. Formal/result witnesses remain nonconcrete and may carry storage; named witnesses are
-  concrete capture-free leaves. Result closure selects existing keys in the same type authority
+  result family or selected call application with an invocation view; projection preserves them
+  without source names or runtime layout. Applications pair caller/operation/callee identities.
+  Formal/result/application witnesses remain nonconcrete and may carry storage; named witnesses
+  are concrete capture-free leaves. Canonical body replay and result closure retain one authority
 - logical field paths with concatenation and prefix/overlap relations; the declaration owner validates each field
   against its containing data schema, independently of memory offsets
 - independent value-input operations, local binding kinds, transient operation-access descriptors,

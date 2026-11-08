@@ -110,9 +110,23 @@ impl Checker<'_, '_> {
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
+        let result = match selected.witness.origin {
+            ValueFunctionOrigin::Declaration(callee)
+                if self
+                    .program()
+                    .callables()
+                    .get(callee)
+                    .is_some_and(|callable| callable.result_contract().is_some()) =>
+            {
+                self.types
+                    .application(self.expressions.next_id(), callee)
+                    .map_err(|_| Failure::InconsistentSyntax)?
+            }
+            _ => contract.result,
+        };
         self.emit(
             node,
-            value_type(contract.result, Mode::Own).with_continuation(continues),
+            value_type(result, Mode::Own).with_continuation(continues),
             ExpressionKind::Call {
                 kind,
                 target: selected.witness.origin,

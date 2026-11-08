@@ -1,126 +1,162 @@
-//! Monotone producer sets close recursive result equations without choosing a signature candidate.
-use super::{Evidence, reject};
-use crate::value_access::{accepted, flow};
+//! Reachable result summaries close first; per-call type applications then substitute those summaries.
+use super::{
+    Evidence,
+    producers::Producers,
+    reject,
+    relations::{self, Relation, Relations},
+};
+use crate::value_access::{ExpressionKind, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::FunctionWitness;
-use nocter_model::{AccessCallableId, AccessExpressionId, ValueFunctionOrigin};
-use std::collections::{BTreeMap, BTreeSet};
+use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
+use nocter_model::{AccessCallableId, ValueFunctionOrigin as Origin};
+use std::collections::BTreeMap;
 
-fn collect(
-    context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCallableId, flow::Control>,
-) -> Result<(Equations, Evidence), accepted::Failure> {
-    let mut equations = Equations::new();
-    let mut evidence = Evidence::default();
-    for (&id, control) in controls {
-        if context
-            .program()
-            .callables()
-            .get(id)
-            .is_none_or(|c| c.result_contract().is_none())
-        {
-            continue;
-        }
-        let terms = super::producers::returns(control).map_err(accepted::Failure::Integrity)?;
-        if let Some(&(_, value)) = terms
-            .iter()
-            .find(|(witness, _)| matches!(witness.origin, ValueFunctionOrigin::Parameter(_)))
-        {
-            return Err(reject(
-                context,
-                &control.typed,
-                Some(value),
-                "an input-dependent callable result needs a witness relation outside this bounded fragment",
-            ));
-        }
-        evidence.bodies.insert(id, control.typed.body_bytes.clone());
-        equations.insert(id, terms);
-    }
-    Ok((equations, evidence))
-}
-
-type Equations = BTreeMap<AccessCallableId, Vec<(FunctionWitness, AccessExpressionId)>>;
+const INVALID: accepted::Failure =
+    accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
 
 pub(super) fn solve(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<AccessCallableId, flow::Control>,
 ) -> Result<Evidence, accepted::Failure> {
-    let (equations, mut evidence) = collect(context, controls)?;
-    propagate(context, controls, &equations, &mut evidence)?;
+    let mut evidence = Evidence::default();
+    let mut equations = Relations::new();
+    for (&id, control) in controls {
+        let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
+        if control
+            .typed
+            .program()
+            .callables()
+            .get(id)
+            .ok_or(INVALID)?
+            .result_contract()
+            .is_some()
+        {
+            evidence.bodies.insert(id, control.typed.body_bytes.clone());
+            equations.insert(
+                Origin::Result(id),
+                Relation::Union(report.returned.into_iter().map(|(w, _)| w).collect()),
+            );
+        }
+        for (application, inputs) in report.applications {
+            equations.insert(
+                Origin::Application(application),
+                Relation::Apply {
+                    callee: application.callee,
+                    inputs,
+                },
+            );
+        }
+    }
+    let solved = relations::solve(&equations).map_err(|()| INVALID)?;
+    for (&origin, producers) in &solved {
+        let Origin::Result(id) = origin else { continue };
+        let query = &controls.get(&id).ok_or(INVALID)?.typed;
+        let Some(witness) = single(producers) else {
+            let message = if producers.is_empty() {
+                "callable result has no established code or input producer; recursive forwarding needs a reachable return anchor".to_owned()
+            } else {
+                let alternatives = producers
+                    .iter()
+                    .take(2)
+                    .map(|&witness| describe_witness(query.program(), witness))
+                    .collect::<Result<Vec<_>, _>>()?;
+                format!(
+                    "callable returns establish different witnesses: {} versus {}; a single witnessed result cannot merge them",
+                    alternatives[0], alternatives[1]
+                )
+            };
+            return Err(reject(context, query, None, &message));
+        };
+        if let Origin::Parameter(parameter) = witness.origin
+            && query
+                .program()
+                .parameters()
+                .get(parameter)
+                .is_none_or(|p| p.owner() != id)
+        {
+            return Err(INVALID);
+        }
+        evidence.producers.insert(id, witness);
+    }
+    close_applications(context, controls, &mut evidence)?;
     prove_equalities(context, controls, &evidence)?;
     Ok(evidence)
 }
-fn propagate(
+fn single(producers: &Producers) -> Option<FunctionWitness> {
+    (producers.len() == 1).then(|| *producers.first().expect("one witness"))
+}
+fn close_applications(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<AccessCallableId, flow::Control>,
-    equations: &Equations,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
-    let mut possibilities = equations
-        .keys()
-        .map(|&id| (id, BTreeSet::<FunctionWitness>::new()))
-        .collect::<BTreeMap<_, _>>();
-    loop {
-        let mut changed = false;
-        for (&id, terms) in equations {
-            let mut next = possibilities[&id].clone();
-            for &(term, _) in terms {
-                match term.origin {
-                    ValueFunctionOrigin::Declaration(_) => {
-                        next.insert(term);
-                    }
-                    ValueFunctionOrigin::Result(source) => {
-                        let incoming =
-                            possibilities
-                                .get(&source)
-                                .ok_or(accepted::Failure::Integrity(
-                                    flow::IntegrityError::InconsistentTypedBody,
-                                ))?;
-                        for producer in incoming {
-                            if !producer.invocation.can_supply(term.invocation) {
-                                return Err(reject(
-                                    context,
-                                    &controls[&id].typed,
-                                    None,
-                                    "the returned witness cannot supply the selected invocation view",
-                                ));
-                            }
-                            next.insert(FunctionWitness {
-                                origin: producer.origin,
-                                invocation: term.invocation,
-                            });
-                        }
-                    }
-                    ValueFunctionOrigin::Parameter(_) => unreachable!("rejected above"),
-                }
+    let mut equations = evidence
+        .producers
+        .iter()
+        .map(|(&id, &witness)| {
+            (
+                Origin::Result(id),
+                Relation::Union(Producers::from([witness])),
+            )
+        })
+        .collect::<Relations>();
+    for control in controls.values() {
+        let query = &control.typed;
+        for (id, expression) in query.body.expressions.iter() {
+            let ExpressionKind::Call {
+                target, arguments, ..
+            } = &expression.kind
+            else {
+                continue;
+            };
+            let Some(PayloadSchema::Function(witness)) = expression
+                .ty
+                .access()
+                .and_then(|a| query.program().data_schema(a.data()))
+            else {
+                continue;
+            };
+            let Origin::Application(application) = witness.origin else {
+                continue;
+            };
+            if application.owner != query.callable()
+                || application.call != id
+                || *target != Origin::Declaration(application.callee)
+            {
+                return Err(INVALID);
             }
-            if next.len() > 1 {
-                return Err(reject(
-                    context,
-                    &controls[&id].typed,
-                    None,
-                    "callable returns establish different named witnesses; equal signatures do not erase their identities",
-                ));
-            }
-            if next != possibilities[&id] {
-                possibilities.insert(id, next);
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
+            let inputs = arguments
+                .iter()
+                .filter_map(|argument| argument.binding.as_ref())
+                .map(|binding| (binding.parameter, Producers::from([binding.witness])))
+                .collect();
+            equations.insert(
+                Origin::Application(application),
+                Relation::Apply {
+                    callee: application.callee,
+                    inputs,
+                },
+            );
         }
     }
-    for (id, producers) in possibilities {
-        let Some(producer) = producers.into_iter().next() else {
-            return Err(reject(
-                context,
-                &controls[&id].typed,
-                None,
-                "callable result has no established named producer; an unanchored recursive result cannot infer one from its signature",
-            ));
+    let solved = relations::solve(&equations).map_err(|()| INVALID)?;
+    for (origin, producers) in solved {
+        let Origin::Application(application) = origin else {
+            continue;
         };
-        evidence.producers.insert(id, producer);
+        let query = &controls.get(&application.owner).ok_or(INVALID)?.typed;
+        let witness = single(&producers).ok_or_else(|| reject(context, query, Some(application.call),
+            "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
+        if let Origin::Parameter(parameter) = witness.origin
+            && query
+                .program()
+                .parameters()
+                .get(parameter)
+                .is_none_or(|p| p.owner() != application.owner)
+        {
+            return Err(INVALID);
+        }
+        evidence.applications.insert(application, witness);
     }
     Ok(())
 }
@@ -131,27 +167,53 @@ fn prove_equalities(
 ) -> Result<(), accepted::Failure> {
     for control in controls.values() {
         for equality in &control.typed.equalities {
-            let left = evidence
-                .data(context.program(), equality.left)
-                .map_err(|failure| accepted::Failure::Body {
-                    callable: control.typed.callable,
-                    failure,
-                })?;
-            let right = evidence
-                .data(context.program(), equality.right)
-                .map_err(|failure| accepted::Failure::Body {
-                    callable: control.typed.callable,
-                    failure,
-                })?;
+            let project = |data| {
+                evidence
+                    .data(control.typed.program(), data)
+                    .map_err(|failure| accepted::Failure::Body {
+                        callable: control.typed.callable,
+                        failure,
+                    })
+            };
+            let left = project(equality.left)?;
+            let right = project(equality.right)?;
             if left != right {
                 return Err(reject(
                     context,
                     &control.typed,
                     Some(equality.origin),
-                    "these values establish different callable witnesses after result closure",
+                    &format!(
+                        "these values establish different callable witnesses: {} versus {}",
+                        describe(control.typed.program(), left)?,
+                        describe(control.typed.program(), right)?
+                    ),
                 ));
             }
         }
     }
     Ok(())
+}
+
+fn describe(
+    program: &nocter_declarations::value_access::Program,
+    data: nocter_model::TypeId,
+) -> Result<String, accepted::Failure> {
+    let Some(PayloadSchema::Function(witness)) = program.data_schema(data) else {
+        return Err(INVALID);
+    };
+    describe_witness(program, witness)
+}
+fn describe_witness(
+    program: &nocter_declarations::value_access::Program,
+    witness: FunctionWitness,
+) -> Result<String, accepted::Failure> {
+    let (kind, name) = match witness.origin {
+        Origin::Declaration(id) => ("code", program.callables().get(id).ok_or(INVALID)?.name()),
+        Origin::Parameter(id) => ("input", program.parameters().get(id).ok_or(INVALID)?.name()),
+        _ => return Err(INVALID),
+    };
+    Ok(format!(
+        "{kind} `{}`",
+        program.symbols().spelling(name).ok_or(INVALID)?
+    ))
 }

@@ -2,20 +2,30 @@
 //! A conditional's provisional type is not evidence that its named branch can execute.
 use crate::value_access::{ExpressionKind, LocalOrigin, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{AccessExpressionId, AccessLocalId, ValueFunctionOrigin};
+use nocter_model::{
+    AccessExpressionId, AccessLocalId, AccessParameterId, ValueApplication, ValueFunctionOrigin,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
-type Producers = BTreeSet<FunctionWitness>;
+pub(super) type Producers = BTreeSet<FunctionWitness>;
+pub(super) type Inputs = BTreeMap<AccessParameterId, Producers>;
+#[derive(Default)]
+pub(super) struct Report {
+    pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
+    pub(super) applications: BTreeMap<ValueApplication, Inputs>,
+}
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
     Local(AccessLocalId),
     Expression(AccessExpressionId),
+    Argument {
+        call: AccessExpressionId,
+        index: usize,
+    },
 }
 type State = BTreeMap<Key, Producers>;
 
-pub(super) fn returns(
-    control: &flow::Control,
-) -> Result<Vec<(FunctionWitness, AccessExpressionId)>, flow::IntegrityError> {
+pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::IntegrityError> {
     let query = &control.typed;
     let mut initial = State::new();
     for (local, value) in query.body.locals.iter() {
@@ -28,6 +38,7 @@ pub(super) fn returns(
     let mut entries = BTreeMap::from([(control.graph.entry(), initial)]);
     let mut pending = BTreeSet::from([control.graph.entry()]);
     let mut returned = BTreeSet::new();
+    let mut applications = BTreeMap::<ValueApplication, Inputs>::new();
     while let Some(point) = pending.pop_first() {
         let mut state = entries.get(&point).ok_or(INVALID)?.clone();
         let block = control.graph.points().get(point).ok_or(INVALID)?;
@@ -37,35 +48,23 @@ pub(super) fn returns(
                     let producers = evaluate(query, id, &state)?;
                     state.insert(Key::Expression(id), producers);
                 }
+                flow::Operation::PrepareArgument {
+                    call,
+                    argument: index,
+                } => {
+                    let ExpressionKind::Call { arguments, .. } =
+                        &query.body.expressions.get(call).ok_or(INVALID)?.kind
+                    else {
+                        return Err(INVALID);
+                    };
+                    let argument = arguments.get(index).ok_or(INVALID)?;
+                    state.insert(
+                        Key::Argument { call, index },
+                        value(query, argument.value, &state)?,
+                    );
+                }
                 flow::Operation::CommitCall(id) => {
-                    let expression = query.body.expressions.get(id).ok_or(INVALID)?;
-                    if let ExpressionKind::Call {
-                        target: ValueFunctionOrigin::Declaration(factory),
-                        ..
-                    } = expression.kind
-                        && query
-                            .program()
-                            .callables()
-                            .get(factory)
-                            .ok_or(INVALID)?
-                            .result_contract()
-                            .is_some()
-                    {
-                        let Some(PayloadSchema::Function(witness)) = expression
-                            .ty
-                            .access()
-                            .and_then(|a| query.program().data_schema(a.data()))
-                        else {
-                            return Err(INVALID);
-                        };
-                        state.insert(
-                            Key::Expression(id),
-                            BTreeSet::from([FunctionWitness {
-                                origin: ValueFunctionOrigin::Result(factory),
-                                invocation: witness.invocation,
-                            }]),
-                        );
-                    }
+                    commit(query, id, &mut state, &mut applications)?;
                 }
                 flow::Operation::Forward { source, result } => {
                     let producers = value(query, source, &state)?;
@@ -112,8 +111,57 @@ pub(super) fn returns(
             }
         }
     }
-    Ok(returned.into_iter().collect())
+    Ok(Report {
+        returned: returned.into_iter().collect(),
+        applications,
+    })
 }
+fn commit(
+    query: &Query,
+    id: AccessExpressionId,
+    state: &mut State,
+    applications: &mut BTreeMap<ValueApplication, Inputs>,
+) -> Result<(), flow::IntegrityError> {
+    let expression = query.body.expressions.get(id).ok_or(INVALID)?;
+    let Some(PayloadSchema::Function(witness)) = expression
+        .ty
+        .access()
+        .and_then(|a| query.program().data_schema(a.data()))
+    else {
+        return Ok(());
+    };
+    let ValueFunctionOrigin::Application(application) = witness.origin else {
+        return Ok(());
+    };
+    let ExpressionKind::Call {
+        target: ValueFunctionOrigin::Declaration(factory),
+        arguments,
+        ..
+    } = &expression.kind
+    else {
+        return Err(INVALID);
+    };
+    if application.owner != query.callable()
+        || application.call != id
+        || application.callee != *factory
+    {
+        return Err(INVALID);
+    }
+    let inputs = applications.entry(application).or_default();
+    for (index, argument) in arguments.iter().enumerate() {
+        if let Some(binding) = &argument.binding {
+            inputs.entry(binding.parameter).or_default().extend(
+                state
+                    .get(&Key::Argument { call: id, index })
+                    .ok_or(INVALID)?,
+            );
+        }
+    }
+    state.insert(Key::Expression(id), BTreeSet::from([witness]));
+
+    Ok(())
+}
+
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 fn join(target: &mut State, incoming: &State) -> bool {
     let mut changed = false;

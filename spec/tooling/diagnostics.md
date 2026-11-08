@@ -760,11 +760,13 @@ use the same unknown/unsupported data diagnostics as other private headers, incl
 result annotations.
 
 Callable-result closure uses `E0370` when reachable returned values establish distinct code
-witnesses, an unanchored recursive relation establishes none, or a result depends on an input
-witness outside the bounded implementation. Explain that specific failed obligation; never guess
-a target from a matching signature. A named value in a dead branch or overwritten before return
-cannot establish a producer. Retain known structural mismatches even when input evaluation
-interrupts the call. The exact closed producer can establish Copy for its result; this does not
+witnesses, an unanchored recursive relation establishes none, or a dependent application lacks
+an established witness for a required input in the bounded implementation. Explain that specific
+failed obligation; never guess a target from a matching signature. A named value in a dead branch or overwritten before return
+cannot establish a producer, including when supplied through another factory's input. Distinct
+applications of the same factory cannot conflate different actual witnesses. For a deferred
+join/replacement mismatch, identify the established code or input witnesses at the failed
+operation. Retain known structural mismatches even when input evaluation interrupts the call. The exact closed producer can establish Copy for its result; this does not
 change the lack of Copy evidence for a generic formal contract.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics

@@ -281,3 +281,86 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
         );
     }
 }
+
+#[test]
+fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
+    use nocter_model::{AccessExpressionId, ArenaBuilder, ValueFunctionOrigin as Origin};
+    let symbols = SymbolTable::from_spellings(["first", "second", "make"]);
+    let mut builder = Builder::new(symbols.clone());
+    let first = builder.reserve(symbols.get("first").unwrap());
+    let second = builder.reserve(symbols.get("second").unwrap());
+    let make = builder.reserve(symbols.get("make").unwrap());
+    builder.define(first, [], BuiltinType::Void).unwrap();
+    builder
+        .define(
+            second,
+            [],
+            ValueDefinition::Function(FunctionDefinition {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([]),
+                result: BuiltinType::Void.into(),
+            }),
+        )
+        .unwrap();
+    builder
+        .define(
+            make,
+            [],
+            ValueDefinition::Function(FunctionDefinition {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([]),
+                result: BuiltinType::Void.into(),
+            }),
+        )
+        .unwrap();
+    let header = builder.finish().unwrap();
+    let call = ArenaBuilder::<AccessExpressionId, ()>::new().insert(());
+    let mut a = header.body_types(first).unwrap();
+    let da = a.application(call, make).unwrap();
+    assert_eq!(a.application(call, make).unwrap(), da);
+    assert!(a.application(call, second).is_err());
+    let a = a.finish();
+    let mut b = header.body_types(second).unwrap();
+    let db = b.application(call, make).unwrap();
+    let b = b.finish();
+    assert_eq!(da, db, "branch-local suffix positions may coincide");
+    let Some(PayloadSchema::Function(wa)) = a.data_schema(da) else {
+        panic!("application")
+    };
+    assert!(matches!(wa.origin, Origin::Application(_)));
+    assert!(header.function_data(wa).is_none());
+    assert_eq!(a.data_copyable(da), Some(false));
+    assert_eq!(a.types.store().is_concrete(da), Some(false));
+    assert!(a.types.store().may_carry_storage(da));
+    let canonical = header
+        .canonical_body_types(std::collections::BTreeMap::from([
+            (second, &b),
+            (first, &a),
+        ]))
+        .unwrap();
+    let ca = canonical.project(first, da).unwrap();
+    let cb = canonical.project(second, db).unwrap();
+    assert_ne!(ca, cb);
+    let canonical = canonical.finish();
+    assert_eq!(
+        canonical.data_schema(ca).unwrap(),
+        a.data_schema(da).unwrap()
+    );
+    assert_eq!(
+        canonical.data_schema(cb).unwrap(),
+        b.data_schema(db).unwrap()
+    );
+    assert!(canonical.body_types(first).is_err());
+    assert!(
+        header
+            .body_types(first)
+            .unwrap()
+            .application(call, first)
+            .is_err()
+    );
+    assert!(
+        header
+            .canonical_body_types(std::collections::BTreeMap::from([(first, &b)]))
+            .is_err()
+    );
+}

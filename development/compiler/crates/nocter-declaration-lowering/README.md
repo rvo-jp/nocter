@@ -120,7 +120,9 @@ syntax remains here; there is no public parts constructor or conversion to the l
 program. The [cross-stage boundary](../../../architecture/pipeline/value-access-declarations.md)
 owns the handoff to typed-only body checking and the still-required flow/safety validation.
 
-The current access-declaration context can share its exact immutable program authority with the
-checking-owned typed-body query. Rebinding that body query must prove the same shared authority;
-structurally equal declarations rebuilt by a different query cannot substitute for it. Header/body
-source projection remains outside the semantic program.
+The current access-declaration context supplies the exact immutable header program to checking.
+Body queries retain that handle for source reuse and open declaration-owned application-type
+branches over its prefix. Unit construction canonically replays those branches into one final
+semantic authority; lowering does not inspect or cache their contents. Rebinding must still prove
+the same original header authority. Structurally equal declarations rebuilt by a different query
+cannot substitute for it. Source projection remains outside semantic type lookup.

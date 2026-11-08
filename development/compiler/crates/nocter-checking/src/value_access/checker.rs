@@ -26,6 +26,7 @@ pub(super) struct LoopFrame {
 pub(super) struct Checker<'a, 's> {
     pub context: &'a DeclarationContext<'s>,
     pub result: TypeId,
+    pub types: nocter_declarations::value_access::BodyTypes,
     pub pending_results: bool,
     pub equalities: Vec<super::results::Equality>,
     pub projection: BodySyntaxProjection,
@@ -57,6 +58,10 @@ pub(super) fn prepare(
     let mut checker = Checker {
         context,
         result: declaration.result(),
+        types: context
+            .program()
+            .body_types(callable)
+            .map_err(|_| Failure::InconsistentSyntax)?,
         pending_results: declaration.result_contract().is_some(),
         equalities: Vec::new(),
         projection: BodySyntaxProjection::for_root(syntax.tree(), source.body())
@@ -101,7 +106,8 @@ pub(super) fn prepare(
         .as_bytes()
         .into();
     Ok(Query {
-        program: context.program_handle(),
+        program: std::sync::Arc::new(checker.types.finish()),
+        header: context.program_handle(),
         callable,
         body_bytes,
         result_data: declaration.result(),
@@ -126,7 +132,7 @@ impl Checker<'_, '_> {
         self.context.syntax()
     }
     pub fn program(&self) -> &Program {
-        self.context.program()
+        self.types.program()
     }
     pub fn kind(&self, node: NodeId) -> Result<NodeKind, Failure> {
         self.syntax()
@@ -287,6 +293,12 @@ impl Checker<'_, '_> {
                         nocter_model::ValueFunctionOrigin::Declaration(id)
                         | nocter_model::ValueFunctionOrigin::Result(id) =>
                             self.program().callables().get(id).expect("witness").name(),
+                        nocter_model::ValueFunctionOrigin::Application(application) => self
+                            .program()
+                            .callables()
+                            .get(application.callee)
+                            .expect("application")
+                            .name(),
                         nocter_model::ValueFunctionOrigin::Parameter(id) => self
                             .program()
                             .parameters()

@@ -85,14 +85,23 @@ impl ValueBindingKind {
     }
 }
 
-/// A concrete code declaration or the statically bound witness supplied to a formal input.
-/// A parameter origin is symbolic, never a runtime-erased function pointer.
+/// A code declaration, formal input, result family or selected call application.
+/// Symbolic origins are static identities, never runtime-erased function pointers.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueFunctionOrigin {
     Declaration(crate::AccessCallableId),
     Parameter(crate::AccessParameterId),
     /// A declared callable result, closed by checking its reachable return producers.
     Result(crate::AccessCallableId),
+    /// One statically selected call application, independent of source coordinates and type IDs.
+    Application(ValueApplication),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueApplication {
+    pub owner: crate::AccessCallableId,
+    pub call: crate::AccessExpressionId,
+    pub callee: crate::AccessCallableId,
 }
 
 /// Invocation access, independent of a callable value's binding or explicit inputs.

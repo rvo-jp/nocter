@@ -1358,7 +1358,7 @@ distinguishes that replacement from the earlier checkpoint and from full-languag
 The bounded S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
 supplied private module. This is its new source contract, not a compatibility variant or a public
 package format. Its implementation and qualification are tracked in the
-[development record](../../development/history/reviews/v2.0.0-callable-result-witnesses.md).
+[development record](../../development/history/reviews/v2.0.0-dependent-callable-results.md).
 The old corpus cannot qualify this grammar by relabeling its status. No bodies are thereby
 permitted in contract-only `index.nct`.
 
@@ -1479,11 +1479,12 @@ unnamed, nonvariadic inputs over `V2CoreType`; it checks the selected named or f
 input operations/data and result, and may select its permitted invocation adapter. Calls through these
 values remain statically selected. Top-level callable parameters also admit these flat contracts
 under [statically witnessed inputs](callables.md#statically-witnessed-callable-inputs). Callable
-results with input-dependent witnesses, nested callback contracts, record fields containing
-callable contracts, anonymous closures, captured environments and erased callables remain outside
-this bounded fragment. This limit does not change their full future grammar or justify treating
+results lacking an established witness for a required input, nested callback contracts, record
+fields containing callable contracts, anonymous closures, captured environments and erased
+callables remain outside this bounded fragment. This limit does not change their full future grammar or justify treating
 every structural callable contract as a capture-free Copy value.
 
 Callable result annotations in this fragment follow
 [statically witnessed results](callables.md#statically-witnessed-callable-results): their reachable
-producers must close to one named witness before unit acceptance.
+producers must close to one named or own-input witness relation before unit acceptance, with
+actual witnesses substituted independently at each call.

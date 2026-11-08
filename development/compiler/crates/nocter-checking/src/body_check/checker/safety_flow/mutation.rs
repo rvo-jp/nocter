@@ -168,7 +168,8 @@ impl BodyChecker<'_, '_> {
                 | TypeKind::ValueFunction {
                     origin:
                         nocter_model::ValueFunctionOrigin::Parameter(_)
-                        | nocter_model::ValueFunctionOrigin::Result(_),
+                        | nocter_model::ValueFunctionOrigin::Result(_)
+                        | nocter_model::ValueFunctionOrigin::Application(_),
                     ..
                 }
                 | TypeKind::Opaque { .. }

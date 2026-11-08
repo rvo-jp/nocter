@@ -155,7 +155,8 @@ impl<'program> DestructionDependencyResolver<'program> {
             TypeKind::ValueFunction {
                 origin:
                     nocter_model::ValueFunctionOrigin::Parameter(_)
-                    | nocter_model::ValueFunctionOrigin::Result(_),
+                    | nocter_model::ValueFunctionOrigin::Result(_)
+                    | nocter_model::ValueFunctionOrigin::Application(_),
                 ..
             }
             | TypeKind::GenericParameter(_)

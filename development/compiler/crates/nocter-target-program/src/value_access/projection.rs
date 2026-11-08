@@ -14,7 +14,9 @@ pub(super) fn witness(
 ) -> Result<ConcreteWitness, Failure> {
     let declaration = match selected.origin {
         ValueFunctionOrigin::Declaration(id) => id,
-        ValueFunctionOrigin::Result(_) => return Err(Failure::InvalidAcceptedUnit),
+        ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
+            return Err(Failure::InvalidAcceptedUnit);
+        }
         ValueFunctionOrigin::Parameter(id) => {
             let supplied = key.witnesses.get(&id).ok_or(Failure::InvalidAcceptedUnit)?;
             if !supplied.invocation.can_supply(selected.invocation) {
@@ -37,7 +39,9 @@ pub(super) fn callee(
 ) -> Result<InstanceKey, Failure> {
     let callable = match target {
         ValueFunctionOrigin::Declaration(id) => id,
-        ValueFunctionOrigin::Result(_) => return Err(Failure::InvalidAcceptedUnit),
+        ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
+            return Err(Failure::InvalidAcceptedUnit);
+        }
         ValueFunctionOrigin::Parameter(id) => {
             caller
                 .witnesses

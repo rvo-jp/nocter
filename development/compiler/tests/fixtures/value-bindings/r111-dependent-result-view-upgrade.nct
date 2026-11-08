@@ -1,0 +1,1 @@
+func invalid(take action: once(i32): i32): func(i32): i32 { action }

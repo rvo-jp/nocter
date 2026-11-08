@@ -1,0 +1,6 @@
+func increment(value: i32): i32 { value + 1 }
+func forward(take action: func(i32): i32): func(i32): i32 { action }
+func run(): i32 { let action = forward(increment)
+read alias = action
+let copy = alias
+copy(action(1)) }

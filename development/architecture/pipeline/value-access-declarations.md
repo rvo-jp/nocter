@@ -15,7 +15,8 @@ V2CoreUnit syntax + exact source
        the same semantic program + current source/header/body binding
   -> reusable typed-body query
        same declaration authority + selected typed operations + body/source recipe
-  -> exact-current typed-body projection
+  -> canonical replay of body application types + complete body data projection
+       shared declaration facts and one final type authority; exact header source binding retained
   -> source-neutral control/evaluation graph
   -> reachable callable-result producers + recursive closure + identity/value-supply closure
        same graph; closed existing TypeIds, no second type authority
@@ -43,7 +44,10 @@ witnesses. A flat callable input introduces a symbolic formal witness; a flat ca
 introduces a symbolic result family. Structural callable
 annotations constrain these witnesses rather than introducing erased runtime datatypes. Invocation compatibility and exact input/result matching belong to declarations;
 checking freezes the selected witness/view. Header freeze interns every named invocation view and
-all permitted formal/result-family views in the same TypeAuthority, so body annotations cannot affect type availability or declaration reuse.
+all permitted formal/result-family views in the header TypeAuthority. Body checking opens a narrow
+application-type branch over that prefix; canonical replay validates lineage and owner domains
+before all bodies share one final authority. Declaration metadata and source reuse remain shared;
+no consumer chooses between header and body stores as lookup fallbacks.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
 Admitted built-in data and finite nongeneric record schemas share the parsed callable/body
 boundary. Data-name resolution belongs to that declaration namespace; lowering holds no parallel
@@ -87,8 +91,8 @@ intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-general compound header types, generic/interface evidence, input-dependent callable results,
-nested callback contracts, captured environments, outcomes, async/effects, layouts,
+general compound header types, generic/interface evidence, dependent results without an
+established required input witness, nested callback contracts, captured environments, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -123,9 +127,10 @@ annotations alone do not justify any of those payload facts. Formal inputs have 
 and retain symbolic cleanup. Each selected argument can bind a callee formal to a named or caller
 formal witness; invocation through the formal retains that semantic target. All definitions are
 checked against their declared contracts, including unused/recursive bodies. The supported producer
-domain still excludes captured environments. Result-producing bodies establish one named witness
-through reachable value flow; signatures alone cannot select it. Input-dependent results and
-general dependency footprints require further source closure. Concrete instance closure consumes
+domain still excludes captured environments. Result-producing bodies establish one named
+or own-input relation through reachable value flow; signatures alone cannot select it. Each
+selected application substitutes its actual witnesses into that relation. General dependency
+footprints require further source closure. Concrete instance closure consumes
 only the already selected witnesses.
 
 Known result types and possible normal completion are independent typed facts. Interrupted
@@ -166,9 +171,10 @@ changed authority/body is rejected before diagnostics can use stale coordinates.
 
 Before access/resource validation, checking propagates static code/view producer facts through
 this same graph's reachable successors, without depending on initialization. Actual staged
-return values, rather than a conditional's provisional type, establish result equations. Finite
-monotone closure requires a named anchor, preserves invocation views and proves deferred identity
-equalities. Projection closes existing type/witness identities and freezes pending value supply
+return values and prepared argument producers, rather than provisional expression types,
+establish result equations. Finite monotone closure requires a named or own-input anchor and
+preserves invocation views. Selected call applications substitute actual bindings into those
+established relations, then deferred identity equalities are proved. Projection closes existing type/witness identities and freezes pending value supply
 from the exact payload schema and source access. It does not repeat typing or graph construction;
 known moves remain moves. Initialization then runs once over the frozen operations, followed by
 access/resource validation. Producer facts do not prove owner availability and cannot replace
@@ -254,8 +260,9 @@ inventing an owner. Closed record schemas are visited once per data identity, no
 Consumers receive each instance with its exact checked body and those frozen maps.
 
 The body's checking-closed result data enters that same payload projection. The target owner
-never re-infers a result producer. Input-dependent results, captured environments and general
-retained footprints still need their own source closure. Layout, physical environment/argument realization, executable cleanup, target services,
+never re-infers a result producer. Returned formal data uses the instance's existing binding and
+payload maps. Captured environments and general retained footprints still need their own source
+closure. Layout, physical environment/argument realization, executable cleanup, target services,
 MIR and native output are not established by this graph. Later implementation must extend this
 same instance authority rather than create another call graph or infer environment shape from
 parameter counts.

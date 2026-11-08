@@ -71,7 +71,8 @@ coordinates, or checking internals.
 
 ## Future Value Declaration Boundary
 
-The value-access product owns one immutable program for the future private core goal. It is not
+The value-access product owns immutable declaration facts and their type authority for the future
+private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline. Its
 builder reserves identities before definitions and freezes only after all header checks. Defining
 headers in a different order cannot change parameter identities. The lowering owner
@@ -103,7 +104,8 @@ Only validated metadata can be published; no partial schema authority escapes a 
 owner, without looking up names or inferring access permissions. An empty path preserves its
 validated data type; a scalar projection or a field from another owner is rejected.
 
-`data_schema` exposes the admitted builtin, nominal or named/formal/result function-witness schema.
+`data_schema` exposes builtin, nominal or named/formal/result/application witness schemas from
+the supplied program's sole type authority. It never falls back to a different header/body store.
 `data_copyable` consumes that validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
 publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current
 nominal schemas contain only values over the four closed builtin leaves and other such records.
@@ -111,7 +113,7 @@ They are metadata, not proof of body acceptance, partial initialization, surviva
 native execution. Selected source places consume these schemas through the private body checker;
 only closed unit acceptance establishes the combined body/flow/resource proofs.
 
-`value_access::functions` owns named/formal/result witnesses and structural contracts as distinct
+`value_access::functions` owns named/formal/result/application witnesses and structural contracts as distinct
 products. `publication` normalizes input and result slots through one value publication path in the
 same header TypeAuthority. Named functions publish all invocation views; formal and result families
 publish only the views their declared invocation can supply, independently of body use. A local
@@ -122,11 +124,25 @@ under their exact schema. This is not evidence about arbitrary structural callba
 Formal and unresolved result witnesses deliberately have no Copy evidence. Their environment
 cleanup remains symbolic; a formal cannot inherit payload properties from one currently known caller. `function_contract`
 projects the selected named, formal or result contract without searching for an implementation.
-Checking must establish each result family's actual producer before body acceptance; a result header
-never invents a producer or its payload properties. Distinct formals retain distinct witness
+Checking must establish each result family's named or own-input witness relation and substitute
+actual bindings at each application before body acceptance. A result header never invents a
+producer or its payload properties. Distinct formals retain distinct witness
 identities even with equal structural signatures. Released
 declaration validation rejects all private witness keys.
 
-Outcome/capability/generic/user-destructor schemas, input-dependent callback results, nested callback
-contracts and captured environments remain outside the accepted private fragment. Exact
+`applications` owns the narrow body-type construction capability. A selected factory call interns
+its caller/operation/callee key and all permitted views over an immutable header prefix. A
+construction-only reservation forbids selecting two callees for one operation. It is discarded
+on freeze; no dispatch search or source syntax enters the program. Branches share declaration,
+namespace and record metadata instead of cloning those authorities.
+
+Canonical replay validates exact declaration identity, persistent type-prefix identity and each
+suffix's body owner. It re-interns the leaf keys in semantic owner order and publishes exact
+per-body TypeId projections with one final program. Coinciding raw suffix positions from two
+bodies cannot substitute for each other. Header programs stay unchanged and reusable; an
+extended program cannot masquerade as a fresh header base. Checking rewrites all body data
+slots through this projection before closing relations.
+
+Outcome/capability/generic/user-destructor schemas, nested callback contracts and captured
+environments remain outside the accepted private fragment. Exact
 scalar/unit/error independence is checked under its owning data contracts, never inferred from Copy or value receipt for arbitrary future types.

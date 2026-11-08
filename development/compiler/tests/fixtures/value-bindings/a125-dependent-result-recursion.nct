@@ -1,0 +1,5 @@
+func increment(value: i32): i32 { value + 1 }
+func cycle(take action: func(i32): i32, done: bool): func(i32): i32 {
+if done { action } else { cycle(action, true) }
+}
+func run(): i32 { cycle(increment, false)(1) }

@@ -871,6 +871,7 @@ impl TypeProperties {
                     origin,
                     crate::ValueFunctionOrigin::Parameter(_)
                         | crate::ValueFunctionOrigin::Result(_)
+                        | crate::ValueFunctionOrigin::Application(_)
                 )
             }
         };

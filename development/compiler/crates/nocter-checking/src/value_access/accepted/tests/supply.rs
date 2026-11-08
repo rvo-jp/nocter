@@ -30,14 +30,16 @@ fn pending_supply_closes_before_initialization_without_rebuilding_control() {
         let (sources, tree) = input(&source_case(case));
         let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
         let context = headers.bind(bound(&sources, &tree)).unwrap();
-        let mut controls = context
+        let mut queries = context
             .program()
             .callables()
             .iter()
-            .map(|(id, _)| {
-                let typed = TypedQuery::prepare(&context, id).unwrap();
-                (id, flow::Control::prepare(Arc::new(typed)).unwrap())
-            })
+            .map(|(id, _)| (id, TypedQuery::prepare(&context, id).unwrap()))
+            .collect::<BTreeMap<_, _>>();
+        crate::value_access::types::canonicalize(&context, &mut queries).unwrap();
+        let mut controls = queries
+            .into_iter()
+            .map(|(id, query)| (id, flow::Control::prepare(Arc::new(query)).unwrap()))
             .collect::<BTreeMap<_, _>>();
         assert!(
             controls.values().any(|control| pending(&control.typed)),
