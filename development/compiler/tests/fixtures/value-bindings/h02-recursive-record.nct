@@ -1,0 +1,4 @@
+struct Cycle {
+    next: Cycle
+}
+func run(): void {}

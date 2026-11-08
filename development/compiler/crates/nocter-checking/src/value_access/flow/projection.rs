@@ -1,4 +1,7 @@
-use super::{InitializationState, InitializationViolation, Location, Origin, Query};
+use super::{
+    InitializationRequirement, InitializationState, InitializationViolation, Location, Origin,
+    Query,
+};
 use crate::value_access::{Context as TypedContext, Failure, source_origin};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
@@ -85,14 +88,20 @@ impl Context<'_, '_> {
                 notes.push(DiagnosticNote::new("this action leaves the slot uninitialized on a reaching path, possibly through a loop backedge",
                     source_origin(syntax, self.origin(cause)?)?));
             }
-            let message = match violation.state {
-                InitializationState::Uninitialized => {
-                    "this operation requires an initialized slot, but ownership has been removed"
+            let message = match (violation.requirement, violation.state) {
+                (InitializationRequirement::Value, InitializationState::Uninitialized) => {
+                    "this operation requires a complete initialized value, but part or all of it is unavailable"
                 }
-                InitializationState::Maybe => {
-                    "this operation requires an initialized slot on every reaching path"
+                (InitializationRequirement::Value, InitializationState::Maybe) => {
+                    "the selected value must be fully initialized on every reaching path"
                 }
-                InitializationState::Initialized => return Err(Failure::InconsistentSyntax),
+                (InitializationRequirement::Container, InitializationState::Uninitialized) => {
+                    "this operation requires a present containing place, but that container is unavailable"
+                }
+                (InitializationRequirement::Container, InitializationState::Maybe) => {
+                    "the containing place must be present on every reaching path"
+                }
+                (_, InitializationState::Initialized) => return Err(Failure::InconsistentSyntax),
             };
             diagnostics.push(InitializationDiagnostic {
                 violation: violation.clone(),

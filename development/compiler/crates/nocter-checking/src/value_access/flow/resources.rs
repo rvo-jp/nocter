@@ -6,11 +6,11 @@ use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, TypeId};
 use std::collections::{BTreeMap, BTreeSet};
 
-mod places;
+mod payload;
 mod storage;
 #[cfg(test)]
 mod tests;
-use places::OwnedValue;
+use payload::OwnedValue;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Holder {
@@ -56,6 +56,13 @@ impl Place {
         Self {
             holder: self.holder,
             fields: self.fields.project(field),
+        }
+    }
+    #[must_use]
+    pub fn project_path(&self, suffix: &FieldPath) -> Self {
+        Self {
+            holder: self.holder,
+            fields: self.fields.concat(suffix),
         }
     }
     /// Relation for declaration-validated selections; not an availability or permission proof.
@@ -128,6 +135,7 @@ pub enum Step {
     /// Replacement through a caller-owned U input; the old payload is initialized by contract.
     ReplaceInput {
         parameter: nocter_model::AccessParameterId,
+        fields: FieldPath,
         source: Place,
         payload: Payload,
     },

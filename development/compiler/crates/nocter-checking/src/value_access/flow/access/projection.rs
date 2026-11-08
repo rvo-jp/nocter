@@ -89,7 +89,7 @@ impl Context<'_, '_> {
                 ),
                 AccessRule::ConflictingArguments => (
                     DiagnosticCode::E0396,
-                    "the selected call requires incompatible simultaneous accesses to the same root",
+                    "the selected call requires incompatible simultaneous accesses to overlapping places",
                 ),
                 AccessRule::ExpiredRoot => (
                     DiagnosticCode::E0398,

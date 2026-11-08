@@ -98,9 +98,9 @@ fn prepared_use(
 ) -> Result<(Carrier, bool), IntegrityError> {
     let arg = argument(typed, call, index)?;
     let carrier = match arg.action {
-        ArgumentAction::ReserveRead(local)
-        | ArgumentAction::ReserveUpdate(local)
-        | ArgumentAction::ReserveTransfer(local) => Carrier::Local(local),
+        ArgumentAction::ReserveRead(place)
+        | ArgumentAction::ReserveUpdate(place)
+        | ArgumentAction::ReserveTransfer(place) => Carrier::Local(root(typed, place)?),
         _ => Carrier::Expression(arg.value),
     };
     Ok((carrier, argument_updates(arg.action)))
@@ -144,23 +144,25 @@ fn plan(
         }
         Operation::Assign { target, value } => {
             uses.push((Carrier::Expression(*value), false));
-            if typed
-                .body()
-                .locals()
-                .get(*target)
-                .ok_or(INVALID)?
-                .access()
-                .mode()
-                == Mode::Own
+            let place = typed.body().places().get(*target).ok_or(INVALID)?;
+            if place.fields.is_root()
+                && typed
+                    .body()
+                    .locals()
+                    .get(place.local)
+                    .ok_or(INVALID)?
+                    .access()
+                    .mode()
+                    == Mode::Own
             {
-                definitions.push(Carrier::Local(*target));
+                definitions.push(Carrier::Local(place.local));
             } else {
-                uses.push((Carrier::Local(*target), true));
+                uses.push((Carrier::Local(place.local), true));
             }
         }
         Operation::CompoundAssign { target, value, .. } => {
             uses.push((Carrier::Expression(*value), false));
-            uses.push((Carrier::Local(*target), true));
+            uses.push((Carrier::Local(root(typed, *target)?), true));
         }
         Operation::Drop(local) => {
             uses.push((Carrier::Local(*local), true));
@@ -261,13 +263,13 @@ fn expression_uses(
 ) -> Result<Vec<(Carrier, bool)>, IntegrityError> {
     let mut uses = Vec::new();
     match typed.body().expressions().get(id).ok_or(INVALID)?.kind {
-        ExpressionKind::Place(local) => uses.push((Carrier::Local(local), false)),
-        ExpressionKind::Move(local) => {
-            uses.push((Carrier::Local(local), true));
+        ExpressionKind::Place(place) => uses.push((Carrier::Local(root(typed, place)?), false)),
+        ExpressionKind::Move(place) => {
+            uses.push((Carrier::Local(root(typed, place)?), true));
         }
         ExpressionKind::Boundary { source, action } => {
             let carrier = match typed.body().expressions().get(source).ok_or(INVALID)?.kind {
-                ExpressionKind::Place(local) => Carrier::Local(local),
+                ExpressionKind::Place(place) => Carrier::Local(root(typed, place)?),
                 _ => Carrier::Expression(source),
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
@@ -280,4 +282,11 @@ fn expression_uses(
         ExpressionKind::Call { .. } | ExpressionKind::If { .. } => return Err(INVALID),
     }
     Ok(uses)
+}
+
+fn root(
+    typed: &TypedQuery,
+    place: nocter_model::AccessPlaceId,
+) -> Result<AccessLocalId, IntegrityError> {
+    Ok(typed.body().places().get(place).ok_or(INVALID)?.local)
 }

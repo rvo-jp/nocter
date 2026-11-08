@@ -1,17 +1,17 @@
 use super::{
     BodyDiagnostic, Failure, Origins, Query, Rule, Site,
     ir::{
-        Block, Boundary, BoundaryAction, Expression, ExpressionKind, Local, LocalOrigin, Statement,
-        TypedBody, ValueType,
+        Block, Boundary, BoundaryAction, Expression, ExpressionKind, Local, LocalOrigin, Place,
+        Statement, TypedBody, ValueType,
     },
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::Program;
+use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessStatementId, ArenaBuilder, BuiltinType, TypeId, ValueAccess as Ty,
-    ValueAccessMode as Mode,
+    AccessPlaceId, AccessStatementId, ArenaBuilder, BuiltinType, FieldPath, TypeId,
+    ValueAccess as Ty, ValueAccessMode as Mode,
 };
 use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
@@ -30,6 +30,8 @@ pub(super) struct Checker<'a, 's> {
     pub origins: Origins,
     pub locals: ArenaBuilder<AccessLocalId, Local>,
     pub expressions: ArenaBuilder<AccessExpressionId, Expression>,
+    pub places: ArenaBuilder<AccessPlaceId, Place>,
+    pub place_index: BTreeMap<(AccessLocalId, FieldPath), AccessPlaceId>,
     pub statements: ArenaBuilder<AccessStatementId, Statement>,
     pub blocks: ArenaBuilder<AccessBlockId, Block>,
     pub loops: ArenaBuilder<AccessLoopId, ()>,
@@ -58,6 +60,8 @@ pub(super) fn prepare(
         origins: Origins::default(),
         locals: ArenaBuilder::new(),
         expressions: ArenaBuilder::new(),
+        places: ArenaBuilder::new(),
+        place_index: BTreeMap::new(),
         statements: ArenaBuilder::new(),
         blocks: ArenaBuilder::new(),
         loops: ArenaBuilder::new(),
@@ -101,6 +105,7 @@ pub(super) fn prepare(
             root,
             locals: checker.locals.finish(),
             expressions: checker.expressions.finish(),
+            places: checker.places.finish(),
             statements: checker.statements.finish(),
             blocks: checker.blocks.finish(),
             loops: checker.loops.finish(),
@@ -247,14 +252,23 @@ impl Checker<'_, '_> {
             Mode::Update => "edit ",
             Mode::Own => "value ",
         };
-        format!(
-            "{prefix}{}",
-            self.program()
-                .data_kind(ty.data())
-                .expect("core data")
-                .spelling()
-        )
+        format!("{prefix}{}", self.data_label(ty.data()))
     }
+    pub fn data_label(&self, data: TypeId) -> &str {
+        match self
+            .program()
+            .data_schema(data)
+            .expect("closed data authority")
+        {
+            PayloadSchema::Builtin(data) => data.spelling(),
+            PayloadSchema::Record(record) => self
+                .program()
+                .symbols()
+                .spelling(record.name())
+                .expect("record name"),
+        }
+    }
+
     pub fn reject_local<T>(
         &self,
         rule: Rule,
@@ -308,10 +322,7 @@ impl Checker<'_, '_> {
         let note = DiagnosticNote::new(
             format!(
                 "this place is {binding_description} of data type {}",
-                self.program()
-                    .data_kind(declaration.data)
-                    .expect("core data")
-                    .spelling()
+                self.data_label(declaration.data)
             ),
             super::source_origin(self.syntax(), related)?,
         );
@@ -352,43 +363,6 @@ impl Checker<'_, '_> {
             Ok(None)
         }
     }
-    pub fn place(&self, node: NodeId, rule: Rule) -> Result<AccessLocalId, Failure> {
-        let Some(token) = self.name_token(node)? else {
-            return self.reject(rule, node);
-        };
-        self.place_name(token, rule)
-    }
-    pub fn place_name(&self, token: SyntaxToken, rule: Rule) -> Result<AccessLocalId, Failure> {
-        let spelling = self.text(token)?;
-        if let Some(local) = self.lookup(spelling) {
-            return Ok(local);
-        }
-        if self
-            .program()
-            .symbols()
-            .get(spelling)
-            .and_then(|symbol| self.program().resolve(symbol))
-            .is_some()
-        {
-            return self.reject(rule, token);
-        }
-        self.reject(Rule::UnknownName, token)
-    }
-    pub fn place_expression(&self, expr: AccessExpressionId) -> Option<AccessLocalId> {
-        match self.expressions.get(expr)?.kind {
-            ExpressionKind::Place(local) => Some(local),
-            _ => None,
-        }
-    }
-    pub fn annotation(&self, node: NodeId) -> Result<TypeId, Failure> {
-        let named = self.direct(node, NodeKind::NamedType)?;
-        let kind = BuiltinType::from_spelling(self.text(self.token(named)?)?)
-            .ok_or(Failure::InconsistentSyntax)?;
-        Ok(self.data(kind))
-    }
-    pub fn writable_local(&self, local: AccessLocalId) -> bool {
-        self.locals.get(local).expect("own local").kind.writable()
-    }
     pub fn require_data(
         &self,
         expr: AccessExpressionId,
@@ -425,8 +399,12 @@ impl Checker<'_, '_> {
             }
             Mode::Update => {
                 if let Some(local) = place {
-                    if !self.writable_local(local) {
-                        return self.reject_local(Rule::InvalidUpdate, node, local);
+                    if !self.writable_place(local) {
+                        return self.reject_local(
+                            Rule::InvalidUpdate,
+                            node,
+                            self.selected_place(local).local,
+                        );
                     }
                     BoundaryAction::DelegateUpdate
                 } else {
@@ -437,14 +415,18 @@ impl Checker<'_, '_> {
                 if let Some(local) = place {
                     if self.copyable(actual.data()) {
                         BoundaryAction::CopyPayload
-                    } else if self.local_ty(local).mode() == Mode::Own {
+                    } else if self.place_ty(local).mode() == Mode::Own {
                         return self.emit(
                             node,
                             ValueType::Value(expected),
                             ExpressionKind::Move(local),
                         );
                     } else {
-                        return self.reject_local(Rule::MissingTransfer, node, local);
+                        return self.reject_local(
+                            Rule::MissingTransfer,
+                            node,
+                            self.selected_place(local).local,
+                        );
                     }
                 } else if actual.mode() == Mode::Own {
                     BoundaryAction::TakeValue

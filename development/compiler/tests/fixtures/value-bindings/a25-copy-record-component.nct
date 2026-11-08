@@ -1,0 +1,5 @@
+struct Counter {
+    value: i32
+    failure: error
+}
+func read(counter: Counter): i32 { counter.value }

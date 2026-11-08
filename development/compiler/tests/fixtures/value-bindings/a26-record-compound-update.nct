@@ -1,0 +1,8 @@
+struct Counter {
+    value: i32
+    failure: error
+}
+func run(take counter: Counter, amount: i32): i32 {
+    counter.value += amount
+    return counter.value
+}

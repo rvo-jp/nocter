@@ -163,9 +163,9 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?
             .kind;
         match *kind {
-            ExpressionKind::Move(local) => self.world.resources.move_to(
+            ExpressionKind::Move(place) => self.world.resources.move_to(
                 self.typed.program(),
-                &Holder::Local(local).place(),
+                &self.resource_place(place)?,
                 &Holder::Expression(id).place(),
                 false,
                 &mut self.steps,
@@ -202,16 +202,16 @@ impl Context<'_, '_> {
     }
     fn assign_ownership(
         &mut self,
-        target: nocter_model::AccessLocalId,
+        target: nocter_model::AccessPlaceId,
         value: AccessExpressionId,
     ) -> Result<()> {
         let (root, _) = self.base(target)?.ok_or(Failure::Integrity)?;
-        match root {
+        match root.root {
             Root::Owned(local) => {
                 self.world.resources.replace(
                     self.typed.program(),
                     &Holder::Expression(value).place(),
-                    &Holder::Local(local).place(),
+                    &Holder::Local(local).place().project_path(&root.fields),
                     &mut self.steps,
                 )?;
             }
@@ -220,6 +220,7 @@ impl Context<'_, '_> {
                 let payload = self.world.resources.take(self.typed.program(), &source)?;
                 self.steps.push(Step::ReplaceInput {
                     parameter,
+                    fields: root.fields,
                     source,
                     payload,
                 });
@@ -284,10 +285,10 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?;
         for (index, argument) in arguments.iter().enumerate() {
             let prepared = Holder::Prepared { call, index };
-            if let ArgumentAction::ReserveTransfer(local) = argument.action {
+            if let ArgumentAction::ReserveTransfer(place) = argument.action {
                 self.world.resources.invoke(
                     self.typed.program(),
-                    &Holder::Local(local).place(),
+                    &self.resource_place(place)?,
                     call,
                     index,
                     &mut self.steps,

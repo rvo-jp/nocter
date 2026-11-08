@@ -59,7 +59,7 @@ data types; ordinary results deliver values. Its source-neutral declaration quer
 and exact-current contexts follow the [value-access boundary](pipeline/value-access-declarations.md).
 These products have distinct callable/input and body-local operation/control identities and cannot
 enter the released checked, target, or native products. There is no CLI source-version switch;
-a shared source-neutral flow graph now supplies named-slot initialization and alternative-world
+a shared source-neutral flow graph supplies projected initialization and alternative-world
 referent/permission reports with permission-demand liveness and logical ownership/cleanup
 transitions. A closed private-unit constructor checks all definitions and the exact admitted
 payload contracts before publishing front-end acceptance. General carried dependencies,

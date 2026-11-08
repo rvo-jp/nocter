@@ -1,0 +1,11 @@
+struct Envelope {
+    pair: Pair
+}
+struct Pair {
+    first: error
+    second: error
+}
+func bad(take envelope: Envelope, take replacement: error): void {
+    let old = envelope.pair
+    envelope.pair.first = replacement
+}

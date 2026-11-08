@@ -94,23 +94,28 @@ fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary) -> Expression {
 
 pub(super) fn postfix(parser: &mut Parser<'_>) -> Expression {
     let mut left = primary(parser);
-    while parser.at_punctuation(Punctuation::LeftParen) {
+    while parser.at_punctuation(Punctuation::LeftParen) || parser.at_punctuation(Punctuation::Dot) {
         let marker = parser.precede(left.completed);
         let suffix = parser.start();
-        parser.bump();
-        if parser.enter_nesting() {
-            parser.comma_list(
-                Punctuation::RightParen,
-                true,
-                ExpectedSyntax::Expression,
-                argument,
-            );
-            parser.expect_punctuation(Punctuation::RightParen);
-            parser.leave_nesting();
+        if parser.eat_punctuation(Punctuation::Dot) {
+            parser.expect_name();
+            parser.complete(suffix, NodeKind::MemberSuffix);
         } else {
-            parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+            parser.bump();
+            if parser.enter_nesting() {
+                parser.comma_list(
+                    Punctuation::RightParen,
+                    true,
+                    ExpectedSyntax::Expression,
+                    argument,
+                );
+                parser.expect_punctuation(Punctuation::RightParen);
+                parser.leave_nesting();
+            } else {
+                parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+            }
+            parser.complete(suffix, NodeKind::CallSuffix);
         }
-        parser.complete(suffix, NodeKind::CallSuffix);
         left = Expression {
             completed: parser.complete(marker, NodeKind::PostfixExpression),
         };

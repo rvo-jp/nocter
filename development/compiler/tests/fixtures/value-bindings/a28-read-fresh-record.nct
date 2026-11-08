@@ -1,0 +1,7 @@
+struct Pair {
+    first: error
+    second: error
+}
+func forward(take pair: Pair): Pair { pair }
+func inspect(pair: Pair): void {}
+func run(take pair: Pair): void { inspect(forward(pair)) }

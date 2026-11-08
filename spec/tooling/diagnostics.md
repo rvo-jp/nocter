@@ -703,7 +703,11 @@ or diagnostic behavior.
 
 Resolve all headers before bodies. Duplicate function names use `E0241`, duplicate/shadowing
 input names use `E0341`, and reserved function names use `E0240`, retaining the existing related
-first-declaration locations. These rules do not permit overload selection by input operation,
+first-declaration locations. Private record-name and field-name collisions use `E0241` with the
+first conflicting declaration related. Unknown header data names use `E0290`; a known type outside
+the closed fragment, non-finite by-value containment or an invalid `copy struct` request uses
+`E0291`. Focus the authored type or field type; relate the referenced record when explaining a
+containment cycle. These rules do not permit overload selection by input operation,
 body or declaration order. Header/body mismatch reports both declarations and differing modes,
 types and origin/state relations. An impossible source/product pairing remains an integrity
 failure, never a fabricated source name error.
@@ -715,7 +719,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | Existing code family | Future failed obligation |
 | --- | --- |
 | `E0340`, `E0341` | Name resolution or conflicting binding |
-| `E0370` | Data/type/result mismatch or insufficient local type information |
+| `E0370` | Data/type/result mismatch, unknown field/body data type, or insufficient local type information |
 | `E0371`, `E0377` | Value construction has neither Copy evidence nor an eligible owning source |
 | `E0372`, `E0373` | Non-unit intermediate expression or missing normal result |
 | `E0375` | Integer outside the selected data type's range |
@@ -737,8 +741,10 @@ mutable binding; do not silently rewrite it. A view descriptor Copy still retain
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
 
-`E0378` identifies a reached read/update/extraction/drop/compound operation that lacks definite
-initialization. Relate the declaration and contributing transfers/drops/backedges. A Copy boundary
+`E0378` identifies a reached read/update/extraction/drop/compound operation that lacks its required
+initialization. Value use and transfer require a complete selected value; field replacement
+requires present containing records, and `drop name` requires a present owning container rather
+than restoring moved fields. A missing sibling does not invalidate a disjoint selected field. Relate the declaration and contributing transfers/drops/backedges. A Copy boundary
 is not a transfer of its source; an explicit drop is destruction even for Copy. A mutable owning
 slot can be restored by a complete replacement; a fixed binding cannot be assigned after transfer.
 Check RHS-first compound targets after all right-hand effects. Unreachable code keeps structural

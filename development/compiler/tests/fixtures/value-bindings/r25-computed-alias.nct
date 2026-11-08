@@ -1,0 +1,7 @@
+struct Pair {
+    first: error
+    second: error
+}
+func bad(pair: Pair, flag: bool): void {
+    read alias: error = if flag { pair.first } else { pair.second }
+}

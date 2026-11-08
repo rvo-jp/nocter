@@ -1,5 +1,5 @@
 use super::*;
-use nocter_declarations::value_access::{Builder, FieldData, FieldDefinition};
+use nocter_declarations::value_access::{Builder, DataReference, FieldDefinition};
 use nocter_model::{AccessFieldId, ArenaBuilder, SymbolTable};
 
 struct Fixture {
@@ -32,8 +32,8 @@ impl Fixture {
                 leaf,
                 false,
                 [
-                    field("a", FieldData::Builtin(BuiltinType::Error)),
-                    field("b", FieldData::Builtin(BuiltinType::Error)),
+                    field("a", DataReference::Builtin(BuiltinType::Error)),
+                    field("b", DataReference::Builtin(BuiltinType::Error)),
                 ],
             )
             .unwrap();
@@ -42,10 +42,10 @@ impl Fixture {
                 outer,
                 false,
                 [
-                    field("head", FieldData::Builtin(BuiltinType::Error)),
-                    field("left", FieldData::Record(leaf)),
-                    field("right", FieldData::Record(leaf)),
-                    field("tail", FieldData::Builtin(BuiltinType::Error)),
+                    field("head", DataReference::Builtin(BuiltinType::Error)),
+                    field("left", DataReference::Record(leaf)),
+                    field("right", DataReference::Record(leaf)),
+                    field("tail", DataReference::Builtin(BuiltinType::Error)),
                 ],
             )
             .unwrap();
@@ -524,11 +524,11 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
                 [
                     FieldDefinition {
                         name: symbols.get("left").unwrap(),
-                        data: FieldData::Record(pair[0]),
+                        data: DataReference::Record(pair[0]),
                     },
                     FieldDefinition {
                         name: symbols.get("right").unwrap(),
-                        data: FieldData::Record(pair[0]),
+                        data: DataReference::Record(pair[0]),
                     },
                 ],
             )

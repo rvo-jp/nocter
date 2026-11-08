@@ -194,6 +194,227 @@
       "file": "s04-retired-update-prefix.nct",
       "expectation": "syntax-reject",
       "reason": "Scoped update uses edit rather than a standalone ampersand expression."
+    },
+    {
+      "id": "a15-record-field-return",
+      "file": "a15-record-field-return.nct",
+      "expectation": "accept",
+      "reason": "Returning one field transfers it and cleans its initialized sibling."
+    },
+    {
+      "id": "a16-record-restore",
+      "file": "a16-record-restore.nct",
+      "expectation": "accept",
+      "reason": "Restoring a moved field makes its parent complete before return."
+    },
+    {
+      "id": "a17-record-partial-drop",
+      "file": "a17-record-partial-drop.nct",
+      "expectation": "accept",
+      "reason": "Explicit drop ends a present partial container and cleans only remaining fields."
+    },
+    {
+      "id": "a18-record-disjoint-call",
+      "file": "a18-record-disjoint-call.nct",
+      "expectation": "accept",
+      "reason": "One invocation may update proved-disjoint fields of the same owner."
+    },
+    {
+      "id": "a19-record-disjoint-alias",
+      "file": "a19-record-disjoint-alias.nct",
+      "expectation": "accept",
+      "reason": "An active field alias does not protect a disjoint sibling."
+    },
+    {
+      "id": "a20-record-branch-restore",
+      "file": "a20-record-branch-restore.nct",
+      "expectation": "accept",
+      "reason": "Replacing a maybe-missing field cleans its old value conditionally and restores completeness."
+    },
+    {
+      "id": "a21-record-loop-restore",
+      "file": "a21-record-loop-restore.nct",
+      "expectation": "accept",
+      "reason": "Every continuing backedge restores the selected field."
+    },
+    {
+      "id": "a22-copy-record",
+      "file": "a22-copy-record.nct",
+      "expectation": "accept",
+      "reason": "Explicit structural Copy supplies an independent record value from a read input."
+    },
+    {
+      "id": "a23-nested-record",
+      "file": "a23-nested-record.nct",
+      "expectation": "accept",
+      "reason": "Nested field selection preserves precise cleanup of the remaining frontier and forward type references."
+    },
+    {
+      "id": "a24-all-fields-moved-drop",
+      "file": "a24-all-fields-moved-drop.nct",
+      "expectation": "accept",
+      "reason": "A container with all fields moved can end ownership without disposing them twice."
+    },
+    {
+      "id": "r13-partial-parent-return",
+      "file": "r13-partial-parent-return.nct",
+      "expectation": "check-reject",
+      "reason": "An incomplete parent cannot be supplied as a whole result.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r14-field-after-move",
+      "file": "r14-field-after-move.nct",
+      "expectation": "check-reject",
+      "reason": "A moved field cannot be read or transferred again.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r15-overlapping-record-call",
+      "file": "r15-overlapping-record-call.nct",
+      "expectation": "check-reject",
+      "reason": "A whole-record read and an overlapping field update cannot activate together.",
+      "diagnostic": "E0396"
+    },
+    {
+      "id": "r16-overlapping-field-alias",
+      "file": "r16-overlapping-field-alias.nct",
+      "expectation": "check-reject",
+      "reason": "A later field-alias use keeps protection over that exact field.",
+      "diagnostic": "E0397"
+    },
+    {
+      "id": "r17-fixed-field-restoration",
+      "file": "r17-fixed-field-restoration.nct",
+      "expectation": "check-reject",
+      "reason": "Owning a fixed record permits transfer, not field restoration or mutation.",
+      "diagnostic": "E0384"
+    },
+    {
+      "id": "r18-missing-record-parent",
+      "file": "r18-missing-record-parent.nct",
+      "expectation": "check-reject",
+      "reason": "Writing a child cannot reconstruct a genuinely moved parent field.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r19-loop-missing-field",
+      "file": "r19-loop-missing-field.nct",
+      "expectation": "check-reject",
+      "reason": "A field missing on a backedge cannot be consumed on a later iteration.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r20-read-field-extraction",
+      "file": "r20-read-field-extraction.nct",
+      "expectation": "check-reject",
+      "reason": "A read record input does not grant extraction of a move-only component.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r21-unknown-record-field",
+      "file": "r21-unknown-record-field.nct",
+      "expectation": "check-reject",
+      "reason": "Field selection must resolve through its exact containing record.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r22-field-data-mismatch",
+      "file": "r22-field-data-mismatch.nct",
+      "expectation": "check-reject",
+      "reason": "Field replacement checks the selected field data type.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "h01-unknown-record-type",
+      "file": "h01-unknown-record-type.nct",
+      "expectation": "header-reject",
+      "reason": "Unknown data names are rejected before body semantics.",
+      "diagnostic": "E0290"
+    },
+    {
+      "id": "h02-recursive-record",
+      "file": "h02-recursive-record.nct",
+      "expectation": "header-reject",
+      "reason": "Direct by-value cycles cannot publish a finite record schema.",
+      "diagnostic": "E0291"
+    },
+    {
+      "id": "h03-invalid-record-copy",
+      "file": "h03-invalid-record-copy.nct",
+      "expectation": "header-reject",
+      "reason": "Copy opt-in cannot hide a move-only error field.",
+      "diagnostic": "E0291"
+    },
+    {
+      "id": "h04-duplicate-record-field",
+      "file": "h04-duplicate-record-field.nct",
+      "expectation": "header-reject",
+      "reason": "Duplicate field names cannot select one field by declaration order.",
+      "diagnostic": "E0241"
+    },
+    {
+      "id": "a25-copy-record-component",
+      "file": "a25-copy-record-component.nct",
+      "expectation": "accept",
+      "reason": "Copy evidence belongs to the selected component even when its containing record is move-only."
+    },
+    {
+      "id": "a26-record-compound-update",
+      "file": "a26-record-compound-update.nct",
+      "expectation": "accept",
+      "reason": "Compound assignment updates the selected numeric field and preserves sibling cleanup."
+    },
+    {
+      "id": "a27-distinct-unit-fields",
+      "file": "a27-distinct-unit-fields.nct",
+      "expectation": "accept",
+      "reason": "Distinct logical fields stay disjoint even when both payloads have zero runtime size."
+    },
+    {
+      "id": "r23-no-implicit-record-copy",
+      "file": "r23-no-implicit-record-copy.nct",
+      "expectation": "check-reject",
+      "reason": "A move-only nominal record never acquires Copy merely because all its fields are Copy.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "a28-read-fresh-record",
+      "file": "a28-read-fresh-record.nct",
+      "expectation": "accept",
+      "reason": "A fresh record passed to read keeps one evaluation-frame owner without implicit Copy."
+    },
+    {
+      "id": "a29-disjoint-field-move",
+      "file": "a29-disjoint-field-move.nct",
+      "expectation": "accept",
+      "reason": "A required field read does not block transfer of a disjoint sibling."
+    },
+    {
+      "id": "a30-field-delegation",
+      "file": "a30-field-delegation.nct",
+      "expectation": "accept",
+      "reason": "Delegated field authority keeps its projection when an unused whole-record intermediary is released."
+    },
+    {
+      "id": "a31-edit-record-input",
+      "file": "a31-edit-record-input.nct",
+      "expectation": "accept",
+      "reason": "An external edit records the exact selected target field and preserves initialized caller storage."
+    },
+    {
+      "id": "r24-drop-borrowed-partial-record",
+      "file": "r24-drop-borrowed-partial-record.nct",
+      "expectation": "check-reject",
+      "reason": "Partial cleanup still cannot destroy a field whose scoped access has a later use.",
+      "diagnostic": "E0397"
+    },
+    {
+      "id": "r25-computed-alias",
+      "file": "r25-computed-alias.nct",
+      "expectation": "check-reject",
+      "reason": "An annotation must not manufacture a scoped alias from a computed conditional value.",
+      "diagnostic": "E0370"
     }
   ],
   "parse_goal": "V2CoreUnit"

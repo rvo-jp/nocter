@@ -26,13 +26,11 @@ impl Context<'_, '_> {
                 self.world
                     .prepared
                     .get(&(call, index))
-                    .copied()
+                    .cloned()
                     .ok_or(Failure::Integrity)
             })
             .collect::<Result<Vec<_>>>()?;
         self.check_bundle(call, &prepared)?;
-        // The admitted payload contracts return values with no outside R/D/S. Abstract
-        // invocation retains no argument access; it never invents a borrowed result.
         self.world.values.insert(
             Carrier::Expression(call),
             Value::without_referent(Mode::Own),
@@ -45,27 +43,27 @@ impl Context<'_, '_> {
     fn check_bundle(&self, call: AccessExpressionId, prepared: &[Prepared]) -> Result<()> {
         let mut caps = Vec::new();
         for value in prepared {
-            caps.push(match *value {
+            caps.push(match value {
                 Prepared::Reserved {
-                    root,
+                    region,
                     actor,
                     permission,
                     ..
-                } => Some((root, actor, permission)),
+                } => Some((region.clone(), *actor, *permission)),
                 Prepared::Value(value) => self
-                    .base_value(value)?
-                    .map(|(root, actor)| (root, actor, value.mode)),
+                    .base_value(*value)?
+                    .map(|(region, actor)| (region, actor, value.mode)),
             });
         }
         for (index, left) in caps.iter().enumerate() {
-            if let Some((root, _, mode)) = left {
+            if let Some((region, _, mode)) = left {
                 for (other, right) in caps.iter().enumerate().skip(index + 1) {
-                    if let Some((other_root, _, other_mode)) = right
-                        && root == other_root
+                    if let Some((other_region, _, other_mode)) = right
+                        && region.overlaps(other_region)
                         && (*mode != Mode::Read || *other_mode != Mode::Read)
                     {
-                        let created = match prepared[other] {
-                            Prepared::Reserved { at, .. } => Creation::Action(at),
+                        let created = match &prepared[other] {
+                            Prepared::Reserved { at, .. } => Creation::Action(*at),
                             Prepared::Value(value) => {
                                 self.world
                                     .nodes
@@ -77,7 +75,8 @@ impl Context<'_, '_> {
                         return Err(Violation {
                             location: self.at,
                             rule: AccessRule::ConflictingArguments,
-                            root: *root,
+                            root: region.root,
+                            fields: region.fields.clone(),
                             retained: Some(RetainedAccess {
                                 created,
                                 permission: *other_mode,
@@ -89,12 +88,12 @@ impl Context<'_, '_> {
                 }
             }
         }
-        for &(root, actor, permission) in caps.iter().flatten() {
-            if permission == Mode::Read {
+        for (region, actor, permission) in caps.iter().flatten() {
+            if *permission == Mode::Read {
                 self.world
-                    .check(root, actor, permission, self.at, self.live)?;
+                    .check(region, *actor, *permission, self.at, self.live)?;
             } else {
-                self.write(root, actor, permission, Some(call))?;
+                self.write(region, *actor, *permission, Some(call))?;
             }
         }
         Ok(())

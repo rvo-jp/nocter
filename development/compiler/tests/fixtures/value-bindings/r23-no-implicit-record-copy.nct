@@ -1,0 +1,5 @@
+struct Point {
+    x: i32
+    y: i32
+}
+func bad(value: Point): Point { value }

@@ -16,7 +16,7 @@ V2CoreUnit syntax + exact source
   -> reusable typed-body query
        same declaration authority + selected typed operations + body/source recipe
   -> exact-current typed-body projection
-  -> source-neutral control/evaluation graph + named-slot initialization facts
+  -> source-neutral control/evaluation graph + projected initialization facts
   -> permission-demand liveness + alternative referent/access worlds
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated; no native consumer)
@@ -36,14 +36,15 @@ source names, physical offsets or an access grant.
 `nocter-declarations` owns the source-independent program, namespace, closed data authority,
 ordered input identities and operations, and data-only value results.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
-Only the admitted built-in data shapes cross the current parsed callable/body boundary. The same
-program separately owns closed nominal record schemas before source admission. Declaration-owned
-projection validates each selected field's containing record and data identity. Checking consumes
+Admitted built-in data and finite nongeneric record schemas share the parsed callable/body
+boundary. Data-name resolution belongs to that declaration namespace; lowering holds no parallel
+type table. Declaration-owned projection validates each selected field's containing record and
+data identity. Checking consumes
 those schemas to certify concrete payload operations; it does not rebuild nominal type meaning.
 No borrowed wrapper or released storable-type heuristic supplies a missing future contract.
 
 `nocter-declaration-lowering` owns canonical header collection, normalization and diagnostic
-projection. It reserves functions in namespace order and maps resolved identities to neutral
+projection. It reserves functions and records in namespace order and maps resolved identities to neutral
 syntax locators. Its reusable query contains no source identity, syntax ID, range, or body text.
 Binding checks the complete header surface before resolving locators to current syntax. The
 current context has no public parts constructor; a caller cannot pair unrelated program/syntax
@@ -67,14 +68,15 @@ invalid update, unavailable local, or unsafe backedge may rebind that same decla
 must later fail checking. Body typing consumes those identities/contracts and performs lexical body resolution,
 structural data/operation checks, and direct-call selection. It cannot recover input operations
 from body tokens, redo declaration normalization, or treat source projection as dispatch authority.
-Named-slot initialization and referent/permission validation share a source-neutral body-flow
-graph. Logical resource transitions and the exact first-fragment payload contracts share those
+Projected initialization and referent/permission validation share a source-neutral body-flow
+graph. Body typing freezes each selected place's local root, field identities and data TypeId;
+later passes consume the selection rather than repeating member lookup. Logical resource transitions and the exact first-fragment payload contracts share those
 alternative worlds. Only the complete private-unit constructor closes all body/callee assumptions;
 intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-compound type trees, generic/interface/callable evidence, outcomes, async/effects, layouts,
+record construction, computed-value projections, compound type expressions, generic/interface/callable evidence, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -107,14 +109,15 @@ evidence and no executable consumer.
 ## Flow and Initialization Handoff
 
 Checking shares one immutable typed query into its body-flow query. The latter owns one closed
-source-neutral control/evaluation graph and the fixed-point named-slot facts derived from it.
+source-neutral control/evaluation graph and the fixed-point projected availability facts derived from it.
 Semantic operations reference the already selected expressions, statements, locals, block exits and
 call plans. No source identity, syntax node, rendered name or independently supplied declaration
 program can influence this computation. Binding goes through the query's own typed source recipe;
 changed authority/body is rejected before diagnostics can use stale coordinates.
 
-The initialization report distinguishes unreachable points from maybe initialized slots and
-preserves reaching invalidation evidence and potential cleanup conditions. These are not an
+The initialization report distinguishes unreachable points, selected-value completeness and
+container presence. Sparse abstract states join projected availability and preserve reaching
+invalidation evidence and potential cleanup conditions without expanding shared record schemas. These are not an
 access-root proof or executable cleanup schedule. The referent analysis now shares this graph and authority rather than reconstructing control or
 dispatch. It preserves alternative origin worlds and staged return protection. Evaluation-frame
 operations carry normal and interrupted temporary cleanup through the same graph. Logical owner
@@ -147,11 +150,14 @@ temporary owner until its enclosing evaluation frame ends or unwinds. Call resul
 they do not carry an implicit alias to an input.
 
 Resource transitions use logical holder/field places and retain sparse unavailable selections.
-Container presence is distinct from complete-value initialization, but both derive from the same
-ownership ledger. Closed nominal cleanup can retain an intact subtree as one schema operation;
-this does not imply native realization or permission to bypass source/body admission. Typed
-nominal projections, projected initialization, access demand/reservation and source diagnostic
-integration remain required before that admission can expand.
+Container presence is distinct from complete-value initialization. The ledger proves both in
+each exact alternative; the initialization report joins availability for diagnostics over that
+same selected graph. These products do not grant competing move or cleanup semantics. Closed
+nominal cleanup retains an intact subtree as one schema operation and expands only around missing
+selections. Partial drop ends the present container after cleaning its remaining fields.
+Referent regions use the same selected field paths: parent/child paths overlap, sibling paths do
+not. Source admission closes projected initialization, demand/reservation and resource validation
+together; native realization remains separate.
 
 The accepted private-unit constructor derives its membership from the declaration authority and
 checks every definition before publication. A caller cannot omit an unsafe unused callee, combine

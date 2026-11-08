@@ -29,6 +29,17 @@ impl FieldPath {
     }
 
     #[must_use]
+    pub fn concat(&self, suffix: &Self) -> Self {
+        Self::new(
+            self.fields()
+                .iter()
+                .chain(suffix.fields())
+                .copied()
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[must_use]
     pub fn is_prefix_of(&self, other: &Self) -> bool {
         other.0.starts_with(&self.0)
     }

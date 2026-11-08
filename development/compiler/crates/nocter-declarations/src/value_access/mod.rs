@@ -7,14 +7,17 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, FieldPath,
-    NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, TypeKind, ValueInputOperation,
+    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, NominalTypeId, Symbol,
+    SymbolTable, TypeAuthority, TypeId, ValueInputOperation,
 };
 
 use crate::DefinitionError;
 
+mod data;
 mod records;
-pub use records::{Field, FieldData, FieldDefinition, PayloadSchema, Record};
+pub use data::DataReference;
+use data::{data_reference, resolved_data, supported};
+pub use records::{Field, FieldDefinition, PayloadSchema, Record};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationId {
@@ -28,7 +31,7 @@ mod tests;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ParameterDefinition {
     pub name: Symbol,
-    pub data: BuiltinType,
+    pub data: DataReference,
     pub operation: ValueInputOperation,
 }
 
@@ -54,8 +57,9 @@ pub enum DeclarationRule {
     RecordShadowsCallable { declaration: AccessCallableId },
     DuplicateField { first: usize },
     UnknownRecordType { record: NominalTypeId },
+    UnknownDataName { name: Symbol },
     RecursivePayload { through: NominalTypeId },
-    NonCopyField { data: FieldData },
+    NonCopyField { data: DataReference },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -136,60 +140,6 @@ impl Program {
         &self.symbols
     }
     #[must_use]
-    pub fn data_type(&self, data: BuiltinType) -> Option<TypeId> {
-        supported(data).then(|| self.types.store().builtin(data))
-    }
-    #[must_use]
-    pub fn data_kind(&self, data: TypeId) -> Option<BuiltinType> {
-        match self.types.store().get(data)? {
-            TypeKind::Builtin(builtin) if supported(*builtin) => Some(*builtin),
-            _ => None,
-        }
-    }
-    /// Structural Copy evidence for the payload, never permission to duplicate an access.
-    #[must_use]
-    pub fn data_copyable(&self, data: TypeId) -> Option<bool> {
-        self.data_schema(data).and_then(|schema| match schema {
-            PayloadSchema::Builtin(data) => builtin_copyable(data),
-            PayloadSchema::Record(record) => Some(record.copyable()),
-        })
-    }
-    /// The exact closed payload shape, without borrow types or generic eligibility fallbacks.
-    #[must_use]
-    pub fn data_schema(&self, data: TypeId) -> Option<PayloadSchema<'_>> {
-        match self.types.store().get(data)? {
-            TypeKind::Builtin(builtin) if supported(*builtin) => {
-                Some(PayloadSchema::Builtin(*builtin))
-            }
-            TypeKind::Nominal {
-                definition,
-                arguments,
-            } if arguments.as_slice().is_empty() => self
-                .records
-                .records
-                .get(*definition)
-                .map(PayloadSchema::Record),
-            _ => None,
-        }
-    }
-    /// Validates an already selected logical path against its exact record/field owners.
-    /// No name lookup, permission inference or physical offset participates in this projection.
-    #[must_use]
-    pub fn project_data(&self, mut data: TypeId, path: &FieldPath) -> Option<TypeId> {
-        self.data_schema(data)?;
-        for &field in path.fields() {
-            let PayloadSchema::Record(record) = self.data_schema(data)? else {
-                return None;
-            };
-            let field = self.fields().get(field)?;
-            if self.records().get(field.owner())?.data() != record.data() {
-                return None;
-            }
-            data = field.data();
-        }
-        Some(data)
-    }
-    #[must_use]
     pub const fn records(&self) -> &Arena<NominalTypeId, Record> {
         &self.records.records
     }
@@ -218,7 +168,7 @@ impl Program {
 #[derive(Debug)]
 struct Definition {
     parameters: Box<[ParameterDefinition]>,
-    result_data: BuiltinType,
+    result_data: DataReference,
 }
 
 #[derive(Debug)]
@@ -270,13 +220,25 @@ impl Builder {
         self.records.define(id, copy, fields.into())
     }
 
+    /// Resolve a header type through the single construction namespace, after all reservations.
+    /// # Errors
+    /// Rejects a symbol with no known builtin or record declaration.
+    pub fn resolve_data(&self, name: Symbol) -> Result<DataReference, DeclarationRule> {
+        let spelling = self
+            .symbols
+            .spelling(name)
+            .ok_or(DeclarationRule::UnknownSymbol)?;
+        data_reference(&self.symbols, self.records.namespace(), spelling)
+            .ok_or(DeclarationRule::UnknownDataName { name })
+    }
+
     /// # Errors
     /// Rejects a missing reservation or a second definition without replacing the first one.
     pub fn define(
         &mut self,
         id: AccessCallableId,
         parameters: impl Into<Box<[ParameterDefinition]>>,
-        result_data: BuiltinType,
+        result_data: impl Into<DataReference>,
     ) -> Result<(), DefinitionError> {
         let reservation = self
             .reservations
@@ -287,7 +249,7 @@ impl Builder {
         }
         reservation.definition = Some(Definition {
             parameters: parameters.into(),
-            result_data,
+            result_data: result_data.into(),
         });
         Ok(())
     }
@@ -321,6 +283,30 @@ impl Builder {
                 }
             }
         }
+        for (id, reservation) in reserved.iter() {
+            if let Some(definition) = &reservation.definition {
+                for (position, data) in definition
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| (HeaderPosition::Parameter(i), p.data))
+                    .chain(std::iter::once((
+                        HeaderPosition::Result,
+                        definition.result_data,
+                    )))
+                {
+                    if let DataReference::Record(record) = data
+                        && !records.contains(record)
+                    {
+                        violations.push(DeclarationViolation {
+                            declaration: DeclarationId::Callable(id),
+                            position,
+                            rule: DeclarationRule::UnknownRecordType { record },
+                        });
+                    }
+                }
+            }
+        }
         if !violations.is_empty() {
             return Err(violations);
         }
@@ -344,7 +330,7 @@ impl Builder {
                             owner: id,
                             name: parameter.name,
                             position,
-                            data: types.store().builtin(parameter.data),
+                            data: resolved_data(&types, &records, parameter.data),
                             operation: parameter.operation,
                         })
                     })
@@ -352,7 +338,7 @@ impl Builder {
                 Ok(Callable {
                     name: reservation.name,
                     parameters: parameter_ids.into_boxed_slice(),
-                    result: types.store().builtin(definition.result_data),
+                    result: resolved_data(&types, &records, definition.result_data),
                 })
             },
         )?;
@@ -457,26 +443,16 @@ fn validate_definition(
 fn validate_data(
     callable: AccessCallableId,
     position: HeaderPosition,
-    data: BuiltinType,
+    data: DataReference,
     violations: &mut Vec<DeclarationViolation>,
 ) {
-    if !supported(data) {
+    if let DataReference::Builtin(data) = data
+        && !supported(data)
+    {
         violations.push(DeclarationViolation {
             declaration: DeclarationId::Callable(callable),
             position,
             rule: DeclarationRule::UnsupportedDataType { data },
         });
-    }
-}
-
-fn supported(data: BuiltinType) -> bool {
-    builtin_copyable(data).is_some()
-}
-
-fn builtin_copyable(data: BuiltinType) -> Option<bool> {
-    match data {
-        BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void => Some(true),
-        BuiltinType::Error => Some(false),
-        _ => None,
     }
 }

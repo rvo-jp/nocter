@@ -1,0 +1,6 @@
+struct Pair {
+    first: error
+    second: error
+}
+func touch(edit left: error, edit right: error): void {}
+func run(take pair: Pair): void { touch(pair.first, pair.second) }

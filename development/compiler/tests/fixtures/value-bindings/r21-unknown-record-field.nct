@@ -1,0 +1,5 @@
+struct Pair {
+    first: error
+    second: error
+}
+func bad(pair: Pair): error { pair.missing }

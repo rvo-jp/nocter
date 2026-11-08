@@ -21,14 +21,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
-            NodeKind::ReferenceExpression => {
-                let local = self.place(node, Rule::TypeMismatch)?;
-                self.emit(
-                    node,
-                    value_type(self.local_ty(local).data(), Mode::Read),
-                    ExpressionKind::Place(local),
-                )?
-            }
+            NodeKind::ReferenceExpression => self.place_value(node, Rule::TypeMismatch)?,
             NodeKind::ScalarLiteral => self.literal(node, false)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::UnaryExpression => self.unary(node, reachable)?,
@@ -38,7 +31,17 @@ impl Checker<'_, '_> {
             | NodeKind::OrderingExpression
             | NodeKind::AdditiveExpression
             | NodeKind::MultiplicativeExpression => self.binary(node, reachable)?,
-            NodeKind::PostfixExpression => self.call(node, reachable)?,
+            NodeKind::PostfixExpression => {
+                let suffix = *self
+                    .children(node)
+                    .last()
+                    .ok_or(Failure::InconsistentSyntax)?;
+                if self.kind(suffix)? == NodeKind::MemberSuffix {
+                    self.place_value(node, Rule::TypeMismatch)?
+                } else {
+                    self.call(node, reachable)?
+                }
+            }
             NodeKind::IfExpression => return self.if_expression(node, expected, reachable),
             _ => return Err(Failure::InconsistentSyntax),
         };
@@ -253,13 +256,17 @@ impl Checker<'_, '_> {
                     match expected.mode() {
                         Mode::Read => ArgumentAction::ReserveRead(local),
                         Mode::Update => {
-                            if !self.writable_local(local) {
-                                return self.reject_local(Rule::InvalidUpdate, syntax, local);
+                            if !self.writable_place(local) {
+                                return self.reject_local(
+                                    Rule::InvalidUpdate,
+                                    syntax,
+                                    self.selected_place(local).local,
+                                );
                             }
                             ArgumentAction::ReserveUpdate(local)
                         }
                         Mode::Own if self.copyable(actual.data()) => ArgumentAction::CopyPayload,
-                        Mode::Own if self.local_ty(local).mode() == Mode::Own => {
+                        Mode::Own if self.place_ty(local).mode() == Mode::Own => {
                             ArgumentAction::ReserveTransfer(local)
                         }
                         Mode::Own => return self.reject(Rule::MissingTransfer, syntax),

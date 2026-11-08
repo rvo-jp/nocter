@@ -22,8 +22,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 ## Internal Responsibilities
 
 - lexing and token subdivision
-- bounded future private-function recognition through the explicit `V2CoreUnit` development parse
-  goal, with a distinct root, explicit input/binding operation nodes and unit values; its lexical
+- bounded future private-function and closed-record recognition through the explicit `V2CoreUnit`
+  development parse goal, with a distinct root, explicit input/binding operation nodes, unit values,
+  named data types and member suffixes; declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation

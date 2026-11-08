@@ -1,0 +1,10 @@
+struct Pair {
+    first: error
+    second: error
+}
+func inspect(value: error): void {}
+func bad(take pair: Pair, take replacement: error): void {
+    read first = pair.first
+    pair.first = replacement
+    inspect(first)
+}

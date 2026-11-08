@@ -1,0 +1,5 @@
+copy struct Point {
+    x: i32
+    y: i32
+}
+func copy(value: Point): Point { value }

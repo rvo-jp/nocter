@@ -1,0 +1,16 @@
+V2CoreUnit
+  Item
+    StructDeclaration
+      StructField
+        Type
+          NamedType
+      StructField
+        Type
+          NamedType
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+        Type
+          NamedType
+      Block

@@ -228,8 +228,10 @@ before access checking and has no permission-driven alternative target.
 
 Typed bodies record selected Copy/materialization, implicit moves, scoped delegation, call input
 preparation, RHS-first replacement and structured control. Ordinary block/conditional results
-construct values; no old read/update result or standalone-prefix IR path remains. Data annotations
-do not select local binding operations. Body-local arenas have no source coordinates, syntax IDs,
+construct values; no old read/update result or standalone-prefix IR path remains. `place_typing` resolves local-rooted field chains once into body-owned selected places containing
+the root local, resolved field path and selected data TypeId. Grouping preserves place identity;
+computed-value member access remains outside this fragment. The construction-only place index is
+discarded when the immutable body is published. Data annotations do not select local binding operations. Body-local arenas have no source coordinates, syntax IDs,
 names or symbols. Successful queries own exact authority/body bytes and locator recipes. Rebinding
 requires the same immutable program and exact own body, with current projection but no retyping.
 This product cannot convert to released CheckedProgram or native products.
@@ -246,9 +248,12 @@ are not rolled back. A read of a fresh non-Copy result retains its evaluation te
 owning frame ends. Return survival is proved by the resource ledger alone; no parallel staged
 referent state, old result-referent alternatives or callable-result permission survives.
 
-Initialization distinguishes initialized/uninitialized/maybe slots on reachable paths and solves
-backedges before reporting uses. Copy does not invalidate its source; move/drop do. Complete
-mutable-owner replacement can restore unavailable state. Fixed owners cannot be reinitialized.
+Initialization distinguishes initialized/uninitialized/maybe selections on reachable paths and
+solves backedges before reporting uses. Its sparse abstract storage separates container presence
+from selected-value completeness, retaining invalidation causes without expanding record trees.
+Copy does not invalidate its source; moves invalidate only the selected region. Restoration requires
+present ancestor containers, while complete-value use requires every selected component. Fixed
+owners cannot be reinitialized. Diagnostics retain which of those requirements failed.
 Typing propagates literal Boolean reachability through conditionals and loops without skipping
 name/data checks in dead branches. A dead break cannot create a normal loop exit or a missing-result
 obligation; a reachable break still can. Selected terminating branches have no continuing value.
@@ -256,16 +261,21 @@ Edit replacements keep their outside place valid. Cleanup conditions are not per
 missing data or skip required destruction. Unreachable source retains structural checking without
 invented runtime uses. Source projection reports already selected identities/locations.
 
-Access demand includes alias children and prepared uses. An unused intermediary can release its
+Access demand includes alias children and prepared uses. Referent regions pair an owning/input/
+temporary root with its resolved field path. Prefix overlap preserves exclusivity for a parent
+and its child while allowing disjoint sibling accesses. Alias delegation concatenates paths;
+access checking and call reservations do not resolve field names again. An unused intermediary can release its
 own demand while its children retain read/update protection; remaining read demand does not force
 update exclusivity forever. Delegation never upgrades read or duplicates exclusivity. Scope/root
 survival reads the resource ledger directly: there is no second alive-root authority. Alternative
 worlds preserve mutually exclusive branch states and converge over finite identities, relations,
 resource holders and lexical/evaluation frame shape, without a dynamic history or iteration cutoff.
 
-The resource ledger alone tracks initialized owner responsibility. Logical places combine one
+The resource ledger alone tracks initialized owner responsibility in each concrete alternative.
+Initialization's joined availability facts serve use diagnostics and fixed-point reporting; they
+cannot substitute for the ledger's exact alternative cleanup and survival proof. Logical places combine one
 holder with a resolved field path; overlap uses field identity and containment, never physical
-offsets. `resources::places` owns sparse unavailable selections and ordered cleanup frontiers;
+offsets. `resources::payload` owns sparse unavailable selections and ordered cleanup frontiers;
 `resources::storage` owns transfers, replacements and frame registration. Missing siblings stay
 separate because their containing slot still permits restoring an individual field. No complete
 payload-tree expansion or second alive-owner registry is introduced.
@@ -294,11 +304,12 @@ Empty external D/S for those records follows the exact component contracts, not 
 or a missing outside R. Dependent aggregates, user destructors, capabilities/callables, generics,
 outcomes, async and regions require their own later schemas/validation.
 
-The source/body goal still admits the four builtin types only. Nominal resource tests exercise
-this same ledger below source admission; they are not accepted nominal Nocter programs. Selected
-field places must still enter typed bodies, initialization, permission liveness, reservations and
-source diagnostics coherently before nominal source can be accepted. Resource transitions alone
-cannot replace those proofs or establish executable/native behavior.
+The source/body goal admits closed record headers and local/input-rooted field selections through
+this same typing, initialization, access and resource path. Source integration tests assert exact
+selected field cleanup, Copy versus move, restoration, partial drop, disjoint/overlapping access
+and sparse traversal of deeply shared schemas. Record construction, member selection from computed
+values and indexing remain outside this fragment. Resource transitions alone cannot replace the
+combined source proofs or establish executable/native behavior.
 
 ## Closed Accepted Private Units
 

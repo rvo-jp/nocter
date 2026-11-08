@@ -1,0 +1,9 @@
+struct Envelope {
+    pair: Pair
+    tail: error
+}
+struct Pair {
+    first: error
+    second: error
+}
+func extract(take envelope: Envelope): error { envelope.pair.first }

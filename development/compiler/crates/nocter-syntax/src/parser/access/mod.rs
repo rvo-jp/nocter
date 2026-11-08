@@ -5,9 +5,7 @@ mod expression;
 mod tests;
 
 use super::{CompletedMarker, Parser, block, newline, statement};
-use crate::{
-    BuiltinType, ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind,
-};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn unit(parser: &mut Parser<'_>) {
     let marker = parser.start();
@@ -15,6 +13,11 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     while !parser.at(TokenKind::Eof) {
         if parser.at_keyword(Keyword::Func) {
             function(parser);
+        } else if parser.at_keyword(Keyword::Struct)
+            || (parser.at_contextual(ContextualSpelling::Copy)
+                && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Struct))
+        {
+            record(parser);
         } else {
             parser.error_token(ExpectedSyntax::Keyword(Keyword::Func));
             parser.recover_to_line_end();
@@ -23,6 +26,25 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     }
     parser.bump();
     parser.complete(marker, NodeKind::V2CoreUnit);
+}
+
+fn record(parser: &mut Parser<'_>) {
+    let item = parser.start();
+    let marker = parser.start();
+    if parser.at_contextual(ContextualSpelling::Copy) {
+        parser.bump();
+    }
+    parser.expect_keyword(Keyword::Struct);
+    parser.expect_name();
+    parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, |parser| {
+        let field = parser.start();
+        parser.expect_name();
+        parser.expect_punctuation(Punctuation::Colon);
+        type_(parser);
+        parser.complete(field, NodeKind::StructField);
+    });
+    parser.complete(marker, NodeKind::StructDeclaration);
+    parser.complete(item, NodeKind::Item);
 }
 
 fn function(parser: &mut Parser<'_>) {
@@ -72,9 +94,6 @@ fn type_(parser: &mut Parser<'_>) {
     if matches!(
         parser.current_kind(),
         TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
-    ) && matches!(
-        BuiltinType::from_spelling(parser.current_text()),
-        Some(BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void | BuiltinType::Error)
     ) {
         parser.bump();
     } else {

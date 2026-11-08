@@ -2,14 +2,14 @@ mod call;
 mod ownership;
 use super::super::{IntegrityError, Location, Operation};
 use super::{
-    AccessRule, Creation, Liveness, Root, Violation,
+    AccessRule, Creation, Liveness, Region, Root, Violation,
     liveness::Carrier,
     state::{Key, Node, Prepared, Value, World},
 };
 use crate::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, ValueType,
 };
-use nocter_model::{AccessExpressionId, AccessLocalId, ValueAccessMode as Mode};
+use nocter_model::{AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode};
 
 pub(super) enum Failure {
     Integrity,
@@ -81,26 +81,22 @@ pub(super) fn apply(
         }
         Operation::Bind { local, value } => {
             let value = context.world.value(*value)?;
-            context.world.values.insert(Carrier::Local(*local), value);
+            if context.local_mode(*local)? != Mode::Own {
+                context.world.values.insert(Carrier::Local(*local), value);
+            }
         }
         Operation::Assign { target, value } => {
             let replacement = context.world.value(*value)?;
             if replacement.mode != Mode::Own {
                 return Err(Failure::Integrity);
             }
-            let (root, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
-            context.write(root, actor, Mode::Update, None)?;
-            if context.local_mode(*target)? == Mode::Own {
-                context
-                    .world
-                    .values
-                    .insert(Carrier::Local(*target), replacement);
-            }
+            let (region, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
+            context.write(&region, actor, Mode::Update, None)?;
         }
         Operation::CompoundAssign { target, value, .. } => {
             context.read(context.world.value(*value)?)?;
-            let (root, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
-            context.write(root, actor, Mode::Update, None)?;
+            let (region, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
+            context.write(&region, actor, Mode::Update, None)?;
         }
         Operation::Drop(local) => context.destroy(*local)?,
         Operation::PrepareArgument { call, argument } => context.prepare(*call, *argument)?,
@@ -134,7 +130,12 @@ impl Context<'_, '_> {
     fn end_evaluation_access(&self, id: AccessExpressionId) -> Result<()> {
         for holder in self.world.resources.ending(id)? {
             if let super::super::resources::Holder::Temporary { call, index } = holder {
-                self.write(Root::Temporary { call, index }, None, Mode::Own, None)?;
+                self.write(
+                    &Root::Temporary { call, index }.region(),
+                    None,
+                    Mode::Own,
+                    None,
+                )?;
             }
         }
 
@@ -179,42 +180,73 @@ impl Context<'_, '_> {
             .access()
             .mode())
     }
-    fn base(&self, local: AccessLocalId) -> Result<Option<(Root, Option<Key>)>> {
-        if self.local_mode(local)? == Mode::Own {
-            return Ok(Some((Root::Owned(local), None)));
-        }
-        let value = self.world.local(self.typed, local)?;
-        self.base_value(value)
+    fn base(&self, place: AccessPlaceId) -> Result<Option<(Region, Option<Key>)>> {
+        let selected = self
+            .typed
+            .body()
+            .places()
+            .get(place)
+            .ok_or(Failure::Integrity)?;
+        Ok(self.base_local(selected.local)?.map(|(mut region, actor)| {
+            region.fields = region.fields.concat(&selected.fields);
+            (region, actor)
+        }))
     }
-    fn base_value(&self, value: Value) -> Result<Option<(Root, Option<Key>)>> {
+    fn base_local(&self, local: AccessLocalId) -> Result<Option<(Region, Option<Key>)>> {
+        if self.local_mode(local)? == Mode::Own {
+            return Ok(Some((Root::Owned(local).region(), None)));
+        }
+        self.base_value(self.world.local(self.typed, local)?)
+    }
+    fn resource_place(&self, place: AccessPlaceId) -> Result<super::super::resources::Place> {
+        let selected = self
+            .typed
+            .body()
+            .places()
+            .get(place)
+            .ok_or(Failure::Integrity)?;
+        Ok(super::super::resources::Holder::Local(selected.local)
+            .place()
+            .project_path(&selected.fields))
+    }
+    fn base_value(&self, value: Value) -> Result<Option<(Region, Option<Key>)>> {
         value
             .access
             .map(|key| {
                 Ok((
-                    self.world.nodes.get(&key).ok_or(Failure::Integrity)?.root,
+                    self.world
+                        .nodes
+                        .get(&key)
+                        .ok_or(Failure::Integrity)?
+                        .region
+                        .clone(),
                     Some(key),
                 ))
             })
             .transpose()
     }
     fn read(&self, value: Value) -> Result<()> {
-        if let Some((root, actor)) = self.base_value(value)? {
+        if let Some((region, actor)) = self.base_value(value)? {
             self.world
-                .check(root, actor, Mode::Read, self.at, self.live)?;
+                .check(&region, actor, Mode::Read, self.at, self.live)?;
         }
         Ok(())
     }
     fn write(
         &self,
-        root: Root,
+        region: &Region,
         actor: Option<Key>,
         mode: Mode,
         except: Option<AccessExpressionId>,
     ) -> Result<()> {
-        self.world.check_reserved(root, self.at, except)?;
-        // Complete assignment can restore an absent X root. Its old aliases cannot survive a
+        self.world.check_reserved(region, self.at, except)?;
+        // Complete assignment can restore an absent X region. Its old aliases cannot survive a
         // preceding valid destruction, but a reservation still protects the slot's identity.
-        if !self.world.alive(root) && matches!(root, Root::Owned(_)) && mode == Mode::Update {
+        if !self.world.alive(region.root)
+            && matches!(region.root, Root::Owned(_))
+            && region.fields.is_root()
+            && mode == Mode::Update
+        {
             return Ok(());
         }
         if mode == Mode::Update
@@ -227,16 +259,21 @@ impl Context<'_, '_> {
         {
             return Err(Failure::Integrity);
         }
-        self.world.check(root, actor, mode, self.at, self.live)?;
+        self.world.check(region, actor, mode, self.at, self.live)?;
         Ok(())
     }
     fn destroy(&mut self, local: AccessLocalId) -> Result<()> {
-        self.write(Root::Owned(local), None, Mode::Own, None)?;
+        self.write(&Root::Owned(local).region(), None, Mode::Own, None)?;
         self.world.values.remove(&Carrier::Local(local));
         Ok(())
     }
-    fn create(&mut self, key: Key, base: Option<(Root, Option<Key>)>, mode: Mode) -> Result<Value> {
-        let Some((root, parent)) = base else {
+    fn create(
+        &mut self,
+        key: Key,
+        base: Option<(Region, Option<Key>)>,
+        mode: Mode,
+    ) -> Result<Value> {
+        let Some((region, parent)) = base else {
             if mode == Mode::Update {
                 return Err(Failure::Integrity);
             }
@@ -257,11 +294,12 @@ impl Context<'_, '_> {
         {
             return Err(Failure::Integrity);
         }
-        self.world.check(root, parent, mode, self.at, self.live)?;
+        self.world
+            .check(&region, parent, mode, self.at, self.live)?;
         self.world.nodes.insert(
             key,
             Node {
-                root,
+                region,
                 parent,
                 permission: mode,
                 created: Creation::Action(self.at),
@@ -283,11 +321,12 @@ impl Context<'_, '_> {
             return Err(Failure::Integrity);
         };
         match expression.kind {
-            ExpressionKind::Place(local) => {
-                self.create(Key::Expression(id), self.base(local)?, Mode::Read)
+            ExpressionKind::Place(place) => {
+                self.create(Key::Expression(id), self.base(place)?, Mode::Read)
             }
-            ExpressionKind::Move(local) => {
-                self.destroy(local)?;
+            ExpressionKind::Move(place) => {
+                let (region, actor) = self.base(place)?.ok_or(Failure::Integrity)?;
+                self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }
             ExpressionKind::Boundary { source, action } => {
@@ -299,7 +338,7 @@ impl Context<'_, '_> {
                     .ok_or(Failure::Integrity)?
                     .kind
                 {
-                    ExpressionKind::Place(local) => Some(local),
+                    ExpressionKind::Place(place) => Some(place),
                     _ => None,
                 };
                 match action {
@@ -309,10 +348,10 @@ impl Context<'_, '_> {
                         ty.mode(),
                     ),
                     BoundaryAction::CopyPayload => {
-                        if let Some(local) = place {
-                            if let Some((root, actor)) = self.base(local)? {
+                        if let Some(place) = place {
+                            if let Some((region, actor)) = self.base(place)? {
                                 self.world
-                                    .check(root, actor, Mode::Read, self.at, self.live)?;
+                                    .check(&region, actor, Mode::Read, self.at, self.live)?;
                             }
                         } else {
                             self.read(self.world.value(source)?)?;
@@ -349,26 +388,27 @@ impl Context<'_, '_> {
         };
         let argument = arguments.get(index).ok_or(Failure::Integrity)?;
         let prepared = match argument.action {
-            ArgumentAction::ReserveRead(local)
-            | ArgumentAction::ReserveUpdate(local)
-            | ArgumentAction::ReserveTransfer(local) => {
+            ArgumentAction::ReserveRead(place)
+            | ArgumentAction::ReserveUpdate(place)
+            | ArgumentAction::ReserveTransfer(place) => {
                 let mode = match argument.action {
                     ArgumentAction::ReserveRead(_) => Mode::Read,
                     ArgumentAction::ReserveUpdate(_) => Mode::Update,
                     _ => Mode::Own,
                 };
-                if let Some((root, actor)) = self.base(local)? {
-                    if !self.world.alive(root) {
+                if let Some((region, actor)) = self.base(place)? {
+                    if !self.world.alive(region.root) {
                         return Err(Violation {
                             location: self.at,
                             rule: AccessRule::ExpiredRoot,
-                            root,
+                            root: region.root,
+                            fields: region.fields.clone(),
                             retained: None,
                         }
                         .into());
                     }
                     Prepared::Reserved {
-                        root,
+                        region,
                         actor,
                         permission: mode,
                         at: self.at,
@@ -382,7 +422,7 @@ impl Context<'_, '_> {
                 Prepared::Value(Value::without_referent(Mode::Own))
             }
             ArgumentAction::ReadOwnedValue => Prepared::Reserved {
-                root: Root::Temporary { call, index },
+                region: Root::Temporary { call, index }.region(),
                 actor: None,
                 permission: Mode::Read,
                 at: self.at,

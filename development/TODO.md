@@ -17,34 +17,28 @@ default. Uncontextualized closure inputs default to read; a selected expected co
 omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-The [bounded value-binding front end](history/reviews/v2.0.0-value-binding-front-end.md) now
-replaces the old private checkpoint. Its thirty source cases run through production syntax,
-declarations, typing and shared initialization/access/resource checking: fourteen acceptances,
-twelve checking rejections and four syntax rejections. No CLI mode, released-program adapter,
-parallel accepted authority or duplicate owner-survival set was added. Ordinary results are
-values; input operations and local mutability/aliasing remain separate from data TypeId.
+The bounded value-binding front end now includes [record source integration](history/reviews/v2.0.0-record-source-integration.md).
+Its production source corpus contains 64 cases: 31 accepted private units, 25 checking rejections,
+4 header rejections and 4 syntax rejections. Closed nongeneric records, selected field places,
+partial moves/restoration/drop, projected initialization, disjoint/overlapping permissions and
+precise cleanup pass through the same private syntax/declaration/body/flow/resource path.
+Declaration schemas and namespaces own type/field meaning once; downstream passes consume the
+selected IDs. Ordinary results remain values, independent of input operation and local binding.
+No CLI mode, released-program adapter, native consumer or duplicate owner-survival set was added.
 
-Closed nominal record metadata shares that private declaration/type authority. The same resource
-ledger now handles logical field places, sparse partial moves/restoration, complete replacement,
-remaining-region cleanup and evaluation frames. Container presence and complete initialization
-are distinct queries over that one ledger; intact record schemas remain shared. These Rust-level
-checks do not yet admit nominal source or body operations. See the
-[schema checkpoint](history/reviews/v2.0.0-nominal-payload-schemas.md) and
-[partial-resource checkpoint](history/reviews/v2.0.0-partial-payload-resources.md).
+Next close record construction and computed-value field selection under the owning future
+specification. The current accepted fragment can receive records as inputs and manipulate their
+fields, but cannot construct a record literal or select a member directly from a computed value.
+Before admission, freeze construction/evaluation order, component Copy-or-move operations,
+interrupted construction cleanup and temporary-result lifetimes in the same selected operation
+and resource graph. Add production source cases for successful construction, nested construction,
+field extraction from temporaries, overwritten fields, and interruption after earlier moves.
+Preserve schema sharing; do not add a second place resolver or constructor-only ownership ledger.
 
-Next introduce selected field places coherently into typed bodies and the shared control graph,
-initialization, permission-demand liveness, reservations and source diagnostics, then admit
-private record headers/operations under their owning specification. Preserve schema sharing and
-one selected operation/control/access/resource authority. Prove partial-move paths, disjoint and
-overlapping accesses, replacement cleanup and survival together before accepting these shapes.
-
-The next integration target must be real `V2CoreUnit` source cases, not another
-resource-only completion claim: declare a two-error-field record; accept extraction and return of
-one field with cleanup of its sibling; accept restoration before whole-value return and partial
-`drop`; reject whole-value use after extraction and overlapping call accesses. Admit the source
-only with typing, projected initialization, permission and resource evidence together. Use direct
-source tests and affected-crate checks during this work; reserve the complete downstream gate for
-integration closure under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).
+Use direct source tests and affected-crate checks; select broader downstream tests by their actual
+consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).
+The current private fragment does not reach LSP or native products, so their runtime tests are not
+feature evidence. Workspace static checks still verify API compatibility.
 
 Then extend generic/callable/interface contracts, capabilities, outcomes/async
 and public modules under closed owning contracts, followed by target/ABI and native lifecycle

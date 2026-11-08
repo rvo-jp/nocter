@@ -30,14 +30,14 @@ pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue,
 pub use field_path::FieldPath;
 pub use id::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessFlowPointId,
-    AccessLocalId, AccessLoopId, AccessParameterId, AccessStatementId, AssociatedTypeId, BodyId,
-    BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId, ClosureId,
-    ConstantExpressionId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId,
-    ExecutableStaticId, FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId,
-    InterfaceImplementationId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId,
-    MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
-    PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId, TypeId,
-    VariantId,
+    AccessLocalId, AccessLoopId, AccessParameterId, AccessPlaceId, AccessStatementId,
+    AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId,
+    ClosureId, ConstantExpressionId, ConstantId, ConstructionId, DeclarationSiteId, DropId,
+    ExecutableItemId, ExecutableStaticId, FieldId, GenericParameterId, ImportId, InstanceId,
+    InterfaceId, InterfaceImplementationId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId,
+    MirLocalId, MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId, OpaqueTypeId,
+    PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId,
+    TypeId, VariantId,
 };
 pub use numeric::{BuiltinNumericType, lossless_builtin_numeric_conversion};
 pub use origin::{

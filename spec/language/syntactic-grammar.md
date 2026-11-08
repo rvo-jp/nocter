@@ -1364,10 +1364,11 @@ This fragment imports future Name/literal/trivia/token/newline rules, `List`/`Li
 `V2InputOperation`. It imports no released type, statement or expression root:
 
 ```text
-V2CoreUnit = LineSequence(V2CoreFunction)
+V2CoreUnit = LineSequence(V2CoreFunction | V2CoreRecord)
+V2CoreRecord = "copy"? "struct" Name "{" LineSequence(Name ":" V2CoreType) "}"
 V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreType V2CoreBlock
 V2CoreParameter = V2InputOperation? Name ":" V2CoreType
-V2CoreType = "bool" | "i32" | "void" | "error"
+V2CoreType = Name | "void"
 V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
 V2CoreEntry = V2CoreStatement | V2CoreExpression
 V2CoreStatement = ("let" | "var" | "read" | "edit") (Name | "_")
@@ -1385,7 +1386,7 @@ V2CoreOrdering = V2CoreAdd (("<" | "<=" | ">" | ">=") V2CoreAdd)?
 V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
 V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
 V2CorePrefix = ("!" | "-") V2CorePrefix | V2CorePostfix
-V2CorePostfix = V2CorePrimary ("(" List(V2CoreExpression) ")")*
+V2CorePostfix = V2CorePrimary (("(" List(V2CoreExpression) ")") | ("." Name))*
 V2CorePrimary = Name | integer_literal | "true" | "false" | "(" ")"
                | "(" V2CoreExpression ")" | V2CoreIf
 V2CoreIf = "if" V2CoreExpression V2CoreBlock
@@ -1402,12 +1403,19 @@ in this bounded grammar fail validation.
 
 Resolve all named headers before bodies. Every parameter's mode comes from its head: read when
 unmarked, otherwise edit/take. The result is always a delivered value, never I/U access. No
-body-selected mode, result qualifier, `from`, generic, receiver, closure, nominal, projection,
+body-selected mode, result qualifier, `from`, generic, receiver, closure,
 pack, outcome, async, const or module production is inherited into this fragment. Such constructs
 are outside this private goal, not prohibited in the complete language. Direct calls resolve one
 named function (including transparent grouping) and its argument count/contract before permission
-checks. Functions are not storage places. A place here is an initialized local/input name with
-transparent grouping; dynamic projections are a later extension.
+checks. Functions are not storage places. A place here is a local/input name followed by zero or more declared record-field selections,
+with transparent grouping. Resolve each field once through its containing record; two distinct
+fields are disjoint logical places, while a field overlaps its containing place. Member selection
+from computed values, indexing and record literals remain outside this bounded fragment. Record
+values enter through declared inputs/results and ordinary value bindings; no constructor is
+implied. Record data names resolve before bodies, including forward references. Follow
+[nominal payload rules](structs-and-enums.md#future-direction-v2-0-0-nominal-value-payloads) for
+finite containment, explicit Copy opt-in and closed field types. All fields are private-unit
+members in this fragment; visibility and module contracts are not inherited.
 
 Use the owning value-binding algorithm: Copy snapshots readable admitted data; otherwise move an
 eligible owner. Read/edit aliases never supply non-Copy extraction. Fixed owners may transfer/drop
@@ -1423,7 +1431,8 @@ trivial cleanup. The opaque move-only `error` owns its private immutable graph u
 outside D/S and graph cleanup. These are exact admitted data contracts, not implications of Copy
 or value ownership. No constructor or failure outcome is introduced for error by this fragment.
 A read error parameter therefore cannot be returned as an error value; a take error can transfer
-it. All value results are independent of callee-local storage of these four types. Ordinary read/
+it. Closed record payloads compose these exact leaf contracts and retain their schema cleanup.
+All admitted value results are independent of callee-local storage under those contracts. Ordinary read/
 edit aliases can still have R into local/input storage and need ordinary access validation.
 
 Primitive arithmetic/ordering use i32, logic uses bool, and equality compares matching bool/i32/

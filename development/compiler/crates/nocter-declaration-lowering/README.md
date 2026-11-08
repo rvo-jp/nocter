@@ -92,8 +92,11 @@ beside their owning modules.
 ## Future Private Access Declarations
 
 The access-declaration query accepts only complete `V2CoreUnit` syntax. It collects all headers,
-canonicalizes declaration symbols, reserves functions by name order, and resolves data types,
-input operations, namespaces and data-only value results before examining body semantics. Existing
+canonicalizes declaration symbols, reserves functions and records by name order, and resolves
+data types, input operations, namespaces and data-only value results before examining body semantics.
+`headers` extracts syntax-only header evidence; `definitions` resolves types through the declaration
+builder's single data namespace. Forward record references, invalid fields, containment cycles and
+Copy eligibility therefore share the declaration authority instead of a lowering-owned type table. Existing
 built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain
 the first conflicting declaration; forward references cannot alter collision selection.
 
@@ -103,6 +106,10 @@ body syntax, or source coordinates. Binding an equal surface constructs one curr
 with that same program and the current header/body nodes. Changed headers, a wrong parse goal,
 invalid syntax, and mismatched locators cannot create a context or trigger fallback lowering.
 Body-only edits can rebind but receive no body-validity certificate from declaration reuse.
+The complete neutral surface guards record/field header changes too. Function locators retained
+for body rebinding do not duplicate record schemas or create a second record-header cache.
+`projection` maps declaration-owned failures through current header evidence; it does not select
+semantic failures from diagnostic codes or recover meaning from source coordinates.
 
 The source-neutral declaration product remains owned by `nocter-declarations`. The pairing with
 syntax remains here; there is no public parts constructor or conversion to the legacy declaration

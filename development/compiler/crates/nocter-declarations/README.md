@@ -16,7 +16,7 @@ coordinates, or checking internals.
 
 - declaration and member arenas
 - the bounded future private-function declaration authority under `value_access`: canonical
-  reservations, define-once callable contracts, input ownership, namespace validation, and resolved
+  reservations, define-once callable contracts, input operations, namespace validation, and resolved
   data-only value results, without borrowing/source-syntax representations
 - closed nominal payload schemas under `value_access::records`: define-once records, resolved
   field identities and types, local member namespaces, finite-containment validation, and
@@ -75,17 +75,20 @@ The value-access product owns one immutable program for the future private core 
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline. Its
 builder reserves identities before definitions and freezes only after all header checks. Defining
 headers in a different order cannot change parameter identities. The lowering owner
-reserves functions in canonical namespace order.
+reserves functions and records in canonical namespace order.
 
-Data identities come from a privately owned type authority. Callable headers still admit only
-`bool`, `i32`, `void`, and opaque move-only `error`; they do not expose released type-store
-eligibility helpers or borrow constructors. Unit is a value in this product. Input operation is
+`value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
+one privately owned type authority. Callable headers admit `bool`, `i32`, `void`, opaque move-only
+`error`, and closed nominal records. Construction-time `DataReference` values resolve to TypeIds
+before publication; they do not expose released type-store eligibility helpers or borrow constructors. Unit is a value in this product. Input operation is
 separate from data identity and payload Copy evidence. Stored parameter records carry a data
 TypeId and Read/Edit/Take operation; callable results carry only a data TypeId. No result
 mode/referent set or old read-result normalization remains.
 
-The same program can publish closed nominal record metadata before source/body admission. Record
-reservations use nominal identities; fields have a distinct value-field identity domain. Record
+The same program publishes closed nominal record metadata used by parsed callable and body
+checking. Record reservations construct the namespace once; validation and freeze retain that
+same namespace rather than rebuilding a parallel name index. Fields have a distinct value-field
+identity domain. Record
 schemas retain declared field order, resolved TypeIds and a frozen local member namespace.
 Definition order cannot affect those identities. Record and callable names cannot collide.
 Structural validation visits the containment graph from leaves to parents without recursion or
@@ -102,7 +105,8 @@ validated shape; `data_kind` deliberately remains a builtin-only projection. The
 publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current
 nominal schemas contain only values over the four closed builtin leaves and other such records.
 They are metadata, not proof of body acceptance, partial initialization, survival, destruction or
-native execution. The source goal still rejects nominal syntax until selected places and shared
-flow/resource checking are extended. Outcome/capability/callable/generic/user-destructor schemas
+native execution. Selected source places consume these schemas through the private body checker;
+only closed unit acceptance establishes the combined body/flow/resource proofs.
+Outcome/capability/callable/generic/user-destructor schemas
 remain outside this product. Exact scalar/unit/error independence is checked under its owning
 data contracts, never inferred from Copy or value receipt for arbitrary future types.

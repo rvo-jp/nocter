@@ -10,10 +10,12 @@ mod tests;
 
 use super::Query as TypedQuery;
 pub use initialization::{
-    CleanupFact, Initialization, InitializationState, InitializationViolation, Location,
+    CleanupFact, Initialization, InitializationRequirement, InitializationState,
+    InitializationViolation, Location,
 };
 use nocter_model::{
-    AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessStatementId, Arena,
+    AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessPlaceId,
+    AccessStatementId, Arena,
 };
 pub use projection::{Context, InitializationDiagnostic};
 use std::sync::Arc;
@@ -68,12 +70,12 @@ pub enum Operation {
         value: AccessExpressionId,
     },
     Assign {
-        target: AccessLocalId,
+        target: AccessPlaceId,
         value: AccessExpressionId,
     },
     CompoundAssign {
         statement: AccessStatementId,
-        target: AccessLocalId,
+        target: AccessPlaceId,
         value: AccessExpressionId,
     },
     Discard(AccessExpressionId),

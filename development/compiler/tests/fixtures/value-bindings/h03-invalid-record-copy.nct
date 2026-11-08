@@ -1,0 +1,4 @@
+copy struct Failure {
+    value: error
+}
+func run(): void {}

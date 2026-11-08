@@ -1,6 +1,6 @@
 use super::super::{IntegrityError, Location};
 use super::{
-    AccessRule, Creation, Liveness, RetainedAccess, Root, Violation,
+    AccessRule, Creation, Liveness, Region, RetainedAccess, Root, Violation,
     liveness::{Carrier, Live},
 };
 use crate::value_access::{LocalOrigin, Query as TypedQuery};
@@ -22,17 +22,17 @@ impl Value {
         Self { mode, access: None }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct Node {
-    pub root: Root,
+    pub region: Region,
     pub parent: Option<Key>,
     pub permission: Mode,
     pub created: Creation,
 }
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum Prepared {
     Reserved {
-        root: Root,
+        region: Region,
         actor: Option<Key>,
         permission: Mode,
         at: Location,
@@ -65,7 +65,7 @@ impl World {
                     world.nodes.insert(
                         key,
                         Node {
-                            root: Root::Input(parameter),
+                            region: Root::Input(parameter).region(),
                             parent: None,
                             permission: mode,
                             created: Creation::Parameter(local),
@@ -76,7 +76,9 @@ impl World {
                         access: Some(key),
                     }
                 };
-                world.values.insert(Carrier::Local(local), value);
+                if mode != Mode::Own {
+                    world.values.insert(Carrier::Local(local), value);
+                }
             }
         }
         Ok(world)
@@ -171,7 +173,7 @@ impl World {
         }
         let mut nodes = BTreeMap::new();
         for &key in &retained {
-            let mut node = *self.nodes.get(&key).ok_or(INVALID)?;
+            let mut node = self.nodes.get(&key).ok_or(INVALID)?.clone();
             if !updating.contains(&key) {
                 node.permission = Mode::Read;
             }
@@ -232,17 +234,18 @@ impl World {
     }
     pub fn check(
         &self,
-        root: Root,
+        region: &Region,
         actor: Option<Key>,
         permission: Mode,
         location: Location,
         live: &Liveness,
     ) -> Result<(), Violation> {
-        if !self.alive(root) {
+        if !self.alive(region.root) {
             return Err(Violation {
                 location,
                 rule: AccessRule::ExpiredRoot,
-                root,
+                root: region.root,
+                fields: region.fields.clone(),
                 retained: None,
             });
         }
@@ -253,7 +256,7 @@ impl World {
             cursor = self.nodes.get(&key).and_then(|node| node.parent);
         }
         for (&key, node) in &self.nodes {
-            if node.root == root
+            if node.region.overlaps(region)
                 && !ancestors.contains(&key)
                 && (permission != Mode::Read || node.permission == Mode::Update)
             {
@@ -264,7 +267,8 @@ impl World {
                         Mode::Update => AccessRule::ConflictingUpdate,
                         Mode::Own => AccessRule::ConflictingTransfer,
                     },
-                    root,
+                    root: region.root,
+                    fields: region.fields.clone(),
                     retained: Some(RetainedAccess {
                         created: node.created,
                         permission: node.permission,
@@ -277,7 +281,7 @@ impl World {
     }
     pub fn check_reserved(
         &self,
-        root: Root,
+        region: &Region,
         location: Location,
         except: Option<AccessExpressionId>,
     ) -> Result<(), Violation> {
@@ -286,17 +290,18 @@ impl World {
                 continue;
             }
             if let Prepared::Reserved {
-                root: reserved,
+                region: reserved,
                 permission,
                 at,
                 ..
             } = prepared
-                && *reserved == root
+                && reserved.overlaps(region)
             {
                 return Err(Violation {
                     location,
                     rule: AccessRule::ReservedModification,
-                    root,
+                    root: region.root,
+                    fields: region.fields.clone(),
                     retained: Some(RetainedAccess {
                         created: Creation::Action(*at),
                         permission: *permission,

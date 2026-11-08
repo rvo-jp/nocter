@@ -1,0 +1,12 @@
+struct Pair {
+    first: error
+    second: error
+}
+func rebuild(take value: error): error { value }
+func run(take pair: Pair, flag: bool): Pair {
+    while flag {
+        let old = pair.first
+        pair.first = rebuild(old)
+    }
+    return pair
+}

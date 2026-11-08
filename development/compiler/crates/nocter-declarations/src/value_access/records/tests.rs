@@ -2,7 +2,7 @@ use super::*;
 use crate::value_access::{Builder as ProgramBuilder, ParameterDefinition};
 use nocter_model::ValueInputOperation;
 
-fn field(symbols: &SymbolTable, name: &str, data: FieldData) -> FieldDefinition {
+fn field(symbols: &SymbolTable, name: &str, data: DataReference) -> FieldDefinition {
     FieldDefinition {
         name: symbols.get(name).unwrap(),
         data,
@@ -31,15 +31,15 @@ fn nested(reverse: bool) -> super::super::Program {
                 vec![field(
                     &symbols,
                     "value",
-                    FieldData::Builtin(BuiltinType::I32),
+                    DataReference::Builtin(BuiltinType::I32),
                 )],
             )
         } else if id == outer {
             (
                 true,
                 vec![
-                    field(&symbols, "left", FieldData::Record(inner)),
-                    field(&symbols, "right", FieldData::Record(inner)),
+                    field(&symbols, "left", DataReference::Record(inner)),
+                    field(&symbols, "right", DataReference::Record(inner)),
                 ],
             )
         } else {
@@ -52,7 +52,7 @@ fn nested(reverse: bool) -> super::super::Program {
             function,
             [ParameterDefinition {
                 name: symbols.get("input").unwrap(),
-                data: BuiltinType::Error,
+                data: BuiltinType::Error.into(),
                 operation: ValueInputOperation::Take,
             }],
             BuiltinType::Void,
@@ -104,7 +104,7 @@ fn copy_opt_in_is_not_inferred_from_empty_or_all_copy_fields() {
             [field(
                 &symbols,
                 "value",
-                FieldData::Builtin(BuiltinType::Bool),
+                DataReference::Builtin(BuiltinType::Bool),
             )],
         )
         .unwrap();
@@ -131,8 +131,8 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
             a,
             true,
             [
-                field(&symbols, "first", FieldData::Record(b)),
-                field(&symbols, "second", FieldData::Record(plain)),
+                field(&symbols, "first", DataReference::Record(b)),
+                field(&symbols, "second", DataReference::Record(plain)),
             ],
         )
         .unwrap();
@@ -143,7 +143,7 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
             [field(
                 &symbols,
                 "first",
-                FieldData::Builtin(BuiltinType::Error),
+                DataReference::Builtin(BuiltinType::Error),
             )],
         )
         .unwrap();
@@ -156,21 +156,21 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
                 declaration: DeclarationId::Record(a),
                 position: HeaderPosition::Field(0),
                 rule: DeclarationRule::NonCopyField {
-                    data: FieldData::Record(b)
+                    data: DataReference::Record(b)
                 }
             },
             DeclarationViolation {
                 declaration: DeclarationId::Record(a),
                 position: HeaderPosition::Field(1),
                 rule: DeclarationRule::NonCopyField {
-                    data: FieldData::Record(plain)
+                    data: DataReference::Record(plain)
                 }
             },
             DeclarationViolation {
                 declaration: DeclarationId::Record(b),
                 position: HeaderPosition::Field(0),
                 rule: DeclarationRule::NonCopyField {
-                    data: FieldData::Builtin(BuiltinType::Error)
+                    data: DataReference::Builtin(BuiltinType::Error)
                 }
             },
         ]
@@ -190,7 +190,7 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
             .define_record(
                 id,
                 false,
-                [field(&symbols, "value", FieldData::Record(child))],
+                [field(&symbols, "value", DataReference::Record(child))],
             )
             .unwrap();
     }
@@ -248,7 +248,7 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
         .define_record(
             a,
             false,
-            [field(&symbols, "value", FieldData::Record(absent))],
+            [field(&symbols, "value", DataReference::Record(absent))],
         )
         .unwrap();
     assert_eq!(
@@ -270,7 +270,7 @@ fn duplicate_record_and_field_names_and_callable_collisions_are_rejected() {
     let collision = builder.reserve_record(symbols.get("f").unwrap());
     let f = builder.reserve(symbols.get("f").unwrap());
     builder.define(f, [], BuiltinType::Void).unwrap();
-    let value = field(&symbols, "value", FieldData::Builtin(BuiltinType::I32));
+    let value = field(&symbols, "value", DataReference::Builtin(BuiltinType::I32));
     builder.define_record(a, false, [value, value]).unwrap();
     builder.define_record(duplicate, false, []).unwrap();
     builder.define_record(collision, false, []).unwrap();
@@ -311,7 +311,7 @@ fn unsupported_and_unknown_symbols_cannot_enter_frozen_schemas() {
             true,
             [FieldDefinition {
                 name: unknown,
-                data: FieldData::Builtin(BuiltinType::F64),
+                data: DataReference::Builtin(BuiltinType::F64),
             }],
         )
         .unwrap();
@@ -343,7 +343,11 @@ fn field_names_are_local_and_type_names_do_not_change_field_identity() {
     let mut builder = ProgramBuilder::new(symbols.clone());
     let a = builder.reserve_record(symbols.get("A").unwrap());
     let b = builder.reserve_record(symbols.get("B").unwrap());
-    let fields = [field(&symbols, "A", FieldData::Builtin(BuiltinType::I32))];
+    let fields = [field(
+        &symbols,
+        "A",
+        DataReference::Builtin(BuiltinType::I32),
+    )];
     builder.define_record(a, true, fields).unwrap();
     builder.define_record(b, true, fields).unwrap();
     let program = builder.finish().unwrap();
@@ -375,8 +379,8 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
                 pair[1],
                 true,
                 [
-                    field(&symbols, "left", FieldData::Record(pair[0])),
-                    field(&symbols, "right", FieldData::Record(pair[0])),
+                    field(&symbols, "left", DataReference::Record(pair[0])),
+                    field(&symbols, "right", DataReference::Record(pair[0])),
                 ],
             )
             .unwrap();
@@ -405,7 +409,7 @@ fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
             [field(
                 &symbols,
                 "error",
-                FieldData::Builtin(BuiltinType::Error),
+                DataReference::Builtin(BuiltinType::Error),
             )],
         )
         .unwrap();
@@ -413,7 +417,7 @@ fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
         .define_record(
             wrapper,
             false,
-            [field(&symbols, "value", FieldData::Record(failure))],
+            [field(&symbols, "value", DataReference::Record(failure))],
         )
         .unwrap();
     let program = builder.finish().unwrap();
@@ -442,7 +446,7 @@ fn callable_parameters_cannot_shadow_authored_record_names() {
             f,
             [ParameterDefinition {
                 name: symbols.get("A").unwrap(),
-                data: BuiltinType::I32,
+                data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             }],
             BuiltinType::Void,

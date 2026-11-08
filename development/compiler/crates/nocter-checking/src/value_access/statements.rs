@@ -4,7 +4,7 @@ use super::{
     ir::{Boundary, Local, LocalOrigin, Statement, ValueType},
 };
 use nocter_model::{
-    AccessBlockId, AccessLocalId, AccessStatementId, BuiltinType, ValueAccess as Ty,
+    AccessBlockId, AccessPlaceId, AccessStatementId, BuiltinType, ValueAccess as Ty,
     ValueAccessMode as Mode, ValueBindingKind,
 };
 use nocter_syntax::{
@@ -182,6 +182,7 @@ impl Checker<'_, '_> {
         }
         let spelling = self.text(name)?.to_owned();
         if self.lookup(&spelling).is_some()
+            || self.program().type_named(&spelling).is_some()
             || BuiltinType::from_spelling(&spelling).is_some()
             || self
                 .program()
@@ -193,30 +194,32 @@ impl Checker<'_, '_> {
             return self.reject(Rule::ShadowedName, name);
         }
         let mode = kind.access_mode();
-        if matches!(
+        let alias = matches!(
             kind,
             ValueBindingKind::ReadAlias | ValueBindingKind::EditAlias
-        ) {
-            self.place(
+        );
+        let mut value = if alias {
+            self.place_value(
                 expression,
                 if kind == ValueBindingKind::EditAlias {
                     Rule::InvalidUpdate
                 } else {
                     Rule::TypeMismatch
                 },
-            )?;
-        }
-        let mut value = self.expression(
-            expression,
-            annotation.map(|data| Boundary::Binding(Ty::new(data, mode))),
-            reachable,
-        )?;
+            )?
+        } else {
+            self.expression(
+                expression,
+                annotation.map(|data| Boundary::Binding(Ty::new(data, mode))),
+                reachable,
+            )?
+        };
         let data = match (annotation, self.ty(value)) {
             (Some(data), _) => data,
             (None, ValueType::Value(ty)) => ty.data(),
             (None, ValueType::Never) => return self.reject(Rule::TypeMismatch, name),
         };
-        if annotation.is_none() {
+        if annotation.is_none() || alias {
             value = self.boundary(expression, value, Boundary::Binding(Ty::new(data, mode)))?;
         }
         let local = self.locals.insert(Local {
@@ -237,10 +240,10 @@ impl Checker<'_, '_> {
         ))
     }
 
-    fn writable(&self, node: NodeId) -> Result<AccessLocalId, Failure> {
+    fn writable(&mut self, node: NodeId) -> Result<AccessPlaceId, Failure> {
         let local = self.place(node, Rule::NotWritable)?;
-        if !self.writable_local(local) {
-            return self.reject_local(Rule::NotWritable, node, local);
+        if !self.writable_place(local) {
+            return self.reject_local(Rule::NotWritable, node, self.selected_place(local).local);
         }
         Ok(local)
     }
@@ -248,7 +251,7 @@ impl Checker<'_, '_> {
         // The target identity is structural; evaluation and flow of the RHS precede replacement.
         let target = self.writable(self.direct(node, NodeKind::AssignmentTarget)?)?;
         let expression = self.direct(node, NodeKind::Expression)?;
-        let data = self.local_ty(target).data();
+        let data = self.place_ty(target).data();
         let value = self.expression(
             expression,
             Some(Boundary::Binding(Ty::new(data, Mode::Own))),

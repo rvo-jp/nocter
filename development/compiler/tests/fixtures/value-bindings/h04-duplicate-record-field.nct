@@ -1,0 +1,5 @@
+struct Duplicate {
+    value: error
+    value: error
+}
+func run(): void {}

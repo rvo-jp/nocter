@@ -1,0 +1,9 @@
+struct Pair {
+    first: error
+    second: error
+}
+func bad(take input: Pair, take replacement: error): void {
+    let pair = input
+    let first = pair.first
+    pair.first = replacement
+}

@@ -6,26 +6,19 @@ use nocter_model::{
     NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, TypeKind,
 };
 
+use super::data::builtin_copyable;
 use super::{
-    DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, builtin_copyable,
-    supported,
+    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, supported,
 };
 use crate::DefinitionError;
 
 #[cfg(test)]
 mod tests;
 
-/// A construction-time type reference, resolved once before metadata is published.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FieldData {
-    Builtin(BuiltinType),
-    Record(NominalTypeId),
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FieldDefinition {
     pub name: Symbol,
-    pub data: FieldData,
+    pub data: DataReference,
 }
 
 /// The exact closed shapes admitted by this declaration product, not a general type classifier.
@@ -118,14 +111,21 @@ struct Reservation {
 #[derive(Debug, Default)]
 pub(super) struct Builder {
     reservations: ArenaBuilder<NominalTypeId, Reservation>,
+    namespace: BTreeMap<Symbol, NominalTypeId>,
 }
 
 impl Builder {
     pub fn reserve(&mut self, name: Symbol) -> NominalTypeId {
-        self.reservations.insert(Reservation {
+        let id = self.reservations.insert(Reservation {
             name,
             definition: None,
-        })
+        });
+        self.namespace.entry(name).or_insert(id);
+        id
+    }
+
+    pub fn namespace(&self) -> &BTreeMap<Symbol, NominalTypeId> {
+        &self.namespace
     }
 
     pub fn define(
@@ -151,7 +151,7 @@ impl Builder {
         callables: &BTreeMap<Symbol, AccessCallableId>,
     ) -> Result<Validated, Vec<DeclarationViolation>> {
         let reserved = self.reservations.finish();
-        let mut namespace = BTreeMap::new();
+        let namespace = self.namespace;
         let mut violations = Vec::new();
         for (id, reservation) in reserved.iter() {
             let mut report = |position, rule| {
@@ -167,12 +167,13 @@ impl Builder {
                     Some(DeclarationRule::ReservedBuiltinName)
                 }
                 Some(_) => {
-                    if let Some(&first) = namespace.get(&reservation.name) {
+                    if let Some(&first) = namespace.get(&reservation.name)
+                        && first != id
+                    {
                         Some(DeclarationRule::DuplicateRecord { first })
                     } else if let Some(&declaration) = callables.get(&reservation.name) {
                         Some(DeclarationRule::RecordShadowsCallable { declaration })
                     } else {
-                        namespace.insert(reservation.name, id);
                         None
                     }
                 }
@@ -195,10 +196,10 @@ impl Builder {
                     seen.insert(field.name, index);
                 }
                 match field.data {
-                    FieldData::Builtin(data) if !supported(data) => {
+                    DataReference::Builtin(data) if !supported(data) => {
                         report(position, DeclarationRule::UnsupportedDataType { data });
                     }
-                    FieldData::Record(record) if reserved.get(record).is_none() => {
+                    DataReference::Record(record) if reserved.get(record).is_none() => {
                         report(position, DeclarationRule::UnknownRecordType { record });
                     }
                     _ => {}
@@ -228,6 +229,9 @@ pub(super) struct Validated {
 }
 
 impl Validated {
+    pub fn contains(&self, id: NominalTypeId) -> bool {
+        self.reserved.get(id).is_some()
+    }
     pub fn resolve(&self, name: Symbol) -> Option<NominalTypeId> {
         self.namespace.get(&name).copied()
     }
@@ -265,8 +269,8 @@ impl Validated {
                         name: field.name,
                         position,
                         data: match field.data {
-                            FieldData::Builtin(builtin) => types.builtin(builtin),
-                            FieldData::Record(record) => data[&record],
+                            DataReference::Builtin(builtin) => types.builtin(builtin),
+                            DataReference::Record(record) => data[&record],
                         },
                     });
                     field_namespace.insert(field.name, field_id);
@@ -311,7 +315,7 @@ fn validate_payloads(
             .expect("validated definition");
         let mut count = 0;
         for field in &definition.fields {
-            if let FieldData::Record(child) = field.data {
+            if let DataReference::Record(child) = field.data {
                 parents.entry(child).or_default().push(id);
                 count += 1;
             }
@@ -330,10 +334,10 @@ fn validate_payloads(
         let mut all_copy = true;
         for (position, field) in definition.fields.iter().enumerate() {
             let copy = match field.data {
-                FieldData::Builtin(data) => {
+                DataReference::Builtin(data) => {
                     builtin_copyable(data).expect("validated builtin payload")
                 }
-                FieldData::Record(child) => copyable[&child],
+                DataReference::Record(child) => copyable[&child],
             };
             all_copy &= copy;
             if definition.copy && !copy {
@@ -359,7 +363,7 @@ fn validate_payloads(
                 .iter()
                 .enumerate()
                 .find_map(|(position, field)| match field.data {
-                    FieldData::Record(child) if !copyable.contains_key(&child) => {
+                    DataReference::Record(child) if !copyable.contains_key(&child) => {
                         Some((position, child))
                     }
                     _ => None,

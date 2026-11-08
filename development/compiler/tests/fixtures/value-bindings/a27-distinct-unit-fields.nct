@@ -1,0 +1,6 @@
+struct Units {
+    first: void
+    second: void
+}
+func touch(edit a: void, edit b: void): void {}
+func run(take units: Units): void { touch(units.first, units.second) }

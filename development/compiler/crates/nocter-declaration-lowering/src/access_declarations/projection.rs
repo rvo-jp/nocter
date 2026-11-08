@@ -1,21 +1,18 @@
-use std::collections::BTreeMap;
-
+use super::{CallableSource, Failure, RecordHeader};
 use nocter_declarations::value_access::{
     DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::AccessCallableId;
+use nocter_model::{AccessCallableId, NominalTypeId};
 use nocter_source_index::SourceOrigin;
-use nocter_syntax::{SyntaxToken, SyntaxTree};
-
-use super::{CallableSource, Failure};
+use nocter_syntax::{SyntaxOrigin, SyntaxToken, SyntaxTree};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HeaderDiagnostic {
     violation: DeclarationViolation,
     source: SourceDiagnostic,
 }
-
 impl HeaderDiagnostic {
     #[must_use]
     pub const fn violation(&self) -> DeclarationViolation {
@@ -26,56 +23,141 @@ impl HeaderDiagnostic {
         &self.source
     }
 }
-
 pub(super) fn project_violations(
     tree: &SyntaxTree,
     sources: &BTreeMap<AccessCallableId, CallableSource>,
+    records: &BTreeMap<NominalTypeId, RecordHeader>,
     violations: Vec<DeclarationViolation>,
 ) -> Failure {
     let projected = violations
         .into_iter()
-        .map(|violation| project(tree, sources, violation))
+        .map(|v| project(tree, sources, records, v))
         .collect::<Option<Vec<_>>>();
     let Some(mut diagnostics) = projected else {
         return Failure::InconsistentSyntax;
     };
-    diagnostics.sort_by_key(|diagnostic| diagnostic.source.primary().span().range().start());
+    diagnostics.sort_by_key(|d| d.source.primary().span().range().start());
     Failure::Headers(diagnostics)
 }
-
 fn project(
     tree: &SyntaxTree,
     sources: &BTreeMap<AccessCallableId, CallableSource>,
+    records: &BTreeMap<NominalTypeId, RecordHeader>,
     violation: DeclarationViolation,
 ) -> Option<HeaderDiagnostic> {
-    // Nominal source headers are not yet admitted by V2CoreUnit. A record violation cannot
-    // originate from this syntax surface; do not invent a source mapping or another authority.
-    let DeclarationId::Callable(callable) = violation.declaration else {
-        return None;
+    use DeclarationRule as R;
+    let typed = matches!(
+        violation.rule,
+        R::UnknownDataName { .. }
+            | R::UnsupportedDataType { .. }
+            | R::NonCopyField { .. }
+            | R::RecursivePayload { .. }
+    );
+    let primary = primary_source(sources, records, violation, typed)?;
+    let (code, message, related) = details(sources, records, violation)?;
+    let primary = origin(tree, primary)?;
+    let notes = if let Some(token) = related {
+        Some(DiagnosticNote::new(
+            "related declaration is here",
+            origin(tree, SyntaxOrigin::Token(token))?,
+        ))
+    } else {
+        None
     };
-    let source = sources.get(&callable)?;
-    let primary = match violation.position {
-        HeaderPosition::Name => source.name,
-        HeaderPosition::Parameter(index) => *source.parameters.get(index)?,
-        HeaderPosition::Result | HeaderPosition::Field(_) => return None, // No authored valid core syntax can select an unsupported data shape.
-    };
-    let (code, message, related) = match violation.rule {
-        DeclarationRule::DuplicateCallable { first } => (
+    Some(HeaderDiagnostic {
+        violation,
+        source: SourceDiagnostic::new(
+            code,
+            message,
+            primary,
+            notes.into_iter().collect::<Vec<_>>(),
+            None::<&str>,
+        ),
+    })
+}
+fn primary_source(
+    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    violation: DeclarationViolation,
+    typed: bool,
+) -> Option<SyntaxOrigin> {
+    Some(match violation.declaration {
+        DeclarationId::Callable(id) => {
+            let s = sources.get(&id)?;
+            match violation.position {
+                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
+                HeaderPosition::Parameter(i) if typed => {
+                    SyntaxOrigin::Node(*s.parameter_types.get(i)?)
+                }
+                HeaderPosition::Parameter(i) => SyntaxOrigin::Token(*s.parameters.get(i)?),
+                HeaderPosition::Result => SyntaxOrigin::Node(s.result),
+                HeaderPosition::Field(_) => return None,
+            }
+        }
+        DeclarationId::Record(id) => {
+            let s = records.get(&id)?;
+            match violation.position {
+                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
+                HeaderPosition::Field(i) if typed => SyntaxOrigin::Node(s.fields.get(i)?.2),
+                HeaderPosition::Field(i) => SyntaxOrigin::Token(s.fields.get(i)?.0),
+                _ => return None,
+            }
+        }
+    })
+}
+fn details(
+    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    violation: DeclarationViolation,
+) -> Option<(DiagnosticCode, &'static str, Option<SyntaxToken>)> {
+    use DeclarationRule as R;
+    Some(match violation.rule {
+        R::DuplicateCallable { first } => (
             DiagnosticCode::E0241,
             "duplicate function name",
             Some(sources.get(&first)?.name),
         ),
-        DeclarationRule::DuplicateParameter { first } => (
-            DiagnosticCode::E0341,
-            "duplicate parameter name",
-            Some(*source.parameters.get(first)?),
+        R::DuplicateRecord { first } => (
+            DiagnosticCode::E0241,
+            "duplicate record name",
+            Some(records.get(&first)?.name),
         ),
-        DeclarationRule::ParameterShadowsCallable { declaration } => (
+        R::RecordShadowsCallable { declaration } => (
+            DiagnosticCode::E0241,
+            "record name conflicts with a function",
+            Some(sources.get(&declaration)?.name),
+        ),
+        R::DuplicateParameter { first } => {
+            let DeclarationId::Callable(id) = violation.declaration else {
+                return None;
+            };
+            (
+                DiagnosticCode::E0341,
+                "duplicate parameter name",
+                Some(*sources.get(&id)?.parameters.get(first)?),
+            )
+        }
+        R::DuplicateField { first } => {
+            let DeclarationId::Record(id) = violation.declaration else {
+                return None;
+            };
+            (
+                DiagnosticCode::E0241,
+                "duplicate field name",
+                Some(records.get(&id)?.fields.get(first)?.0),
+            )
+        }
+        R::ParameterShadowsCallable { declaration } => (
             DiagnosticCode::E0341,
             "parameter shadows an authored function",
             Some(sources.get(&declaration)?.name),
         ),
-        DeclarationRule::ReservedBuiltinName => (
+        R::ParameterShadowsRecord { declaration } => (
+            DiagnosticCode::E0341,
+            "parameter shadows an authored type",
+            Some(records.get(&declaration)?.name),
+        ),
+        R::ReservedBuiltinName => (
             if violation.position == HeaderPosition::Name {
                 DiagnosticCode::E0240
             } else {
@@ -84,43 +166,29 @@ fn project(
             "name is reserved for a built-in type",
             None,
         ),
-        DeclarationRule::MissingDefinition
-        | DeclarationRule::UnknownSymbol
-        | DeclarationRule::UnsupportedDataType { .. }
-        | DeclarationRule::ParameterShadowsRecord { .. }
-        | DeclarationRule::DuplicateRecord { .. }
-        | DeclarationRule::RecordShadowsCallable { .. }
-        | DeclarationRule::DuplicateField { .. }
-        | DeclarationRule::UnknownRecordType { .. }
-        | DeclarationRule::RecursivePayload { .. }
-        | DeclarationRule::NonCopyField { .. } => return None,
-    };
-    let primary = origin(tree, primary)?;
-    let notes = if let Some(token) = related {
-        Some(DiagnosticNote::new(
-            if matches!(
-                violation.rule,
-                DeclarationRule::ParameterShadowsCallable { .. }
-            ) {
-                "conflicting function is declared here"
-            } else {
-                "first declaration is here"
-            },
-            origin(tree, token)?,
-        ))
-    } else {
-        None
-    };
-    let source = SourceDiagnostic::new(
-        code,
-        message,
-        primary,
-        notes.into_iter().collect::<Vec<_>>(),
-        None::<&str>,
-    );
-    Some(HeaderDiagnostic { violation, source })
+        R::UnknownDataName { .. } => (DiagnosticCode::E0290, "unknown data type", None),
+        R::UnsupportedDataType { .. } => (
+            DiagnosticCode::E0291,
+            "data type is outside this closed private fragment",
+            None,
+        ),
+        R::RecursivePayload { through } => (
+            DiagnosticCode::E0291,
+            "field leads to a non-finite by-value record payload",
+            Some(records.get(&through)?.name),
+        ),
+        R::NonCopyField { .. } => (
+            DiagnosticCode::E0291,
+            "copy struct requires Copy evidence for every field",
+            None,
+        ),
+        R::MissingDefinition | R::UnknownSymbol | R::UnknownRecordType { .. } => return None,
+    })
 }
 
-fn origin(tree: &SyntaxTree, token: SyntaxToken) -> Option<SourceOrigin> {
-    SourceOrigin::from_token(tree, token).ok()
+fn origin(tree: &SyntaxTree, source: SyntaxOrigin) -> Option<SourceOrigin> {
+    match source {
+        SyntaxOrigin::Token(t) => SourceOrigin::from_token(tree, t).ok(),
+        SyntaxOrigin::Node(n) => SourceOrigin::from_node(tree, n).ok(),
+    }
 }

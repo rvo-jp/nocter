@@ -1,0 +1,6 @@
+struct Pair {
+    first: error
+    second: error
+}
+func touch(value: Pair, edit field: error): void {}
+func bad(take pair: Pair): void { touch(pair, pair.first) }

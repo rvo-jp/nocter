@@ -1,0 +1,26 @@
+V2CoreUnit
+  Item
+    StructDeclaration
+      StructField
+        Type
+          NamedType
+      StructField
+        Type
+          NamedType
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+          Parameter
+            InputOperation
+            Type
+              NamedType
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          BodyResult
+            Expression
+              PostfixExpression
+                ReferenceExpression
+                MemberSuffix

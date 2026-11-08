@@ -10,7 +10,7 @@ mod tests;
 use super::{Graph, Initialization, IntegrityError, Location, Terminator};
 use crate::value_access::Query as TypedQuery;
 pub use liveness::{Carrier, Liveness};
-use nocter_model::{AccessLocalId, AccessParameterId, ValueAccessMode};
+use nocter_model::{AccessLocalId, AccessParameterId, FieldPath, ValueAccessMode};
 pub use projection::AccessDiagnostic;
 use state::World;
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,6 +24,25 @@ pub enum Root {
         index: usize,
     },
 }
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) struct Region {
+    pub root: Root,
+    pub fields: FieldPath,
+}
+impl Root {
+    fn region(self) -> Region {
+        Region {
+            root: self,
+            fields: FieldPath::default(),
+        }
+    }
+}
+impl Region {
+    fn overlaps(&self, other: &Self) -> bool {
+        self.root == other.root && self.fields.overlaps(&other.fields)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Creation {
     Parameter(AccessLocalId),
@@ -49,6 +68,7 @@ pub struct Violation {
     pub location: Location,
     pub rule: AccessRule,
     pub root: Root,
+    pub fields: FieldPath,
     pub retained: Option<RetainedAccess>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1,0 +1,9 @@
+struct Pair {
+    first: error
+    second: error
+}
+func release(take pair: Pair): error {
+    let first = pair.first
+    drop pair
+    return first
+}

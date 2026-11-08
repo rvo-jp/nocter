@@ -5,13 +5,14 @@ mod checker;
 mod expressions;
 pub mod flow;
 mod ir;
+mod place_typing;
 mod statements;
 #[cfg(test)]
 mod tests;
 
 pub use ir::{
     Argument, ArgumentAction, Binary, Block, BoundaryAction, Expression, ExpressionKind, Local,
-    LocalOrigin, Statement, TypedBody, Unary, ValueType,
+    LocalOrigin, Place, Statement, TypedBody, Unary, ValueType,
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -27,6 +28,8 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     UnknownName,
+    UnknownField,
+    UnknownType,
     ShadowedName,
     TypeMismatch,
     MissingTransfer,
@@ -44,6 +47,8 @@ pub enum Rule {
 impl Rule {
     const fn diagnostic(self) -> (DiagnosticCode, &'static str) {
         match self {
+            Self::UnknownField => (DiagnosticCode::E0370, "this record has no selected field"),
+            Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),
             Self::ShadowedName => (
                 DiagnosticCode::E0341,

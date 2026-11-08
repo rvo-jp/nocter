@@ -48,6 +48,7 @@ semantic_ids! {
     AccessFieldId,
     AccessParameterId,
     AccessLocalId,
+    AccessPlaceId,
     AccessExpressionId,
     AccessStatementId,
     AccessBlockId,

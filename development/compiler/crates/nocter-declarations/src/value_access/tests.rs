@@ -11,7 +11,7 @@ fn build(reverse: bool) -> Program {
                 id,
                 [ParameterDefinition {
                     name: symbols.get("input").unwrap(),
-                    data: BuiltinType::Error,
+                    data: BuiltinType::Error.into(),
                     operation: ValueInputOperation::Edit,
                 }],
                 BuiltinType::Error,
@@ -52,17 +52,17 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
                 [
                     ParameterDefinition {
                         name: symbols.get("read").unwrap(),
-                        data,
+                        data: data.into(),
                         operation: ValueInputOperation::Read,
                     },
                     ParameterDefinition {
                         name: symbols.get("edit").unwrap(),
-                        data,
+                        data: data.into(),
                         operation: ValueInputOperation::Edit,
                     },
                     ParameterDefinition {
                         name: symbols.get("take").unwrap(),
-                        data,
+                        data: data.into(),
                         operation: ValueInputOperation::Take,
                     },
                 ],
@@ -123,7 +123,7 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
     let f = builder.reserve(symbols.get("f").unwrap());
     let parameter = ParameterDefinition {
         name: symbols.get("x").unwrap(),
-        data: BuiltinType::I32,
+        data: BuiltinType::I32.into(),
         operation: ValueInputOperation::Read,
     };
     builder

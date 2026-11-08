@@ -1,0 +1,8 @@
+struct Pair {
+    first: error
+    second: error
+}
+func bad(take pair: Pair): Pair {
+    let first = pair.first
+    return pair
+}

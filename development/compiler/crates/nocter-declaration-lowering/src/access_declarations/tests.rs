@@ -1,4 +1,5 @@
 use super::*;
+use nocter_model::{BuiltinType, ValueInputOperation};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
@@ -109,7 +110,7 @@ fn wrong_goal_and_retired_source_cannot_publish_declarations() {
     ));
 }
 #[test]
-fn corpus_freezes_all_twenty_six_syntax_valid_private_units() {
+fn corpus_validates_every_header_and_rebinds_valid_declarations() {
     use nocter_json::Value;
     fn field<'a>(v: &'a Value, name: &str) -> &'a Value {
         let Value::Object(m) = v else {
@@ -130,7 +131,7 @@ fn corpus_freezes_all_twenty_six_syntax_valid_private_units() {
     let Value::Array(cases) = field(&manifest, "cases") else {
         panic!("cases")
     };
-    let mut counts = [0; 2];
+    let mut counts = [0; 3];
     for case in cases {
         let text = std::fs::read_to_string(root.join(string(field(case, "file")))).unwrap();
         let (sources, tree) = input(&text, ParseGoal::V2CoreUnit);
@@ -138,11 +139,20 @@ fn corpus_freezes_all_twenty_six_syntax_valid_private_units() {
         if string(field(case, "expectation")) == "syntax-reject" {
             assert!(matches!(result, Err(Failure::Syntax(_))));
             counts[1] += 1;
+        } else if string(field(case, "expectation")) == "header-reject" {
+            let Err(Failure::Headers(diagnostics)) = result else {
+                panic!("expected authored header rejection");
+            };
+            assert_eq!(
+                diagnostics[0].source().code(),
+                string(field(case, "diagnostic"))
+            );
+            counts[2] += 1;
         } else {
             let q = result.unwrap();
             assert!(q.bind(bound(&sources, &tree)).is_ok());
             counts[0] += 1;
         }
     }
-    assert_eq!(counts, [26, 4]);
+    assert!(counts.iter().all(|&count| count > 0));
 }

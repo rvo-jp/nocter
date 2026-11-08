@@ -31,8 +31,9 @@ of information:
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).
-3. **Implemented scope and verification:** the [bounded front-end record](history/reviews/v2.0.0-value-binding-front-end.md)
-   and [production source corpus](compiler/tests/fixtures/value-bindings/README.md).
+3. **Implemented scope and verification:** the [record source integration](history/reviews/v2.0.0-record-source-integration.md),
+   earlier [bounded front-end record](history/reviews/v2.0.0-value-binding-front-end.md), and
+   [production source corpus](compiler/tests/fixtures/value-bindings/README.md).
 4. **Next work:** the [handoff](TODO.md). The [milestone](history/milestones/v2.0.0.md) records
    broader work order; the [implementation design](history/reviews/v2.0.0-value-binding-implementation.md)
    retains obligations beyond the implemented fragment.

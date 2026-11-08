@@ -1,0 +1,11 @@
+struct Pair {
+    first: error
+    second: error
+}
+func inspect(value: error): void {}
+func extract(take pair: Pair): error {
+    read first = pair.first
+    let second = pair.second
+    inspect(first)
+    return second
+}

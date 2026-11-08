@@ -1,7 +1,7 @@
 use nocter_model::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessParameterId, AccessStatementId, Arena, TypeId, ValueAccess, ValueAccessMode,
-    ValueBindingKind,
+    AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId, ValueAccess,
+    ValueAccessMode, ValueBindingKind,
 };
 
 /// A type-only value proof; never is control interruption, not a storable data shape.
@@ -31,6 +31,14 @@ impl Local {
     }
 }
 
+/// One resolved logical selection. Field types are selected once by the declaration owner.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Place {
+    pub local: AccessLocalId,
+    pub fields: FieldPath,
+    pub data: TypeId,
+}
+
 /// Selected construction/delegation at a value or scoped-alias boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BoundaryAction {
@@ -43,9 +51,9 @@ pub enum BoundaryAction {
 /// Preparation of a selected direct call, before its atomic invocation commit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ArgumentAction {
-    ReserveRead(AccessLocalId),
-    ReserveUpdate(AccessLocalId),
-    ReserveTransfer(AccessLocalId),
+    ReserveRead(AccessPlaceId),
+    ReserveUpdate(AccessPlaceId),
+    ReserveTransfer(AccessPlaceId),
     /// Read a fresh owned temporary without Copy; its caller retains cleanup responsibility.
     ReadOwnedValue,
     CopyPayload,
@@ -88,8 +96,8 @@ pub enum ExpressionKind {
     Integer(i32),
     Boolean(bool),
     Unit,
-    Place(AccessLocalId),
-    Move(AccessLocalId),
+    Place(AccessPlaceId),
+    Move(AccessPlaceId),
     Boundary {
         source: AccessExpressionId,
         action: BoundaryAction,
@@ -129,11 +137,11 @@ pub enum Statement {
     Discard(AccessExpressionId),
     Evaluate(AccessExpressionId),
     Assign {
-        target: AccessLocalId,
+        target: AccessPlaceId,
         value: AccessExpressionId,
     },
     CompoundAssign {
-        target: AccessLocalId,
+        target: AccessPlaceId,
         operation: Binary,
         value: AccessExpressionId,
     },
@@ -166,6 +174,7 @@ pub struct TypedBody {
     pub(super) root: AccessBlockId,
     pub(super) locals: Arena<AccessLocalId, Local>,
     pub(super) expressions: Arena<AccessExpressionId, Expression>,
+    pub(super) places: Arena<AccessPlaceId, Place>,
     pub(super) statements: Arena<AccessStatementId, Statement>,
     pub(super) blocks: Arena<AccessBlockId, Block>,
     pub(super) loops: Arena<AccessLoopId, ()>,
@@ -179,6 +188,10 @@ impl TypedBody {
     #[must_use]
     pub const fn locals(&self) -> &Arena<AccessLocalId, Local> {
         &self.locals
+    }
+    #[must_use]
+    pub const fn places(&self) -> &Arena<AccessPlaceId, Place> {
+        &self.places
     }
     #[must_use]
     pub const fn expressions(&self) -> &Arena<AccessExpressionId, Expression> {

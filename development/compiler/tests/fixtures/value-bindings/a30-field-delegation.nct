@@ -1,0 +1,11 @@
+struct Pair {
+    first: error
+    second: error
+}
+func inspect(value: error): void {}
+func run(take pair: Pair, take replacement: error): void {
+    edit whole = pair
+    edit first = whole.first
+    whole.second = replacement
+    inspect(first)
+}

@@ -1,0 +1,1 @@
+func bad(value: Missing): void {}

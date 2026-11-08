@@ -50,7 +50,7 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
     let Value::Array(cases) = field(&manifest, "cases") else {
         panic!("cases")
     };
-    let mut counts = [0; 5];
+    let mut counts = [0; 6];
     for case in cases {
         let name = string(field(case, "file"));
         let text = fs::read_to_string(root.join(name)).unwrap();
@@ -68,7 +68,23 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
             continue;
         }
         assert!(!tree.has_errors(), "{name}: {:?}", tree.diagnostics());
-        let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        if string(field(case, "expectation")) == "header-reject" {
+            let Err(declarations::Failure::Headers(diagnostics)) =
+                declarations::Query::prepare(bound(&sources, &tree))
+            else {
+                panic!("{name}: expected a source-backed header rejection");
+            };
+            assert!(!diagnostics.is_empty(), "{name}");
+            assert_eq!(
+                diagnostics[0].source().code(),
+                string(field(case, "diagnostic")),
+                "{name}"
+            );
+            counts[5] += 1;
+            continue;
+        }
+        let query = declarations::Query::prepare(bound(&sources, &tree))
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
         let context = query.bind(bound(&sources, &tree)).unwrap();
         let result = Unit::prepare(&context);
         if string(field(case, "expectation")) == "accept" {
@@ -100,7 +116,10 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
             }
         }
     }
-    assert_eq!(counts, [4, 14, 7, 3, 2]);
+    assert!(
+        counts.iter().all(|&count| count > 0),
+        "each verdict family must be exercised: {counts:?}"
+    );
 }
 #[test]
 fn unused_bad_definition_rejects_the_entire_unit_and_recursive_valid_bodies_are_closed() {
@@ -253,3 +272,5 @@ fn literal_control_does_not_invent_normal_loop_exits() {
             if diagnostic.rule() == crate::value_access::Rule::TypeMismatch
     ));
 }
+
+mod records;

@@ -1,6 +1,8 @@
 use super::{Graph, IntegrityError, Operation};
 use crate::value_access::{ArgumentAction, ExpressionKind, LocalOrigin, Query as TypedQuery};
-use nocter_model::{AccessFlowPointId, AccessLocalId, ValueAccessMode};
+use nocter_model::{AccessFlowPointId, AccessLocalId, AccessPlaceId, FieldPath, ValueAccessMode};
+mod state;
+use state::Storage;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -27,21 +29,30 @@ struct Slot {
     state: InitializationState,
     causes: BTreeSet<Location>,
 }
-type State = BTreeMap<AccessLocalId, Slot>;
+type State = BTreeMap<AccessLocalId, Storage>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InitializationRequirement {
+    Value,
+    Container,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InitializationViolation {
+    pub requirement: InitializationRequirement,
     pub location: Location,
     pub local: AccessLocalId,
+    pub fields: FieldPath,
     pub state: InitializationState,
     pub causes: Box<[Location]>,
 }
 
 /// Initialization condition at a potential owned-slot cleanup. Not an executable cleanup schedule.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanupFact {
     pub location: Location,
     pub local: AccessLocalId,
+    pub fields: FieldPath,
     pub state: InitializationState,
 }
 
@@ -70,7 +81,10 @@ impl Initialization {
         point: AccessFlowPointId,
         local: AccessLocalId,
     ) -> Option<InitializationState> {
-        self.entries.get(&point)?.get(&local).map(|slot| slot.state)
+        self.entries
+            .get(&point)?
+            .get(&local)
+            .map(|slot| slot.complete(&FieldPath::default()).state)
     }
 }
 
@@ -82,14 +96,11 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Initializatio
         .map(|(id, local)| {
             (
                 id,
-                Slot {
-                    state: if matches!(local.origin, LocalOrigin::Parameter(_)) {
-                        InitializationState::Initialized
-                    } else {
-                        InitializationState::Uninitialized
-                    },
-                    causes: BTreeSet::new(),
-                },
+                Storage::new(if matches!(local.origin, LocalOrigin::Parameter(_)) {
+                    InitializationState::Initialized
+                } else {
+                    InitializationState::Uninitialized
+                }),
             )
         })
         .collect();
@@ -147,56 +158,96 @@ fn merge(current: &mut State, incoming: &State) -> Result<bool, IntegrityError> 
     let mut changed = false;
     for (&local, from) in incoming {
         let to = current.get_mut(&local).ok_or(INVALID)?;
-        let joined = to.state.join(from.state);
-        changed |= joined != to.state;
-        to.state = joined;
-        let count = to.causes.len();
-        to.causes.extend(from.causes.iter().copied());
-        changed |= count != to.causes.len();
+        changed |= to.merge(from);
     }
     Ok(changed)
+}
+fn selected(
+    typed: &TypedQuery,
+    id: AccessPlaceId,
+) -> Result<&crate::value_access::Place, IntegrityError> {
+    typed.body().places().get(id).ok_or(INVALID)
 }
 fn require(
     state: &State,
     local: AccessLocalId,
+    fields: &FieldPath,
+    requirement: InitializationRequirement,
     location: Location,
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
-    let slot = state.get(&local).ok_or(INVALID)?;
+    let storage = state.get(&local).ok_or(INVALID)?;
+    let slot = if requirement == InitializationRequirement::Value {
+        storage.complete(fields)
+    } else {
+        storage.present(fields)
+    };
     if slot.state != InitializationState::Initialized {
         violations.push(InitializationViolation {
+            requirement,
             location,
             local,
+            fields: fields.clone(),
             state: slot.state,
-            causes: slot.causes.iter().copied().collect(),
+            causes: slot.causes.into_iter().collect(),
         });
     }
     Ok(())
 }
+fn require_place(
+    typed: &TypedQuery,
+    state: &State,
+    place: AccessPlaceId,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    let p = selected(typed, place)?;
+    require(
+        state,
+        p.local,
+        &p.fields,
+        InitializationRequirement::Value,
+        at,
+        violations,
+    )
+}
 fn remove(
     state: &mut State,
     local: AccessLocalId,
-    location: Location,
+    fields: &FieldPath,
+    at: Location,
 ) -> Result<(), IntegrityError> {
-    let slot = state.get_mut(&local).ok_or(INVALID)?;
-    *slot = Slot {
-        state: InitializationState::Uninitialized,
-        causes: BTreeSet::from([location]),
-    };
+    state
+        .get_mut(&local)
+        .ok_or(INVALID)?
+        .set(fields, InitializationState::Uninitialized, Some(at));
     Ok(())
 }
-fn initialize(state: &mut State, local: AccessLocalId) -> Result<(), IntegrityError> {
-    let slot = state.get_mut(&local).ok_or(INVALID)?;
-    *slot = Slot {
-        state: InitializationState::Initialized,
-        causes: BTreeSet::new(),
-    };
+fn remove_place(
+    typed: &TypedQuery,
+    state: &mut State,
+    place: AccessPlaceId,
+    at: Location,
+) -> Result<(), IntegrityError> {
+    let p = selected(typed, place)?;
+    remove(state, p.local, &p.fields, at)
+}
+fn initialize(
+    state: &mut State,
+    local: AccessLocalId,
+    fields: &FieldPath,
+) -> Result<(), IntegrityError> {
+    state
+        .get_mut(&local)
+        .ok_or(INVALID)?
+        .set(fields, InitializationState::Initialized, None);
     Ok(())
 }
 fn cleanup_fact(
     typed: &TypedQuery,
     state: &State,
     local: AccessLocalId,
+    fields: &FieldPath,
     location: Location,
     cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
@@ -212,7 +263,8 @@ fn cleanup_fact(
         cleanup.push(CleanupFact {
             location,
             local,
-            state: state.get(&local).ok_or(INVALID)?.state,
+            fields: fields.clone(),
+            state: state.get(&local).ok_or(INVALID)?.present(fields).state,
         });
     }
     Ok(())
@@ -253,10 +305,10 @@ fn transfer(
                     .ok_or(INVALID)?
                     .action
                 {
-                    ArgumentAction::ReserveRead(local)
-                    | ArgumentAction::ReserveUpdate(local)
-                    | ArgumentAction::ReserveTransfer(local) => {
-                        require(state, local, location, violations)?;
+                    ArgumentAction::ReserveRead(place)
+                    | ArgumentAction::ReserveUpdate(place)
+                    | ArgumentAction::ReserveTransfer(place) => {
+                        require_place(typed, state, place, location, violations)?;
                     }
                     ArgumentAction::ReadOwnedValue
                     | ArgumentAction::CopyPayload
@@ -268,48 +320,56 @@ fn transfer(
                 // Validate the whole reserved bundle first; consuming one argument cannot make
                 // another appear uninitialized inside the atomic transition. Aliasing is separate.
                 for argument in arguments(typed, *call)? {
-                    if let ArgumentAction::ReserveRead(local)
-                    | ArgumentAction::ReserveUpdate(local)
-                    | ArgumentAction::ReserveTransfer(local) = argument.action
+                    if let ArgumentAction::ReserveRead(place)
+                    | ArgumentAction::ReserveUpdate(place)
+                    | ArgumentAction::ReserveTransfer(place) = argument.action
                     {
-                        require(state, local, location, violations)?;
+                        require_place(typed, state, place, location, violations)?;
                     }
                 }
                 for argument in arguments(typed, *call)? {
-                    if let ArgumentAction::ReserveTransfer(local) = argument.action {
-                        remove(state, local, location)?;
+                    if let ArgumentAction::ReserveTransfer(place) = argument.action {
+                        remove_place(typed, state, place, location)?;
                     }
                 }
             }
-            Operation::Bind { local, .. } => initialize(state, *local)?,
+            Operation::Bind { local, .. } => initialize(state, *local, &FieldPath::default())?,
             Operation::Assign { target, .. } => {
-                // U updates the referent, so its holder must already be initialized. X can restore.
-                if typed
-                    .body()
-                    .locals()
-                    .get(*target)
-                    .ok_or(INVALID)?
-                    .access()
-                    .mode()
-                    == ValueAccessMode::Update
-                {
-                    require(state, *target, location, violations)?;
-                }
-                cleanup_fact(typed, state, *target, location, cleanup)?;
-                initialize(state, *target)?;
+                assign(typed, state, *target, location, violations, cleanup)?;
             }
             Operation::CompoundAssign { target, .. } => {
-                require(state, *target, location, violations)?;
+                require_place(typed, state, *target, location, violations)?;
             }
             Operation::Drop(local) => {
-                require(state, *local, location, violations)?;
-                cleanup_fact(typed, state, *local, location, cleanup)?;
-                remove(state, *local, location)?;
+                require(
+                    state,
+                    *local,
+                    &FieldPath::default(),
+                    InitializationRequirement::Container,
+                    location,
+                    violations,
+                )?;
+                cleanup_fact(
+                    typed,
+                    state,
+                    *local,
+                    &FieldPath::default(),
+                    location,
+                    cleanup,
+                )?;
+                remove(state, *local, &FieldPath::default(), location)?;
             }
             Operation::ExitScope { locals, .. } => {
                 for &local in locals {
-                    cleanup_fact(typed, state, local, location, cleanup)?;
-                    remove(state, local, location)?;
+                    cleanup_fact(
+                        typed,
+                        state,
+                        local,
+                        &FieldPath::default(),
+                        location,
+                        cleanup,
+                    )?;
+                    remove(state, local, &FieldPath::default(), location)?;
                 }
             }
             Operation::Forward { .. }
@@ -335,18 +395,18 @@ fn evaluate(
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
     match &typed.body().expressions().get(id).ok_or(INVALID)?.kind {
-        ExpressionKind::Place(local) => {
-            require(state, *local, location, violations)?;
+        ExpressionKind::Place(place) => {
+            require_place(typed, state, *place, location, violations)?;
         }
-        ExpressionKind::Move(local) => {
-            require(state, *local, location, violations)?;
-            remove(state, *local, location)?;
+        ExpressionKind::Move(place) => {
+            require_place(typed, state, *place, location, violations)?;
+            remove_place(typed, state, *place, location)?;
         }
         ExpressionKind::Boundary { source, .. } => {
-            if let ExpressionKind::Place(local) =
+            if let ExpressionKind::Place(place) =
                 typed.body().expressions().get(*source).ok_or(INVALID)?.kind
             {
-                require(state, local, location, violations)?;
+                require_place(typed, state, place, location, violations)?;
             }
         }
         ExpressionKind::Integer(_)
@@ -357,5 +417,41 @@ fn evaluate(
         // Structured control and calls have their own ordered graph operations.
         ExpressionKind::Call { .. } | ExpressionKind::If { .. } => return Err(INVALID),
     }
+    Ok(())
+}
+
+fn assign(
+    typed: &TypedQuery,
+    state: &mut State,
+    target: AccessPlaceId,
+    location: Location,
+    violations: &mut Vec<InitializationViolation>,
+    cleanup: &mut Vec<CleanupFact>,
+) -> Result<(), IntegrityError> {
+    let place = selected(typed, target)?;
+    let mode = typed
+        .body()
+        .locals()
+        .get(place.local)
+        .ok_or(INVALID)?
+        .access()
+        .mode();
+    if mode == ValueAccessMode::Update {
+        require_place(typed, state, target, location, violations)?;
+    } else {
+        // Replacing a missing field is allowed; missing containing records are not.
+        for len in 0..place.fields.fields().len() {
+            require(
+                state,
+                place.local,
+                &FieldPath::new(place.fields.fields()[..len].to_vec()),
+                InitializationRequirement::Container,
+                location,
+                violations,
+            )?;
+        }
+    }
+    cleanup_fact(typed, state, place.local, &place.fields, location, cleanup)?;
+    initialize(state, place.local, &place.fields)?;
     Ok(())
 }
