@@ -10,6 +10,14 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+The user is reviewing a [value-binding source candidate](history/reviews/v2.0.0-value-binding-candidate.md)
+after the first access checkpoint. Its 44 reviewed cases cover values, view returns, dependent
+records and callbacks. `let`/`var`, declaration-side edit/take and implicit value-boundary transfer
+remain unadopted candidate syntax; do not silently migrate the specification/compiler to it.
+The review records the required internal dependency/callback obligations and recommends concrete
+advanced origin/capture spellings for human evaluation. Existing implemented behavior below
+remains the qualified checkpoint while this source choice is under review.
+
 The [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md) now has closed
 private-unit acceptance. Production syntax/declarations, body typing, control flow, named-slot
 initialization, permission-demand liveness, referent validation, exact first-fragment payload

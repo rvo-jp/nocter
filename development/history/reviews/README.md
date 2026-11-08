@@ -15,6 +15,7 @@ forcing consumers that use only its contract to change.
 - [v2.0.0 Result Access Contracts](v2.0.0-result-access-contracts.md)
 - [v2.0.0 Access Typing and Specification Migration](v2.0.0-access-typing.md)
 - [v2.0.0 Source Design Decisions](v2.0.0-source-design-decisions.md)
+- [v2.0.0 Value Binding Candidate: Adoption Audit](v2.0.0-value-binding-candidate.md)
 - [v2.0.0 Syntax Coherence under Four Design Goals](v2.0.0-syntax-coherence.md)
 - [v2.0.0 First Access Validation Slice](v2.0.0-first-access-slice.md)
 - [v2.0.0 Implementation Readiness](v2.0.0-implementation-readiness.md)
