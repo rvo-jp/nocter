@@ -1109,7 +1109,7 @@ mod future_boundary_tests {
         let source = sources
             .add_bytes(
                 SourceName::new("core.nct"),
-                b"func f(value: ^i32): ^i32 { ^value }\n",
+                b"func f(take value: i32): i32 { value }\n",
             )
             .unwrap();
         let source = sources.get(source).unwrap();

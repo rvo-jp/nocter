@@ -1,6 +1,0 @@
-func dispose(value: ^error, flag: bool): void {
-    while flag {
-        drop value
-        break
-    }
-}

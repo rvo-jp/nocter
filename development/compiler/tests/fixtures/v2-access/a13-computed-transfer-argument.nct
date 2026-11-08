@@ -1,6 +1,0 @@
-func forward(value: ^error): ^error {
-    return ^value
-}
-func choose(left: ^error, right: ^error, flag: bool): ^error {
-    return forward(if flag { ^left } else { ^right })
-}

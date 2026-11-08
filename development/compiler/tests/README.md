@@ -5,14 +5,11 @@ runner and does not own expected compiler behavior; each consuming crate test ow
 
 ## Fixture Classes
 
-- [`fixtures/v2-access/`](fixtures/v2-access/README.md) contains the consumed pre-S12 access-model
-  checkpoint for one supplied private module. Production consumers qualify its complete private
-  front-end boundary; those passes are not S12 conformance. Its inventory checker validates only
-  registration/ranges/shapes.
-- [`fixtures/value-bindings/`](fixtures/value-bindings/README.md) contains planned replacement
-  inputs derived from the adopted future value-binding fragment. They are explicitly unconsumed;
-  expected verdicts are requirements, not parser/checker passes. Wire them into the production
-  consumers only with coherent replacement of the accepted-unit authority.
+- [`fixtures/value-bindings/`](fixtures/value-bindings/README.md) contains the consumed future
+  value-binding private-module corpus. Production syntax/declaration/accepted-unit consumers own
+  its assertions. These passes are bounded front-end evidence, not native or full-language support.
+- [`fixtures/v2-access/`](fixtures/v2-access/README.md) is the retirement notice for the earlier
+  incompatible corpus; it has no active inputs, inventory checker or compiler consumer.
 
 - `fixtures/syntax/` contains parser and semantic-boundary source corpora plus structural snapshots.
 - `fixtures/standard/` contains source programs used by command and editor integration tests against

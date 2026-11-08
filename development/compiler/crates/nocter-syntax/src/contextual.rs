@@ -33,6 +33,9 @@ macro_rules! contextual_spellings {
 }
 
 contextual_spellings! {
+    Read => "read",
+    Edit => "edit",
+    Take => "take",
     Copy => "copy",
     Where => "where",
     Some => "some",

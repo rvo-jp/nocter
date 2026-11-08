@@ -1,3 +1,0 @@
-func dispose(value: ^error): void {
-    let _ = ^value
-}

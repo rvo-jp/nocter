@@ -216,126 +216,72 @@ The [checked-program boundary](../../../architecture/pipeline/checked-program.md
 with adjacent stages.
 
 
-## Bounded Future Value Access Typing
+## Bounded Future Value Binding Typing
 
-The development-only private-function goal also has a separate typed-only leaf query. It opens
-from one exact-current access-declaration context and uses its immutable program directly. It
-resolves lexical names, checks data and structural permissions, contextualizes explicit boundaries,
-selects direct callable identities once, and records primitive operations, Copy/materialization,
-transfer/update actions, call argument reservations, assignment order, and structured control.
-It does not construct or convert to the released `CheckedProgram`.
+The private-function goal has one typed-body query over the immutable access-declaration authority.
+Its inputs/results are data types; input Read/Edit/Take and local FixedValue/MutableValue/ReadAlias/
+EditAlias are separate facts. Transient operation access descriptors are not qualified data types.
+Take inputs receive writable local value slots; fixed local owners can transfer but cannot update.
+Read inputs never become take from body use. Copyable value supply snapshots before choosing a
+move-only extraction; alias creation never manufactures an owner. Direct call selection is frozen
+before access checking and has no permission-driven alternative target.
 
-Its body-local semantic arenas contain no source coordinates, syntax identities, names, or symbol
-IDs. A successful reusable query owns its callable, exact declaration authority, exact body bytes,
-and locator recipes beside that typed body. One body projection serves checking and recipe capture.
-Rebinding requires that same authority and unchanged own body, then projects current origins without
-retyping or repeating dispatch. Body-independent header reuse does not imply body-result reuse.
+Typed bodies record selected Copy/materialization, implicit moves, scoped delegation, call input
+preparation, RHS-first replacement and structured control. Ordinary block/conditional results
+construct values; no old read/update result or standalone-prefix IR path remains. Data annotations
+do not select local binding operations. Body-local arenas have no source coordinates, syntax IDs,
+names or symbols. Successful queries own exact authority/body bytes and locator recipes. Rebinding
+requires the same immutable program and exact own body, with current projection but no retyping.
+This product cannot convert to released CheckedProgram or native products.
 
-Structural eligibility is separate from named-slot initialization, source liveness, escape/origin
-proofs, access conflicts and validated cleanup. The shared flow query below supplies those facts
-for the exact first-fragment data contracts; whole-unit acceptance closes their callee assumptions;
-even a typed-only body with an uninitialized read or escaping local cannot enter execution. Primitive
-arithmetic retains checked operation kinds, and short-circuit/control interruptions remain explicit.
-The future product has no compatibility adapter, source-version flag, editor recovery product, or
-native consumer. The [adjacent boundary](../../../architecture/pipeline/value-access-declarations.md)
-owns its relationship to declarations and later validation.
+## Shared Flow, Access and Resource Validation
 
+One selected-operation graph supplies initialization, backward permission demand and alternative
+access/resource states. It preserves scalar snapshots, short-circuit/conditional edges, loop
+successors, scope exits, staged value results, evaluation frames and interrupted call prefixes.
+Read/edit direct operands reserve without early activation; non-Copy take reserves transfer,
+whereas Copy take constructs a prepared snapshot. Commit checks the full bundle before any source
+is transferred; no sequential activation makes conflicting arguments valid. Earlier nested moves
+are not rolled back. A read of a fresh non-Copy result retains its evaluation temporary until the
+owning frame ends. Return survival is proved by the resource ledger alone; no parallel staged
+referent state, old result-referent alternatives or callable-result permission survives.
 
-## Future Body Control Flow and Slot Initialization
+Initialization distinguishes initialized/uninitialized/maybe slots on reachable paths and solves
+backedges before reporting uses. Copy does not invalidate its source; move/drop do. Complete
+mutable-owner replacement can restore unavailable state. Fixed owners cannot be reinitialized.
+Typing propagates literal Boolean reachability through conditionals and loops without skipping
+name/data checks in dead branches. A dead break cannot create a normal loop exit or a missing-result
+obligation; a reachable break still can. Selected terminating branches have no continuing value.
+Edit replacements keep their outside place valid. Cleanup conditions are not permission to read
+missing data or skip required destruction. Unreachable source retains structural checking without
+invented runtime uses. Source projection reports already selected identities/locations.
 
-A shared typed-query authority produces one immutable evaluation/control graph. Graph construction
-consumes typed arenas and selected argument actions without syntax, dispatch or type inference.
-It preserves eager operand preparation, short-circuit/conditional edges, loop destinations,
-RHS-first assignment, staged return values, scope exits and cancellation of each successfully
-prepared call prefix. A direct-place reservation does not execute a normal place read or transfer.
-A complete commit validates the reserved bundle before changing any ownership slot. Literal
-Boolean predicates select their known edge after condition evaluation; structurally checked dead
-source contributes no reached initialization use.
+Access demand includes alias children and prepared uses. An unused intermediary can release its
+own demand while its children retain read/update protection; remaining read demand does not force
+update exclusivity forever. Delegation never upgrades read or duplicates exclusivity. Scope/root
+survival reads the resource ledger directly: there is no second alive-root authority. Alternative
+worlds preserve mutually exclusive branch states and converge over finite identities, relations,
+resource holders and lexical/evaluation frame shape, without a dynamic history or iteration cutoff.
 
-The graph and its fixed-point initialization report share that exact typed-query authority.
-Each reached point starts with a map of named-slot states: initialized, uninitialized or maybe.
-Unreached points have no entry state. Parameters start initialized; bindings initialize their
-holders; explicit transfers, drops and committed X places remove ownership; complete assignment
-restores X. Joins conservatively combine all incoming states, and a worklist reaches a fixed point
-before reporting uses. Reaching invalidation locations remain separate source-neutral evidence.
+The resource ledger alone tracks initialized owner responsibility. Its ordered steps construct,
+move, receive, dispose, invoke and replace outside inputs. A dead access holder is not automatic
+early resource destruction. A staged return survives evaluation/lexical cleanup, whose order is
+reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
+Return owner with the declaration's result data type, including unit. Trapping/diverging paths do
+not acquire unwind guarantees.
 
-Cleanup facts retain initialization conditions at potential owned-slot replacement, explicit drop,
-and scope exit. They are not execution schedules, do not erase carried dependencies, and cannot
-certify that a retained I/U root survives. Non-owning holders are released rather than destroyed as
-owners. Scope exits retain reverse binding order, while a protected result is staged before exit
-or cancellation cleanup. Source projection reuses the typed query's exact-current binding without
-reconstructing flow or solving again.
+Payload evidence matches exactly bool/i32/void and the opaque owned-error snapshot contract:
+scalars/unit have trivial disposal; error owns graph cleanup. All four have empty external D/S by
+those exact contracts. Neither Copy, owning a value nor a missing outside R proves general
+independence. Dependent aggregates, user destructors, capabilities/callables, generics, outcomes,
+async and regions require their own later schemas/validation and cannot enter this bounded product.
 
-The referent/access analysis below consumes this graph and named-slot prerequisite. Evaluation
-frames also delimit temporary cleanup during normal and interrupted evaluation. An initialized
-slot and an initialized referent are distinct facts. Intermediate reports cannot independently
-construct accepted evidence or enter execution.
+## Closed Accepted Private Units
 
-
-## Future Referents and Permission Demand
-
-Backward fixed-point liveness tracks semantic carriers and their read/update demands. Carriers are
-locals, computed answers and prepared arguments; witnesses retain source-neutral action locations.
-Scalar operand/condition preparation consumes a read without keeping its source access for later
-primitive computation. Cancellation retains its prepared prefix for cleanup, but releasing a
-non-owning access does not dereference its root. Owned payload cleanup dependencies are not inferred
-from that fact.
-
-The forward analysis retains alternative worlds across control flow and private result-origin
-candidates. Each world tracks named owning roots, external input roots, delegated accesses,
-prepared reservations and a staged result. It never unions mutually exclusive U roots into
-simultaneous permissions. Equivalent worlds converge over a finite domain of existing semantic
-identities, parent relations and permissions; there is no arbitrary iteration cutoff.
-
-A use checks its actual root and required permission. Removing an unused intermediary reparents
-live children; after the last update requirement, remaining reads need only read authority. Source
-types, selected operations and interface contracts stay fixed. Explicit update creation still
-requires update eligibility at its authored point. A later U call/result keeps exclusivity live,
-while a pending I request need not retain an otherwise unused U intermediary.
-
-Reservations protect identity/value changes throughout preparation and cancellation. They activate
-as a complete checked bundle at commit. Computed access answers are already active; duplicate X,
-U/U and I/U inputs cannot be made safe merely by sequentially activating them. Result referent
-candidates are alternative input roots; output accesses are reparented through ordinary cleanup
-without retaining callee parameter storage. Root removal checks live accesses and staged results.
-
-This is a referent/permission report under the selected callable contracts. A zero private access
-origin bound has no normally producing access result in this closed fragment; every callee body
-must independently satisfy that bound before whole-program acceptance. `NoReferent` describes R
-only, not empty carried payload or storage requirements. Bodies with initialization failures are
-explicitly blocked from this analysis. An analyzed report without violations alone cannot close
-callee assumptions, supply native validity, or qualify an ABI.
-
-## Future Logical Resources and Accepted Private Units
-
-The same alternative-world solver tracks a finite logical owner map and evaluation-frame stacks.
-Ownership is independent of access liveness: a dead value still owns its required destruction.
-Each reached operation records before/after ownership alternatives and ordered construction,
-move, callee-result receipt, disposal, invocation-transfer or caller-input replacement steps.
-Named R survival reads that owner map directly; no parallel root-survival set is retained.
-No dynamic resource counter or execution-history log participates in the fixed point.
-
-Payload evidence is an exhaustive match on the admitted built-in data contracts, not a Copy or
-owned-value heuristic. Scalars/unit have trivial destruction; the immutable owned-error snapshot
-has private storage and an owned-graph disposal obligation. All four have empty carried D/S under
-their exact normative contracts. Other data shapes cannot acquire that certificate. This is not
-a general dependency solver for aggregates, closures, generics or regions.
-
-Statement/condition/block-result evaluation frames retain fresh I-call inputs without Copy.
-Successful X invocation transfers the prepared owner; cancellation destroys only its owned prefix
-in reverse order. Named reservations never become early transfers. I temporaries remain caller
-owned until their evaluation ends; temporary referent roots prevent a saved access from silently
-keeping them alive. Forwarded/staged owners leave the cleaned frame; other temporaries are disposed
-before enclosing lexical cleanup. Whole-value replacement disposes only the old owner present on
-that path; a U input replacement disposes its initialized outside payload and installs the ready
-replacement. Every normal return has empty evaluation frames and exactly its declared X result
-owner, or no owned result for I/U. Trapping/diverging paths gain no unwinding guarantee.
-
-The closed private-unit constructor checks every definition in the supplied declaration context,
-including unreachable or recursive callees. It publishes no partial accepted value after a typing,
-initialization or access rejection. The accepted unit owns the exact declaration authority and
-all validated body/flow/resource reports. Its source binding validates every original body before
-exposing projections; a changed sibling or unrelated equal header authority rejects reuse.
-There is no public parts constructor, released-program adapter, public version switch, native
-consumer, user-destructor support, or outcome/async executor. A target consumer must realize the
-ordered transitions and checked primitive operations under its own layout/runtime contract.
+The whole-unit constructor validates every definition, including unused/recursive callees, and
+publishes no partial accepted value after any typing/init/access/resource failure. It owns the
+same frozen declaration program and all body/flow reports. Binding validates every original body
+before exposing current projections. An equal but separately rebuilt program or changed sibling
+cannot substitute for that authority. There is no public parts constructor, compatibility
+adapter, source-version CLI, native consumer or general D/S solver. Qualification and remaining
+work belong in the linked review/plan, not a duplicate crate-internal status table.

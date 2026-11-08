@@ -100,6 +100,7 @@ fn parse_tree(source: &SourceFile, goal: ParseGoal) -> SyntaxTree {
         ParseGoal::V2CoreUnit => crate::lexer::lex_access_core(source),
     };
     let mut parser = Parser::new(source, lexed.tokens());
+    parser.value_names = goal == ParseGoal::V2CoreUnit;
     match goal {
         ParseGoal::SourceFile => root::source_file(&mut parser),
         ParseGoal::V2CoreUnit => access::unit(&mut parser),
@@ -117,6 +118,7 @@ struct Parser<'source> {
     diagnostics: Vec<ParseDiagnostic>,
     nesting: u16,
     split: Option<SyntaxToken>,
+    value_names: bool,
 }
 
 impl<'source> Parser<'source> {
@@ -131,6 +133,7 @@ impl<'source> Parser<'source> {
             diagnostics: Vec::new(),
             nesting: 0,
             split: None,
+            value_names: false,
         }
     }
 
@@ -358,7 +361,13 @@ impl<'source> Parser<'source> {
     }
 
     fn expect_name(&mut self) -> bool {
-        if self.at(TokenKind::Identifier) && is_valid_name(self.current_text()) {
+        if self.at(TokenKind::Identifier)
+            && if self.value_names {
+                crate::name::is_valid_value_name(self.current_text())
+            } else {
+                is_valid_name(self.current_text())
+            }
+        {
             self.bump();
             true
         } else if self.at(TokenKind::Identifier) {

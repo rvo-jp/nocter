@@ -1,8 +1,0 @@
-V2CoreUnit
-  Item
-    FunctionDeclaration
-      CallableTail
-        Parameters
-        Type
-          NamedType
-      Block

@@ -1,0 +1,26 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+          Parameter
+            InputOperation
+            Type
+              NamedType
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          BindingStatement
+            BindingOperation
+            BindingPattern
+            Expression
+              ReferenceExpression
+          BindingStatement
+            BindingOperation
+            BindingPattern
+            Expression
+              ReferenceExpression
+          ReturnStatement
+            Expression
+              ReferenceExpression

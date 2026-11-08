@@ -1,13 +1,16 @@
 use super::{
     Failure, Rule,
     checker::{Checker, LoopFrame},
-    ir::{Boundary, ExpressionKind, Local, LocalOrigin, Statement, ValueType},
+    ir::{Boundary, Local, LocalOrigin, Statement, ValueType},
 };
 use nocter_model::{
-    AccessBlockId, AccessLocalId, AccessStatementId, BuiltinType, ValueAccessMode as Mode,
-    ValueAccessType as Ty,
+    AccessBlockId, AccessLocalId, AccessStatementId, BuiltinType, ValueAccess as Ty,
+    ValueAccessMode as Mode, ValueBindingKind,
 };
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxOrigin, direct_identifier_iter};
+use nocter_syntax::{
+    ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxOrigin,
+    direct_identifier_iter,
+};
 
 impl Checker<'_, '_> {
     pub fn block(
@@ -27,11 +30,21 @@ impl Checker<'_, '_> {
         let mut continues = true;
         for entry in entries {
             if self.kind(entry)? == NodeKind::BodyResult {
-                let value = self.expression(
-                    self.first_child(entry)?,
+                let expression = self.first_child(entry)?;
+                let mut value = self.expression(
+                    expression,
                     expected.filter(|_| continues),
                     reachable && continues,
                 )?;
+                if expected.is_none()
+                    && let ValueType::Value(ty) = self.ty(value)
+                {
+                    value = self.boundary(
+                        expression,
+                        value,
+                        Boundary::Binding(Ty::new(ty.data(), Mode::Own)),
+                    )?;
+                }
                 if self.ty(value) == ValueType::Never {
                     continues = false;
                 }
@@ -44,7 +57,7 @@ impl Checker<'_, '_> {
         }
         if result.is_none() && continues {
             if let Some(Boundary::Return(ty)) = expected
-                && ty.data() != self.data(BuiltinType::Void)
+                && ty != self.data(BuiltinType::Void)
             {
                 return self.reject(Rule::MissingResult, node);
             }
@@ -87,7 +100,7 @@ impl Checker<'_, '_> {
                 let value = if let Some(expression) = self.children(node).first() {
                     self.expression(*expression, Some(Boundary::Return(self.result)), reachable)?
                 } else {
-                    if self.result.data() != self.data(BuiltinType::Void) {
+                    if self.result != self.data(BuiltinType::Void) {
                         return self.reject(Rule::MissingResult, node);
                     }
                     let unit = self.unit(node)?;
@@ -132,6 +145,16 @@ impl Checker<'_, '_> {
     }
 
     fn binding(&mut self, node: NodeId, reachable: bool) -> Result<(Statement, bool), Failure> {
+        let operation = self.token(self.direct(node, NodeKind::BindingOperation)?)?;
+        let kind = match operation.kind() {
+            nocter_syntax::TokenKind::Keyword(Keyword::Let) => ValueBindingKind::FixedValue,
+            nocter_syntax::TokenKind::Keyword(Keyword::Var) => ValueBindingKind::MutableValue,
+            _ => match ContextualSpelling::from_spelling(self.text(operation)?) {
+                Some(ContextualSpelling::Read) => ValueBindingKind::ReadAlias,
+                Some(ContextualSpelling::Edit) => ValueBindingKind::EditAlias,
+                _ => return Err(Failure::InconsistentSyntax),
+            },
+        };
         let pattern = self.direct(node, NodeKind::BindingPattern)?;
         let name = self.token(pattern)?;
         let annotation = self
@@ -141,10 +164,17 @@ impl Checker<'_, '_> {
             .transpose()?;
         let expression = self.direct(node, NodeKind::Expression)?;
         if self.text(name)? == "_" {
-            if annotation.is_some() {
+            if annotation.is_some() || kind != ValueBindingKind::FixedValue {
                 return self.reject(Rule::AnnotatedDiscard, name);
             }
-            let value = self.expression(expression, None, reachable)?;
+            let mut value = self.expression(expression, None, reachable)?;
+            if let ValueType::Value(ty) = self.ty(value) {
+                value = self.boundary(
+                    expression,
+                    value,
+                    Boundary::Binding(Ty::new(ty.data(), Mode::Own)),
+                )?;
+            }
             return Ok((
                 Statement::Discard(value),
                 self.ty(value) != ValueType::Never,
@@ -162,13 +192,36 @@ impl Checker<'_, '_> {
         {
             return self.reject(Rule::ShadowedName, name);
         }
-        let value = self.expression(expression, annotation.map(Boundary::Binding), reachable)?;
-        let ty = match (annotation, self.ty(value)) {
-            (Some(ty), _) | (None, ValueType::Value(ty)) => ty,
+        let mode = kind.access_mode();
+        if matches!(
+            kind,
+            ValueBindingKind::ReadAlias | ValueBindingKind::EditAlias
+        ) {
+            self.place(
+                expression,
+                if kind == ValueBindingKind::EditAlias {
+                    Rule::InvalidUpdate
+                } else {
+                    Rule::TypeMismatch
+                },
+            )?;
+        }
+        let mut value = self.expression(
+            expression,
+            annotation.map(|data| Boundary::Binding(Ty::new(data, mode))),
+            reachable,
+        )?;
+        let data = match (annotation, self.ty(value)) {
+            (Some(data), _) => data,
+            (None, ValueType::Value(ty)) => ty.data(),
             (None, ValueType::Never) => return self.reject(Rule::TypeMismatch, name),
         };
+        if annotation.is_none() {
+            value = self.boundary(expression, value, Boundary::Binding(Ty::new(data, mode)))?;
+        }
         let local = self.locals.insert(Local {
-            ty,
+            data,
+            kind,
             origin: LocalOrigin::Binding,
         });
         self.origins
@@ -186,7 +239,7 @@ impl Checker<'_, '_> {
 
     fn writable(&self, node: NodeId) -> Result<AccessLocalId, Failure> {
         let local = self.place(node, Rule::NotWritable)?;
-        if self.local_ty(local).mode() == Mode::Read {
+        if !self.writable_local(local) {
             return self.reject_local(Rule::NotWritable, node, local);
         }
         Ok(local)
@@ -237,7 +290,10 @@ impl Checker<'_, '_> {
         let body = self.block(
             self.direct(node, NodeKind::Block)?,
             None,
-            reachable && condition.is_none_or(|expr| self.ty(expr) != ValueType::Never),
+            reachable
+                && condition.is_none_or(|expr| {
+                    self.ty(expr) != ValueType::Never && self.literal_bool(expr) != Some(false)
+                }),
         )?;
         let frame = self.loop_stack.pop().expect("own loop frame");
         if let ValueType::Value(ty) = self.block_ty(body)
@@ -246,10 +302,7 @@ impl Checker<'_, '_> {
             return self.reject(Rule::UnusedValue, node);
         }
         if let Some(condition) = condition {
-            let always_true = matches!(
-                self.expressions.get(condition).map(|expr| &expr.kind),
-                Some(ExpressionKind::Boolean(true))
-            );
+            let always_true = self.literal_bool(condition) == Some(true);
             Ok((
                 Statement::While {
                     loop_id,

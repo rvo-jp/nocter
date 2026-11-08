@@ -1,0 +1,13 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+          Parameter
+            Type
+              NamedType
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          DropStatement

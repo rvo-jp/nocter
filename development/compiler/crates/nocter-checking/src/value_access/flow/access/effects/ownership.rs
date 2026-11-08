@@ -106,16 +106,12 @@ impl Context<'_, '_> {
                 .world
                 .resources
                 .dispose(Holder::Local(local), &mut self.steps)?,
-            Operation::StageReturn(value) => {
-                if self.owns_expression(value)? {
-                    self.world.resources.move_to(
-                        Holder::Expression(value),
-                        Holder::Return,
-                        false,
-                        &mut self.steps,
-                    )?;
-                }
-            }
+            Operation::StageReturn(value) => self.world.resources.move_to(
+                Holder::Expression(value),
+                Holder::Return,
+                false,
+                &mut self.steps,
+            )?,
             Operation::ExitScope { ref locals, .. } => {
                 for &local in locals {
                     if self.world.resources.contains(Holder::Local(local)) {
@@ -150,7 +146,7 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?
             .kind;
         match *kind {
-            ExpressionKind::Transfer(local) => self.world.resources.move_to(
+            ExpressionKind::Move(local) => self.world.resources.move_to(
                 Holder::Local(local),
                 Holder::Expression(id),
                 false,
@@ -172,9 +168,7 @@ impl Context<'_, '_> {
                 self.dispose_expression(source)?;
                 self.construct(id)?;
             }
-            ExpressionKind::Place(_)
-            | ExpressionKind::Update(_)
-            | ExpressionKind::Boundary { .. } => {}
+            ExpressionKind::Place(_) | ExpressionKind::Boundary { .. } => {}
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
@@ -251,10 +245,7 @@ impl Context<'_, '_> {
             ArgumentAction::ReserveRead(_)
             | ArgumentAction::ReserveUpdate(_)
             | ArgumentAction::ReserveTransfer(_)
-            | ArgumentAction::ReadValue
-            | ArgumentAction::ReadOwnedValue
-            | ArgumentAction::ReadAccessValue
-            | ArgumentAction::UpdateValue => {}
+            | ArgumentAction::ReadOwnedValue => {}
             ArgumentAction::Interrupted => return Err(Failure::Integrity),
         }
         Ok(())
@@ -294,8 +285,8 @@ impl Context<'_, '_> {
                             .ok_or(Failure::Integrity)?,
                     )
                     .ok_or(Failure::Integrity)?
-                    .ty()
-                    .mode();
+                    .operation()
+                    .access_mode();
                 if mode == Mode::Own {
                     self.world
                         .resources

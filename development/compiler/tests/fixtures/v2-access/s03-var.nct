@@ -1,3 +1,0 @@
-func wrong(): void {
-    var value: i32 = 0
-}

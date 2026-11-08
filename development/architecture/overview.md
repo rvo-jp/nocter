@@ -54,7 +54,8 @@ owners. The crate READMEs own internal responsibility splits and invariants.
 ## Bounded Future Access Boundary
 
 The production syntax/declaration owners also expose a bounded internal private-function goal for
-future value-access implementation. Its source-neutral declaration query, typed-only body query,
+future value-binding implementation. Input operations and local binding kinds are independent of
+data types; ordinary results deliver values. Its source-neutral declaration query, typed-only body query,
 and exact-current contexts follow the [value-access boundary](pipeline/value-access-declarations.md).
 These products have distinct callable/input and body-local operation/control identities and cannot
 enter the released checked, target, or native products. There is no CLI source-version switch;

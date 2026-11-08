@@ -1,13 +1,14 @@
 use nocter_model::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessParameterId, AccessStatementId, Arena, TypeId, ValueAccessMode, ValueAccessType,
+    AccessParameterId, AccessStatementId, Arena, TypeId, ValueAccess, ValueAccessMode,
+    ValueBindingKind,
 };
 
 /// A type-only value proof; never is control interruption, not a storable data shape.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValueType {
     Never,
-    Value(ValueAccessType),
+    Value(ValueAccess),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,16 +19,23 @@ pub enum LocalOrigin {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Local {
-    pub ty: ValueAccessType,
+    pub data: TypeId,
+    pub kind: ValueBindingKind,
     pub origin: LocalOrigin,
 }
 
-/// Construction/materialization at a storage or return boundary. None silently moves a place.
+impl Local {
+    #[must_use]
+    pub const fn access(&self) -> ValueAccess {
+        ValueAccess::new(self.data, self.kind.access_mode())
+    }
+}
+
+/// Selected construction/delegation at a value or scoped-alias boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BoundaryAction {
     ReadPlace,
     DelegateUpdate,
-    ReadAccess,
     CopyPayload,
     TakeValue,
 }
@@ -38,11 +46,8 @@ pub enum ArgumentAction {
     ReserveRead(AccessLocalId),
     ReserveUpdate(AccessLocalId),
     ReserveTransfer(AccessLocalId),
-    ReadValue,
     /// Read a fresh owned temporary without Copy; its caller retains cleanup responsibility.
     ReadOwnedValue,
-    ReadAccessValue,
-    UpdateValue,
     CopyPayload,
     TakeValue,
     Interrupted,
@@ -84,8 +89,7 @@ pub enum ExpressionKind {
     Boolean(bool),
     Unit,
     Place(AccessLocalId),
-    Update(AccessLocalId),
-    Transfer(AccessLocalId),
+    Move(AccessLocalId),
     Boundary {
         source: AccessExpressionId,
         action: BoundaryAction,
@@ -196,17 +200,18 @@ impl TypedBody {
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Boundary {
-    Binding(ValueAccessType),
-    Return(ValueAccessType),
+    Binding(ValueAccess),
+    Return(TypeId),
 }
 impl Boundary {
-    pub(super) const fn ty(self) -> ValueAccessType {
+    pub(super) const fn ty(self) -> ValueAccess {
         match self {
-            Self::Binding(ty) | Self::Return(ty) => ty,
+            Self::Binding(ty) => ty,
+            Self::Return(data) => ValueAccess::new(data, ValueAccessMode::Own),
         }
     }
 }
 
 pub(super) const fn value_type(data: TypeId, mode: ValueAccessMode) -> ValueType {
-    ValueType::Value(ValueAccessType::new(data, mode))
+    ValueType::Value(ValueAccess::new(data, mode))
 }

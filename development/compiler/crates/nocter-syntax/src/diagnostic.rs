@@ -25,7 +25,6 @@ pub enum ExpectedSyntax {
     Block,
     LiteralShape,
     Expression,
-    UnmarkedCallOperand,
     BindingPattern,
     AssignmentTarget,
     EnumPattern,

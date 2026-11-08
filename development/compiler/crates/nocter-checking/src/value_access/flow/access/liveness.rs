@@ -1,7 +1,5 @@
 use super::super::{Graph, Initialization, IntegrityError, Location, Operation};
-use crate::value_access::{
-    ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, ValueType,
-};
+use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery};
 use nocter_model::{AccessExpressionId, AccessFlowPointId, AccessLocalId, ValueAccessMode as Mode};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -79,10 +77,7 @@ fn argument(
     arguments.get(index).ok_or(INVALID)
 }
 fn argument_updates(action: ArgumentAction) -> bool {
-    matches!(
-        action,
-        ArgumentAction::ReserveUpdate(_) | ArgumentAction::UpdateValue
-    )
+    matches!(action, ArgumentAction::ReserveUpdate(_))
 }
 #[derive(Clone, Copy)]
 enum Need {
@@ -96,6 +91,20 @@ impl From<bool> for Need {
     }
 }
 type Uses = Vec<(Carrier, Need)>;
+fn prepared_use(
+    typed: &TypedQuery,
+    call: AccessExpressionId,
+    index: usize,
+) -> Result<(Carrier, bool), IntegrityError> {
+    let arg = argument(typed, call, index)?;
+    let carrier = match arg.action {
+        ArgumentAction::ReserveRead(local)
+        | ArgumentAction::ReserveUpdate(local)
+        | ArgumentAction::ReserveTransfer(local) => Carrier::Local(local),
+        _ => Carrier::Expression(arg.value),
+    };
+    Ok((carrier, argument_updates(arg.action)))
+}
 fn plan(
     typed: &TypedQuery,
     operation: &Operation,
@@ -112,11 +121,8 @@ fn plan(
         }
         Operation::PrepareOperand { value, .. }
         | Operation::Condition(value)
-        | Operation::Discard(value) => uses.push((Carrier::Expression(*value), false)),
-        Operation::StageReturn(value) => {
-            let update = matches!(typed.body().expressions().get(*value).ok_or(INVALID)?.ty,ValueType::Value(ty) if ty.mode()==Mode::Update);
-            uses.push((Carrier::Expression(*value), update));
-        }
+        | Operation::Discard(value)
+        | Operation::StageReturn(value) => uses.push((Carrier::Expression(*value), false)),
         Operation::Forward { source, result } => {
             uses.push((
                 Carrier::Expression(*source),
@@ -138,7 +144,15 @@ fn plan(
         }
         Operation::Assign { target, value } => {
             uses.push((Carrier::Expression(*value), false));
-            if typed.body().locals().get(*target).ok_or(INVALID)?.ty.mode() == Mode::Own {
+            if typed
+                .body()
+                .locals()
+                .get(*target)
+                .ok_or(INVALID)?
+                .access()
+                .mode()
+                == Mode::Own
+            {
                 definitions.push(Carrier::Local(*target));
             } else {
                 uses.push((Carrier::Local(*target), true));
@@ -159,14 +173,7 @@ fn plan(
             call,
             argument: index,
         } => {
-            let arg = argument(typed, *call, *index)?;
-            let carrier = match arg.action {
-                ArgumentAction::ReserveRead(local)
-                | ArgumentAction::ReserveUpdate(local)
-                | ArgumentAction::ReserveTransfer(local) => Carrier::Local(local),
-                _ => Carrier::Expression(arg.value),
-            };
-            uses.push((carrier, argument_updates(arg.action)));
+            uses.push(prepared_use(typed, *call, *index)?);
             definitions.push(Carrier::Argument {
                 call: *call,
                 index: *index,
@@ -255,7 +262,7 @@ fn expression_uses(
     let mut uses = Vec::new();
     match typed.body().expressions().get(id).ok_or(INVALID)?.kind {
         ExpressionKind::Place(local) => uses.push((Carrier::Local(local), false)),
-        ExpressionKind::Update(local) | ExpressionKind::Transfer(local) => {
+        ExpressionKind::Move(local) => {
             uses.push((Carrier::Local(local), true));
         }
         ExpressionKind::Boundary { source, action } => {

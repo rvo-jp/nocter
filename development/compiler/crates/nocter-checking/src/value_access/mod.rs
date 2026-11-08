@@ -33,7 +33,6 @@ pub enum Rule {
     UnusedValue,
     MissingResult,
     IntegerRange,
-    InvalidTransfer,
     InvalidLoopControl,
     InvalidDrop,
     NotWritable,
@@ -52,11 +51,11 @@ impl Rule {
             ),
             Self::TypeMismatch => (
                 DiagnosticCode::E0370,
-                "data type or access mode does not match this value boundary",
+                "data type or operation does not match this value boundary",
             ),
             Self::MissingTransfer => (
                 DiagnosticCode::E0371,
-                "this boundary needs an owned value; transfer a non-Copy owner explicitly",
+                "value construction needs Copy evidence or an eligible owning source",
             ),
             Self::UnusedValue => (
                 DiagnosticCode::E0372,
@@ -70,10 +69,6 @@ impl Rule {
                 DiagnosticCode::E0375,
                 "integer literal is outside the i32 range",
             ),
-            Self::InvalidTransfer => (
-                DiagnosticCode::E0377,
-                "transfer requires an existing owned place",
-            ),
             Self::InvalidLoopControl => (
                 DiagnosticCode::E0382,
                 "break or continue requires an enclosing loop",
@@ -84,7 +79,7 @@ impl Rule {
             ),
             Self::NotWritable => (
                 DiagnosticCode::E0384,
-                "assignment requires an owned or update place",
+                "assignment requires a mutable value or edit access",
             ),
             Self::CompoundOperand => (
                 DiagnosticCode::E0386,
@@ -92,7 +87,7 @@ impl Rule {
             ),
             Self::InvalidUpdate => (
                 DiagnosticCode::E0387,
-                "update access requires an existing owned or update place",
+                "edit access requires existing writable storage",
             ),
             Self::InvalidCall => (
                 DiagnosticCode::E0390,

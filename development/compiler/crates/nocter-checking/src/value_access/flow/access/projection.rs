@@ -1,5 +1,5 @@
 use super::super::Context;
-use super::{AccessRule, Creation, RequiredUse, Root, Violation};
+use super::{AccessRule, Creation, Root, Violation};
 use crate::value_access::{Failure, LocalOrigin, source_origin};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 
@@ -91,10 +91,6 @@ impl Context<'_, '_> {
                     DiagnosticCode::E0396,
                     "the selected call requires incompatible simultaneous accesses to the same root",
                 ),
-                AccessRule::InvalidReturnRoot => (
-                    DiagnosticCode::E0395,
-                    "the returned access does not refer to an allowed surviving input",
-                ),
                 AccessRule::ExpiredRoot => (
                     DiagnosticCode::E0398,
                     "this access requires an owner that no longer survives",
@@ -117,17 +113,9 @@ impl Context<'_, '_> {
                     "the retained access or reservation starts here",
                     source_origin(syntax, origin)?,
                 ));
-                if let Some(required) = retained.required {
-                    let (at, message) = match required {
-                        RequiredUse::Action(at) => {
-                            (at, "this operation still requires that access")
-                        }
-                        RequiredUse::StagedResult(at) => {
-                            (at, "this staged result must survive exit cleanup")
-                        }
-                    };
+                if let Some(at) = retained.required {
                     notes.push(DiagnosticNote::new(
-                        message,
+                        "this operation still requires that access",
                         source_origin(syntax, self.origin(at)?)?,
                     ));
                 }

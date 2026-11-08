@@ -1,362 +1,255 @@
 use super::*;
 use crate::value_access::{
     flow::{
-        Operation,
+        Location, Operation,
         resources::{Disposal, Holder, Step},
     },
-    tests::{bound, field, input, string},
+    tests::{bound, input},
 };
 use nocter_declaration_lowering::access_declarations as declarations;
 use nocter_json::Value;
 use std::{fs, path::PathBuf};
-
-fn accepted(source: &str) -> Unit {
-    let (sources, tree) = input(source);
-    let declarations = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
-    Unit::prepare(&declarations.bind(bound(&sources, &tree)).unwrap()).unwrap()
+fn field<'a>(value: &'a Value, name: &str) -> &'a Value {
+    let Value::Object(members) = value else {
+        panic!("object")
+    };
+    &members
+        .iter()
+        .find(|m| m.name.as_ref() == name)
+        .unwrap()
+        .value
+}
+fn string(value: &Value) -> &str {
+    let Value::String(s) = value else {
+        panic!("string")
+    };
+    s
+}
+fn accepted(text: &str) -> Unit {
+    let (sources, tree) = input(text);
+    let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    Unit::prepare(&query.bind(bound(&sources, &tree)).unwrap()).unwrap()
 }
 fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {
     unit.bodies()
-        .find(|(_, query)| {
-            unit.program().symbols().spelling(
-                unit.program()
-                    .callables()
-                    .get(query.typed().callable())
-                    .unwrap()
-                    .name(),
-            ) == Some(name)
+        .find(|(id, _)| {
+            unit.program()
+                .symbols()
+                .spelling(unit.program().callables().get(*id).unwrap().name())
+                == Some(name)
         })
         .unwrap()
         .1
 }
-fn error_disposals(steps: &[Step]) -> Vec<Holder> {
-    steps
-        .iter()
-        .filter_map(|step| match step {
-            Step::Dispose { source, payload } if payload.disposal() == Disposal::OwnedError => {
-                Some(*source)
-            }
-            _ => None,
-        })
-        .collect()
-}
-
 #[test]
-fn whole_unit_accepts_nineteen_and_rejects_all_nineteen_check_failures() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/v2-access");
+fn corpus_is_validated_by_the_complete_production_boundary() {
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/value-bindings");
     let manifest =
         nocter_json::parse(&fs::read_to_string(root.join("manifest.json")).unwrap()).unwrap();
     let Value::Array(cases) = field(&manifest, "cases") else {
-        panic!("cases");
+        panic!("cases")
     };
-    let mut counts = [0; 2];
+    let mut counts = [0; 5];
     for case in cases {
-        let expectation = string(field(case, "expectation"));
-        if matches!(expectation, "syntax-reject" | "declaration-reject") {
+        let name = string(field(case, "file"));
+        let text = fs::read_to_string(root.join(name)).unwrap();
+        let mut sources = nocter_source::SourceMap::new();
+        let source = sources
+            .add_bytes(nocter_source::SourceName::new(name), text.as_bytes())
+            .unwrap();
+        let tree = nocter_syntax::parse(
+            sources.get(source).unwrap(),
+            nocter_syntax::ParseGoal::V2CoreUnit,
+        );
+        if string(field(case, "expectation")) == "syntax-reject" {
+            assert!(tree.has_errors(), "{name}");
+            counts[0] += 1;
             continue;
         }
-        let source = fs::read_to_string(root.join(string(field(case, "file")))).unwrap();
-        let (sources, tree) = input(&source);
-        let declarations = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
-        let result = Unit::prepare(&declarations.bind(bound(&sources, &tree)).unwrap());
-        assert_eq!(
-            result.is_ok(),
-            expectation == "accept",
-            "{}: {result:?}",
-            string(field(case, "id"))
-        );
-        assert!(
-            !matches!(result, Err(Failure::Integrity(_))),
-            "{}",
-            string(field(case, "id"))
-        );
-        counts[usize::from(expectation == "accept")] += 1;
-    }
-    assert_eq!(counts, [19, 19]);
-}
-
-#[test]
-fn prepared_owned_prefix_is_destroyed_in_reverse_order_only_on_cancellation() {
-    let unit = accepted(
-        "func forward(value: ^error): ^error { ^value }\nfunc take(first: ^error, second: ^error, number: i32): void {}\nfunc run(first: ^error, second: ^error, flag: bool): ^i32 {\n take(forward(first), forward(second), if flag { return 1 } else { 0 })\n return 0\n}\n",
-    );
-    let run = named(&unit, "run");
-    let mut found = false;
-    for (point, block) in run.graph().points().iter() {
-        for (action, event) in block.actions.iter().enumerate() {
-            let at = flow::Location { point, action };
-            if let Operation::CancelCall { call, prepared: 2 } = event.operation {
-                for transition in run.access().resources().at(at) {
+        assert!(!tree.has_errors(), "{name}: {:?}", tree.diagnostics());
+        let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        let context = query.bind(bound(&sources, &tree)).unwrap();
+        let result = Unit::prepare(&context);
+        if string(field(case, "expectation")) == "accept" {
+            let unit = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            assert_eq!(unit.bodies().len(), context.program().callables().len());
+            assert!(unit.bind(&context).is_ok());
+            counts[1] += 1;
+        } else {
+            match result {
+                Err(Failure::Body {
+                    failure: BodyFailure::Rejected(diagnostic),
+                    ..
+                }) => {
+                    assert!(!diagnostic.source().primary().span().range().is_empty());
                     assert_eq!(
-                        error_disposals(transition.steps()),
-                        [
-                            Holder::Prepared { call, index: 1 },
-                            Holder::Prepared { call, index: 0 }
-                        ]
+                        diagnostic.source().code(),
+                        string(field(case, "diagnostic")),
+                        "{name}"
                     );
-                    assert!(!transition.initialized_after(Holder::Prepared { call, index: 0 }));
-                    found = true;
+                    counts[2] += 1;
                 }
+                Err(Failure::Flow { diagnostics, .. }) => {
+                    assert!(!diagnostics.is_empty());
+                    let expected = string(field(case, "diagnostic"));
+                    assert_eq!(diagnostics[0].code(), expected, "{name}");
+                    counts[if expected == "E0378" { 3 } else { 4 }] += 1;
+                }
+                other => panic!("{name}: {other:?}"),
             }
         }
     }
-    assert!(found);
+    assert_eq!(counts, [4, 14, 7, 3, 2]);
 }
-
 #[test]
-fn merely_reserved_owner_is_destroyed_at_scope_exit_not_call_cancellation() {
+fn unused_bad_definition_rejects_the_entire_unit_and_recursive_valid_bodies_are_closed() {
+    let (sources, tree) = input("func good(): void {}\nfunc unused(input: error): error { input }");
+    let q = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(matches!(
+        Unit::prepare(&q.bind(bound(&sources, &tree)).unwrap()),
+        Err(Failure::Body { .. })
+    ));
     let unit = accepted(
-        "func take(value: ^error, amount: i32): void {}\nfunc run(value: ^error, flag: bool): ^i32 {\n take(value, if flag { return 1 } else { 0 })\n return 0\n}\n",
+        "func first(take input: error): error { second(input) }\nfunc second(take input: error): error { first(input) }",
     );
-    let run = named(&unit, "run");
-    let mut cancelled = false;
-    let mut cleaned = false;
-    for (point, block) in run.graph().points().iter() {
-        for (action, event) in block.actions.iter().enumerate() {
-            for transition in run
-                .access()
-                .resources()
-                .at(flow::Location { point, action })
-            {
-                if matches!(event.operation, Operation::CancelCall { prepared: 1, .. }) {
-                    assert!(error_disposals(transition.steps()).is_empty());
-                    cancelled = true;
-                }
-                cleaned |= matches!(event.operation, Operation::ExitScope { .. })
-                    && !error_disposals(transition.steps()).is_empty();
-            }
-        }
-    }
-    assert!(cancelled && cleaned);
+    assert_eq!(unit.bodies().len(), 2);
 }
-
 #[test]
-fn fresh_move_only_input_is_read_without_copy_and_its_temporary_is_released() {
+fn whole_unit_rebinding_checks_every_body_and_the_exact_authority() {
+    let text = "func first(): i32 { 1 }\nfunc second(): i32 { 2 }";
+    let (sources, tree) = input(text);
+    let q = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let c = q.bind(bound(&sources, &tree)).unwrap();
+    let unit = Unit::prepare(&c).unwrap();
+    let (same, other_tree) = input(&format!("// source moved\n{text}"));
+    let same = q.bind(bound(&same, &other_tree)).unwrap();
+    assert!(unit.bind(&same).is_ok());
+    let fresh = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let fresh = fresh.bind(bound(&sources, &tree)).unwrap();
+    assert!(matches!(
+        unit.bind(&fresh),
+        Err(BodyFailure::ChangedAuthority)
+    ));
+    let (changed, changed_tree) = input("func first(): i32 { 1 }\nfunc second(): i32 { 3 }");
+    let changed = q.bind(bound(&changed, &changed_tree)).unwrap();
+    assert!(matches!(unit.bind(&changed), Err(BodyFailure::ChangedBody)));
+}
+#[test]
+fn read_of_a_fresh_noncopy_result_disposes_one_evaluation_temporary() {
     let unit = accepted(
-        "func forward(value: ^error): ^error { ^value }\nfunc read(value: error): error { value }\nfunc run(value: ^error): void {\n let _ = read(forward(value))\n}\n",
+        "func forward(take input: error): error { input }\nfunc observe(input: error): void {}\nfunc sample(take input: error): void { observe(forward(input)) }",
     );
-    let run = named(&unit, "run");
-    let mut found = false;
-    for (point, block) in run.graph().points().iter() {
-        for (action, event) in block.actions.iter().enumerate() {
-            if matches!(event.operation, Operation::EndEvaluation(_)) {
-                for transition in run
-                    .access()
-                    .resources()
-                    .at(flow::Location { point, action })
-                {
-                    if let [Holder::Temporary { .. }] =
-                        error_disposals(transition.steps()).as_slice()
+    let q = named(&unit, "sample");
+    let mut disposed = Vec::new();
+    for (point, block) in q.graph().points().iter() {
+        for action in 0..block.actions.len() {
+            for t in q.access().resources().at(Location { point, action }) {
+                for step in t.steps() {
+                    if let Step::Dispose { source, payload } = step
+                        && payload.disposal() == Disposal::OwnedError
                     {
-                        found = true;
+                        disposed.push(*source);
                     }
                 }
             }
         }
     }
-    assert!(found);
+    assert_eq!(disposed.len(), 1);
+    assert!(matches!(disposed[0], Holder::Temporary { .. }));
 }
-
 #[test]
-fn access_cannot_keep_a_fresh_owned_argument_alive_past_its_evaluation() {
-    for tail in [
-        "let saved = read(forward(value))\n let _ = saved",
-        "return read(forward(value))",
-    ] {
-        let result_type = if tail.starts_with("return") {
-            "error"
-        } else {
-            "void"
-        };
-        let source = format!(
-            "func forward(value: ^error): ^error {{ ^value }}\nfunc read(value: error): error {{ value }}\nfunc run(value: ^error): {result_type} {{\n {tail}\n}}\n"
-        );
-        let (sources, tree) = input(&source);
-        let declarations = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
-        let result = Unit::prepare(&declarations.bind(bound(&sources, &tree)).unwrap());
-        assert!(
-            matches!(result, Err(Failure::Flow { .. })),
-            "{source}: {result:?}"
-        );
-    }
-}
-
-#[test]
-fn rhs_self_transfer_and_maybe_initialized_replacement_destroy_exactly_present_owners() {
+fn cancellation_of_a_reserved_take_prefix_leaves_its_owner_until_scope_cleanup() {
     let unit = accepted(
-        "func run(value: ^error, next: ^error, flag: bool): ^error {\n if flag { drop value }\n value = ^next\n value = ^value\n return ^value\n}\n",
+        "func consume(take value: error,number: i32): void {}\nfunc sample(take input: error,finish: bool): void { consume(input,if finish { return } else { 0 }) }",
     );
-    let run = named(&unit, "run");
-    let assignments = run
-        .graph()
-        .points()
-        .iter()
-        .flat_map(|(point, block)| {
-            block
-                .actions
-                .iter()
-                .enumerate()
-                .filter_map(move |(action, event)| {
-                    matches!(event.operation, Operation::Assign { .. })
-                        .then_some(flow::Location { point, action })
-                })
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(assignments.len(), 2);
-    let mut replacement_disposals = run
-        .access()
-        .resources()
-        .at(assignments[0])
-        .map(|transition| error_disposals(transition.steps()).len())
-        .collect::<Vec<_>>();
-    replacement_disposals.sort_unstable();
-    replacement_disposals.dedup();
-    assert_eq!(replacement_disposals, [0, 1]);
-    assert!(
-        run.access()
-            .resources()
-            .at(assignments[1])
-            .all(|transition| error_disposals(transition.steps()).is_empty())
-    );
-}
-
-#[test]
-fn all_callees_are_validated_even_when_unreachable_or_recursive() {
-    for source in [
-        "func entry(): void {}\nfunc bad(): &i32 { let local = 0\n &local }\n",
-        "func a(value: ^error): ^error { b(value) }\nfunc b(value: ^error): ^error { a(value) }\n",
-        "func entry(): void {}\nfunc bad(value: ^error): ^error { drop value\n ^value }\n",
-    ] {
-        let (sources, tree) = input(source);
-        let declarations = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
-        let result = Unit::prepare(&declarations.bind(bound(&sources, &tree)).unwrap());
-        if source.contains("func a(") {
-            assert!(result.is_ok(), "{result:?}");
-        } else {
-            assert!(matches!(result, Err(Failure::Flow { .. })), "{result:?}");
+    let q = named(&unit, "sample");
+    let local = q.typed().body().locals().iter().next().unwrap().0;
+    let mut seen = false;
+    for (point, block) in q.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            if matches!(event.operation, Operation::CancelCall { prepared: 1, .. }) {
+                for t in q.access().resources().at(Location { point, action }) {
+                    assert!(t.initialized_before(Holder::Local(local)));
+                    assert!(t.initialized_after(Holder::Local(local)));
+                    assert!(
+                        !t.steps()
+                            .iter()
+                            .any(|step| matches!(step, Step::Invoke { .. }))
+                    );
+                    seen = true;
+                }
+            }
         }
     }
+    assert!(seen);
 }
-
 #[test]
-fn accepted_source_binding_requires_all_original_bodies_and_the_same_authority() {
-    let source = "func forward(value: ^error): ^error { ^value }\nfunc entry(): void {}\n";
-    let (sources, tree) = input(source);
-    let declarations = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
-    let current = declarations.bind(bound(&sources, &tree)).unwrap();
-    let unit = Unit::prepare(&current).unwrap();
-    assert_eq!(unit.bodies().len(), current.program().callables().len());
-    let (later_sources, later_tree) = input(&format!("\n\n{source}"));
-    let later = declarations
-        .bind(bound(&later_sources, &later_tree))
-        .unwrap();
-    let rebound = unit.bind(&later).unwrap();
-    assert!(std::ptr::eq(rebound.unit(), &raw const unit));
-    for (id, query) in unit.bodies() {
-        assert!(std::ptr::eq(rebound.body(id).unwrap().query(), query));
+fn edit_input_replacement_retains_its_initialized_outside_slot() {
+    let unit = accepted(
+        "func replace(edit target: error,take replacement: error): void { target = replacement }",
+    );
+    let q = named(&unit, "replace");
+    let mut seen = false;
+    for (point, block) in q.graph().points().iter() {
+        for action in 0..block.actions.len() {
+            for t in q.access().resources().at(Location { point, action }) {
+                seen|=t.steps().iter().any(|step|matches!(step,Step::ReplaceInput{payload,..} if payload.disposal()==Disposal::OwnedError));
+            }
+        }
     }
-    let (changed_sources, changed_tree) = input(&source.replace("{ ^value }", "{ return ^value }"));
-    let changed = declarations
-        .bind(bound(&changed_sources, &changed_tree))
-        .unwrap();
-    assert!(matches!(unit.bind(&changed), Err(BodyFailure::ChangedBody)));
-    let independent = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(seen);
+}
+#[test]
+fn every_call_result_is_a_value_and_conditional_copies_do_not_retain_the_source() {
+    accepted(
+        "func count(): i32 { 0 }\nfunc sample(flag: bool): i32 { var value = count()\nvalue += 1\nlet answer = if flag { value } else { 2 }\nvalue = 3\nreturn answer + value }",
+    );
+}
+#[test]
+fn a_conditional_move_does_not_restore_the_source_on_another_path() {
+    let (sources, tree) = input(
+        "func invalid(take input: error,flag: bool): error { if flag { let _ = input }\nreturn input }",
+    );
+    let header = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
     assert!(matches!(
-        unit.bind(&independent.bind(bound(&sources, &tree)).unwrap()),
-        Err(BodyFailure::ChangedAuthority)
+        Unit::prepare(&header.bind(bound(&sources, &tree)).unwrap()),
+        Err(Failure::Flow { .. })
     ));
 }
 
 #[test]
-fn update_replacement_disposes_the_original_payload_and_keeps_the_owner_initialized() {
-    let unit = accepted(
-        "func replace(destination: &error, next: ^error): void { destination = ^next }\nfunc run(value: ^error, next: ^error): ^error {\n let edit = &value\n edit = ^next\n return ^value\n}\n",
-    );
-    for name in ["replace", "run"] {
-        let query = named(&unit, name);
-        let mut found = false;
-        for (point, block) in query.graph().points().iter() {
-            for (action, event) in block.actions.iter().enumerate() {
-                if !matches!(event.operation, Operation::Assign { .. }) {
-                    continue;
-                }
-                for transition in query
-                    .access()
-                    .resources()
-                    .at(flow::Location { point, action })
-                {
-                    if name == "replace" {
-                        assert!(
-                            matches!(transition.steps(), [Step::ReplaceInput { payload, .. }] if payload.disposal() == Disposal::OwnedError && !payload.has_external_dependencies())
-                        );
-                    } else {
-                        assert_eq!(error_disposals(transition.steps()).len(), 1);
-                        assert!(matches!(
-                            transition.steps().last(),
-                            Some(Step::Move {
-                                destination: Holder::Local(_),
-                                ..
-                            })
-                        ));
-                    }
-                    found = true;
-                }
-            }
-        }
-        assert!(found);
+fn literal_control_does_not_invent_normal_loop_exits() {
+    for text in [
+        "func f(): i32 { loop { if false { break } } }",
+        "func f(): i32 { while true { if false { break } } }",
+        "func f(): i32 { loop { if true { continue } else { () }\nbreak } }",
+        "func f(): i32 { loop { while false { break } } }",
+    ] {
+        accepted(text);
     }
-}
-
-#[test]
-fn loop_paths_release_body_owners_and_can_return_ownership_without_accumulation() {
-    accepted(
-        "func run(value: ^error, flag: bool): ^error {\n while flag {\n let moved = ^value\n value = ^moved\n continue\n }\n return ^value\n}\n",
-    );
-    accepted(
-        "func read(value: error): error { value }\nfunc forward(value: ^error): ^error { ^value }\nfunc run(value: ^error, flag: bool): void {\n loop {\n let _ = read(forward(value))\n if flag { break }\n return\n }\n}\n",
-    );
-    accepted(
-        "func run(flag: bool): void { loop { while (if flag { break } else { false }) {} } }\n",
-    );
-}
-
-#[test]
-fn successful_invocation_transfers_prepared_ownership_without_destroying_it_in_the_caller() {
-    let unit = accepted(
-        "func forward(value: ^error): ^error { ^value }\nfunc take(value: ^error): void {}\nfunc run(value: ^error): void { take(forward(value)) }\n",
-    );
-    let run = named(&unit, "run");
-    let mut transferred = false;
-    let mut received = false;
-    for (point, block) in run.graph().points().iter() {
-        for (action, event) in block.actions.iter().enumerate() {
-            for transition in run
-                .access()
-                .resources()
-                .at(flow::Location { point, action })
-            {
-                assert!(error_disposals(transition.steps()).is_empty());
-                assert!(
-                    !transition.steps().iter().any(|step| matches!(step,
-                    Step::Construct { payload, .. } if payload.disposal() == Disposal::OwnedError))
-                );
-                if matches!(event.operation, Operation::CommitCall(_)) {
-                    received |= transition.steps().iter().any(|step| {
-                        matches!(step,
-                        Step::Receive { payload, .. } if payload.disposal() == Disposal::OwnedError)
-                    });
-                    transferred |= transition.steps().iter().any(|step| {
-                        matches!(
-                            step,
-                            Step::Invoke {
-                                source: Holder::Prepared { .. },
-                                ..
-                            }
-                        )
-                    });
-                }
-            }
-        }
+    for text in [
+        "func f(): i32 { loop { if true { break } } }",
+        "func f(): i32 { loop { if false { continue } else { break } } }",
+        "func f(flag: bool): i32 { loop { if flag { continue }\nbreak } }",
+    ] {
+        let (sources, tree) = input(text);
+        let q = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        assert!(
+            matches!(
+                Unit::prepare(&q.bind(bound(&sources, &tree)).unwrap()),
+                Err(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })
+                    if diagnostic.rule() == crate::value_access::Rule::MissingResult
+            ),
+            "{text}"
+        );
     }
-    assert!(transferred && received);
+    let (sources, tree) =
+        input("func f(): i32 { loop { if false { let bad: i32 = true }\ncontinue } }");
+    let q = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(matches!(
+        Unit::prepare(&q.bind(bound(&sources, &tree)).unwrap()),
+        Err(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })
+            if diagnostic.rule() == crate::value_access::Rule::TypeMismatch
+    ));
 }

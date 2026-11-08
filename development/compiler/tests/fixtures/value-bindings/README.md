@@ -1,30 +1,38 @@
-# Planned Value Binding Inputs
+# Value Binding Conformance Inputs
 
-These sources are derived from the owning future
+These sources derive from the owning future
 [bounded value-binding grammar](../../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
-and [input/value rules](../../../../../spec/language/value-access.md). Each file represents one
-supplied private module. It is not a runnable package or a contract-only `index.nct`.
+and [input/value rules](../../../../../spec/language/value-access.md). Each file is one supplied
+private module, not a runnable package or a contract-only `index.nct`.
 
-**Compiler status: planned, not consumed.** The production `V2CoreUnit` path still implements the
-pre-S12 checkpoint. No production parser/checker test currently reads this manifest. These expected
-verdicts are design requirements, not passing compiler tests. Do not point the old parser at them
-and reinterpret its verdicts as new-language semantics. Do not implement a parallel source-text
-parser/checker in a corpus inventory script.
+The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
+`manifest.json`. All thirty inputs have compiler assertions: four syntax rejections, seven
+structural body rejections, five initialization/access rejections, and fourteen whole-unit
+acceptances. Checking rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all twenty-six syntax-valid units without claiming body
+acceptance. Their twenty-six `.shape` files are reviewed lossless parser snapshots. Parser tests
+also check token/source projection. Neither shape equality nor manifest registration proves
+memory safety; the closed checker owns the semantic verdicts.
 
-`manifest.json` identifies each source once and records the intended acceptance/rejection and
-its distinguishing reason. The owning specification supplies semantics; the eventual consuming
-crate tests own assertions, source projections and diagnostics. The corpus has fourteen intended
-acceptances, twelve checking rejections and four syntax rejections. It covers default-read and
-taking inputs, local values/aliases, Copy/move, fixed/mutable state, RHS-first replacement, unit,
-branch/loop initialization, direct reservations and evaluation-temporary cleanup. An `error` input
-supplies opaque move-only data without a constructor or dependency-bearing nominal extension.
+The compiler tests retain their assertions. The manifest identifies the source and distinguishing
+requirement; the owning specification remains normative. No second parser/checker or source-text
+semantic oracle belongs in corpus tooling. The [implementation review](../../../../history/reviews/v2.0.0-value-binding-front-end.md)
+records qualification and limits. The [input-default decision](../../../../history/reviews/v2.0.0-parameter-defaults.md)
+records design rationale; its generic/closure examples require later extensions.
 
-Replace parser/declarations/typing/flow/access/resources as one accepted-unit boundary, then wire
-these sources into production consumers and record actual results. Retire incompatible pre-S12
-expectations at that boundary. The intended parse goal remains `V2CoreUnit`; no user-visible
-source version, compatibility mode, released-language glob or native path is added.
+The corpus covers default-read and taking inputs, local values/aliases, Copy/move, fixed/mutable
+state, RHS-first replacement, unit, branch/loop initialization, direct reservations and evaluation
+cleanup. Opaque error inputs supply move-only data under an exact independent snapshot contract.
+These passes do not implement dependent aggregates, projections, callable values, generics,
+outcomes, async, public modules, ABI or native execution. No CLI version switch or released-program
+adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
 
-The [parameter-default review](../../../../history/reviews/v2.0.0-parameter-defaults.md) records the
-choice and tradeoffs. Generic/closure cases discussed there require later grammar extensions;
-they are not smuggled into this four-type corpus. Full value-access D/S, public modules, projections,
-capability schemas, outcomes/async and native execution require their own conformance.
+Run focused production tests from the repository root:
+
+```sh
+cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-syntax parser::access
+cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-declaration-lowering access_declarations
+cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-checking value_access
+```
+
+To update structural snapshots deliberately, set `NOCTER_UPDATE_ACCESS_SHAPES=1` for the syntax
+test, then review every changed shape. Do not regenerate snapshots to conceal semantic failures.

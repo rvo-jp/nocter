@@ -1,4 +1,0 @@
-func wrong(value: ^i32): i32 {
-    let next = ^value
-    return value
-}

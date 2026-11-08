@@ -93,7 +93,7 @@ beside their owning modules.
 
 The access-declaration query accepts only complete `V2CoreUnit` syntax. It collects all headers,
 canonicalizes declaration symbols, reserves functions by name order, and resolves data types,
-permissions, namespaces and eligible input referents before examining body semantics. Existing
+input operations, namespaces and data-only value results before examining body semantics. Existing
 built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain
 the first conflicting declaration; forward references cannot alter collision selection.
 

@@ -17,31 +17,28 @@ default. Uncontextualized closure inputs default to read; a selected expected co
 omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-The [bounded value-binding grammar](../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
-now closes the next private-module source/checking scope. The
-[planned source corpus](compiler/tests/fixtures/value-bindings/README.md) contains thirty intended
-verdicts and is explicitly unconsumed. Next replace the production `V2CoreUnit` parser,
-declarations/value-result metadata, binding/input typing, shared flow/init/access/resource plans
-as one sealed accepted-unit boundary; wire the planned corpus into production tests and retire
-incompatible old expectations then. No new CLI version switch, parallel parser/checker, old-mode
-adapter, duplicate owner-survival set or partial accepted-unit publication is permitted.
+The [bounded value-binding front end](history/reviews/v2.0.0-value-binding-front-end.md) now
+replaces the old private checkpoint. Its thirty source cases run through production syntax,
+declarations, typing and shared initialization/access/resource checking: fourteen acceptances,
+twelve checking rejections and four syntax rejections. No CLI mode, released-program adapter,
+parallel accepted authority or duplicate owner-survival set was added. Ordinary results are
+values; input operations and local mutability/aliasing remain separate from data TypeId.
+
+Next extend place projections and nominal payload schemas under their owning specification.
+Preserve one selected operation and one shared control/access/resource authority; prove partial
+moves, overlapping/disjoint places, replacement cleanup and dependency survival before accepting
+these data shapes. Then extend generic/callable/interface contracts, capabilities, outcomes/async
+and public modules under closed owning contracts, followed by target/ABI and native lifecycle
+realization. The four-type fragment's empty D/S evidence is an exact contract, not a generic
+inference result. Full-language grammar assembly remains a draft.
 
 Read each owning crate README before editing. The
 [implementation design](history/reviews/v2.0.0-value-binding-implementation.md) retains the broader
-36 adversarial requirements, capability/result/state-footprint and proof/qualification gates.
-No S12 implementation/native conformance follows from source inventories or documentation builds.
-After this bounded replacement, extend projections/nominals, generic/callable/interface schemas,
-outcomes/async and public modules under their own closed owning contracts; then realize target/ABI
-and native lifecycle behavior. Keep whole-source grammar assembly a draft until its semantic
-subjects migrate coherently; it does not block the closed four-type private fragment.
-
-The [first-access slice](history/reviews/v2.0.0-first-access-slice.md) and
-[checkpoint snapshot](history/reviews/v2.0.0-access-checkpoint-contracts.md) preserve the existing
-implementation's scope: 50 source cases, nineteen accepted whole private units; all definitions
-checked; exact source rebinding; init/access/cleanup evidence. This is pre-S12 qualification,
-not a compatible subset or new-language conformance. The inventory checker is registration-only.
-No target, ABI, runtime/error-storage realization, CLI mode, native execution or complete generic
-D/S analysis is claimed. Keep current released behavior and release artifacts unchanged.
+36 adversarial requirements and capability/result/state-footprint proof obligations. Current
+production conformance does not establish native execution, full-language safety or speedup.
+Earlier [pre-S12 contracts](history/reviews/v2.0.0-access-checkpoint-contracts.md) remain historical
+evidence; their incompatible executable fixtures and source paths have been retired. Keep current
+released behavior and release artifacts unchanged.
 
 Full v2.0.0 still needs remaining item/module/visibility/construction, generic/interface/CTFE/effect,
 outcome/async, library and platform realization, plus matching formatting/diagnostics/editor
@@ -69,8 +66,8 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No external or human-decision blocker remains for the next S12 design/migration task or the
-qualified v0.73.0 release candidate. Full v2.0.0 still requires the grammar, compiler replacement,
+No external or human-decision blocker remains for the next v2.0.0 extension task or the
+qualified v0.73.0 release candidate. Full v2.0.0 still requires the remaining grammar, compiler extensions,
 formal validation and full-language migrations described above. The current
 language deliberately rejects `notrap async` because `future T` has no drive-time trap contract;
 v2.0.0 removes the authored modifier rather than adding one to future types.

@@ -52,6 +52,14 @@ fn function(parser: &mut Parser<'_>) {
 
 fn parameter(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    if (parser.at_contextual(ContextualSpelling::Edit)
+        || parser.at_contextual(ContextualSpelling::Take))
+        && parser.nth_kind(1) == TokenKind::Identifier
+    {
+        let operation = parser.start();
+        parser.bump();
+        parser.complete(operation, NodeKind::InputOperation);
+    }
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
@@ -60,16 +68,6 @@ fn parameter(parser: &mut Parser<'_>) {
 
 fn type_(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    let qualifier = if matches!(
-        parser.current_kind(),
-        TokenKind::Punctuation(Punctuation::Ampersand | Punctuation::Caret)
-    ) {
-        let qualifier = parser.start();
-        parser.bump();
-        Some(qualifier)
-    } else {
-        None
-    };
     let named = parser.start();
     if matches!(
         parser.current_kind(),
@@ -83,9 +81,6 @@ fn type_(parser: &mut Parser<'_>) {
         parser.error_token(ExpectedSyntax::Type);
     }
     parser.complete(named, NodeKind::NamedType);
-    if let Some(qualifier) = qualifier {
-        parser.complete(qualifier, NodeKind::AccessType);
-    }
     parser.complete(marker, NodeKind::Type);
 }
 
@@ -115,7 +110,14 @@ fn required_block(parser: &mut Parser<'_>) {
 
 fn entry(parser: &mut Parser<'_>) {
     match parser.current_kind() {
-        TokenKind::Keyword(Keyword::Let) => binding(parser),
+        TokenKind::Keyword(Keyword::Let | Keyword::Var) => binding(parser),
+        TokenKind::Identifier
+            if (parser.at_contextual(ContextualSpelling::Read)
+                || parser.at_contextual(ContextualSpelling::Edit))
+                && parser.nth_kind(1) == TokenKind::Identifier =>
+        {
+            binding(parser);
+        }
         TokenKind::Keyword(Keyword::Return) => return_(parser),
         TokenKind::Keyword(Keyword::Break | Keyword::Continue) => {
             let marker = parser.start();
@@ -140,7 +142,9 @@ fn entry(parser: &mut Parser<'_>) {
 
 fn binding(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    let operation = parser.start();
     parser.bump();
+    parser.complete(operation, NodeKind::BindingOperation);
     let pattern = parser.start();
     parser.expect_name_or_discard();
     parser.complete(pattern, NodeKind::BindingPattern);

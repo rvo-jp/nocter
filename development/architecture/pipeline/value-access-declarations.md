@@ -1,12 +1,11 @@
 # Future Private Value Access Declarations
 
-This document owns the currently implemented bounded handoff between syntax, declaration lowering,
-metadata, typed bodies and accepted private units. It describes the **pre-S12 checkpoint**, whose
-source contract is preserved in the [checkpoint record](../../history/reviews/v2.0.0-access-checkpoint-contracts.md).
-The adopted [future Value Access Model](../../../spec/language/value-access.md) has changed;
-this implementation is not S12 conformance. Replace it coherently under the
-[implementation design](../../history/reviews/v2.0.0-value-binding-implementation.md), without a
-compatibility mode. This is neither a complete v2.0.0 pipeline nor a native execution contract.
+This document owns the bounded handoff between syntax, declarations, typed bodies and accepted
+private units for the adopted value-binding goal. Language meaning belongs to the
+[future value model](../../../spec/language/value-access.md) and
+[bounded grammar](../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment).
+The earlier type-qualified/result-access checkpoint is retired; its historical records are not
+an alternate source mode. This boundary has no released-program adapter or native consumer.
 
 ```text
 V2CoreUnit syntax + exact source
@@ -29,11 +28,12 @@ V2CoreUnit syntax + exact source
 and stable locators that exclude body contents. The lowered query uses that one projection; it
 does not parse source again or invent a second declaration fingerprint.
 
-`nocter-model` owns distinct access-callable/input identities and the independent permission/data
-shape descriptor. Permission is not a borrow capability or a general coercion rank.
+`nocter-model` owns distinct access-callable/input identities and the independent input operations, local binding
+kinds and transient operation access. Data types are independent; access is not a borrow-type
+constructor or a general coercion rank.
 
 `nocter-declarations` owns the source-independent program, namespace, scalar data authority,
-parameter ownership and ordered input identities, exact modes, and result-referent upper bounds.
+ordered input identities and operations, and data-only value results.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
 Only the admitted built-in data shapes cross this boundary. No borrowed wrapper or released
 storable-type heuristic supplies a missing future contract.
@@ -48,20 +48,20 @@ products or relabel released source as future source.
 ## Contract Facts and Limits
 
 All headers are resolved before body semantics. Body contents, source coordinates, declaration
-traversal order, and later Copy specialization cannot change a declared mode. Definition order
-cannot renumber parameters or result origins. Reordering source declarations may invalidate a
+traversal order, and later Copy specialization cannot change a declared input operation. Definition
+order cannot renumber parameters. Reordering source declarations may invalidate a
 source-surface cache entry but must preserve canonical semantic identities when recomputed.
 
-An independent I Copy answer retains I. A U result retains access to eligible caller storage,
-including for zero-sized unit. Result-referent sets are alternative upper bounds, not simultaneous
-active U accesses and not proof of payload/storage independence. An empty bound cannot create an
-access or make a local survive exit. Private body checking can establish narrower facts; this
-private product cannot invent an omitted public `from` contract.
+Every callable result delivers a value of its declared data type. Parameters separately state
+Read/Edit/Take, and locals separately state value mutability or scoped aliasing. Type annotations
+cannot change those operations. Source/body/definition order cannot infer a new input operation.
+Copy-or-move is selected once for value supply; existing Copy taking inputs snapshot rather than
+transfer the original. Exact payload contracts remain checking evidence, not a generic D/S promise.
 
-Declaration acceptance proves only header integrity. A syntax-valid body with a missing transfer,
-invalid update, escaping local, or unsafe backedge may rebind that same declaration program and
+Declaration acceptance proves only header integrity. A syntax-valid body with an invalid non-Copy extraction,
+invalid update, unavailable local, or unsafe backedge may rebind that same declaration program and
 must later fail checking. Body typing consumes those identities/contracts and performs lexical body resolution,
-structural data/access checks, and direct-call selection. It cannot recover parameter/result modes
+structural data/operation checks, and direct-call selection. It cannot recover input operations
 from body tokens, redo declaration normalization, or treat source projection as dispatch authority.
 Named-slot initialization and referent/permission validation share a source-neutral body-flow
 graph. Logical resource transitions and the exact first-fragment payload contracts share those
@@ -94,10 +94,10 @@ query only after the declaration query binds the current complete syntax.
 
 No public constructor assembles a typed body or its semantic/source pairing from separate parts.
 Structural failures expose their typed rule and current diagnostic; no partial typed body escapes.
-A structurally valid transfer still requires initialization and conflict proofs; a structurally
-valid access return still requires a surviving allowed referent. Seven of the eleven eventual flow rejections fail named-slot initialization; the four others now
-fail referent/permission validation. Passing an intermediate query still does not accept a unit. This product
-has no adapter to released checked evidence and no executable consumer.
+A structurally valid transfer still requires initialization and conflict proofs. An ordinary
+return must leave one value resource of its declared data type after frame cleanup. Passing an
+intermediate query does not accept a unit. This product has no adapter to released checked
+evidence and no executable consumer.
 
 
 ## Flow and Initialization Handoff
@@ -136,10 +136,11 @@ that evidence from ownership, Copy, or an empty referent set.
 
 Each reached action retains alternatives of before/after logical ownership and ordered cleanup
 transitions under the same typed/control authority. The solver tracks expression, named, prepared,
-retained-I-temporary and staged-result owners without dynamic execution counters. A complete
-normal return preserves only its X result obligation, if any. Cleanup does not disappear when
-access liveness ends. Temporary roots protect an I call answer until its enclosing evaluation
-finishes, without keeping an unmentioned local owner alive.
+retained-read-temporary and staged-result owners without dynamic execution counters. A complete
+normal return preserves exactly its declared value result and no live evaluation frames. Cleanup
+does not disappear when access liveness ends. A fresh value supplied to a read input retains one
+temporary owner until its enclosing evaluation frame ends or unwinds. Call results are values;
+they do not carry an implicit alias to an input.
 
 The accepted private-unit constructor derives its membership from the declaration authority and
 checks every definition before publication. A caller cannot omit an unsafe unused callee, combine

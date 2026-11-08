@@ -1,9 +1,0 @@
-func wrong(value: ^error, flag: bool): void {
-    while flag {
-        let next = ^value
-        if flag {
-            continue
-        }
-        value = ^next
-    }
-}

@@ -1,6 +1,0 @@
-func make(): ^i32 {
-    0
-}
-func wrong(): void {
-    let value = ^make()
-}

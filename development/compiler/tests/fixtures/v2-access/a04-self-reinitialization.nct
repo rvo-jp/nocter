@@ -1,4 +1,0 @@
-func restore(value: ^error): ^error {
-    value = ^value
-    return ^value
-}

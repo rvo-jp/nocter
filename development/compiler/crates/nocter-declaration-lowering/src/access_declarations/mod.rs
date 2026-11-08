@@ -7,11 +7,11 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use nocter_declarations::value_access::{Builder, ParameterDefinition, Program};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
-use nocter_model::{AccessCallableId, BuiltinType, SymbolTable, ValueAccessMode};
+use nocter_model::{AccessCallableId, BuiltinType, SymbolTable, ValueInputOperation};
 use nocter_syntax::{
-    BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxSurface, NodeId, NodeKind, Punctuation,
-    SyntaxOrigin, SyntaxToken, TokenKind, child_node_iter, declaration_name_token,
-    direct_identifier, direct_node, direct_node_iter, direct_token, first_direct_token,
+    BoundSyntax, ContextualSpelling, DeclarationSyntaxLocator, DeclarationSyntaxSurface, NodeId,
+    NodeKind, SyntaxOrigin, SyntaxToken, child_node_iter, declaration_name_token,
+    direct_identifier, direct_node, direct_node_iter, first_direct_token,
     project_declaration_syntax,
 };
 
@@ -30,7 +30,7 @@ pub enum Failure {
 struct ParameterHeader {
     name: SyntaxToken,
     data: BuiltinType,
-    mode: ValueAccessMode,
+    operation: ValueInputOperation,
 }
 
 #[derive(Clone, Debug)]
@@ -39,7 +39,6 @@ struct Header {
     parameters: Vec<ParameterHeader>,
     result_syntax: NodeId,
     result_data: BuiltinType,
-    result_mode: ValueAccessMode,
     body: NodeId,
 }
 
@@ -150,12 +149,12 @@ impl Query {
                             .get(text(syntax, parameter.name))
                             .ok_or(Failure::InconsistentSyntax)?,
                         data: parameter.data,
-                        mode: parameter.mode,
+                        operation: parameter.operation,
                     })
                 })
                 .collect::<Result<Vec<_>, Failure>>()?;
             builder
-                .define(id, parameters, header.result_data, header.result_mode)
+                .define(id, parameters, header.result_data)
                 .map_err(|_| Failure::InconsistentSyntax)?;
             let source = CallableSource {
                 name: header.name,
@@ -290,13 +289,29 @@ fn header(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failur
             let name = direct_identifier(tree, parameter).ok_or(Failure::InconsistentSyntax)?;
             let ty =
                 direct_node(tree, parameter, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            let (data, mode) = access_type(syntax, ty)?;
-            Ok(ParameterHeader { name, data, mode })
+            let data = data_type(syntax, ty)?;
+            let operation =
+                if let Some(operation) = direct_node(tree, parameter, NodeKind::InputOperation) {
+                    let token =
+                        first_direct_token(tree, operation).ok_or(Failure::InconsistentSyntax)?;
+                    match ContextualSpelling::from_spelling(text(syntax, token)) {
+                        Some(ContextualSpelling::Edit) => ValueInputOperation::Edit,
+                        Some(ContextualSpelling::Take) => ValueInputOperation::Take,
+                        _ => return Err(Failure::InconsistentSyntax),
+                    }
+                } else {
+                    ValueInputOperation::Read
+                };
+            Ok(ParameterHeader {
+                name,
+                data,
+                operation,
+            })
         })
         .collect::<Result<_, Failure>>()?;
     let result_syntax =
         direct_node(tree, tail, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-    let (result_data, result_mode) = access_type(syntax, result_syntax)?;
+    let result_data = data_type(syntax, result_syntax)?;
     let body =
         direct_node(tree, declaration, NodeKind::Block).ok_or(Failure::InconsistentSyntax)?;
     Ok(Header {
@@ -304,33 +319,13 @@ fn header(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failur
         parameters,
         result_syntax,
         result_data,
-        result_mode,
         body,
     })
 }
 
-fn access_type(
-    syntax: BoundSyntax<'_>,
-    ty: NodeId,
-) -> Result<(BuiltinType, ValueAccessMode), Failure> {
+fn data_type(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<BuiltinType, Failure> {
     let tree = syntax.tree();
-    let (atom, mode) = if let Some(access) = direct_node(tree, ty, NodeKind::AccessType) {
-        let mode = if direct_token(tree, access, TokenKind::Punctuation(Punctuation::Ampersand))
-            .is_some()
-        {
-            ValueAccessMode::Update
-        } else if direct_token(tree, access, TokenKind::Punctuation(Punctuation::Caret)).is_some() {
-            ValueAccessMode::Own
-        } else {
-            return Err(Failure::InconsistentSyntax);
-        };
-        (access, mode)
-    } else {
-        (ty, ValueAccessMode::Read)
-    };
-    let named = direct_node(tree, atom, NodeKind::NamedType).ok_or(Failure::InconsistentSyntax)?;
+    let named = direct_node(tree, ty, NodeKind::NamedType).ok_or(Failure::InconsistentSyntax)?;
     let token = first_direct_token(tree, named).ok_or(Failure::InconsistentSyntax)?;
-    let data =
-        BuiltinType::from_spelling(text(syntax, token)).ok_or(Failure::InconsistentSyntax)?;
-    Ok((data, mode))
+    BuiltinType::from_spelling(text(syntax, token)).ok_or(Failure::InconsistentSyntax)
 }

@@ -10,8 +10,8 @@ use nocter_declarations::value_access::Program;
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessStatementId, ArenaBuilder, BuiltinType, TypeId, ValueAccessMode as Mode,
-    ValueAccessType as Ty,
+    AccessStatementId, ArenaBuilder, BuiltinType, TypeId, ValueAccess as Ty,
+    ValueAccessMode as Mode,
 };
 use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
@@ -25,7 +25,7 @@ pub(super) struct LoopFrame {
 }
 pub(super) struct Checker<'a, 's> {
     pub context: &'a DeclarationContext<'s>,
-    pub result: Ty,
+    pub result: TypeId,
     pub projection: BodySyntaxProjection,
     pub origins: Origins,
     pub locals: ArenaBuilder<AccessLocalId, Local>,
@@ -71,7 +71,8 @@ pub(super) fn prepare(
             .get(parameter)
             .ok_or(Failure::InconsistentSyntax)?;
         let local = checker.locals.insert(Local {
-            ty: parameter_declaration.ty(),
+            data: parameter_declaration.data(),
+            kind: parameter_declaration.operation().binding_kind(),
             origin: LocalOrigin::Parameter(parameter),
         });
         checker
@@ -169,8 +170,14 @@ impl Checker<'_, '_> {
     pub fn ty(&self, expr: AccessExpressionId) -> ValueType {
         self.expressions.get(expr).expect("own expression").ty
     }
+    pub fn literal_bool(&self, expression: AccessExpressionId) -> Option<bool> {
+        match self.expressions.get(expression)?.kind {
+            ExpressionKind::Boolean(value) => Some(value),
+            _ => None,
+        }
+    }
     pub fn local_ty(&self, local: AccessLocalId) -> Ty {
-        self.locals.get(local).expect("own local").ty
+        self.locals.get(local).expect("own local").access()
     }
     pub fn site(&self, origin: SyntaxOrigin) -> Result<Site, Failure> {
         self.projection
@@ -237,8 +244,8 @@ impl Checker<'_, '_> {
     pub fn type_label(&self, ty: Ty) -> String {
         let prefix = match ty.mode() {
             Mode::Read => "",
-            Mode::Update => "&",
-            Mode::Own => "^",
+            Mode::Update => "edit ",
+            Mode::Own => "value ",
         };
         format!(
             "{prefix}{}",
@@ -283,10 +290,28 @@ impl Checker<'_, '_> {
                 SyntaxOrigin::Token(*token)
             }
         };
+        let binding_description = match (declaration.kind, declaration.origin) {
+            (nocter_model::ValueBindingKind::FixedValue, _) => "a fixed let value",
+            (nocter_model::ValueBindingKind::MutableValue, LocalOrigin::Parameter(_)) => {
+                "a value received by take"
+            }
+            (nocter_model::ValueBindingKind::MutableValue, _) => "a mutable var value",
+            (nocter_model::ValueBindingKind::ReadAlias, LocalOrigin::Parameter(_)) => {
+                "a read input"
+            }
+            (nocter_model::ValueBindingKind::ReadAlias, _) => "a read alias",
+            (nocter_model::ValueBindingKind::EditAlias, LocalOrigin::Parameter(_)) => {
+                "an edit input"
+            }
+            (nocter_model::ValueBindingKind::EditAlias, _) => "an edit alias",
+        };
         let note = DiagnosticNote::new(
             format!(
-                "this place is declared with {} access",
-                self.type_label(declaration.ty)
+                "this place is {binding_description} of data type {}",
+                self.program()
+                    .data_kind(declaration.data)
+                    .expect("core data")
+                    .spelling()
             ),
             super::source_origin(self.syntax(), related)?,
         );
@@ -355,19 +380,14 @@ impl Checker<'_, '_> {
             _ => None,
         }
     }
-    pub fn annotation(&self, node: NodeId) -> Result<Ty, Failure> {
-        let node = direct_node(self.syntax().tree(), node, NodeKind::AccessType).unwrap_or(node);
-        let mode = if self.has(node, Punctuation::Ampersand) {
-            Mode::Update
-        } else if self.has(node, Punctuation::Caret) {
-            Mode::Own
-        } else {
-            Mode::Read
-        };
+    pub fn annotation(&self, node: NodeId) -> Result<TypeId, Failure> {
         let named = self.direct(node, NodeKind::NamedType)?;
         let kind = BuiltinType::from_spelling(self.text(self.token(named)?)?)
             .ok_or(Failure::InconsistentSyntax)?;
-        Ok(Ty::new(self.data(kind), mode))
+        Ok(self.data(kind))
+    }
+    pub fn writable_local(&self, local: AccessLocalId) -> bool {
+        self.locals.get(local).expect("own local").kind.writable()
     }
     pub fn require_data(
         &self,
@@ -397,43 +417,39 @@ impl Checker<'_, '_> {
         }
         let place = self.place_expression(source);
         let action = match expected.mode() {
-            Mode::Read
-                if matches!(boundary, Boundary::Return(_)) && self.copyable(actual.data()) =>
-            {
-                BoundaryAction::CopyPayload
-            }
             Mode::Read => {
-                if place.is_some() {
-                    BoundaryAction::ReadPlace
-                } else {
-                    match actual.mode() {
-                        Mode::Read => return Ok(source),
-                        Mode::Update => BoundaryAction::ReadAccess,
-                        Mode::Own if self.copyable(actual.data()) => BoundaryAction::CopyPayload,
-                        Mode::Own => return self.reject(Rule::TypeMismatch, node),
-                    }
+                if place.is_none() {
+                    return self.reject(Rule::TypeMismatch, node);
                 }
+                BoundaryAction::ReadPlace
             }
             Mode::Update => {
                 if let Some(local) = place {
-                    if self.local_ty(local).mode() == Mode::Read {
+                    if !self.writable_local(local) {
                         return self.reject_local(Rule::InvalidUpdate, node, local);
                     }
                     BoundaryAction::DelegateUpdate
-                } else if actual.mode() == Mode::Update {
-                    return Ok(source);
                 } else {
                     return self.reject(Rule::InvalidUpdate, node);
                 }
             }
             Mode::Own => {
-                if place.is_some() || actual.mode() != Mode::Own {
-                    if !self.copyable(actual.data()) {
-                        return self.reject(Rule::MissingTransfer, node);
+                if let Some(local) = place {
+                    if self.copyable(actual.data()) {
+                        BoundaryAction::CopyPayload
+                    } else if self.local_ty(local).mode() == Mode::Own {
+                        return self.emit(
+                            node,
+                            ValueType::Value(expected),
+                            ExpressionKind::Move(local),
+                        );
+                    } else {
+                        return self.reject_local(Rule::MissingTransfer, node, local);
                     }
-                    BoundaryAction::CopyPayload
-                } else {
+                } else if actual.mode() == Mode::Own {
                     BoundaryAction::TakeValue
+                } else {
+                    return Err(Failure::InconsistentSyntax);
                 }
             }
         };

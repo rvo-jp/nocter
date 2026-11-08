@@ -96,10 +96,13 @@ macro_rules! keywords {
     ($($variant:ident => $text:literal),+ $(,)?) => {
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
         pub enum Keyword {
-            $($variant),+
+            $($variant),+,
+            /// Reserved only in the future value-language profile.
+            Throw,
         }
 
         impl Keyword {
+            /// Released keyword inventory; future-only variants are profile-selected.
             pub const ALL: &'static [Self] = &[$(Self::$variant),+];
 
             #[must_use]
@@ -114,7 +117,16 @@ macro_rules! keywords {
             pub const fn as_str(self) -> &'static str {
                 match self {
                     $(Self::$variant => $text,)+
+                    Self::Throw => "throw",
                 }
+            }
+
+            #[must_use]
+            pub fn from_value_spelling(text: &str) -> Option<Self> {
+                if text == Self::Throw.as_str() { return Some(Self::Throw); }
+                Self::from_spelling(text).filter(|keyword| !matches!(keyword,
+                    Self::Pub | Self::Construct | Self::Instance | Self::Move |
+                    Self::NoAlloc | Self::NoTrap | Self::Blocking))
             }
         }
     };

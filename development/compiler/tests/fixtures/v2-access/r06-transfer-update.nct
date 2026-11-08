@@ -1,3 +1,0 @@
-func wrong(value: &error): void {
-    let next = ^value
-}

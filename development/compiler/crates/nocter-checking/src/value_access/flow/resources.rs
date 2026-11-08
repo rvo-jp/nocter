@@ -150,11 +150,11 @@ impl State {
         let mut state = Self::default();
         for (id, local) in typed.body().locals().iter() {
             if matches!(local.origin, crate::value_access::LocalOrigin::Parameter(_))
-                && local.ty.mode() == Mode::Own
+                && local.access().mode() == Mode::Own
             {
                 state
                     .owned
-                    .insert(Holder::Local(id), payload(typed, local.ty.data())?);
+                    .insert(Holder::Local(id), payload(typed, local.data)?);
             }
         }
         Ok(state)
@@ -279,26 +279,29 @@ impl State {
         });
         Ok(())
     }
-    pub fn returned(&self, owns: bool) -> bool {
+    pub fn returned(&self, data: TypeId) -> bool {
         self.frames.is_empty()
-            && self.owned.len() == usize::from(owns)
-            && (!owns || self.owned.contains_key(&Holder::Return))
+            && self.owned.len() == 1
+            && self
+                .owned
+                .get(&Holder::Return)
+                .is_some_and(|payload| payload.data() == data)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value_access::flow::tests::queries;
+    use crate::value_access::tests::queries;
 
     #[test]
     fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_holder() {
-        let queries = queries("func run(value: ^error): ^error { ^value }\n");
-        let query = queries[0].typed();
+        let queries = queries("func run(take value: error): error { value }\n").unwrap();
+        let query = &queries[0];
         let local = query.body().locals().iter().next().unwrap().0;
         let mut state = State::entry(query).unwrap();
-        let owned = payload(query, query.body().locals().get(local).unwrap().ty.data()).unwrap();
-        assert!(!state.returned(true));
+        let owned = payload(query, query.body().locals().get(local).unwrap().data).unwrap();
+        assert!(!state.returned(owned.data()));
         assert!(
             state
                 .construct(Holder::Local(local), owned, &mut Vec::new())
@@ -313,12 +316,13 @@ mod tests {
                 .dispose(Holder::Local(local), &mut Vec::new())
                 .is_err()
         );
-        assert!(!state.returned(true));
+        assert!(!state.returned(owned.data()));
         let mut state = State::entry(query).unwrap();
         state
             .move_to(Holder::Local(local), Holder::Return, false, &mut Vec::new())
             .unwrap();
-        assert!(state.returned(true));
+        assert!(state.returned(owned.data()));
+        assert!(!state.returned(query.program().data_type(BuiltinType::I32).unwrap()));
         assert!(
             state
                 .move_to(Holder::Local(local), Holder::Return, false, &mut Vec::new())

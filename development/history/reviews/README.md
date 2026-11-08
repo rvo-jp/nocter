@@ -18,6 +18,7 @@ forcing consumers that use only its contract to change.
 - [v2.0.0 Parameter Defaults and Delegated Work](v2.0.0-parameter-defaults.md)
 - [v2.0.0 Value Binding Candidate: Adoption Audit](v2.0.0-value-binding-candidate.md)
 - [v2.0.0 Value Binding: Grammar and Implementation Design](v2.0.0-value-binding-implementation.md)
+- [v2.0.0 Bounded Value Binding Front End](v2.0.0-value-binding-front-end.md)
 - [v2.0.0 Source Grammar Assembly](v2.0.0-source-grammar-assembly.md)
 - [Pre-S12 Private Access Checkpoint Contracts](v2.0.0-access-checkpoint-contracts.md)
 - [v2.0.0 Syntax Coherence under Four Design Goals](v2.0.0-syntax-coherence.md)

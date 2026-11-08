@@ -6,7 +6,7 @@ use super::{
     },
 };
 use nocter_model::{
-    AccessBlockId, AccessExpressionId, BuiltinType, ValueAccessMode as Mode, ValueAccessType as Ty,
+    AccessBlockId, AccessExpressionId, BuiltinType, ValueAccess as Ty, ValueAccessMode as Mode,
 };
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation as P, TokenKind, decode_integer_literal,
@@ -31,28 +31,6 @@ impl Checker<'_, '_> {
             }
             NodeKind::ScalarLiteral => self.literal(node, false)?,
             NodeKind::UnitExpression => self.unit(node)?,
-            NodeKind::UpdateExpression | NodeKind::TransferExpression => {
-                let update = self.kind(node)? == NodeKind::UpdateExpression;
-                let rule = if update {
-                    Rule::InvalidUpdate
-                } else {
-                    Rule::InvalidTransfer
-                };
-                let local = self.place(self.first_child(node)?, rule)?;
-                let stored = self.local_ty(local);
-                if stored.mode() == Mode::Read || (!update && stored.mode() != Mode::Own) {
-                    return self.reject_local(rule, node, local);
-                }
-                self.emit(
-                    node,
-                    value_type(stored.data(), if update { Mode::Update } else { Mode::Own }),
-                    if update {
-                        ExpressionKind::Update(local)
-                    } else {
-                        ExpressionKind::Transfer(local)
-                    },
-                )?
-            }
             NodeKind::UnaryExpression => self.unary(node, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression
@@ -250,11 +228,12 @@ impl Checker<'_, '_> {
             .parameters()
             .iter()
             .map(|&id| {
-                self.program()
+                let parameter = self
+                    .program()
                     .parameters()
                     .get(id)
-                    .expect("frozen parameter")
-                    .ty()
+                    .expect("frozen parameter");
+                Ty::new(parameter.data(), parameter.operation().access_mode())
             })
             .collect::<Vec<_>>();
         let result = declaration.result();
@@ -274,29 +253,25 @@ impl Checker<'_, '_> {
                     match expected.mode() {
                         Mode::Read => ArgumentAction::ReserveRead(local),
                         Mode::Update => {
-                            if self.local_ty(local).mode() == Mode::Read {
+                            if !self.writable_local(local) {
                                 return self.reject_local(Rule::InvalidUpdate, syntax, local);
                             }
                             ArgumentAction::ReserveUpdate(local)
                         }
+                        Mode::Own if self.copyable(actual.data()) => ArgumentAction::CopyPayload,
                         Mode::Own if self.local_ty(local).mode() == Mode::Own => {
                             ArgumentAction::ReserveTransfer(local)
                         }
-                        Mode::Own if self.copyable(actual.data()) => ArgumentAction::CopyPayload,
                         Mode::Own => return self.reject(Rule::MissingTransfer, syntax),
                     }
                 } else {
-                    match (expected.mode(), actual.mode()) {
-                        (Mode::Read, Mode::Read) => ArgumentAction::ReadValue,
-                        (Mode::Read, Mode::Own) => ArgumentAction::ReadOwnedValue,
-                        (Mode::Read, Mode::Update) => ArgumentAction::ReadAccessValue,
-                        (Mode::Update, Mode::Update) => ArgumentAction::UpdateValue,
-                        (Mode::Own, Mode::Own) => ArgumentAction::TakeValue,
-                        (Mode::Own, _) if self.copyable(actual.data()) => {
-                            ArgumentAction::CopyPayload
-                        }
-                        (Mode::Own, _) => return self.reject(Rule::MissingTransfer, syntax),
-                        (Mode::Update, _) => return self.reject(Rule::InvalidUpdate, syntax),
+                    if actual.mode() != Mode::Own {
+                        return Err(Failure::InconsistentSyntax);
+                    }
+                    match expected.mode() {
+                        Mode::Read => ArgumentAction::ReadOwnedValue,
+                        Mode::Own => ArgumentAction::TakeValue,
+                        Mode::Update => return self.reject(Rule::InvalidUpdate, syntax),
                     }
                 }
             } else {
@@ -308,7 +283,7 @@ impl Checker<'_, '_> {
         self.emit(
             node,
             if continues {
-                ValueType::Value(result)
+                value_type(result, Mode::Own)
             } else {
                 ValueType::Never
             },
@@ -328,6 +303,7 @@ impl Checker<'_, '_> {
         let condition = self.expression(condition_node, None, reachable)?;
         self.require_data(condition, self.data(BuiltinType::Bool), condition_node)?;
         let branches_reachable = reachable && self.ty(condition) != ValueType::Never;
+        let literal_condition = self.literal_bool(condition);
         // A terminating condition never reaches either branch's outgoing value boundary.
         // Still type-check each branch's own declarations, operations and explicit returns.
         let expected = expected.filter(|_| self.ty(condition) != ValueType::Never);
@@ -342,14 +318,22 @@ impl Checker<'_, '_> {
         let then_block = self.block(
             self.direct(node, NodeKind::Block)?,
             branch_expected,
-            branches_reachable,
+            branches_reachable && literal_condition != Some(false),
         )?;
         let else_block = if let Some(clause) = alternative {
             let child = self.first_child(clause)?;
             if self.kind(child)? == NodeKind::Block {
-                self.block(child, expected, branches_reachable)?
+                self.block(
+                    child,
+                    expected,
+                    branches_reachable && literal_condition != Some(true),
+                )?
             } else {
-                let value = self.if_expression(child, expected, branches_reachable)?;
+                let value = self.if_expression(
+                    child,
+                    expected,
+                    branches_reachable && literal_condition != Some(true),
+                )?;
                 self.emit_block(clause, Vec::new(), Some(value), self.ty(value))?
             }
         } else {
@@ -372,9 +356,25 @@ impl Checker<'_, '_> {
             match (left, right) {
                 (ValueType::Never, other) | (other, ValueType::Never) => other,
                 (ValueType::Value(a), ValueType::Value(b)) if a == b => left,
-                (ValueType::Value(a), ValueType::Value(b)) => return self.reject_message(Rule::TypeMismatch, node,
-                    format!("branches supply {} and {}; an inferred conditional needs one data type and access mode", self.type_label(a), self.type_label(b)), Vec::new()),
+                (ValueType::Value(a), ValueType::Value(b)) => return self.reject_message(
+                    Rule::TypeMismatch,
+                    node,
+                    format!(
+                        "branches supply {} and {}; an inferred conditional needs one data type",
+                        self.type_label(a),
+                        self.type_label(b)
+                    ),
+                    Vec::new(),
+                ),
             }
+        };
+        let ty = if matches!(
+            (literal_condition, left, right),
+            (Some(true), ValueType::Never, _) | (Some(false), _, ValueType::Never)
+        ) {
+            ValueType::Never
+        } else {
+            ty
         };
         self.emit(
             node,

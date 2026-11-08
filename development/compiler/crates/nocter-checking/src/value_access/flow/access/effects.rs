@@ -4,12 +4,11 @@ use super::super::{IntegrityError, Location, Operation};
 use super::{
     AccessRule, Creation, Liveness, Root, Violation,
     liveness::Carrier,
-    state::{Key, Node, Prepared, Staged, Value, World},
+    state::{Key, Node, Prepared, Value, World},
 };
 use crate::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, ValueType,
 };
-use nocter_declarations::value_access::ResultReferent;
 use nocter_model::{AccessExpressionId, AccessLocalId, ValueAccessMode as Mode};
 
 pub(super) enum Failure {
@@ -164,36 +163,9 @@ impl Context<'_, '_> {
     fn stage_return(&mut self, expression: AccessExpressionId) -> Result<()> {
         let value = self.world.value(expression)?;
         self.read(value)?;
-        if let Some(key) = value.access {
-            let node = self.world.nodes.get(&key).ok_or(Failure::Integrity)?;
-            if value.mode == Mode::Update && node.permission != Mode::Update {
-                return Err(Failure::Integrity);
-            }
-            let root = node.root;
-            let declaration = self
-                .typed
-                .program()
-                .callables()
-                .get(self.typed.callable())
-                .ok_or(Failure::Integrity)?;
-            let allowed = match (root, declaration.result_referent()) {
-                (Root::Input(parameter), ResultReferent::Inputs(inputs)) => {
-                    inputs.contains(&parameter)
-                }
-                _ => false,
-            };
-            if !allowed {
-                return Err(Violation {
-                    location: self.at,
-                    rule: AccessRule::InvalidReturnRoot,
-                    root,
-                    retained: None,
-                }
-                .into());
-            }
+        if value.access.is_some() || value.mode != Mode::Own {
+            return Err(Failure::Integrity);
         }
-        self.world.staged = Some(Staged { value, at: self.at });
-
         Ok(())
     }
 
@@ -204,7 +176,7 @@ impl Context<'_, '_> {
             .locals()
             .get(local)
             .ok_or(Failure::Integrity)?
-            .ty
+            .access()
             .mode())
     }
     fn base(&self, local: AccessLocalId) -> Result<Option<(Root, Option<Key>)>> {
@@ -314,10 +286,7 @@ impl Context<'_, '_> {
             ExpressionKind::Place(local) => {
                 self.create(Key::Expression(id), self.base(local)?, Mode::Read)
             }
-            ExpressionKind::Update(local) => {
-                self.create(Key::Expression(id), self.base(local)?, Mode::Update)
-            }
-            ExpressionKind::Transfer(local) => {
+            ExpressionKind::Move(local) => {
                 self.destroy(local)?;
                 Ok(Value::without_referent(Mode::Own))
             }
@@ -338,11 +307,6 @@ impl Context<'_, '_> {
                         Key::Expression(id),
                         self.base(place.ok_or(Failure::Integrity)?)?,
                         ty.mode(),
-                    ),
-                    BoundaryAction::ReadAccess => self.create(
-                        Key::Expression(id),
-                        self.base_value(self.world.value(source)?)?,
-                        Mode::Read,
                     ),
                     BoundaryAction::CopyPayload => {
                         if let Some(local) = place {
@@ -417,19 +381,13 @@ impl Context<'_, '_> {
                 self.read(self.world.value(argument.value)?)?;
                 Prepared::Value(Value::without_referent(Mode::Own))
             }
-            ArgumentAction::ReadAccessValue => {
-                let base = self.base_value(self.world.value(argument.value)?)?;
-                Prepared::Value(self.create(Key::Argument(call, index), base, Mode::Read)?)
-            }
             ArgumentAction::ReadOwnedValue => Prepared::Reserved {
                 root: Root::Temporary { call, index },
                 actor: None,
                 permission: Mode::Read,
                 at: self.at,
             },
-            ArgumentAction::ReadValue | ArgumentAction::UpdateValue | ArgumentAction::TakeValue => {
-                Prepared::Value(self.world.value(argument.value)?)
-            }
+            ArgumentAction::TakeValue => Prepared::Value(self.world.value(argument.value)?),
             ArgumentAction::Interrupted => return Err(Failure::Integrity),
         };
         if self

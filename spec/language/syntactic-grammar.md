@@ -1141,6 +1141,9 @@ special role only at the listed boundary:
 
 | Spelling | Contextual grammar position |
 | --- | --- |
+| `read` | Future Direction v2.0.0: scoped read binding only |
+| `edit` | Future Direction v2.0.0: scoped update binding or input operation |
+| `take` | Future Direction v2.0.0: value-receiving input operation |
 | `copy` | immediately before `struct`, or immediately after `where` / a predicate comma |
 | `where` | the requirement-clause position of an eligible declaration |
 | `any` | immediately before a complete structural callable type |
@@ -1343,17 +1346,19 @@ contract is preserved in the non-normative
 [checkpoint snapshot](../../development/history/reviews/v2.0.0-access-checkpoint-contracts.md).
 It is not a subset of the adopted S12 language and must not be exposed as a compatibility mode.
 The [implementation design](../../development/history/reviews/v2.0.0-value-binding-implementation.md)
-sets the replacement boundary: migrate declarations, typing, initialization, accesses, resources
-and source fixtures together before qualifying one S12 accepted private unit. Existing corpus
-passes are evidence for the earlier checkpoint only.
+sets the coherent replacement boundary: declarations, typing, initialization, accesses, resources
+and source fixtures must share one accepted-unit authority. The
+[bounded implementation record](../../development/history/reviews/v2.0.0-value-binding-front-end.md)
+distinguishes that replacement from the earlier checkpoint and from full-language support.
 
 ### Bounded Value Binding Fragment
 
 The first S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
 supplied private module. This is its new source contract, not a compatibility variant or a public
-package format. The production implementation still follows the pre-S12 checkpoint until its
-entire accepted-unit boundary is replaced. The old corpus cannot qualify this grammar by relabeling
-its status. No bodies are thereby permitted in contract-only `index.nct`.
+package format. Its implementation and qualification are tracked in the
+[development record](../../development/history/reviews/v2.0.0-value-binding-front-end.md).
+The old corpus cannot qualify this grammar by relabeling its status. No bodies are thereby
+permitted in contract-only `index.nct`.
 
 This fragment imports future Name/literal/trivia/token/newline rules, `List`/`LineSequence`, and
 `V2InputOperation`. It imports no released type, statement or expression root:

@@ -1,6 +1,6 @@
 use super::super::{IntegrityError, Location};
 use super::{
-    AccessRule, Creation, Liveness, RequiredUse, RetainedAccess, Root, Violation,
+    AccessRule, Creation, Liveness, RetainedAccess, Root, Violation,
     liveness::{Carrier, Live},
 };
 use crate::value_access::{LocalOrigin, Query as TypedQuery};
@@ -11,7 +11,6 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(super) enum Key {
     Parameter(AccessParameterId),
     Expression(AccessExpressionId),
-    Argument(AccessExpressionId, usize),
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct Value {
@@ -40,18 +39,12 @@ pub(super) enum Prepared {
     },
     Value(Value),
 }
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) struct Staged {
-    pub value: Value,
-    pub at: Location,
-}
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct World {
     pub resources: super::super::resources::State,
     pub values: BTreeMap<Carrier, Value>,
     pub nodes: BTreeMap<Key, Node>,
     pub prepared: BTreeMap<(AccessExpressionId, usize), Prepared>,
-    pub staged: Option<Staged>,
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 impl World {
@@ -61,11 +54,10 @@ impl World {
             values: BTreeMap::new(),
             nodes: BTreeMap::new(),
             prepared: BTreeMap::new(),
-            staged: None,
         };
         for (local, declaration) in typed.body().locals().iter() {
             if let LocalOrigin::Parameter(parameter) = declaration.origin {
-                let mode = declaration.ty.mode();
+                let mode = declaration.access().mode();
                 let value = if mode == Mode::Own {
                     Value::without_referent(mode)
                 } else {
@@ -90,7 +82,13 @@ impl World {
         Ok(world)
     }
     pub fn local(&self, typed: &TypedQuery, local: AccessLocalId) -> Result<Value, IntegrityError> {
-        let mode = typed.body().locals().get(local).ok_or(INVALID)?.ty.mode();
+        let mode = typed
+            .body()
+            .locals()
+            .get(local)
+            .ok_or(INVALID)?
+            .access()
+            .mode();
         if mode == Mode::Own {
             Ok(Value::without_referent(Mode::Own))
         } else {
@@ -149,9 +147,6 @@ impl World {
                 Prepared::Value(value) => retained.extend(value.access),
             }
         }
-        if let Some(staged) = self.staged {
-            retained.extend(staged.value.access);
-        }
         let mut updating = BTreeSet::new();
         if let Some(live) = live {
             for (&carrier, value) in &self.values {
@@ -173,11 +168,6 @@ impl World {
                     Prepared::Value(value) => updating.extend(value.access),
                 }
             }
-        }
-        if let Some(staged) = self.staged
-            && staged.value.mode == Mode::Update
-        {
-            updating.extend(staged.value.access);
         }
         let mut nodes = BTreeMap::new();
         for &key in &retained {
@@ -208,7 +198,7 @@ impl World {
         self.nodes = nodes;
         Ok(())
     }
-    fn witness(&self, key: Key, location: Location, live: &Liveness) -> Option<RequiredUse> {
+    fn witness(&self, key: Key, location: Location, live: &Liveness) -> Option<Location> {
         for (&carrier, value) in &self.values {
             if value.access == Some(key)
                 && let Some(at) = (if self
@@ -222,7 +212,7 @@ impl World {
                 })
                 .or_else(|| live.required_use(location, carrier))
             {
-                return Some(RequiredUse::Action(at));
+                return Some(at);
             }
         }
         for (&(call, index), prepared) in &self.prepared {
@@ -235,12 +225,10 @@ impl World {
                     .required_update(location, Carrier::Argument { call, index })
                     .or_else(|| live.required_use(location, Carrier::Argument { call, index }))
             {
-                return Some(RequiredUse::Action(at));
+                return Some(at);
             }
         }
-        self.staged
-            .filter(|staged| staged.value.access == Some(key))
-            .map(|staged| RequiredUse::StagedResult(staged.at))
+        None
     }
     pub fn check(
         &self,
@@ -312,7 +300,7 @@ impl World {
                     retained: Some(RetainedAccess {
                         created: Creation::Action(*at),
                         permission: *permission,
-                        required: Some(RequiredUse::Action(location)),
+                        required: Some(location),
                     }),
                 });
             }

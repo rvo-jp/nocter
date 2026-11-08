@@ -1,7 +1,0 @@
-func update(value: ^i32): ^i32 {
-    let edit = &value
-    let inspect = edit
-    let snapshot: ^i32 = inspect
-    edit += snapshot
-    return ^value
-}

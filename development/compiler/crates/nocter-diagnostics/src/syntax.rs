@@ -185,9 +185,6 @@ fn expected_message(expected: ExpectedSyntax) -> Box<str> {
         ExpectedSyntax::Block => "expected a block".into(),
         ExpectedSyntax::LiteralShape => "expected a literal shape".into(),
         ExpectedSyntax::Expression => "expected an expression".into(),
-        ExpectedSyntax::UnmarkedCallOperand => {
-            "expected a call operand without an access prefix".into()
-        }
         ExpectedSyntax::BindingPattern => "expected a binding pattern".into(),
         ExpectedSyntax::AssignmentTarget => "expected an assignment target".into(),
         ExpectedSyntax::EnumPattern => "expected an enum pattern".into(),
@@ -226,27 +223,30 @@ mod tests {
     use super::syntax_diagnostics;
 
     #[test]
-    fn future_direct_operand_failure_keeps_the_parser_selected_prefix_span() {
-        let mut sources = SourceMap::new();
-        let text = "func f(): void { take((^value)) }\n";
-        let source = sources
-            .add_bytes(SourceName::new("core.nct"), text.as_bytes())
-            .unwrap();
-        let tree = parse(sources.get(source).unwrap(), ParseGoal::V2CoreUnit);
-        let diagnostics = syntax_diagnostics(&[tree]);
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code(), "E0120");
-        assert_eq!(
-            diagnostics[0].message(),
-            "expected a call operand without an access prefix"
-        );
-        assert_eq!(
-            sources
-                .get(source)
-                .unwrap()
-                .text_at(diagnostics[0].primary().span().range()),
-            Some("^")
-        );
+    fn retired_prefix_failure_keeps_the_ordinary_expression_diagnostic_and_selected_span() {
+        for prefix in ["^", "&"] {
+            let mut sources = SourceMap::new();
+            let text = format!("func f(): void {{ accept({prefix}value) }}\n");
+            let source = sources
+                .add_bytes(SourceName::new("core.nct"), text.as_bytes())
+                .unwrap();
+            let tree = parse(sources.get(source).unwrap(), ParseGoal::V2CoreUnit);
+            assert!(tree.has_errors());
+            let diagnostics = syntax_diagnostics(&[tree]);
+            let diagnostic = diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    sources
+                        .get(source)
+                        .unwrap()
+                        .text_at(diagnostic.primary().span().range())
+                        == Some(prefix)
+                })
+                .expect("the parser-selected rejected prefix must survive projection");
+            assert_eq!(diagnostic.code(), "E0120");
+            assert_eq!(diagnostic.message(), "expected an expression");
+            assert!(diagnostic.repair().is_none());
+        }
     }
 
     #[test]

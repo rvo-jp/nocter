@@ -6,6 +6,14 @@ use crate::{ContextualSpelling, Keyword};
 /// remain valid names; reserved keywords, `_`, and `Self` do not.
 #[must_use]
 pub fn is_valid_name(text: &str) -> bool {
+    name_shape(text) && Keyword::from_spelling(text).is_none()
+}
+
+pub(crate) fn is_valid_value_name(text: &str) -> bool {
+    name_shape(text) && Keyword::from_value_spelling(text).is_none()
+}
+
+fn name_shape(text: &str) -> bool {
     let mut bytes = text.bytes();
     bytes.next().is_some_and(is_name_start)
         && bytes.all(is_name_continue)
@@ -13,7 +21,6 @@ pub fn is_valid_name(text: &str) -> bool {
             ContextualSpelling::from_spelling(text),
             Some(ContextualSpelling::Discard | ContextualSpelling::UpperSelf)
         )
-        && Keyword::from_spelling(text).is_none()
 }
 
 /// Reports whether `text` is one canonical authored directory-module segment.

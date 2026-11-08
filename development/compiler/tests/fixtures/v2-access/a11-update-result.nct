@@ -1,8 +1,0 @@
-func edit(value: &i32): &i32 {
-    return value
-}
-func update(value: ^i32): ^i32 {
-    let child = edit(value)
-    child += 1
-    return ^value
-}

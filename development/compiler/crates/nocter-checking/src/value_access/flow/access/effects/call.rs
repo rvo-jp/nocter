@@ -1,9 +1,8 @@
 use super::super::liveness::Carrier;
-use super::super::state::{Key, Prepared, Value, World};
-use super::super::{AccessRule, Creation, RequiredUse, RetainedAccess, Root, Violation};
+use super::super::state::{Prepared, Value, World};
+use super::super::{AccessRule, Creation, RetainedAccess, Violation};
 use super::{Context, Failure, Result};
 use crate::value_access::ExpressionKind;
-use nocter_declarations::value_access::ResultReferent;
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 impl Context<'_, '_> {
     pub(super) fn commit(&mut self, call: AccessExpressionId) -> Result<Vec<World>> {
@@ -17,14 +16,11 @@ impl Context<'_, '_> {
         else {
             return Err(Failure::Integrity);
         };
-        let declaration = self
-            .typed
+        self.typed
             .program()
             .callables()
             .get(*target)
             .ok_or(Failure::Integrity)?;
-        let result = declaration.result();
-        let referents = declaration.result_referent().clone();
         let prepared = (0..arguments.len())
             .map(|index| {
                 self.world
@@ -35,82 +31,16 @@ impl Context<'_, '_> {
             })
             .collect::<Result<Vec<_>>>()?;
         self.check_bundle(call, &prepared)?;
-        let mut inputs = Vec::new();
-        for (index, prepared) in prepared.into_iter().enumerate() {
-            let value = match prepared {
-                Prepared::Reserved {
-                    root,
-                    permission: Mode::Own,
-                    ..
-                } => {
-                    let Root::Owned(_) = root else {
-                        return Err(Failure::Integrity);
-                    };
-                    Value::without_referent(Mode::Own)
-                }
-                Prepared::Reserved {
-                    root,
-                    actor,
-                    permission,
-                    ..
-                } => self.create(Key::Argument(call, index), Some((root, actor)), permission)?,
-                Prepared::Value(value) => value,
-            };
-            inputs.push(value);
+        // The admitted payload contracts return values with no outside R/D/S. Abstract
+        // invocation retains no argument access; it never invents a borrowed result.
+        self.world.values.insert(
+            Carrier::Expression(call),
+            Value::without_referent(Mode::Own),
+        );
+        for index in 0..arguments.len() {
+            self.world.prepared.remove(&(call, index));
         }
-        let positions = self.result_positions(referents)?;
-        let mut worlds = Vec::new();
-        if let Some(positions) = positions {
-            for position in positions {
-                let input = *inputs.get(position).ok_or(Failure::Integrity)?;
-                let mut alternative = self.world.clone();
-                let mut context = Context {
-                    typed: self.typed,
-                    world: &mut alternative,
-                    at: self.at,
-                    live: self.live,
-                    steps: Vec::new(),
-                };
-                let base = context.base_value(input)?.ok_or(Failure::Integrity)?;
-                let value = context.create(Key::Expression(call), Some(base), result.mode())?;
-                context
-                    .world
-                    .values
-                    .insert(Carrier::Expression(call), value);
-                for index in 0..arguments.len() {
-                    context.world.prepared.remove(&(call, index));
-                }
-                worlds.push(alternative);
-            }
-        } else {
-            self.world.values.insert(
-                Carrier::Expression(call),
-                Value::without_referent(result.mode()),
-            );
-            for index in 0..arguments.len() {
-                self.world.prepared.remove(&(call, index));
-            }
-            worlds.push(self.world.clone());
-        }
-        Ok(worlds)
-    }
-    fn result_positions(&self, referents: ResultReferent) -> Result<Option<Vec<usize>>> {
-        Ok(match referents {
-            ResultReferent::Value => None,
-            ResultReferent::Inputs(parameters) => Some(
-                parameters
-                    .iter()
-                    .map(|id| {
-                        self.typed
-                            .program()
-                            .parameters()
-                            .get(*id)
-                            .map(|parameter| parameter.position())
-                            .ok_or(Failure::Integrity)
-                    })
-                    .collect::<Result<Vec<_>>>()?,
-            ),
-        })
+        Ok(vec![self.world.clone()])
     }
     fn check_bundle(&self, call: AccessExpressionId, prepared: &[Prepared]) -> Result<()> {
         let mut caps = Vec::new();
@@ -151,7 +81,7 @@ impl Context<'_, '_> {
                             retained: Some(RetainedAccess {
                                 created,
                                 permission: *other_mode,
-                                required: Some(RequiredUse::Action(self.at)),
+                                required: Some(self.at),
                             }),
                         }
                         .into());

@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use nocter_model::{
     AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, Symbol, SymbolTable,
-    TypeAuthority, TypeId, TypeKind, ValueAccessMode, ValueAccessType,
+    TypeAuthority, TypeId, TypeKind, ValueInputOperation,
 };
 
 use crate::DefinitionError;
@@ -19,7 +19,7 @@ mod tests;
 pub struct ParameterDefinition {
     pub name: Symbol,
     pub data: BuiltinType,
-    pub mode: ValueAccessMode,
+    pub operation: ValueInputOperation,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,21 +47,11 @@ pub struct DeclarationViolation {
     pub rule: DeclarationRule,
 }
 
-/// Only the result's own referent R. This is never a promise that payload D/storage S are empty.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ResultReferent {
-    /// X or an independent concrete I Copy answer; the declared permission remains unchanged.
-    Value,
-    /// An upper bound over eligible caller inputs, including an empty or alternative set.
-    Inputs(Box<[AccessParameterId]>),
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Callable {
     name: Symbol,
     parameters: Box<[AccessParameterId]>,
-    result: ValueAccessType,
-    referent: ResultReferent,
+    result: TypeId,
 }
 
 impl Callable {
@@ -74,12 +64,8 @@ impl Callable {
         &self.parameters
     }
     #[must_use]
-    pub const fn result(&self) -> ValueAccessType {
+    pub const fn result(&self) -> TypeId {
         self.result
-    }
-    #[must_use]
-    pub const fn result_referent(&self) -> &ResultReferent {
-        &self.referent
     }
 }
 
@@ -88,7 +74,8 @@ pub struct Parameter {
     owner: AccessCallableId,
     name: Symbol,
     position: usize,
-    ty: ValueAccessType,
+    data: TypeId,
+    operation: ValueInputOperation,
 }
 
 impl Parameter {
@@ -105,8 +92,12 @@ impl Parameter {
         self.position
     }
     #[must_use]
-    pub const fn ty(self) -> ValueAccessType {
-        self.ty
+    pub const fn data(self) -> TypeId {
+        self.data
+    }
+    #[must_use]
+    pub const fn operation(self) -> ValueInputOperation {
+        self.operation
     }
 }
 
@@ -159,7 +150,6 @@ impl Program {
 struct Definition {
     parameters: Box<[ParameterDefinition]>,
     result_data: BuiltinType,
-    result_mode: ValueAccessMode,
 }
 
 #[derive(Debug)]
@@ -198,7 +188,6 @@ impl Builder {
         id: AccessCallableId,
         parameters: impl Into<Box<[ParameterDefinition]>>,
         result_data: BuiltinType,
-        result_mode: ValueAccessMode,
     ) -> Result<(), DefinitionError> {
         let reservation = self
             .reservations
@@ -210,7 +199,6 @@ impl Builder {
         reservation.definition = Some(Definition {
             parameters: parameters.into(),
             result_data,
-            result_mode,
         });
         Ok(())
     }
@@ -247,22 +235,15 @@ impl Builder {
                             owner: id,
                             name: parameter.name,
                             position,
-                            ty: ValueAccessType::new(
-                                types.store().builtin(parameter.data),
-                                parameter.mode,
-                            ),
+                            data: types.store().builtin(parameter.data),
+                            operation: parameter.operation,
                         })
                     })
                     .collect::<Vec<_>>();
-                let referent = result_referent(definition, &parameter_ids);
                 Ok(Callable {
                     name: reservation.name,
                     parameters: parameter_ids.into_boxed_slice(),
-                    result: ValueAccessType::new(
-                        types.store().builtin(definition.result_data),
-                        definition.result_mode,
-                    ),
-                    referent,
+                    result: types.store().builtin(definition.result_data),
                 })
             },
         )?;
@@ -376,31 +357,6 @@ fn validate_data(
             rule: DeclarationRule::UnsupportedDataType { data },
         });
     }
-}
-
-fn result_referent(definition: &Definition, parameters: &[AccessParameterId]) -> ResultReferent {
-    if definition.result_mode == ValueAccessMode::Own
-        || definition.result_mode == ValueAccessMode::Read
-            && definition.result_data != BuiltinType::Error
-    {
-        return ResultReferent::Value;
-    }
-    ResultReferent::Inputs(
-        definition
-            .parameters
-            .iter()
-            .zip(parameters)
-            .filter_map(|(input, &id)| {
-                (input.data == definition.result_data
-                    && match definition.result_mode {
-                        ValueAccessMode::Read => input.mode != ValueAccessMode::Own,
-                        ValueAccessMode::Update => input.mode == ValueAccessMode::Update,
-                        ValueAccessMode::Own => false,
-                    })
-                .then_some(id)
-            })
-            .collect(),
-    )
 }
 
 fn supported(data: BuiltinType) -> bool {

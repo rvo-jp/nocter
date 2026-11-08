@@ -1,7 +1,0 @@
-func repeat(value: ^error, flag: bool): ^error {
-    while flag {
-        let next = ^value
-        value = ^next
-    }
-    return ^value
-}

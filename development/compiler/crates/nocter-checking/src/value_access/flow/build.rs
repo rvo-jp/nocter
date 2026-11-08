@@ -463,8 +463,7 @@ impl Builder<'_> {
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Place(_)
-            | ExpressionKind::Update(_)
-            | ExpressionKind::Transfer(_) => Some(entry),
+            | ExpressionKind::Move(_) => Some(entry),
         };
         if let Some(point) = end {
             self.action(point, origin, Operation::Evaluate(id))?;

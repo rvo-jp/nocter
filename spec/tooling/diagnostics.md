@@ -694,8 +694,10 @@ with a binding/input operation requires knowing its intended behavior.
 Retain non-place alias initializers/assignment targets in syntax for semantic diagnostics. A
 contextual `read`/`edit`/`take` spelling is recognized from grammar position, never type lookup.
 The [earlier checkpoint snapshot](../../development/history/reviews/v2.0.0-access-checkpoint-contracts.md)
-preserves old diagnostic requirements; the current private checker has not been migrated.
-These rules do not change released code assignments or diagnostic behavior.
+preserves retired diagnostic requirements. The
+[bounded implementation record](../../development/history/reviews/v2.0.0-value-binding-front-end.md)
+identifies the private source/checking scope. These rules do not change released code assignments
+or diagnostic behavior.
 
 ## Future Direction: v2.0.0 Private Header Diagnostics
 

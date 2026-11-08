@@ -1,5 +1,0 @@
-func choose(value: ^i32, flag: bool): ^i32 {
-    let answer: ^i32 = if flag { value } else { 20 }
-    value += 1
-    return ^answer
-}

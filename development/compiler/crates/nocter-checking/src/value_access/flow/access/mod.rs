@@ -30,15 +30,10 @@ pub enum Creation {
     Action(Location),
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum RequiredUse {
-    Action(Location),
-    StagedResult(Location),
-}
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RetainedAccess {
     pub created: Creation,
     pub permission: ValueAccessMode,
-    pub required: Option<RequiredUse>,
+    pub required: Option<Location>,
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum AccessRule {
@@ -47,7 +42,6 @@ pub enum AccessRule {
     ConflictingTransfer,
     ReservedModification,
     ConflictingArguments,
-    InvalidReturnRoot,
     ExpiredRoot,
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -62,19 +56,12 @@ pub enum Status {
     BlockedByInitialization,
     Analyzed,
 }
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum ReturnOrigin {
-    NoReferent,
-    Input(AccessParameterId),
-}
-
 /// Referent and concrete first-fragment resource evidence; whole-unit closure is separate.
 #[derive(Clone, Debug)]
 pub struct Analysis {
     status: Status,
     liveness: Liveness,
     violations: Box<[Violation]>,
-    returns: Box<[ReturnOrigin]>,
     resources: super::resources::Report,
 }
 impl Analysis {
@@ -89,10 +76,6 @@ impl Analysis {
     #[must_use]
     pub const fn violations(&self) -> &[Violation] {
         &self.violations
-    }
-    #[must_use]
-    pub const fn returns(&self) -> &[ReturnOrigin] {
-        &self.returns
     }
     #[must_use]
     pub const fn resources(&self) -> &super::resources::Report {
@@ -111,14 +94,12 @@ pub(super) fn analyze(
             status: Status::BlockedByInitialization,
             liveness,
             violations: Box::new([]),
-            returns: Box::new([]),
             resources: super::resources::Report::default(),
         });
     }
     let mut pending = BTreeSet::from([(graph.entry(), World::entry(typed)?)]);
     let mut entries: BTreeMap<_, BTreeSet<World>> = BTreeMap::new();
     let mut violations = BTreeSet::new();
-    let mut returns = BTreeSet::new();
     let mut resources = super::resources::Report::default();
     while let Some((point, mut world)) = pending.pop_first() {
         world.trim(liveness.entry(point))?;
@@ -151,25 +132,16 @@ pub(super) fn analyze(
         }
         for world in worlds {
             if block.terminator == Terminator::Return {
-                let owns = typed
-                    .program()
-                    .callables()
-                    .get(typed.callable())
-                    .ok_or(INVALID)?
-                    .result()
-                    .mode()
-                    == ValueAccessMode::Own;
-                if !world.resources.returned(owns) {
+                if !world.resources.returned(
+                    typed
+                        .program()
+                        .callables()
+                        .get(typed.callable())
+                        .ok_or(INVALID)?
+                        .result(),
+                ) {
                     return Err(INVALID);
                 }
-                let staged = world.staged.as_ref().ok_or(INVALID)?;
-                returns.insert(match staged.value.access {
-                    None => ReturnOrigin::NoReferent,
-                    Some(key) => match world.nodes.get(&key).ok_or(INVALID)?.root {
-                        Root::Input(parameter) => ReturnOrigin::Input(parameter),
-                        Root::Owned(_) | Root::Temporary { .. } => return Err(INVALID),
-                    },
-                });
             } else {
                 for successor in block.terminator.successors() {
                     if initialization.reachable(successor) {
@@ -183,7 +155,6 @@ pub(super) fn analyze(
         status: Status::Analyzed,
         liveness,
         violations: violations.into_iter().collect(),
-        returns: returns.into_iter().collect(),
         resources,
     })
 }

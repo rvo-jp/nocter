@@ -1,2 +1,0 @@
-func work(other: i32): void {}
-func other(): void {}

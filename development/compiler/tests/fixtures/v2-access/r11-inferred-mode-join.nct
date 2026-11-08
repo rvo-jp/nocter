@@ -1,3 +1,0 @@
-func wrong(value: ^i32, flag: bool): void {
-    let answer = if flag { value } else { 20 }
-}

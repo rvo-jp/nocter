@@ -267,7 +267,12 @@ impl<'source> Lexer<'source> {
         }
 
         let text = &self.text[start..self.cursor];
-        let kind = Keyword::from_spelling(text).map_or(TokenKind::Identifier, TokenKind::Keyword);
+        let keyword = if self.access_core {
+            Keyword::from_value_spelling(text)
+        } else {
+            Keyword::from_spelling(text)
+        };
+        let kind = keyword.map_or(TokenKind::Identifier, TokenKind::Keyword);
         self.push_token(kind, start, self.cursor);
     }
 

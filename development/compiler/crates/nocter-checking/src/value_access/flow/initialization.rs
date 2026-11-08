@@ -200,7 +200,15 @@ fn cleanup_fact(
     location: Location,
     cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
-    if typed.body().locals().get(local).ok_or(INVALID)?.ty.mode() == ValueAccessMode::Own {
+    if typed
+        .body()
+        .locals()
+        .get(local)
+        .ok_or(INVALID)?
+        .access()
+        .mode()
+        == ValueAccessMode::Own
+    {
         cleanup.push(CleanupFact {
             location,
             local,
@@ -250,10 +258,7 @@ fn transfer(
                     | ArgumentAction::ReserveTransfer(local) => {
                         require(state, local, location, violations)?;
                     }
-                    ArgumentAction::ReadValue
-                    | ArgumentAction::ReadOwnedValue
-                    | ArgumentAction::ReadAccessValue
-                    | ArgumentAction::UpdateValue
+                    ArgumentAction::ReadOwnedValue
                     | ArgumentAction::CopyPayload
                     | ArgumentAction::TakeValue => {}
                     ArgumentAction::Interrupted => return Err(INVALID),
@@ -279,7 +284,13 @@ fn transfer(
             Operation::Bind { local, .. } => initialize(state, *local)?,
             Operation::Assign { target, .. } => {
                 // U updates the referent, so its holder must already be initialized. X can restore.
-                if typed.body().locals().get(*target).ok_or(INVALID)?.ty.mode()
+                if typed
+                    .body()
+                    .locals()
+                    .get(*target)
+                    .ok_or(INVALID)?
+                    .access()
+                    .mode()
                     == ValueAccessMode::Update
                 {
                     require(state, *target, location, violations)?;
@@ -324,10 +335,10 @@ fn evaluate(
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
     match &typed.body().expressions().get(id).ok_or(INVALID)?.kind {
-        ExpressionKind::Place(local) | ExpressionKind::Update(local) => {
+        ExpressionKind::Place(local) => {
             require(state, *local, location, violations)?;
         }
-        ExpressionKind::Transfer(local) => {
+        ExpressionKind::Move(local) => {
             require(state, *local, location, violations)?;
             remove(state, *local, location)?;
         }

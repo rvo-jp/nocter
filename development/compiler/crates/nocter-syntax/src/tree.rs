@@ -29,9 +29,8 @@ impl std::fmt::Debug for SyntaxTreeIdentity {
 pub enum NodeKind {
     SourceFile,
     V2CoreUnit,
-    AccessType,
-    UpdateExpression,
-    TransferExpression,
+    InputOperation,
+    BindingOperation,
     UnitExpression,
     PackageDirective,
     DirectiveValue,
@@ -241,9 +240,8 @@ impl NodeKind {
         match self {
             Self::SourceFile => "source_file",
             Self::V2CoreUnit => "v2_0_0_core_unit",
-            Self::AccessType => "access_type",
-            Self::UpdateExpression => "update_expression",
-            Self::TransferExpression => "transfer_expression",
+            Self::InputOperation => "input_operation",
+            Self::BindingOperation => "binding_operation",
             Self::UnitExpression => "unit_expression",
             Self::PackageDirective => "package_directive",
             Self::DirectiveValue => "directive_value",

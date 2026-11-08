@@ -1,6 +1,0 @@
-func consume(value: ^i32): void {
-}
-func wrong(value: ^i32): i32 {
-    consume(value)
-    return value
-}

@@ -1,8 +1,7 @@
 {
   "schema": 1,
-  "intended_parse_goal": "V2CoreUnit",
   "contract": "../../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment",
-  "compiler_status": "planned-not-consumed",
+  "compiler_status": "checked-private-unit",
   "cases": [
     {
       "id": "a01-observe-noncopy-twice",
@@ -92,73 +91,85 @@
       "id": "r01-read-noncopy-result",
       "file": "r01-read-noncopy-result.nct",
       "expectation": "check-reject",
-      "reason": "A read non-Copy input cannot be extracted to supply an ordinary value result."
+      "reason": "A read non-Copy input cannot be extracted to supply an ordinary value result.",
+      "diagnostic": "E0371"
     },
     {
       "id": "r02-update-read-input",
       "file": "r02-update-read-input.nct",
       "expectation": "check-reject",
-      "reason": "An unmarked input remains read despite a body that attempts mutation."
+      "reason": "An unmarked input remains read despite a body that attempts mutation.",
+      "diagnostic": "E0384"
     },
     {
       "id": "r03-drop-read-input",
       "file": "r03-drop-read-input.nct",
       "expectation": "check-reject",
-      "reason": "Read access is not an owning slot even when the data type is Copy."
+      "reason": "Read access is not an owning slot even when the data type is Copy.",
+      "diagnostic": "E0383"
     },
     {
       "id": "r04-update-fixed-value",
       "file": "r04-update-fixed-value.nct",
       "expectation": "check-reject",
-      "reason": "A fixed value binding cannot be updated."
+      "reason": "A fixed value binding cannot be updated.",
+      "diagnostic": "E0384"
     },
     {
       "id": "r05-extract-read-alias",
       "file": "r05-extract-read-alias.nct",
       "expectation": "check-reject",
-      "reason": "A read alias cannot supply a non-Copy owner to a value binding."
+      "reason": "A read alias cannot supply a non-Copy owner to a value binding.",
+      "diagnostic": "E0371"
     },
     {
       "id": "r06-edit-fixed-value",
       "file": "r06-edit-fixed-value.nct",
       "expectation": "check-reject",
-      "reason": "An edit alias needs writable storage; ownership alone does not make let writable."
+      "reason": "An edit alias needs writable storage; ownership alone does not make let writable.",
+      "diagnostic": "E0387"
     },
     {
       "id": "r07-use-after-transfer",
       "file": "r07-use-after-transfer.nct",
       "expectation": "check-reject",
-      "reason": "Moving a non-Copy value leaves its previous owning slot unavailable."
+      "reason": "Moving a non-Copy value leaves its previous owning slot unavailable.",
+      "diagnostic": "E0378"
     },
     {
       "id": "r08-use-after-copy-drop",
       "file": "r08-use-after-copy-drop.nct",
       "expectation": "check-reject",
-      "reason": "Explicit drop destroys the named owner; it does not discard a non-invalidating snapshot."
+      "reason": "Explicit drop destroys the named owner; it does not discard a non-invalidating snapshot.",
+      "diagnostic": "E0378"
     },
     {
       "id": "r09-reinitialize-fixed-slot",
       "file": "r09-reinitialize-fixed-slot.nct",
       "expectation": "check-reject",
-      "reason": "A fixed binding cannot be reinitialized after moving its value."
+      "reason": "A fixed binding cannot be reinitialized after moving its value.",
+      "diagnostic": "E0384"
     },
     {
       "id": "r10-duplicate-noncopy-take",
       "file": "r10-duplicate-noncopy-take.nct",
       "expectation": "check-reject",
-      "reason": "One invocation bundle cannot transfer the same non-Copy owner twice."
+      "reason": "One invocation bundle cannot transfer the same non-Copy owner twice.",
+      "diagnostic": "E0396"
     },
     {
       "id": "r11-update-before-last-read",
       "file": "r11-update-before-last-read.nct",
       "expectation": "check-reject",
-      "reason": "An alias needed after a write keeps its read protection live."
+      "reason": "An alias needed after a write keeps its read protection live.",
+      "diagnostic": "E0397"
     },
     {
       "id": "r12-loop-missing-restoration",
       "file": "r12-loop-missing-restoration.nct",
       "expectation": "check-reject",
-      "reason": "A second reachable iteration cannot drop a slot left unavailable by the first."
+      "reason": "A second reachable iteration cannot drop a slot left unavailable by the first.",
+      "diagnostic": "E0378"
     },
     {
       "id": "s01-redundant-read-input",
@@ -184,5 +195,6 @@
       "expectation": "syntax-reject",
       "reason": "Scoped update uses edit rather than a standalone ampersand expression."
     }
-  ]
+  ],
+  "parse_goal": "V2CoreUnit"
 }

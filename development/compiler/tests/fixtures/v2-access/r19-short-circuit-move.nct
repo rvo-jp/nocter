@@ -1,7 +1,0 @@
-func consume(value: ^error): bool {
-    true
-}
-func wrong(value: ^error, flag: bool): void {
-    let answer = flag && consume(value)
-    let inspect = value
-}

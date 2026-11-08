@@ -1,6 +1,0 @@
-func unit(): ^void {
-    let value = ()
-    return ^value
-}
-func normal(): void {
-}

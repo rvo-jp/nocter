@@ -9,9 +9,10 @@ are accessed. Capability values and callable contracts retain the access/depende
 needed for safety; that information is not removed from the type system.
 
 This direction replaces the earlier future type-side `&T`/`^T`, explicit `&place`/`^place`, and
-permission-inferred `let` rules. They are not optional aliases. The earlier private-unit compiler
-checkpoint has not been migrated to this direction. Full-language conformance, target realization
-and a general soundness proof are not claimed. Other chapters state the extent of their future
+permission-inferred `let` rules. They are not optional aliases. The
+[bounded private-unit fragment](syntactic-grammar.md#bounded-value-binding-fragment) selects a
+smaller source scope; it does not define full-language conformance, target realization or a
+general soundness proof. Other chapters state the extent of their future
 migration; an unchanged released production does not silently become a v2.0.0 production.
 
 ### Values and Scoped Aliases

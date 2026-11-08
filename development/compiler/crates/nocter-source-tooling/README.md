@@ -21,6 +21,6 @@ analysis and are not reconstructed here.
 - Source token classification never invents semantic identity.
 - Released inspection/formatting retains its `SourceFile` goal. The future private core root is
   rejected before released formatting rules run; exposing or formatting that language is a separate
-  migration boundary. Expected-syntax projection can retain the typed `unmarked_call_operand`
-  category without reconstructing its rule from text.
+  migration boundary. Retired access-prefix assertion diagnostics have no formatting/inspection
+  category or source-text reconstruction path.
 - Invalid syntax remains representable and diagnosable after tooling operations.
