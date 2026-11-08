@@ -39,6 +39,8 @@ pub enum ArgumentAction {
     ReserveUpdate(AccessLocalId),
     ReserveTransfer(AccessLocalId),
     ReadValue,
+    /// Read a fresh owned temporary without Copy; its caller retains cleanup responsibility.
+    ReadOwnedValue,
     ReadAccessValue,
     UpdateValue,
     CopyPayload,

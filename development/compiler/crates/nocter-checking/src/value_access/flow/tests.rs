@@ -268,9 +268,11 @@ fn return_stages_before_interleaved_scope_and_call_cancellation() {
         .iter()
         .position(|action| matches!(action, Operation::CancelCall { prepared: 1, .. }))
         .unwrap();
-    assert!(matches!(kinds[stage + 1], Operation::ExitScope { .. }));
+    assert!(matches!(kinds[stage + 1], Operation::EndEvaluation(_)));
+    assert!(matches!(kinds[stage + 2], Operation::ExitScope { .. }));
     assert!(stage < cancel);
-    assert!(matches!(kinds[cancel + 1], Operation::ExitScope { .. }));
+    assert!(matches!(kinds[cancel + 1], Operation::EndEvaluation(_)));
+    assert!(matches!(kinds[cancel + 2], Operation::ExitScope { .. }));
 }
 
 #[test]
@@ -377,7 +379,11 @@ fn ordinary_scope_exit_preserves_reverse_cleanup_and_staged_output() {
         .iter()
         .position(|action| matches!(action.operation, Operation::StageReturn(_)))
         .unwrap();
-    let Operation::ExitScope { locals, .. } = &events[stage + 1].operation else {
+    assert!(matches!(
+        events[stage + 1].operation,
+        Operation::EndEvaluation(_)
+    ));
+    let Operation::ExitScope { locals, .. } = &events[stage + 2].operation else {
         panic!("scope exit");
     };
     assert_eq!(locals.as_ref(), all_locals);

@@ -1,4 +1,5 @@
 mod call;
+mod ownership;
 use super::super::{IntegrityError, Location, Operation};
 use super::{
     AccessRule, Creation, Liveness, Root, Violation,
@@ -31,6 +32,7 @@ struct Context<'a, 'b> {
     world: &'b mut World,
     at: Location,
     live: &'a Liveness,
+    steps: Vec<super::super::resources::Step>,
 }
 
 pub(super) fn apply(
@@ -39,14 +41,18 @@ pub(super) fn apply(
     operation: &Operation,
     at: Location,
     live: &Liveness,
-) -> Result<Vec<World>> {
+) -> Result<Vec<(World, Vec<super::super::resources::Step>)>> {
     let mut context = Context {
         typed,
         world,
         at,
         live,
+        steps: Vec::new(),
     };
+    context.ownership_before(operation)?;
     match operation {
+        Operation::BeginEvaluation(_) => {}
+        Operation::EndEvaluation(id) => context.end_evaluation_access(*id)?,
         Operation::Evaluate(id) => {
             let value = context.evaluate(*id)?;
             context.world.values.insert(Carrier::Expression(*id), value);
@@ -76,9 +82,6 @@ pub(super) fn apply(
         }
         Operation::Bind { local, value } => {
             let value = context.world.value(*value)?;
-            if value.mode == Mode::Own {
-                context.world.roots.insert(*local);
-            }
             context.world.values.insert(Carrier::Local(*local), value);
         }
         Operation::Assign { target, value } => {
@@ -89,7 +92,6 @@ pub(super) fn apply(
             let (root, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
             context.write(root, actor, Mode::Update, None)?;
             if context.local_mode(*target)? == Mode::Own {
-                context.world.roots.insert(*target);
                 context
                     .world
                     .values
@@ -103,7 +105,7 @@ pub(super) fn apply(
         }
         Operation::Drop(local) => context.destroy(*local)?,
         Operation::PrepareArgument { call, argument } => context.prepare(*call, *argument)?,
-        Operation::CommitCall(call) => return context.commit(*call),
+        Operation::CommitCall(call) => return context.apply_call(*call),
         Operation::CancelCall { call, prepared } => {
             for index in 0..*prepared {
                 context
@@ -117,16 +119,48 @@ pub(super) fn apply(
         Operation::StageReturn(value) => context.stage_return(*value)?,
         Operation::ExitScope { locals, .. } => {
             for &local in locals {
-                if context.local_mode(local)? == Mode::Own && context.world.roots.contains(&local) {
+                if context.local_mode(local)? == Mode::Own
+                    && context.world.alive(Root::Owned(local))
+                {
                     context.destroy(local)?;
                 }
                 context.world.values.remove(&Carrier::Local(local));
             }
         }
     }
-    Ok(vec![context.world.clone()])
+    context.ownership_after(operation)?;
+    Ok(vec![(context.world.clone(), context.steps)])
 }
 impl Context<'_, '_> {
+    fn end_evaluation_access(&self, id: AccessExpressionId) -> Result<()> {
+        for holder in self.world.resources.ending(id)? {
+            if let super::super::resources::Holder::Temporary { call, index } = holder {
+                self.write(Root::Temporary { call, index }, None, Mode::Own, None)?;
+            }
+        }
+
+        Ok(())
+    }
+    fn apply_call(
+        &mut self,
+        call: AccessExpressionId,
+    ) -> Result<Vec<(World, Vec<super::super::resources::Step>)>> {
+        let alternatives = self.commit(call)?;
+        let mut results = Vec::new();
+        for mut world in alternatives {
+            let mut next = Context {
+                typed: self.typed,
+                world: &mut world,
+                at: self.at,
+                live: self.live,
+                steps: self.steps.clone(),
+            };
+            next.ownership_after(&Operation::CommitCall(call))?;
+            let steps = next.steps;
+            results.push((world, steps));
+        }
+        Ok(results)
+    }
     fn stage_return(&mut self, expression: AccessExpressionId) -> Result<()> {
         let value = self.world.value(expression)?;
         self.read(value)?;
@@ -226,7 +260,6 @@ impl Context<'_, '_> {
     }
     fn destroy(&mut self, local: AccessLocalId) -> Result<()> {
         self.write(Root::Owned(local), None, Mode::Own, None)?;
-        self.world.roots.remove(&local);
         self.world.values.remove(&Carrier::Local(local));
         Ok(())
     }
@@ -388,6 +421,12 @@ impl Context<'_, '_> {
                 let base = self.base_value(self.world.value(argument.value)?)?;
                 Prepared::Value(self.create(Key::Argument(call, index), base, Mode::Read)?)
             }
+            ArgumentAction::ReadOwnedValue => Prepared::Reserved {
+                root: Root::Temporary { call, index },
+                actor: None,
+                permission: Mode::Read,
+                at: self.at,
+            },
             ArgumentAction::ReadValue | ArgumentAction::UpdateValue | ArgumentAction::TakeValue => {
                 Prepared::Value(self.world.value(argument.value)?)
             }

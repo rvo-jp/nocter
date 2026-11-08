@@ -17,6 +17,7 @@ struct Draft {
 }
 #[derive(Clone, Debug)]
 enum Frame {
+    Evaluation(AccessExpressionId),
     Scope {
         block: AccessBlockId,
         locals: Box<[AccessLocalId]>,
@@ -131,6 +132,7 @@ impl Builder<'_> {
             .rev()
         {
             let operation = match frame {
+                Frame::Evaluation(value) => Operation::EndEvaluation(value),
                 Frame::Scope { block, locals } => Operation::ExitScope { block, locals },
                 Frame::Call { call, prepared } => Operation::CancelCall { call, prepared },
             };
@@ -156,6 +158,25 @@ impl Builder<'_> {
             locals: locals.into_boxed_slice(),
         })
     }
+    fn begin(&mut self, value: AccessExpressionId, point: AccessFlowPointId) -> Result<()> {
+        self.action(
+            point,
+            Origin::Expression(value),
+            Operation::BeginEvaluation(value),
+        )?;
+        self.frames.push(Frame::Evaluation(value));
+        Ok(())
+    }
+    fn end(&mut self, value: AccessExpressionId, point: AccessFlowPointId) -> Result<()> {
+        if !matches!(self.frames.pop(), Some(Frame::Evaluation(id)) if id == value) {
+            return Err(INVALID);
+        }
+        self.action(
+            point,
+            Origin::Expression(value),
+            Operation::EndEvaluation(value),
+        )
+    }
     fn block(
         &mut self,
         block: AccessBlockId,
@@ -174,6 +195,7 @@ impl Builder<'_> {
         }
         if let Some(point) = current {
             if let Some(result) = body.result {
+                self.begin(result, point)?;
                 current = self.expression(result, point)?;
                 if let Some(point) = current {
                     let origin = Origin::Block(block);
@@ -197,6 +219,7 @@ impl Builder<'_> {
                                     result: destination,
                                 },
                             )?;
+                            self.end(result, point)?;
                             self.exit_frames(point, depth, origin)?;
                         }
                         Output::Discard => {
@@ -205,6 +228,7 @@ impl Builder<'_> {
                                 Origin::Expression(result),
                                 Operation::Discard(result),
                             )?;
+                            self.end(result, point)?;
                             self.exit_frames(point, depth, origin)?;
                         }
                     }
@@ -240,11 +264,14 @@ impl Builder<'_> {
                 (value, Operation::Discard(value))
             }
             Statement::Return(value) => {
+                let depth = self.frames.len();
+                self.begin(value, point)?;
                 if let Some(point) = self.expression(value, point)? {
                     self.action(point, origin, Operation::StageReturn(value))?;
                     self.exit_frames(point, 0, origin)?;
                     self.terminate(point, Terminator::Return)?;
                 }
+                self.frames.truncate(depth);
                 return Ok(None);
             }
             Statement::Drop(local) => {
@@ -276,10 +303,14 @@ impl Builder<'_> {
                 body,
             } => return self.loop_(loop_id, Some(condition), body, point),
         };
+        let depth = self.frames.len();
+        self.begin(value, point)?;
         let Some(point) = self.expression(value, point)? else {
+            self.frames.truncate(depth);
             return Ok(None);
         };
         self.action(point, origin, continuation)?;
+        self.end(value, point)?;
         Ok(Some(point))
     }
     fn loop_(
@@ -300,11 +331,30 @@ impl Builder<'_> {
             depth: self.frames.len(),
         });
         let body_entry = if let Some(condition) = condition {
+            let depth = self.frames.len();
+            self.begin(condition, header)?;
             if let Some(end) = self.expression(condition, header)? {
                 let body_entry = self.point();
-                self.branch(end, condition, body_entry, exit)?;
+                self.action(
+                    end,
+                    Origin::Expression(condition),
+                    Operation::Condition(condition),
+                )?;
+                self.end(condition, end)?;
+                // branch() would snapshot the condition again after temporary cleanup.
+                let terminator = match self.body.expressions().get(condition).ok_or(INVALID)?.kind {
+                    ExpressionKind::Boolean(true) => Terminator::Jump(body_entry),
+                    ExpressionKind::Boolean(false) => Terminator::Jump(exit),
+                    _ => Terminator::Branch {
+                        condition,
+                        yes: body_entry,
+                        no: exit,
+                    },
+                };
+                self.terminate(end, terminator)?;
                 Some(body_entry)
             } else {
+                self.frames.truncate(depth);
                 None
             }
         } else {

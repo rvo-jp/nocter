@@ -19,6 +19,50 @@ impl AccessDiagnostic {
     }
 }
 impl Context<'_, '_> {
+    fn root_origin(&self, root: Root) -> Result<nocter_syntax::SyntaxOrigin, Failure> {
+        Ok(match root {
+            Root::Temporary { call, index } => {
+                let crate::value_access::ExpressionKind::Call { arguments, .. } = &self
+                    .query()
+                    .typed()
+                    .body()
+                    .expressions()
+                    .get(call)
+                    .ok_or(Failure::InconsistentSyntax)?
+                    .kind
+                else {
+                    return Err(Failure::InconsistentSyntax);
+                };
+                self.typed()
+                    .expression_origin(
+                        arguments
+                            .get(index)
+                            .ok_or(Failure::InconsistentSyntax)?
+                            .value,
+                    )
+                    .ok_or(Failure::InconsistentSyntax)?
+            }
+            root => {
+                let local = match root {
+                    Root::Owned(local) => local,
+                    Root::Input(parameter) => self
+                        .query()
+                        .typed()
+                        .body()
+                        .locals()
+                        .iter()
+                        .find_map(|(id, local)| {
+                            (local.origin == LocalOrigin::Parameter(parameter)).then_some(id)
+                        })
+                        .ok_or(Failure::InconsistentSyntax)?,
+                    Root::Temporary { .. } => return Err(Failure::InconsistentSyntax),
+                };
+                self.typed()
+                    .local_origin(local)
+                    .ok_or(Failure::InconsistentSyntax)?
+            }
+        })
+    }
     /// Projects referent/access failures through the same exact-current typed source binding.
     /// # Errors
     /// Returns an integrity failure for an inconsistent semantic/source origin.
@@ -56,27 +100,10 @@ impl Context<'_, '_> {
                     "this access requires an owner that no longer survives",
                 ),
             };
-            let local = match violation.root {
-                Root::Owned(local) => local,
-                Root::Input(parameter) => self
-                    .query()
-                    .typed()
-                    .body()
-                    .locals()
-                    .iter()
-                    .find_map(|(id, local)| {
-                        (local.origin == LocalOrigin::Parameter(parameter)).then_some(id)
-                    })
-                    .ok_or(Failure::InconsistentSyntax)?,
-            };
+            let root_origin = self.root_origin(violation.root)?;
             let mut notes = vec![DiagnosticNote::new(
                 "the referent root is declared here",
-                source_origin(
-                    syntax,
-                    self.typed()
-                        .local_origin(local)
-                        .ok_or(Failure::InconsistentSyntax)?,
-                )?,
+                source_origin(syntax, root_origin)?,
             )];
             if let Some(retained) = violation.retained {
                 let origin = match retained.created {

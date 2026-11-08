@@ -251,6 +251,7 @@ fn transfer(
                         require(state, local, location, violations)?;
                     }
                     ArgumentAction::ReadValue
+                    | ArgumentAction::ReadOwnedValue
                     | ArgumentAction::ReadAccessValue
                     | ArgumentAction::UpdateValue
                     | ArgumentAction::CopyPayload
@@ -301,6 +302,8 @@ fn transfer(
                 }
             }
             Operation::Forward { .. }
+            | Operation::BeginEvaluation(_)
+            | Operation::EndEvaluation(_)
             | Operation::BooleanAnswer { .. }
             | Operation::BooleanConstant { .. }
             | Operation::PrepareOperand { .. }

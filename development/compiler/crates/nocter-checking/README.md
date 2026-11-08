@@ -232,8 +232,8 @@ Rebinding requires that same authority and unchanged own body, then projects cur
 retyping or repeating dispatch. Body-independent header reuse does not imply body-result reuse.
 
 Structural eligibility is separate from named-slot initialization, source liveness, escape/origin
-proofs, access conflicts and validated cleanup. Named-slot facts are now computed below; the
-remaining validators are still required;
+proofs, access conflicts and validated cleanup. The shared flow query below supplies those facts
+for the exact first-fragment data contracts; whole-unit acceptance closes their callee assumptions;
 even a typed-only body with an uninitialized read or escaping local cannot enter execution. Primitive
 arithmetic retains checked operation kinds, and short-circuit/control interruptions remain explicit.
 The future product has no compatibility adapter, source-version flag, editor recovery product, or
@@ -266,10 +266,10 @@ owners. Scope exits retain reverse binding order, while a protected result is st
 or cancellation cleanup. Source projection reuses the typed query's exact-current binding without
 reconstructing flow or solving again.
 
-The referent/access analysis below now consumes this graph and named-slot prerequisite. Temporary
-resource cleanup, carried dependencies and destructor effects remain separate. An initialized slot
-and an initialized referent are distinct facts. Neither intermediate product can construct accepted
-checked evidence or enter execution.
+The referent/access analysis below consumes this graph and named-slot prerequisite. Evaluation
+frames also delimit temporary cleanup during normal and interrupted evaluation. An initialized
+slot and an initialized referent are distinct facts. Intermediate reports cannot independently
+construct accepted evidence or enter execution.
 
 
 ## Future Referents and Permission Demand
@@ -303,5 +303,39 @@ This is a referent/permission report under the selected callable contracts. A ze
 origin bound has no normally producing access result in this closed fragment; every callee body
 must independently satisfy that bound before whole-program acceptance. `NoReferent` describes R
 only, not empty carried payload or storage requirements. Bodies with initialization failures are
-explicitly blocked from this analysis. Even an analyzed report without violations supplies no
-accepted-program constructor, destructor/resource proof, native adapter or ABI qualification.
+explicitly blocked from this analysis. An analyzed report without violations alone cannot close
+callee assumptions, supply native validity, or qualify an ABI.
+
+## Future Logical Resources and Accepted Private Units
+
+The same alternative-world solver tracks a finite logical owner map and evaluation-frame stacks.
+Ownership is independent of access liveness: a dead value still owns its required destruction.
+Each reached operation records before/after ownership alternatives and ordered construction,
+move, callee-result receipt, disposal, invocation-transfer or caller-input replacement steps.
+Named R survival reads that owner map directly; no parallel root-survival set is retained.
+No dynamic resource counter or execution-history log participates in the fixed point.
+
+Payload evidence is an exhaustive match on the admitted built-in data contracts, not a Copy or
+owned-value heuristic. Scalars/unit have trivial destruction; the immutable owned-error snapshot
+has private storage and an owned-graph disposal obligation. All four have empty carried D/S under
+their exact normative contracts. Other data shapes cannot acquire that certificate. This is not
+a general dependency solver for aggregates, closures, generics or regions.
+
+Statement/condition/block-result evaluation frames retain fresh I-call inputs without Copy.
+Successful X invocation transfers the prepared owner; cancellation destroys only its owned prefix
+in reverse order. Named reservations never become early transfers. I temporaries remain caller
+owned until their evaluation ends; temporary referent roots prevent a saved access from silently
+keeping them alive. Forwarded/staged owners leave the cleaned frame; other temporaries are disposed
+before enclosing lexical cleanup. Whole-value replacement disposes only the old owner present on
+that path; a U input replacement disposes its initialized outside payload and installs the ready
+replacement. Every normal return has empty evaluation frames and exactly its declared X result
+owner, or no owned result for I/U. Trapping/diverging paths gain no unwinding guarantee.
+
+The closed private-unit constructor checks every definition in the supplied declaration context,
+including unreachable or recursive callees. It publishes no partial accepted value after a typing,
+initialization or access rejection. The accepted unit owns the exact declaration authority and
+all validated body/flow/resource reports. Its source binding validates every original body before
+exposing projections; a changed sibling or unrelated equal header authority rejects reuse.
+There is no public parts constructor, released-program adapter, public version switch, native
+consumer, user-destructor support, or outcome/async executor. A target consumer must realize the
+ordered transitions and checked primitive operations under its own layout/runtime contract.

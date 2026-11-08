@@ -288,17 +288,15 @@ impl Checker<'_, '_> {
                 } else {
                     match (expected.mode(), actual.mode()) {
                         (Mode::Read, Mode::Read) => ArgumentAction::ReadValue,
+                        (Mode::Read, Mode::Own) => ArgumentAction::ReadOwnedValue,
                         (Mode::Read, Mode::Update) => ArgumentAction::ReadAccessValue,
                         (Mode::Update, Mode::Update) => ArgumentAction::UpdateValue,
                         (Mode::Own, Mode::Own) => ArgumentAction::TakeValue,
-                        (Mode::Read, Mode::Own) | (Mode::Own, _)
-                            if self.copyable(actual.data()) =>
-                        {
+                        (Mode::Own, _) if self.copyable(actual.data()) => {
                             ArgumentAction::CopyPayload
                         }
                         (Mode::Own, _) => return self.reject(Rule::MissingTransfer, syntax),
                         (Mode::Update, _) => return self.reject(Rule::InvalidUpdate, syntax),
-                        (Mode::Read, _) => return self.reject(Rule::TypeMismatch, syntax),
                     }
                 }
             } else {

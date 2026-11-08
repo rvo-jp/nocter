@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "parse_goal": "V2CoreUnit",
-  "compiler_status": "referent-access-only",
+  "compiler_status": "checked-private-unit",
   "cases": [
     {
       "id": "a01-update-local",

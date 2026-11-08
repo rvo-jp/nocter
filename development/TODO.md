@@ -10,30 +10,34 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
-Continue the [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md) with
-carried payload/storage dependencies and complete cleanup validation for prepared owned values,
-ordinary exits and returned results. Consume the existing control/evaluation graph, named-slot
-facts and referent/permission report; do not reconstruct control, parsing, types or selection.
+The [first access front-end slice](history/reviews/v2.0.0-first-access-slice.md) now has closed
+private-unit acceptance. Production syntax/declarations, body typing, control flow, named-slot
+initialization, permission-demand liveness, referent validation, exact first-fragment payload
+contracts and logical ownership/cleanup transitions are implemented. The 50-case corpus rejects
+six syntax, six header and nineteen checked failures, and accepts nineteen whole private units.
+Every definition is checked, including unreachable and recursive callees. Rebinding requires the
+same immutable declaration authority and every original body.
 
-Production syntax/declarations, typed bodies, control flow, named-slot initialization,
-permission-demand liveness and alternative-world referent validation are implemented for the bounded
-private goal. Of the [50-case manifest](compiler/tests/fixtures/v2-access/README.md), six fail
-syntax, six fail headers, eight fail structural body typing, and thirty produce typed-only evidence.
-Seven of those thirty report named-slot initialization failures; four fail referent/permission
-validation. Nineteen positive units pass these intermediate checks. The full 50-unit corpus now
-reaches its expected distinguishing validation stages, but passing R does not prove D/S or actual
-resource cleanup. Add the remaining dependency/resource proofs before constructing any accepted
-checked product. In particular,
-reserve direct-place call access until commit, retain earlier explicit operations during operand
-preparation, validate RHS-first reinitialization, and prove access returns against surviving inputs.
-Source recipes rebind only under the same immutable declaration authority and exact own body.
+Extend the same model through projections/nominals and public contract matching, then
+callable/generic/outcome/async composition under the slice's work order. Close the target consumer
+contract before executable integration. A native consumer
+must realize the existing ordered ownership/disposal/invocation transitions and checked primitive
+operations; do not reconstruct source, dispatch, initialization or cleanup decisions. The current
+accepted unit has no target, ABI, runtime/error-storage realization, CLI mode, released-program
+adapter or native execution. Do not call it a complete v2.0.0 compiler.
 
-Do not wait for all optimization research, add a parallel Python compiler, silently mix released
-std/borrow semantics, or expose a public source-version compatibility mode. A complete v2.0.0
-compiler remains unimplemented. No human source choice blocks this bounded next task. The inventory
-checker validates registration/shapes/ranges, not source semantics. The owning review records
-verification evidence and the earlier non-reproduced TLS failure; do not infer a runtime repair
-from these front-end changes.
+The bounded payload certificate is exact: scalar/unit and the opaque owned-error snapshot have
+empty D/S under their owning contracts. Error remains move-only and owns graph cleanup. This is
+not a generic dependency analysis and must not be extended to aggregates, closures, futures or
+regions by Copy/ownership heuristics. Fresh X inputs can supply I without Copy; their temporary
+roots end at the enclosing evaluation. Prepared owned prefixes are disposed in reverse order on
+interruption; named reservations survive. Staged results and replacements retain their obligations.
+General destructor effects, recoverable outcomes and async cancellation need separate migration.
+
+No human source choice blocks the next bounded task. Keep whole-unit acceptance sealed; never
+publish partial bodies after a sibling rejection or add a parallel Python compiler. The inventory
+checker still checks registration/shapes/ranges only. The owning review records verification and
+the earlier non-reproduced TLS failure; these front-end changes do not claim a runtime repair.
 
 Continue the [readiness audit](history/reviews/v2.0.0-implementation-readiness.md#remaining-specification-and-validation-work)
 for projections/nominals, full access type trees, outcome/async/callable composition, contract/body
@@ -70,7 +74,7 @@ Preserve every published tag and asset, including v0.49.0.
 
 ## Blockers
 
-No external or human-decision blocker remains for the bounded next access-validation task or the
+No external or human-decision blocker remains for the bounded next implementation task or the
 qualified v0.73.0 release candidate. Full v2.0.0 still requires the remaining grammar, flow/safety
 checking, formal validation and specification/implementation-contract migration described above. The current
 language deliberately rejects `notrap async` because `future T` has no drive-time trap contract;

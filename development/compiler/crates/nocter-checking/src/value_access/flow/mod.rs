@@ -1,9 +1,10 @@
-//! Source-neutral evaluation/control authority and named-slot initialization.
-//! Passing initialization does not prove referent lifetime, access conflicts or safe cleanup.
+//! Shared evaluation/control, initialization, referent permissions and logical ownership.
+//! An intermediate query is not complete whole-unit acceptance or native validity.
 pub mod access;
 mod build;
 mod initialization;
 mod projection;
+pub mod resources;
 #[cfg(test)]
 mod tests;
 
@@ -28,6 +29,8 @@ pub enum Origin {
 /// Evaluation steps are ordered. Call preparation refers to the already selected typed plan.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
+    BeginEvaluation(AccessExpressionId),
+    EndEvaluation(AccessExpressionId),
     Evaluate(AccessExpressionId),
     /// Read a scalar operand once, before evaluating a later operand.
     PrepareOperand {
@@ -148,7 +151,7 @@ pub struct Query {
     access: access::Analysis,
 }
 impl Query {
-    /// Builds evaluation/control once, then solves named-slot initialization to a fixed point.
+    /// Builds control once and solves initialization, referent/access and ownership obligations.
     /// # Errors
     /// Returns an integrity failure if the closed typed product contains inconsistent identities.
     pub fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {

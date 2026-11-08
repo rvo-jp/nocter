@@ -47,7 +47,7 @@ pub(super) struct Staged {
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct World {
-    pub roots: BTreeSet<AccessLocalId>,
+    pub resources: super::super::resources::State,
     pub values: BTreeMap<Carrier, Value>,
     pub nodes: BTreeMap<Key, Node>,
     pub prepared: BTreeMap<(AccessExpressionId, usize), Prepared>,
@@ -55,9 +55,9 @@ pub(super) struct World {
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 impl World {
-    pub fn entry(typed: &TypedQuery) -> Self {
+    pub fn entry(typed: &TypedQuery) -> Result<Self, IntegrityError> {
         let mut world = Self {
-            roots: BTreeSet::new(),
+            resources: super::super::resources::State::entry(typed)?,
             values: BTreeMap::new(),
             nodes: BTreeMap::new(),
             prepared: BTreeMap::new(),
@@ -67,7 +67,6 @@ impl World {
             if let LocalOrigin::Parameter(parameter) = declaration.origin {
                 let mode = declaration.ty.mode();
                 let value = if mode == Mode::Own {
-                    world.roots.insert(local);
                     Value::without_referent(mode)
                 } else {
                     let key = Key::Parameter(parameter);
@@ -88,7 +87,7 @@ impl World {
                 world.values.insert(Carrier::Local(local), value);
             }
         }
-        world
+        Ok(world)
     }
     pub fn local(&self, typed: &TypedQuery, local: AccessLocalId) -> Result<Value, IntegrityError> {
         let mode = typed.body().locals().get(local).ok_or(INVALID)?.ty.mode();
@@ -109,8 +108,15 @@ impl World {
     }
     pub fn alive(&self, root: Root) -> bool {
         match root {
-            Root::Owned(local) => self.roots.contains(&local),
+            Root::Owned(local) => self
+                .resources
+                .contains(super::super::resources::Holder::Local(local)),
             Root::Input(_) => true,
+            Root::Temporary { call, index } => {
+                use super::super::resources::Holder;
+                self.resources.contains(Holder::Prepared { call, index })
+                    || self.resources.contains(Holder::Temporary { call, index })
+            }
         }
     }
     pub fn trim(&mut self, live: Option<&Live>) -> Result<(), IntegrityError> {

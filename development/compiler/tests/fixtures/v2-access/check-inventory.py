@@ -13,7 +13,7 @@ def require(condition, message):
 root = Path(__file__).resolve().parent
 manifest = json.loads((root / 'manifest.json').read_text())
 require(manifest['schema'] == 1 and manifest['parse_goal'] == 'V2CoreUnit', 'unknown fixture schema/goal')
-require(manifest['compiler_status'] == 'referent-access-only', 'unknown implemented front-end boundary')
+require(manifest['compiler_status'] == 'checked-private-unit', 'unknown implemented front-end boundary')
 seen = set()
 files = set()
 shapes = set()

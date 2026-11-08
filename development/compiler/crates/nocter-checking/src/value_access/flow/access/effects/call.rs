@@ -43,10 +43,9 @@ impl Context<'_, '_> {
                     permission: Mode::Own,
                     ..
                 } => {
-                    let Root::Owned(local) = root else {
+                    let Root::Owned(_) = root else {
                         return Err(Failure::Integrity);
                     };
-                    self.world.roots.remove(&local);
                     Value::without_referent(Mode::Own)
                 }
                 Prepared::Reserved {
@@ -70,6 +69,7 @@ impl Context<'_, '_> {
                     world: &mut alternative,
                     at: self.at,
                     live: self.live,
+                    steps: Vec::new(),
                 };
                 let base = context.base_value(input)?.ok_or(Failure::Integrity)?;
                 let value = context.create(Key::Expression(call), Some(base), result.mode())?;

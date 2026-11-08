@@ -105,6 +105,7 @@ fn plan(
     let mut definitions = Vec::new();
     let mut releases = Vec::new();
     match operation {
+        Operation::BeginEvaluation(_) | Operation::EndEvaluation(_) => {}
         Operation::Evaluate(id) => {
             definitions.push(Carrier::Expression(*id));
             uses.extend(expression_uses(typed, *id)?);

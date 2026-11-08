@@ -1,5 +1,6 @@
-//! Typed-only value-access bodies for the bounded future private-function goal.
-//! This product is deliberately unavailable to executable/checked-program consumers.
+//! Value-access typing and closed private-unit front-end validation.
+//! Accepted future units remain unavailable to released/native consumers.
+pub mod accepted;
 mod checker;
 mod expressions;
 pub mod flow;

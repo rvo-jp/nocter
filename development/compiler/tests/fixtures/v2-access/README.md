@@ -24,17 +24,20 @@ the six syntax rejections retain their source tokens and point at the required r
 cover precedence, grouping restrictions, boundaries, recovery, token subdivision, depth limits,
 and reusable-source rebinding. The production declaration query consumes all 50 entries: six fail
 syntax, six fail header validation, and 38 produce declaration metadata. The body-typing query
-rejects eight at structural typing and produces typed-only evidence for 30: 19 eventual acceptance
-cases and eleven still awaiting flow rejection. Each `body_typing` expectation describes that intermediate result. The shared flow query now
+rejects eight at structural typing and produces typed-only evidence for 30: 19 positive
+cases and eleven requiring flow rejection. Each `body_typing` expectation describes that intermediate result. The shared flow query now
 reports named-slot initialization failures in seven. The referent/permission query then rejects
 the four remaining access/lifetime cases and retains all nineteen positive units. The
 `referent_access` field distinguishes pass, rejection and a blocked initialization prerequisite.
-`compiler_status: referent-access-only` records these intermediate facts, not complete
-checked-program acceptance or execution. The nineteen `check-reject` cases remain eventual rejections; passing typing does not
-change their expectation.
+`compiler_status: checked-private-unit` records complete front-end acceptance of the nineteen
+positive units through the production whole-unit constructor, including exact first-fragment
+payload contracts and ordered ownership/cleanup transitions. All nineteen `check-reject` units
+are rejected; the earlier fields still describe their intermediate stages. This is not native
+execution or the released `CheckedProgram`.
 
 Do not add these files to a released-language glob, mark current rejection as success, or implement
-a second parser/checker in test support. Carried payload/storage dependencies and complete executable cleanup remain pending.
+a second parser/checker in test support. Dependency-bearing aggregates, user destructors,
+outcomes/async cancellation, and executable target realization remain outside this closed fragment.
 Extend cases/snapshots at the owning phase as implementation closes each grammar edge; this
 inventory alone does not establish exhaustive grammar or diagnostic coverage.
 

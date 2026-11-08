@@ -1,4 +1,5 @@
-//! Referent/permission analysis. Opaque carried payload and executable cleanup remain separate.
+//! Referent permissions and logical ownership over the same finite alternative worlds.
+//! Full-language dependencies and executable target realization remain outside this fragment.
 mod effects;
 mod liveness;
 mod projection;
@@ -18,6 +19,10 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Root {
     Owned(AccessLocalId),
     Input(AccessParameterId),
+    Temporary {
+        call: nocter_model::AccessExpressionId,
+        index: usize,
+    },
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Creation {
@@ -63,13 +68,14 @@ pub enum ReturnOrigin {
     Input(AccessParameterId),
 }
 
-/// Referent/access evidence, not an accepted program or payload/destructor proof.
+/// Referent and concrete first-fragment resource evidence; whole-unit closure is separate.
 #[derive(Clone, Debug)]
 pub struct Analysis {
     status: Status,
     liveness: Liveness,
     violations: Box<[Violation]>,
     returns: Box<[ReturnOrigin]>,
+    resources: super::resources::Report,
 }
 impl Analysis {
     #[must_use]
@@ -88,6 +94,10 @@ impl Analysis {
     pub const fn returns(&self) -> &[ReturnOrigin] {
         &self.returns
     }
+    #[must_use]
+    pub const fn resources(&self) -> &super::resources::Report {
+        &self.resources
+    }
 }
 
 pub(super) fn analyze(
@@ -102,12 +112,14 @@ pub(super) fn analyze(
             liveness,
             violations: Box::new([]),
             returns: Box::new([]),
+            resources: super::resources::Report::default(),
         });
     }
-    let mut pending = BTreeSet::from([(graph.entry(), World::entry(typed))]);
+    let mut pending = BTreeSet::from([(graph.entry(), World::entry(typed)?)]);
     let mut entries: BTreeMap<_, BTreeSet<World>> = BTreeMap::new();
     let mut violations = BTreeSet::new();
     let mut returns = BTreeSet::new();
+    let mut resources = super::resources::Report::default();
     while let Some((point, mut world)) = pending.pop_first() {
         world.trim(liveness.entry(point))?;
         if !entries.entry(point).or_default().insert(world.clone()) {
@@ -120,10 +132,12 @@ pub(super) fn analyze(
             let mut next = Vec::new();
             for mut world in worlds {
                 world.trim(liveness.before(location))?;
+                let before = world.resources.clone();
                 match effects::apply(typed, &mut world, &event.operation, location, &liveness) {
                     Ok(mut alternatives) => {
-                        for alternative in &mut alternatives {
+                        for (alternative, steps) in &mut alternatives {
                             alternative.trim(liveness.after(location))?;
+                            resources.record(location, &before, steps, &alternative.resources);
                             next.push(alternative.clone());
                         }
                     }
@@ -137,12 +151,23 @@ pub(super) fn analyze(
         }
         for world in worlds {
             if block.terminator == Terminator::Return {
+                let owns = typed
+                    .program()
+                    .callables()
+                    .get(typed.callable())
+                    .ok_or(INVALID)?
+                    .result()
+                    .mode()
+                    == ValueAccessMode::Own;
+                if !world.resources.returned(owns) {
+                    return Err(INVALID);
+                }
                 let staged = world.staged.as_ref().ok_or(INVALID)?;
                 returns.insert(match staged.value.access {
                     None => ReturnOrigin::NoReferent,
                     Some(key) => match world.nodes.get(&key).ok_or(INVALID)?.root {
                         Root::Input(parameter) => ReturnOrigin::Input(parameter),
-                        Root::Owned(_) => return Err(INVALID),
+                        Root::Owned(_) | Root::Temporary { .. } => return Err(INVALID),
                     },
                 });
             } else {
@@ -159,6 +184,7 @@ pub(super) fn analyze(
         liveness,
         violations: violations.into_iter().collect(),
         returns: returns.into_iter().collect(),
+        resources,
     })
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;

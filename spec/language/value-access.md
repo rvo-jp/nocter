@@ -318,6 +318,30 @@ it does not consume an earlier merely reserved owned place. Earlier side effects
 ownership operations are not rolled back. Failure after invocation leaves transferred ownership
 with the callee and leaves U inputs valid with their completed changes.
 
+### Evaluation Temporaries
+
+An I call input may read a fresh X value without requiring Copy. Keep that explicitly evaluated
+temporary alive through the enclosing statement, loop condition, or block-result evaluation,
+including use of the call's answer. This is temporary storage, not an invisible owning local.
+After the destination is installed or the result staged, release remaining evaluation temporaries
+in reverse construction order, before leaving the containing block. A retained result cannot
+outlive a temporary it accesses. Copying a scalar answer can remove that referent; binding access
+cannot extend the temporary's lifetime.
+
+Moving a temporary into a local, returned owner, or X call input transfers its cleanup obligation.
+Preparing an I input does not transfer that obligation to the callee. Cancellation destroys only
+the successfully prepared owned arguments, in reverse preparation order, then releases other
+temporaries in the exited evaluation frames. A merely reserved named owner remains intact.
+Nested evaluation, call, and lexical frames unwind in their actual nesting order. Traps that
+terminate without unwinding do not acquire source cleanup from these rules.
+
+For the bounded first fragment, `bool`, `i32`, and `void` have no contained access or external
+storage requirements and need no resource destructor. The opaque built-in `error` follows its
+[owned snapshot contract](../../std/error/README.md): it owns its private immutable failure graph,
+has no access into input views or caller-managed region dependency, and releases that graph when
+destroyed. It remains move-only. These are exact data contracts, not consequences of Copy or X;
+no such independence is inferred for a future aggregate, closure, future, or generic value.
+
 ### Return and Cleanup
 
 An X result returns a fresh owned value, a permitted Copy, or an explicitly transferred existing

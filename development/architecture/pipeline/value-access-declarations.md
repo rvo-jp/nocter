@@ -1,7 +1,7 @@
 # Future Private Value Access Declarations
 
 This document owns the currently implemented bounded handoff between syntax, declaration lowering,
-declaration metadata, and typed-only body evidence for the future private-function goal. Language meaning remains in the
+declaration metadata, typed bodies and accepted front-end units for the future private-function goal. Language meaning remains in the
 [future grammar and header rules](../../../spec/language/syntactic-grammar.md#first-access-validation-fragment)
 and [Value Access Model](../../../spec/language/value-access.md). This is not the complete
 v2.0.0 pipeline, a second user-facing language version, or a native execution contract.
@@ -17,7 +17,8 @@ V2CoreUnit syntax + exact source
   -> exact-current typed-body projection
   -> source-neutral control/evaluation graph + named-slot initialization facts
   -> permission-demand liveness + alternative referent/access worlds
-  -> carried-payload/storage and executable cleanup validation (pending)
+       + exact payload contracts + logical resource/cleanup transitions
+  -> accepted private unit (all definitions validated; no native consumer)
 ```
 
 ## Responsibilities
@@ -61,7 +62,8 @@ must later fail checking. Body typing consumes those identities/contracts and pe
 structural data/access checks, and direct-call selection. It cannot recover parameter/result modes
 from body tokens, redo declaration normalization, or treat source projection as dispatch authority.
 Named-slot initialization and referent/permission validation share a source-neutral body-flow
-graph. Carried dependency and executable cleanup validation remain a subsequent required boundary;
+graph. Logical resource transitions and the exact first-fragment payload contracts share those
+alternative worlds. Only the complete private-unit constructor closes all body/callee assumptions;
 intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
@@ -92,7 +94,7 @@ No public constructor assembles a typed body or its semantic/source pairing from
 Structural failures expose their typed rule and current diagnostic; no partial typed body escapes.
 A structurally valid transfer still requires initialization and conflict proofs; a structurally
 valid access return still requires a surviving allowed referent. Seven of the eleven eventual flow rejections fail named-slot initialization; the four others now
-fail referent/permission validation. Passing an intermediate query still does not accept a program. This product
+fail referent/permission validation. Passing an intermediate query still does not accept a unit. This product
 has no adapter to released checked evidence and no executable consumer.
 
 
@@ -108,8 +110,9 @@ changed authority/body is rejected before diagnostics can use stale coordinates.
 The initialization report distinguishes unreachable points from maybe initialized slots and
 preserves reaching invalidation evidence and potential cleanup conditions. These are not an
 access-root proof or executable cleanup schedule. The referent analysis now shares this graph and authority rather than reconstructing control or
-dispatch. It preserves alternative origin worlds and staged return protection. Carried dependencies,
-prepared owned resources and executable cleanup remain required proof boundaries.
+dispatch. It preserves alternative origin worlds and staged return protection. Evaluation-frame
+operations carry normal and interrupted temporary cleanup through the same graph. Logical owner
+transitions are validated alongside referent survival; executable target realization remains separate.
 The development product still has no public language-version switch or released/native adapter.
 
 
@@ -120,8 +123,29 @@ Initialization failure is an explicit prerequisite status, not an empty access p
 creation/use identities remain semantic; exact-current diagnostics bind through the owning typed
 query and locate the attempted operation, retained access, required use and referent declaration.
 
-Only R is established here. An owned answer with no outside referent can still carry D/S, and
+An owned answer with no outside referent can still carry D/S, and
 non-owning access release differs from destroying a prepared owned resource. No consumer may
 reinterpret an empty violation list as a complete accepted-body, execution or native certificate.
-The remaining cleanup/dependency proof must consume the same operation authority and preserve
-source-selected effects and ownership transitions.
+The exact first-fragment payload evidence is independent of R: it comes from the admitted
+scalar/unit and owned-error snapshot contracts. Future dependency-bearing data cannot inherit
+that evidence from ownership, Copy, or an empty referent set.
+
+## Logical Resource and Unit Acceptance Boundary
+
+Each reached action retains alternatives of before/after logical ownership and ordered cleanup
+transitions under the same typed/control authority. The solver tracks expression, named, prepared,
+retained-I-temporary and staged-result owners without dynamic execution counters. A complete
+normal return preserves only its X result obligation, if any. Cleanup does not disappear when
+access liveness ends. Temporary roots protect an I call answer until its enclosing evaluation
+finishes, without keeping an unmentioned local owner alive.
+
+The accepted private-unit constructor derives its membership from the declaration authority and
+checks every definition before publication. A caller cannot omit an unsafe unused callee, combine
+different header generations, or construct acceptance from intermediate reports. Rebinding checks
+the whole original body set before exposing any exact-current projection. No lookup, typing,
+dispatch, or flow computation is repeated by that projection.
+
+This is closed front-end evidence for the exact private fragment. Target layout, error-storage
+runtime realization, executable cleanup/code generation, module/package integration, general
+dependencies, user destructors, outcomes and async remain separate contracts. There is no released
+checked-program conversion or public compatibility mode.
