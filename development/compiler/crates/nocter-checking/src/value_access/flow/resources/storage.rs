@@ -61,7 +61,7 @@ impl State {
         self.frames.pop();
         Ok(())
     }
-    fn insert(&mut self, holder: Holder, value: Payload, outer: bool) -> Result<()> {
+    pub(super) fn insert(&mut self, holder: Holder, value: Payload, outer: bool) -> Result<()> {
         if self.owned.contains_key(&holder) {
             return Err(INVALID);
         }

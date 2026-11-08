@@ -1353,10 +1353,10 @@ distinguishes that replacement from the earlier checkpoint and from full-languag
 
 ### Bounded Value Binding Fragment
 
-The first S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
+The bounded S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
 supplied private module. This is its new source contract, not a compatibility variant or a public
 package format. Its implementation and qualification are tracked in the
-[development record](../../development/history/reviews/v2.0.0-value-binding-front-end.md).
+[development record](../../development/history/reviews/v2.0.0-record-source-integration.md).
 The old corpus cannot qualify this grammar by relabeling its status. No bodies are thereby
 permitted in contract-only `index.nct`.
 
@@ -1387,8 +1387,9 @@ V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
 V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
 V2CorePrefix = ("!" | "-") V2CorePrefix | V2CorePostfix
 V2CorePostfix = V2CorePrimary (("(" List(V2CoreExpression) ")") | ("." Name))*
-V2CorePrimary = Name | integer_literal | "true" | "false" | "(" ")"
+V2CorePrimary = V2CoreRecordValue | Name | integer_literal | "true" | "false" | "(" ")"
                | "(" V2CoreExpression ")" | V2CoreIf
+V2CoreRecordValue = Name "{" List(Name ":" V2CoreExpression) "}"
 V2CoreIf = "if" V2CoreExpression V2CoreBlock
            ("else" (V2CoreBlock | V2CoreIf))?
 ```
@@ -1410,9 +1411,11 @@ named function (including transparent grouping) and its argument count/contract 
 checks. Functions are not storage places. A place here is a local/input name followed by zero or more declared record-field selections,
 with transparent grouping. Resolve each field once through its containing record; two distinct
 fields are disjoint logical places, while a field overlaps its containing place. Member selection
-from computed values, indexing and record literals remain outside this bounded fragment. Record
-values enter through declared inputs/results and ordinary value bindings; no constructor is
-implied. Record data names resolve before bodies, including forward references. Follow
+from computed values and indexing remain outside this bounded fragment. Structural record values
+initialize every field exactly once in authored order under ordinary value construction; follow
+the nominal payload construction and interrupted-cleanup contract. At the outer level of `if`/
+`while` conditions, the first `{` starts the control body; nested delimiters restore record-value
+syntax without type lookup. Record data names resolve before bodies, including forward references. Follow
 [nominal payload rules](structs-and-enums.md#future-direction-v2-0-0-nominal-value-payloads) for
 finite containment, explicit Copy opt-in and closed field types. All fields are private-unit
 members in this fragment; visibility and module contracts are not inherited.

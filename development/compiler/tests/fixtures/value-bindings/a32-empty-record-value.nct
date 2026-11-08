@@ -1,0 +1,4 @@
+struct Empty {}
+copy struct CopyEmpty {}
+func empty(): Empty { Empty {} }
+func copy(): CopyEmpty { CopyEmpty {} }

@@ -405,6 +405,7 @@ impl Builder<'_> {
                 right,
             } => return self.logical(id, *left, *right, entry),
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
+            ExpressionKind::Record { fields } => self.record(entry, fields)?,
             ExpressionKind::Boundary { source, .. } => {
                 // A selected place boundary uses the address directly. Do not invent an I child
                 // before delegation, or perform an early read for a later reserved call input.
@@ -469,6 +470,20 @@ impl Builder<'_> {
             self.action(point, origin, Operation::Evaluate(id))?;
         }
         Ok(end)
+    }
+    fn record(
+        &mut self,
+        entry: AccessFlowPointId,
+        fields: &[crate::value_access::FieldValue],
+    ) -> Result<Option<AccessFlowPointId>> {
+        let mut current = Some(entry);
+        for field in fields {
+            let Some(point) = current else {
+                break;
+            };
+            current = self.expression(field.value, point)?;
+        }
+        Ok(current)
     }
     fn call(
         &mut self,

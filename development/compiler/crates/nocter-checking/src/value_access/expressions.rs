@@ -24,6 +24,7 @@ impl Checker<'_, '_> {
             NodeKind::ReferenceExpression => self.place_value(node, Rule::TypeMismatch)?,
             NodeKind::ScalarLiteral => self.literal(node, false)?,
             NodeKind::UnitExpression => self.unit(node)?,
+            NodeKind::StructLiteral => self.record_value(node, reachable)?,
             NodeKind::UnaryExpression => self.unary(node, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression

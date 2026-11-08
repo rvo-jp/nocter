@@ -105,6 +105,43 @@ impl Fixture {
 }
 
 #[test]
+fn assembly_transfers_components_once_and_invalid_input_preserves_the_entire_ledger() {
+    let f = Fixture::new();
+    let mut state = State::default();
+    let error = f.program.data_type(BuiltinType::Error).unwrap();
+    f.construct(&mut state, 1, error);
+    f.construct(&mut state, 2, error);
+    let record = payload(&f.program, f.leaf).unwrap();
+    let destination = f.locals[3];
+    let fields = [(f.b, f.locals[2].place()), (f.a, f.locals[1].place())];
+    for invalid in [
+        vec![fields[0].clone()],
+        vec![fields[0].clone(), fields[0].clone()],
+        vec![fields[0].clone(), (f.head, fields[1].1.clone())],
+        vec![(f.b, fields[1].1.clone()), fields[1].clone()],
+    ] {
+        let before = state.clone();
+        let mut steps = Vec::new();
+        assert!(
+            state
+                .assemble(&f.program, destination, record, &invalid, &mut steps)
+                .is_err()
+        );
+        assert_eq!(state, before);
+        assert!(steps.is_empty());
+    }
+    let mut steps = Vec::new();
+    state
+        .assemble(&f.program, destination, record, &fields, &mut steps)
+        .unwrap();
+    assert!(!state.contains(f.locals[1]) && !state.contains(f.locals[2]));
+    assert!(state.initialized(&f.program, &destination.place()).unwrap());
+    assert!(
+        matches!(steps.as_slice(), [Step::Assemble { fields: selected, .. }] if selected.as_ref() == fields)
+    );
+}
+
+#[test]
 fn field_move_keeps_disjoint_siblings_and_replacement_restores_the_complete_value() {
     let f = Fixture::new();
     let original = f.state();

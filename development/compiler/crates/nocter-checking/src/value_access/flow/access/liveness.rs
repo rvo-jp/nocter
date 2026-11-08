@@ -274,6 +274,13 @@ fn expression_uses(
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
         }
+        ExpressionKind::Record { ref fields } => {
+            uses.extend(
+                fields
+                    .iter()
+                    .map(|field| (Carrier::Expression(field.value), false)),
+            );
+        }
         ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit

@@ -2,6 +2,7 @@
 //! Accepted future units remain unavailable to released/native consumers.
 pub mod accepted;
 mod checker;
+mod construction;
 mod expressions;
 pub mod flow;
 mod ir;
@@ -11,8 +12,8 @@ mod statements;
 mod tests;
 
 pub use ir::{
-    Argument, ArgumentAction, Binary, Block, BoundaryAction, Expression, ExpressionKind, Local,
-    LocalOrigin, Place, Statement, TypedBody, Unary, ValueType,
+    Argument, ArgumentAction, Binary, Block, BoundaryAction, Expression, ExpressionKind,
+    FieldValue, Local, LocalOrigin, Place, Statement, TypedBody, Unary, ValueType,
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -42,11 +43,16 @@ pub enum Rule {
     CompoundOperand,
     InvalidUpdate,
     InvalidCall,
+    InvalidConstruction,
     AnnotatedDiscard,
 }
 impl Rule {
     const fn diagnostic(self) -> (DiagnosticCode, &'static str) {
         match self {
+            Self::InvalidConstruction => (
+                DiagnosticCode::E0370,
+                "record construction requires each declared field exactly once",
+            ),
             Self::UnknownField => (DiagnosticCode::E0370, "this record has no selected field"),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),

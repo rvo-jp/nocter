@@ -6,11 +6,11 @@ and [input/value rules](../../../../../spec/language/value-access.md). Each file
 private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
-`manifest.json` as the sole per-source expectation catalog. All 64 inputs have compiler assertions:
-4 syntax rejections, 4 header rejections, 25 checking rejections and 31 whole-unit acceptances.
-Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 56
+`manifest.json` as the sole per-source expectation catalog. All 85 inputs have compiler assertions:
+5 syntax rejections, 4 header rejections, 33 checking rejections and 43 whole-unit acceptances.
+Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 76
 header-valid units without claiming body acceptance and reject the four invalid headers.
-The 60 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
+The 80 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
 also check token/source projection. Neither shape equality nor manifest registration proves
 memory safety; the closed checker owns the semantic verdicts.
 
@@ -24,10 +24,13 @@ The corpus covers default-read and taking inputs, local values/aliases, Copy/mov
 state, RHS-first replacement, unit, branch/loop initialization, direct reservations and evaluation
 cleanup. Closed records add nested and Copy schemas, selected fields, partial move/restoration/drop,
 branch/loop availability, disjoint versus overlapping calls/aliases and field replacement.
-Opaque error inputs supply move-only data under an exact independent snapshot contract. Additional
+Structural values add empty/nested/reordered construction, component Copy-or-move, scalar snapshot
+order, replacement, partial construction interrupted by return/break/continue, and missing/duplicate/
+unknown/wrong-type/reused components. Opaque error inputs supply move-only data under an exact
+independent snapshot contract. Additional
 checker integration tests inspect field-specific cleanup order and traverse 64 levels of a shared
 record schema without expanding its conceptual payload tree.
-These passes do not implement record construction, computed-value projections, dependent aggregates,
+These passes do not implement computed-value projections, dependent aggregates,
 callable values, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch or released-program
 adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
 

@@ -1,0 +1,9 @@
+struct Pair {
+    first: error
+    second: error
+}
+func run(take a: error, take b: error): void {
+    loop {
+        let _ = Pair { first: a, second: if true { break } else { b } }
+    }
+}

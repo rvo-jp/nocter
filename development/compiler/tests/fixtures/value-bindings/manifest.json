@@ -415,6 +415,140 @@
       "expectation": "check-reject",
       "reason": "An annotation must not manufacture a scoped alias from a computed conditional value.",
       "diagnostic": "E0370"
+    },
+    {
+      "id": "a32-empty-record-value",
+      "file": "a32-empty-record-value.nct",
+      "expectation": "accept",
+      "reason": "Empty ordinary and Copy records construct values without inventing field obligations."
+    },
+    {
+      "id": "a33-record-value-order",
+      "file": "a33-record-value-order.nct",
+      "expectation": "accept",
+      "reason": "Named initializers may reorder fields; source evaluation and completed schema order remain separate."
+    },
+    {
+      "id": "a34-nested-record-values",
+      "file": "a34-nested-record-values.nct",
+      "expectation": "accept",
+      "reason": "Nested structural values transfer existing components into one aggregate obligation."
+    },
+    {
+      "id": "a35-record-value-replacement",
+      "file": "a35-record-value-replacement.nct",
+      "expectation": "accept",
+      "reason": "A new structural value replaces a complete field after RHS evaluation."
+    },
+    {
+      "id": "a36-conditional-record-values",
+      "file": "a36-conditional-record-values.nct",
+      "expectation": "accept",
+      "reason": "Each continuing branch constructs its own record value before the join."
+    },
+    {
+      "id": "a37-interrupted-record-return",
+      "file": "a37-interrupted-record-return.nct",
+      "expectation": "accept",
+      "reason": "An early return cleans completed component temporaries in reverse actual production order without completing a record."
+    },
+    {
+      "id": "a38-interrupted-record-break",
+      "file": "a38-interrupted-record-break.nct",
+      "expectation": "accept",
+      "reason": "Break exits construction and cleans its already produced component while leaving unused inputs owned."
+    },
+    {
+      "id": "a39-interrupted-record-continue",
+      "file": "a39-interrupted-record-continue.nct",
+      "expectation": "accept",
+      "reason": "Continue cleans constructed move-only components before the next iteration without accumulating resources."
+    },
+    {
+      "id": "a40-read-constructed-record",
+      "file": "a40-read-constructed-record.nct",
+      "expectation": "accept",
+      "reason": "Reading a freshly assembled non-Copy record retains its owned evaluation temporary."
+    },
+    {
+      "id": "a41-record-component-snapshot",
+      "file": "a41-record-component-snapshot.nct",
+      "expectation": "accept",
+      "reason": "A scalar component snapshot is taken before a later initializer mutates its original."
+    },
+    {
+      "id": "a42-record-control-header",
+      "file": "a42-record-control-header.nct",
+      "expectation": "accept",
+      "reason": "Control headers keep their first outer brace as the body while nested call delimiters admit record values."
+    },
+    {
+      "id": "r26-missing-record-initializer",
+      "file": "r26-missing-record-initializer.nct",
+      "expectation": "check-reject",
+      "reason": "A structural value must initialize every declared field.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r27-duplicate-record-initializer",
+      "file": "r27-duplicate-record-initializer.nct",
+      "expectation": "check-reject",
+      "reason": "One field cannot be initialized twice even when another field is missing.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r28-unknown-record-initializer",
+      "file": "r28-unknown-record-initializer.nct",
+      "expectation": "check-reject",
+      "reason": "Initializer field names must resolve within the selected record.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r29-read-record-component",
+      "file": "r29-read-record-component.nct",
+      "expectation": "check-reject",
+      "reason": "Component construction cannot move non-Copy data out of a read input.",
+      "diagnostic": "E0371"
+    },
+    {
+      "id": "r30-reused-record-component",
+      "file": "r30-reused-record-component.nct",
+      "expectation": "check-reject",
+      "reason": "A later initializer cannot reuse a move-only value consumed by an earlier initializer.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r31-record-component-type",
+      "file": "r31-record-component-type.nct",
+      "expectation": "check-reject",
+      "reason": "Every produced component must match the declared field data type.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r32-nonrecord-construction",
+      "file": "r32-nonrecord-construction.nct",
+      "expectation": "check-reject",
+      "reason": "Scalar types have no structural record initializer surface.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r33-alias-record-value",
+      "file": "r33-alias-record-value.nct",
+      "expectation": "check-reject",
+      "reason": "A scoped alias initializer must name existing storage rather than constructing a hidden owner.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "s05-record-initializer-separator",
+      "file": "s05-record-initializer-separator.nct",
+      "expectation": "syntax-reject",
+      "reason": "Structural initializer fields require commas even on one line."
+    },
+    {
+      "id": "a43-maybe-interrupted-record-value",
+      "file": "a43-maybe-interrupted-record-value.nct",
+      "expectation": "accept",
+      "reason": "Continuing and returning initializer branches retain distinct component ownership and cleanup states."
     }
   ],
   "parse_goal": "V2CoreUnit"

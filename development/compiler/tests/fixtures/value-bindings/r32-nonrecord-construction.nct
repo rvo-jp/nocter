@@ -1,0 +1,1 @@
+func build(): i32 { i32 {} }

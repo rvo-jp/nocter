@@ -298,9 +298,8 @@ Rules:
 
 ## Future Direction (v2.0.0): Nominal Value Payloads
 
-This section adopts the value-binding direction; it does not change released struct syntax or
-claim that the bounded future source front end already accepts struct declarations. Input
-operations, local bindings and value construction follow [Value Access](value-access.md).
+This section adopts the value-binding direction; it does not change released struct behavior.
+Input operations, local bindings and value construction follow [Value Access](value-access.md).
 
 A struct field contains a value of its declared data type. Read/edit access to that field is an
 operation on the containing place, not a different field data type. The declaration supplies one
@@ -348,6 +347,24 @@ contracts and component composition. This is not a general inference from receiv
 nominal identity, move-only status or Copy evidence. Adding views, capabilities, callables,
 generic arguments, outcomes or user destructors requires their own payload contracts before
 those shapes can be admitted.
+
+A structural value is written `Type { field: expression, ... }`, with every declared field exactly
+once and no unknown fields. Initializer order is free and evaluation is left to right in the order
+written. Each component uses ordinary Copy-or-move value construction, not an implicit read input
+or an alias. Empty records use `Type {}`. Commas separate fields and one trailing comma is allowed.
+There is no field shorthand, default, update spread or positional construction.
+
+Successful component values remain owned until the complete value is assembled. If a later
+initializer returns, breaks, continues or otherwise exits the construction, clean only the
+successfully produced components in reverse actual production order; do not run a whole-record
+cleanup for a value that was never completed. Earlier moves remain performed. Once complete,
+ordinary record cleanup follows reverse declaration order as specified by Value Access, independently of
+the initializer order. A compiler may retain the components in separate temporary places until
+completion; the rule does not require allocating incomplete record storage.
+
+At the outer level of an `if` or `while` condition, the first `{` starts the control body.
+Parentheses or another nested delimiter are required around a record literal in that condition;
+parsing never asks whether the preceding name denotes a type.
 
 Field schemas retain declaration order and nested types rather than flattening a record into a
 scalar or a list of destruction effects. Partial initialization, selected-place conflicts,

@@ -6,6 +6,7 @@ use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, TypeId};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod assembly;
 mod payload;
 mod storage;
 #[cfg(test)]
@@ -101,6 +102,12 @@ impl Payload {
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Step {
+    /// Transfer complete component obligations into one record; no second value is constructed.
+    Assemble {
+        destination: Holder,
+        payload: Payload,
+        fields: Box<[(nocter_model::AccessFieldId, Place)]>,
+    },
     Construct {
         destination: Holder,
         payload: Payload,

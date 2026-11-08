@@ -367,7 +367,8 @@ impl Context<'_, '_> {
                     }
                 }
             }
-            ExpressionKind::Integer(_)
+            ExpressionKind::Record { .. }
+            | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }

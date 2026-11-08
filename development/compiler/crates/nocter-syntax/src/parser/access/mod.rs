@@ -196,7 +196,7 @@ fn loop_(parser: &mut Parser<'_>) {
     let is_while = parser.at_keyword(Keyword::While);
     parser.bump();
     if is_while {
-        expression::expression(parser, newline::Boundary::Statement);
+        expression::header_expression(parser);
     }
     required_block(parser);
     parser.complete(

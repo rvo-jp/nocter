@@ -1,0 +1,7 @@
+struct Pair {
+    first: error
+    second: error
+}
+func build(take a: error, take b: error): void {
+    read value = Pair { first: a, second: b }
+}

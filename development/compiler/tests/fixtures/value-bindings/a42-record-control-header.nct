@@ -1,0 +1,6 @@
+struct Empty {}
+func yes(value: Empty): bool { true }
+func run(flag: bool): Empty {
+    while flag { break }
+    if yes(Empty {}) { Empty {} } else { Empty {} }
+}

@@ -18,22 +18,25 @@ omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-d
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
 The bounded value-binding front end now includes [record source integration](history/reviews/v2.0.0-record-source-integration.md).
-Its production source corpus contains 64 cases: 31 accepted private units, 25 checking rejections,
-4 header rejections and 4 syntax rejections. Closed nongeneric records, selected field places,
+Its production source corpus contains 85 cases: 43 accepted private units, 33 checking rejections,
+4 header rejections and 5 syntax rejections. Closed nongeneric records, selected field places,
 partial moves/restoration/drop, projected initialization, disjoint/overlapping permissions and
 precise cleanup pass through the same private syntax/declaration/body/flow/resource path.
+Structural record values now select components once and assemble their complete value obligations
+in that same resource ledger; return/break/continue interruption cleans already produced components
+through existing evaluation frames, in reverse actual production order.
 Declaration schemas and namespaces own type/field meaning once; downstream passes consume the
 selected IDs. Ordinary results remain values, independent of input operation and local binding.
 No CLI mode, released-program adapter, native consumer or duplicate owner-survival set was added.
 
-Next close record construction and computed-value field selection under the owning future
-specification. The current accepted fragment can receive records as inputs and manipulate their
-fields, but cannot construct a record literal or select a member directly from a computed value.
-Before admission, freeze construction/evaluation order, component Copy-or-move operations,
-interrupted construction cleanup and temporary-result lifetimes in the same selected operation
-and resource graph. Add production source cases for successful construction, nested construction,
-field extraction from temporaries, overwritten fields, and interruption after earlier moves.
-Preserve schema sharing; do not add a second place resolver or constructor-only ownership ledger.
+Next close field selection from computed values under the owning future specification. Current
+structural values can be bound, passed or returned, but a member selection still requires an
+existing local/input-rooted place. Distinguish obtaining a value from retaining scoped access to
+a temporary. Prove the selected component's Copy-or-move and the remaining temporary's cleanup,
+including read-input supply and interruption, through the same selected operation/resource graph.
+Keep scoped alias initializers restricted to existing places unless their owning contract changes;
+do not silently create an unnamed owner to make an alias live longer. Preserve schema sharing and
+one field resolver, rather than implementing computed projections as a second lookup path.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

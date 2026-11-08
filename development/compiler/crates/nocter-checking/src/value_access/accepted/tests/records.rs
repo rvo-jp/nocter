@@ -4,43 +4,7 @@ use crate::value_access::{BoundaryAction, ExpressionKind};
 use nocter_model::ValueInputOperation;
 use std::fmt::Write;
 
-fn source_case(name: &str) -> String {
-    fs::read_to_string(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/fixtures/value-bindings")
-            .join(name),
-    )
-    .unwrap()
-}
-fn steps(query: &flow::Query) -> Vec<Step> {
-    query
-        .graph()
-        .points()
-        .iter()
-        .flat_map(|(point, block)| {
-            (0..block.actions.len()).flat_map(move |action| {
-                query
-                    .access()
-                    .resources()
-                    .at(Location { point, action })
-                    .flat_map(|transition| transition.steps().iter().cloned())
-            })
-        })
-        .collect()
-}
-fn record_field(unit: &Unit, record: &str, name: &str) -> nocter_model::AccessFieldId {
-    let symbols = unit.program().symbols();
-    unit.program()
-        .records()
-        .get(
-            unit.program()
-                .resolve_record(symbols.get(record).unwrap())
-                .unwrap(),
-        )
-        .unwrap()
-        .resolve_field(symbols.get(name).unwrap())
-        .unwrap()
-}
+use super::support::{record_field, source_case, steps};
 
 #[test]
 fn source_field_return_stages_the_exact_selected_value_before_sibling_cleanup() {

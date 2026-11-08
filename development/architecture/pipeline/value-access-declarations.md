@@ -76,7 +76,7 @@ intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-record construction, computed-value projections, compound type expressions, generic/interface/callable evidence, outcomes, async/effects, layouts,
+computed-value projections, compound type expressions, generic/interface/callable evidence, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -89,7 +89,11 @@ RHS-first stores, checked primitive arithmetic and structured control retain sep
 Direct calls store the selected callable and one preparation action per ordered argument. A direct
 place reservation is not an early read/update/transfer; explicit computed operations execute at
 their own operand point. Later validation must consume those plans, not repeat dispatch or infer
-intent from source punctuation.
+intent from source punctuation. Structural record values retain the declaration-selected field
+and one ordinary value operation for each initializer in authored order. Their component values
+remain owned evaluation temporaries until a single assembly step transfers them into the complete
+record. An interrupted initializer follows existing evaluation-frame cleanup; it cannot publish
+a partially assembled record or introduce a constructor-only resource authority.
 
 The semantic body has no source/syntax IDs, ranges, names, or symbol IDs. Exact body bytes and
 body-local locators form a separate reusable source recipe. One locator projection serves the

@@ -227,7 +227,10 @@ move-only extraction; alias creation never manufactures an owner. Direct call se
 before access checking and has no permission-driven alternative target.
 
 Typed bodies record selected Copy/materialization, implicit moves, scoped delegation, call input
-preparation, RHS-first replacement and structured control. Ordinary block/conditional results
+preparation, RHS-first replacement and structured control. `construction` selects the exact record
+and every field identity once, freezes components in authored order, and applies the same value
+boundary used for other value supply. Its `FieldValue` plans contain no source names. Empty,
+nested and reordered structural values have no constructor-specific access operation. Ordinary block/conditional results
 construct values; no old read/update result or standalone-prefix IR path remains. `place_typing` resolves local-rooted field chains once into body-owned selected places containing
 the root local, resolved field path and selected data TypeId. Grouping preserves place identity;
 computed-value member access remains outside this fragment. The construction-only place index is
@@ -290,8 +293,14 @@ deallocation policy. Integrity rejection commits no partial ownership, cleanup s
 mutability and access permission remain prerequisites proved by body checking, not permissions
 granted by a resource place.
 
-Its ordered steps construct,
-move, receive, dispose, invoke and replace outside inputs. A dead access holder is not automatic
+`resources::assembly` transfers complete component obligations into one record atomically.
+Components remain ordinary expression owners in the existing evaluation frame until completion;
+interrupted construction therefore cleans them in reverse production order without an additional
+partial-constructor state or whole-record destruction. `Step::Assemble` retains resolved
+field/source pairs in authored order. Once complete, cleanup consumes the declaration schema's
+field order. Integrity rejection preserves all original component owners and emits no partial step.
+
+Its ordered steps construct, assemble, move, receive, dispose, invoke and replace outside inputs. A dead access holder is not automatic
 early resource destruction. A staged return survives evaluation/lexical cleanup, whose order is
 reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
 Return owner with the declaration's result data type, including unit. Trapping/diverging paths do
@@ -307,8 +316,9 @@ outcomes, async and regions require their own later schemas/validation.
 The source/body goal admits closed record headers and local/input-rooted field selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
 selected field cleanup, Copy versus move, restoration, partial drop, disjoint/overlapping access
-and sparse traversal of deeply shared schemas. Record construction, member selection from computed
-values and indexing remain outside this fragment. Resource transitions alone cannot replace the
+and sparse traversal of deeply shared schemas. Construction tests cover nested values, exact
+component mapping, scalar snapshots before later mutation, branch/loop interruption and atomic
+rejection. Member selection from computed values and indexing remain outside this fragment. Resource transitions alone cannot replace the
 combined source proofs or establish executable/native behavior.
 
 ## Closed Accepted Private Units

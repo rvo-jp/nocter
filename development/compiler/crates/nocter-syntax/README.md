@@ -24,7 +24,10 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - lexing and token subdivision
 - bounded future private-function and closed-record recognition through the explicit `V2CoreUnit`
   development parse goal, with a distinct root, explicit input/binding operation nodes, unit values,
-  named data types and member suffixes; declaration/type/field lookup remains semantic work. Its lexical
+  named data types, structural record values and member suffixes. Structural initializers use
+  comma-delimited named fields. Control-header parsing leaves the first outer brace to its body,
+  while nested delimiters restore ordinary expression recognition without type lookup.
+  Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation

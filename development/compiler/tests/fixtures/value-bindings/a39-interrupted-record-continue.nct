@@ -1,0 +1,10 @@
+struct Token {}
+struct Pair {
+    first: Token
+    second: Token
+}
+func run(): void {
+    loop {
+        let _ = Pair { first: Token {}, second: if true { continue } else { Token {} } }
+    }
+}

@@ -88,7 +88,7 @@ pub(super) fn prepare(
     }
     let root = checker.block(
         source.body(),
-        Some(Boundary::Return(declaration.result())),
+        Some(Boundary::Value(declaration.result())),
         true,
     )?;
     let body_bytes = syntax

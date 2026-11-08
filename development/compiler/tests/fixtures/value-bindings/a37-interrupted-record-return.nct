@@ -1,0 +1,8 @@
+struct Trio {
+    first: error
+    second: error
+    third: error
+}
+func build(take a: error, take b: error, take c: error): error {
+    let _ = Trio { third: a, first: b, second: if true { return c } else { c } }
+}

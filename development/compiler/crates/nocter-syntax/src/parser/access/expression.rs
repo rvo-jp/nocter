@@ -6,8 +6,20 @@ pub(super) struct Expression {
 }
 
 pub(super) fn expression(parser: &mut Parser<'_>, boundary: newline::Boundary) -> Expression {
+    parse_expression(parser, boundary, true)
+}
+
+pub(super) fn header_expression(parser: &mut Parser<'_>) -> Expression {
+    parse_expression(parser, newline::Boundary::Statement, false)
+}
+
+fn parse_expression(
+    parser: &mut Parser<'_>,
+    boundary: newline::Boundary,
+    allow_braces: bool,
+) -> Expression {
     let marker = parser.start();
-    binary(parser, boundary, 0);
+    binary(parser, boundary, 0, allow_braces);
     Expression {
         completed: parser.complete(marker, NodeKind::Expression),
     }
@@ -39,11 +51,16 @@ const OPERATORS: &[(&[Punctuation], NodeKind)] = &[
     ),
 ];
 
-fn binary(parser: &mut Parser<'_>, boundary: newline::Boundary, level: usize) -> Expression {
+fn binary(
+    parser: &mut Parser<'_>,
+    boundary: newline::Boundary,
+    level: usize,
+    allow_braces: bool,
+) -> Expression {
     let Some((operators, kind)) = OPERATORS.get(level) else {
-        return prefix(parser, boundary);
+        return prefix(parser, boundary, allow_braces);
     };
-    let mut left = binary(parser, boundary, level + 1);
+    let mut left = binary(parser, boundary, level + 1, allow_braces);
     loop {
         newline::before(parser, boundary, |token| {
             operators.iter().any(|operator| {
@@ -59,7 +76,7 @@ fn binary(parser: &mut Parser<'_>, boundary: newline::Boundary, level: usize) ->
         let marker = parser.precede(left.completed);
         parser.bump();
         newline::after_incomplete(parser, boundary);
-        binary(parser, boundary, level + 1);
+        binary(parser, boundary, level + 1, allow_braces);
         left = Expression {
             completed: parser.complete(marker, *kind),
         };
@@ -72,7 +89,7 @@ fn binary(parser: &mut Parser<'_>, boundary: newline::Boundary, level: usize) ->
     }
 }
 
-fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary) -> Expression {
+fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary, allow_braces: bool) -> Expression {
     let mut wrappers = Vec::new();
     while matches!(
         parser.current_kind(),
@@ -83,7 +100,7 @@ fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary) -> Expression {
         newline::after_incomplete(parser, boundary);
         wrappers.push(marker);
     }
-    let mut inner = postfix(parser);
+    let mut inner = postfix_in(parser, allow_braces);
     for marker in wrappers.into_iter().rev() {
         inner = Expression {
             completed: parser.complete(marker, NodeKind::UnaryExpression),
@@ -93,7 +110,11 @@ fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary) -> Expression {
 }
 
 pub(super) fn postfix(parser: &mut Parser<'_>) -> Expression {
-    let mut left = primary(parser);
+    postfix_in(parser, true)
+}
+
+fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
+    let mut left = primary(parser, allow_braces);
     while parser.at_punctuation(Punctuation::LeftParen) || parser.at_punctuation(Punctuation::Dot) {
         let marker = parser.precede(left.completed);
         let suffix = parser.start();
@@ -127,11 +148,11 @@ fn argument(parser: &mut Parser<'_>) {
     expression(parser, newline::Boundary::Delimited);
 }
 
-fn primary(parser: &mut Parser<'_>) -> Expression {
+fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     if parser.at_punctuation(Punctuation::LeftParen) {
         return grouped(parser);
     }
-    if parser.at_keyword(Keyword::If) {
+    if allow_braces && parser.at_keyword(Keyword::If) {
         return if_(parser);
     }
     let marker = parser.start();
@@ -161,9 +182,46 @@ fn primary(parser: &mut Parser<'_>) -> Expression {
             NodeKind::Error
         }
     };
-    Expression {
-        completed: parser.complete(marker, kind),
+    let completed = parser.complete(marker, kind);
+    if kind == NodeKind::ReferenceExpression
+        && allow_braces
+        && parser.at_punctuation(Punctuation::LeftBrace)
+    {
+        record_value(parser, completed)
+    } else {
+        Expression { completed }
     }
+}
+
+fn record_value(parser: &mut Parser<'_>, owner: CompletedMarker) -> Expression {
+    let marker = parser.precede(owner);
+    let initializer = parser.start();
+    parser.bump();
+    if parser.enter_nesting() {
+        parser.comma_list(
+            Punctuation::RightBrace,
+            true,
+            ExpectedSyntax::Expression,
+            field,
+        );
+        parser.expect_punctuation(Punctuation::RightBrace);
+        parser.leave_nesting();
+    } else {
+        parser.recover_balanced(Punctuation::LeftBrace, Punctuation::RightBrace);
+    }
+    parser.complete(initializer, NodeKind::StructInitializer);
+    Expression {
+        completed: parser.complete(marker, NodeKind::StructLiteral),
+    }
+}
+
+fn field(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Colon);
+    newline::after_incomplete(parser, newline::Boundary::Delimited);
+    expression(parser, newline::Boundary::Delimited);
+    parser.complete(marker, NodeKind::FieldInitializer);
 }
 
 fn grouped(parser: &mut Parser<'_>) -> Expression {
@@ -201,7 +259,7 @@ fn if_(parser: &mut Parser<'_>) -> Expression {
     }
     parser.bump();
     let condition = parser.start();
-    expression(parser, newline::Boundary::Statement);
+    header_expression(parser);
     parser.complete(condition, NodeKind::IfCondition);
     super::required_block(parser);
     if parser.at_keyword(Keyword::Else) {

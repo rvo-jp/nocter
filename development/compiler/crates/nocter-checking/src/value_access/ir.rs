@@ -1,7 +1,7 @@
 use nocter_model::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId, ValueAccess,
-    ValueAccessMode, ValueBindingKind,
+    AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessLocalId,
+    AccessLoopId, AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId,
+    ValueAccess, ValueAccessMode, ValueBindingKind,
 };
 
 /// A type-only value proof; never is control interruption, not a storable data shape.
@@ -91,11 +91,21 @@ pub enum Binary {
     Or,
 }
 
+/// One selected component, retained in authored evaluation order, not declaration order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FieldValue {
+    pub field: AccessFieldId,
+    pub value: AccessExpressionId,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
     Integer(i32),
     Boolean(bool),
     Unit,
+    Record {
+        fields: Box<[FieldValue]>,
+    },
     Place(AccessPlaceId),
     Move(AccessPlaceId),
     Boundary {
@@ -214,13 +224,13 @@ impl TypedBody {
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Boundary {
     Binding(ValueAccess),
-    Return(TypeId),
+    Value(TypeId),
 }
 impl Boundary {
     pub(super) const fn ty(self) -> ValueAccess {
         match self {
             Self::Binding(ty) => ty,
-            Self::Return(data) => ValueAccess::new(data, ValueAccessMode::Own),
+            Self::Value(data) => ValueAccess::new(data, ValueAccessMode::Own),
         }
     }
 }

@@ -1,0 +1,14 @@
+V2CoreUnit
+  Item
+    FunctionDeclaration
+      CallableTail
+        Parameters
+        Type
+          NamedType
+      Block
+        ExecutableSequence
+          BodyResult
+            Expression
+              StructLiteral
+                ReferenceExpression
+                StructInitializer

@@ -719,7 +719,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | Existing code family | Future failed obligation |
 | --- | --- |
 | `E0340`, `E0341` | Name resolution or conflicting binding |
-| `E0370` | Data/type/result mismatch, unknown field/body data type, or insufficient local type information |
+| `E0370` | Data/type/result mismatch, unknown field/body data type, invalid/missing/duplicate record initializer, or insufficient local type information |
 | `E0371`, `E0377` | Value construction has neither Copy evidence nor an eligible owning source |
 | `E0372`, `E0373` | Non-unit intermediate expression or missing normal result |
 | `E0375` | Integer outside the selected data type's range |

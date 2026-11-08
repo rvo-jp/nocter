@@ -163,6 +163,19 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?
             .kind;
         match *kind {
+            ExpressionKind::Record { ref fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|field| (field.field, Holder::Expression(field.value).place()))
+                    .collect::<Vec<_>>();
+                self.world.resources.assemble(
+                    self.typed.program(),
+                    Holder::Expression(id),
+                    resources::expression_payload(self.typed, id)?,
+                    &fields,
+                    &mut self.steps,
+                )?;
+            }
             ExpressionKind::Move(place) => self.world.resources.move_to(
                 self.typed.program(),
                 &self.resource_place(place)?,
