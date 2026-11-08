@@ -51,6 +51,7 @@ semantic_ids! {
     AccessStatementId,
     AccessBlockId,
     AccessLoopId,
+    AccessFlowPointId,
     ConstructionId,
     InstanceId,
     InterfaceImplementationId,

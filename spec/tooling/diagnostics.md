@@ -743,3 +743,23 @@ branch answers. An existing-place permission failure relates its declaration. Pr
 rule evidence separately from rendered wording. Do not offer removal of `&`/`^` as an automatic
 repair: that changes the intended operation. Explicit transfer/drop of Copy X remains valid;
 released restrictions on moving Copy are not inherited into this future goal.
+
+
+## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
+
+The first access fragment uses `E0378` when a reached read, update, transfer, explicit drop,
+compound target, or prepared/committed direct-place argument lacks definite named-slot
+initialization. A complete X assignment can restore an uninitialized slot; it is not such a use.
+Check compound assignment after its complete right-hand evaluation, and check every potentially
+continuing loop backedge and zero-iteration edge. Code unreachable after terminating control does
+not acquire fictitious initialization obligations, while its structural typing rules still apply.
+
+Point at the attempted operation, relate the slot's declaration, and identify ownership-removal
+actions on contributing paths. An earlier loop iteration may contribute the same authored action;
+explain that reaching-path/backedge relationship rather than suggesting a missing type annotation.
+Distinguish a definitely unavailable slot from one whose initialization is unproved across paths.
+
+This diagnostic proves neither the validity of a retained access's outside root nor the absence of
+conflicts. An initialized I/U holder can still refer to invalid or conflicting storage. Those
+failures require their own lifetime/access evidence. Initialization conditions for potential cleanup
+are not permission to skip required destruction or emit an executable cleanup schedule.

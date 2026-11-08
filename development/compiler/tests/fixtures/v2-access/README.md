@@ -25,13 +25,14 @@ cover precedence, grouping restrictions, boundaries, recovery, token subdivision
 and reusable-source rebinding. The production declaration query consumes all 50 entries: six fail
 syntax, six fail header validation, and 38 produce declaration metadata. The body-typing query
 rejects eight at structural typing and produces typed-only evidence for 30: 19 eventual acceptance
-cases and eleven still awaiting flow rejection. `compiler_status: body-typing-only` and each
-`body_typing` expectation describe this intermediate result, not checked-program acceptance or
-execution. The nineteen `check-reject` cases remain eventual rejections; passing typing does not
+cases and eleven still awaiting flow rejection. Each `body_typing` expectation describes that intermediate result. The shared flow query now
+reports named-slot initialization failures in seven; 23 have no such failure, including four still
+requiring lifetime/conflict rejection. `compiler_status: slot-initialization-only` and
+`slot_initialization` record this additional boundary, not checked-program acceptance or execution. The nineteen `check-reject` cases remain eventual rejections; passing typing does not
 change their expectation.
 
 Do not add these files to a released-language glob, mark current rejection as success, or implement
-a second parser/checker in test support. Initialization, access-liveness, escape, conflict, and cleanup checking remain pending.
+a second parser/checker in test support. Referent validity, access-liveness, escape, conflict, and validated cleanup remain pending.
 Extend cases/snapshots at the owning phase as implementation closes each grammar edge; this
 inventory alone does not establish exhaustive grammar or diagnostic coverage.
 
@@ -42,7 +43,7 @@ python3 development/compiler/tests/fixtures/v2-access/check-inventory.py
 ```
 
 That command checks file/shape registration, schema, expectation classes, and source projections only.
-The actual parser, header, and typed-only body tests run with:
+The actual parser, header, typed-only body and flow/slot tests run with:
 
 ```sh
 cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-syntax parser::access

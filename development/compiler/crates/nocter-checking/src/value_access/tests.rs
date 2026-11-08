@@ -6,7 +6,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{BoundSyntax, ParseGoal, SyntaxTree, parse};
 use std::{fs, path::PathBuf};
 
-fn input(text: &str) -> (SourceMap, SyntaxTree) {
+pub(super) fn input(text: &str) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();
     let id = sources
         .add_bytes(SourceName::new("body.nct"), text.as_bytes())
@@ -15,7 +15,7 @@ fn input(text: &str) -> (SourceMap, SyntaxTree) {
     assert!(!tree.has_errors(), "{text}: {:?}", tree.diagnostics());
     (sources, tree)
 }
-fn bound<'a>(sources: &'a SourceMap, tree: &'a SyntaxTree) -> BoundSyntax<'a> {
+pub(super) fn bound<'a>(sources: &'a SourceMap, tree: &'a SyntaxTree) -> BoundSyntax<'a> {
     BoundSyntax::new(sources.get(tree.source()).unwrap(), tree).unwrap()
 }
 fn queries(text: &str) -> Result<Vec<Query>, Failure> {
@@ -45,7 +45,7 @@ fn rejection(text: &str, rule: Rule) {
     assert_eq!(diagnostic.rule(), rule, "{text}: {:?}", diagnostic.source());
     assert!(!diagnostic.source().primary().span().range().is_empty());
 }
-fn field<'a>(value: &'a Value, name: &str) -> &'a Value {
+pub(super) fn field<'a>(value: &'a Value, name: &str) -> &'a Value {
     let Value::Object(members) = value else {
         panic!("object");
     };
@@ -55,7 +55,7 @@ fn field<'a>(value: &'a Value, name: &str) -> &'a Value {
         .unwrap()
         .value
 }
-fn string(value: &Value) -> &str {
+pub(super) fn string(value: &Value) -> &str {
     let Value::String(text) = value else {
         panic!("string");
     };

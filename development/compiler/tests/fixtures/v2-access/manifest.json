@@ -1,140 +1,159 @@
 {
   "schema": 1,
   "parse_goal": "V2CoreUnit",
-  "compiler_status": "body-typing-only",
+  "compiler_status": "slot-initialization-only",
   "cases": [
     {
       "id": "a01-update-local",
       "file": "a01-update-local.nct",
       "expectation": "accept",
       "reason": "Explicit update supplies U; after its last use the parent can update and transfer.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a02-read-child-copy",
       "file": "a02-read-child-copy.nct",
       "expectation": "accept",
       "reason": "Read child ends after the independent Copy; no U capability is duplicated.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a03-move-only-forward",
       "file": "a03-move-only-forward.nct",
       "expectation": "accept",
       "reason": "Explicit transfer returns a move-only error as successful ordinary data.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a04-self-reinitialization",
       "file": "a04-self-reinitialization.nct",
       "expectation": "accept",
       "reason": "RHS transfer precedes destination cleanup; no old value remains to destroy.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a05-call-reservation-read",
       "file": "a05-call-reservation-read.nct",
       "expectation": "accept",
       "reason": "U call preparation reserves the place; nested I read finishes before activation.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a06-call-consume-restore",
       "file": "a06-call-consume-restore.nct",
       "expectation": "accept",
       "reason": "X argument consumes even Copy; assignment then restores the destination.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a07-branch-reinitialization",
       "file": "a07-branch-reinitialization.nct",
       "expectation": "accept",
       "reason": "Whole X assignment conditionally disposes the old value and restores all paths.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a08-loop-reinitialization",
       "file": "a08-loop-reinitialization.nct",
       "expectation": "accept",
       "reason": "Every continuing backedge restores definite initialization; zero iterations are safe.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a09-branch-owned-result",
       "file": "a09-branch-owned-result.nct",
       "expectation": "accept",
       "reason": "Both result branches supply X; cleanup of the old owner is conditional.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a10-contextual-copy-join",
       "file": "a10-contextual-copy-join.nct",
       "expectation": "accept",
       "reason": "Expected X proves Copy in the I branch without moving the source.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a11-update-result",
       "file": "a11-update-result.nct",
       "expectation": "accept",
       "reason": "U result handoff delegates the unique eligible outside source; inference keeps U.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a12-unit-storage",
       "file": "a12-unit-storage.nct",
       "expectation": "accept",
       "reason": "Unit is a fresh Copy value and normal empty completion remains unit.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a13-computed-transfer-argument",
       "file": "a13-computed-transfer-argument.nct",
       "expectation": "accept",
       "reason": "Transfers inside computed branches execute there; they are not direct call assertions.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a14-alternative-updates",
       "file": "a14-alternative-updates.nct",
       "expectation": "accept",
       "reason": "A joined U result selects one of two worlds; it does not activate both accesses.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a15-owned-discard",
       "file": "a15-owned-discard.nct",
       "expectation": "accept",
       "reason": "Discard cleans the transferred value once, with no new named binding.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a16-loop-break-cleanup",
       "file": "a16-loop-break-cleanup.nct",
       "expectation": "accept",
       "reason": "An exiting transfer does not create a continuing backedge; exit cleanup is conditional.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a17-read-argument-copy",
       "file": "a17-read-argument-copy.nct",
       "expectation": "accept",
       "reason": "X call from an I Copy access prepares a snapshot and preserves the outside owner.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a18-primitive-precedence",
       "file": "a18-primitive-precedence.nct",
       "expectation": "accept",
       "reason": "Primitive computations supply fresh X with ordinary precedence and short-circuit flow.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "a19-loop-continue",
       "file": "a19-loop-continue.nct",
       "expectation": "accept",
       "reason": "A continue edge with an initialized owner feeds the header; break feeds the exit.",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "h01-duplicate-function",
@@ -213,7 +232,8 @@
       "expectation": "check-reject",
       "reason": "Explicit transfer invalidates even a Copy owner.",
       "primary_text": "return value",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "r04-active-update-parent",
@@ -221,7 +241,8 @@
       "expectation": "check-reject",
       "reason": "Explicit U is already active and has a later use.",
       "primary_text": "value += 1",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "r05-live-read-child",
@@ -229,7 +250,8 @@
       "expectation": "check-reject",
       "reason": "A live I child prevents update through its U parent.",
       "primary_text": "edit += 1",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "r06-transfer-update",
@@ -255,7 +277,8 @@
       "expectation": "check-reject",
       "reason": "The local is destroyed on exit and is not the eligible input origin.",
       "primary_text": "return &local",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "r09-maybe-initialized",
@@ -263,7 +286,8 @@
       "expectation": "check-reject",
       "reason": "The join includes an uninitialized incoming path.",
       "primary_text": "let inspect = value",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "r10-loop-backedge",
@@ -271,7 +295,8 @@
       "expectation": "check-reject",
       "reason": "The first iteration is not proof of initialization at the next header.",
       "primary_text": "^value",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "r11-inferred-mode-join",
@@ -288,7 +313,8 @@
       "expectation": "check-reject",
       "reason": "The compound target is read after RHS consumption, so it is uninitialized.",
       "primary_text": "value += consume(value)",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "r13-update-name-is-read",
@@ -323,7 +349,8 @@
       "expectation": "check-reject",
       "reason": "A selected X call consumes an existing owner even when Copy is proved.",
       "primary_text": "return value",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "r17-explicit-update-before-call",
@@ -331,7 +358,8 @@
       "expectation": "check-reject",
       "reason": "Unlike a mere U reservation, the earlier explicit U excludes parent reads.",
       "primary_text": "read(value)",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "pass"
     },
     {
       "id": "r18-continue-before-restoration",
@@ -339,7 +367,8 @@
       "expectation": "check-reject",
       "reason": "A continuing path skips restoration; later iterations cannot read the owner.",
       "primary_text": "^value",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "r19-short-circuit-move",
@@ -347,7 +376,8 @@
       "expectation": "check-reject",
       "reason": "Short-circuit evaluation joins a consumed path with a retained-owner path.",
       "primary_text": "let inspect = value",
-      "body_typing": "accept"
+      "body_typing": "accept",
+      "slot_initialization": "reject"
     },
     {
       "id": "s01-grouped-transfer-argument",

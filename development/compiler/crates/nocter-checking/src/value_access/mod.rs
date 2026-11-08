@@ -2,6 +2,7 @@
 //! This product is deliberately unavailable to executable/checked-program consumers.
 mod checker;
 mod expressions;
+pub mod flow;
 mod ir;
 mod statements;
 #[cfg(test)]

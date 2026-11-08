@@ -231,10 +231,42 @@ and locator recipes beside that typed body. One body projection serves checking 
 Rebinding requires that same authority and unchanged own body, then projects current origins without
 retyping or repeating dispatch. Body-independent header reuse does not imply body-result reuse.
 
-Structural eligibility is separate from initialization, source liveness, escape/origin proofs,
-access conflicts, loop fixed points and conditional cleanup. Those validators remain required;
+Structural eligibility is separate from named-slot initialization, source liveness, escape/origin
+proofs, access conflicts and validated cleanup. Named-slot facts are now computed below; the
+remaining validators are still required;
 even a typed-only body with an uninitialized read or escaping local cannot enter execution. Primitive
 arithmetic retains checked operation kinds, and short-circuit/control interruptions remain explicit.
 The future product has no compatibility adapter, source-version flag, editor recovery product, or
 native consumer. The [adjacent boundary](../../../architecture/pipeline/value-access-declarations.md)
 owns its relationship to declarations and later validation.
+
+
+## Future Body Control Flow and Slot Initialization
+
+A shared typed-query authority produces one immutable evaluation/control graph. Graph construction
+consumes typed arenas and selected argument actions without syntax, dispatch or type inference.
+It preserves eager operand preparation, short-circuit/conditional edges, loop destinations,
+RHS-first assignment, staged return values, scope exits and cancellation of each successfully
+prepared call prefix. A direct-place reservation does not execute a normal place read or transfer.
+A complete commit validates the reserved bundle before changing any ownership slot. Literal
+Boolean predicates select their known edge after condition evaluation; structurally checked dead
+source contributes no reached initialization use.
+
+The graph and its fixed-point initialization report share that exact typed-query authority.
+Each reached point starts with a map of named-slot states: initialized, uninitialized or maybe.
+Unreached points have no entry state. Parameters start initialized; bindings initialize their
+holders; explicit transfers, drops and committed X places remove ownership; complete assignment
+restores X. Joins conservatively combine all incoming states, and a worklist reaches a fixed point
+before reporting uses. Reaching invalidation locations remain separate source-neutral evidence.
+
+Cleanup facts retain initialization conditions at potential owned-slot replacement, explicit drop,
+and scope exit. They are not execution schedules, do not erase carried dependencies, and cannot
+certify that a retained I/U root survives. Non-owning holders are released rather than destroyed as
+owners. Scope exits retain reverse binding order, while a protected result is staged before exit
+or cancellation cleanup. Source projection reuses the typed query's exact-current binding without
+reconstructing flow or solving again.
+
+This product does not validate referent roots, access liveness, reservation/alias conflicts,
+result-origin bounds, temporary cleanup or destruction dependencies. It cannot construct accepted
+checked evidence or enter execution. An initialized slot and an initialized referent are distinct
+facts; later validation must consume the existing graph and add the remaining proofs.

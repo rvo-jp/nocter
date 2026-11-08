@@ -1402,6 +1402,14 @@ Integer literals default to `i32`. Decode their complete lexical magnitude befor
 a minus applied directly through grouping to an integer literal admits `-2147483648`. Arithmetic
 retains checked overflow, division, and remainder semantics; an X operand is not a safety proof.
 
+Primitive scalar operands are read once in left-to-right order. Preserve each prepared scalar
+payload before evaluating a later operand; do not reread a changed or transferred place afterward.
+For example, `value + consume(value)` can read the left scalar before an X call consumes its owner.
+This is the built-in primitive operand rule, not snapshot semantics for an ordinary I call argument.
+Explicit transfers still occur at their authored points, even for Copy data. Test a condition before
+entering either branch, and evaluate only the selected short-circuit operand. Physical copies may
+be elided when the compiler preserves these values, effects and ownership operations.
+
 A local initializer with no normal result cannot infer a data type or access mode. An explicit
 annotation can supply that contract; `never` is control interruption, not an inferred stored unit.
 The discard statement remains exactly `let _ = expression`, without a type annotation. These

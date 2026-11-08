@@ -27,11 +27,11 @@ pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
 pub use id::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessParameterId, AccessStatementId, AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId,
-    CallableId, CapabilityEvidenceId, CaptureId, ClosureId, ConstantExpressionId, ConstantId,
-    ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, ExecutableStaticId, FieldId,
-    GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
+    AccessBlockId, AccessCallableId, AccessExpressionId, AccessFlowPointId, AccessLocalId,
+    AccessLoopId, AccessParameterId, AccessStatementId, AssociatedTypeId, BodyId, BodyNodeId,
+    BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId, ClosureId, ConstantExpressionId,
+    ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, ExecutableStaticId,
+    FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
     LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
     MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,
     PlaceId, RequirementId, StaticId, TestId, TypeAliasId, TypeId, VariantId,
