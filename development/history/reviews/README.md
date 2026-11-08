@@ -10,23 +10,64 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
-- [v2.0.0 Value Access Model](v2.0.0-values-and-access-operations.md)
-- [v2.0.0 Value Access Semantic Closure](v2.0.0-value-access-semantics.md)
-- [v2.0.0 Result Access Contracts](v2.0.0-result-access-contracts.md)
-- [v2.0.0 Access Typing and Specification Migration](v2.0.0-access-typing.md)
-- [v2.0.0 Source Design Decisions](v2.0.0-source-design-decisions.md)
-- [v2.0.0 Parameter Defaults and Delegated Work](v2.0.0-parameter-defaults.md)
-- [v2.0.0 Value Binding Candidate: Adoption Audit](v2.0.0-value-binding-candidate.md)
-- [v2.0.0 Value Binding: Grammar and Implementation Design](v2.0.0-value-binding-implementation.md)
-- [v2.0.0 Bounded Value Binding Front End](v2.0.0-value-binding-front-end.md)
-- [v2.0.0 Source Grammar Assembly](v2.0.0-source-grammar-assembly.md)
+### Value Binding Reviews
+
+These records cover the v2.0.0 redesign.
+
+Start with the [development reading order](../../README.md#value-binding-reading-order) for source,
+architecture, implementation evidence, and next work. The groups below classify records by use;
+they do not make reviews normative or register compiler support.
+
+#### Selected Design and Grammar Drafts
+
+- [Source Design Decisions](v2.0.0-source-design-decisions.md) — chronological ledger; use S12–S16 for the value-binding foundation and subsequent source decisions
+- [Parameter Defaults and Delegated Work](v2.0.0-parameter-defaults.md) — rationale for the selected input default and delegation scope
+- [Value Binding: Grammar and Implementation Design](v2.0.0-value-binding-implementation.md) — broader design and remaining proof obligations
+- [Source Grammar Assembly](v2.0.0-source-grammar-assembly.md) — full-language draft; its scope exceeds compiler acceptance
+
+#### Implementation and Verification
+
+- [Bounded Value Binding Front End](v2.0.0-value-binding-front-end.md) — implemented private-unit scope, production tests, qualification, and limits
+
+#### Research and Adoption Audits
+
+- [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance
+- [Storage Optimization and Observable Effects](v2.0.0-storage-optimization.md) — optimization obligations and assumed-certificate exploration
+- [Language Design Independence Review](v2.0.0-language-design-independence.md) — earlier audit; read recommendations with their subsequent dispositions
+- [Value Binding Candidate: Adoption Audit](v2.0.0-value-binding-candidate.md) — audit at the adoption decision, not a pending request or current compiler-status report
+
+#### Superseded Source and Checkpoint Records
+
+These preserve pre-S12 proposals and implementation evidence. Their source forms, present-tense
+adoption labels, and work orders describe those earlier checkpoints. Use the owning `spec/`
+chapters for source rules and the bounded front-end record for implemented support.
+
+- [Value Access Model: Earlier Direction](v2.0.0-values-and-access-operations.md)
+- [Value Access Semantic Closure](v2.0.0-value-access-semantics.md)
+- [Result Access Contracts](v2.0.0-result-access-contracts.md)
+- [Syntax Coherence under Four Design Goals](v2.0.0-syntax-coherence.md)
+- [Implementation Readiness](v2.0.0-implementation-readiness.md)
+- [Access Typing and Specification Migration](v2.0.0-access-typing.md)
+- [First Access Validation Slice](v2.0.0-first-access-slice.md)
 - [Pre-S12 Private Access Checkpoint Contracts](v2.0.0-access-checkpoint-contracts.md)
-- [v2.0.0 Syntax Coherence under Four Design Goals](v2.0.0-syntax-coherence.md)
-- [v2.0.0 First Access Validation Slice](v2.0.0-first-access-slice.md)
-- [v2.0.0 Implementation Readiness](v2.0.0-implementation-readiness.md)
-- [v2.0.0 Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md)
-- [v2.0.0 Storage Optimization and Observable Effects](v2.0.0-storage-optimization.md)
-- [v2.0.0 Language Design Independence Review](v2.0.0-language-design-independence.md)
+
+#### Model Explorations
+
+These Python files explore finite, manually supplied assumptions. They do not parse Nocter,
+consume production source cases, or qualify compiler behavior. They are not part of
+`development/verification/verify-compiler.sh`. Keep their original scope/evidence distinct from
+[production conformance inputs](../../compiler/tests/fixtures/value-bindings/README.md).
+
+| Script | Scope and use |
+| --- | --- |
+| [Value-access model](v2.0.0-value-access-model-check.py) | Historical pre-S12 call/reservation exploration; no Copy, projections, or general inference |
+| [Result-access model](v2.0.0-result-access-model-check.py) | Historical pre-S12 result-permission and output-lifecycle exploration |
+| [Typing boundaries](v2.0.0-access-typing-check.py) | Historical S9/S11 inference and delegation assumptions, superseded by S12 |
+| [Access and initialization flow](v2.0.0-access-flow-check.py) | Historical whole-place exploration with explicit end events, not inferred source liveness |
+| [Storage optimization](v2.0.0-storage-optimization-check.py) | Research-only traces under assumed storage/effect classifications; not implemented inference or performance evidence |
+
+### Earlier Release Reviews
+
 - [v0.73.0 Phase 5 Qualification Review](v0.73.0-phase-5.md)
 - [v0.73.0 Phase 4 Verified Traversal Adoption Review](v0.73.0-phase-4.md)
 - [v0.73.0 Phase 3 Borrowed Range Construction Review](v0.73.0-phase-3.md)

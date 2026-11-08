@@ -20,15 +20,37 @@ The active compiler workspace is under `development/compiler/`. Superseded imple
 their rewrite records remain available through the [development history](history/README.md), but
 are not behavioral or architectural inputs.
 
+## Value Binding Reading Order
+
+These entry points cover the v2.0.0 redesign. Read them in order; each owns a different kind
+of information:
+
+1. **Source semantics:** the future [Value Access Model](../spec/language/value-access.md) and its
+   linked owning chapters. The [bounded value-binding grammar](../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
+   defines the private-unit source boundary; the broader future grammar is a separate scope.
+2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
+   [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
+   [crate README](compiler/README.md#crate-documentation).
+3. **Implemented scope and verification:** the [bounded front-end record](history/reviews/v2.0.0-value-binding-front-end.md)
+   and [production source corpus](compiler/tests/fixtures/value-bindings/README.md).
+4. **Next work:** the [handoff](TODO.md). The [milestone](history/milestones/v2.0.0.md) records
+   broader work order; the [implementation design](history/reviews/v2.0.0-value-binding-implementation.md)
+   retains obligations beyond the implemented fragment.
+5. **Decision rationale and research:** the [classified review catalog](history/reviews/README.md#value-binding-reviews).
+   Earlier source proposals and finite model explorations are labeled separately there.
+
+A selected source design, a grammar draft, compiler acceptance, native execution, and a performance
+measurement are different evidence. Read the owning record for the specific claim. Historical
+examples do not extend the implemented source boundary or introduce an alternate spelling.
+
 ## Specification Workflow
 
 When a public rule is incomplete, implementation pauses. The ambiguity is reduced to a minimal
 program and alternatives are compared. Under an explicitly delegated design scope, the agent
 resolves the decision and records its evidence; otherwise the user selects the language behavior.
-The [v2.0.0 Value Access Model plan](history/milestones/v2.0.0.md#define-values-through-input-update-and-transfer-operations)
-delegates v2.0.0 model/source-design closure and normal work sequencing to the agent; the later
-input-default decision expanded the earlier internal-only scope. The adopted rule
-is written in the owning specification chapter before implementation or conformance tests proceed.
+The [input-default and delegation record](history/reviews/v2.0.0-parameter-defaults.md#decision-and-scope)
+records the v2.0.0 model/source-design and normal work-sequencing delegation. The adopted rule is
+written in the owning specification chapter before implementation or conformance tests proceed.
 
 The specification is the sole source for:
 

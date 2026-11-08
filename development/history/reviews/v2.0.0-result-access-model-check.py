@@ -5,6 +5,10 @@ Three already-created resource tokens: outside input, local, and error informati
 One constructed computation, one selected input mode, at most two output handles.
 No parsing, Copy payloads, projections/ranges, reborrowing, regions, user destructors,
 threads, execution effects, or proof of general type safety.
+
+Historical pre-S12 exploration; its assumptions do not validate the current
+value-binding source model. See README.md#model-explorations for classification
+and the production conformance entry point.
 """
 
 from collections import Counter, deque

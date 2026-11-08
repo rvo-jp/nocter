@@ -4,6 +4,10 @@
 Two owning roots and two access identities; explicit end events stand for already
 computed last-use/cleanup facts. No source liveness inference, path projections,
 payload/storage dependencies, user destructors, or call reservations are modeled.
+
+Historical pre-S12 exploration; its assumptions do not validate the current
+value-binding source model. See README.md#model-explorations for classification
+and the production conformance entry point.
 """
 from collections import deque
 from dataclasses import dataclass, replace

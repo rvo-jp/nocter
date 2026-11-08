@@ -4,6 +4,10 @@
 Two owned root places, two calls, at most two operands per call. No projections,
 reborrows, Copy operations, reinitialization, suspension, or external effects.
 See v2.0.0-value-access-semantics.md for the design and the limits of this check.
+
+Historical pre-S12 exploration; its assumptions do not validate the current
+value-binding source model. See README.md#model-explorations for classification
+and the production conformance entry point.
 """
 
 from collections import Counter, deque

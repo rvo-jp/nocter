@@ -4,6 +4,10 @@
 Checks Copy evidence, source availability, referent versus payload/region dependencies,
 and binding/call/return boundaries, including S9 inference and S11 explicit update delegation.
 It does not parse Nocter or model general CFGs, delegation graphs, or type constructors.
+
+Historical pre-S12 exploration; its assumptions do not validate the current
+value-binding source model. See README.md#model-explorations for classification
+and the production conformance entry point.
 """
 
 from dataclasses import dataclass, replace

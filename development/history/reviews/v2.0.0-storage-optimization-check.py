@@ -3,6 +3,9 @@
 
 Assumes checked storage classifications, finite scalar inputs, and explicit source cleanup.
 Does not infer real library summaries, model arbitrary callbacks, or measure performance.
+
+Research-only assumed-certificate experiment, not implemented compiler analysis.
+See README.md#model-explorations for its scope and production-test entry points.
 """
 from dataclasses import dataclass, replace
 from itertools import product
