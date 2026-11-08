@@ -556,6 +556,12 @@ pub enum TypeKind {
         arguments: GenericApplication,
     },
     Callable(CallableType),
+    /// A capture-free v2 named-function witness with its selected invocation view.
+    /// This is not a structural callback constraint or an erased runtime function pointer.
+    ValueFunction {
+        declaration: crate::AccessCallableId,
+        invocation: crate::ValueInvocation,
+    },
     Optional(TypeId),
     Fallible(TypeId),
 }
@@ -563,7 +569,10 @@ pub enum TypeKind {
 impl TypeKind {
     fn references(&self, visit: &mut impl FnMut(TypeId)) {
         match self {
-            Self::Builtin(_) | Self::GenericParameter(_) | Self::InterfaceSelf(_) => {}
+            Self::Builtin(_)
+            | Self::GenericParameter(_)
+            | Self::InterfaceSelf(_)
+            | Self::ValueFunction { .. } => {}
             Self::Nominal { arguments, .. }
             | Self::Opaque { arguments, .. }
             | Self::Closure { arguments, .. } => {
@@ -807,7 +816,7 @@ impl TypeProperties {
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => false,
-            TypeKind::Builtin(_) => true,
+            TypeKind::Builtin(_) | TypeKind::ValueFunction { .. } => true,
             TypeKind::Nominal { arguments, .. }
             | TypeKind::Opaque { arguments, .. }
             | TypeKind::Closure { arguments, .. } => application_concrete(arguments),
@@ -853,7 +862,7 @@ impl TypeProperties {
             TypeKind::FixedArray { element, .. }
             | TypeKind::Optional(element)
             | TypeKind::Fallible(element) => child(*element).may_carry_storage,
-            TypeKind::Builtin(_) => false,
+            TypeKind::Builtin(_) | TypeKind::ValueFunction { .. } => false,
         };
         Self {
             may_carry_storage,

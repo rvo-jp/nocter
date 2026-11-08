@@ -5,7 +5,10 @@ use super::SubstitutionError;
 /// Visits every direct child type in the structural order owned by [`TypeKind`].
 pub(crate) fn visit_type_children(kind: &TypeKind, mut visit: impl FnMut(TypeId)) {
     match kind {
-        TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
+        TypeKind::Builtin(_)
+        | TypeKind::GenericParameter(_)
+        | TypeKind::InterfaceSelf(_)
+        | TypeKind::ValueFunction { .. } => {}
         TypeKind::Nominal { arguments, .. }
         | TypeKind::Opaque { arguments, .. }
         | TypeKind::Closure { arguments, .. } => arguments.type_values().for_each(&mut visit),
@@ -45,6 +48,13 @@ where
 {
     Ok(match kind {
         TypeKind::Builtin(builtin) => TypeKind::Builtin(builtin),
+        TypeKind::ValueFunction {
+            declaration,
+            invocation,
+        } => TypeKind::ValueFunction {
+            declaration,
+            invocation,
+        },
         TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
         TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
         TypeKind::Closure {

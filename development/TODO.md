@@ -17,32 +17,23 @@ default. Uncontextualized closure inputs default to read; a selected expected co
 omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-The bounded value-binding front end now includes [record source integration](history/reviews/v2.0.0-record-source-integration.md).
-Its production source corpus contains 113 cases: 58 accepted private units, 46 checking rejections,
-4 header rejections and 5 syntax rejections. Closed nongeneric records, selected field places,
-partial moves/restoration/drop, projected initialization, disjoint/overlapping permissions and
-precise cleanup pass through the same private syntax/declaration/body/flow/resource path.
-Structural record values now select components once and assemble their complete value obligations
-in that same resource ledger; return/break/continue interruption cleans already produced components
-through existing evaluation frames, in reverse actual production order.
-Declaration schemas and namespaces own type/field meaning once; downstream passes consume the
-selected IDs. Ordinary results remain values, independent of input operation and local binding.
-No CLI mode, released-program adapter, native consumer or duplicate owner-survival set was added.
+The bounded front end includes closed records, named/computed fields and now
+[named function values](history/reviews/v2.0.0-function-witnesses.md). The source corpus contains
+149 cases: 76 accepted private units, 63 checking rejections, 4 header rejections and 6 syntax
+rejections. Concrete function witnesses retain static targets through local values, exact
+structural annotations, invocation adapters, aliases, joins and replacement. Environments and
+explicit arguments share one frozen input plan and resource ledger. This is private front-end
+evidence; no released adapter, CLI mode, native output or performance claim follows.
 
-Computed field selection now shares one member-chain/field resolver with existing places and
-structural construction. It freezes the producer, complete field path and Copy/Move action, then
-uses the same resource ledger for selected-value supply and remainder cleanup. Known result data
-and normal completion are separate typing facts; interrupted calls/constructors preserve declared
-types without creating runtime owners. Scoped aliases and updates still require existing storage.
-
-Next close monomorphic callable-value contracts under the owning future specification. Start with
-structural invocation/input/result contracts and exact payload schemas for noncapturing callable
-values before admitting captured environments or generic/interface forwarding. Keep `func`/`mut`/
-`once` invocation separate from value ownership, preserve unmarked read and explicit edit/take,
-and select each direct or indirect call once. Add production source acceptance and rejection for
-value receipt, invocation, argument preparation/interruption and cleanup; do not classify callable
-payload dependencies from an empty capture list alone without its exact contract. Then extend
-captured environments with their R/D/S and retained-state obligations before accepting them.
+Next implement symbolic witness propagation for structural callable parameters/results, before
+anonymous closures or captured environments. Close header representation, exact identity-preserving
+instantiation/forwarding, recursive dependency termination and return-witness joins under the
+owning future specification. Do not turn `func`/`mut`/`once` annotations into runtime-erased types
+or choose call targets again downstream. Keep invocation independent of value ownership and input
+Read/Edit/Take. Preserve concrete payload evidence: a structural contract does not establish Copy,
+trivial cleanup or empty D/S. Add production source acceptance/rejection and environment-preparation,
+interruption, cleanup and cross-body authority assertions. Then extend captured environments with
+R/D/S and retained-state obligations before accepting them.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

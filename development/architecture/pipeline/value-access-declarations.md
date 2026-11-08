@@ -34,7 +34,11 @@ not a borrow-type constructor or a general coercion rank. A path contains field 
 source names, physical offsets or an access grant.
 
 `nocter-declarations` owns the source-independent program, namespace, closed data authority,
-ordered input identities and operations, and data-only value results.
+ordered input identities and operations, data-only value results, and concrete named-function
+witnesses. Local structural callable annotations are constraints on those witnesses, not erased
+runtime datatypes. Invocation compatibility and exact input/result matching belong to declarations;
+checking freezes the selected witness/view. Header freeze interns every named invocation view in
+the same TypeAuthority, so body annotations cannot affect type availability or declaration reuse.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
 Admitted built-in data and finite nongeneric record schemas share the parsed callable/body
 boundary. Data-name resolution belongs to that declaration namespace; lowering holds no parallel
@@ -76,7 +80,8 @@ intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
-compound type expressions, generic/interface/callable evidence, outcomes, async/effects, layouts,
+compound header types, generic/interface evidence, symbolic callable parameters/results, captured
+environments, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -86,7 +91,10 @@ Checking owns one leaf query per callable. The declaration context shares the ex
 program authority; the query owns that authority and callable together with source-neutral body
 arenas. Place reads, update/transfer operations, boundary Copy/delegation, argument preparations,
 RHS-first stores, checked primitive arithmetic and structured control retain separate operations.
-Direct calls store the selected callable and one preparation action per ordered argument. A direct
+Direct and value calls store one statically selected callable and one operation/preparation action
+per ordered input. A value call prepends its environment to explicit inputs; direct declaration
+calls have no runtime environment input. Downstream validation consumes frozen operations rather
+than reinterpreting indices against declaration parameters. A direct
 place reservation is not an early read/update/transfer; explicit computed operations execute at
 their own operand point. Later validation must consume those plans, not repeat dispatch or infer
 intent from source punctuation. Structural record values retain the declaration-selected field
@@ -94,6 +102,14 @@ and one ordinary value operation for each initializer in authored order. Their c
 remain owned evaluation temporaries until a single assembly step transfers them into the complete
 record. An interrupted initializer follows existing evaluation-frame cleanup; it cannot publish
 a partially assembled record or introduce a constructor-only resource authority.
+
+Named function references retain code identity through ordinary Copy supply, scoped aliases and
+same-witness joins. A selected invocation adapter materializes a value and changes only its view;
+initialization and replacement share that boundary. Environment preparation follows the same
+reservation, atomic commit, cancellation and cleanup graph as explicit arguments. Exact
+capture-free witness schemas justify Copy, trivial destruction and empty outside D/S; structural
+annotations alone do not justify any of those payload facts. Callable parameters/results and
+captured environments need their own witness/dependency propagation before admission.
 
 Known result types and possible normal completion are independent typed facts. Interrupted
 operands do not erase declared callable/record data, while the shared graph cannot evaluate an

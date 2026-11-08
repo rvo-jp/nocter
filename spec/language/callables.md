@@ -538,3 +538,25 @@ A read identity with source-level Copy evidence can return a snapshot normally. 
 information requires an ordinary annotation. Later uses cannot retroactively select input/capture
 operations or invocation kind. Erased contracts preserve the same facts without run-time name
 lookup or authority repair.
+
+### Named Function Witnesses
+
+A named function used as a value selects that declaration, not an overload set or a runtime name.
+It has a concrete statically selected witness. A callable annotation constrains its invocation,
+ordered input operations/data and result data; it does not erase the witness or change those
+inputs from the body. Two distinct witnesses do not become the same data type merely because
+their signatures agree. A conditional may retain one common witness; heterogeneous joining needs
+the separately specified erased representation.
+
+A named function has no captured environment. Its exact value payload carries the selected code
+identity, has Copy evidence, and has no outside storage/access dependencies. These facts concern
+that concrete witness, not every value satisfying `func`, `mut` or `once`. Its invocation view
+remains independent of Copy: adapting a named witness to `mut` still requires writable access to
+invoke that view; adapting it to `once` receives a separate instance under ordinary value supply.
+Copy can supply another instance, while a dropped source remains unavailable.
+
+A local annotation can select the permitted invocation adapter while preserving the concrete
+witness. Aliases can check an already matching view but cannot construct an adapted environment.
+Neither a hidden original declaration nor the absence of captures may upgrade a restricted view
+back to a stronger invocation contract. Invoke the selected view and validate the complete
+prepared bundle before explicit inputs or the environment are consumed.

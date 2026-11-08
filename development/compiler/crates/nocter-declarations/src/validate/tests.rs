@@ -789,3 +789,33 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
         );
     }
 }
+
+#[test]
+fn future_named_witnesses_cannot_enter_the_released_declaration_program() {
+    let symbols = SymbolTable::from_spellings(["app"]);
+    let app = symbols.get("app").unwrap();
+    let mut program =
+        DeclarationProgramBuilder::new(nocter_model::CompilationTarget::Arm64Darwin, symbols);
+    let package = program
+        .add_package(PackageIdentity::new("workspace:app"), app)
+        .unwrap();
+    let module = program.add_module(package, ModulePath::root()).unwrap();
+    program
+        .define_module_namespace(module, ModuleNamespace::default())
+        .unwrap();
+    let mut identities = nocter_model::ArenaBuilder::<nocter_model::AccessCallableId, ()>::new();
+    let declaration = identities.insert(());
+    program
+        .types_mut()
+        .intern(TypeKind::ValueFunction {
+            declaration,
+            invocation: nocter_model::ValueInvocation::Read,
+        })
+        .unwrap();
+    assert_eq!(
+        program.finish().unwrap_err(),
+        ProgramBuildError::InvalidProgram(ProgramValidationError::Integrity(
+            ProgramIntegrityError::InvalidPosition(DeclarationDomain::Type)
+        ))
+    );
+}

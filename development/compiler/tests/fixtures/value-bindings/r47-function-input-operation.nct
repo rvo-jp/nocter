@@ -1,0 +1,2 @@
+func identity(value: i32): i32 { value }
+func run(): void { let action: func(take i32): i32 = identity }

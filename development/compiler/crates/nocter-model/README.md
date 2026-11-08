@@ -18,6 +18,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
+- concrete future named-function keys pairing declaration identity with invocation view; projection
+  preserves both without type children, source names, captured environments or runtime layout
 - logical field paths with concatenation and prefix/overlap relations; the declaration owner validates each field
   against its containing data schema, independently of memory offsets
 - independent value-input operations, local binding kinds, transient operation-access descriptors,

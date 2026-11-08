@@ -1,0 +1,3 @@
+func nothing(): void {}
+func run(): void { let action: func(): void = nothing
+action() }

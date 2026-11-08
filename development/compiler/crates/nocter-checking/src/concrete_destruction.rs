@@ -378,6 +378,7 @@ impl ConcreteDispatchResolver<'_> {
                 ConcreteDestructionPlan::new(ty, ConcreteDestructionKind::Error),
             ),
             TypeKind::Builtin(_)
+            | TypeKind::ValueFunction { .. }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)

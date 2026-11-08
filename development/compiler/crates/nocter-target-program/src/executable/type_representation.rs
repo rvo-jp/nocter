@@ -91,7 +91,8 @@ pub(super) fn close_type_representations(
             | TypeKind::Optional(_)
             | TypeKind::Fallible(_)
             | TypeKind::Future(_) => None,
-            TypeKind::GenericParameter(_)
+            TypeKind::ValueFunction { .. }
+            | TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {
                 return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
@@ -250,6 +251,9 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
             }
             pending.insert(contract.result());
         }
-        TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
+        TypeKind::ValueFunction { .. }
+        | TypeKind::Builtin(_)
+        | TypeKind::GenericParameter(_)
+        | TypeKind::InterfaceSelf(_) => {}
     }
 }

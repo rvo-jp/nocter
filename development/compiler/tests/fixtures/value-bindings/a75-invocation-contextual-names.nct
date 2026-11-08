@@ -1,0 +1,4 @@
+func once(value: i32): i32 { value }
+func mut(value: i32): i32 { value + 1 }
+func run(): i32 { let action: func(i32): i32 = mut
+action(once(1)) }

@@ -39,6 +39,8 @@ results. Protocol crates receive result values only.
 - Code actions consume phase-selected diagnostic repair capabilities and completion-owned name
   relations; they do not recover semantic intent from codes, rendered labels, or source text.
 - Missing authored evidence is explicit; an integrity failure cannot become an empty feature result.
+- Private future named-function witnesses cannot enter the released session product. Type
+  presentation has no rendering for them; it cannot infer an editor contract from a private key.
 - Rename and code actions publish only a whole-generation validated candidate. Candidate
   validation compares the source overlay's opaque authority identity rather than rescanning a
   parallel list of bytes and document versions.

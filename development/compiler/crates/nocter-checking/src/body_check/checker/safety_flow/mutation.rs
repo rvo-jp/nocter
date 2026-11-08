@@ -147,6 +147,7 @@ impl BodyChecker<'_, '_> {
         let result = match self.types.get(ty) {
             Some(
                 TypeKind::Builtin(_)
+                | TypeKind::ValueFunction { .. }
                 | TypeKind::Borrow {
                     capability: BorrowCapability::Readonly,
                     ..

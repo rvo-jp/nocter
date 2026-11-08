@@ -191,14 +191,6 @@ impl Checker<'_, '_> {
             _ => None,
         }
     }
-    pub fn annotation(&self, node: NodeId) -> Result<TypeId, Failure> {
-        let named = self.direct(node, NodeKind::NamedType)?;
-        let token = self.token(named)?;
-        let Some(data) = self.program().type_named(self.text(token)?) else {
-            return self.reject(Rule::UnknownType, token);
-        };
-        Ok(data)
-    }
 
     pub fn writable_place(&self, place: AccessPlaceId) -> bool {
         self.writable_local(self.selected_place(place).local)

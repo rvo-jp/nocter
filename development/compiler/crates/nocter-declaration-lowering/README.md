@@ -94,7 +94,10 @@ beside their owning modules.
 The access-declaration query accepts only complete `V2CoreUnit` syntax. It collects all headers,
 canonicalizes declaration symbols, reserves functions and records by name order, and resolves
 data types, input operations, namespaces and data-only value results before examining body semantics.
-`headers` extracts syntax-only header evidence; `definitions` resolves types through the declaration
+`headers` extracts syntax-only header evidence. The exported `input_operation` projection decodes
+one structural operation node for both declaration headers and checking's local callable
+annotations; neither consumer recovers a mode from names, types or body use.
+`definitions` resolves types through the declaration
 builder's single data namespace. Forward record references, invalid fields, containment cycles and
 Copy eligibility therefore share the declaration authority instead of a lowering-owned type table. Existing
 built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain

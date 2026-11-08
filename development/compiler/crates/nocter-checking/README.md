@@ -30,6 +30,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   initializer plans
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
+- shared nominal field/generic-storage traversal for invocation-origin and carried-loan queries,
+  preserving each query's distinct unresolved-generic policy
 - ownership, cleanup dependencies, execution facts, loans, provenance, regions, and destruction
 - checked local provenance contracts and call-site proofs over the declaration/model-owned
   constraint graph
@@ -226,6 +228,20 @@ Read inputs never become take from body use. Copyable value supply snapshots bef
 move-only extraction; alias creation never manufactures an owner. Direct call selection is frozen
 before access checking and has no permission-driven alternative target.
 
+`calls` resolves a function reference to its concrete named witness and freezes static dispatch
+through local values, aliases and computed callees. `annotations` projects local structural
+constraints through the declaration-owned matcher, retaining witness identity. It does not create
+an erased structural datatype. The ordinary value boundary applies the selected invocation
+adapter after Copy-or-move; initialization and replacement use that same transition. Aliases
+cannot construct a changed invocation view. Different witnesses do not join or replace one another
+merely because their signatures match.
+
+A value call prepares its environment as input zero, before explicit inputs. Its invocation view
+selects Read/Edit/Take independently of data ownership. Direct declaration calls need no runtime
+environment preparation. Every frozen argument plan carries its input operation; later passes
+never reopen the callable parameter list or infer an environment offset. Direct and value calls
+share argument preparation, atomic commit, interruption and cleanup.
+
 Typed bodies record selected Copy/materialization, implicit moves, scoped delegation, call input
 preparation, RHS-first replacement and structured control. `construction` freezes record
 components in authored order and applies the ordinary value boundary. Its `FieldValue` plans
@@ -321,17 +337,24 @@ The source remainder stays in its original evaluation frame; reading the selecte
 that result's owner through the read call. Neither operation changes the source's frame or adds
 an independent temporary-survival registry.
 
-Its ordered steps construct, assemble, move, receive, dispose, invoke and replace outside inputs.
-A dead access holder is not automatic early resource destruction. A staged return survives evaluation/lexical cleanup, whose order is
-reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
+`resources::function_view` consumes a materialized named witness and installs the selected view
+atomically after validating the declaration-owned adapter policy. It keeps the code identity and
+uses the existing resource/frame ledger, with no function-specific owner registry.
+
+Its ordered steps construct, assemble, adapt function views, move, receive, dispose, invoke and
+replace outside inputs. A dead access holder is not automatic early resource destruction. A staged
+return survives evaluation/lexical cleanup, whose order is reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
 Return owner with the declaration's result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
 
 Payload evidence consumes the declaration authority's exact bool/i32/void and opaque owned-error
-snapshot contracts, plus its closed records over those leaves. Scalars/unit have trivial disposal;
-error owns graph cleanup; records retain their own schema cleanup rather than becoming scalars.
+snapshot contracts, plus its closed records over those leaves and exact capture-free named-function
+witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; records
+retain their own schema cleanup rather than becoming scalars.
 Empty external D/S for those records follows the exact component contracts, not Copy, ownership,
-or a missing outside R. Dependent aggregates, user destructors, capabilities/callables, generics,
+or a missing outside R. Named-function evidence follows its exact declaration schema; an arbitrary
+structural callback does not inherit Copy, trivial cleanup or empty D/S. Dependent aggregates,
+user destructors, capabilities, captured environments, structural callback parameters/results, generics,
 outcomes, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record headers and local/input-rooted field selections through
@@ -341,8 +364,10 @@ and sparse traversal of deeply shared schemas. Construction tests cover nested v
 component mapping, scalar snapshots before later mutation, branch/loop interruption and atomic
 rejection. Computed-selection tests inspect exact value transfers, preserved Copy sources,
 read-temporary and remainder cleanup, interrupted known types, precise field diagnostics and a
-64-level shared computed field chain. Indexing remains outside this fragment. Resource transitions
-alone cannot replace the combined source proofs or establish executable/native behavior.
+64-level shared computed field chain. Named-function tests inspect static dispatch, environment
+input ordering, view adaptation, explicit taking-input indices, Copy-before-drop and interrupted
+preparation without invocation or result receipt. Indexing remains outside this fragment. Resource
+transitions alone cannot replace the combined source proofs or establish executable/native behavior.
 
 ## Closed Accepted Private Units
 

@@ -1,0 +1,4 @@
+func increment(value: i32): i32 { value + 1 }
+func other(value: i32): i32 { value - 1 }
+func run(): void { var action = increment
+action = other }

@@ -48,6 +48,8 @@ does not inspect syntax or repeat checking decisions.
 - Checked constant references remain identities until executable closure freezes exactly the
   reached values; MIR cannot reopen declaration storage.
 - MIR receives no unresolved requirement, interface implementation, or generic lookup.
+- Private future named-function witness keys have no released representation or runtime-type
+  mapping. Both boundaries reject them rather than guessing a closure/function-pointer layout.
 
 The cross-stage contract is documented in
 [Target, Executable, and MIR Program Design](../../../architecture/pipeline/target-program.md).

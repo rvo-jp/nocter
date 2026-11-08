@@ -1,9 +1,8 @@
 //! Declaration authority for the bounded future private-function language.
 //!
 //! This product cannot be converted to a released borrow-based declaration program. Its
-//! source boundary still admits four built-ins. Nominal payload schemas are validated here before
-//! source projection and body checking can admit records; they are not a flattened representation
-//! of the future aggregate/outcome type grammar.
+//! source boundary admits closed data and named-function witnesses. It does not flatten the
+//! complete future aggregate/callable/outcome grammar into released borrow-based types.
 use std::collections::BTreeMap;
 
 use nocter_model::{
@@ -14,6 +13,8 @@ use nocter_model::{
 use crate::DefinitionError;
 
 mod data;
+mod functions;
+pub use functions::{FunctionConstraint, FunctionInput, FunctionMismatch, FunctionWitness};
 mod records;
 pub use data::DataReference;
 use data::{data_reference, resolved_data, supported};
@@ -310,7 +311,8 @@ impl Builder {
         if !violations.is_empty() {
             return Err(violations);
         }
-        let (types, records) = records.publish();
+        let (base_types, records) = records.publish();
+        let types = functions::publish_witnesses(&base_types, reserved.iter().map(|(id, _)| id));
         let mut parameters = ArenaBuilder::new();
         let callables = reserved.try_map(
             |id, reservation| -> Result<Callable, Vec<DeclarationViolation>> {

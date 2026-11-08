@@ -32,6 +32,8 @@ they do not make reviews normative or register compiler support.
 - [Partial Payload Resource Checkpoint](v2.0.0-partial-payload-resources.md) — earlier resource-layer evidence before source admission
 - [Record Source Integration](v2.0.0-record-source-integration.md) — closed records, construction, named/computed fields and independent type/completion facts through production checking and cleanup
 
+- [Named Function Witnesses](v2.0.0-function-witnesses.md) — static local function values, exact constraints, invocation views and shared environment/input cleanup
+
 #### Research and Adoption Audits
 
 - [Runtime Performance Research and Feasibility](v2.0.0-runtime-performance-research.md) — research and experiment planning, not measured v2.0.0 performance

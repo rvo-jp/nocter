@@ -269,3 +269,23 @@ fn validate_input(syntax: BoundSyntax<'_>) -> Result<(), Failure> {
 fn text(syntax: BoundSyntax<'_>, token: SyntaxToken) -> &str {
     syntax.text_at(token.range()).expect("bound token text")
 }
+
+/// Decode the operation node of one complete future parameter, including an annotation input.
+/// # Errors
+/// Rejects syntax inconsistent with the private goal; this does not resolve names or infer modes.
+pub fn input_operation(
+    syntax: nocter_syntax::BoundSyntax<'_>,
+    parameter: nocter_syntax::NodeId,
+) -> Result<nocter_model::ValueInputOperation, Failure> {
+    use nocter_model::ValueInputOperation as Operation;
+    use nocter_syntax::{ContextualSpelling, NodeKind, direct_node, first_direct_token};
+    let Some(operation) = direct_node(syntax.tree(), parameter, NodeKind::InputOperation) else {
+        return Ok(Operation::Read);
+    };
+    let token = first_direct_token(syntax.tree(), operation).ok_or(Failure::InconsistentSyntax)?;
+    match ContextualSpelling::from_spelling(text(syntax, token)) {
+        Some(ContextualSpelling::Edit) => Ok(Operation::Edit),
+        Some(ContextualSpelling::Take) => Ok(Operation::Take),
+        _ => Err(Failure::InconsistentSyntax),
+    }
+}

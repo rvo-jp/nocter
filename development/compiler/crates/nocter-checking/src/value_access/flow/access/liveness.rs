@@ -274,7 +274,9 @@ fn expression_uses(
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
         }
-        ExpressionKind::Select { source, .. } => uses.push((Carrier::Expression(source), false)),
+        ExpressionKind::Select { source, .. } | ExpressionKind::AdaptFunction { source } => {
+            uses.push((Carrier::Expression(source), false));
+        }
         ExpressionKind::Record { ref fields } => {
             uses.extend(
                 fields
@@ -282,7 +284,8 @@ fn expression_uses(
                     .map(|field| (Carrier::Expression(field.value), false)),
             );
         }
-        ExpressionKind::Integer(_)
+        ExpressionKind::Function(_)
+        | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
         | ExpressionKind::Unary { .. }

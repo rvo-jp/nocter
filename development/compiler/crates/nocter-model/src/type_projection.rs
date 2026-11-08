@@ -107,6 +107,13 @@ fn project_kind(
 ) -> Result<TypeKind, TypeProjectionError> {
     Ok(match source_kind {
         TypeKind::Builtin(_) => unreachable!("builtins are projected before structural types"),
+        TypeKind::ValueFunction {
+            declaration,
+            invocation,
+        } => TypeKind::ValueFunction {
+            declaration,
+            invocation,
+        },
         TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
         TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
         TypeKind::Nominal {

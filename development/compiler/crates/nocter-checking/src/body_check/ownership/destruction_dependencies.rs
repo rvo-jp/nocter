@@ -183,6 +183,7 @@ impl<'program> DestructionDependencyResolver<'program> {
                 }
             }
             TypeKind::Builtin(_)
+            | TypeKind::ValueFunction { .. }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)

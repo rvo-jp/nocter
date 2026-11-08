@@ -1449,8 +1449,9 @@ impl<'a> Renderer<'a> {
                 }
                 self.callable_contract(callable.contract())?;
             }
-            // Pack entries are compiler-owned ABI elements and cannot be named in source.
-            TypeKind::PackEntry { .. } => return None,
+            // Pack entries have no source name; private future witnesses have no released
+            // session presentation contract.
+            TypeKind::PackEntry { .. } | TypeKind::ValueFunction { .. } => return None,
             TypeKind::Optional(payload) => {
                 self.outcome_base_type(*payload)?;
                 self.output.push('?');

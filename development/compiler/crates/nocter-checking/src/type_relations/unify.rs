@@ -514,7 +514,10 @@ fn append_paired(left: &[TypeId], right: &[TypeId], pending: &mut Vec<(TypeId, T
 
 fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
     match kind {
-        TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}
+        TypeKind::Builtin(_)
+        | TypeKind::GenericParameter(_)
+        | TypeKind::InterfaceSelf(_)
+        | TypeKind::ValueFunction { .. } => {}
         TypeKind::Nominal { arguments, .. }
         | TypeKind::Opaque { arguments, .. }
         | TypeKind::Closure { arguments, .. } => {

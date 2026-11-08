@@ -100,13 +100,23 @@ Only validated metadata can be published; no partial schema authority escapes a 
 owner, without looking up names or inferring access permissions. An empty path preserves its
 validated data type; a scalar projection or a field from another owner is rejected.
 
-`data_schema` exposes the exact admitted builtin or nominal shape. `data_copyable` consumes that
-validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
+`data_schema` exposes the exact admitted builtin, nominal or concrete named-function shape.
+`data_copyable` consumes that validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
 publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current
 nominal schemas contain only values over the four closed builtin leaves and other such records.
 They are metadata, not proof of body acceptance, partial initialization, survival, destruction or
 native execution. Selected source places consume these schemas through the private body checker;
 only closed unit acceptance establishes the combined body/flow/resource proofs.
-Outcome/capability/callable/generic/user-destructor schemas
-remain outside this product. Exact scalar/unit/error independence is checked under its owning
-data contracts, never inferred from Copy or value receipt for arbitrary future types.
+
+`value_access::functions` owns concrete named-function witnesses and structural annotation
+constraints as different products. All three invocation views are interned in the same header
+TypeAuthority before body checking. A local annotation validates exact input operations, data and
+result, then selects a permitted view of that same witness. Typed mismatch domains and the view
+adapter policy belong here; consumers cannot substitute another declaration with an equal
+signature. Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
+under their exact schema. This is not evidence about arbitrary structural callback contracts.
+Released declaration validation rejects these private witness keys.
+
+Outcome/capability/generic/user-destructor schemas, structural callback parameters/results and
+captured environments remain outside this product. Exact scalar/unit/error independence is checked
+under its owning data contracts, never inferred from Copy or value receipt for arbitrary future types.

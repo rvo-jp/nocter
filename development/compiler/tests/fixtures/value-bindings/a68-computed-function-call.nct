@@ -1,0 +1,2 @@
+func increment(value: i32): i32 { value + 1 }
+func run(flag: bool): i32 { (if flag { increment } else { increment })(1) }

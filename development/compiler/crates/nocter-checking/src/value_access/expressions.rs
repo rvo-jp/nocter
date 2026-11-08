@@ -1,9 +1,7 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{
-        Argument, ArgumentAction, Binary, Boundary, ExpressionKind, Unary, ValueType, value_type,
-    },
+    ir::{Binary, Boundary, ExpressionKind, Unary, ValueType, value_type},
 };
 use nocter_model::{
     AccessBlockId, AccessExpressionId, BuiltinType, ValueAccess as Ty, ValueAccessMode as Mode,
@@ -21,7 +19,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
-            NodeKind::ReferenceExpression => self.place_value(node, Rule::TypeMismatch)?,
+            NodeKind::ReferenceExpression => self.reference_value(node)?,
             NodeKind::ScalarLiteral => self.literal(node, false)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::StructLiteral => self.record_value(node, reachable)?,
@@ -187,98 +185,6 @@ impl Checker<'_, '_> {
             P::LogicalOr => Binary::Or,
             _ => return Err(Failure::InconsistentSyntax),
         })
-    }
-    fn call(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
-        let children = self.children(node);
-        let [callee, suffix] = children.as_slice() else {
-            return Err(Failure::InconsistentSyntax);
-        };
-        let Some(name) = self.name_token(*callee)? else {
-            return self.reject(Rule::InvalidCall, *callee);
-        };
-        let text = self.text(name)?;
-        if self.lookup(text).is_some() {
-            return self.reject(Rule::InvalidCall, name);
-        }
-        let Some(symbol) = self.program().symbols().get(text) else {
-            return self.reject(Rule::UnknownName, name);
-        };
-        let Some(target) = self.program().resolve(symbol) else {
-            return self.reject(Rule::InvalidCall, name);
-        };
-        let declaration = self
-            .program()
-            .callables()
-            .get(target)
-            .ok_or(Failure::InconsistentSyntax)?;
-        let expected = declaration
-            .parameters()
-            .iter()
-            .map(|&id| {
-                let parameter = self
-                    .program()
-                    .parameters()
-                    .get(id)
-                    .expect("frozen parameter");
-                Ty::new(parameter.data(), parameter.operation().access_mode())
-            })
-            .collect::<Vec<_>>();
-        let result = declaration.result();
-        let arguments = self.children(*suffix);
-        if arguments.len() != expected.len() {
-            return self.reject(Rule::InvalidCall, node);
-        }
-        let mut plans = Vec::new();
-        let mut continues = true;
-        for (syntax, expected) in arguments.into_iter().zip(expected) {
-            // A call contract selects a preparation action after natural expression typing.
-            // It cannot manufacture early branch updates/moves by contextual inference.
-            let value = self.expression(syntax, None, reachable && continues)?;
-            self.require_data(value, expected.data(), syntax)?;
-            let action = if let Some(actual) = self.ty(value).normal() {
-                if let Some(local) = self.place_expression(value) {
-                    match expected.mode() {
-                        Mode::Read => ArgumentAction::ReserveRead(local),
-                        Mode::Update => {
-                            if !self.writable_place(local) {
-                                return self.reject_local(
-                                    Rule::InvalidUpdate,
-                                    syntax,
-                                    self.selected_place(local).local,
-                                );
-                            }
-                            ArgumentAction::ReserveUpdate(local)
-                        }
-                        Mode::Own if self.copyable(actual.data()) => ArgumentAction::CopyPayload,
-                        Mode::Own if self.place_ty(local).mode() == Mode::Own => {
-                            ArgumentAction::ReserveTransfer(local)
-                        }
-                        Mode::Own => return self.reject(Rule::MissingTransfer, syntax),
-                    }
-                } else {
-                    if actual.mode() != Mode::Own {
-                        return Err(Failure::InconsistentSyntax);
-                    }
-                    match expected.mode() {
-                        Mode::Read => ArgumentAction::ReadOwnedValue,
-                        Mode::Own => ArgumentAction::TakeValue,
-                        Mode::Update => return self.reject(Rule::InvalidUpdate, syntax),
-                    }
-                }
-            } else {
-                continues = false;
-                ArgumentAction::Interrupted
-            };
-            plans.push(Argument { value, action });
-        }
-        self.emit(
-            node,
-            value_type(result, Mode::Own).with_continuation(continues),
-            ExpressionKind::Call {
-                target,
-                arguments: plans.into_boxed_slice(),
-            },
-        )
     }
     fn if_expression(
         &mut self,

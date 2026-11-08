@@ -1,4 +1,5 @@
 use super::*;
+use nocter_model::ValueInvocation;
 
 fn build(reverse: bool) -> Program {
     let symbols = SymbolTable::from_spellings(["alpha", "beta", "input"]);
@@ -141,4 +142,96 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
             data: BuiltinType::F64
         }
     )));
+}
+
+#[test]
+fn callable_constraints_keep_the_selected_witness_and_report_exact_mismatch_domains() {
+    let program = build(false);
+    let first = program
+        .resolve(program.symbols().get("alpha").unwrap())
+        .unwrap();
+    let other = program
+        .resolve(program.symbols().get("beta").unwrap())
+        .unwrap();
+    let data = program.data_type(BuiltinType::Error).unwrap();
+    let mut expected = FunctionConstraint {
+        invocation: ValueInvocation::Read,
+        inputs: Box::new([FunctionInput {
+            data,
+            operation: ValueInputOperation::Edit,
+        }]),
+        result: data,
+    };
+    let source = program
+        .function_data(FunctionWitness {
+            declaration: first,
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    let alternate = program
+        .function_data(FunctionWitness {
+            declaration: other,
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    assert_ne!(source, alternate);
+    assert_eq!(program.constrain_function(source, &expected), Ok(source));
+    expected.inputs[0].operation = ValueInputOperation::Take;
+    assert!(matches!(
+        program.constrain_function(source, &expected),
+        Err(FunctionMismatch::Input { position: 0, .. })
+    ));
+    expected.inputs[0].operation = ValueInputOperation::Edit;
+    expected.result = program.data_type(BuiltinType::Bool).unwrap();
+    assert!(matches!(
+        program.constrain_function(source, &expected),
+        Err(FunctionMismatch::Result { .. })
+    ));
+    expected.result = data;
+    expected.inputs = Box::new([]);
+    assert!(matches!(
+        program.constrain_function(source, &expected),
+        Err(FunctionMismatch::InputCount {
+            actual: 1,
+            expected: 0
+        })
+    ));
+    assert!(!program.function_adapter(source, alternate));
+}
+
+#[test]
+fn named_function_views_have_exact_copy_payloads_without_upgrading_restricted_views() {
+    let program = build(false);
+    let declaration = program
+        .resolve(program.symbols().get("alpha").unwrap())
+        .unwrap();
+    let views = [
+        ValueInvocation::Read,
+        ValueInvocation::Edit,
+        ValueInvocation::Take,
+    ]
+    .map(|invocation| {
+        program
+            .function_data(FunctionWitness {
+                declaration,
+                invocation,
+            })
+            .unwrap()
+    });
+    for data in views {
+        assert!(matches!(
+            program.data_schema(data),
+            Some(PayloadSchema::Function(_))
+        ));
+        assert_eq!(program.data_copyable(data), Some(true));
+        assert_eq!(program.data_kind(data), None);
+    }
+    assert!(
+        program.function_adapter(views[0], views[1])
+            && program.function_adapter(views[1], views[2])
+    );
+    assert!(
+        !program.function_adapter(views[2], views[0])
+            && !program.function_adapter(views[1], views[0])
+    );
 }

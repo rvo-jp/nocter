@@ -1,0 +1,3 @@
+func identity(take value: error): error { value }
+func run(take input: error): error { let action: func(take error): error = identity
+action(input) }

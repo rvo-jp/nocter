@@ -435,6 +435,7 @@ impl CopyabilityTransaction {
                 | BuiltinType::Isize
                 | BuiltinType::Void,
             )
+            | TypeKind::ValueFunction { .. }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow {
                 capability: BorrowCapability::Readonly,

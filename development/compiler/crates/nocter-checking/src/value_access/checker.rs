@@ -254,18 +254,33 @@ impl Checker<'_, '_> {
         };
         format!("{prefix}{}", self.data_label(ty.data()))
     }
-    pub fn data_label(&self, data: TypeId) -> &str {
+    pub fn data_label(&self, data: TypeId) -> String {
         match self
             .program()
             .data_schema(data)
             .expect("closed data authority")
         {
-            PayloadSchema::Builtin(data) => data.spelling(),
+            PayloadSchema::Builtin(data) => data.spelling().to_owned(),
             PayloadSchema::Record(record) => self
                 .program()
                 .symbols()
                 .spelling(record.name())
-                .expect("record name"),
+                .expect("record name")
+                .to_owned(),
+            PayloadSchema::Function(witness) => format!(
+                "{} witness `{}`",
+                super::annotations::invocation_label(witness.invocation),
+                self.program()
+                    .symbols()
+                    .spelling(
+                        self.program()
+                            .callables()
+                            .get(witness.declaration)
+                            .expect("witness")
+                            .name()
+                    )
+                    .expect("function name")
+            ),
         }
     }
 
@@ -379,15 +394,28 @@ impl Checker<'_, '_> {
     pub fn boundary(
         &mut self,
         node: NodeId,
-        source: AccessExpressionId,
+        mut source: AccessExpressionId,
         boundary: Boundary,
     ) -> Result<AccessExpressionId, Failure> {
-        let Some(actual) = self.ty(source).access() else {
+        let Some(mut actual) = self.ty(source).access() else {
             return Ok(source);
         };
         let expected = boundary.ty();
         if actual.data() != expected.data() {
-            return self.mismatch(node, expected, actual);
+            if expected.mode() != Mode::Own
+                || !self
+                    .program()
+                    .function_adapter(actual.data(), expected.data())
+            {
+                return self.mismatch(node, expected, actual);
+            }
+            source = self.boundary(node, source, Boundary::Value(actual.data()))?;
+            source = self.emit(
+                node,
+                ValueType::known(expected).with_continuation(self.ty(source).may_complete()),
+                ExpressionKind::AdaptFunction { source },
+            )?;
+            actual = expected;
         }
         let place = self.place_expression(source);
         let action = match expected.mode() {

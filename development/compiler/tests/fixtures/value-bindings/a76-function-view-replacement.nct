@@ -1,0 +1,5 @@
+func increment(value: i32): i32 { value + 1 }
+func run(): i32 { var action: once(i32): i32 = increment
+    action = increment
+    action(1)
+}

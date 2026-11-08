@@ -168,6 +168,13 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?
             .kind;
         match *kind {
+            ExpressionKind::AdaptFunction { source } => self.world.resources.adapt_function(
+                self.typed.program(),
+                &Holder::Expression(source).place(),
+                Holder::Expression(id),
+                resources::expression_payload(self.typed, id)?,
+                &mut self.steps,
+            )?,
             ExpressionKind::Record { ref fields } => {
                 let fields = fields
                     .iter()
@@ -231,7 +238,8 @@ impl Context<'_, '_> {
                 self.construct(id)?;
             }
             ExpressionKind::Place(_) | ExpressionKind::Boundary { .. } => {}
-            ExpressionKind::Integer(_)
+            ExpressionKind::Function(_)
+            | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }
@@ -310,7 +318,7 @@ impl Context<'_, '_> {
         Ok(())
     }
     fn commit_ownership(&mut self, call: AccessExpressionId) -> Result<()> {
-        let ExpressionKind::Call { target, arguments } = &self
+        let ExpressionKind::Call { arguments, .. } = &self
             .typed
             .body()
             .expressions()
@@ -320,12 +328,6 @@ impl Context<'_, '_> {
         else {
             return Err(Failure::Integrity);
         };
-        let declaration = self
-            .typed
-            .program()
-            .callables()
-            .get(*target)
-            .ok_or(Failure::Integrity)?;
         for (index, argument) in arguments.iter().enumerate() {
             let prepared = Holder::Prepared { call, index };
             if let ArgumentAction::ReserveTransfer(place) = argument.action {
@@ -337,19 +339,7 @@ impl Context<'_, '_> {
                     &mut self.steps,
                 )?;
             } else if self.world.resources.contains(prepared) {
-                let mode = self
-                    .typed
-                    .program()
-                    .parameters()
-                    .get(
-                        *declaration
-                            .parameters()
-                            .get(index)
-                            .ok_or(Failure::Integrity)?,
-                    )
-                    .ok_or(Failure::Integrity)?
-                    .operation()
-                    .access_mode();
+                let mode = argument.operation.access_mode();
                 if mode == Mode::Own {
                     self.world.resources.invoke(
                         self.typed.program(),

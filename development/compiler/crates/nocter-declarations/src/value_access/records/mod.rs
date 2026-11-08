@@ -26,6 +26,7 @@ pub struct FieldDefinition {
 pub enum PayloadSchema<'a> {
     Builtin(BuiltinType),
     Record(&'a Record),
+    Function(super::FunctionWitness),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

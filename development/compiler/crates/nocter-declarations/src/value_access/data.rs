@@ -43,6 +43,7 @@ impl Program {
         self.data_schema(data).and_then(|schema| match schema {
             PayloadSchema::Builtin(data) => builtin_copyable(data),
             PayloadSchema::Record(record) => Some(record.copyable()),
+            PayloadSchema::Function(_) => Some(true),
         })
     }
     /// The exact closed payload shape, without borrow types or generic eligibility fallbacks.
@@ -52,6 +53,15 @@ impl Program {
             TypeKind::Builtin(builtin) if supported(*builtin) => {
                 Some(PayloadSchema::Builtin(*builtin))
             }
+            TypeKind::ValueFunction {
+                declaration,
+                invocation,
+            } => self.callables.get(*declaration).map(|_| {
+                PayloadSchema::Function(super::FunctionWitness {
+                    declaration: *declaration,
+                    invocation: *invocation,
+                })
+            }),
             TypeKind::Nominal {
                 definition,
                 arguments,

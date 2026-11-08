@@ -1,0 +1,2 @@
+func count(value: i32): i32 { if value <= 0 { 0 } else { let next = count
+next(value - 1) } }

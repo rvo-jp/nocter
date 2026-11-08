@@ -84,3 +84,64 @@ impl ValueBindingKind {
         matches!(self, Self::MutableValue | Self::EditAlias)
     }
 }
+
+/// Invocation access, independent of a callable value's binding or explicit inputs.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueInvocation {
+    Read,
+    Edit,
+    Take,
+}
+impl ValueInvocation {
+    #[must_use]
+    pub const fn operation(self) -> ValueInputOperation {
+        match self {
+            Self::Read => ValueInputOperation::Read,
+            Self::Edit => ValueInputOperation::Edit,
+            Self::Take => ValueInputOperation::Take,
+        }
+    }
+    #[must_use]
+    pub const fn can_supply(self, expected: Self) -> bool {
+        matches!(
+            (self, expected),
+            (Self::Read, _) | (Self::Edit, Self::Edit | Self::Take) | (Self::Take, Self::Take)
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{AccessCallableId, ArenaBuilder, TypeAuthority, TypeKind};
+    #[test]
+    fn named_witness_projection_preserves_identity_and_invocation_view() {
+        let mut declarations = ArenaBuilder::<AccessCallableId, ()>::new();
+        let first = declarations.insert(());
+        let second = declarations.insert(());
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let mut ids = Vec::new();
+        for (declaration, invocation) in [
+            (first, ValueInvocation::Read),
+            (first, ValueInvocation::Edit),
+            (second, ValueInvocation::Read),
+        ] {
+            ids.push(
+                types
+                    .intern(TypeKind::ValueFunction {
+                        declaration,
+                        invocation,
+                    })
+                    .unwrap(),
+            );
+        }
+        assert!(ids[0] != ids[1] && ids[0] != ids[2]);
+        for id in ids {
+            assert_eq!(types.is_concrete(id), Some(true));
+            assert!(!types.may_carry_storage(id));
+            let projected = types.project(id).unwrap();
+            assert_eq!(projected.types().get(projected.root()), types.get(id));
+        }
+    }
+}

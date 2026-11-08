@@ -365,7 +365,9 @@ impl Context<'_, '_> {
                     }
                 }
             }
-            ExpressionKind::Select { .. }
+            ExpressionKind::Function(_)
+            | ExpressionKind::AdaptFunction { .. }
+            | ExpressionKind::Select { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)

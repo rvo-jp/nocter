@@ -730,6 +730,239 @@
       "file": "a58-nominal-copy-result-field.nct",
       "expectation": "accept",
       "reason": "Copy evidence belongs to the selected nominal component, preserving its move-only containing record and schema cleanup."
+    },
+    {
+      "id": "a59-function-value",
+      "file": "a59-function-value.nct",
+      "expectation": "accept",
+      "reason": "A local function value retains one named witness and its statically selected call target."
+    },
+    {
+      "id": "a60-function-annotation",
+      "file": "a60-function-annotation.nct",
+      "expectation": "accept",
+      "reason": "A local structural annotation checks the named witness without erasing it."
+    },
+    {
+      "id": "a61-function-copy",
+      "file": "a61-function-copy.nct",
+      "expectation": "accept",
+      "reason": "Copying a capture-free named witness preserves the original owner even after the copy is dropped."
+    },
+    {
+      "id": "a62-function-read-alias",
+      "file": "a62-function-read-alias.nct",
+      "expectation": "accept",
+      "reason": "A scoped read alias checks the same invocation view and keeps the existing function owner."
+    },
+    {
+      "id": "a63-function-mut-view",
+      "file": "a63-function-mut-view.nct",
+      "expectation": "accept",
+      "reason": "A selected mut view uses a writable environment input and preserves explicit edit inputs."
+    },
+    {
+      "id": "a64-function-once-copies",
+      "file": "a64-function-once-copies.nct",
+      "expectation": "accept",
+      "reason": "An exact Copy named witness can supply separate consuming invocation instances."
+    },
+    {
+      "id": "a65-function-take-input",
+      "file": "a65-function-take-input.nct",
+      "expectation": "accept",
+      "reason": "A call through a function value preserves the declaration-selected take operation and returned error ownership."
+    },
+    {
+      "id": "a66-function-view-chain",
+      "file": "a66-function-view-chain.nct",
+      "expectation": "accept",
+      "reason": "Permitted invocation adapters preserve the witness through func to mut to once without changing inputs."
+    },
+    {
+      "id": "a67-function-same-witness-join",
+      "file": "a67-function-same-witness-join.nct",
+      "expectation": "accept",
+      "reason": "Conditional function values may join when both branches retain the same concrete witness."
+    },
+    {
+      "id": "a68-computed-function-call",
+      "file": "a68-computed-function-call.nct",
+      "expectation": "accept",
+      "reason": "A computed callable environment is evaluated before its explicit inputs with one static witness."
+    },
+    {
+      "id": "a69-function-call-interruption",
+      "file": "a69-function-call-interruption.nct",
+      "expectation": "accept",
+      "reason": "An interrupted explicit input releases the reserved environment without invoking the witness."
+    },
+    {
+      "id": "a70-function-snapshot-before-drop",
+      "file": "a70-function-snapshot-before-drop.nct",
+      "expectation": "accept",
+      "reason": "A consuming Copy environment is snapshotted before a later input drops its original owner."
+    },
+    {
+      "id": "a71-unit-function-value",
+      "file": "a71-unit-function-value.nct",
+      "expectation": "accept",
+      "reason": "Zero-input function witnesses and unit values use the same preparation and cleanup path."
+    },
+    {
+      "id": "a72-function-same-witness-replacement",
+      "file": "a72-function-same-witness-replacement.nct",
+      "expectation": "accept",
+      "reason": "Mutable function storage can replace its value while preserving the concrete static witness."
+    },
+    {
+      "id": "a73-nested-function-call",
+      "file": "a73-nested-function-call.nct",
+      "expectation": "accept",
+      "reason": "Nested read invocations of the same function owner use ordinary reservations without exclusive overlap."
+    },
+    {
+      "id": "a74-recursive-function-value",
+      "file": "a74-recursive-function-value.nct",
+      "expectation": "accept",
+      "reason": "A recursive named function value selects the same declaration without a new identity or partial unit acceptance."
+    },
+    {
+      "id": "a75-invocation-contextual-names",
+      "file": "a75-invocation-contextual-names.nct",
+      "expectation": "accept",
+      "reason": "mut and once retain their ordinary identifier role outside invocation annotations."
+    },
+    {
+      "id": "r47-function-input-operation",
+      "file": "r47-function-input-operation.nct",
+      "expectation": "check-reject",
+      "reason": "An annotation cannot silently adapt an explicit input from read to take.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r48-function-input-data",
+      "file": "r48-function-input-data.nct",
+      "expectation": "check-reject",
+      "reason": "Every annotated callable input must match the selected declaration data type.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r49-function-result-data",
+      "file": "r49-function-result-data.nct",
+      "expectation": "check-reject",
+      "reason": "An annotation cannot reinterpret the selected witness result.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r50-function-input-count",
+      "file": "r50-function-input-count.nct",
+      "expectation": "check-reject",
+      "reason": "Callable annotation arity is part of exact contract matching.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r51-function-mut-fixed",
+      "file": "r51-function-mut-fixed.nct",
+      "expectation": "check-reject",
+      "reason": "A mut view requires a writable environment even when the original named function has no captures.",
+      "diagnostic": "E0387"
+    },
+    {
+      "id": "r52-function-once-to-func",
+      "file": "r52-function-once-to-func.nct",
+      "expectation": "check-reject",
+      "reason": "The hidden original function cannot upgrade a once view back to a repeatable view.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r53-function-mut-to-func",
+      "file": "r53-function-mut-to-func.nct",
+      "expectation": "check-reject",
+      "reason": "A restricted mut view cannot recover read invocation through private target knowledge.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r54-function-alias-adapter",
+      "file": "r54-function-alias-adapter.nct",
+      "expectation": "check-reject",
+      "reason": "A scoped alias cannot construct a different invocation view or hide a new owner.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r55-function-after-drop",
+      "file": "r55-function-after-drop.nct",
+      "expectation": "check-reject",
+      "reason": "Copy evidence for a named function does not make a dropped binding initialized.",
+      "diagnostic": "E0378"
+    },
+    {
+      "id": "r56-function-live-alias-drop",
+      "file": "r56-function-live-alias-drop.nct",
+      "expectation": "check-reject",
+      "reason": "Logical function storage remains protected by a later alias use even without captured payload.",
+      "diagnostic": "E0397"
+    },
+    {
+      "id": "r57-function-different-witness-join",
+      "file": "r57-function-different-witness-join.nct",
+      "expectation": "check-reject",
+      "reason": "Equal signatures do not erase two distinct static witnesses at a conditional join.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r58-function-different-witness-store",
+      "file": "r58-function-different-witness-store.nct",
+      "expectation": "check-reject",
+      "reason": "Mutable storage does not imply runtime type erasure or permit replacing its concrete witness.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r59-noncallable-value-call",
+      "file": "r59-noncallable-value-call.nct",
+      "expectation": "check-reject",
+      "reason": "An ordinary scalar place cannot be invoked as a function witness.",
+      "diagnostic": "E0390"
+    },
+    {
+      "id": "r60-function-call-count",
+      "file": "r60-function-call-count.nct",
+      "expectation": "check-reject",
+      "reason": "Calling through a stored witness still requires its exact explicit input count.",
+      "diagnostic": "E0390"
+    },
+    {
+      "id": "r61-noncallable-annotation",
+      "file": "r61-noncallable-annotation.nct",
+      "expectation": "check-reject",
+      "reason": "A callable constraint does not turn ordinary data into a witness.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r62-function-annotation-unknown-data",
+      "file": "r62-function-annotation-unknown-data.nct",
+      "expectation": "check-reject",
+      "reason": "Callable annotation leaf types resolve through the declaration-owned data namespace.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "r63-alias-fresh-function",
+      "file": "r63-alias-fresh-function.nct",
+      "expectation": "check-reject",
+      "reason": "A named function reference produces a value rather than storage for a hidden alias owner.",
+      "diagnostic": "E0370"
+    },
+    {
+      "id": "s06-callable-parameter-boundary",
+      "file": "s06-callable-parameter-boundary.nct",
+      "expectation": "syntax-reject",
+      "reason": "Callable parameters need later symbolic-witness propagation and remain outside this private source fragment."
+    },
+    {
+      "id": "a76-function-view-replacement",
+      "file": "a76-function-view-replacement.nct",
+      "expectation": "accept",
+      "reason": "Initialization and replacement use the same selected invocation adapter while preserving concrete witness identity."
     }
   ],
   "parse_goal": "V2CoreUnit"

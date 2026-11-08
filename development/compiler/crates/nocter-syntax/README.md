@@ -27,7 +27,10 @@ package or discovery code. It does not resolve names or apply semantic rules.
   named data types, structural record values and member suffixes. Structural initializers use
   comma-delimited named fields. Control-header parsing leaves the first outer brace to its body,
   while nested delimiters restore ordinary expression recognition without type lookup.
-  Declaration/type/field lookup remains semantic work. Its lexical
+  Local annotations additionally recognize bounded `func`/`mut`/`once` callable constraints with
+  unnamed data/input-operation parameters. Header types remain data names; accepting a local
+  constraint does not admit callable parameter/result headers. `mut` and `once` are contextual
+  only at an invocation head followed by `(`. Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation

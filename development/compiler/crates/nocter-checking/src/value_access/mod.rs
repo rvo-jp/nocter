@@ -1,6 +1,8 @@
 //! Value-access typing and closed private-unit front-end validation.
 //! Accepted future units remain unavailable to released/native consumers.
 pub mod accepted;
+mod annotations;
+mod calls;
 mod checker;
 mod construction;
 mod expressions;
@@ -110,7 +112,7 @@ impl Rule {
             ),
             Self::InvalidCall => (
                 DiagnosticCode::E0390,
-                "direct call requires a declared function and its exact argument count",
+                "call requires a selected callable witness and its exact input contract",
             ),
             Self::AnnotatedDiscard => (
                 DiagnosticCode::E0407,

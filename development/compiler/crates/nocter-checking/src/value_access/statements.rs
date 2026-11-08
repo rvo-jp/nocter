@@ -1,5 +1,6 @@
 use super::{
     Failure, Rule,
+    annotations::Annotation,
     checker::{Checker, LoopFrame},
     ir::{Boundary, Local, LocalOrigin, Statement, ValueType},
 };
@@ -202,16 +203,25 @@ impl Checker<'_, '_> {
         } else {
             self.expression(
                 expression,
-                annotation.map(|data| Boundary::Binding(Ty::new(data, mode))),
+                annotation
+                    .as_ref()
+                    .and_then(Annotation::data)
+                    .map(|data| Boundary::Binding(Ty::new(data, mode))),
                 reachable,
             )?
         };
-        let data = match (annotation, self.ty(value).access()) {
+        let constrained = if let Some(Annotation::Function(expected)) = &annotation {
+            Some(self.function_constraint_data(expression, value, expected, alias)?)
+        } else {
+            None
+        };
+        let annotated_data = annotation.as_ref().and_then(Annotation::data);
+        let data = match (annotated_data.or(constrained), self.ty(value).access()) {
             (Some(data), _) => data,
             (None, Some(ty)) => ty.data(),
             (None, None) => return self.reject(Rule::TypeMismatch, name),
         };
-        if annotation.is_none() || alias {
+        if annotated_data.is_none() || alias {
             value = self.boundary(expression, value, Boundary::Binding(Ty::new(data, mode)))?;
         }
         let local = self.locals.insert(Local {

@@ -55,4 +55,6 @@ pub use type_store::{
     TupleElements, TypeCursor, TypeKind, TypeStore, UnknownTypeId,
 };
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};
-pub use value_access::{ValueAccess, ValueAccessMode, ValueBindingKind, ValueInputOperation};
+pub use value_access::{
+    ValueAccess, ValueAccessMode, ValueBindingKind, ValueInputOperation, ValueInvocation,
+};

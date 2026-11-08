@@ -283,6 +283,9 @@ fn capture_kind(
 ) -> Result<BodyTypeKind, BodyTypeRecipeError> {
     Ok(match kind {
         TypeKind::Builtin(_) => return Err(BodyTypeRecipeError::BuiltinInExtension),
+        TypeKind::ValueFunction { .. } => {
+            return Err(BodyTypeRecipeError::FutureWitnessInExtension);
+        }
         TypeKind::GenericParameter(parameter) => BodyTypeKind::GenericParameter(*parameter),
         TypeKind::InterfaceSelf(interface) => BodyTypeKind::InterfaceSelf(*interface),
         TypeKind::Nominal {
@@ -508,6 +511,7 @@ pub enum BodyTypeRecipeError {
     ProgramPrefixMismatch,
     TooManyLocalTypes,
     BuiltinInExtension,
+    FutureWitnessInExtension,
     UnknownType(TypeId),
     UnknownLocalType(u32),
     ForwardLocalType(u32),

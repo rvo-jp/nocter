@@ -103,6 +103,54 @@ fn type_(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::Type);
 }
 
+fn annotation_type(parser: &mut Parser<'_>) {
+    let callable = parser.at_keyword(Keyword::Func)
+        || ((parser.at_contextual(ContextualSpelling::Mut)
+            || parser.at_contextual(ContextualSpelling::Once))
+            && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::LeftParen));
+    if !callable {
+        type_(parser);
+        return;
+    }
+    let ty = parser.start();
+    let contract = parser.start();
+    parser.bump();
+    let parameters = parser.start();
+    parser.expect_punctuation(Punctuation::LeftParen);
+    if parser.enter_nesting() {
+        parser.comma_list(
+            Punctuation::RightParen,
+            true,
+            ExpectedSyntax::Parameter,
+            |parser| {
+                let parameter = parser.start();
+                if (parser.at_contextual(ContextualSpelling::Edit)
+                    || parser.at_contextual(ContextualSpelling::Take))
+                    && matches!(
+                        parser.nth_kind(1),
+                        TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
+                    )
+                {
+                    let operation = parser.start();
+                    parser.bump();
+                    parser.complete(operation, NodeKind::InputOperation);
+                }
+                type_(parser);
+                parser.complete(parameter, NodeKind::CallableParameter);
+            },
+        );
+        parser.expect_punctuation(Punctuation::RightParen);
+        parser.leave_nesting();
+    } else {
+        parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+    }
+    parser.complete(parameters, NodeKind::CallableParameters);
+    parser.expect_punctuation(Punctuation::Colon);
+    type_(parser);
+    parser.complete(contract, NodeKind::CallableType);
+    parser.complete(ty, NodeKind::Type);
+}
+
 fn required_block(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if !parser.at_punctuation(Punctuation::LeftBrace) {
@@ -170,7 +218,7 @@ fn binding(parser: &mut Parser<'_>) {
     if parser.at_punctuation(Punctuation::Colon) {
         let annotation = parser.start();
         parser.bump();
-        type_(parser);
+        annotation_type(parser);
         parser.complete(annotation, NodeKind::TypeAnnotation);
     }
     parser.expect_punctuation(Punctuation::Equal);

@@ -1144,6 +1144,8 @@ special role only at the listed boundary:
 | `read` | Future Direction v2.0.0: scoped read binding only |
 | `edit` | Future Direction v2.0.0: scoped update binding or input operation |
 | `take` | Future Direction v2.0.0: value-receiving input operation |
+| `mut` | Future Direction v2.0.0: updating invocation head of a callable type |
+| `once` | Future Direction v2.0.0: consuming invocation head of a callable type |
 | `copy` | immediately before `struct`, or immediately after `where` / a predicate comma |
 | `where` | the requirement-clause position of an eligible declaration |
 | `any` | immediately before a complete structural callable type |
@@ -1369,10 +1371,11 @@ V2CoreRecord = "copy"? "struct" Name "{" LineSequence(Name ":" V2CoreType) "}"
 V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreType V2CoreBlock
 V2CoreParameter = V2InputOperation? Name ":" V2CoreType
 V2CoreType = Name | "void"
+V2CoreAnnotation = V2CoreType | V2InvocationKind "(" List(V2InputOperation? V2CoreType) ")" ":" V2CoreType
 V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
 V2CoreEntry = V2CoreStatement | V2CoreExpression
 V2CoreStatement = ("let" | "var" | "read" | "edit") (Name | "_")
-                   (":" V2CoreType)? "=" V2CoreExpression
+                   (":" V2CoreAnnotation)? "=" V2CoreExpression
                  | V2CorePostfix V2CoreAssignment V2CoreExpression
                  | "return" V2CoreExpression? | "drop" Name
                  | "break" | "continue"
@@ -1468,4 +1471,13 @@ set. Validate all definitions, including unused/recursive ones, before publishin
 Exact source rebinding preserves the same immutable declaration identities and every body.
 No target product, native ABI, CLI mode or released-program adapter follows from this private
 front-end acceptance. The complete model's capability/state-footprint obligations remain required
-before admitting dependent aggregates or callable values.
+before admitting dependent aggregates or general callable environments.
+
+Within the bounded value-binding fragment, named function values and local callable annotations
+use [named function witnesses](callables.md#named-function-witnesses). Such an annotation has
+unnamed, nonvariadic inputs over `V2CoreType`; it checks the exact named declaration's input
+operations/data and result, and may select its permitted invocation adapter. Calls through these
+values remain statically selected. Callable parameters/results, record fields containing callable
+contracts, anonymous closures, captured environments and erased callables remain outside this
+bounded fragment. This limit does not change their full future grammar or justify treating every
+structural callable contract as a capture-free Copy value.

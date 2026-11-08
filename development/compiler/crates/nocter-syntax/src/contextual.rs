@@ -37,6 +37,8 @@ contextual_spellings! {
     Edit => "edit",
     Take => "take",
     Copy => "copy",
+    Mut => "mut",
+    Once => "once",
     Where => "where",
     Some => "some",
     Any => "any",

@@ -1,7 +1,7 @@
 use nocter_model::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessLocalId,
     AccessLoopId, AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId,
-    ValueAccess, ValueAccessMode, ValueBindingKind,
+    ValueAccess, ValueAccessMode, ValueBindingKind, ValueInputOperation,
 };
 
 /// Known result data/access and normal completion are independent typing facts.
@@ -108,6 +108,7 @@ pub enum ArgumentAction {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Argument {
+    pub operation: ValueInputOperation,
     pub value: AccessExpressionId,
     pub action: ArgumentAction,
 }
@@ -145,6 +146,10 @@ pub struct FieldValue {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
+    Function(AccessCallableId),
+    AdaptFunction {
+        source: AccessExpressionId,
+    },
     Integer(i32),
     Boolean(bool),
     Unit,

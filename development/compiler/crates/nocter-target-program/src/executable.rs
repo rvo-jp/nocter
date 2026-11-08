@@ -844,7 +844,8 @@ fn runtime_type_table(
             TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),
             TypeKind::Future(output) => RuntimeType::Future(*output),
             TypeKind::Opaque { .. } => RuntimeType::Opaque,
-            TypeKind::GenericParameter(_)
+            TypeKind::ValueFunction { .. }
+            | TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {
                 return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));

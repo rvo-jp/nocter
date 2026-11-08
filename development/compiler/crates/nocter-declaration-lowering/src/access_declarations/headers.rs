@@ -40,18 +40,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
             let name = direct_identifier(tree, parameter).ok_or(Failure::InconsistentSyntax)?;
             let ty =
                 direct_node(tree, parameter, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            let operation =
-                if let Some(operation) = direct_node(tree, parameter, NodeKind::InputOperation) {
-                    let token =
-                        first_direct_token(tree, operation).ok_or(Failure::InconsistentSyntax)?;
-                    match ContextualSpelling::from_spelling(text(syntax, token)) {
-                        Some(ContextualSpelling::Edit) => ValueInputOperation::Edit,
-                        Some(ContextualSpelling::Take) => ValueInputOperation::Take,
-                        _ => return Err(Failure::InconsistentSyntax),
-                    }
-                } else {
-                    ValueInputOperation::Read
-                };
+            let operation = super::input_operation(syntax, parameter)?;
             Ok(ParameterHeader {
                 name,
                 data: type_token(syntax, ty)?,

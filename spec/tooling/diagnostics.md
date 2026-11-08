@@ -719,7 +719,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | Existing code family | Future failed obligation |
 | --- | --- |
 | `E0340`, `E0341` | Name resolution or conflicting binding |
-| `E0370` | Data/type/result mismatch, unknown field/body data type, invalid/missing/duplicate record initializer, or insufficient local/result type information |
+| `E0370` | Data/type/result mismatch, incompatible callable witness/annotation, unknown field/body data type, invalid/missing/duplicate record initializer, or insufficient local/result type information |
 | `E0371`, `E0377` | Value construction has neither Copy evidence nor an eligible owning source |
 | `E0372`, `E0373` | Non-unit intermediate expression or missing normal result |
 | `E0375` | Integer outside the selected data type's range |
@@ -745,6 +745,13 @@ an intentional owner before taking scoped access. Grouping a read/edit alias doe
 its referent into an owning result. Preserve known result types on interrupted evaluation, so
 unknown fields and data mismatches still report their structural cause without inventing a
 runtime access on that path.
+
+A callable annotation mismatch identifies the incompatible invocation view, input count,
+input operation/data (with position), or result data. Distinct concrete witnesses are not an
+ordinary assignment/join match merely because their signatures agree. Explain that identity
+constraint instead of selecting another target or silently erasing dispatch. A scoped alias cannot
+construct an invocation adapter; explain that the adapted value needs its own binding. Invalid
+callee data or call arity belongs to `E0390`; a non-writable `mut` environment belongs to `E0387`.
 
 ## Future Direction: v2.0.0 Named-Slot Initialization Diagnostics
 

@@ -7,6 +7,7 @@ use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, Ty
 use std::collections::{BTreeMap, BTreeSet};
 
 mod assembly;
+mod function_view;
 mod payload;
 mod storage;
 #[cfg(test)]
@@ -102,6 +103,13 @@ impl Payload {
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Step {
+    /// Reclassify one selected named witness without constructing or duplicating its value.
+    AdaptFunction {
+        source: Place,
+        destination: Holder,
+        from: Payload,
+        payload: Payload,
+    },
     /// Transfer complete component obligations into one record; no second value is constructed.
     Assemble {
         destination: Holder,
@@ -204,6 +212,7 @@ pub(super) fn payload(program: &Program, data: TypeId) -> Result<Payload> {
         }
         PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
         PayloadSchema::Record(_) => Disposal::Record,
+        PayloadSchema::Function(_) => Disposal::Trivial,
         PayloadSchema::Builtin(_) => return Err(INVALID),
     };
     Ok(Payload { data, disposal })

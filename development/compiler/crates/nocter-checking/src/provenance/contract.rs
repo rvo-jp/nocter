@@ -1,7 +1,11 @@
 use std::collections::{BTreeMap, HashSet};
 
 use nocter_declarations::{DeclarationGraph, NominalShape};
-use nocter_model::{GenericParameterId, TypeId, TypeKind, TypeStore};
+use nocter_model::{
+    GenericApplication, GenericParameterId, NominalTypeId, TypeId, TypeKind, TypeStore,
+};
+
+type Bindings = BTreeMap<GenericParameterId, TypeId>;
 
 /// Reports whether a callable's declared result shape can retain the place loan created only for
 /// this invocation.
@@ -15,8 +19,6 @@ pub(crate) fn invocation_place_can_reach_result(
     types: &TypeStore,
     root: TypeId,
 ) -> bool {
-    type Bindings = BTreeMap<GenericParameterId, TypeId>;
-
     let mut pending = vec![(root, Bindings::new())];
     let mut visited = HashSet::new();
     while let Some((ty, bindings)) = pending.pop() {
@@ -47,57 +49,10 @@ pub(crate) fn invocation_place_can_reach_result(
                 definition,
                 arguments,
             }) => {
-                let Some(declaration) = graph.declarations().nominal_types().get(*definition)
-                else {
-                    // A missing declaration is an invalid checked program. Remaining
-                    // conservative here prevents that invalid state from hiding a loan.
+                if enqueue_nominal(graph, *definition, arguments, &bindings, &mut pending).is_none()
+                {
+                    // Invalid declaration structure cannot prove that a loan is absent.
                     return true;
-                };
-                let mut member_bindings = bindings.clone();
-                member_bindings.extend(
-                    declaration
-                        .generic_parameters()
-                        .iter()
-                        .copied()
-                        .zip(arguments.iter().copied())
-                        .filter_map(|(parameter, argument)| {
-                            argument.as_type().map(|ty| (parameter, ty))
-                        }),
-                );
-                // A nominal may keep its generic values in opaque raw storage. Concrete borrow
-                // arguments therefore count even when no declaration-visible field names them.
-                // An unresolved generic does not: its lifetime already belongs to the carried
-                // value and cannot be acquired from this invocation's implicit reborrow.
-                pending.extend(
-                    arguments
-                        .type_values()
-                        .map(|argument| (argument, bindings.clone())),
-                );
-                match declaration.shape() {
-                    NominalShape::Struct { fields, .. } => {
-                        for field in fields {
-                            let Some(field) = graph.declarations().fields().get(*field) else {
-                                return true;
-                            };
-                            pending.push((field.ty(), member_bindings.clone()));
-                        }
-                    }
-                    NominalShape::Enum { variants } => {
-                        for variant in variants {
-                            let Some(variant) = graph.declarations().variants().get(*variant)
-                            else {
-                                return true;
-                            };
-                            for parameter in variant.payload() {
-                                let Some(parameter) =
-                                    graph.declarations().parameters().get(*parameter)
-                                else {
-                                    return true;
-                                };
-                                pending.push((parameter.ty(), member_bindings.clone()));
-                            }
-                        }
-                    }
                 }
             }
             Some(
@@ -173,6 +128,7 @@ fn contains_associated_projection(types: &TypeStore, root: TypeId) -> bool {
             }
             Some(
                 TypeKind::Builtin(_)
+                | TypeKind::ValueFunction { .. }
                 | TypeKind::GenericParameter(_)
                 | TypeKind::InterfaceSelf(_)
                 | TypeKind::Opaque { .. }
@@ -195,8 +151,6 @@ pub(crate) fn type_can_carry_loan(
     types: &TypeStore,
     root: TypeId,
 ) -> bool {
-    type Bindings = BTreeMap<GenericParameterId, TypeId>;
-
     let mut pending = vec![(root, Bindings::new())];
     let mut visited = HashSet::new();
     while let Some((ty, bindings)) = pending.pop() {
@@ -221,54 +175,10 @@ pub(crate) fn type_can_carry_loan(
                 definition,
                 arguments,
             }) => {
-                let Some(declaration) = graph.declarations().nominal_types().get(*definition)
-                else {
+                if enqueue_nominal(graph, *definition, arguments, &bindings, &mut pending).is_none()
+                {
+                    // Invalid declaration structure cannot prove that a loan is absent.
                     return true;
-                };
-                let mut member_bindings = bindings.clone();
-                member_bindings.extend(
-                    declaration
-                        .generic_parameters()
-                        .iter()
-                        .copied()
-                        .zip(arguments.iter().copied())
-                        .filter_map(|(parameter, argument)| {
-                            argument.as_type().map(|ty| (parameter, ty))
-                        }),
-                );
-                // Generic arguments are conservatively representation-bearing. Types such as
-                // Vec<T> store T values behind raw storage rather than in a declaration-visible
-                // field, so field traversal alone cannot prove that a borrowed T is absent.
-                pending.extend(
-                    arguments
-                        .type_values()
-                        .map(|argument| (argument, bindings.clone())),
-                );
-                match declaration.shape() {
-                    NominalShape::Struct { fields, .. } => {
-                        for field in fields {
-                            let Some(field) = graph.declarations().fields().get(*field) else {
-                                return true;
-                            };
-                            pending.push((field.ty(), member_bindings.clone()));
-                        }
-                    }
-                    NominalShape::Enum { variants } => {
-                        for variant in variants {
-                            let Some(variant) = graph.declarations().variants().get(*variant)
-                            else {
-                                return true;
-                            };
-                            for parameter in variant.payload() {
-                                let Some(parameter) =
-                                    graph.declarations().parameters().get(*parameter)
-                                else {
-                                    return true;
-                                };
-                                pending.push((parameter.ty(), member_bindings.clone()));
-                            }
-                        }
-                    }
                 }
             }
             Some(
@@ -292,8 +202,59 @@ pub(crate) fn type_can_carry_loan(
                 | TypeKind::Closure { .. }
                 | TypeKind::Callable(_),
             ) => return true,
-            Some(TypeKind::Builtin(_) | TypeKind::Pointer(_) | TypeKind::Slice(_)) | None => {}
+            Some(
+                TypeKind::Builtin(_)
+                | TypeKind::ValueFunction { .. }
+                | TypeKind::Pointer(_)
+                | TypeKind::Slice(_),
+            )
+            | None => {}
         }
     }
     false
+}
+
+/// Both loan queries inspect the same nominal fields and hidden generic storage. Their treatment
+/// of unresolved generics remains distinct at the traversal point that consumes each child.
+fn enqueue_nominal(
+    graph: &DeclarationGraph,
+    definition: NominalTypeId,
+    arguments: &GenericApplication,
+    bindings: &Bindings,
+    pending: &mut Vec<(TypeId, Bindings)>,
+) -> Option<()> {
+    let declaration = graph.declarations().nominal_types().get(definition)?;
+    let mut member_bindings = bindings.clone();
+    member_bindings.extend(
+        declaration
+            .generic_parameters()
+            .iter()
+            .copied()
+            .zip(arguments.iter().copied())
+            .filter_map(|(parameter, argument)| argument.as_type().map(|ty| (parameter, ty))),
+    );
+    // Generic values may occupy opaque raw storage, as in Vec<T>, without a visible field.
+    pending.extend(
+        arguments
+            .type_values()
+            .map(|argument| (argument, bindings.clone())),
+    );
+    match declaration.shape() {
+        NominalShape::Struct { fields, .. } => {
+            for field in fields {
+                let field = graph.declarations().fields().get(*field)?;
+                pending.push((field.ty(), member_bindings.clone()));
+            }
+        }
+        NominalShape::Enum { variants } => {
+            for variant in variants {
+                let variant = graph.declarations().variants().get(*variant)?;
+                for parameter in variant.payload() {
+                    let parameter = graph.declarations().parameters().get(*parameter)?;
+                    pending.push((parameter.ty(), member_bindings.clone()));
+                }
+            }
+        }
+    }
+    Some(())
 }
