@@ -134,14 +134,6 @@ information requires an ordinary annotation. Later uses cannot retroactively sel
 operations or invocation kind. Erased contracts preserve the same facts without run-time name
 lookup or authority repair.
 
-### Bounded Owned-Capture Producers
-
-The implemented one-capture scope is retained in the non-normative [pre-explicit-transfer
-snapshot](../../history/reviews/v2.0.0-pre-explicit-transfer-fragment.md#recorded-capture-scope).
-Its implicit movement/name-only non-Copy capture syntax is not current v2.0.0 source conformance.
-Migrate that producer and its prepared instance/resource consumers with postfix transfer, without a
-parallel source mode or a second ownership ledger.
-
 ### Named Function Witnesses
 
 A named function used as a value selects that declaration, not an overload set or a runtime name.

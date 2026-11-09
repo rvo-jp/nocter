@@ -8,8 +8,8 @@ Public language, platform, CLI, diagnostic, and editor behavior belongs to
 [`spec/`](../../spec/README.md); adopted unreleased contracts belong to the
 [development specification](../spec/README.md). Exact standard-library declarations and their observable behavior
 belong under [`std/`](../../std/README.md). A workspace crate's private mechanism belongs in that
-crate's colocated `README.md`. Work order, rejected migrations, qualification evidence, and release
-history belong under [`development/history/`](../history/README.md).
+crate's colocated `README.md`. Remaining work belongs to the [work plan](../TODO.md), and unresolved
+design and realization requirements to [current design](../design/README.md).
 
 ## Reading Order
 
@@ -18,7 +18,7 @@ history belong under [`development/history/`](../history/README.md).
 2. The relevant [workspace crate README](../compiler/README.md#crate-documentation) for one crate's
    exported contract and private responsibilities.
 3. One cross-responsibility contract below when a decision crosses those local boundaries.
-4. Historical milestones or reviews only when the reason or qualification evidence is needed.
+4. Current design when the required contract or proof is still unresolved.
 
 ## Pipeline
 
@@ -90,7 +90,7 @@ belongs to [`development/README.md`](../README.md).
 | One crate's inputs, outputs, private split, and local invariants | that crate's `README.md` |
 | Exact Rust APIs and dependencies | source, rustdoc, and Cargo manifests |
 | Current work and blockers | `development/TODO.md` |
-| Work order, design findings, and qualification evidence | `development/history/` |
+| Unresolved design and realization requirements | `development/design/` |
 
 Architecture documents state current authorities, information flow, lifecycle, and invariants.
 They do not retain delivery phases, completed gates, or superseded alternatives as current design.

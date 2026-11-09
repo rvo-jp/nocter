@@ -10,7 +10,7 @@ boundary compatibility, inference and evidence for an actually produced value.
 
 Ordinary type-side `&T`/`^T`, prefix `&place`/`^place`, and permission-inferred `let` are not
 alternative source forms. Postfix place^ selects transfer under the rules below. The
-[bounded private-unit prototype](syntactic-grammar.md#bounded-value-binding-fragment) predates
+[private implementation](../../architecture/pipeline/value-access-declarations.md) predates
 mandatory transfer and does not qualify current source conformance, target realization or a
 general soundness proof. Other chapters state the extent of their future
 migration; an unchanged released production does not silently become a v2.0.0 production.
@@ -389,7 +389,7 @@ cannot escape while still depending on a temporary that is cleaned. Moving a tem
 owner transfers its cleanup obligation. Cancellation unwinds nested evaluation/call/lexical frames
 in actual order. A terminal trap without unwinding does not acquire cleanup from these rules.
 
-The implemented pre-S24 prototype has not admitted this complete temporary-update/explicit- transfer
+The private prototype has not admitted this complete temporary-update/explicit- transfer
 protocol. Its acceptance/rejection is not current source conformance. Extending admission requires
 the same prepared owner, activation, temporary escape and cleanup authority rather than a
 synthesized source local.

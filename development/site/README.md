@@ -40,7 +40,7 @@ The website publishes:
 
 - user-facing Markdown from the repository root, `spec/`, `examples/`, and `releases/`;
 - current contributor Markdown under `development/`, except internal handoff, unreleased
-  specifications and historical records;
+  specifications and unresolved design;
 - every runnable Nocter source under `examples/`;
 - public standard-library READMEs and exact checked `index.nct` module-contract sources under
   `std/`, excluding the `internal/` subtree.
@@ -54,8 +54,9 @@ Markdown links to an existing non-published repository file resolve to its GitHu
 `development/spec/` is excluded from pages, navigation, sitemap and search. Its Markdown links
 remain validated, and developer links open its revision-pinned repository source. Published
 user guides cannot contain Future Direction sections or link directly into that unreleased tree.
-Compiler diagnostic fixtures and `development/history/` are not published; milestone, review, and
-release-audit links are still validated as historical records.
+Compiler diagnostic fixtures are not published. `development/design/` has the same publication
+and local-link boundary as the unreleased specification; it holds current unresolved design, not
+historical records.
 
 The repository `README.md` may begin with repository-only raw HTML presentation. Raw HTML is not
 published as documentation body content, so the generated homepage contains only the site-owned
@@ -78,7 +79,7 @@ membership or structure.
 Navigation never parses links from README prose. README catalogs may explain a recommended reading
 order and ordinary links may connect related concepts, but neither determines whether a page exists
 or appears in navigation. Every published page must be reachable from the repository `README.md`
-through generated structural navigation. Private sources and history are removed by the publication
+through generated structural navigation. Private sources and unresolved design are removed by the publication
 filter before the tree is built, so filesystem discovery cannot make them public accidentally.
 
 Every page retains the complete shared hero as its external entry surface. Canonical URLs and the
@@ -151,8 +152,8 @@ It builds source trees with different timestamps and compares every output byte.
 that output cannot enter the source repository, stale generated files are removed, the deployment
 manifest preserves the exact source revision, unsupported artifact nodes are rejected, private
 standard-library implementation sources stay private, newly discovered public pages enter
-navigation without README registration, historical records and newly added unreleased specifications remain excluded from pages/search/
-sitemap, unreleased links are still validated, public user pages cannot mix future contracts, every standard-library
+navigation without README registration, unresolved design and newly added unreleased specifications remain excluded from pages/search/
+sitemap, their links are still validated, public user pages cannot mix future contracts, every standard-library
 behavior guide links its checked contract, named built-in declarations cannot drift from the
 language catalog, unrelated Rust text cannot register diagnostics, diagnostic drift is rejected,
 every behavior guide remains assigned by the standard-library catalog, and table pipes inside code

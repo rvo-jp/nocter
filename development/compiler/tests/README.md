@@ -8,9 +8,6 @@ runner and does not own expected compiler behavior; each consuming crate test ow
 - [`fixtures/value-bindings/`](fixtures/value-bindings/README.md) contains the consumed future
   value-binding private-module corpus. Production syntax/declaration/accepted-unit consumers own
   its assertions. These passes are bounded front-end evidence, not native or full-language support.
-- [`fixtures/v2-access/`](fixtures/v2-access/README.md) is the retirement notice for the earlier
-  incompatible corpus; it has no active inputs, inventory checker or compiler consumer.
-
 - `fixtures/syntax/` contains parser and semantic-boundary source corpora plus structural snapshots.
 - `fixtures/standard/` contains source programs used by command and editor integration tests against
   the physical standard library.

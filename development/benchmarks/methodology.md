@@ -46,8 +46,8 @@ I/O, or code generation. A query-count regression is structural even when a fast
 - Attribute a measured bottleneck before changing architecture. Internal instrumentation requires
   its own explicit observation contract and must remain removable from semantic responsibilities.
 
-Performance results are milestone evidence, not a stable promise about absolute duration on other
-machines.
+Performance results are experiment evidence, not a stable promise about absolute duration on
+other machines. Retain experiment identities and observations with their Git commit.
 
 ## v2.0.0 Storage-Optimization Experiments
 

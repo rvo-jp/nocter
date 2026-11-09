@@ -19,13 +19,12 @@ const outputTransaction = new OutputTransaction(FINAL_OUTPUT_ROOT);
 const OUTPUT_ROOT = outputTransaction.directory;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
+const UNRELEASED_SOURCE_PREFIXES = ["development/spec/", "development/design/"];
 const SKIP_PUBLICATION_PREFIXES = [
-    "development/spec/",
-    "development/history/",
+    ...UNRELEASED_SOURCE_PREFIXES,
     "development/compiler/tests/fixtures/"
 ];
 const SKIP_LINK_VALIDATION_PREFIXES = [
-    "development/history/legacy-design/",
     "development/compiler/tests/fixtures/"
 ];
 const OG_IMAGE_WIDTH = 1200;
@@ -41,8 +40,8 @@ const PAGE_META = {
         description: "The Nocter specification for language semantics, supported platforms, diagnostics, command-line tools, and editor behavior."
     },
     "releases/README.md": {
-        title: "Nocter Releases",
-        description: "Published Nocter downloads, release notes, supported targets, and version history."
+        title: "Nocter Downloads",
+        description: "Published Nocter downloads, installation guidance, and supported targets."
     },
     "examples/README.md": {
         title: "Nocter Examples",
@@ -454,8 +453,8 @@ function validateSourceLinks(files) {
                 throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} has an unresolved local link: ${href}`);
             }
 
-            if (userDocumentation && normalizePath(path.relative(PROJECT_ROOT, target)).startsWith("development/spec/")) {
-                throw new Error(`Published user documentation links to an unreleased specification: ${relativeSource}: ${href}`);
+            if (userDocumentation && UNRELEASED_SOURCE_PREFIXES.some(prefix => normalizePath(path.relative(PROJECT_ROOT, target)).startsWith(prefix))) {
+                throw new Error(`Published user documentation links to an unreleased specification or design: ${relativeSource}: ${href}`);
             }
 
             if (hash && target.endsWith(".md")) {

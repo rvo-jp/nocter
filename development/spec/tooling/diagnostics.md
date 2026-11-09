@@ -3,18 +3,16 @@
 ## Core Syntax Diagnostics
 
 The future [value/alias grammar](../language/syntactic-grammar.md#access-syntax)
-replaces the pre-S12 prefix-based checkpoint. Ordinary parser failures use `E0120` and identify
+defines adopted recognition. Ordinary parser failures use `E0120` and identify
 the expected production. There is no surviving direct-marker assertion grammar or unary `&&`
 subdivision. Retired prefix spelling is not an automatic repair opportunity: replacing a prefix
 with a binding/input operation requires knowing its intended behavior.
 
 Retain non-place alias initializers/assignment targets in syntax for semantic diagnostics. A
 contextual `read`/`edit`/`take` spelling is recognized from grammar position, never type lookup.
-The [earlier checkpoint snapshot](../../history/reviews/v2.0.0-access-checkpoint-contracts.md)
-preserves retired diagnostic requirements. The
-[bounded implementation record](../../history/reviews/v2.0.0-value-binding-front-end.md)
-identifies the private source/checking scope. These rules do not change released code assignments
-or diagnostic behavior.
+Current private implementation scope belongs to the
+[access handoff](../../architecture/pipeline/value-access-declarations.md). These rules do not
+change released code assignments or diagnostic behavior.
 
 ## Explicit Transfer Diagnostics
 
@@ -30,7 +28,7 @@ preparation failure alone does not consume the reserved source. Distinguish earl
 construction, capture formation and outcome acquisition, which can already have committed. A
 body caret cannot authorize an implicit outside non-Copy capture; point to its formation-time
 capture segment. Pack diagnostics distinguish component retirement from retained count metadata.
-These adopted obligations do not qualify the pre-S24 prototype or allocate new numeric codes.
+These adopted obligations do not qualify the private prototype or allocate new numeric codes.
 
 ## Private Header Diagnostics
 

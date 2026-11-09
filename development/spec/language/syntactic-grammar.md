@@ -91,7 +91,7 @@ type lookup. Do not consume a type-binding block as part of the interface name a
 another block for mappings. Empty binding blocks and duplicate bindings are invalid.
 
 These envelopes deliberately depend on the separately owned value/access productions below,
-lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
+lexical names/lists/trivia, and the [whole-source draft](../../design/source-grammar.md)
 for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
 In particular typed sequence/string literal behavior, generic solving,
@@ -101,7 +101,7 @@ are never an implicit fallback.
 
 ## Access Syntax
 
-These productions close the S12 value/input/callable/alias source boundary. They are separate
+These productions define the adopted value/input/callable/alias source boundary. They are separate
 from the released grammar. The file/declaration envelopes above extend their source design;
 complete literal/operator, platform and standard-library migrations are not
 implied by these productions. The implementation
@@ -478,24 +478,9 @@ A valid source program cannot depend on the retired `pub`/`construct`/`instance`
 one-item path visibility and unified `impl` before module discovery is integrated. Reusing the
 released `SourceFile` or `Item` productions without that migration is not permitted.
 
-### First Access Validation Fragment
+### Implementation Scope
 
-The pre-S12 `V2CoreUnit` implementation used a different grammar and value model. Its former
-contract is preserved in the non-normative
-[checkpoint snapshot](../../history/reviews/v2.0.0-access-checkpoint-contracts.md).
-It is not a subset of the adopted S12 language and must not be exposed as a compatibility mode.
-The [implementation design](../../history/reviews/v2.0.0-value-binding-implementation.md)
-sets the coherent replacement boundary: declarations, typing, initialization, accesses, resources
-and source fixtures must share one accepted-unit authority. The
-[bounded implementation record](../../history/reviews/v2.0.0-value-binding-front-end.md)
-distinguishes that replacement from the earlier checkpoint and from full-language support.
-
-### Bounded Value Binding Fragment
-
-The implemented private frontend still uses the
-[pre-explicit-transfer fragment](../../history/reviews/v2.0.0-pre-explicit-transfer-fragment.md).
-It accepts implicit moves and name-only non-Copy captures that are invalid under the adopted
-postfix-transfer contract, and does not yet admit that new grammar. It is therefore not a subset
-or conformance qualification of the current source language. No compatibility mode is selected.
-Parser, typed supply, reservations, initialization, captures, cleanup and source cases must migrate
-together. Until then, retain its 283-case evidence as prototype evidence only.
+The [private handoff](../../architecture/pipeline/value-access-declarations.md) owns actual
+frontend support and implementation gaps. The [realization requirements](../../design/compiler-realization.md)
+define remaining integrated admission work. Neither recognition nor an existing source corpus
+qualifies full-language implementation or permits an alternate source mode.

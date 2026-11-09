@@ -13,7 +13,7 @@ use/cleanup. Explain generic evidence at its source boundary, not by inspecting 
 Contract navigation connects a complete implementation header to its `index.nct` declaration;
 readers do not need an editor to recover an omitted signature. Semantic tokens/references follow
 resolved identities, not contextual words or source coordinates as semantic keys. The existing
-private-unit checkpoint does not yet provide S12 editor behavior.
+private-unit frontend does not provide the adopted editor behavior.
 
 ## Contract and Interface Navigation
 
@@ -141,4 +141,4 @@ Show postfix source retirement separately from the receiving read/edit/take cont
 Copy source is retired; an unmarked Copy source snapshots. Show the selected field/element or
 whole owner and its commit boundary, including pending call reservations. Capture formation and
 invocation refer to different slots. Inlay hints cannot insert or erase these operations, infer
-a missing outside move, or present the pre-S24 private prototype as current source conformance.
+a missing outside move, or present the private prototype as current source conformance.

@@ -335,7 +335,7 @@ cp -R "$home" "$dist/.nocter"
 )
 
 # `dist` is a staging area for the current qualified candidate, not a release archive. Published
-# versions are retained by GitHub Releases and immutable release-audit records. Remove older local
+# versions are retained by immutable Git tags and GitHub Releases. Remove older local
 # candidates only after the replacement archive, installed home, and checksum have all succeeded.
 while IFS= read -r -d '' archived_candidate; do
   if [[ "$archived_candidate" != "$candidate" ]]; then

@@ -224,6 +224,6 @@ and wrappers whose only purpose is to bypass an owner contract.
 This document changes only when a pipeline edge, cross-crate authority, or dependency rule changes.
 A crate-internal refactor changes that crate's README. A public language, platform, or tooling
 change updates its version's specification (`development/spec/` for unreleased contracts); a public standard-library change changes its owning `index.nct` or colocated
-README. A temporary implementation plan changes a milestone. Review findings and remediation
-evidence belong in `development/history/reviews/`; release qualification belongs in
-`development/history/release-audits/`.
+README. Remaining actions and findings belong in `development/TODO.md`; unresolved design and
+realization obligations belong in `development/design/`. Retain current invariants and their
+rationale with the responsible owner; Git owns earlier states and completed-work evidence.

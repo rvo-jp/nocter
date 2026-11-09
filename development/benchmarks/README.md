@@ -50,12 +50,10 @@ Use `--samples`, `--warmups`, `--lsp-samples`, and `--lsp-edits` to change the e
 sample counts.
 
 Run measurements on an otherwise idle machine, preserve power and thermal conditions, and compare
-the same scenarios in one invocation. Commit a result only as milestone evidence together with the
-host description, compiler and installed-home identities, sample configuration, repository
-revision, clean-worktree state, and scenario-source digests emitted by the runner. Do not turn
-elapsed-time thresholds into conformance tests. Schema 2 records the installed manifest digest and
-its standard-library tree identity; the retained v0.36.0 baseline uses the earlier schema 1 and
-remains a historical record.
+the same scenarios in one invocation. Retain reproducibility details with the experiment's Git
+commit: host, compiler and installed-home identities, sample configuration, repository revision,
+worktree state and scenario-source digests. Do not turn elapsed-time thresholds into conformance
+tests or maintain historical baseline catalogs in the working tree.
 
 ## Native Product Measurements
 
@@ -101,8 +99,3 @@ Do not add internal phase timers until an external scenario demonstrates a bottl
 be attributed with existing query counters and ordinary profiling. If instrumentation becomes
 necessary, expose it through one observation boundary; do not scatter benchmark policy through
 semantic crates.
-
-## Recorded Baselines
-
-- [`v0.36.0-arm64-darwin.json`](baselines/v0.36.0-arm64-darwin.json) — Apple M1 released baseline
-  for the v0.37.0 performance milestone

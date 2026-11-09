@@ -1,0 +1,111 @@
+# Compiler Realization
+
+## Scope
+
+This document owns remaining integrated verification and realization requirements for v2.0.0.
+It neither repeats the [adopted language](../spec/README.md) nor defines current crate internals.
+The [private access handoff](../architecture/pipeline/value-access-declarations.md) owns the
+implemented cross-stage boundary and its limits. The [work plan](../TODO.md) owns priority.
+These are pending obligations, not passed source fixtures or a full-language soundness proof.
+
+## Explicit Source Supply Admission
+
+Replace implicit source transfers through syntax, declaration/body projection, selected supply,
+initialization, reservations, captured environments and resource consumers together. Select source
+retirement once and preserve it through witness closure and specialization. Keep named source
+identity distinct from produced anonymous values and capture-formation sources distinct from
+invoked environment slots. A later stage cannot repeat selection from type size, liveness or
+concrete Copy evidence. The source corpus needs an intent review, not mechanical caret insertion.
+No alternate implicit-move source mode or public version switch is permitted.
+
+Required distinguishing cases follow [explicit transfer](../spec/language/value-access.md#explicit-transfer-sources):
+
+| Source situation | Required evidence |
+| --- | --- |
+| Existing non-Copy value, marked versus unmarked | Transfer versus missing-marker error at the source |
+| Copy value, marked versus unmarked, including generic substitution | Retirement versus snapshot without later reselection |
+| Fixed versus mutable source after transfer | Invalid restoration versus complete replacement |
+| Alias, static, user index/current projection plus caret | No manufactured ownership, even for Copy referents |
+| Fresh value, repeated caret, prefix/type/binding marker | Invalid source or grammar; no alternate parse |
+| Field/element transfer versus computed field of marked parent | Exact retired source and actual remaining cleanup |
+| Partial parent, dynamic overlap and complete-parent destructor | Initialization, conflict and cleanup proof on every exit |
+| Direct argument/receiver/callable versus nested construction | Reserved outer transfer versus committed inner transfer |
+| Later preparation failure/cancellation, including marked Copy | Release uncommitted reservations; preserve prior effects |
+| Completed later read versus surviving overlapping read input | Permit proved sequential access; reject conflicting invocation |
+| Marked source lent to read/edit | Caller-owned temporary, exact cleanup and rejection of dependent escape |
+| Closure formation marker versus marker inside its body | Outside acquisition versus environment/body-local transfer |
+| Captured slot transfer versus body-local transfer | Owning environment required only for the captured source |
+| Named return, throw, catch leaf, pattern leaf and await operand | Explicit source supply at the owning operation's boundary |
+| Anonymous received carrier or intrinsic cursor item | Internal handoff without a hidden move of a named source |
+| Fallible scoped projection versus explicit carrier acquisition | No hidden error extraction from preserved storage |
+| Marked array spread, including empty/Copy arrays | Whole-source retirement at direct outer commit |
+| Marked pack capture/spread/loop | All owned components retire; count metadata remains |
+| Read/edit pack marked acquisition | Reject caller-component retirement |
+| User source acquisition before outer failure | Preserve committed inner calls, pulls and producer cleanup |
+
+## Dependency and State Proofs
+
+General capabilities, dependent aggregates and callable environments require schemas that preserve
+direct-place access R, carried dependencies D and external storage requirements S. Data ownership
+or Copy is not proof of empty D/S. Bind symbolic public slots to actual roots without consulting
+private bodies, changing a selected operation or granting a missing capability.
+
+Check result origins separately from edited-state relations, including reachable outside targets,
+not just descriptor fields. In particular test retained old dependencies, permitted carried-input
+insertion, newly retained direct-input access, success/failure clear bounds, and writes surviving
+the destruction of a callback or guard. Tuple/pack mappings preserve paths and actual identities.
+A dependent result must survive callee, handler, adapter and evaluation cleanup. No root extension,
+retargeting, hidden clone or destructor postponement repairs a failed obligation.
+
+Contextual closure completion must retain the selected contract's input operations even when a
+body reads less. Inferred read/update captures must preserve outside roots and exclusivity;
+non-Copy value capture still needs explicit formation permission. General nested captures and
+factory-result closure bodies need code-scoped application identities, not their parent's domain.
+
+## Integrated Source Families
+
+| Owning subject | Remaining integrated evidence |
+| --- | --- |
+| Modules and type behavior | Contract/body agreement, complete headers, audience paths, visibility and operation binding |
+| Generics, interfaces and opaque results | Symbolic evidence, associated bindings, static witnesses, finite result equations and non-retyping specialization |
+| Outcomes and error information | Exact layer order, explicit failure selection, recovery cleanup, scoped projections and lost-failure diagnostics |
+| Tuples, arrays, enums and patterns | Exact schema/Copy proof, named-source supply, internal decomposition, ignored remainder and partial restoration |
+| Variadic inputs | Key/value order, dynamic paths/count checks, complete contributions, origins and formation/commit timing |
+| Traversal and general spread | Source/cursor proof, zero-input projections, sequential versus accumulated roots, early exit and remaining cleanup |
+| Temporary update loans | Direct authority versus produced-value backing, nested frames, escape, failure and cancellation |
+| Effects and async | Construction/drive/cleanup facts, fresh input extents, ready-output roots and distinct cancellation envelopes |
+| Remaining grammar and library/platform boundaries | Explicit contract closure before parser/checker, CTFE, layout or ABI admission |
+
+Use the owning source rules for case semantics. Examples must contain real declarations, source
+locations, selected operations and expected resource/access results. Required CTFE uses the same
+checked operations and evaluator capability, not an independent source interpreter. User protocol
+names do not authorize hidden effects, root stability or target primitives.
+
+## Executable Lifecycle and Target Admission
+
+Lower the accepted Unit and its frozen private instance graph through one executable authority.
+Realize environment pack/unpack, prepared input receipt, protected answers, conditional resource
+steps and normal adapter exits. A read/edit body invoked through a consuming adapter needs its
+received environment disposed before answer delivery; a consuming body must not receive a second
+destruction. Static code sharing must not merge runtime activations, environments or source owners.
+
+Preserve all frozen call targets, invocation views, input-channel mappings and result obligations.
+Interrupted evaluation can carry a known type without a value, witness, environment or cleanup;
+never invent an executable edge for it. Close required runtime helpers before graph freeze.
+Then qualify physical layout, ABI, MIR and native consumers with the same source behavior.
+Keep trap/divergence, recoverable cleanup and pending/ready cancellation distinct.
+
+## Proof Obligations and Validation
+
+- Preservation: each transition keeps its data schema, actual initialization and one cleanup owner.
+- Access soundness: active/reserved operations and dependent cleanup cannot conflict on possible overlap.
+- Dependency preservation: supply, wrappers, substitution, erasure and outside writes retain required roots.
+- Exit soundness: protected results and edited state survive every applicable cleanup boundary.
+- Abstract-call soundness: each body refines its public contract for arbitrary eligible inputs and fresh extents.
+- Analysis correspondence: finite CFG abstractions conservatively model branches, loops, partial state and frames.
+- Lowering refinement: executable transformations preserve frozen decisions, failures, effects and cleanup timing.
+
+Run direct affected production tests before required broader gates under the
+[verification contract](../verification/README.md). A parser shape, manifest count, finite assumed
+model or unrelated LSP/native test is not proof of the complete path. Optimization experiments
+require separate correctness, target-code inspection and measurement.

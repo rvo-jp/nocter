@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "contract": "../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment",
+  "contract": "../../../../architecture/pipeline/value-access-declarations.md",
   "compiler_status": "checked-private-unit",
   "cases": [
     {

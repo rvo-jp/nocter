@@ -1,8 +1,8 @@
 # Asynchronous Computation Boundary
 
 This document defines the cross-responsibility contract for Nocter's asynchronous computation
-model. Public syntax and observable behavior belong in `spec/`; milestone records own delivery
-order and qualification evidence.
+model. Public syntax and observable behavior belong in `spec/`; current work and qualification
+requirements belong to the responsible development guides.
 
 ## Outcome
 

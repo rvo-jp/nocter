@@ -7,9 +7,9 @@ within their explicitly defined scope. It is intended for Nocter developers. The
 
 These chapters specify selected behavior, not complete v2.0.0 support. An omitted subject has no
 implicit fallback to a released production. Shared behavior is inherited only where a chapter
-explicitly selects it. The implemented private prototype predates mandatory postfix transfer; its
-[recorded grammar](../history/reviews/v2.0.0-pre-explicit-transfer-fragment.md) is not current
-language conformance or a compatibility mode. It grants no public CLI, ABI or native admission.
+explicitly selects it. The [private implementation boundary](../architecture/pipeline/value-access-declarations.md)
+owns current support and source gaps. Private frontend acceptance grants no public CLI, ABI or
+native admission.
 Implementation coverage and next work belong to the [handoff](../TODO.md) and linked qualification
 records; they do not change the rules here.
 
@@ -27,9 +27,9 @@ Developer links resolve to the repository source at the site's selected revision
 ## Ownership and Changes
 
 Each adopted rule has one owning chapter in this tree. Published behavior remains owned by
-`spec/` and `std/`; a development chapter does not amend that released contract. Proposals,
-alternatives and superseded decisions stay under [development history](../history/reviews/README.md)
-until adopted. Compiler mechanisms stay in architecture documents and crate READMEs.
+`spec/` and `std/`; a development chapter does not amend that released contract. Unresolved
+proposals belong to [current design](../design/README.md); update the owner when resolved and
+use Git for prior states. Compiler mechanisms stay in architecture documents and crate READMEs.
 
 Write these contracts in English and change the owning chapter before accepting new behavior in
 the v2.0.0 compiler. Update links and conformance references when moving a rule. Keep source

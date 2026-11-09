@@ -139,9 +139,9 @@ diagnostics before machine code is emitted.
 - [Standard Library](std/README.md): checked public APIs and observable module behavior.
 - [Design Principles](spec/principles.md): the simplicity,
   encapsulation, and foolproof-design rules behind Nocter language decisions.
-- [Release Index](releases/README.md): published downloads, supported targets, and version history.
+- [Downloads](releases/README.md): published downloads and supported targets.
 - [Contributor Documentation](development/README.md): development setup,
-  compiler architecture, milestone plans, tests, and maintenance policy.
+  compiler architecture, current plans, tests, and maintenance policy.
 
 ## License
 

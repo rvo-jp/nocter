@@ -1,11 +1,21 @@
 # Future Private Value Access Declarations
 
-This document owns the bounded handoff between syntax, declarations, typed bodies and accepted
-private units for the adopted value-binding goal. Language meaning belongs to the
-[future value model](../../spec/language/value-access.md) and
-[bounded grammar](../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment).
-The earlier type-qualified/result-access checkpoint is retired; its historical records are not
-an alternate source mode. This boundary has no released-program adapter or native consumer.
+This document owns the implemented bounded handoff between syntax, declarations, typed bodies,
+accepted private units and private instances. Language meaning belongs to the
+[adopted value model](../../spec/language/value-access.md). This boundary has no released-program
+adapter, public CLI or native consumer.
+
+## Current Source Gap
+
+The private frontend currently accepts implicit movement of existing owners and unmarked non-Copy
+capture entries. It does not yet implement the adopted postfix transfer syntax, so its accepted
+source is not current v2.0.0 conformance. Its direct edit preparation also excludes the adopted
+produced-value update temporary path. These are implementation gaps, not alternative source modes.
+The parser, frozen supply selection, initialization, reservations, captures, resource consumers
+and source fixtures must migrate together before those paths can be qualified. The
+[realization plan](../../design/compiler-realization.md) owns remaining proof and test obligations.
+
+## Implemented Handoff
 
 ```text
 V2CoreUnit syntax + exact source

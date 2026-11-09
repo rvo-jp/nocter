@@ -1,7 +1,8 @@
 # Release Packaging Inputs
 
 This directory owns the metadata, assembly, and installed-artifact qualification boundary for a
-local release candidate.
+local release candidate. The [current candidate](candidate.md) owns pending publication state
+and the exact retained qualified artifact identity.
 
 - `VERSION` is the sole authored release-version identity. `RELEASE.json` owns version-independent
   host, target, license, and archive-layout metadata.
@@ -48,9 +49,10 @@ cursor, dynamic storage, generated Unicode data, and Unicode casing. It also pro
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.
 Only after every check passes does it replace the generated candidate outputs in `dist/`. That
-directory is current-candidate staging rather than release history: successful qualification keeps
-only the newly qualified archive. Published archives remain available from GitHub Releases, with
-their immutable identity recorded under `development/history/release-audits/`.
+directory is current-candidate staging: successful qualification keeps only the newly qualified
+archive. Published archives and tags remain immutable. Record qualification and artifact identity
+with the corresponding Git commit and release metadata rather than maintaining audit journals
+in the working tree.
 
 Generated repository-root `dist/.nocter/`, `dist/SHA256SUMS`, and
 `dist/nocter-v<version>-arm64-darwin.tar.gz` outputs are not committed to git. Packaging and
