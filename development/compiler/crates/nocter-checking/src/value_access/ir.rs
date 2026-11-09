@@ -85,6 +85,8 @@ pub enum BoundaryAction {
     CopyPayload,
     /// Intermediate value supply; result identity must close before Copy or move is selected.
     PendingValue,
+    /// Closed structural supply in unreachable source; no value or ownership operation exists.
+    Unproduced,
     TakeValue,
 }
 
@@ -107,6 +109,8 @@ pub enum ArgumentAction {
     CopyPlace(AccessPlaceId),
     /// Intermediate direct supply; cannot enter initialization or accepted products.
     PendingValue(AccessPlaceId),
+    /// Closed structural supply that cannot reach argument preparation.
+    Unproduced,
     TakeValue,
     Interrupted,
 }

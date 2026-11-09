@@ -512,6 +512,7 @@ impl Builder<'_> {
                     | ArgumentAction::ReserveTransfer(_)
                     | ArgumentAction::CopyPlace(_)
                     | ArgumentAction::PendingValue(_)
+                    | ArgumentAction::Unproduced
             ) {
                 Some(point)
             } else {

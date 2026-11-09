@@ -312,7 +312,9 @@ impl Context<'_, '_> {
             | ArgumentAction::ReserveUpdate(_)
             | ArgumentAction::ReserveTransfer(_)
             | ArgumentAction::ReadOwnedValue => {}
-            ArgumentAction::PendingValue(_) | ArgumentAction::Interrupted => {
+            ArgumentAction::PendingValue(_)
+            | ArgumentAction::Unproduced
+            | ArgumentAction::Interrupted => {
                 return Err(Failure::Integrity);
             }
         }

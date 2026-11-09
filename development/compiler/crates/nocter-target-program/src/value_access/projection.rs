@@ -1,8 +1,10 @@
 //! Mechanical witness/data substitution, consuming checked binding edges rather than lookup inputs.
 use super::{ConcreteWitness, Failure, InstanceKey};
 use nocter_checking::value_access::{
-    Argument, flow,
-    flow::resources::{Payload, payload},
+    Argument,
+    accepted::{DataEvidence, Unit},
+    flow,
+    flow::resources::payload,
 };
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
 use nocter_model::{TypeId, ValueFunctionOrigin};
@@ -90,10 +92,11 @@ pub(super) fn validate_key(program: &Program, key: &InstanceKey) -> Result<(), F
 }
 
 pub(super) fn data(
-    program: &Program,
+    unit: &Unit,
     key: &InstanceKey,
     body: &flow::Query,
-) -> Result<BTreeMap<TypeId, Payload>, Failure> {
+) -> Result<BTreeMap<TypeId, DataEvidence>, Failure> {
+    let program = unit.program();
     let typed = body.typed().body();
     let mut pending = BTreeSet::new();
     pending.extend(typed.locals().iter().map(|(_, local)| local.data));
@@ -114,6 +117,13 @@ pub(super) fn data(
     let mut concrete = BTreeMap::new();
     while let Some(source) = pending.pop_first() {
         if concrete.contains_key(&source) {
+            continue;
+        }
+        let evidence = unit
+            .data_evidence(source)
+            .map_err(|_| Failure::InvalidAcceptedUnit)?;
+        if matches!(evidence, DataEvidence::Unproduced(_)) {
+            concrete.insert(source, evidence);
             continue;
         }
         let target = match program
@@ -144,7 +154,7 @@ pub(super) fn data(
             PayloadSchema::Builtin(_) => source,
         };
         let contract = payload(program, target).map_err(|_| Failure::InvalidAcceptedUnit)?;
-        concrete.insert(source, contract);
+        concrete.insert(source, DataEvidence::Payload(contract));
     }
     Ok(concrete)
 }

@@ -275,7 +275,8 @@ construction, operators and compatible branches retain known data on interruptio
 and field validation read that known access; flow/resource consumers require a possible normal
 result. An absent result shape cannot be treated as an arbitrary record. Private constructors
 exclude an unknown-shaped normal value, and continuation restriction cannot invent a runtime
-value. Possible completion is not a termination guarantee.
+value. Conditional typing checks both known shapes but selects a normally producing branch's
+identity when the other cannot produce a value. Possible completion is not a termination guarantee.
 
 Data annotations do not select local binding operations. Body-local arenas have no source
 coordinates, syntax IDs, names or symbols. Successful queries own exact authority/body bytes and
@@ -303,13 +304,20 @@ function. `results::relations` owns one finite positive-equation solver for unio
 applications. Recursive substitution uses formal IDs and finite application nodes rather than
 expanding witness names. Unanchored recursion and heterogeneous return relations reject.
 The established summaries then instantiate every typed call application through its frozen
-actual bindings, retaining known types even on interruption. An unknown-shaped input cannot
-establish a required dependent witness in this bounded fragment. Prepared value flow establishes
-return anchors; declared argument types alone cannot do so.
+actual bindings, retaining known types even on interruption. A missing producer for an application
+without a reachable commit closes as explicit Unproduced evidence, preserving the structural
+contract under the existing application identity. A reachable application still requires a witness.
+Prepared value flow establishes return anchors; declared argument types alone cannot do so.
 
 After deferred identity equalities are proved, `results::projection` replaces result/application
-identities with already interned named or caller-formal keys. During that same traversal, `supply`
-freezes pending operations against the resolved data and source access. Known generic formal transfers remain transfers; later concrete
+identities with already interned named or caller-formal keys, or retains a proved-unproduced
+application's contract. During that same traversal, `supply` freezes pending operations against
+the resolved data and source access. Unproduced supplies close explicitly without choosing Copy
+or move. `results::unproduced` rejects any reached evaluation, input preparation, forwarding,
+binding, value consumption or call commit using this absent data. This proof runs before
+initialization over the same graph. Schema cleanup projection rejects result/application keys;
+the accepted Unit's `DataEvidence` distinguishes payloads from unproduced structural contracts.
+Known generic formal transfers remain transfers; later concrete
 payload Copy cannot reinterpret them. Only then does Control compute initialization and
 access/resource validation, once each. Control IDs and the type authority do not change, and no
 graph is rebuilt. A taking formal environment can therefore pass through a result without

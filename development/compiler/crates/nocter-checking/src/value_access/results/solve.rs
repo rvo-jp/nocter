@@ -1,6 +1,6 @@
 //! Reachable result summaries close first; per-call type applications then substitute those summaries.
 use super::{
-    Evidence,
+    ApplicationEvidence, Evidence,
     producers::Producers,
     reject,
     relations::{self, Relation, Relations},
@@ -9,7 +9,7 @@ use crate::value_access::{ExpressionKind, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
 use nocter_model::{AccessCallableId, ValueFunctionOrigin as Origin};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 const INVALID: accepted::Failure =
     accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
@@ -20,6 +20,7 @@ pub(super) fn solve(
 ) -> Result<Evidence, accepted::Failure> {
     let mut evidence = Evidence::default();
     let mut equations = Relations::new();
+    let mut committed = BTreeSet::new();
     for (&id, control) in controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
         if control
@@ -38,6 +39,7 @@ pub(super) fn solve(
             );
         }
         for (application, inputs) in report.applications {
+            committed.insert(application);
             equations.insert(
                 Origin::Application(application),
                 Relation::Apply {
@@ -78,7 +80,7 @@ pub(super) fn solve(
         }
         evidence.producers.insert(id, witness);
     }
-    close_applications(context, controls, &mut evidence)?;
+    close_applications(context, controls, &committed, &mut evidence)?;
     prove_equalities(context, controls, &evidence)?;
     Ok(evidence)
 }
@@ -88,6 +90,7 @@ fn single(producers: &Producers) -> Option<FunctionWitness> {
 fn close_applications(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<AccessCallableId, flow::Control>,
+    committed: &BTreeSet<nocter_model::ValueApplication>,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
     let mut equations = evidence
@@ -145,6 +148,12 @@ fn close_applications(
             continue;
         };
         let query = &controls.get(&application.owner).ok_or(INVALID)?.typed;
+        if producers.is_empty() && !committed.contains(&application) {
+            evidence
+                .applications
+                .insert(application, ApplicationEvidence::Unproduced);
+            continue;
+        }
         let witness = single(&producers).ok_or_else(|| reject(context, query, Some(application.call),
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
         if let Origin::Parameter(parameter) = witness.origin
@@ -156,7 +165,9 @@ fn close_applications(
         {
             return Err(INVALID);
         }
-        evidence.applications.insert(application, witness);
+        evidence
+            .applications
+            .insert(application, ApplicationEvidence::Witness(witness));
     }
     Ok(())
 }
@@ -177,6 +188,13 @@ fn prove_equalities(
             };
             let left = project(equality.left)?;
             let right = project(equality.right)?;
+            if evidence.unproduced(control.typed.program(), left)
+                || evidence.unproduced(control.typed.program(), right)
+            {
+                // Structural compatibility was checked upstream. No identity equality can be
+                // demanded of a value that is never produced. Reachable uses reject separately.
+                continue;
+            }
             if left != right {
                 return Err(reject(
                     context,

@@ -74,7 +74,9 @@ one immutable instance arena is the published authority.
 results arrive with checking-closed named or caller-formal witnesses; the body's resolved result data enters the
 same projection table. No target-side result inference or second instance graph exists. It verifies
 formal identity coverage without repeating signature matching or target search. One table maps
-source data IDs to concrete payload obligations in the existing program type authority. Schema
+source data IDs to concrete payload obligations or checked unproduced structural contracts in
+the existing program type authority. The latter carry no physical environment or cleanup and
+are never passed to witness substitution. Schema
 cleanup classification remains checking-owned. Record closure visits shared schemas iteratively,
 without expanding payload trees. No symbolic environment destruction remains in this concrete
 projection, while the original body's source-selected moves/reservations stay unchanged.

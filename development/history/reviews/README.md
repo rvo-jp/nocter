@@ -46,6 +46,7 @@ they do not make reviews normative or register compiler support.
 - [Deferred Value Supply](v2.0.0-deferred-value-supply.md) — result supply before initialization and one direct-place snapshot at argument preparation
 
 - [Input-dependent Callable Results](v2.0.0-dependent-callable-results.md) — canonical application types, own-input result relations and per-call witness substitution
+- [Type Foundation and Interrupted Callable Results](v2.0.0-type-foundation-and-interruption.md) — type/operation boundaries and structural contracts without produced payloads
 
 #### Research and Adoption Audits
 

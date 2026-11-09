@@ -3,7 +3,7 @@ use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::AccessCallableId;
+use nocter_model::{AccessCallableId, TypeId};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug)]
@@ -17,6 +17,23 @@ pub enum Failure {
         diagnostics: Box<[SourceDiagnostic]>,
     },
     Integrity(flow::IntegrityError),
+}
+
+/// Known data either has a logical payload contract or is a proved-unproduced callable shape.
+/// The latter grants no storage, cleanup or executable environment obligation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataEvidence {
+    Payload(flow::resources::Payload),
+    Unproduced(nocter_declarations::value_access::FunctionConstraint),
+}
+impl DataEvidence {
+    #[must_use]
+    pub const fn payload(&self) -> Option<flow::resources::Payload> {
+        match self {
+            Self::Payload(payload) => Some(*payload),
+            Self::Unproduced(_) => None,
+        }
+    }
 }
 
 /// Complete safety/cleanup evidence only for the closed private grammar, not native validity.
@@ -103,6 +120,24 @@ impl Unit {
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program
+    }
+    /// Project data through this complete unit's closed result and payload evidence.
+    /// # Errors
+    /// Rejects an unknown type or a result identity without closed evidence.
+    pub fn data_evidence(&self, data: TypeId) -> Result<DataEvidence, flow::IntegrityError> {
+        if self.result_evidence.unproduced(self.program(), data) {
+            let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+                self.program().data_schema(data)
+            else {
+                return Err(flow::IntegrityError::InconsistentTypedBody);
+            };
+            return self
+                .program()
+                .function_contract(witness)
+                .map(DataEvidence::Unproduced)
+                .ok_or(flow::IntegrityError::InconsistentTypedBody);
+        }
+        flow::resources::payload(self.program(), data).map(DataEvidence::Payload)
     }
     /// The exact checked body in this accepted unit's sole body catalog.
     #[must_use]

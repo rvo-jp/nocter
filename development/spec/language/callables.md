@@ -193,10 +193,10 @@ func example(): i32 {
 }
 ```
 
-For an input-dependent result, a call must establish each witness used by the result relation.
-An unknown-shaped terminating argument cannot supply such a witness in this bounded fragment;
-it remains an implementation limit rather than permission to invent an environment. A result
-independent of that input still retains its known witness on interrupted evaluation.
+For a produced input-dependent result, a call must establish each witness used by the result
+relation. An interrupted application without that witness retains only its known structural
+contract under [known-shape rules](values-and-types.md#known-shape-without-a-produced-value).
+A result independent of that input can still retain its known witness on interrupted evaluation.
 
 Selected invocation adapters remain part of the result relation. A result may not recover a
 stronger invocation view from its concrete producer. Known structural type errors remain errors

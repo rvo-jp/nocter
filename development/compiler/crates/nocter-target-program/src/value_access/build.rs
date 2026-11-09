@@ -39,7 +39,7 @@ impl Builder {
         let body = unit
             .body(key.callable)
             .ok_or(Failure::InvalidAcceptedUnit)?;
-        let data = projection::data(unit.program(), &key, body)?;
+        let data = projection::data(unit, &key, body)?;
         let mut invocations = BTreeSet::new();
         for (point, block) in body.graph().points().iter() {
             if !body.initialization().reachable(point) {

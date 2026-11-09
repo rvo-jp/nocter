@@ -1668,11 +1668,10 @@
       "reason": "Overwriting a local before application cannot leave its initial named value as a return anchor."
     },
     {
-      "id": "r110-dependent-result-unknown-input",
-      "file": "r110-dependent-result-unknown-input.nct",
-      "expectation": "check-reject",
-      "diagnostic": "E0370",
-      "reason": "This bounded fragment cannot establish a dependent witness from an unknown-shaped interrupted input."
+      "id": "a137-dependent-result-unknown-input",
+      "file": "a137-dependent-result-unknown-input.nct",
+      "expectation": "accept",
+      "reason": "Interrupted dependent calls retain their structural result without inventing an input witness or callable environment."
     },
     {
       "id": "r111-dependent-result-view-upgrade",

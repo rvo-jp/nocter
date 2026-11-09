@@ -7,7 +7,7 @@ private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
 `manifest.json` as the sole per-source expectation catalog. All 263 inputs have compiler assertions:
-6 syntax rejections, 8 header rejections, 113 checking rejections and 136 whole-unit acceptances.
+6 syntax rejections, 8 header rejections, 112 checking rejections and 137 whole-unit acceptances.
 Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 249
 header-valid units without claiming body acceptance and reject the eight invalid headers.
 The 257 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
@@ -60,8 +60,10 @@ Input-dependent result cases add independent applications, composed forwarding, 
 anchors/permutations, selected formal positions, exact Copy versus generic transfer, adapters,
 factory values and known-witness interruption. Negative cases cover distinct application/formal
 joins and replacement, read extraction, consumed owners, view upgrades, retained aliases, and
-dead/overwritten argument anchors. An unknown-shaped required input still cannot establish a
-dependent result witness in this bounded implementation.
+dead/overwritten argument anchors. Interrupted dependent calls with unknown-shaped inputs retain
+only their structural contract and produce no environment. The
+[type foundation and interruption review](../../../../history/reviews/v2.0.0-type-foundation-and-interruption.md)
+records the exact acceptance change and additional source/instance checks.
 These passes do not implement indexing, dependent aggregates, captured environments, erased
 callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch
 or released-program adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.

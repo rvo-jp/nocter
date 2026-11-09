@@ -4,6 +4,7 @@ mod projection;
 mod relations;
 mod solve;
 mod typing;
+mod unproduced;
 
 use super::{Failure, Query, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
@@ -23,8 +24,14 @@ pub(super) struct Equality {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
     producers: BTreeMap<AccessCallableId, FunctionWitness>,
-    applications: BTreeMap<ValueApplication, FunctionWitness>,
+    applications: BTreeMap<ValueApplication, ApplicationEvidence>,
     bodies: BTreeMap<AccessCallableId, Arc<[u8]>>,
+}
+#[derive(Clone, Copy, Debug)]
+enum ApplicationEvidence {
+    Witness(FunctionWitness),
+    /// The structural contract is known, but no reachable invocation produces this value.
+    Unproduced,
 }
 pub(super) struct Verified<'a, 'source> {
     pub(super) evidence: &'a Evidence,
@@ -67,12 +74,18 @@ impl Evidence {
         match origin {
             ValueFunctionOrigin::Result(id) => self.producers.get(&id).copied(),
             ValueFunctionOrigin::Application(application) => {
-                self.applications.get(&application).copied()
+                match self.applications.get(&application)? {
+                    ApplicationEvidence::Witness(witness) => Some(*witness),
+                    ApplicationEvidence::Unproduced => None,
+                }
             }
             _ => None,
         }
     }
     fn origin(&self, origin: ValueFunctionOrigin) -> Result<ValueFunctionOrigin, Failure> {
+        if self.unproduced_origin(origin) {
+            return Ok(origin);
+        }
         match origin {
             ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Parameter(_) => Ok(origin),
             _ => self
@@ -82,6 +95,9 @@ impl Evidence {
         }
     }
     fn witness(&self, witness: FunctionWitness) -> Result<FunctionWitness, Failure> {
+        if self.unproduced_origin(witness.origin) {
+            return Ok(witness);
+        }
         let Some(producer) = self.selected(witness.origin) else {
             return match witness.origin {
                 ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Parameter(_) => {
@@ -116,7 +132,16 @@ impl Evidence {
             _ => Ok(data),
         }
     }
+    fn unproduced_origin(&self, origin: ValueFunctionOrigin) -> bool {
+        matches!(origin, ValueFunctionOrigin::Application(application)
+            if matches!(self.applications.get(&application), Some(ApplicationEvidence::Unproduced)))
+    }
+    pub(super) fn unproduced(&self, program: &Program, data: TypeId) -> bool {
+        matches!(program.data_schema(data), Some(PayloadSchema::Function(witness))
+            if self.unproduced_origin(witness.origin))
+    }
 }
+pub(super) use unproduced::validate;
 pub(super) fn is_result(program: &Program, data: TypeId) -> bool {
     matches!(
         program.data_schema(data),
@@ -137,10 +162,10 @@ pub(super) fn close(
             continue;
         }
         let query = Arc::make_mut(&mut control.typed);
+        query.result_evidence = Some(evidence.clone());
         projection::project(context, query, &evidence)
             .map_err(|failure| accepted::Failure::Body { callable, failure })?;
         query.results_closed = true;
-        query.result_evidence = Some(evidence.clone());
     }
     Ok(evidence)
 }

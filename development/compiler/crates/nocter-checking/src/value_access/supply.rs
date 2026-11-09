@@ -57,6 +57,10 @@ pub(super) fn resolve(
             else {
                 return Err(Failure::InconsistentSyntax);
             };
+            if unproduced(query, place)? {
+                *action = BoundaryAction::Unproduced;
+                return Ok(());
+            }
             match resolved(context, query, id, place)? {
                 PlaceSupply::Copy => *action = BoundaryAction::CopyPayload,
                 PlaceSupply::Transfer => expression.kind = ExpressionKind::Move(place),
@@ -66,6 +70,10 @@ pub(super) fn resolve(
         ExpressionKind::Call { arguments, .. } => {
             for argument in arguments {
                 if let ArgumentAction::PendingValue(place) = argument.action {
+                    if unproduced(query, place)? {
+                        argument.action = ArgumentAction::Unproduced;
+                        continue;
+                    }
                     argument.action = match resolved(context, query, argument.value, place)? {
                         PlaceSupply::Copy => ArgumentAction::CopyPlace(place),
                         PlaceSupply::Transfer => ArgumentAction::ReserveTransfer(place),
@@ -79,6 +87,19 @@ pub(super) fn resolve(
         _ => {}
     }
     Ok(())
+}
+
+fn unproduced(query: &Query, place: AccessPlaceId) -> Result<bool, Failure> {
+    let data = query
+        .body
+        .places
+        .get(place)
+        .ok_or(Failure::InconsistentSyntax)?
+        .data;
+    Ok(query
+        .result_evidence
+        .as_ref()
+        .is_some_and(|e| e.unproduced(query.program(), data)))
 }
 
 fn resolved(

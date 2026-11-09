@@ -254,7 +254,10 @@ source-level generic move remains selected even if its concrete named payload is
 One immutable instance arena closes root reachability; recursive keys are reserved before their
 edges are followed. Only reachable invocation commits add instances. Interrupted inputs lacking a
 witness therefore create no unbound executable edge. Source data IDs map once to concrete payload
-obligations in the same declaration TypeAuthority. Checking owns the payload classifier; the
+obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
+The accepted Unit owns that distinction; a type-only application has no payload, cleanup or
+environment to specialize. Checking rejects any reached value use of it before flow admission.
+Checking owns the payload classifier; the
 projection resolves a symbolic named-code environment to its exact cleanup contract without
 inventing an owner. Closed record schemas are visited once per data identity, not expanded by path.
 Consumers receive each instance with its exact checked body and those frozen maps.

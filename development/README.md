@@ -34,7 +34,8 @@ of information:
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).
-3. **Implemented scope and verification:** the [input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md),
+3. **Implemented scope and verification:** the [type foundation and interrupted results](history/reviews/v2.0.0-type-foundation-and-interruption.md),
+   [input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md),
    [deferred value supply](history/reviews/v2.0.0-deferred-value-supply.md),
    [callable result witnesses](history/reviews/v2.0.0-callable-result-witnesses.md),
    [private instance closure](history/reviews/v2.0.0-private-instance-closure.md),

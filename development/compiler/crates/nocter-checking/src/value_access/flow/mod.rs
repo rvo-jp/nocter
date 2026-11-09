@@ -196,6 +196,7 @@ impl Control {
         if !self.typed.results_closed() {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }
+        super::results::validate(&self.typed, &self.graph)?;
         let initialization = initialization::analyze(&self.typed, &self.graph)?;
         let access = access::analyze(&self.typed, &self.graph, &initialization)?;
         Ok(Query {

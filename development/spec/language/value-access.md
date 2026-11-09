@@ -5,6 +5,8 @@ This chapter owns the adopted v2.0.0 value-binding foundation within the
 Ordinary data types describe values. Binding and parameter operations describe how those values
 are accessed. Capability values and callable contracts retain the access/dependency information
 needed for safety; that information is not removed from the type system.
+The [type-system foundation](values-and-types.md#type-system-foundation) separates data identity,
+boundary compatibility, inference and evidence for an actually produced value.
 
 Ordinary type-side `&T`/`^T`, explicit `&place`/`^place`, and permission-inferred `let` are not
 alternative source forms. The

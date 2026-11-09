@@ -312,7 +312,9 @@ fn transfer(
                         require_place(typed, state, place, location, violations)?;
                     }
                     ArgumentAction::ReadOwnedValue | ArgumentAction::TakeValue => {}
-                    ArgumentAction::PendingValue(_) | ArgumentAction::Interrupted => {
+                    ArgumentAction::PendingValue(_)
+                    | ArgumentAction::Unproduced
+                    | ArgumentAction::Interrupted => {
                         return Err(INVALID);
                     }
                 }
@@ -405,7 +407,9 @@ fn evaluate(
         }
         // Pending supply has no availability semantics. Calls/control use their own graph events.
         ExpressionKind::Boundary {
-            action: crate::value_access::BoundaryAction::PendingValue,
+            action:
+                crate::value_access::BoundaryAction::PendingValue
+                | crate::value_access::BoundaryAction::Unproduced,
             ..
         }
         | ExpressionKind::Call { .. }

@@ -111,7 +111,12 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
         graph.unit().program().data_copyable(parameter.data()),
         Some(false)
     );
-    let payload = apply.data.get(&parameter.data()).unwrap();
+    let payload = apply
+        .data
+        .get(&parameter.data())
+        .unwrap()
+        .payload()
+        .unwrap();
     assert_eq!(payload.disposal(), Disposal::Trivial);
     assert_eq!(
         graph.unit().program().data_copyable(payload.data()),
@@ -133,7 +138,8 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
         .unwrap();
     assert!(matches!(call[0].action, ArgumentAction::ReserveTransfer(_)));
     for (_, selected) in graph.instances().iter() {
-        for payload in selected.data.values() {
+        for evidence in selected.data.values() {
+            let payload = evidence.payload().unwrap();
             assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
             if let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
                 graph.unit().program().data_schema(payload.data())
@@ -145,6 +151,50 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
             }
         }
     }
+}
+
+#[test]
+fn unknown_interrupted_result_contracts_do_not_acquire_payloads_or_instance_edges() {
+    let unit = accepted(&ValueSourceFixture::corpus(
+        "a137-dependent-result-unknown-input.nct",
+    ));
+    let root = callable(&unit, "invalid");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+    let instance = graph.instances().get(graph.root()).unwrap();
+    assert!(instance.calls().is_empty());
+    let absent = instance
+        .data()
+        .iter()
+        .filter_map(|(&data, evidence)| match evidence {
+            DataEvidence::Unproduced(contract) => Some((data, contract)),
+            DataEvidence::Payload(_) => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(absent.len(), 1);
+    assert!(absent[0].1.inputs.len() == 1);
+    assert!(flow::resources::payload(graph.unit().program(), absent[0].0).is_err());
+}
+
+#[test]
+fn dead_adapted_locals_keep_contract_only_data_through_instance_projection() {
+    let source = ValueSourceFixture::new(
+        "func forward(take action: func(i32): i32): func(i32): i32 { action }\nfunc run(): i32 {\nlet absent = forward(if true { return 1 } else { return 2 })\nlet adapted: once(i32): i32 = absent\nadapted(1)\n}",
+    );
+    let unit = accepted(&source);
+    let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+    let instance = graph.instances().get(graph.root()).unwrap();
+    assert!(instance.calls().is_empty());
+    assert_eq!(
+        instance
+            .data()
+            .values()
+            .filter(|e| matches!(e, DataEvidence::Unproduced(_)))
+            .count(),
+        2
+    );
 }
 
 #[test]
@@ -357,7 +407,8 @@ fn callable_results_enter_the_same_instance_graph_with_resolved_payloads() {
         );
         for (id, instance) in graph.instances().iter() {
             assert!(graph.body(id).unwrap().typed().results_closed());
-            for payload in instance.payloads().values() {
+            for evidence in instance.data().values() {
+                let payload = evidence.payload().expect("produced payload contract");
                 assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
                 assert!(
                     !matches!(graph.unit().program().data_schema(payload.data()), Some(nocter_declarations::value_access::PayloadSchema::Function(w)) if matches!(w.origin, ValueFunctionOrigin::Result(_)))
@@ -444,17 +495,12 @@ fn dependent_result_relations_share_the_existing_instance_graph_and_payload_proj
         assert_eq!(graph.instances().len(), expected, "{case}");
         for (id, instance) in graph.instances().iter() {
             let body = graph.body(id).unwrap();
-            assert!(
-                instance
-                    .payloads()
-                    .contains_key(&body.typed().result_data())
-            );
-            assert!(
-                instance
-                    .payloads()
-                    .values()
-                    .all(|payload| payload.disposal() != Disposal::FunctionEnvironment)
-            );
+            assert!(instance.data().contains_key(&body.typed().result_data()));
+            assert!(instance.data().values().all(|evidence| {
+                evidence
+                    .payload()
+                    .is_some_and(|payload| payload.disposal() != Disposal::FunctionEnvironment)
+            }));
         }
     }
 }

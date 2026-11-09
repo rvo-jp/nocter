@@ -20,7 +20,7 @@ Do not stop for approval of ordinary design alternatives or work order; publicat
 The bounded front end includes closed records, named/computed fields, local named function values,
 [statically witnessed inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
 [input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md).
-The source corpus has 263 cases: 136 accepted units, 113 checking rejections, 8 header rejections
+The source corpus has 263 cases: 137 accepted units, 112 checking rejections, 8 header rejections
 and 6 syntax rejections. Returning a taking formal now preserves that input witness; each call
 application substitutes its own selected actual bindings. Distinct calls cannot conflate their
 results, including through joins/replacement or recursive permutations. Generic formal values
@@ -38,15 +38,22 @@ performance claim follows.
 initialization over one unchanged control graph. Do not recover Copy for a generic formal from a
 known concrete caller or make a header cache depend on body syntax.
 
-Next close signature-only callable result evidence on interrupted evaluation. A dependent call
-whose required input is unknown-shaped currently rejects E0370, even when no invocation can
-commit (`r110-dependent-result-unknown-input.nct`). Preserve the known structural result contract
-without inventing a code witness, environment owner, cleanup obligation or executable edge.
-Extend the existing result/type and target payload projection boundaries; do not guess a producer
-or use header/body store fallback. Validate dead local bindings, chained invocation, forwarding,
-recursive relations and precise source diagnostics. Keep every actually produced callable value
-witnessed. Then extend captured producers with explicit retained access/state, destruction and
-R/D/S proofs before claiming general environment safety.
+The [type foundation and interruption checkpoint](history/reviews/v2.0.0-type-foundation-and-interruption.md)
+closes signature-only evidence for interrupted applications. The unchanged former r110 source is
+now accepted as `a137-dependent-result-unknown-input.nct`. Unproduced structural contracts remain
+distinct from actual payloads through the accepted Unit and private instance graph. They cannot
+enter reached value use, input preparation or invocation, and acquire no Copy/move/environment
+cleanup operation. Conditional typing retains the normally producing branch's identity while
+checking both known shapes. The [type-system foundation](spec/language/values-and-types.md#type-system-foundation)
+owns identity/compatibility/inference boundaries; full generic/interface/capability closure remains
+explicitly separate work rather than an implicit released-language fallback.
+
+Next extend captured producers under the same type/operation/evidence distinction. Start with a
+bounded explicit value-capture producer and its formation, invocation, transfer and destruction
+contracts; close inferred read/update capture escape and retained-state/write footprints before
+admitting those operations. Preserve R/D/S and source-context Copy evidence through every carrier.
+Use valid, conflicting, failure/interruption and cleanup cases before claiming general environment
+safety. Do not introduce an erased representation, hidden clone or second ownership authority.
 
 Then close physical environment/argument realization and executable cleanup before MIR/native
 admission. Captured producers remain separate until R/D/S, retained-state/write footprints and

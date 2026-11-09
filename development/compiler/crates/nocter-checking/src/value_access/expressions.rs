@@ -243,7 +243,7 @@ impl Checker<'_, '_> {
             self.emit_block(node, Vec::new(), Some(unit), self.ty(unit))?
         };
         let (left, right) = (self.block_ty(then_block), self.block_ty(else_block));
-        let access =
+        let checked_access =
             match (left.access(), right.access()) {
                 (None, other) | (other, None) => other,
                 (Some(a), Some(b)) if a == b => Some(a),
@@ -259,6 +259,12 @@ impl Checker<'_, '_> {
                     Vec::new(),
                 ),
             };
+        // Check both known shapes above, but only a normally producing branch can supply the
+        // continuing value's identity. An interrupted branch has no runtime environment to join.
+        let access = match (left.normal(), right.normal()) {
+            (Some(access), None) | (None, Some(access)) => Some(access),
+            _ => checked_access,
+        };
         let completes = self.ty(condition).may_complete()
             && match literal_condition {
                 Some(true) => left.may_complete(),

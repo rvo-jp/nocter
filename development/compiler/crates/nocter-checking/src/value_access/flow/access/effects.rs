@@ -356,7 +356,9 @@ impl Context<'_, '_> {
                         }
                         Ok(Value::without_referent(ty.mode()))
                     }
-                    BoundaryAction::PendingValue => Err(Failure::Integrity),
+                    BoundaryAction::PendingValue | BoundaryAction::Unproduced => {
+                        Err(Failure::Integrity)
+                    }
                     BoundaryAction::TakeValue => {
                         let value = self.world.value(source)?;
                         if value.mode != Mode::Own {
@@ -434,7 +436,9 @@ impl Context<'_, '_> {
                 at: self.at,
             },
             ArgumentAction::TakeValue => Prepared::Value(self.world.value(argument.value)?),
-            ArgumentAction::PendingValue(_) | ArgumentAction::Interrupted => {
+            ArgumentAction::PendingValue(_)
+            | ArgumentAction::Unproduced
+            | ArgumentAction::Interrupted => {
                 return Err(Failure::Integrity);
             }
         };

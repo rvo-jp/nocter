@@ -4,7 +4,10 @@ mod projection;
 #[cfg(test)]
 mod tests;
 
-use nocter_checking::value_access::{accepted::Unit, flow, flow::resources::Payload};
+use nocter_checking::value_access::{
+    accepted::{DataEvidence, Unit},
+    flow,
+};
 use nocter_model::{
     AccessCallableId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
     ValueInvocation,
@@ -49,7 +52,7 @@ impl InstanceKey {
 pub struct Instance {
     key: InstanceKey,
     calls: BTreeMap<AccessExpressionId, AccessInstanceId>,
-    data: BTreeMap<TypeId, Payload>,
+    data: BTreeMap<TypeId, DataEvidence>,
 }
 impl Instance {
     #[must_use]
@@ -61,9 +64,9 @@ impl Instance {
     pub const fn calls(&self) -> &BTreeMap<AccessExpressionId, AccessInstanceId> {
         &self.calls
     }
-    /// Source data identities map to concrete payload obligations in the same program authority.
+    /// Source data identities map to concrete payloads or checked unproduced structural contracts.
     #[must_use]
-    pub const fn payloads(&self) -> &BTreeMap<TypeId, Payload> {
+    pub const fn data(&self) -> &BTreeMap<TypeId, DataEvidence> {
         &self.data
     }
 }

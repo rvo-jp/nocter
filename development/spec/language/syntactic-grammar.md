@@ -295,7 +295,7 @@ unnamed, nonvariadic inputs over `V2CoreType`; it checks the selected named or f
 input operations/data and result, and may select its permitted invocation adapter. Calls through these
 values remain statically selected. Top-level callable parameters also admit these flat contracts
 under [statically witnessed inputs](callables.md#statically-witnessed-callable-inputs). Callable
-results lacking an established witness for a required input, nested callback contracts, record
+produced results lacking an established witness for a required input, nested callback contracts, record
 fields containing callable contracts, anonymous closures, captured environments and erased
 callables remain outside this bounded fragment. This limit does not change their full future grammar or justify treating
 every structural callable contract as a capture-free Copy value.
@@ -304,3 +304,6 @@ Callable result annotations in this fragment follow
 [statically witnessed results](callables.md#statically-witnessed-callable-results): their reachable
 producers must close to one named or own-input witness relation before unit acceptance, with
 actual witnesses substituted independently at each call.
+An interrupted call may retain only its structural result contract, under the
+[known-shape rules](values-and-types.md#known-shape-without-a-produced-value), without a produced
+callable environment or executable edge.
