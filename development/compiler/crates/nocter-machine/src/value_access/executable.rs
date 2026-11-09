@@ -1,0 +1,175 @@
+//! Private MIR enters the ordinary Machine program, body optimizer and native consumers.
+mod body;
+use super::ExecutableFailure as Failure;
+use crate::identity::{MachineId, MachineTable};
+use crate::{
+    MachineCallableAbi, MachineFunctionId, MachineLayoutPlan, MachineProgram,
+    MachineValueCallableAbi,
+};
+use nocter_mir::value_access as mir;
+use nocter_model::{AccessInstanceId, TypeId};
+use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation};
+use std::collections::BTreeMap;
+
+struct Context<'a> {
+    program: &'a mir::Program,
+    layouts: &'a MachineLayoutPlan,
+    functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
+    abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
+    cleanup: BTreeMap<TypeId, MachineFunctionId>,
+}
+
+pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure> {
+    let source_root = program
+        .bodies()
+        .get(&program.root())
+        .ok_or(Failure::InvalidRoot)?;
+    if !source_root.inputs().is_empty()
+        || !matches!(
+            program
+                .runtime()
+                .types()
+                .get(source_root.signature().result()),
+            Some(RuntimeType::Unit | RuntimeType::Primitive(RuntimePrimitive::Signed(32)))
+        )
+    {
+        return Err(Failure::InvalidRoot);
+    }
+    let roots = program.bodies().values().flat_map(|body| {
+        body.slots()
+            .iter()
+            .flat_map(|(_, slot)| slot.representations.iter().copied())
+            .chain(body.signature().ordered().map(|input| input.data))
+            .chain(std::iter::once(body.signature().result()))
+    });
+    let layouts =
+        MachineLayoutPlan::from_runtime(program.runtime(), roots).map_err(Failure::Layout)?;
+    let functions = program
+        .bodies()
+        .keys()
+        .enumerate()
+        .map(|(index, &id)| (id, MachineFunctionId::new(index)))
+        .collect();
+    let abis = program
+        .bodies()
+        .iter()
+        .map(|(&id, body)| {
+            Ok((
+                id,
+                MachineValueCallableAbi::build(body.signature().clone(), &layouts)
+                    .map_err(Failure::Abi)?
+                    .transport()
+                    .clone(),
+            ))
+        })
+        .collect::<Result<_, Failure>>()?;
+    let context = Context {
+        program,
+        layouts: &layouts,
+        functions,
+        abis,
+        cleanup: cleanup_plan(program)?,
+    };
+    let mut values = Vec::new();
+    for (&id, source) in program.bodies() {
+        values.push(body::source(&context, id, source)?);
+    }
+    for (&data, &id) in &context.cleanup {
+        values.push(body::cleanup(&context, data, id)?);
+    }
+    let entry = *context
+        .functions
+        .get(&program.root())
+        .ok_or(Failure::InvalidRoot)?;
+    let process = MachineFunctionId::new(values.len());
+    values.push(body::process(
+        &context,
+        process,
+        entry,
+        source_root.signature().result(),
+    )?);
+    let functions = MachineTable::from_values(values);
+    let contexts = crate::MachineContextPlans::build(&functions).map_err(Failure::Context)?;
+    Ok(MachineProgram::new(crate::program::MachineProgramParts {
+        layouts: layouts.finish(),
+        runtime_call_abis: crate::transport::MachineRuntimeCallAbiTable::empty(),
+        imports: crate::import::MachineImportTable::empty(),
+        data: crate::MachineDataTable::empty(),
+        contexts,
+        functions,
+        root: crate::MachineProgramRoot::Process {
+            root: process,
+            entry,
+        },
+    }))
+}
+
+fn cleanup_plan(program: &mir::Program) -> Result<BTreeMap<TypeId, MachineFunctionId>, Failure> {
+    let mut work = BTreeMap::new();
+    for action in program
+        .bodies()
+        .values()
+        .flat_map(|body| body.actions().values())
+    {
+        let phases = action
+            .alternatives
+            .iter()
+            .flat_map(|alternative| alternative.before.iter().chain(&alternative.after));
+        let operations = action
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                mir::Operation::Storage(effect) => Some(effect),
+                _ => None,
+            });
+        for effect in phases.chain(&action.call_bindings).chain(operations) {
+            if let mir::Effect::Dispose { source, disposal } = effect
+                && *disposal != mir::Disposal::Trivial
+            {
+                needs_cleanup(program, source.data, &mut work)?;
+            }
+        }
+    }
+    Ok(work
+        .into_iter()
+        .filter(|(_, needed)| *needed)
+        .enumerate()
+        .map(|(index, (data, _))| (data, MachineFunctionId::new(program.bodies().len() + index)))
+        .collect())
+}
+
+fn needs_cleanup(
+    program: &mir::Program,
+    data: TypeId,
+    cache: &mut BTreeMap<TypeId, bool>,
+) -> Result<bool, Failure> {
+    if let Some(&value) = cache.get(&data) {
+        return Ok(value);
+    }
+    let needed = match program.runtime().types().get(data) {
+        Some(RuntimeType::Primitive(RuntimePrimitive::Error)) => true,
+        Some(
+            RuntimeType::Primitive(_)
+            | RuntimeType::Unit
+            | RuntimeType::StaticCallable { environment: None },
+        ) => false,
+        Some(RuntimeType::StaticCallable {
+            environment: Some(environment),
+        }) => needs_cleanup(program, *environment, cache)?,
+        Some(RuntimeType::Aggregate) => {
+            let Some(RuntimeTypeRepresentation::ValueRecord { fields }) =
+                program.runtime().type_representations().get(data)
+            else {
+                return Err(Failure::InvalidRoot);
+            };
+            let mut needed = false;
+            for field in fields {
+                needed |= needs_cleanup(program, field.ty(), cache)?;
+            }
+            needed
+        }
+        _ => return Err(Failure::InvalidRoot),
+    };
+    cache.insert(data, needed);
+    Ok(needed)
+}

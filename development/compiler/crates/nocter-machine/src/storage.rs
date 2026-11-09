@@ -12,9 +12,11 @@ pub enum MachineStackPurpose {
 }
 
 /// One body-local object with frozen size and alignment but no physical frame offset yet.
+/// An address object stores a pointer while `ty` names its referent data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineStackObject {
     ty: TypeId,
+    carrier: crate::MachineValueCarrier,
     size: u64,
     alignment: u64,
     purpose: MachineStackPurpose,
@@ -190,10 +192,30 @@ impl MachineStackObject {
     ) -> Self {
         Self {
             ty,
+            carrier: crate::MachineValueCarrier::Data,
             size,
             alignment,
             purpose,
         }
+    }
+
+    pub(crate) const fn address(
+        referent: TypeId,
+        target: crate::MachineTarget,
+        purpose: MachineStackPurpose,
+    ) -> Self {
+        Self {
+            ty: referent,
+            carrier: crate::MachineValueCarrier::Address,
+            size: target.pointer_size(),
+            alignment: target.pointer_alignment(),
+            purpose,
+        }
+    }
+
+    #[must_use]
+    pub const fn carrier(self) -> crate::MachineValueCarrier {
+        self.carrier
     }
 
     #[must_use]

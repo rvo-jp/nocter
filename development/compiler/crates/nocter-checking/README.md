@@ -465,9 +465,10 @@ cannot substitute for that authority. The sole body catalog exposes exact semant
 the target owner's private instance consumer. That consumer receives only the complete Unit,
 never typed-only evidence. The schema-to-payload projection exposes a cleanup obligation without
 constructing an initialized owner. There is no public parts constructor, compatibility adapter,
-source-version CLI, native consumer or general D/S solver. Qualification and remaining
-work belong in the [realization plan](../../../design/compiler-realization.md), not a duplicate
-crate-internal status table.
+source-version CLI or general D/S solver. The
+[private handoff](../../../architecture/pipeline/value-access-declarations.md) owns downstream
+qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
+not a duplicate crate-internal status table.
 
 ## Owned Capture Bodies
 

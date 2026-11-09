@@ -74,12 +74,11 @@ names do not authorize hidden effects, root stability or target primitives.
 
 ## Executable Lifecycle and Target Admission
 
-Lower the [closed private MIR bodies](../architecture/pipeline/value-access-declarations.md#complete-private-mir-bodies)
-through common Machine body construction, actual input/result ABI transfer and disposal helpers.
-Physical address channels must remain explicit without fabricating source layout keys or reviving
-borrow data types. Qualify environment
-pack/unpack, prepared input receipt, protected answers, conditional resource steps and normal
-adapter exits. A read/edit body invoked through a consuming adapter needs its
+Extend the [bounded common native path](../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+as new source families are admitted. In particular, qualify runtime error creation and nontrivial
+record/capture destruction, prepared input receipt, protected answers, conditional cleanup and
+normal adapter exits with actual native effects. Physical address channels must remain explicit
+without fabricating source layout keys or reviving borrow data types. A read/edit body invoked through a consuming adapter needs its
 received environment disposed before answer delivery; a consuming body must not receive a second
 destruction. Static code sharing must not merge runtime activations, environments or source owners.
 
@@ -88,7 +87,7 @@ Interrupted evaluation can carry a known type without a value, witness, environm
 never invent an executable edge for it. Close required runtime helpers before graph freeze.
 Use the [private stored-layout/input boundary](../architecture/pipeline/value-access-declarations.md#private-stored-representation)
 for data geometry and call placement. Qualify their actual activation/backing, caller-to-body
-transport and result use, then MIR and native consumers with the same source behavior.
+transport and result use through MIR and native consumers with the same source behavior.
 Keep trap/divergence, recoverable cleanup and pending/ready cancellation distinct.
 
 ## Proof Obligations and Validation

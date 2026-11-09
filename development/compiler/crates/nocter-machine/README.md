@@ -15,9 +15,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 ## Internal Responsibilities
 
 - stored layout, aggregate representation, and ABI-owned opaque runtime-storage layout
-- private runtime-environment layout and value-model input ABI through the same layout/placement
-  algorithms, without native admission
-- private activation placement and physical resource-phase storage effects under `value_access`
+- private value-model lowering through the common layout, ABI and executable body authorities
+- private activation objects, lifecycle guards and shared concrete cleanup helpers under `value_access`
 - immutable-static serialization and data-to-data relocation construction
 - call/result ABI classification and transport shared by primitive and imported calls
 - one canonical imported-service identity domain retained independently of MIR
@@ -38,11 +37,15 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   explicit storage roots. Value-model field correspondence preserves its own identity domain;
   only the construction plan retains semantic member indexes. Private input planning consumes
   data and input operation separately and retains that operation alongside derived ABI transport.
-- Private storage lowering consumes closed private MIR bodies. It places payload/address slots
-  and initialization banks, caches exact typed projection addresses, and freezes byte-counted
-  transfers and disposal selections. Equal byte offsets do not collapse distinct projection
-  identities. Its storage projection is separate from executable MachineProgram lowering;
-  it does not execute or replace the MIR body's scalar operations and control graph.
+- Private lowering consumes complete closed private MIR bodies and emits ordinary Machine bodies,
+  including computation, control, calls and resource phases. Payload/address slots become abstract
+  stack objects; final frame offsets belong to the common target frame placer. Exact typed
+  projection addresses remain distinct even at equal byte offsets. Lifecycle predicates become
+  logical drop flags; an action selects its alternative before either phase and retains that
+  continuation through normal call completion. Cleanup helpers are shared per concrete data shape.
+- Data identity and physical carrier are independent. Address values and stack objects retain the
+  referent data identity but use the selected pointer ABI. Forwarding, storage alias proofs and
+  dense remapping must preserve the carrier; no synthetic source pointer type supplies it.
 - Generic member placement is keyed by the complete concrete type plus semantic member identity;
   distinct specializations cannot overwrite one another's field, variant, payload, or capture
   correspondence.

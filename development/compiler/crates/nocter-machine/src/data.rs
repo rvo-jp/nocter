@@ -63,6 +63,11 @@ pub struct MachineDataTable {
 }
 
 impl MachineDataTable {
+    pub(crate) fn empty() -> Self {
+        Self {
+            entries: MachineTable::from_values(Vec::new()),
+        }
+    }
     #[must_use]
     pub fn get(&self, id: MachineDataId) -> Option<&MachineData> {
         self.entries.get(id)

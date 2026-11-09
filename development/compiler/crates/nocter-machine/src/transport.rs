@@ -371,9 +371,30 @@ pub(crate) struct MachineRuntimeCallAbiTable {
 }
 
 impl MachineRuntimeCallAbiTable {
+    pub(crate) fn empty() -> Self {
+        Self {
+            values: MachineTable::from_values(Vec::new()),
+        }
+    }
     pub(crate) fn get(&self, id: MachineRuntimeCallAbiId) -> Option<&MachineCallableAbi> {
         self.values.get(id)
     }
+}
+
+pub(crate) fn address_signature(
+    data: TypeId,
+    layouts: &MachineLayoutStore,
+) -> Result<MachineCallableAbi, MachineAbiError> {
+    place_signature(
+        layouts.target(),
+        std::iter::once(Ok(ArgumentShape {
+            ty: data,
+            class: MachineValueClass::Direct { words: 1 },
+            alignment: layouts.target().pointer_alignment(),
+        })),
+        MachineResultAbi::Completion,
+        None,
+    )
 }
 
 impl MachineAbiPlan {

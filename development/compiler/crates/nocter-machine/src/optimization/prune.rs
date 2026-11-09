@@ -793,7 +793,7 @@ fn remap_value(
         MachineValueStorage::Independent => MachineValueStorage::Independent,
         MachineValueStorage::Alias(source) => MachineValueStorage::Alias(remap.value(source)?),
     };
-    Ok(MachineValue::new(value.ty(), value.representation(), definition).with_storage(storage))
+    Ok(value.with_definition(definition).with_storage(storage))
 }
 
 fn remap_operation(

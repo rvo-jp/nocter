@@ -62,6 +62,11 @@ pub(crate) struct MachineImportTable {
 }
 
 impl MachineImportTable {
+    pub(crate) fn empty() -> Self {
+        Self {
+            descriptors: MachineTable::from_values(Vec::new()),
+        }
+    }
     pub(crate) fn get(&self, id: MachineImportId) -> Option<&TargetServiceDescriptor> {
         self.descriptors.get(id)
     }

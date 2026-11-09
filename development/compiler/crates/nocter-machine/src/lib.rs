@@ -76,7 +76,7 @@ pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError}
 pub use operation::{
     MachineAggregate, MachineAggregateWrite, MachineArithmeticCheck, MachineBinaryOperation,
     MachineConstant, MachineOperation, MachineOperationKind, MachineUnaryOperation, MachineValue,
-    MachineValueDefinition, MachineValueRepresentation, MachineValueStorage,
+    MachineValueCarrier, MachineValueDefinition, MachineValueRepresentation, MachineValueStorage,
 };
 pub use optimization::{MachineOptimizationError, MachineOptimizationReport};
 pub use pack::{

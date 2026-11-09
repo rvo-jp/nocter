@@ -31,6 +31,7 @@ pub(super) fn prove(
             .get(source.index())
             .ok_or(MachineOptimizationError::UnknownValue(*source))?;
         if result_value.definition() != MachineValueDefinition::Operation(operation_id)
+            || result_value.carrier() != source_value.carrier()
             || !same_stored_representation(
                 result_value.representation(),
                 source_value.representation(),

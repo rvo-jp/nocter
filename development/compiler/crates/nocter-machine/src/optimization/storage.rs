@@ -62,6 +62,7 @@ pub(super) fn prove(
                         .get(value.index())
                         .ok_or(MachineOptimizationError::UnknownValue(value))?;
                     if result_value.ty() == source_value.ty()
+                        && result_value.carrier() == source_value.carrier()
                         && result_value.representation() == source_value.representation()
                     {
                         rewrites.alias(result, value);

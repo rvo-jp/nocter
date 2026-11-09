@@ -59,23 +59,23 @@ future value-binding implementation. Input operations and local binding kinds ar
 data types; ordinary results deliver values. Its source-neutral declaration query, typed-only body query,
 and exact-current contexts follow the [value-access boundary](pipeline/value-access-declarations.md).
 These products have distinct callable/input and body-local operation/control identities and cannot
-enter the released checked, target, or native products. There is no CLI source-version switch;
+enter the released checked or target products. There is no CLI source-version switch;
 a shared source-neutral flow graph supplies projected initialization and alternative-world
 referent/permission reports with permission-demand liveness and logical ownership/cleanup
 transitions. A closed private-unit constructor checks all definitions and the exact admitted
 payload contracts before publishing front-end acceptance. Body application types replay over the
 exact header prefix into one canonical accepted-unit type authority. The target owner then closes an explicit
 root into a private instance program by substituting checked witness edges and data obligations;
-this is separate from released target admission and has no native consumer. The same target owner
+this remains separate from released target admission. The same target owner
 projects checked resource conditions and operation phases into concrete private lifecycle schedules,
 including normal adapter disposal before answer receipt, without copying the CFG or selecting
 dispatch again. Packed initialization recipes derive from checked ownership snapshots. Closed
 runtime shapes and input channels feed Machine's shared stored-layout and ABI-placement authorities.
 Private MIR freezes complete bounded control/computation bodies, selected calls, activation
-requirements and resource phases. Machine's storage projection places their frames/flag banks and
-materializes addresses and storage effects. Common Machine body construction, actual call transport
-and native emission remain separate. General carried dependencies,
-target realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
+requirements and resource phases. These enter common Machine body construction, optimization,
+ABI transport and cleanup helpers, then the existing native consumers. The linked handoff owns
+private entry qualification and its evidence limits. General carried dependencies, broader target
+realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 
 ## Side Authorities

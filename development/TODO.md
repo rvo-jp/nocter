@@ -7,10 +7,11 @@
    their owning contracts. Then close remaining expression/control, capability/library,
    package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
    Integrate ordinary reading/writing examples before extending accepted source scope.
-2. Lower the closed private MIR bodies through common Machine body construction, actual input/result
-   ABI transfer and disposal helpers; then qualify native behavior.
-   Keep required backing, frozen input channels, protected answers, cleanup and adapter disposal
-   coherent. Physical frame/effect planning alone does not qualify source execution.
+2. Extend the [bounded private native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+   with source/runtime error construction and observable nontrivial record/capture destruction.
+   Qualify adapter cleanup before protected answer receipt and absence of repeated body-owned
+   destruction through actual native effects. Preserve frozen channels, backing and cleanup timing;
+   helper-generation evidence alone does not qualify runtime ownership behavior.
 3. Extend contextual/multiple/nested captures, general R/D/S schemas, interfaces/generics, outcomes,
    async and public modules only with their owning specification and end-to-end evidence.
 4. Run the vertical [optimization experiments](design/optimization.md) after their ordinary source

@@ -62,7 +62,8 @@ storage reference. There is no separately pairable storage companion or released
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
 access, result witnesses or dispatch. `validate` checks closed representation, graph, signature,
 projection, primitive-operation and flag integrity before publication. It does not repeat source
-ownership analysis. Machine body construction and native qualification remain separate boundaries.
+ownership analysis. The common Machine consumer lowers these closed bodies without a released
+MirProgram conversion.
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.

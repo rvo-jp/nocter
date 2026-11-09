@@ -263,11 +263,17 @@ fn direct_load_extension(
     value: MachineValueId,
     lane_bytes: Option<u8>,
 ) -> Result<Arm64SelectedLoadExtension, Arm64SelectionError> {
-    let ty = program
+    let machine_value = program
         .function(owner)
         .and_then(|function| function.body().value(value))
-        .map(nocter_machine::MachineValue::ty)
         .ok_or(Arm64SelectionError::UnknownValue(value))?;
+    if machine_value.carrier() == nocter_machine::MachineValueCarrier::Address {
+        if lane_bytes.map(u64::from) != Some(program.layouts().target().pointer_size()) {
+            return Err(Arm64SelectionError::DirectMemoryShape(value));
+        }
+        return Ok(Arm64SelectedLoadExtension::Zero);
+    }
+    let ty = machine_value.ty();
     let Some(MachineLayoutKind::Scalar(scalar)) = program
         .layouts()
         .get(ty)

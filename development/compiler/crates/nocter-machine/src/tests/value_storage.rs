@@ -1,5 +1,5 @@
 //! Actual private source -> concrete runtime shapes -> the shared Machine layout authority.
-mod activation;
+mod executable;
 use std::{fmt::Write as _, sync::Arc};
 
 use nocter_checking::value_access::accepted::Unit;

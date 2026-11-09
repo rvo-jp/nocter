@@ -3,7 +3,8 @@
 This document owns the implemented bounded handoff between syntax, declarations, typed bodies,
 accepted private units and private instances. Language meaning belongs to the
 [adopted value model](../../spec/language/value-access.md). This boundary has no released-program
-adapter, public CLI or native consumer.
+adapter or public CLI. Its bounded private native consumer uses the common Machine, ARM64 and
+Mach-O products; the [entry qualification](#common-machine-body-construction) defines its limits.
 
 ## Source Scope
 
@@ -11,7 +12,7 @@ The syntax owner defines the bounded private goal. Checking admits explicit post
 unmarked Copy snapshots, marked capture formation and read/edit loans from produced or
 transferred values within its closed data/callable schemas. A direct marked source stays reserved
 through complete invocation preparation, including selected callable adapters. These products do
-not establish general capabilities, public modules, outcomes, async or native realization.
+not establish general capabilities, public modules, outcomes or async.
 The [realization plan](../../design/compiler-realization.md) owns remaining integrated obligations.
 
 ## Implemented Handoff
@@ -36,8 +37,9 @@ V2CoreUnit syntax + exact source
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
   -> guarded private lifecycle schedules + initialization-bit recipes
   -> closed private MIR (runtime shapes, input slots, control, computation, calls and resource phases)
-  -> shared Machine stored layouts + call ABI placement + physical storage projection
-       (no executable/native admission)
+  -> common MachineProgram (shared layouts, ABI, body optimization, cleanup helpers and dataflow)
+  -> common ARM64 lowering + Mach-O image writing
+       (bounded private entry; no public CLI admission)
 ```
 
 ## Responsibilities
@@ -109,8 +111,8 @@ intermediate facts cannot be treated as its accepted product.
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
 general compound header types, generic/interface evidence, dependent results without an
-established required input witness, nested callback contracts, general captured environments, outcomes, async/effects, layouts,
-standard-library migration and native output remain outside this implemented boundary.
+established required input witness, nested callback contracts, general captured environments, outcomes,
+async/effects and standard-library migration remain outside this implemented boundary.
 
 
 ## Typed-Only Body Boundary
@@ -210,8 +212,9 @@ invalidation evidence and potential cleanup conditions without expanding shared 
 access-root proof or executable cleanup schedule. The referent analysis now shares this graph and authority rather than reconstructing control or
 dispatch. It preserves alternative origin worlds and staged return protection. Evaluation-frame
 operations carry normal and interrupted temporary cleanup through the same graph. Logical owner
-transitions are validated alongside referent survival; executable target realization remains separate.
-The development product still has no public language-version switch or released/native adapter.
+transitions are validated alongside referent survival. Executable consumers must use the closed
+private-unit product rather than these intermediate reports. The development product still has no
+public language-version switch or released-program adapter.
 
 
 ## Referent Report Boundary
@@ -262,9 +265,9 @@ different header generations, or construct acceptance from intermediate reports.
 the whole original body set before exposing any exact-current projection. No lookup, typing,
 dispatch, or flow computation is repeated by that projection.
 
-This is closed front-end evidence for the exact private fragment. Target layout, error-storage
-runtime realization, executable cleanup/code generation, module/package integration, general
-dependencies, user destructors, outcomes and async remain separate contracts. There is no released
+This is closed front-end evidence for the exact private fragment, not a code-generation
+certificate. Module/package integration, general dependencies, user destructors, outcomes and
+async remain outside its admitted source scope. There is no released
 checked-program conversion or public compatibility mode.
 
 ## Private Instance Closure Handoff
@@ -369,10 +372,10 @@ the after phase; body-owned cleanup is not repeated. Trap/divergence does not ex
 completion. Logical resource operations do not duplicate the selected source operation's value
 computation or prescribe physical allocation, storage moves or an ABI.
 
-This is not executable/native admission. A physical consumer must place flag banks, realize
-environment/input storage, backing deadlines and fresh call activations,
+The lifecycle schedule alone is not executable admission. Its MIR/Machine consumers realize
+environment/input storage, backing deadlines, initialization predicates and fresh call activations
 while preserving the same semantic owner and phase order. No global resource state is attached
-to a shared code instance. MIR/native and general capability/dependency qualification remain open.
+to a shared code instance. General capability/dependency qualification remains open.
 
 ### Initialization Flag Encoding
 
@@ -453,17 +456,11 @@ the before phase, so a preparation-time address cannot point at a retired prepar
 adapter cleanup addresses its received argument carrier, including post-call edits, before answer
 receipt. The protected answer has separate storage throughout that cleanup.
 
-Machine places these requirements using its completed stored layouts. Owned payloads occupy frame
-storage; scoped locals/channels store addresses to independent backing. Field and environment
-projections resolve once through the exact runtime representations. Zero-byte payloads keep
-distinct slots and may share an aligned frame anchor. A conservative addressable activation may
-reserve anchor storage; later proven storage elimination is unrestricted. No payload is initialized
-merely because bytes are reserved. Each invocation gets its own frame and copied flag template.
-
-Physical resource transfers retain byte counts, base/dereference selection and projection offsets;
-cleanup retains the selected disposal obligation. Tests and writes retain the complete original
-phase order. Actual ABI ingress/egress, cleanup-helper calls and native instruction emission remain
-required before these bodies can execute a source program.
+Machine consumes these requirements through its common executable body construction below.
+Scoped locals/channels hold addresses to independent backing; field and environment projections
+resolve through exact runtime representations. Equal offsets do not merge logical projections,
+including zero-byte payloads. Reserved bytes do not initialize a payload. Each invocation has
+independent activation and initialization state.
 
 ### Complete Private MIR Bodies
 
@@ -485,6 +482,32 @@ Relational normalization uses the admitted i32 total order; it supplies no rule 
 or user-defined comparisons.
 
 An ordinary result and an address channel remain distinct. The private computation contract does
-not require source borrow types or a runtime function pointer. Complete private MIR remains
-separate from Machine body construction, actual ABI transfer, cleanup-helper emission and native
-qualification.
+not require source borrow types or a runtime function pointer. Machine consumes this closed
+product without repeating checking or interpreting source operations.
+
+### Common Machine Body Construction
+
+Private MIR lowers through the ordinary Machine body draft, optimizer, freeze and dataflow path.
+Data values and address carriers retain the same data identity with an explicit physical carrier;
+an address carrier's size/class comes from the selected pointer ABI, never the referent's scalar
+layout. Address slots likewise retain their referent identity separately from their stored pointer
+representation. No synthetic source pointer/borrow type or substituted primitive type supplies it.
+
+Source slots become abstract Machine stack objects; the common native frame placer remains the
+owner of final stack offsets. Packed lifecycle predicates map bijectively to Machine's logical
+drop-flag identities and their initial values. Native flag placement is an internal encoding, not
+a source ABI. Each action selects its alternative once by control flow before either phase;
+normal completion follows that selected continuation after the call. Cleanup of shared record
+schemas uses one helper per concrete data identity, not an expanded tree of field paths.
+
+The private process-image entry admits an explicitly selected root with no inputs and an i32 or
+unit result. This qualification does not add a CLI version switch, promote general private-root
+signatures to platform entries or amend released entry syntax. Callable bodies still preserve
+their full frozen input/result contracts. Native-session integration tests compile actual private
+source through checking, instances, lifecycle, MIR and these existing native consumers, then
+execute the images on ARM64 macOS. They cover scalar computation, scoped channels, control flow,
+static callbacks and owned captures, indirect aggregate transport, zero-byte data, register/stack
+argument crossing and required arithmetic traps. Helper-generation tests qualify shared error/record
+destruction structure; source-level runtime error construction and nontrivial destruction through
+adapters are not yet native-qualified. This boundary establishes correctness evidence, not a
+performance claim or complete v2.0.0 support.

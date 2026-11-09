@@ -38,7 +38,8 @@ source, loader commands, or package state.
   even when both operands and the result are spilled.
 - The operation and selected-instruction enums are each classified exactly once. Subsystem helpers
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
-- Physical register decisions cannot change semantic value transport.
+- Physical register decisions cannot change semantic value transport. An explicit address carrier
+  uses pointer-width unsigned loads regardless of the referent data layout or signedness.
 - Value planning assigns one physical register range to Machine-proven storage aliases. Instruction
   selection verifies that shared placement and emits no copy; it cannot infer aliases from source
   types or target-local operation heuristics.

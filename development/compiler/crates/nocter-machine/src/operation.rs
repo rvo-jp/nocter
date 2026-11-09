@@ -46,6 +46,44 @@ pub enum MachineArithmeticCheck {
     ProvenTrap,
 }
 
+impl From<nocter_mir::MirUnaryOperation> for MachineUnaryOperation {
+    fn from(operation: nocter_mir::MirUnaryOperation) -> Self {
+        match operation {
+            nocter_mir::MirUnaryOperation::LogicalNot => Self::LogicalNot,
+            nocter_mir::MirUnaryOperation::Negate => Self::Negate,
+        }
+    }
+}
+
+impl From<nocter_mir::MirBinaryOperation> for MachineBinaryOperation {
+    fn from(operation: nocter_mir::MirBinaryOperation) -> Self {
+        match operation {
+            nocter_mir::MirBinaryOperation::Add => Self::Add,
+            nocter_mir::MirBinaryOperation::Subtract => Self::Subtract,
+            nocter_mir::MirBinaryOperation::Multiply => Self::Multiply,
+            nocter_mir::MirBinaryOperation::Divide => Self::Divide,
+            nocter_mir::MirBinaryOperation::Remainder => Self::Remainder,
+            nocter_mir::MirBinaryOperation::ShiftLeft => Self::ShiftLeft,
+            nocter_mir::MirBinaryOperation::ShiftRightSigned => Self::ShiftRightSigned,
+            nocter_mir::MirBinaryOperation::ShiftRightUnsigned => Self::ShiftRightUnsigned,
+            nocter_mir::MirBinaryOperation::Equal => Self::Equal,
+            nocter_mir::MirBinaryOperation::Less => Self::Less,
+        }
+    }
+}
+
+impl From<nocter_mir::MirArithmeticCheck> for MachineArithmeticCheck {
+    fn from(check: nocter_mir::MirArithmeticCheck) -> Self {
+        match check {
+            nocter_mir::MirArithmeticCheck::NotRequired => Self::NotRequired,
+            nocter_mir::MirArithmeticCheck::InternalInvariant => Self::InternalInvariant,
+            nocter_mir::MirArithmeticCheck::Required => Self::Required,
+            nocter_mir::MirArithmeticCheck::ProvenSafe => Self::ProvenSafe,
+            nocter_mir::MirArithmeticCheck::ProvenTrap => Self::ProvenTrap,
+        }
+    }
+}
+
 /// One initialized byte-range contribution to an aggregate value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAggregateWrite {
@@ -253,10 +291,12 @@ impl MachineOperation {
     }
 }
 
-/// One SSA value with the exact stored-layout key selected before machine lowering.
+/// One SSA value with its selected data identity and explicit physical carrier.
+/// For an address carrier, `ty` names the referent; transport comes from the pointer ABI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineValue {
     ty: TypeId,
+    carrier: MachineValueCarrier,
     representation: MachineValueRepresentation,
     definition: MachineValueDefinition,
     storage: MachineValueStorage,
@@ -270,14 +310,42 @@ impl MachineValue {
     ) -> Self {
         Self {
             ty,
+            carrier: MachineValueCarrier::Data,
             representation,
             definition,
             storage: MachineValueStorage::Independent,
         }
     }
 
+    pub(crate) const fn address(
+        referent: TypeId,
+        target: crate::MachineTarget,
+        definition: MachineValueDefinition,
+    ) -> Self {
+        Self {
+            ty: referent,
+            carrier: MachineValueCarrier::Address,
+            representation: MachineValueRepresentation::Stored {
+                size: target.pointer_size(),
+                alignment: target.pointer_alignment(),
+                class: crate::MachineValueClass::Direct { words: 1 },
+            },
+            definition,
+            storage: MachineValueStorage::Independent,
+        }
+    }
+
+    #[must_use]
+    pub const fn carrier(self) -> MachineValueCarrier {
+        self.carrier
+    }
+
     pub(crate) const fn with_storage(self, storage: MachineValueStorage) -> Self {
         Self { storage, ..self }
+    }
+
+    pub(crate) const fn with_definition(self, definition: MachineValueDefinition) -> Self {
+        Self { definition, ..self }
     }
 
     #[must_use]
@@ -303,6 +371,13 @@ impl MachineValue {
     pub const fn storage(self) -> MachineValueStorage {
         self.storage
     }
+}
+
+/// Physical transport independently of the associated data identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineValueCarrier {
+    Data,
+    Address,
 }
 
 /// Whether an SSA value needs independent runtime storage.

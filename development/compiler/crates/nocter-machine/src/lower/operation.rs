@@ -1,4 +1,4 @@
-use nocter_mir::{MirBinaryOperation, MirConstant, MirOperationKind, MirUnaryOperation};
+use nocter_mir::{MirConstant, MirOperationKind};
 use nocter_model::MirOperationId;
 
 use super::MachineProgramError;
@@ -6,10 +6,7 @@ use super::aggregate::lower_aggregate;
 use super::body::BodyIdentities;
 use super::call::lower_call;
 use super::context::ProgramLoweringContext;
-use crate::{
-    MachineBinaryOperation, MachineConstant, MachineOperation, MachineOperationKind,
-    MachineUnaryOperation,
-};
+use crate::{MachineConstant, MachineOperation, MachineOperationKind};
 
 pub(super) fn lower_operations(
     body: &nocter_mir::MirBody,
@@ -61,9 +58,9 @@ fn lower_operation(
             operand,
             check,
         } => MachineOperationKind::Unary {
-            operation: lower_unary(*operation),
+            operation: (*operation).into(),
             operand: ids.value(*operand)?,
-            check: lower_arithmetic_check(*check),
+            check: (*check).into(),
         },
         MirOperationKind::Binary {
             operation,
@@ -71,10 +68,10 @@ fn lower_operation(
             right,
             check,
         } => MachineOperationKind::Binary {
-            operation: lower_binary(*operation),
+            operation: (*operation).into(),
             left: ids.value(*left)?,
             right: ids.value(*right)?,
-            check: lower_arithmetic_check(*check),
+            check: (*check).into(),
         },
         MirOperationKind::NumericConversion { operand } => {
             MachineOperationKind::NumericConversion {
@@ -130,20 +127,6 @@ fn lower_operation(
         MirOperationKind::DestroyPack => MachineOperationKind::DestroyPack,
     };
     Ok(MachineOperation::new(kind, result))
-}
-
-const fn lower_arithmetic_check(
-    check: nocter_mir::MirArithmeticCheck,
-) -> crate::MachineArithmeticCheck {
-    match check {
-        nocter_mir::MirArithmeticCheck::NotRequired => crate::MachineArithmeticCheck::NotRequired,
-        nocter_mir::MirArithmeticCheck::InternalInvariant => {
-            crate::MachineArithmeticCheck::InternalInvariant
-        }
-        nocter_mir::MirArithmeticCheck::Required => crate::MachineArithmeticCheck::Required,
-        nocter_mir::MirArithmeticCheck::ProvenSafe => crate::MachineArithmeticCheck::ProvenSafe,
-        nocter_mir::MirArithmeticCheck::ProvenTrap => crate::MachineArithmeticCheck::ProvenTrap,
-    }
 }
 
 fn lower_callable_erasure(
@@ -258,27 +241,5 @@ fn lower_constant(
             .text(text)
             .map(MachineConstant::Text)
             .ok_or_else(|| MachineProgramError::MissingStaticText(text.clone())),
-    }
-}
-
-const fn lower_unary(operation: MirUnaryOperation) -> MachineUnaryOperation {
-    match operation {
-        MirUnaryOperation::LogicalNot => MachineUnaryOperation::LogicalNot,
-        MirUnaryOperation::Negate => MachineUnaryOperation::Negate,
-    }
-}
-
-const fn lower_binary(operation: MirBinaryOperation) -> MachineBinaryOperation {
-    match operation {
-        MirBinaryOperation::Add => MachineBinaryOperation::Add,
-        MirBinaryOperation::Subtract => MachineBinaryOperation::Subtract,
-        MirBinaryOperation::Multiply => MachineBinaryOperation::Multiply,
-        MirBinaryOperation::Divide => MachineBinaryOperation::Divide,
-        MirBinaryOperation::Remainder => MachineBinaryOperation::Remainder,
-        MirBinaryOperation::ShiftLeft => MachineBinaryOperation::ShiftLeft,
-        MirBinaryOperation::ShiftRightSigned => MachineBinaryOperation::ShiftRightSigned,
-        MirBinaryOperation::ShiftRightUnsigned => MachineBinaryOperation::ShiftRightUnsigned,
-        MirBinaryOperation::Equal => MachineBinaryOperation::Equal,
-        MirBinaryOperation::Less => MachineBinaryOperation::Less,
     }
 }
