@@ -88,8 +88,9 @@ diamond reaching the same declaration through the same normalized application is
 The selected interface application
 must already be justified; the selector cannot invent a new requirement or conformance.
 
-Operator/coercion/expansion requirements retain their syntactic family but need each family's
-closed operation contract. They carry input operations separately from ordinary data types.
+[Comparison requirements](comparisons.md#selection-and-requirements) name the fixed equality or
+strict-comparison operation. Projection, coercion and expansion requirements use their respective
+owning contracts. They carry input operations separately from ordinary data types.
 Authored `noalloc`, `notrap` and `blocking` requirements are invalid. Inferred cleanup/effect
 evidence is independent of Copy and must survive generic forwarding and specialization.
 Declared semantic laws are not additional type equality or memory-safety evidence.

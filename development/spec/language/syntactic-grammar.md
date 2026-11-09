@@ -227,6 +227,22 @@ future wraps the trailing callable type. A second consecutive from cannot bypass
 grouping to spell the enclosing relation. Origins inside the type resolve in their own callable
 header; an unknown name is an error, never a reason to reinterpret the clause as outer state.
 
+### Comparison Operations
+
+[Comparisons](comparisons.md) own fixed entry identities, same-data read inputs, derived calls,
+evaluation order and capability requirements. A shared bodyless production is admitted only in
+the contracted file/interface roles; it does not permit an incomplete private definition.
+
+```text
+V2Comparison = "const"? "operator" "(" "self" ("==" | "<") Name ":" "Self" ")"
+                ":" "bool" V2WhereClause? V2Block?
+V2Equality = V2Ordering (("==" | "!=") V2Ordering)?
+V2Ordering = V2Shift (("<" | "<=" | ">" | ">=") V2Shift)?
+```
+
+V2Shift and the remaining expression levels still depend on the whole-source draft. Defining
+these comparison levels does not close unrelated arithmetic, package or primary productions.
+
 ### Generic Arguments and Requirements
 
 [Generic arguments and constants](generics-and-constants.md) own the following requirement
@@ -459,7 +475,7 @@ edit/take. Capture and data-type inference remain separate. Modes are never chos
 spelling or its later use. A closure result annotation does not duplicate a result access permission.
 
 An index projection is the special existing-element protocol defined by the
-[future indexing rules](equality-and-indexing.md#index-projections).
+[future indexing rules](place-projections.md#index-projections).
 Its `return place`/final place result is not an ordinary function's value result. Read/edit
 projection identities are selected from the source operation before authority checking; no
 permission-based fallback is admitted.

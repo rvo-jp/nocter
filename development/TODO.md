@@ -2,9 +2,9 @@
 
 ## Immediate Work
 
-1. Close user comparison semantics and conditional generic const contracts under the adopted
-   design direction. Qualify typed literal/conversion and const-operator source support against
-   their owning contracts. Then close remaining expression/control, capability/library,
+1. Close conditional generic const contracts under the adopted design direction. Qualify
+   comparison, typed literal/conversion and const-operator source support against their owning
+   contracts. Then close remaining expression/control, capability/library,
    package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
    Integrate ordinary reading/writing examples before extending accepted source scope.
 2. Extend the [bounded private native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
@@ -28,9 +28,6 @@ Use the [agent instructions](../AGENTS.md) for delegated scope and syntax approv
   but the failing Nocter return/error path and cause remain unclassified. Use the focused
   `nocter-native-session` test and its plain-peer fixture to establish a reproducer before
   changing product behavior or expectations. This path does not consume the private v2 Unit.
-- Audit the derived-ordering selector/text discrepancy against the owning current contracts.
-  Resolve it in the operator design before admitting comparison derivation; a method spelling
-  alone must not select semantics.
 
 ## Release Boundary
 

@@ -159,7 +159,7 @@ source authority; an already live read projection can conflict with the edit req
 On presence/success, preserve the carrier and alias its active payload. An edit projection needs
 update authority and must keep that payload/carrier initialized. The live access prevents tag
 replacement, incompatible mutation, transfer or destruction of its carrier. This is the same
-existing-element protocol as [index projection](equality-and-indexing.md#index-projections),
+existing-element protocol as [index projection](place-projections.md#index-projections),
 without restoring ordinary `&T`/`^T` types. A value-producing use still extracts under value-supply;
 context does not turn an arbitrary conditional value into a place.
 

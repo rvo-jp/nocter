@@ -39,7 +39,7 @@ Interfaces may require receiver methods, type-owned construction functions and t
 comparison/index/current-projection and expansion operation shapes. Construction functions must construct implementing `Self`
 under [type behavior](type-behavior.md#functions-and-methods); this does not admit receiverless
 utility functions. Interfaces do not define fields, literal storage, destructors or arbitrary
-operator spellings. Every operation is identified by its owning interface plus member identity,
+operator spellings. Every named operation is identified by its owning interface plus member identity,
 not by its helper name, rendered signature or declaration order. At use, retain the selected
 interface application's ordered generic arguments as well; different applications cannot be
 merged by an equal member name or normalized result.
@@ -110,7 +110,10 @@ may promise a narrower result/post-state dependency bound only when it satisfies
 permitted by the interface; clients continue using the interface's advertised bound.
 
 The frozen relation also covers supported required operators. They match by fixed operation
-family/shape and specialized signature, not a made-up helper name. The named `member = helper`
+family/shape and specialized signature, not a made-up helper name. Comparison requirements bind
+the one type-owned fixed entry under the [comparison contract](comparisons.md#selection-and-requirements);
+multiple proofs of that entry do not become distinct expression overloads. The named
+`member = helper`
 mapping does not rename operators or introduce arbitrary operator adapters/defaults. Missing
 operator evidence is a conformance error. A type's members can satisfy several compatible
 requirements, but doing so never merges their owning interface identities.

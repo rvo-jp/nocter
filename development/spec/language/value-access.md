@@ -50,7 +50,7 @@ Creating `edit` requires initialized writable storage or existing edit authority
 a parent read cannot delegate update. Aliases cannot be stored or returned as plain data T.
 Persistent/returned access uses a capability value with a checked dependency contract. Indexing can
 also expose an existing element place through its separately declared
-[projection protocol](equality-and-indexing.md#index-projections); it does
+[projection protocol](place-projections.md#index-projections); it does
 not make an ordinary function return an alias.
 Optional/fallible payloads expose existing storage under the
 [scoped outcome protocol](outcomes.md#scoped-payload-projections), including local recovery.

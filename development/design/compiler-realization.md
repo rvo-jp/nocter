@@ -56,6 +56,7 @@ factory-result closure bodies need code-scoped application identities, not their
 
 | Owning subject | Remaining integrated evidence |
 | --- | --- |
+| Comparisons | Same-data selection, fixed interface witnesses, scalar snapshots versus read inputs, original/reversed receivers, short-circuit equality, effects/cleanup and const visibility |
 | Modules and type behavior | Contract/body agreement, complete headers, audience paths, visibility and operation binding |
 | Typed literals and explicit conversions | Shape/exact-target selection, pack/receiver preparation, explicit retirement, result origins, failure/cleanup and selected const capability |
 | Generics, interfaces and opaque results | Symbolic evidence, associated bindings, static witnesses, finite result equations and non-retyping specialization |

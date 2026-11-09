@@ -9,7 +9,8 @@ or select its semantics. Each remaining subject needs its owning contract, integ
 examples and conformance before promotion. Important syntax-direction changes follow the
 [approval boundary](../../AGENTS.md).
 
-Imports include Name, ModuleSegment, literal/string/interpolation tokens, StringLiteral,
+Imports include the adopted comparison expression levels, Name, ModuleSegment,
+literal/string/interpolation tokens, StringLiteral,
 EmptyStringLiteral, BuiltinScalarType, trivia/newline/eof, gap and jointness, and the List,
 NonEmptyList and LineSequence notation. No released expression or declaration root is inherited.
 Type lookup cannot change a parse.
@@ -24,16 +25,6 @@ V2PackageDirective = "#" ("package" | "dependencies" | "executable" | "test")
                       ":" V2DirectiveValue
 V2DirectiveValue = StringLiteral | integer_literal | "{" List(V2DirectiveField) "}"
 V2DirectiveField = Name ":" V2DirectiveValue
-```
-
-## Comparison Operations
-
-These families still need their complete operation, capability, failure and const contracts.
-Index/current projections and synchronous expansion already have separate adopted owners.
-
-```text
-V2Comparison = "operator" "(" "self" ("==" | "<") Name ":" "Self" ")"
-                ":" "bool" V2WhereClause? V2Block?
 ```
 
 ## Expressions, Control and Typed Literals
@@ -60,8 +51,6 @@ V2ForAwait = "for" "await" V2InputOperation? V2Pattern "in" V2Header V2Block
 V2AllocatorPlace = Name ("." (Name | integer_literal))*
 V2Or = V2And ("||" V2And)*
 V2And = V2Equality ("&&" V2Equality)*
-V2Equality = V2Ordering (("==" | "!=") V2Ordering)?
-V2Ordering = V2Shift (("<" | "<=" | ">" | ">=") V2Shift)?
 V2Shift = V2Add (("<<" | ">>") V2Add)*
 V2Add = V2Multiply (("+" | "-") V2Multiply)*
 V2Multiply = V2Convert (("*" | "/" | "%") V2Convert)*

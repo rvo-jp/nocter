@@ -88,10 +88,11 @@ For the semantic left operand, selection uses this order:
 2. an accessible declaration on the exact owner is selected;
 3. otherwise, one accessible readonly coercion may reach an owner with an applicable declaration.
 
-The semantic left operand is the source left operand for `<` and `>=`; it is the source right
-operand for `>` and `<=`. The other operand must match the selected `&Self` input directly or
-through one readonly coercion. Coercions do not chain or receive implicit rankings. Multiple
-distinct viable targets are ambiguous and require an explicit `as` conversion.
+The semantic left operand of the strict comparison is the source left operand for `<` and `<=`;
+it is the source right operand for `>` and `>=`. The equality step of either inclusive comparison
+keeps the original source-left operand as its receiver. The other operand must match the selected
+`&Self` input directly or through one readonly coercion. Coercions do not chain or receive implicit
+rankings. Multiple distinct viable targets are ambiguous and require an explicit `as` conversion.
 
 `>` , `<=`, and `>=` cannot be declared independently. This prevents four definitions for one
 order from disagreeing.
