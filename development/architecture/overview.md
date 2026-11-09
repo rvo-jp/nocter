@@ -66,7 +66,10 @@ transitions. A closed private-unit constructor checks all definitions and the ex
 payload contracts before publishing front-end acceptance. Body application types replay over the
 exact header prefix into one canonical accepted-unit type authority. The target owner then closes an explicit
 root into a private instance program by substituting checked witness edges and data obligations;
-this is separate from released target admission and has no native consumer. General carried dependencies,
+this is separate from released target admission and has no native consumer. The same target owner
+projects checked resource conditions and operation phases into concrete private lifecycle schedules,
+including normal adapter disposal before answer receipt, without copying the CFG or selecting
+dispatch again. Physical storage/guard realization remains separate. General carried dependencies,
 target realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 

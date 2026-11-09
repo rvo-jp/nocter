@@ -632,7 +632,7 @@ fn transition_initialization_distinguishes_a_partial_owner_from_a_complete_value
         action: 0,
     };
     let mut report = Report::default();
-    report.record(at, &before, &steps, &after);
+    report.record(at, &before, &super::super::StepPlan::new(steps, 0), &after);
     let transition = report.at(at).next().unwrap();
     assert!(transition.initialized_before(f.locals[0]));
     assert!(!transition.initialized_after(f.locals[0]));

@@ -414,7 +414,13 @@ atomically after validating the declaration-owned adapter policy. It keeps the c
 uses the existing resource/frame ledger, with no function-specific owner registry.
 
 Its ordered steps construct, assemble, adapt function views, move, receive, dispose, invoke and
-replace outside inputs. A dead access holder is not automatic early resource destruction. A staged
+replace outside inputs. Each transition retains one ordered sequence and its boundary around
+the selected operation. Complete bundle validation precedes before-call transfers/adapters;
+result receipt follows the call. Ordinary before/after phases come from ownership evaluation,
+never a downstream classification by step name. Sparse owning-container/missing-path conditions
+project the same ledger for lifecycle lowering; they do not include a physical drop-flag policy.
+Payload projection maps every obligation through one exhaustive step transform without changing
+selected operations or places. A dead access holder is not automatic early resource destruction. A staged
 return survives evaluation/lexical cleanup, whose order is reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
 Return owner with the checking-closed result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.

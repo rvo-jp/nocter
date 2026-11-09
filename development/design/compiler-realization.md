@@ -74,9 +74,10 @@ names do not authorize hidden effects, root stability or target primitives.
 
 ## Executable Lifecycle and Target Admission
 
-Lower the accepted Unit and its frozen private instance graph through one executable authority.
-Realize environment pack/unpack, prepared input receipt, protected answers, conditional resource
-steps and normal adapter exits. A read/edit body invoked through a consuming adapter needs its
+Realize the [private lifecycle schedules](../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)
+as physical guard/storage operations through one executable authority. Qualify environment
+pack/unpack, prepared input receipt, protected answers, conditional resource steps and normal
+adapter exits. A read/edit body invoked through a consuming adapter needs its
 received environment disposed before answer delivery; a consuming body must not receive a second
 destruction. Static code sharing must not merge runtime activations, environments or source owners.
 

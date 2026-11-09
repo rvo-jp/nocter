@@ -568,3 +568,4 @@ fn interrupted_dependent_application_adds_no_factory_or_callback_instance() {
             .is_empty()
     );
 }
+mod lifecycle;

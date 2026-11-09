@@ -1,5 +1,6 @@
 mod call;
 mod ownership;
+use super::super::resources::StepPlan;
 use super::super::{IntegrityError, Location, Operation};
 use super::{
     AccessRule, Creation, Liveness, Region, Root, Violation,
@@ -38,7 +39,7 @@ pub(super) fn apply(
     operation: &Operation,
     at: Location,
     live: &Liveness,
-) -> Result<Vec<(World, Vec<super::super::resources::Step>)>> {
+) -> Result<Vec<(World, StepPlan)>> {
     let mut context = Context {
         typed,
         world,
@@ -47,6 +48,7 @@ pub(super) fn apply(
         steps: Vec::new(),
     };
     context.ownership_before(operation)?;
+    let before = context.steps.len();
     match operation {
         Operation::BeginEvaluation(_) => {}
         Operation::EndEvaluation(id) => context.end_evaluation_access(*id)?,
@@ -122,7 +124,10 @@ pub(super) fn apply(
         }
     }
     context.ownership_after(operation)?;
-    Ok(vec![(context.world.clone(), context.steps)])
+    Ok(vec![(
+        context.world.clone(),
+        StepPlan::new(context.steps, before),
+    )])
 }
 impl Context<'_, '_> {
     fn end_evaluation_access(&self, id: AccessExpressionId) -> Result<()> {
@@ -139,10 +144,7 @@ impl Context<'_, '_> {
 
         Ok(())
     }
-    fn apply_call(
-        &mut self,
-        call: AccessExpressionId,
-    ) -> Result<Vec<(World, Vec<super::super::resources::Step>)>> {
+    fn apply_call(&mut self, call: AccessExpressionId) -> Result<Vec<(World, StepPlan)>> {
         let alternatives = self.commit(call)?;
         let mut results = Vec::new();
         for mut world in alternatives {
@@ -153,9 +155,11 @@ impl Context<'_, '_> {
                 live: self.live,
                 steps: self.steps.clone(),
             };
-            next.ownership_after(&Operation::CommitCall(call))?;
-            let steps = next.steps;
-            results.push((world, steps));
+            next.commit_inputs(call)?;
+            let before = next.steps.len();
+            next.receive_result(call)?;
+            let plan = StepPlan::new(next.steps, before);
+            results.push((world, plan));
         }
         Ok(results)
     }

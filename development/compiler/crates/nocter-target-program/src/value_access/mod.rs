@@ -1,6 +1,7 @@
 //! Closed static instances of the private value-binding product. No ABI or native admission.
 mod build;
 mod invocation;
+pub mod lifecycle;
 mod projection;
 #[cfg(test)]
 mod tests;

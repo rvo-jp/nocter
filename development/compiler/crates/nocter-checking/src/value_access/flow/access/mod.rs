@@ -136,9 +136,9 @@ pub(super) fn analyze(
                 let before = world.resources.clone();
                 match effects::apply(typed, &mut world, &event.operation, location, &liveness) {
                     Ok(mut alternatives) => {
-                        for (alternative, steps) in &mut alternatives {
+                        for (alternative, plan) in &mut alternatives {
                             alternative.trim(liveness.after(location))?;
-                            resources.record(location, &before, steps, &alternative.resources);
+                            resources.record(location, &before, plan, &alternative.resources);
                             next.push(alternative.clone());
                         }
                     }

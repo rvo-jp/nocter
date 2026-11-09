@@ -34,6 +34,7 @@ V2CoreUnit syntax + exact source
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated)
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
+  -> guarded private lifecycle schedules (concrete obligations and operation phases; no physical storage)
 ```
 
 ## Responsibilities
@@ -243,6 +244,11 @@ each exact alternative; the initialization report joins availability for diagnos
 same selected graph. These products do not grant competing move or cleanup semantics. Closed
 nominal cleanup retains an intact subtree as one schema operation and expands only around missing
 selections. Partial drop ends the present container after cleaning its remaining fields.
+Each resource transition also freezes its before/after-operation boundary. Invocation inputs and
+selected adapters commit before the call; result receipt follows normal return. The source step
+owner alone defines payload-bearing fields for exhaustive concrete projection. A sparse condition
+projects owning-container presence and unavailable paths from the same ledger, without turning
+scoped input storage into owned state or imposing physical flags.
 Referent regions use the same selected field paths: parent/child paths overlap, sibling paths do
 not. Source admission closes projected initialization, demand/reservation and resource validation
 together; native realization remains separate.
@@ -337,8 +343,28 @@ concrete projections rather than inferring types or a result again.
 Only reachable invocation commits add edges. Uninvoked values/bindings and interrupted prepared
 prefixes retain payload/cleanup evidence without creating code instances. Source-selected generic
 transfers do not become non-invalidating copies merely because concrete projection finds Copy.
-The next executable consumer must lower these same frozen channels, body graphs, resource steps
+The physical executable consumer must lower these same frozen channels, body graphs, resource steps
 and normal adapter exits into environment/input/result realization. This graph grants no ABI,
 physical storage, executable cleanup, MIR or native capability. Nested closure/factory-result
 bodies still require code-scoped application identities before source admission; they cannot reuse
 the enclosing named function's operation identity domain.
+
+## Private Lifecycle Schedule Handoff
+
+The target owner's lifecycle product retains one exact InstanceProgram and its checked body
+graphs. Each reachable action receives concrete resource schedules before/after its selected
+operation, guarded by owning-container presence and sparse unavailable selections. Payloads
+substitute through the existing instance data map; no operation, path, Copy decision or call
+target is inferred again. Equal guards may merge only equal schedules. Different schedules
+under the same projected condition reject as unresolved realization, never report-order choice.
+
+The call operation uses its frozen body/environment channels and leaves its normally completed
+answer protected. Adapter-owned environment destruction is inserted before result receipt in
+the after phase; body-owned cleanup is not repeated. Trap/divergence does not execute normal
+completion. Logical resource operations do not duplicate the selected source operation's value
+computation or prescribe physical allocation, storage moves or an ABI.
+
+This is a logical schedule, not executable/native admission. A physical consumer must realize
+guard observations, environment/input storage, backing deadlines and fresh call activations,
+while preserving the same semantic owner and phase order. No global resource state is attached
+to a shared code instance. MIR/native and general capability/dependency qualification remain open.

@@ -166,6 +166,72 @@ pub enum Step {
         payload: Payload,
     },
 }
+impl Step {
+    /// Project payload obligations without selecting another operation or changing place identity.
+    /// # Errors
+    /// Returns the supplied projection's error without publishing a partly transformed step.
+    pub fn try_map_payloads<E>(
+        &self,
+        mut map: impl FnMut(Payload) -> std::result::Result<Payload, E>,
+    ) -> std::result::Result<Self, E> {
+        let mut step = self.clone();
+        match &mut step {
+            Self::Capture {
+                environment,
+                payload,
+                ..
+            } => {
+                *environment = map(*environment)?;
+                *payload = map(*payload)?;
+            }
+            Self::AdaptFunction { from, payload, .. } => {
+                *from = map(*from)?;
+                *payload = map(*payload)?;
+            }
+            Self::Assemble { payload, .. }
+            | Self::Construct { payload, .. }
+            | Self::Receive { payload, .. }
+            | Self::Move { payload, .. }
+            | Self::Dispose { payload, .. }
+            | Self::ReleaseContainer { payload, .. }
+            | Self::Invoke { payload, .. }
+            | Self::ReplaceInput { payload, .. } => *payload = map(*payload)?,
+        }
+        Ok(step)
+    }
+}
+
+/// Exact owning-container presence and sparse missing selections at one operation boundary.
+/// This is a checked guard projection, not an access grant or a physical drop-flag layout.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Condition {
+    owned: Box<[(Holder, Box<[FieldPath]>)]>,
+}
+impl Condition {
+    /// Listed holders carry an owning container; unlisted holders carry no ownership.
+    /// Scoped input storage is independent. Missing paths stay prefix-free.
+    pub fn owned(&self) -> impl Iterator<Item = (Holder, &[FieldPath])> {
+        self.owned
+            .iter()
+            .map(|(holder, missing)| (*holder, missing.as_ref()))
+    }
+}
+
+/// One ordered sequence with an explicit boundary around the selected source operation.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) struct StepPlan {
+    steps: Box<[Step]>,
+    before: usize,
+}
+impl StepPlan {
+    pub(super) fn new(steps: Vec<Step>, before: usize) -> Self {
+        assert!(before <= steps.len());
+        Self {
+            steps: steps.into(),
+            before,
+        }
+    }
+}
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Frame {
     id: AccessExpressionId,
@@ -180,13 +246,32 @@ pub(super) struct State {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Transition {
     before: State,
-    steps: Box<[Step]>,
+    plan: StepPlan,
     after: State,
 }
 impl Transition {
     #[must_use]
     pub const fn steps(&self) -> &[Step] {
-        &self.steps
+        &self.plan.steps
+    }
+    #[must_use]
+    pub fn before_steps(&self) -> &[Step] {
+        &self.plan.steps[..self.plan.before]
+    }
+    #[must_use]
+    pub fn after_steps(&self) -> &[Step] {
+        &self.plan.steps[self.plan.before..]
+    }
+    #[must_use]
+    pub fn condition(&self) -> Condition {
+        Condition {
+            owned: self
+                .before
+                .owned
+                .iter()
+                .map(|(&holder, value)| (holder, value.missing.iter().cloned().collect()))
+                .collect(),
+        }
     }
     #[must_use]
     pub fn initialized_before(&self, holder: Holder) -> bool {
@@ -206,10 +291,10 @@ impl Report {
     pub fn at(&self, at: Location) -> impl Iterator<Item = &Transition> {
         self.transitions.get(&at).into_iter().flatten()
     }
-    pub(super) fn record(&mut self, at: Location, before: &State, steps: &[Step], after: &State) {
+    pub(super) fn record(&mut self, at: Location, before: &State, plan: &StepPlan, after: &State) {
         self.transitions.entry(at).or_default().insert(Transition {
             before: before.clone(),
-            steps: steps.into(),
+            plan: plan.clone(),
             after: after.clone(),
         });
     }

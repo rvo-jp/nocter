@@ -22,6 +22,8 @@ does not inspect syntax or repeat checking decisions.
 - monomorphized item and representation closure
 - private value-binding instance closure under `value_access`, consuming a complete accepted Unit
   and explicit root without granting released/native target admission
+- concrete logical lifecycle schedules under `value_access::lifecycle`, retaining checked
+  ownership conditions, operation phases and normal adapter exits before result receipt
 
 ## Invariants
 
@@ -102,3 +104,19 @@ cleanup, ABI and backend admission remain separate obligations. The
 [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md) owns
 the handoff; the [current realization plan](../../../design/compiler-realization.md) owns remaining
 admission obligations.
+
+## Private Lifecycle Schedules
+
+`value_access::lifecycle::Program` freezes derived schedules over one retained InstanceProgram;
+it has no parts constructor. `lower` enumerates reachable checked graph locations and merges only
+identical guard/schedule pairs. A projected condition admitting different schedules rejects
+explicitly, rather than selecting by report order. No second CFG or runtime-state store is built.
+
+`project` substitutes payload obligations through the existing per-instance data map using
+checking's exhaustive resource-step transform. It does not select operations, fields or dispatch.
+`completion` expands the frozen EnvironmentExit recipe only for reached calls; it does not
+reclassify the supplied invocation or the body's environment authority.
+
+The [lifecycle handoff](../../../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)
+owns cross-stage ordering, answer protection and physical-consumer obligations. This private
+logical product grants no released ExecutableProgram conversion, layout, ABI or native admission.

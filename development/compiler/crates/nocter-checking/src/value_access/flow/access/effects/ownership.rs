@@ -143,7 +143,7 @@ impl Context<'_, '_> {
                 call,
                 argument: index,
             } => self.prepare_ownership(call, index)?,
-            Operation::CommitCall(call) => self.commit_ownership(call)?,
+            Operation::CommitCall(_) => return Err(Failure::Integrity),
             Operation::CancelCall { call, prepared } => {
                 for index in (0..prepared).rev() {
                     let holder = Holder::Prepared { call, index };
@@ -329,7 +329,7 @@ impl Context<'_, '_> {
         }
         Ok(())
     }
-    fn commit_ownership(&mut self, call: AccessExpressionId) -> Result<()> {
+    pub(super) fn commit_inputs(&mut self, call: AccessExpressionId) -> Result<()> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
             .body()
@@ -399,6 +399,9 @@ impl Context<'_, '_> {
                 }
             }
         }
+        Ok(())
+    }
+    pub(super) fn receive_result(&mut self, call: AccessExpressionId) -> Result<()> {
         if self.owns_expression(call)? {
             let payload = resources::expression_payload(self.typed, call)?;
             self.world
