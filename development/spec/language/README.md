@@ -15,6 +15,8 @@ Unspecified full-language productions remain open; the bounded grammar declares 
 10. [Modules, Visibility and Implementation Signatures](modules.md)
 11. [Type-Owned Behavior and Construction](type-behavior.md)
 12. [Interfaces and Static Operation Binding](interfaces.md)
-13. [Asynchronous Frame Storage](asynchronous-computations.md)
+13. [Generic Arguments and Compile-Time Values](generics-and-constants.md)
+14. [Static Opaque Results](opaque-results.md)
+15. [Asynchronous Frame Storage](asynchronous-computations.md)
 
 The [development specification](../README.md) defines version scope and promotion policy.

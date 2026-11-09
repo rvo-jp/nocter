@@ -18,8 +18,14 @@ missing associated-binding production with one mixed conformance block. Closed p
 records need no private schema copy; partial/opaque contracts require one private representation.
 These are source design contracts, not additional compiler acceptance.
 
-Next close the remaining generic/associated/opaque/CTFE, enum/pattern, typed-literal/pack/coercion,
-outcome and async subjects in owning chapters, audit the assembled grammar and integrated reading
+The [generic/constant/opaque checkpoint](history/reviews/v2.0.0-generic-and-constant-contracts.md)
+closes selected argument/inference/type-selector, CTFE/final-data and result-identity rules. A
+constant is a fresh resource-free value recipe; a static is an immutable place. Closed const
+results can determine array types through the same evaluator. Proof, evaluator, serializer and
+opaque-result compiler qualification remain unimplemented.
+
+Next close lexical/full-expression/control, enum/pattern, typed-literal/pack/coercion, outcome,
+async/effect, capability/library and package/platform source subjects, audit the assembled grammar and integrated reading
 examples, then resume the bounded executable-lifecycle task below. Keep draft productions and
 future conformance obligations distinct from the 283 production corpus cases. No human-decision
 or external-authorization blocker is established for this design work.
@@ -120,7 +126,7 @@ evidence; their incompatible executable fixtures and source paths have been reti
 released behavior and release artifacts unchanged.
 
 Full v2.0.0 still needs module/type-operation source implementation and the remaining
-generic/interface/CTFE/effect, enum/outcome/async, library and platform closure/realization, plus
+generic/interface/CTFE proof and remaining effect/enum/outcome/async, library and platform closure/realization, plus
 matching formatting/diagnostics/editor implementations. Migrate each remaining owning subject
 before accepting it in the compiler. Audit the
 previously noted derived-ordering selector/text discrepancy separately from release artifacts.

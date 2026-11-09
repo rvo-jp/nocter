@@ -92,7 +92,7 @@ another block for mappings. Empty binding blocks and duplicate bindings are inva
 
 These envelopes deliberately depend on the separately owned value/access productions below,
 lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
-for still-unclosed package metadata, generic requirements, special operation and expression
+for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
 In particular enum exposure/exhaustiveness, typed literal/pack behavior, generic solving,
 primitives, target selection and package discovery still need their owning contracts before
@@ -103,7 +103,7 @@ are never an implicit fallback.
 
 These productions close the S12 value/input/callable/alias source boundary. They are separate
 from the released grammar. The file/declaration envelopes above extend their source design;
-complete literal/operator, generic-requirement, platform and standard-library migrations are not
+complete literal/operator, platform and standard-library migrations are not
 implied by these productions. The implementation
 design records their remaining entry gates; no old grammar is used as a fallback.
 
@@ -119,7 +119,9 @@ V2TypeAtom = BuiltinScalarType | "str" | "error" | "void" | "never"
            | V2NamedType | "[" V2Type "]" | "[" V2Type ";" V2Expression "]"
            | "(" V2Type ")" | "(" V2Type "," V2Type ("," V2Type)* ","? ")"
            | V2CallableType | "any" V2CallableType
-V2NamedType = (Name V2GenericArguments? | "Self") ("." Name V2GenericArguments?)*
+V2NamedType = (Name V2GenericArguments? | "Self") V2TypeMember*
+V2TypeMember = "." Name V2GenericArguments? | V2InterfaceSelection
+V2InterfaceSelection = "." "(" V2NamedType "." Name ")"
 V2GenericArguments = "<" NonEmptyList(V2GenericArgument) ">"
 V2GenericArgument = V2Type | StructuralConstantExpression
 
@@ -161,9 +163,9 @@ V2ClosureParameter = V2InputOperation? V2Pattern (":" V2Type)?
 
 `BuiltinScalarType`, `Name`, `List`, `NonEmptyList`, `InterfaceApplication` and the constant-expression
 subset denote their lexical/structural responsibilities, with recursively used types replaced by
-V2 types. `V2WhereClause` retains the selected generic requirement families; its complete migration
-must remove retired authored effect guarantees before any parser claims the full declaration
-grammar. These are intentional named dependencies, not a claim that the fragment is a closed
+V2 types. `V2WhereClause` defined here retains the selected generic requirement families and excludes
+retired authored effect guarantees. Their special-operation subjects still need their owning
+semantic contracts. These are intentional named dependencies, not a claim that the fragment is a closed
 standalone parser grammar. Named function/method heads take the full generic list, parameter list
 and callable tail before an optional body under the owning module rules.
 
@@ -179,6 +181,52 @@ A keyed pack always names its binding, including in a callable type:
 never a key/value interpretation selected by type lookup. Keyed pack names bind semantic input
 positions just as other named callable inputs do; the names are not part of type identity.
 Recognition does not bypass the separate pack/body/ABI migration gate.
+
+### Generic Arguments and Requirements
+
+[Generic arguments and constants](generics-and-constants.md) own the following requirement
+roles and their inference/staging constraints. [Opaque results](opaque-results.md) own the
+`some InterfaceApplication` result branch above. Interface applications can bind associated
+types but do not introduce dynamic interface objects.
+
+```text
+V2GenericParameters = "<" NonEmptyList(V2GenericParameter) ">"
+V2GenericParameter = Name | "const" Name ":" V2Type
+InterfaceApplication = V2NamedType V2AssociatedBindings?
+V2AssociatedBindings = "{" NonEmptyList(V2AssociatedBinding) "}"
+V2AssociatedBinding = "." Name "=" V2Type
+V2WhereClause = "where" V2Predicate ("," V2Predicate)*
+V2Predicate = V2RequirementSubject "impl" InterfaceApplication
+             | Name ":" V2Type | "copy" V2RequirementSubject | V2Type "=" V2Type
+             | "(" V2Type ("==" | "<") V2Type ")" ":" V2Type
+             | "(" "edit"? V2Type "[" V2Type "]" ")" ":" V2Type
+             | V2InputOperation? V2Type "as" V2Type
+             | "(" "..." V2InputOperation? V2RequirementSubject ")" ":" V2Type
+V2RequirementSubject = (Name | "Self") V2TypeMember*
+StructuralConstantExpression = V2Expression
+```
+
+An argument belonging to both the type and expression grammar retains one neutral source
+structure. The selected declaration's ordered slot kind determines its one elaboration; parsing
+does not inspect the argument name's type/value binding. The union production above does not
+authorize two competing semantic parses or a second source parse. Requirements using special
+operations still need those operations' owning semantics; recognition alone supplies no evidence.
+
+An explicit call's `<` is joint with its named/member callee; a complete argument list must be
+followed by its call opener on the same logical line. An explicit owner list instead precedes
+its member, record or spaced typed-literal delimiter. A recognized generic form that fails
+checking is not reparsed as comparisons. Generic closers delimit ungrouped constant arguments;
+put comparisons or shifts involving `>` inside parentheses, such as `Fixed<u8, (WIDTH >> 1)>`.
+Nested generic `>>` closes two lists in that delimiter context. This distinction uses syntactic
+depth/jointness, not name lookup. Complete constant-expression evaluation is a checking contract,
+not a different call-free parser language for array lengths.
+
+In type position `T.(Source.Item)` selects an associated declaration only for an actual collision.
+Its final outer `.Name` is the selected member; the preceding nested path/type arguments name
+the interface. Unique `T.Item` needs no selector, and redundant qualification is rejected. The
+same `V2InterfaceSelection` shape selects an ambiguous interface operation in expression position.
+Associated bindings use the named interface's declarations; conformance blocks continue using
+their own single mixed-binding production rather than this requirement block.
 
 An origin on an edit input is its post-state bound. Origins on read/take inputs constrain incoming
 carried provenance under the owning type/schema contract; they never turn a read into an edit or

@@ -147,3 +147,23 @@ and [interface](../language/interfaces.md) scope, distinguish these obligations:
 
 Fix exact diagnostic code registration before compiler admission. These requirements do not
 invent numeric codes or claim that the bounded private front end handles these subjects.
+
+## Generic, Constant and Opaque Diagnostics
+
+Identify the selected generic parameter slot when an argument has the wrong kind or cannot be
+inferred uniquely. Do not recommend a passing-mode change, implementation search or `_` placeholder
+as a repair. For an associated collision list the distinct owning interface applications and
+required `T.(Interface.Item)` selector; a redundant selector is a separate source error.
+
+Required constant failures distinguish unknown runtime input, unsupported symbolic arithmetic,
+forbidden temporary effects, ineligible final resource/address, target arithmetic, dependency
+cycle and deterministic evaluation limit. Show the authored cause and relevant dependency/call
+locations, not a fabricated runtime allocation failure or proof of nontermination. Explain that
+a constant constructs data without owning a place, while a static is an existing immutable place.
+Neither an unsupported final value nor budget exhaustion may silently enable runtime initialization.
+
+Opaque-result failures distinguish missing/duplicate matched bodies, disagreement between reached
+witnesses, unanchored recursive witness relations, failed interface/associated requirements and
+invalid origins. Public messages use the advertised contract; relate private witness locations
+only as appropriate implementation evidence. Do not suggest runtime boxing or a public Copy
+capability inferred from the hidden type. Exact code registration precedes compiler admission.

@@ -28,6 +28,7 @@ they do not make reviews normative or register compiler support.
 - [Value Binding: Grammar and Implementation Design](v2.0.0-value-binding-implementation.md) — broader design and remaining proof obligations
 - [Source Grammar Assembly](v2.0.0-source-grammar-assembly.md) — full-language draft; its scope exceeds compiler acceptance
 - [Module and Operation Contracts](v2.0.0-module-and-operation-contracts.md) — owning source-role/member migration, associated-binding grammar repair and adversarial design cases; not compiler qualification
+- [Generic, Constant and Opaque Contracts](v2.0.0-generic-and-constant-contracts.md) — generic elaboration, type selection, CTFE/final-data separation and shared opaque identities; not evaluator/compiler qualification
 
 #### Implementation and Verification
 

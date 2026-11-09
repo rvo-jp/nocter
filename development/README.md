@@ -35,6 +35,10 @@ of information:
    [interfaces](spec/language/interfaces.md) define adopted source roles and operation binding;
    their [migration review](history/reviews/v2.0.0-module-and-operation-contracts.md) records the
    reading exercise and remaining design gates without claiming compiler support.
+   [Generic/constant contracts](spec/language/generics-and-constants.md) and
+   [opaque results](spec/language/opaque-results.md) select their source/staging boundary;
+   their [review](history/reviews/v2.0.0-generic-and-constant-contracts.md) distinguishes that
+   design from missing evaluator, solver and native evidence.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

@@ -33,3 +33,17 @@ behavior, without suggesting a callable `drop` API. Signature help exposes full 
 origin contracts; it cannot depend on reading an implementation body to reconstruct the public
 surface. These contracts follow [module rules](../language/modules.md) and
 [interface binding](../language/interfaces.md), without claiming implemented v2.0.0 editor support.
+
+## Generic and Compile-Time Presentation
+
+Present generic arguments and associated projections using their resolved declaration/parameter
+identities. Hover may show a canonical evaluated constant or length, but retains source navigation
+to the authored expression and definition. Symbolic generic constants stay identified by their
+parameter, not one caller's specialization. Type and operation selectors link to the selected
+interface application/member; unrelated equal spelled members are not references to it.
+
+Distinguish a constant's storage-independent constructed value from an immutable static place.
+Do not dump large emitted table initializers into hover. Opaque-result completion shows only its
+advertised interface, associated selections and origins; implementation navigation may expose
+the matched private body. Editor consumers use established values/witness relations without
+running an independent evaluator, deriving hidden Copy evidence or searching for another body.

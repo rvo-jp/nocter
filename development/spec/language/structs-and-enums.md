@@ -24,6 +24,15 @@ ordinary struct containing only Copy fields remain move-only. An empty `copy str
 the field condition. Copy evidence for a nested ordinary struct cannot be inferred from its
 private fields or bypassed by an enclosing `copy struct`.
 
+A generic `copy struct` derives a conditional Copy obligation from its field schema. A field
+depending on a generic parameter contributes that parameter's required evidence; an
+unconditionally non-Copy field invalidates the declaration. Each concrete specialization is
+Copy exactly when every substituted field is Copy. A specialization lacking that evidence is
+move-only with ordinary structural field cleanup; the whole family still cannot have a user
+destructor. Generic code may use this condition only from its declared assumptions, not a
+concrete caller discovered later. An ordinary generic struct does not gain this opt-in from
+its fields. These schema rules require the owning generic proof before compiler admission.
+
 ```nct
 copy struct Point {
     x: i32

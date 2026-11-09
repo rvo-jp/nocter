@@ -36,7 +36,9 @@ comparison/index operation shapes. Construction functions must construct impleme
 under [type behavior](type-behavior.md#functions-and-methods); this does not admit receiverless
 utility functions. Interfaces do not define fields, literal storage, destructors or arbitrary
 operator spellings. Every operation is identified by its owning interface plus member identity,
-not by its helper name, rendered signature or declaration order.
+not by its helper name, rendered signature or declaration order. At use, retain the selected
+interface application's ordered generic arguments as well; different applications cannot be
+merged by an equal member name or normalized result.
 
 `Self` denotes the implementing type. `Self.Output` denotes the associated declaration selected
 on this interface/prerequisite set. Associated names occupy the type namespace; named functions
@@ -44,13 +46,17 @@ and methods occupy the operation namespace. Distinct interfaces may use the same
 associated-type name without becoming the same contract. An unqualified associated projection
 requires one unique owning declaration; equal resulting types cannot resolve an ambiguous name.
 General associated-projection disambiguation/normalization is not supplied by name coincidence.
+The [generic contract](generics-and-constants.md#requirements-and-associated-projections) owns
+required type-position interface selection and its normalization obligations.
 
 ## Conformance and Implementation Bindings
 
 An inner `impl Interface` in `impl Type` commits that owner to one interface application. The
 outer target and inner interface roles follow syntax position; no name lookup reinterprets one
 role as the other. The owner must have one valid implementation for each prerequisite and every
-required member. Duplicate or overlapping facts are errors rather than ranked specializations.
+required member. Duplicate or overlapping facts for the same interface application are errors
+rather than ranked specializations. Distinct closed interface applications remain distinct
+capabilities, not candidates from which inference may guess an unknown interface argument.
 
 Associated bindings and named operation mappings share one comma-delimited block. A leading
 `.` identifies a type binding syntactically:
@@ -111,6 +117,11 @@ ordinary accessible APIs. It cannot inspect a concrete representation or acquire
 access merely because all currently known implementing types permit it. The default's complete
 implementation header must agree with its root contract. Overrides preserve the same operation
 identity and are checked by the same compatibility rule as required operations.
+
+An opaque default result additionally uses the
+[selected-witness rule](opaque-results.md#default-overrides): the explicit mapping establishes
+one witness under that operation's instantiated opaque identity. It does not require the helper
+to spell or acquire equality with a private opaque type it cannot name.
 
 A prerequisite is required capability evidence, not stored inheritance or an implementation
 generator. Each concrete type needs a unique explicit prerequisite conformance with consistent

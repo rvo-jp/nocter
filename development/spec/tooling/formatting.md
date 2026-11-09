@@ -38,3 +38,17 @@ expand into another initializer. Interface-selection spelling remains
 `value.(Interface.member)(arguments)` where selection is required; formatting does not resolve
 ambiguity by adding or removing a selector. [Modules](../language/modules.md) and
 [interfaces](../language/interfaces.md) own validity, not formatting.
+
+## Generic and Constant Formatting
+
+Keep generic call arguments joint with the selected callee and owner arguments attached to their
+owner. Do not rewrite an explicit list into inferred arguments or insert `_` placeholders. Retain
+grouping that separates a constant comparison/right shift from closing angle delimiters. A
+type-position collision selector is `T.(Interface.Item)`; do not add it for unique lookup or
+remove it as cosmetic qualification. Normalize neither argument values nor aliases by rewriting
+authored source: equal semantic type arguments can retain different source expressions.
+
+Keep `const` and `static` distinct. Formatting cannot inline a required initializer into a public
+root, turn a runtime function into const, expand a generated table, replace a constant recipe
+with shared static storage or alter an opaque result to its hidden witness. Staging and final-data
+eligibility belong to the [generic/constant contract](../language/generics-and-constants.md).

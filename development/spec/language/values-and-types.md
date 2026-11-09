@@ -95,9 +95,12 @@ need a reachable producer anchor.
 
 These foundational rules constrain later extensions; they do not admit the complete language.
 The [bounded grammar](syntactic-grammar.md#bounded-value-binding-fragment) owns the implemented
-source subset. Full generic/interface requirement solving, associated-type normalization,
-erased representations and their joining rules, general capability schemas, effects, outcomes
-and recursive data representation require explicit closure in their owning chapters. No rule
+source subset. The [generic/constant](generics-and-constants.md) and
+[opaque-result](opaque-results.md) chapters own their selected source contracts. Full
+generic/interface requirement solving, associated-type normalization, erased representations
+and their joining rules, general capability schemas, effects, outcomes and recursive data
+representation still require their corresponding proof and qualification before compiler
+admission. No rule
 for those open subjects is inherited implicitly from a released specification.
 
 ## Storable void
