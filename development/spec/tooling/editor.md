@@ -69,3 +69,18 @@ Explain completion state and cancellation state separately. An edit `from static
 independence after await while unstarted cancellation leaves entry dependencies. Ready-output
 disposal includes its own checked state effects. Optional hints may show these dependencies and
 their later use; no new cancellation annotation or editor-derived effect solver is introduced.
+
+## Enum and Pattern Presentation
+
+Present an enum's advertised schema/Copy policy, without revealing private opaque alternatives
+or deriving whole-type Copy from a known current tag. Variant construction and pattern references
+navigate to the same declaration identity. Complete public schemas navigate to the root; private
+completion variants participate only in source-visible lookup. Payload names are declarations
+inside their own variant, not fields available on every enum value.
+
+Show branch input operation and each leaf's projected data/authority. A take leaf may own a
+value while an equal-data read leaf aliases storage. Parameter names link to their one input
+position and semantic projection paths; callable hover does not invent flattened parameters.
+Explain the specific live payload/tag access preventing mutation and the cleanup responsible
+for an ignored owner. Consume the compiler's selected plan and coverage evidence, without an
+editor-side pattern resolver or another cleanup analysis.

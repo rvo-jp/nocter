@@ -75,6 +75,12 @@ contracts. Body throw fails the driven output, not construction. An explicitly r
 immediate factory declares a result such as `(future T)!` and follows its own ordinary commit/
 resource rules. The compiler cannot invent that API or restore its already committed take inputs.
 
+A tuple parameter still arrives as one input under that commit. Its
+[body-entry pattern](patterns.md#binding-formation-and-cleanup) is formed only when the lazy body
+starts; discarded take leaves do not run destructors early at construction. Unstarted cancellation
+instead cleans the received values through their intact schemas. Copy transport does not erase
+these source cleanup events or their effect phase.
+
 ## Await and Suspension
 
 Await is valid in the nearest async function/method/default body; a nested ordinary closure does

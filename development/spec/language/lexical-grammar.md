@@ -15,6 +15,12 @@ lookup selects their grammar. Contextual spellings remain identifier-shaped outs
 positions. A v2.0.0 parser must use its complete contextual catalog, not silently inherit the
 published one through an unspecified fallback.
 
+Edit/take also have the selected enum branch-input positions in match/if-is headers. Their
+prefix requires separating gap and a completed operand/test; joint calls/indexing keep an
+ordinary identifier reading. Read is not an explicit branch-input prefix. Copy can prefix enum
+as well as struct declarations. These positions introduce no new reserved spelling or lookup-
+dependent tokenization; the owning grammar specifies the contextual boundary.
+
 Ordinary data types have no `&`/`^` access qualifier, and expressions have no unary access/transfer
 prefix or `move` expression. Receiver operations are words, not `&self`/`^self`. Binary `&&`
 remains conjunction; unary `&&value` has no access-prefix interpretation. Capture-list names

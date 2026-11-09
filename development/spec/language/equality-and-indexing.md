@@ -9,6 +9,18 @@ Opaque `error` has no primitive equality. User-defined, compound and interface e
 own full-language contracts; this bounded foundation does not derive structural equality for them
 or change the published domain. The earlier prefix-based private fragment is superseded.
 
+## Scalar Enum Equality
+
+A scalar enum whose original complete declaration selects the payloadless policy supports
+intrinsic ==/!=: matching
+nominal types compare their variant identities, without consuming either operand. Aliases retain
+that identity. There is no implicit numeric conversion or declaration-order comparison, and no
+comparison between distinct nominal enums with equal tags/names. A `copy enum` payload family
+does not thereby gain structural equality; an opaque enum's Copy grant exposes no hidden scalar
+schema or equality operation. Those types need their separately contracted comparison operation.
+Seeing a private completion of an opaque family does not select another intrinsic equality policy.
+This selected extension is not implemented by the bounded primitive-equality fragment above.
+
 ## Index Projections
 
 An index operator exposes an existing element place, rather than returning an ordinary value.

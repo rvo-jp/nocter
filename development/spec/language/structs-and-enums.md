@@ -16,7 +16,8 @@ explicitly closed public structural schema. A root's visible fields alone are no
 representation. [Module contracts](modules.md#nominal-representation-and-visible-fields) select
 the single complete schema owner; an outside caller needs the
 [structural grant](type-behavior.md#structural-literal-grants) or a construction function.
-Public enum exposure/exhaustiveness is not closed by these struct rules.
+Enums use the separate schema and exposure rules below; the struct-field rule does not hide
+variants of a purportedly exhaustive enum.
 
 Ordinary structs are move-only. `copy struct` explicitly permits structural Copy only when every
 field has Copy evidence and the struct has no user destructor. An ordinary empty struct and an
@@ -90,3 +91,127 @@ Field schemas retain declaration order and nested types rather than flattening a
 scalar or a list of destruction effects. Partial initialization, selected-place conflicts,
 replacement and surviving-field cleanup must be checked under
 [Value Access](value-access.md#return-replacement-and-cleanup) before record operations are accepted.
+
+## Enum Schemas and Construction
+
+An enum is a nominal choice of one active variant and that variant's ordered payload. Variants
+and payload positions have declaration identities, not byte offsets or names borrowed from
+another enum. Variant names are unique within an enum; payload field names are unique within
+their own variant. Different variants can reuse a payload name. A complete enum has at least
+one variant. An empty variant set is not another way to declare never.
+
+```text
+enum Message {
+    empty
+    number(value: i32)
+    report(reason: error)
+    pair(values: (i32, i32))
+}
+
+let message = Message.number(42)
+let empty = Message.empty
+```
+
+Payloadless variants are values written `Type.variant`, without an empty parameter list.
+Payload variants declare one or more named data positions and are constructed with positional
+arguments of exact arity. The owner is always qualified; an alias or namespace path retains
+the same nominal/variant identity. Generic owner arguments are complete or uniquely inferred
+under the generic contract. The compiler does not guess an owner from a variant name.
+Arguments belong to the enum owner, not a separate callable-generic list on the variant name.
+Every payload type must be valid storable data; a variant does not authorize never as a stored
+field. Unit payloads remain real logical fields even when their physical size is zero.
+
+A variant constructor is an enum construction entry, not a first-class function value, receiver
+method or special function name. Variants and named functions/methods share the owner member
+namespace and cannot overload each other. A user can declare an ordinary helper/closure when
+a callable construction value is needed. No default payloads, named call arguments, field
+shorthand, variant spread or payloadless `variant()` alternative is introduced.
+
+Evaluate supplied payload arguments once, left to right. Each component uses ordinary value
+construction. Complete the variant only after all components are ready. Interrupted construction
+cleans completed payloads in reverse production order, without whole-enum destruction or
+restoring previous transfers. Normal structural cleanup visits only the active payload in
+reverse declaration order. Inactive variants have no initialized resources to destroy.
+
+Read/edit payload access is obtained through the [pattern protocol](patterns.md), not a field
+selection valid on every variant. A tag test does not grant ownership or make an invalid payload
+initialized. Known tags can narrow dependency/cleanup alternatives, but do not make a non-Copy
+enum Copy. Carried accesses, outside storage and reachable writes follow the selected variant's
+checked schema; unknown alternatives are not simultaneously owned duplicate capabilities.
+
+This selected source scope requires finite by-value payload schemas, including through records
+and tuples. A terminating alternative alone does not make an unbounded direct by-value cycle
+finite. Recursive data through an independently checked owner/container is not forbidden;
+implicit recursive indirection, its backing/failure semantics and general recursive schemas need
+separate closure before admission. This is not permission to copy a published representation limit.
+
+### Copy Contracts
+
+A complete declaration with only payloadless variants is a scalar enum with Copy evidence.
+A payload-bearing enum is move-only unless it opts in with `copy enum`. That opt-in uses the
+same conditional structural rule as copy structs, requiring Copy for every declared payload
+position in every variant, not just the current tag. A permanently non-Copy payload invalidates
+the request. Generic conditions remain part of the checked type contract and cannot be inferred
+anew by callers/lowering from hidden bodies; changing an advertised condition is an API change.
+
+```text
+copy enum Reading {
+    missing
+    value(number: i32)
+}
+```
+
+Copy types cannot have a user destructor, and an opted-in Copy family cannot have one even when
+one generic specialization lacks Copy. Payloadless scalar families likewise cannot acquire a
+destructor. A move-only enum may define its unique complete-self destructor under type behavior;
+its active payload is cleaned once after normal destructor completion. Patterns cannot bypass
+that invariant. Copy never implies structural equality, ordering or absence of outside roots.
+
+### Public and Opaque Schemas
+
+A braced enum in index.nct publishes the complete variant/payload schema. It owns that schema
+without a second private representation declaration. Each variant is an explicit public
+construction choice, unlike a struct field list that needs a structural grant. All variants
+have their enum's audience; per-variant/payload visibility and hidden additional variants are
+not introduced. Use an opaque enum when clients should not construct or exhaustively inspect
+the alternatives. A hidden payload type cannot be exposed through a supposedly accessible variant.
+
+A bare enum contract, such as `enum Token`, hides every variant and requires one complete
+definition in a reciprocally seen ordinary source. The completion repeats its nominal/generic/
+Copy header and supplies one schema, not another type. Only sources with direct visibility of
+that complete definition can use its private variants. Seeing its root or an unrelated helper
+does not inherit private variant access. Outside construction uses contracted named factories;
+pattern coverage cannot depend on the current hidden alternatives.
+
+An opaque enum without a Copy grant is a move-only family even if its private completion has
+only payloadless variants. The completion does not change the root's chosen policy or give
+private bodies another whole-type Copy rule. `copy enum Token` explicitly exposes the Copy
+contract and its checked conditions while hiding variants. That grant alone advertises neither
+equality nor any variant. A private complete enum declaration is its own schema owner; the
+payloadless scalar rule applies there normally. Nominal aliases cannot widen schema visibility.
+
+The [module chapter](modules.md#nominal-representation-and-visible-fields) owns source pairing
+and audiences; [patterns](patterns.md#variant-identity-and-coverage) own use-site exhaustiveness.
+Adding a private completion to a closed root, missing an opaque completion, changing its Copy
+policy or repeating a variant is a declaration error, without first-match selection.
+
+### Representation and Evaluation
+
+There is no source-level eight-bit tag or 256-variant ceiling. Semantic alternatives are finite
+but physical tag width, niches, unboxed/scalarized payloads and layout belong to the selected
+target/representation proof. Source does not expose a variant ordinal or infer numeric
+conversion/ordering from declaration order. Resource exhaustion is not an invented language
+variant limit. Foreign/unchecked data needs its own validity/layout contract before it can
+participate as a valid enum; a match cannot sanitize an unvalidated representation by assumption.
+
+Only the selected constructor/arm's required effects execute. Proven tags may remove branches,
+inactive cleanup or physical tag storage while preserving source operations, ordering, roots,
+outcomes and destruction. Such transformations grant no alias ownership or hidden Copy evidence.
+
+Checked const evaluation may construct finite eligible variants and inspect them with the same
+pattern operations. Final-value eligibility and target serialization belong to
+[compile-time values](generics-and-constants.md#constants-statics-and-final-values), not a
+second enum evaluator. Only active payload values are present; an inactive resource-bearing
+variant does not create a resource in an otherwise eligible constant. An enum-owned destructor or
+actual retained resource still prevents final constant/static admission. These selected rules
+do not claim implemented enum parsing/checking, const execution or native layout.

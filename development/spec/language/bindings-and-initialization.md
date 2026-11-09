@@ -13,6 +13,12 @@ leaving the source available. An unhandled fallible outcome still receives the
 discard is not handling failure. A non-final expression must produce `void` or terminate. A final block
 expression is an ordinary value-producing boundary, not an implicit scoped alias.
 
+Tuple bindings use [one pattern operation](patterns.md#one-operation-over-a-pattern) over their
+leaves. Value decomposition acquires the aggregate once, stages named components and cleans the
+remaining carrier before continuation; read/edit patterns project existing components. Do not
+infer a leaf operation from its Copy status or turn a typed all-discard pattern into another
+discard spelling. Refutable enum patterns use match/if-is, not let-else or a refutable local binding.
+
 ### Assignment Order and Reinitialization
 
 Evaluate/construct the entire replacement first, then evaluate dynamic destination components

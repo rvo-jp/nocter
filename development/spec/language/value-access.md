@@ -77,7 +77,9 @@ user hook, allocation or resource acquisition, and does not mean that a large va
 A permitted Copy can be optimized away only while preserving snapshot semantics.
 
 Nominal structs opt in with `copy struct`; private Copy fields alone do not make an ordinary
-nominal Copy. Scalars, unit, payloadless enums and supported raw boundary values permit Copy.
+nominal Copy. [Enums](structs-and-enums.md#copy-contracts) expose their scalar or opted-in
+`copy enum` policy; a private completion cannot give an opaque root an unadvertised Copy rule.
+Scalars, unit and supported raw boundary values permit Copy.
 Tuples, fixed arrays and optionals require Copy for every component, independently of active
 branch or length. Generic code needs declared evidence. `error`, fallible outcomes and futures
 remain move-only. Copy types cannot have user destructors. A closure's Copy evidence depends on

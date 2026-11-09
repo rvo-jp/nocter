@@ -72,3 +72,17 @@ Preserve parentheses in `await (make_future()?)` versus `await operation()?` and
 grouping in `future R!` versus `(future R)!`. Do not add transfer prefixes or an async closure/
 callable-type flag. Formatting cannot turn a deferred body into immediate work, add cancellation
 qualifiers or convert inferred effect reports into authored source guarantees.
+
+## Enum and Pattern Formatting
+
+Format enum alternatives one per line and payload positions as comma-delimited lists. A
+payloadless variant has no parentheses. Keep copy enum when authored; hidden representation or
+a known active tag cannot add/remove its ownership contract. Patterns use qualified owners and
+the same tuple syntax as binding/input patterns, without per-leaf operation prefixes.
+
+Print one space after a match/if-is edit/take prefix. Joint `take(value)` in a header is instead
+an identifier call; whitespace cannot be changed so it becomes the prefix reading. Preserve
+grouping required to keep an identifier expression outside that contextual prefix. Do not add
+an explicit-read branch mode, infer take from body use, remove required payload underscores or
+generate a catch-all that changes structural coverage. Discard cleanup and branch results remain
+semantic operations, not formatter repairs.

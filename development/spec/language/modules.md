@@ -100,6 +100,7 @@ publish a private declaration. No executable body or value initializer may occur
 | --- | --- | --- |
 | Public function, method, construction, literal, coercion or operator | Complete bodyless contract | Matched complete header and body |
 | Public struct | Nominal/Copy contract and selected visible fields; a structural grant closes the schema | Complete representation when the root does not close it |
+| Public enum | Complete braced variant schema, or an opaque nominal/Copy header | Complete representation only for an opaque root |
 | Public interface | Associated types, required signatures, explicit default signatures | Matched default bodies only |
 | Public type's conformance | Interface application and associated bindings | Matching implementation bindings, where needed |
 | Public constant/static | Name and data type, no initializer | One matching value definition |
@@ -135,9 +136,11 @@ braced field contract. The explicit grant, never the presence/absence of another
 schema ownership. Neither form fixes physical layout. Adding a hidden semantic field cannot
 silently preserve a structural construction promise.
 
-Enum representation, variant exposure and exhaustiveness require their own complete enum contract
-before source admission. This struct rule is not permission to hide variants of a purportedly
-exhaustive enum. Physical layout/ABI remains separate from semantic field identity and order.
+For enums, a braced root owns the complete variant/payload schema; a bare opaque root requires
+one complete private definition with the same header under the same reciprocal pairing rule.
+There is no private completion of a braced public enum or subset of hidden variants in that
+exhaustive contract. [Enum schemas](structs-and-enums.md#public-and-opaque-schemas) own construction,
+Copy and use-site exposure. Physical layout/ABI remains separate from field/variant identity.
 
 ## Path-Based Visibility
 

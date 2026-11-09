@@ -38,12 +38,17 @@ outside-write schema. Conditional wait/progress effects remain inferred without 
 Producer/await source roles are selected; runtime solvers, frames, library task/iteration and
 entry/platform realization are unimplemented.
 
-Next close tuple/enum control-pattern operations: specify read/edit/value scrutinee access,
-payload binding authority, public exhaustive versus opaque schemas and branch cleanup before
-accepting the draft's enum-pattern productions. Do not inherit published ownership/pattern
-behavior or a fixed tag limit implicitly. Then close lexical/full-expression/control and typed-literal/pack/coercion,
-capability/library, async iteration/task and package/platform source subjects, audit the assembled grammar and integrated reading
-examples, then resume the bounded executable-lifecycle task below. Keep draft productions and
+The [enum/pattern checkpoint](history/reviews/v2.0.0-enum-and-pattern-contracts.md) selects
+complete versus opaque schemas, Copy policy and read/edit/take match/if-is operations. Tuple
+leaves keep one input position plus semantic paths; named values are staged before remainder
+cleanup. A destructor-bearing carrier stays complete. Async input receipt and pattern-entry
+discard remain separate phases. Finite eligible enum values/patterns join the same const domain.
+These are adopted contracts, not compiler, resource, evaluator or target qualification.
+
+Next close literal/pack/expansion/coercion and iteration contracts, then remaining lexical/
+expression/control, capability/library and package/platform subjects, including task/async
+iteration. Audit the assembled grammar and integrated reading examples, then resume the bounded
+executable-lifecycle task below. Keep draft productions and
 future conformance obligations distinct from the 283 production corpus cases. No human-decision
 or external-authorization blocker is established for this design work.
 

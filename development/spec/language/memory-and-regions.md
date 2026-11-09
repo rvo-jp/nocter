@@ -9,6 +9,11 @@ relations. A source identifies both eligible direct storage and carried dependen
 checked relation preserves their distinction and access strength. A name alone does not authorize
 reading/updating every part of that source.
 
+[Tuple header bindings](patterns.md#header-origins-and-correspondence) can name input projections.
+Resolve those names to one input identity plus component paths. Elision can conservatively bound
+one eligible input subtree without an authored whole-input name; it never merges slot identities
+or narrows an edit postcondition's coverage to the leaves actually used.
+
 Ordinary results deliver values. Independent values need no caller-place origin. A capability or
 dependent result needs a bound for each externally dependent slot. One eligible source may be
 elided; multiple sources need a stable explicit public bound, such as `from first | second`.

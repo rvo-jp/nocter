@@ -10,8 +10,8 @@ or module grammar; unspecified productions remain outside the development specif
 | Spelling | Contextual grammar position |
 | --- | --- |
 | `read` | scoped read binding only |
-| `edit` | scoped update binding or input operation |
-| `take` | value-receiving input operation |
+| `edit` | scoped update binding, input operation or enum branch input operation |
+| `take` | value-receiving input or enum branch input operation |
 | `mut` | updating invocation head of a callable type |
 | `once` | consuming invocation head of a callable type |
 
@@ -52,9 +52,9 @@ V2Alias = "type" Name V2GenericParameters? "=" V2Type V2WhereClause?
 V2Struct = "copy"? "struct" Name V2GenericParameters? V2WhereClause?
            ("{" LineSequence(V2Field) "}")?
 V2Field = V2ItemDirectives? Name ":" V2Type
-V2Enum = "enum" Name V2GenericParameters? V2WhereClause?
+V2Enum = "copy"? "enum" Name V2GenericParameters? V2WhereClause?
          ("{" LineSequence(V2Variant) "}")?
-V2Variant = Name ("(" List(V2PayloadField) ")")?
+V2Variant = Name ("(" NonEmptyList(V2PayloadField) ")")?
 V2PayloadField = Name ":" V2Type
 V2Interface = "interface" Name V2GenericParameters? V2WhereClause?
               "{" LineSequence(V2InterfaceMember) "}"
@@ -93,7 +93,7 @@ These envelopes deliberately depend on the separately owned value/access product
 lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
 for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
-In particular enum exposure/exhaustiveness, typed literal/pack behavior, generic solving,
+In particular typed literal/pack behavior, generic solving,
 primitives, target selection and package discovery still need their owning contracts before
 compiler admission. A complete whole-language grammar is not claimed here; published productions
 are never an implicit fallback.
@@ -226,6 +226,40 @@ the interface. Unique `T.Item` needs no selector, and redundant qualification is
 same `V2InterfaceSelection` shape selects an ambiguous interface operation in expression position.
 Associated bindings use the named interface's declarations; conformance blocks continue using
 their own single mixed-binding production rather than this requirement block.
+
+### Patterns and Enum Branches
+
+[Patterns](patterns.md) own tuple binding, branch input operations and cleanup;
+[enum schemas](structs-and-enums.md#enum-schemas-and-construction) own nominal variants and
+visibility. Local/parameter patterns continue using V2Pattern above; refutable enum patterns
+occur only in these branch forms:
+
+```text
+V2If = "if" V2IfCondition V2Block ("else" (V2Block | V2If))?
+V2IfCondition = V2PatternInput "is" V2EnumPattern | V2Header
+V2PatternInput = V2InputOperation gap V2Header | V2Header
+V2Match = "match" V2PatternInput "{" LineSequence(V2MatchArm) "}"
+V2MatchArm = (V2EnumPattern | "_") V2Block
+V2EnumPattern = V2NamedType "." Name ("(" NonEmptyList(V2Pattern) ")")?
+```
+
+Require at least one match arm and valid structural coverage. The optional input operation is
+edit/take, with unmarked read; there is no explicit-read alternate. A qualified enum pattern's
+last outer `.Name` is its variant, not another part of its owner path. Exact identity, payload
+arity and tuple shape are checked after recognition without type-name-driven reparsing.
+
+The operation prefix requires separating gap on the logical header line and a complete operand.
+Joint `take(value)` or `edit[index]` continues an ordinary identifier expression. Where both a
+completed prefix and an identifier-expression reading exist, select the prefix syntactically;
+group the identifier expression to request that reading, for example `match (take - offset)`.
+In if, the prefix role requires the completed enum `is` condition; an ordinary Boolean condition
+has no such mode. A bad source type/authority cannot trigger another parse. These contextual
+boundaries need parser/recovery fixtures before compiler admission.
+
+Tuple patterns have at least two leaves at each tuple node; unit remains `()` as a value. Enum
+payload lists are nonempty when parentheses occur. A payloadless variant omits parentheses in
+declaration, construction and patterns. Pattern parentheses add no per-leaf operation aliases,
+rest syntax, implicit payload omission or nested enum-pattern family.
 
 ### Outcome Elimination and Recovery
 

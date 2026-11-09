@@ -16,7 +16,8 @@ Multiple source fragments may contribute distinct members to that owner. This is
 set: each member identity has one contract and at most one definition under
 [module pairing](modules.md#complete-implementation-signatures). Members cannot differ only in
 result type, parameter operation, origin bound or generic requirement. Method and construction
-names share the owner member namespace and cannot reuse a name to offer two call styles. Operator
+names share the owner member namespace and cannot reuse a name to offer two call styles. Enum
+variants share that named namespace too. Operator
 identities are their fixed family/shape; read and edit index projections are explicitly separate
 identities. Literal identity is its supported shape; one structural grant is permitted.
 
@@ -136,8 +137,10 @@ or another independently valid extraction protocol. Complete-self entry and rema
 follow [value access](value-access.md#return-replacement-and-cleanup).
 
 The destructor covers the entire unrefined nominal generic family. A conditional fragment cannot
-introduce another destructor or make destruction depend on a specialization. A `copy struct`
-family cannot define one. A private destructor is still observable lifecycle behavior: inference,
+introduce another destructor or make destruction depend on a specialization. A `copy struct` or
+`copy enum` family cannot define one, nor can a scalar enum with its intrinsic Copy policy.
+Opaque enum policy follows its root contract, not a second inference from its private completion.
+A private destructor is still observable lifecycle behavior: inference,
 origins and optimization must preserve its required accesses/effects, even though its body is
 omitted from the public contract. Cleanup is resource release, not proof of successful protocol
 completion such as finishing a writer. General resource-protocol and cancellation contracts

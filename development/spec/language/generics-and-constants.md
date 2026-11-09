@@ -136,9 +136,10 @@ the public const capability. `const async` and a source-bodyless runtime primiti
 implicit evaluator implementation and are invalid combinations.
 
 The supported evaluator admits primitive deterministic arithmetic/conversion, unit, tuples,
-fixed arrays including repetition, eligible nominal record construction/projection, local
+fixed arrays including repetition, eligible finite record/enum construction and projection, local
 `let`/`var` values, scoped read/edit access to evaluator-owned storage, replacement, blocks,
-branches, loops and direct calls to compatible checked const callables. Read/edit/take input
+branches including enum tests/matches, tuple patterns, loops and direct calls to compatible
+checked const callables. Read/edit/take input
 contracts and partial initialization/cleanup remain ordinary language rules. A temporary may
 be move-only; this is not permission to duplicate it or retain access after its storage ends.
 
@@ -147,8 +148,9 @@ unevaluated branches. Runtime input, I/O, clocks/randomness, external mutable st
 runtime-only calls, user destructors and source allocator/resource operations are outside this
 domain. Internal evaluator memory is charged to compilation budgets, not a source allocation
 effect or a runtime backing request. A pure checked helper name cannot supply a missing evaluator
-contract. More general temporary heap resources, callable invocation, outcomes and nominal
-variants require their own evaluator extensions before admission.
+contract. More general temporary heap resources, callable invocation and outcomes require their
+own evaluator extensions before admission. Enum/pattern operations use the same checked
+operations and cleanup as runtime source, not a separate constructor or pattern interpreter.
 
 Type checking and evaluation consume the same resolved targets, input operations and concrete
 specializations. Target integer widths, overflow, division, shifts, conversion and floating-point
@@ -169,15 +171,18 @@ public roots declare only name/type; one matched ordinary source supplies the in
 No runtime initializer, dynamic initialization order or mutable global is introduced.
 
 Final values must be reproducible, immutable serializable data: supported scalar/unit leaves,
-tuples, fixed arrays and finite nominal records composed of eligible leaves, without user
+tuples, fixed arrays and finite nominal records/enum payloads composed of eligible leaves, without user
 destructors or retained runtime resources. Any admitted static-text/reference leaf needs its
 explicit immutable embedded-storage contract. Raw pointers, callable environments, exclusive
 capabilities, allocator/region resources and evaluator-local addresses are not implicitly
-serializable. General outcome/enum/view serialization remains a separate extension. A valid
+serializable. For an enum value only its selected variant's payload exists; other variants do
+not contribute fictitious resources or initialized fields. An enum-owned user destructor still
+applies regardless of its variant and invalidates final admission. General outcome/view
+serialization remains a separate extension. A valid
 temporary operation does not make its result an eligible final value.
 
 A constant reference constructs a fresh instance of that eligible data, like a named literal;
-there is no living constant owner to move from. This permits a storage-independent record
+there is no living constant owner to move from. This permits a storage-independent record/enum
 constant without asserting that its ordinary type is Copy. Each reference constructs its own
 value; an ordinary binding of that value follows Copy-or-move thereafter. This is not a general
 clone operation: no final resource, destructor, outside mutable identity or evaluator address may

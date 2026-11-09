@@ -31,6 +31,11 @@ and cleanup obligations. Origin
 names bind input positions; names themselves are not type identity. Invocation environment access
 is prepared before explicit inputs; validate hidden capture overlaps in the complete bundle.
 
+A tuple input still has one position. Its [pattern](patterns.md#header-origins-and-correspondence)
+binds names to component paths without flattening arity. Callable-type pattern names identify
+those paths, not another implementation or discard action. Concrete body-entry bindings and
+their cleanup follow the selected declaration, with ordinary effect/initialization evidence.
+
 Each invocation has fresh symbolic input extents. A callback permitted to run with arbitrary
 short-lived read inputs cannot store such an input for a later call unless its public environment
 post-state contract permits it and the caller establishes a sufficiently long-lived source.

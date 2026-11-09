@@ -47,6 +47,10 @@ of information:
    construction/drive/cleanup distinctions; their
    [review](history/reviews/v2.0.0-async-and-effect-contracts.md) records design corrections and
    pending runtime/proof gates.
+   [Enum schemas](spec/language/structs-and-enums.md#enum-schemas-and-construction) and
+   [patterns](spec/language/patterns.md) own branch access, coverage, tuple paths and cleanup;
+   their [review](history/reviews/v2.0.0-enum-and-pattern-contracts.md) separates those rules
+   from missing compiler/evaluator/layout evidence.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

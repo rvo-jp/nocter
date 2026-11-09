@@ -212,3 +212,25 @@ must use the corresponding established state evidence without guessing from a so
 
 Exact diagnostic registration and production source/target evidence precede admission. None of
 these requirements claims async support in the current private fragment.
+
+## Enum and Pattern Diagnostics
+
+Separate declaration, coverage, input authority and extraction failures. A zero-variant schema,
+duplicate variant/payload name, invalid Copy request, infinite by-value payload or second schema
+owner identifies the conflicting declaration/component. An opaque root's hidden scalar shape
+cannot supply missing Copy/equality to a client or silently change the family policy.
+
+A pattern identifies its exact variant and payload/tuple path. Report foreign/inaccessible
+variants, missing/duplicate coverage, non-final/redundant catch-alls and shape/arity mismatch
+without searching by layout or reparsing a contextual header. A typed non-Copy read leaf cannot
+be returned as a value; explain the selected read operation and the need for intentional value
+receipt. An edit needs writable initialized storage even on a nonmatching path. Take invalidates
+an eligible non-Copy source before testing, including a false if-is path; relate that acquisition
+when reporting later use.
+
+For user-destructible carriers, identify the ancestor requiring complete-self entry rather than
+silently borrowing an extracted resource. For a discarded component needed by a surviving view,
+show the ignored root, binding and later use/cleanup. Ignoring a read/edit leaf does not destroy
+its owner; an ignored owned fallible leaf still follows the failure-loss warning. A tuple
+parameter keeps one argument index with projected names; no arity repair may flatten its leaves.
+Exact code registration and production parser/flow/resource tests precede admission.
