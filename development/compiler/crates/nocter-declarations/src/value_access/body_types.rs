@@ -14,13 +14,72 @@ pub enum BodyTypeError {
 }
 
 /// The sole construction capability for one body's application types, with shared header facts.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BodyTypes {
     owner: AccessCallableId,
     program: Program,
     applications: BTreeMap<AccessExpressionId, AccessCallableId>,
 }
 impl BodyTypes {
+    #[must_use]
+    pub const fn owner(&self) -> AccessCallableId {
+        self.owner
+    }
+    /// Publish one closed owned environment; it has no inferred external R/D/S.
+    /// # Errors
+    /// Rejects a foreign/duplicate code identity or data outside the closed header domain.
+    pub fn closure(
+        &mut self,
+        id: nocter_model::ValueClosure,
+        environment: TypeId,
+        contract: super::FunctionConstraint,
+    ) -> Result<TypeId, BodyTypeError> {
+        let ordinary = |data| {
+            matches!(
+                self.program.data_schema(data),
+                Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Record(_))
+            )
+        };
+        if id.owner != self.owner
+            || self.program.closures.contains_key(&id)
+            || !ordinary(environment)
+            || !ordinary(contract.result)
+            || contract.inputs.iter().any(|input| !ordinary(input.data))
+        {
+            return Err(BodyTypeError::InvalidExtension);
+        }
+        let declared = contract.invocation;
+        let mut types = self.program.types.transaction();
+        let mut selected = None;
+        for invocation in [
+            ValueInvocation::Read,
+            ValueInvocation::Edit,
+            ValueInvocation::Take,
+        ] {
+            if declared.can_supply(invocation) {
+                let data = types
+                    .intern(TypeKind::ValueFunction {
+                        origin: ValueFunctionOrigin::Closure(id),
+                        invocation,
+                    })
+                    .map_err(|_| BodyTypeError::InvalidExtension)?;
+                if invocation == declared {
+                    selected = Some(data);
+                }
+            }
+        }
+        self.program.types = types
+            .commit(&self.program.types)
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        self.program.closures.insert(
+            id,
+            super::Closure {
+                environment,
+                contract,
+            },
+        );
+        selected.ok_or(BodyTypeError::InvalidExtension)
+    }
     #[must_use]
     pub const fn program(&self) -> &Program {
         &self.program
@@ -132,6 +191,7 @@ impl Program {
         let prefix = self.types.store();
         let mut types = self.types.transaction();
         let mut projections = BTreeMap::new();
+        let mut closures = BTreeMap::new();
         for (owner, body) in bodies {
             if !Arc::ptr_eq(&self.callables, &body.callables)
                 || !body.types.store().preserves_prefix(prefix)
@@ -142,21 +202,36 @@ impl Program {
                 .get(owner)
                 .ok_or(BodyTypeError::InvalidApplication)?;
             let mut projection = BTreeMap::new();
-            for (source, kind) in body.types.store().iter_from(prefix.type_count()) {
-                let TypeKind::ValueFunction {
-                    origin: ValueFunctionOrigin::Application(application),
-                    invocation,
-                } = kind
-                else {
+            for (&id, schema) in &body.closures {
+                if id.owner != owner || closures.insert(id, schema.clone()).is_some() {
                     return Err(BodyTypeError::InvalidExtension);
+                }
+            }
+            for (source, kind) in body.types.store().iter_from(prefix.type_count()) {
+                let valid = match kind {
+                    TypeKind::ValueFunction {
+                        origin: ValueFunctionOrigin::Closure(id),
+                        invocation,
+                    } => {
+                        id.owner == owner
+                            && body
+                                .closure(*id)
+                                .is_some_and(|c| c.contract().invocation.can_supply(*invocation))
+                    }
+                    TypeKind::ValueFunction {
+                        origin: ValueFunctionOrigin::Application(application),
+                        invocation,
+                    } => {
+                        application.owner == owner
+                            && self
+                                .callables
+                                .get(application.callee)
+                                .and_then(super::Callable::result_contract)
+                                .is_some_and(|contract| contract.invocation.can_supply(*invocation))
+                    }
+                    _ => false,
                 };
-                if application.owner != owner
-                    || self
-                        .callables
-                        .get(application.callee)
-                        .and_then(super::Callable::result_contract)
-                        .is_none_or(|contract| !contract.invocation.can_supply(*invocation))
-                {
+                if !valid {
                     return Err(BodyTypeError::InvalidApplication);
                 }
                 let target = types
@@ -167,6 +242,7 @@ impl Program {
             projections.insert(owner, projection);
         }
         let mut program = self.clone();
+        program.closures = closures;
         program.types = types
             .commit(&self.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;

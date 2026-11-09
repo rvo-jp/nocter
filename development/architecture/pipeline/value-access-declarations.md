@@ -40,7 +40,9 @@ source names, physical offsets or an access grant.
 
 `nocter-declarations` owns the source-independent program, namespace, closed data authority,
 ordered input identities and operations, value results, and concrete named-function
-witnesses. A flat callable input introduces a symbolic formal witness; a flat callable result
+witnesses. Body-owned lexical closure keys additionally carry exact single-value environment
+schemas and inferred invocation contracts. They replay with body types into the same final
+authority, without changing reusable headers. A flat callable input introduces a symbolic formal witness; a flat callable result
 introduces a symbolic result family. Structural callable
 annotations constrain these witnesses rather than introducing erased runtime datatypes. Invocation compatibility and exact input/result matching belong to declarations;
 checking freezes the selected witness/view. Header freeze interns every named invocation view and
@@ -92,7 +94,7 @@ intermediate facts cannot be treated as its accepted product.
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
 general compound header types, generic/interface evidence, dependent results without an
-established required input witness, nested callback contracts, captured environments, outcomes, async/effects, layouts,
+established required input witness, nested callback contracts, general captured environments, outcomes, async/effects, layouts,
 standard-library migration and native output remain outside this implemented boundary.
 
 
@@ -127,7 +129,8 @@ annotations alone do not justify any of those payload facts. Formal inputs have 
 and retain symbolic cleanup. Each selected argument can bind a callee formal to a named or caller
 formal witness; invocation through the formal retains that semantic target. All definitions are
 checked against their declared contracts, including unused/recursive bodies. The supported producer
-domain still excludes captured environments. Result-producing bodies establish one named
+domain includes the bounded explicit owned-capture producer, whose complete environment is
+closed builtin/record data. Result-producing bodies establish one named, captured-code
 or own-input relation through reachable value flow; signatures alone cannot select it. Each
 selected application substitutes its actual witnesses into that relation. General dependency
 footprints require further source closure. Concrete instance closure consumes
@@ -269,3 +272,26 @@ closure. Layout, physical environment/argument realization, executable cleanup, 
 MIR and native output are not established by this graph. Later implementation must extend this
 same instance authority rather than create another call graph or infer environment shape from
 parameter counts.
+
+## Owned Capture Body Handoff
+
+A body-owned closure schema pairs lexical code identity, ordinary environment data and the exact
+invocation/input/result contract. Its typed body shares the parent's canonical program authority
+and source-reuse guard. Body-local input slots identify access roots for named parameters,
+anonymous parameters and capture environments alike; declaration parameter IDs remain formal
+callable witness identities. Source projection never recovers that relationship by name lookup.
+
+Checking prepares each closure's control graph once, selects environment invocation demand from
+reached operations, freezes its input authority, and runs the same initialization/access/resource
+analysis and admission path used for named bodies. Unit construction checks every closure body
+before publishing either body catalog. Formation transfers one complete owned environment into
+one value in the existing resource ledger. Copy and cleanup consume the exact schema, not a
+signature-wide assumption about callable environments.
+
+Private instance data projection preserves an uninvoked owned environment's payload and its
+environment-data obligation without adding a code instance. A reached captured-code invocation or
+witness binding currently returns UnsupportedCapturedCode; it is not an invalid accepted Unit,
+a released/native capability or permission to erase its environment. Concrete captured-code
+instance keys, environment realization and adapter cleanup must close in that existing graph
+before admission. Nested closure/factory-result bodies require code-scoped operation identities;
+they cannot reuse an enclosing named function's application identity domain.

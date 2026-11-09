@@ -1,0 +1,5 @@
+func run(): void {
+    let value = 1
+    let action: func(): i32 = (value;): i32 { value += 1
+        value }
+}

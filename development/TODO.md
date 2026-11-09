@@ -20,7 +20,7 @@ Do not stop for approval of ordinary design alternatives or work order; publicat
 The bounded front end includes closed records, named/computed fields, local named function values,
 [statically witnessed inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
 [input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md).
-The source corpus has 263 cases: 137 accepted units, 112 checking rejections, 8 header rejections
+The source corpus has 283 cases: 147 accepted units, 122 checking rejections, 8 header rejections
 and 6 syntax rejections. Returning a taking formal now preserves that input witness; each call
 application substitutes its own selected actual bindings. Distinct calls cannot conflate their
 results, including through joins/replacement or recursive permutations. Generic formal values
@@ -48,15 +48,32 @@ checking both known shapes. The [type-system foundation](spec/language/values-an
 owns identity/compatibility/inference boundaries; full generic/interface/capability closure remains
 explicitly separate work rather than an implicit released-language fallback.
 
-Next extend captured producers under the same type/operation/evidence distinction. Start with a
-bounded explicit value-capture producer and its formation, invocation, transfer and destruction
-contracts; close inferred read/update capture escape and retained-state/write footprints before
-admitting those operations. Preserve R/D/S and source-context Copy evidence through every carrier.
-Use valid, conflicting, failure/interruption and cleanup cases before claiming general environment
-safety. Do not introduce an erased representation, hidden clone or second ownership authority.
+The [owned-capture checkpoint](history/reviews/v2.0.0-owned-capture-producers.md) admits a first
+single-value environment with explicit parameter/result data. Formation uses Copy-or-move;
+reached body operations infer func/mut/once over one retained graph before ordinary initialization,
+access and resource admission. Nested bodies share canonical types, source byte/locator guards and
+flow admission with named bodies. Returned captured-code witnesses, static callback input supply,
+partial consuming return and interrupted preparation are source-checked. Uninvoked environment
+payloads project without creating code instances. Captured-code invocations/bindings remain an
+explicit UnsupportedCapturedCode private-target boundary; no executable or native claim follows.
+
+Next close captured code in the existing private instance graph. Introduce a code identity that
+selects a named body or checked closure body, retain explicit environment versus ordinary inputs,
+and specialize already selected witnesses without retyping or erased dispatch. Preserve the
+inferred body invocation separately from its supplied adapter view and account for adapter-owned
+environment cleanup. Add direct/value/formal calls, returned environments, recursion, distinct
+lexical producers and uninvoked-code cases before claiming this target admission. Closure bodies
+with nested producers or factory-result applications need code-scoped operation identities; they
+must not borrow the enclosing named function's result-application domain.
+
+Then expand multi-value environments, contextual closure completion and inferred read/update
+captures with retained-state/write footprints. Preserve R/D/S and source-context Copy through every
+carrier; the current environment's empty outside D/S follows only its exact closed data schema.
+Do not generalize that property to capability/callable captures. Keep each source scope, schema,
+body proof and target consumer closed together, without hidden clones or a second owner ledger.
 
 Then close physical environment/argument realization and executable cleanup before MIR/native
-admission. Captured producers remain separate until R/D/S, retained-state/write footprints and
+admission. General captured producers remain separate until R/D/S, retained-state/write footprints and
 destruction are proved under the same authority. No human-decision blocker remains for this work.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual

@@ -1700,6 +1700,136 @@
       "expectation": "check-reject",
       "diagnostic": "E0397",
       "reason": "The returned generic owner still protects an alias used after attempted destruction."
+    },
+    {
+      "id": "a138-owned-capture-read",
+      "file": "a138-owned-capture-read.nct",
+      "expectation": "accept",
+      "reason": "A non-Copy owned capture can be observed repeatedly without consuming the environment."
+    },
+    {
+      "id": "a139-owned-capture-edit",
+      "file": "a139-owned-capture-edit.nct",
+      "expectation": "accept",
+      "reason": "Updating the owned environment infers mut and requires writable invocation storage."
+    },
+    {
+      "id": "a140-owned-capture-take",
+      "file": "a140-owned-capture-take.nct",
+      "expectation": "accept",
+      "reason": "Returning a move-only capture infers once and stages it before environment cleanup."
+    },
+    {
+      "id": "a141-owned-capture-partial",
+      "file": "a141-owned-capture-partial.nct",
+      "expectation": "accept",
+      "reason": "Consuming a captured record returns one field and cleans only its remaining payload."
+    },
+    {
+      "id": "a142-owned-capture-result",
+      "file": "a142-owned-capture-result.nct",
+      "expectation": "accept",
+      "reason": "Returned environments preserve their lexical code identity through result closure and callback input supply."
+    },
+    {
+      "id": "a143-owned-capture-interruption",
+      "file": "a143-owned-capture-interruption.nct",
+      "expectation": "accept",
+      "reason": "Interrupted later inputs clean a prepared owned environment exactly once without invocation."
+    },
+    {
+      "id": "a144-owned-capture-dead-move",
+      "file": "a144-owned-capture-dead-move.nct",
+      "expectation": "accept",
+      "reason": "A structurally checked unreachable extraction cannot force a consuming invocation contract."
+    },
+    {
+      "id": "a145-owned-capture-copy",
+      "file": "a145-owned-capture-copy.nct",
+      "expectation": "accept",
+      "reason": "Copy closure supply snapshots its own environment and preserves the original source."
+    },
+    {
+      "id": "a146-owned-capture-copy-once",
+      "file": "a146-owned-capture-copy-once.nct",
+      "expectation": "accept",
+      "reason": "A Copy environment can supply independent consuming instances; invocation kind does not decide Copy."
+    },
+    {
+      "id": "a147-owned-capture-input-operations",
+      "file": "a147-owned-capture-input-operations.nct",
+      "expectation": "accept",
+      "reason": "Closure input edit/take operations remain independent of its read environment invocation."
+    },
+    {
+      "id": "r115-owned-capture-read-extraction",
+      "file": "r115-owned-capture-read-extraction.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0371",
+      "reason": "A read input cannot supply a move-only owned capture."
+    },
+    {
+      "id": "r116-owned-capture-fixed-mut",
+      "file": "r116-owned-capture-fixed-mut.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0387",
+      "reason": "A mut closure cannot be invoked through a fixed value binding."
+    },
+    {
+      "id": "r117-owned-capture-once-reuse",
+      "file": "r117-owned-capture-once-reuse.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "A non-Copy consuming environment cannot be invoked twice."
+    },
+    {
+      "id": "r118-owned-capture-distinct-code",
+      "file": "r118-owned-capture-distinct-code.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Equal signatures do not merge two lexical closure code identities."
+    },
+    {
+      "id": "r119-owned-capture-source-reuse",
+      "file": "r119-owned-capture-source-reuse.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0378",
+      "reason": "A move-only capture transfers its source before any environment invocation."
+    },
+    {
+      "id": "r120-owned-capture-unused-invalid-body",
+      "file": "r120-owned-capture-unused-invalid-body.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0371",
+      "reason": "Unused closure bodies still check their unmarked read input contracts."
+    },
+    {
+      "id": "r121-owned-capture-outer-loop",
+      "file": "r121-owned-capture-outer-loop.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0382",
+      "reason": "A closure break cannot target an enclosing function loop."
+    },
+    {
+      "id": "r122-owned-capture-unlisted-name",
+      "file": "r122-owned-capture-unlisted-name.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0340",
+      "reason": "Inferred outside captures require a later retained-access scope."
+    },
+    {
+      "id": "r123-owned-capture-multiple-scope",
+      "file": "r123-owned-capture-multiple-scope.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "Multiple explicit environments are recognized but not admitted by the first owned-capture scope."
+    },
+    {
+      "id": "r124-owned-capture-view-upgrade",
+      "file": "r124-owned-capture-view-upgrade.nct",
+      "expectation": "check-reject",
+      "diagnostic": "E0370",
+      "reason": "An inferred mut environment cannot acquire a read invocation contract from its annotation."
     }
   ],
   "parse_goal": "V2CoreUnit"

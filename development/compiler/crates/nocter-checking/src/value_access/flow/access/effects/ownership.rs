@@ -168,6 +168,15 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?
             .kind;
         match *kind {
+            ExpressionKind::Closure { capture, .. } => {
+                self.world.resources.capture(
+                    self.typed.program(),
+                    &Holder::Expression(capture).place(),
+                    Holder::Expression(id),
+                    resources::expression_payload(self.typed, id)?,
+                    &mut self.steps,
+                )?;
+            }
             ExpressionKind::AdaptFunction { source } => self.world.resources.adapt_function(
                 self.typed.program(),
                 &Holder::Expression(source).place(),
@@ -266,11 +275,11 @@ impl Context<'_, '_> {
                     &mut self.steps,
                 )?;
             }
-            Root::Input(parameter) => {
+            Root::Input(local) => {
                 let source = Holder::Expression(value).place();
                 let payload = self.world.resources.take(self.typed.program(), &source)?;
                 self.steps.push(Step::ReplaceInput {
-                    parameter,
+                    local,
                     fields: root.fields,
                     source,
                     payload,

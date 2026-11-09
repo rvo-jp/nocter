@@ -100,6 +100,37 @@ information requires an ordinary annotation. Later uses cannot retroactively sel
 operations or invocation kind. Erased contracts preserve the same facts without run-time name
 lookup or authority repair.
 
+### Bounded Owned-Capture Producers
+
+The private fragment additionally selects a first owned-capture producer:
+`(value; parameters): R { body }`. It requires exactly one explicit capture, named and fully
+typed ordinary parameters, and an explicit ordinary data result type. The environment and
+inputs/result range over the fragment's closed builtin/record data. Nested closures, inferred
+outside captures and callable results inside the closure body are outside this first scope;
+omitting an annotation does not select an alternate input operation. The complete closure
+grammar above remains the intended source design.
+Contextual completion of omitted operations/data remains outside this first scope; write the
+input operation explicitly when an enclosing callable constraint needs edit/take.
+
+Formation constructs the captured value under the ordinary Copy-or-move rule. The closure body
+has its own local inputs, return target and loop scope. The captured name denotes the environment
+value; it does not denote the original outside slot. Invocation access is inferred from checked
+operations on that environment: observation requires func, update requires mut, extraction or
+explicit destruction requires once. Ownership of the capture alone does not require once. Copy
+evidence follows the captured data, independently of invocation kind. A mut view requires writable
+access to its stored environment; a once view consumes one supplied instance.
+
+The body is checked even when formation is unreachable. Read/update invocation must preserve an
+initialized environment on every normal return. A consuming invocation owns and cleans the
+environment's remaining payload; a returned component is staged before cleanup. An uninvoked
+closure owns the environment's cleanup obligation. Copying a Copy closure snapshots its environment;
+moving a non-Copy closure transfers that same obligation. This scope's outside D/S independence
+follows its exact closed environment schemas, not ownership or invocation kind.
+
+This source/flow boundary grants no erased representation, executable specialization, ABI or
+native capability for captured code. Those consumers must explicitly close the same environment
+schema and checked body before admitting it.
+
 ### Named Function Witnesses
 
 A named function used as a value selects that declaration, not an overload set or a runtime name.

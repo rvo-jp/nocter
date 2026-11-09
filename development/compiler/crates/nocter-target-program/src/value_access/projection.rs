@@ -15,6 +15,7 @@ pub(super) fn witness(
     selected: FunctionWitness,
 ) -> Result<ConcreteWitness, Failure> {
     let declaration = match selected.origin {
+        ValueFunctionOrigin::Closure(id) => return Err(Failure::UnsupportedCapturedCode(id)),
         ValueFunctionOrigin::Declaration(id) => id,
         ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
             return Err(Failure::InvalidAcceptedUnit);
@@ -40,6 +41,7 @@ pub(super) fn callee(
     arguments: &[Argument],
 ) -> Result<InstanceKey, Failure> {
     let callable = match target {
+        ValueFunctionOrigin::Closure(id) => return Err(Failure::UnsupportedCapturedCode(id)),
         ValueFunctionOrigin::Declaration(id) => id,
         ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
             return Err(Failure::InvalidAcceptedUnit);
@@ -131,6 +133,16 @@ pub(super) fn data(
             .ok_or(Failure::InvalidAcceptedUnit)?
         {
             PayloadSchema::Function(selected) => {
+                if let ValueFunctionOrigin::Closure(id) = selected.origin {
+                    pending.insert(
+                        program
+                            .closure(id)
+                            .ok_or(Failure::InvalidAcceptedUnit)?
+                            .environment(),
+                    );
+                    concrete.insert(source, evidence);
+                    continue;
+                }
                 let selected = witness(key, selected)?;
                 program
                     .function_data(FunctionWitness {

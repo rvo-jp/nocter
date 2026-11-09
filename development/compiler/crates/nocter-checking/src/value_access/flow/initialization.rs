@@ -1,5 +1,5 @@
 use super::{Graph, IntegrityError, Operation};
-use crate::value_access::{ArgumentAction, ExpressionKind, LocalOrigin, Query as TypedQuery};
+use crate::value_access::{ArgumentAction, ExpressionKind, Query as TypedQuery};
 use nocter_model::{AccessFlowPointId, AccessLocalId, AccessPlaceId, FieldPath, ValueAccessMode};
 mod state;
 use state::Storage;
@@ -96,7 +96,7 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Initializatio
         .map(|(id, local)| {
             (
                 id,
-                Storage::new(if matches!(local.origin, LocalOrigin::Parameter(_)) {
+                Storage::new(if local.origin.is_input() {
                     InitializationState::Initialized
                 } else {
                     InitializationState::Uninitialized
@@ -422,6 +422,7 @@ fn evaluate(
             }
         }
         ExpressionKind::Function(_)
+        | ExpressionKind::Closure { .. }
         | ExpressionKind::AdaptFunction { .. }
         | ExpressionKind::Select { .. }
         | ExpressionKind::Record { .. }

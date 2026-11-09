@@ -321,8 +321,8 @@ Known generic formal transfers remain transfers; later concrete
 payload Copy cannot reinterpret them. Only then does Control compute initialization and
 access/resource validation, once each. Control IDs and the type authority do not change, and no
 graph is rebuilt. A taking formal environment can therefore pass through a result without
-acquiring Copy, while a concrete named result at a caller can independently prove Copy. Captured
-producers and their general dependency footprints remain separate work.
+acquiring Copy, while a concrete named result at a caller can independently prove Copy. General captured
+producers and their dependency footprints remain separate work.
 
 All closed queries share one result-evidence object with producer-body byte dependencies.
 Standalone query rebinding checks those dependencies; complete Unit projection verifies them once
@@ -419,10 +419,9 @@ retain their own schema cleanup rather than becoming scalars.
 Empty external D/S for those records follows the exact component contracts, not Copy, ownership,
 or a missing outside R. Named-function evidence follows its exact declaration schema; a formal callback does not inherit
 Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment cleanup operation
-tied to their witness. The current producer domain admits named code and formal forwarding, with
-no captured-environment producer; general retained footprints and concrete executable witness
-specialization remain separate obligations. Dependent aggregates,
-user destructors, capabilities, captured environments, nested callback contracts, generics,
+tied to their witness. The producer domain also admits the bounded single owned-capture schema described below;
+general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
+user destructors, capabilities, general captured environments, nested callback contracts, generics,
 outcomes, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record headers and local/input-rooted field selections through
@@ -452,3 +451,33 @@ never typed-only evidence. The schema-to-payload projection exposes a cleanup ob
 constructing an initialized owner. There is no public parts constructor, compatibility adapter,
 source-version CLI, native consumer or general D/S solver. Qualification and remaining
 work belong in the linked review/plan, not a duplicate crate-internal status table.
+
+## Owned Capture Bodies
+
+`closures` checks a first explicit single-value environment under the private source contract.
+Formation uses the ordinary value-supply boundary. A separate body scope receives that environment
+and flat explicit inputs; names outside it cannot become implicit captures. The body returns
+ordinary closed data and cannot introduce nested closures or callable-result applications.
+The enclosing header remains its source-reuse owner, while lexical owner/slot identifies its code.
+
+The environment's provisional construction authority permits demand collection, not accepted
+execution. Its control graph is prepared once. Reached environment moves/drops or transfer inputs
+select once; updates/delegations select mut; otherwise invocation is func. Unreachable moves do
+not add demand. The selected environment input kind freezes before initialization/access/resource
+validation, which consumes that same graph. Explicit parameter operations never come from body
+use. Parent and closure bodies share canonical type replay and the same flow-admission procedure.
+One immutable type authority covers their data and closure schemas; no second body checker or
+ownership solver is introduced.
+
+Input referents are keyed by body-local input slots, not named-header parameter identities. Capture
+and anonymous parameter slots use that same initialization, root, liveness and edit-replacement
+path. Header parameter identities still select formal callable witnesses and source contracts;
+diagnostics project an input slot directly through its local source locator.
+
+The existing resource ledger's atomic Capture transition transfers a complete environment into
+one closure value. Copy supply snapshots Copy environments; other supply transfers one owner.
+OwnedCapture disposal retains the schema's environment cleanup obligation. A consuming body owns
+and cleans its remainder; a read/edit body receives scoped input authority. Adapters preserve the
+code/environment identity. Result equations accept only actually produced closure witnesses.
+Unit admission validates every nested body, even an uninvoked or unreachable producer, before
+publishing its closure-body catalog. Capture/body edits invalidate the enclosing source recipe.

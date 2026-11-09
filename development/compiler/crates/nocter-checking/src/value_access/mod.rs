@@ -4,6 +4,7 @@ pub mod accepted;
 mod annotations;
 mod calls;
 mod checker;
+mod closures;
 mod construction;
 mod diagnostics;
 mod expressions;
@@ -170,6 +171,7 @@ struct Origins {
 /// Reusable type/call selection evidence tied to its own callable and declaration authority.
 #[derive(Clone, Debug)]
 pub struct Query {
+    closures: BTreeMap<nocter_model::ValueClosure, flow::Control>,
     program: Arc<Program>,
     header: Arc<Program>,
     callable: AccessCallableId,

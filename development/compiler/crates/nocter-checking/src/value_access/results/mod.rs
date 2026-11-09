@@ -87,7 +87,9 @@ impl Evidence {
             return Ok(origin);
         }
         match origin {
-            ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Parameter(_) => Ok(origin),
+            ValueFunctionOrigin::Declaration(_)
+            | ValueFunctionOrigin::Closure(_)
+            | ValueFunctionOrigin::Parameter(_) => Ok(origin),
             _ => self
                 .selected(origin)
                 .map(|w| w.origin)
@@ -100,9 +102,9 @@ impl Evidence {
         }
         let Some(producer) = self.selected(witness.origin) else {
             return match witness.origin {
-                ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Parameter(_) => {
-                    Ok(witness)
-                }
+                ValueFunctionOrigin::Declaration(_)
+                | ValueFunctionOrigin::Closure(_)
+                | ValueFunctionOrigin::Parameter(_) => Ok(witness),
                 _ => Err(Failure::InconsistentSyntax),
             };
         };

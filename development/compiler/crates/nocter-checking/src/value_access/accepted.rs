@@ -40,6 +40,7 @@ impl DataEvidence {
 /// There is no parts constructor: bodies cannot be omitted or paired with another program.
 #[derive(Clone, Debug)]
 pub struct Unit {
+    closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
     bodies: BTreeMap<AccessCallableId, flow::Query>,
@@ -71,45 +72,26 @@ impl Unit {
             .verify(context)
             .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
         let mut bodies = BTreeMap::new();
+        let mut closures = BTreeMap::new();
         for (callable, control) in controls {
+            for (&id, nested) in &control.typed.closures {
+                let checked = nested.clone().finish().map_err(Failure::Integrity)?;
+                let checked = admit(checked, &verified)?;
+                closures.insert(id, checked);
+            }
             let query = control.finish().map_err(Failure::Integrity)?;
-            let bound = query
-                .bind_verified(&verified)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            let mut diagnostics = bound
-                .diagnostics()
-                .map_err(|failure| Failure::Body { callable, failure })?
-                .into_iter()
-                .map(|diagnostic| diagnostic.source().clone())
-                .collect::<Vec<_>>();
-            diagnostics.extend(
-                bound
-                    .access_diagnostics()
-                    .map_err(|failure| Failure::Body { callable, failure })?
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.source().clone()),
-            );
-            if !diagnostics.is_empty() {
-                return Err(Failure::Flow {
-                    callable,
-                    diagnostics: diagnostics.into_boxed_slice(),
-                });
-            }
-            if query.access().status() != flow::access::Status::Analyzed {
-                return Err(Failure::Integrity(
-                    flow::IntegrityError::InconsistentTypedBody,
-                ));
-            }
+            let query = admit(query, &verified)?;
             bodies.insert(callable, query);
         }
         Ok(Self {
+            closures,
             program,
             header: context.program_handle(),
             bodies,
             result_evidence,
         })
     }
-    /// The named or own-input witness established for a callable result in this bounded unit.
+    /// The named/captured-code or own-input witness established for a callable result in this bounded unit.
     #[must_use]
     pub fn result_witness(
         &self,
@@ -148,6 +130,10 @@ impl Unit {
     pub fn bodies(&self) -> impl ExactSizeIterator<Item = (AccessCallableId, &flow::Query)> {
         self.bodies.iter().map(|(&id, query)| (id, query))
     }
+    #[must_use]
+    pub fn closures(&self) -> &BTreeMap<nocter_model::ValueClosure, flow::Query> {
+        &self.closures
+    }
     /// Rebinds every accepted body before exposing any current-source projection.
     /// # Errors
     /// Rejects changed authority or any changed body; never rechecks a sibling behind the caller.
@@ -166,6 +152,40 @@ impl Unit {
             .collect::<Result<_, BodyFailure>>()?;
         Ok(Context { unit: self, bodies })
     }
+}
+fn admit(
+    query: flow::Query,
+    verified: &super::results::Verified<'_, '_>,
+) -> Result<flow::Query, Failure> {
+    let callable = query.typed().callable();
+    let bound = query
+        .bind_verified(verified)
+        .map_err(|failure| Failure::Body { callable, failure })?;
+    let mut diagnostics = bound
+        .diagnostics()
+        .map_err(|failure| Failure::Body { callable, failure })?
+        .into_iter()
+        .map(|d| d.source().clone())
+        .collect::<Vec<_>>();
+    diagnostics.extend(
+        bound
+            .access_diagnostics()
+            .map_err(|failure| Failure::Body { callable, failure })?
+            .into_iter()
+            .map(|d| d.source().clone()),
+    );
+    if !diagnostics.is_empty() {
+        return Err(Failure::Flow {
+            callable,
+            diagnostics: diagnostics.into(),
+        });
+    }
+    if query.access().status() != flow::access::Status::Analyzed {
+        return Err(Failure::Integrity(
+            flow::IntegrityError::InconsistentTypedBody,
+        ));
+    }
+    Ok(query)
 }
 #[derive(Debug)]
 pub struct Context<'query, 'source> {

@@ -38,6 +38,9 @@ pub(super) fn canonicalize(
     let program = Arc::new(canonical.finish());
     for query in queries.values_mut() {
         query.program = program.clone();
+        for nested in query.closures.values_mut() {
+            Arc::make_mut(&mut nested.typed).program = program.clone();
+        }
     }
     Ok(program)
 }
@@ -47,6 +50,14 @@ pub(super) fn project(
     query: &mut Query,
     mut data: impl FnMut(TypeId) -> Result<TypeId, Failure>,
     mut expression: impl FnMut(&Query, AccessExpressionId, &mut Expression) -> Result<(), Failure>,
+) -> Result<(), Failure> {
+    visit(query, &mut data, &mut expression)
+}
+
+fn visit(
+    query: &mut Query,
+    data: &mut dyn FnMut(TypeId) -> Result<TypeId, Failure>,
+    expression: &mut dyn FnMut(&Query, AccessExpressionId, &mut Expression) -> Result<(), Failure>,
 ) -> Result<(), Failure> {
     query.body.locals = query.body.locals.try_map(|_, local| {
         let mut local = local.clone();
@@ -60,19 +71,22 @@ pub(super) fn project(
     })?;
     query.body.expressions = query.body.expressions.try_map(|id, original| {
         let mut value = original.clone();
-        value.ty = value_type(value.ty, &mut data)?;
+        value.ty = value_type(value.ty, &mut *data)?;
         expression(query, id, &mut value)?;
         Ok::<_, Failure>(value)
     })?;
     query.body.blocks = query.body.blocks.try_map(|_, block| {
         let mut block = block.clone();
-        block.ty = value_type(block.ty, &mut data)?;
+        block.ty = value_type(block.ty, &mut *data)?;
         Ok::<_, Failure>(block)
     })?;
     query.result_data = data(query.result_data)?;
     for equality in &mut query.equalities {
         equality.left = data(equality.left)?;
         equality.right = data(equality.right)?;
+    }
+    for nested in query.closures.values_mut() {
+        visit(Arc::make_mut(&mut nested.typed), data, expression)?;
     }
     Ok(())
 }

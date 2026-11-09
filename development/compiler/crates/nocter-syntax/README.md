@@ -34,6 +34,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
   only at an invocation head followed by `(`. Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`
+- future closure head recognition in the same private goal, using one transactional discriminator
+  for captures, inputs and result annotations before a body; unit and grouped expressions retain
+  their own categories. Recognition does not establish environment or body acceptance
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation; its
   conformance test consumes the published and development grammar tables within their version scopes
 - canonical source-name and portable directory-module-segment validation

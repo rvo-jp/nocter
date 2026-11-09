@@ -1,0 +1,7 @@
+func run(): void {
+    let value = 1
+    loop {
+        let action = (value;): void { break }
+        break
+    }
+}

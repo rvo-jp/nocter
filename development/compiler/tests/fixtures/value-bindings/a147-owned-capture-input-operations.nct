@@ -1,0 +1,9 @@
+func run(take input: error): error {
+    let count = 1
+    let action = (count; edit target: i32, take value: error): error {
+        target += count
+        value
+    }
+    var target = 0
+    action(target, input)
+}

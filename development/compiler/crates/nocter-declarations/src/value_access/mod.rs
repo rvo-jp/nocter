@@ -12,8 +12,10 @@ use nocter_model::{
 
 use crate::DefinitionError;
 
-mod applications;
-pub use applications::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
+mod body_types;
+mod closures;
+pub use body_types::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
+pub use closures::Closure;
 mod data;
 mod functions;
 pub use functions::{
@@ -151,6 +153,7 @@ pub struct Program {
     parameters: std::sync::Arc<Arena<AccessParameterId, Parameter>>,
     namespace: std::sync::Arc<BTreeMap<Symbol, AccessCallableId>>,
     records: std::sync::Arc<records::Schemas>,
+    closures: BTreeMap<nocter_model::ValueClosure, Closure>,
 }
 
 impl Program {

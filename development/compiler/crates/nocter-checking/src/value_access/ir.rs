@@ -52,7 +52,18 @@ impl ValueType {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LocalOrigin {
     Parameter(AccessParameterId),
+    ClosureParameter,
+    Capture,
     Binding,
+}
+impl LocalOrigin {
+    #[must_use]
+    pub const fn is_input(self) -> bool {
+        matches!(
+            self,
+            Self::Parameter(_) | Self::ClosureParameter | Self::Capture
+        )
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -172,6 +183,10 @@ pub enum CallKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
     Function(AccessCallableId),
+    Closure {
+        closure: nocter_model::ValueClosure,
+        capture: AccessExpressionId,
+    },
     AdaptFunction {
         source: AccessExpressionId,
     },

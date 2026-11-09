@@ -16,7 +16,9 @@ pub(super) type Solutions = BTreeMap<Origin, Producers>;
 
 fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
     let selected = match term.origin {
-        Origin::Declaration(_) | Origin::Parameter(_) => Producers::from([term]),
+        Origin::Declaration(_) | Origin::Closure(_) | Origin::Parameter(_) => {
+            Producers::from([term])
+        }
         _ => known.get(&term.origin).ok_or(())?.clone(),
     };
     selected

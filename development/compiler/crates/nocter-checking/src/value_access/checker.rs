@@ -17,19 +17,22 @@ use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
     TokenKind, child_node_iter, direct_node, direct_token, first_direct_token,
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) struct LoopFrame {
     pub id: AccessLoopId,
     pub reachable_break: bool,
 }
 pub(super) struct Checker<'a, 's> {
+    pub closures: BTreeMap<nocter_model::ValueClosure, super::flow::Control>,
+    pub in_closure: bool,
     pub context: &'a DeclarationContext<'s>,
+    pub body_bytes: Arc<[u8]>,
     pub result: TypeId,
     pub types: nocter_declarations::value_access::BodyTypes,
     pub pending_results: bool,
     pub equalities: Vec<super::results::Equality>,
-    pub projection: BodySyntaxProjection,
+    pub projection: Arc<BodySyntaxProjection>,
     pub origins: Origins,
     pub locals: ArenaBuilder<AccessLocalId, Local>,
     pub expressions: ArenaBuilder<AccessExpressionId, Expression>,
@@ -55,28 +58,29 @@ pub(super) fn prepare(
         .callable_source(callable)
         .ok_or(Failure::UnknownCallable)?;
     let syntax = context.syntax();
-    let mut checker = Checker {
+    let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
+        .ok_or(Failure::InconsistentSyntax)?;
+    let range = syntax
+        .tree()
+        .node(source.body())
+        .ok_or(Failure::InconsistentSyntax)?
+        .range();
+    let body_bytes = syntax
+        .text_at(range)
+        .ok_or(Failure::InconsistentSyntax)?
+        .as_bytes()
+        .into();
+    let mut checker = Checker::new(
         context,
-        result: declaration.result(),
-        types: context
+        declaration.result(),
+        context
             .program()
             .body_types(callable)
             .map_err(|_| Failure::InconsistentSyntax)?,
-        pending_results: declaration.result_contract().is_some(),
-        equalities: Vec::new(),
-        projection: BodySyntaxProjection::for_root(syntax.tree(), source.body())
-            .ok_or(Failure::InconsistentSyntax)?,
-        origins: Origins::default(),
-        locals: ArenaBuilder::new(),
-        expressions: ArenaBuilder::new(),
-        places: ArenaBuilder::new(),
-        place_index: BTreeMap::new(),
-        statements: ArenaBuilder::new(),
-        blocks: ArenaBuilder::new(),
-        loops: ArenaBuilder::new(),
-        loop_stack: Vec::new(),
-        scopes: vec![BTreeMap::new()],
-    };
+        Arc::new(projection),
+        body_bytes,
+        false,
+    );
     for (&parameter, &token) in declaration.parameters().iter().zip(source.parameters()) {
         let parameter_declaration = context
             .program()
@@ -100,34 +104,65 @@ pub(super) fn prepare(
         Some(Boundary::Result(declaration.result())),
         true,
     )?;
-    let body_bytes = syntax
-        .text_at(checker.node_range(source.body())?)
-        .ok_or(Failure::InconsistentSyntax)?
-        .as_bytes()
-        .into();
-    Ok(Query {
-        program: std::sync::Arc::new(checker.types.finish()),
-        header: context.program_handle(),
-        callable,
-        body_bytes,
-        result_data: declaration.result(),
-        results_closed: !checker.pending_results,
-        result_evidence: None,
-        equalities: checker.equalities,
-        origins: checker.origins,
-        body: TypedBody {
-            root,
-            locals: checker.locals.finish(),
-            expressions: checker.expressions.finish(),
-            places: checker.places.finish(),
-            statements: checker.statements.finish(),
-            blocks: checker.blocks.finish(),
-            loops: checker.loops.finish(),
-        },
-    })
+    Ok(checker.finish(root))
 }
 
-impl Checker<'_, '_> {
+impl<'a, 's> Checker<'a, 's> {
+    pub(super) fn new(
+        context: &'a DeclarationContext<'s>,
+        result: TypeId,
+        types: nocter_declarations::value_access::BodyTypes,
+        projection: Arc<BodySyntaxProjection>,
+        body_bytes: Arc<[u8]>,
+        in_closure: bool,
+    ) -> Self {
+        let pending_results = super::results::is_result(types.program(), result);
+        Self {
+            context,
+            result,
+            types,
+            projection,
+            body_bytes,
+            in_closure,
+            pending_results,
+            closures: BTreeMap::new(),
+            equalities: Vec::new(),
+            origins: Origins::default(),
+            locals: ArenaBuilder::new(),
+            expressions: ArenaBuilder::new(),
+            places: ArenaBuilder::new(),
+            place_index: BTreeMap::new(),
+            statements: ArenaBuilder::new(),
+            blocks: ArenaBuilder::new(),
+            loops: ArenaBuilder::new(),
+            loop_stack: Vec::new(),
+            scopes: vec![BTreeMap::new()],
+        }
+    }
+    pub(super) fn finish(self, root: AccessBlockId) -> Query {
+        Query {
+            callable: self.types.owner(),
+            program: Arc::new(self.types.finish()),
+            header: self.context.program_handle(),
+            body_bytes: self.body_bytes,
+            result_data: self.result,
+            results_closed: !self.pending_results,
+            result_evidence: None,
+            equalities: self.equalities,
+            closures: self.closures,
+            origins: self.origins,
+            body: TypedBody {
+                root,
+                locals: self.locals.finish(),
+                expressions: self.expressions.finish(),
+                places: self.places.finish(),
+                statements: self.statements.finish(),
+                blocks: self.blocks.finish(),
+                loops: self.loops.finish(),
+            },
+        }
+    }
+
     pub fn syntax(&self) -> BoundSyntax<'_> {
         self.context.syntax()
     }
@@ -139,13 +174,6 @@ impl Checker<'_, '_> {
             .tree()
             .node(node)
             .map(nocter_syntax::SyntaxNode::kind)
-            .ok_or(Failure::InconsistentSyntax)
-    }
-    pub fn node_range(&self, node: NodeId) -> Result<nocter_source::TextRange, Failure> {
-        self.syntax()
-            .tree()
-            .node(node)
-            .map(nocter_syntax::SyntaxNode::range)
             .ok_or(Failure::InconsistentSyntax)
     }
     pub fn children(&self, node: NodeId) -> Vec<NodeId> {
@@ -290,6 +318,12 @@ impl Checker<'_, '_> {
                 self.program()
                     .symbols()
                     .spelling(match witness.origin {
+                        nocter_model::ValueFunctionOrigin::Closure(id) => self
+                            .program()
+                            .callables()
+                            .get(id.owner)
+                            .expect("closure owner")
+                            .name(),
                         nocter_model::ValueFunctionOrigin::Declaration(id)
                         | nocter_model::ValueFunctionOrigin::Result(id) =>
                             self.program().callables().get(id).expect("witness").name(),

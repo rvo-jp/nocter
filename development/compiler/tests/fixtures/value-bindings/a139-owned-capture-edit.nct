@@ -1,0 +1,8 @@
+func run(): i32 {
+    let count = 1
+    var next = (count;): i32 {
+        count = count + 1
+        count
+    }
+    next() + next()
+}

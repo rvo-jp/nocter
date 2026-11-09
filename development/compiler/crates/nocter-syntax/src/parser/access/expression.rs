@@ -150,6 +150,11 @@ fn argument(parser: &mut Parser<'_>) {
 
 fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     if parser.at_punctuation(Punctuation::LeftParen) {
+        if let Some((completed, _)) =
+            parser.attempt_decided_with(closure, |_, (_, decided)| *decided)
+        {
+            return Expression { completed };
+        }
         return grouped(parser);
     }
     if allow_braces && parser.at_keyword(Keyword::If) {
@@ -191,6 +196,73 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     } else {
         Expression { completed }
     }
+}
+
+fn closure(parser: &mut Parser<'_>) -> (CompletedMarker, bool) {
+    let marker = parser.start();
+    let head = parser.start();
+    parser.bump();
+    if !parser.enter_nesting() {
+        return (parser.complete(head, NodeKind::Error), false);
+    }
+    parser.eat_newlines();
+    parser.attempt(|parser| {
+        let captures = parser.start();
+        loop {
+            let capture = parser.start();
+            parser.expect_name();
+            parser.complete(capture, NodeKind::ClosureCapture);
+            parser.eat_newlines();
+            if !parser.eat_punctuation(Punctuation::Comma) {
+                break;
+            }
+            parser.eat_newlines();
+            if parser.at_punctuation(Punctuation::Semicolon) {
+                break;
+            }
+        }
+        parser.expect_punctuation(Punctuation::Semicolon);
+        parser.complete(captures, NodeKind::ClosureCaptures);
+    });
+    let parameters = parser.start();
+    parser.comma_list(
+        Punctuation::RightParen,
+        true,
+        ExpectedSyntax::Parameter,
+        |parser| {
+            let parameter = parser.start();
+            if (parser.at_contextual(crate::ContextualSpelling::Edit)
+                || parser.at_contextual(crate::ContextualSpelling::Take))
+                && parser.nth_kind(1) == TokenKind::Identifier
+            {
+                let operation = parser.start();
+                parser.bump();
+                parser.complete(operation, NodeKind::InputOperation);
+            }
+            parser.expect_name();
+            if parser.eat_punctuation(Punctuation::Colon) {
+                super::type_(parser);
+            }
+            parser.complete(parameter, NodeKind::ClosureParameter);
+        },
+    );
+    parser.expect_punctuation(Punctuation::RightParen);
+    parser.complete(parameters, NodeKind::ClosureParameters);
+    parser.complete(head, NodeKind::ClosureHead);
+    if parser.eat_punctuation(Punctuation::Colon) {
+        let result = parser.start();
+        super::type_(parser);
+        parser.complete(result, NodeKind::ClosureResult);
+    }
+    let decided = parser.at_punctuation(Punctuation::LeftBrace);
+    if decided {
+        super::required_block(parser);
+    }
+    parser.leave_nesting();
+    (
+        parser.complete(marker, NodeKind::ClosureExpression),
+        decided,
+    )
 }
 
 fn record_value(parser: &mut Parser<'_>, owner: CompletedMarker) -> Expression {

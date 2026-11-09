@@ -206,11 +206,14 @@ V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
 V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
 V2CorePrefix = ("!" | "-") V2CorePrefix | V2CorePostfix
 V2CorePostfix = V2CorePrimary (("(" List(V2CoreExpression) ")") | ("." Name))*
-V2CorePrimary = V2CoreRecordValue | Name | integer_literal | "true" | "false" | "(" ")"
+V2CorePrimary = V2CoreRecordValue | V2CoreClosure | Name | integer_literal | "true" | "false" | "(" ")"
                | "(" V2CoreExpression ")" | V2CoreIf
 V2CoreRecordValue = Name "{" List(Name ":" V2CoreExpression) "}"
 V2CoreIf = "if" V2CoreExpression V2CoreBlock
            ("else" (V2CoreBlock | V2CoreIf))?
+V2CoreClosure = "(" (NonEmptyList(Name) ";")? List(V2CoreClosureParameter) ")"
+                (":" V2CoreType)? V2CoreBlock
+V2CoreClosureParameter = V2InputOperation? Name (":" V2CoreType)?
 ```
 
 Call openers stay on their callee's logical line. Parentheses preserve a place's category. Binary levels
@@ -223,7 +226,7 @@ in this bounded grammar fail validation.
 
 Resolve all named headers before bodies. Every parameter's mode comes from its head: read when
 unmarked, otherwise edit/take. The result is always a delivered value, never I/U access. No
-body-selected mode, result qualifier, `from`, generic, receiver, closure,
+body-selected mode, result qualifier, `from`, generic, receiver,
 pack, outcome, async, const or module production is inherited into this fragment. Such constructs
 are outside this private goal, not prohibited in the complete language. Direct calls resolve one
 named function (including transparent grouping) and its argument count/contract before permission
@@ -296,7 +299,7 @@ input operations/data and result, and may select its permitted invocation adapte
 values remain statically selected. Top-level callable parameters also admit these flat contracts
 under [statically witnessed inputs](callables.md#statically-witnessed-callable-inputs). Callable
 produced results lacking an established witness for a required input, nested callback contracts, record
-fields containing callable contracts, anonymous closures, captured environments and erased
+fields containing callable contracts, general captured environments and erased
 callables remain outside this bounded fragment. This limit does not change their full future grammar or justify treating
 every structural callable contract as a capture-free Copy value.
 
@@ -307,3 +310,12 @@ actual witnesses substituted independently at each call.
 An interrupted call may retain only its structural result contract, under the
 [known-shape rules](values-and-types.md#known-shape-without-a-produced-value), without a produced
 callable environment or executable edge.
+
+Closure head recognition is structural and distinguishes grouped expressions and unit without
+type lookup. The [bounded owned-capture scope](callables.md#bounded-owned-capture-producers)
+admits exactly one explicit ordinary value capture, complete ordinary input/result data annotations,
+and no nested or inferred outside captures. Recognition of a broader head does not admit it.
+No released closure production or symbolic capture prefix is a fallback. Closure invocation
+access is inferred from reached operations on its owned environment; explicit input operations
+remain independent. Contextual completion of omitted input operations and data annotations is
+outside this first producer scope.

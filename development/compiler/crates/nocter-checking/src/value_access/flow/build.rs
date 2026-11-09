@@ -1,7 +1,5 @@
 use super::{Action, Graph, IntegrityError, Operation, Origin, Point, Terminator};
-use crate::value_access::{
-    ArgumentAction, Binary, ExpressionKind, LocalOrigin, Statement, TypedBody,
-};
+use crate::value_access::{ArgumentAction, Binary, ExpressionKind, Statement, TypedBody};
 use nocter_model::{
     AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessLoopId,
     AccessStatementId, ArenaBuilder,
@@ -143,9 +141,12 @@ impl Builder<'_> {
     fn scope(&self, block: AccessBlockId) -> Result<Frame> {
         let mut locals = Vec::new();
         if block == self.body.root() {
-            locals.extend(self.body.locals().iter().filter_map(|(id, local)| {
-                matches!(local.origin, LocalOrigin::Parameter(_)).then_some(id)
-            }));
+            locals.extend(
+                self.body
+                    .locals()
+                    .iter()
+                    .filter_map(|(id, local)| local.origin.is_input().then_some(id)),
+            );
         }
         for &id in &self.body.blocks().get(block).ok_or(INVALID)?.statements {
             if let Statement::Bind { local, .. } = self.body.statements().get(id).ok_or(INVALID)? {
@@ -406,6 +407,7 @@ impl Builder<'_> {
             } => return self.logical(id, *left, *right, entry),
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
             ExpressionKind::Record { fields } => self.record(entry, fields)?,
+            ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
             ExpressionKind::AdaptFunction { source } | ExpressionKind::Select { source, .. } => {
                 self.expression(*source, entry)?
             }

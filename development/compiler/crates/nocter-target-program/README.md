@@ -85,6 +85,8 @@ Each instance pairs frozen call edges and data projections with its original che
 consumers must use those edges/projections and the recorded direct/value invocation kind; they
 cannot infer an environment offset from arity, recheck a body, select by names, or reinterpret
 source-level Copy from the concrete payload. A generic returned environment keeps its selected
-transfer even when concrete payload projection establishes a named Copy value. Captured producers
-require further source closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
+transfer even when concrete payload projection establishes a named Copy value. Uninvoked bounded owned-capture payloads preserve their environment data in this projection
+without creating code instances. Reached captured-code calls or witness bindings return the
+explicit UnsupportedCapturedCode boundary. Captured instance specialization and general producers
+require further closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
 owns the handoff; the review/handoff own work status.

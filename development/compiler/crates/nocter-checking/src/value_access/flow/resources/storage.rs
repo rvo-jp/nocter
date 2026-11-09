@@ -9,9 +9,7 @@ impl State {
     pub fn entry(typed: &TypedQuery) -> Result<Self> {
         let mut state = Self::default();
         for (id, local) in typed.body().locals().iter() {
-            if matches!(local.origin, crate::value_access::LocalOrigin::Parameter(_))
-                && local.access().mode() == Mode::Own
-            {
+            if local.origin.is_input() && local.access().mode() == Mode::Own {
                 state.owned.insert(
                     Holder::Local(id),
                     OwnedValue::new(payload(typed.program(), local.data)?),

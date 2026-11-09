@@ -73,6 +73,7 @@ impl Instance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
+    UnsupportedCapturedCode(nocter_model::ValueClosure),
     UnknownRoot(AccessCallableId),
     UnboundRoot(AccessParameterId),
     InvalidAcceptedUnit,

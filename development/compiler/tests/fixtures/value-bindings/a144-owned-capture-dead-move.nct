@@ -1,0 +1,9 @@
+func observe(input: error): void {}
+func run(take input: error): void {
+    let action = (input;): void {
+        if false { let moved = input }
+        observe(input)
+    }
+    action()
+    action()
+}

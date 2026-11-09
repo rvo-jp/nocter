@@ -1,0 +1,8 @@
+struct Pair {
+    first: error
+    second: error
+}
+func run(take pair: Pair): error {
+    let finish = (pair;): error { pair.first }
+    finish()
+}

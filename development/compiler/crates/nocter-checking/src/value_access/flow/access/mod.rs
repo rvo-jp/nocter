@@ -10,7 +10,7 @@ mod tests;
 use super::{Graph, Initialization, IntegrityError, Location, Terminator};
 use crate::value_access::Query as TypedQuery;
 pub use liveness::{Carrier, Liveness};
-use nocter_model::{AccessLocalId, AccessParameterId, FieldPath, ValueAccessMode};
+use nocter_model::{AccessLocalId, FieldPath, ValueAccessMode};
 pub use projection::AccessDiagnostic;
 use state::World;
 use std::collections::{BTreeMap, BTreeSet};
@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Root {
     Owned(AccessLocalId),
-    Input(AccessParameterId),
+    Input(AccessLocalId),
     Temporary {
         call: nocter_model::AccessExpressionId,
         index: usize,

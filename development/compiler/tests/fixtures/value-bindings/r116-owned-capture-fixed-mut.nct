@@ -1,0 +1,6 @@
+func run(): i32 {
+    let value = 1
+    let action = (value;): i32 { value += 1
+        value }
+    action()
+}

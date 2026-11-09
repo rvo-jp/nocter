@@ -84,6 +84,7 @@ impl Program {
     #[must_use]
     pub fn function_contract(&self, witness: FunctionWitness) -> Option<FunctionConstraint> {
         let mut contract = match witness.origin {
+            ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {
                 let callable = self.callables.get(id)?;
                 let inputs = callable
@@ -132,6 +133,9 @@ impl Program {
     #[must_use]
     pub fn function_data(&self, witness: FunctionWitness) -> Option<TypeId> {
         match witness.origin {
+            ValueFunctionOrigin::Closure(id) => {
+                self.closure(id)?;
+            }
             ValueFunctionOrigin::Declaration(id) => {
                 self.callables.get(id)?;
             }

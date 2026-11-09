@@ -1,0 +1,3 @@
+func run(input: error): void {
+    let action = (input;): void {}
+}

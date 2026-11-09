@@ -1,0 +1,5 @@
+func run(flag: bool): i32 {
+    let value = 1
+    let action = if flag { (value;): i32 { value } } else { (value;): i32 { value } }
+    action()
+}

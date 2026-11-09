@@ -3,13 +3,13 @@ use super::{
     AccessRule, Creation, Liveness, Region, RetainedAccess, Root, Violation,
     liveness::{Carrier, Live},
 };
-use crate::value_access::{LocalOrigin, Query as TypedQuery};
-use nocter_model::{AccessExpressionId, AccessLocalId, AccessParameterId, ValueAccessMode as Mode};
+use crate::value_access::Query as TypedQuery;
+use nocter_model::{AccessExpressionId, AccessLocalId, ValueAccessMode as Mode};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum Key {
-    Parameter(AccessParameterId),
+    Input(AccessLocalId),
     Expression(AccessExpressionId),
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -56,16 +56,16 @@ impl World {
             prepared: BTreeMap::new(),
         };
         for (local, declaration) in typed.body().locals().iter() {
-            if let LocalOrigin::Parameter(parameter) = declaration.origin {
+            if declaration.origin.is_input() {
                 let mode = declaration.access().mode();
                 let value = if mode == Mode::Own {
                     Value::without_referent(mode)
                 } else {
-                    let key = Key::Parameter(parameter);
+                    let key = Key::Input(local);
                     world.nodes.insert(
                         key,
                         Node {
-                            region: Root::Input(parameter).region(),
+                            region: Root::Input(local).region(),
                             parent: None,
                             permission: mode,
                             created: Creation::Parameter(local),

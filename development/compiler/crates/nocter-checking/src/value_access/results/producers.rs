@@ -205,6 +205,18 @@ fn evaluate(
 ) -> Result<Producers, flow::IntegrityError> {
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
     match expression.kind {
+        ExpressionKind::Closure { closure, .. } => {
+            let invocation = query
+                .program()
+                .closure(closure)
+                .ok_or(INVALID)?
+                .contract()
+                .invocation;
+            Ok(BTreeSet::from([FunctionWitness {
+                origin: ValueFunctionOrigin::Closure(closure),
+                invocation,
+            }]))
+        }
         ExpressionKind::Function(declaration) => Ok(BTreeSet::from([FunctionWitness {
             origin: ValueFunctionOrigin::Declaration(declaration),
             invocation: nocter_model::ValueInvocation::Read,

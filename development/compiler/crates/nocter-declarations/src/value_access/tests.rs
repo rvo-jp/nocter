@@ -364,3 +364,67 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
             .is_err()
     );
 }
+
+#[test]
+fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_evidence() {
+    use nocter_model::{ValueClosure, ValueFunctionOrigin as Origin};
+    let symbols = SymbolTable::from_spellings(["first", "second"]);
+    let mut builder = Builder::new(symbols.clone());
+    let first = builder.reserve(symbols.get("first").unwrap());
+    let second = builder.reserve(symbols.get("second").unwrap());
+    builder.define(first, [], BuiltinType::Void).unwrap();
+    builder.define(second, [], BuiltinType::Void).unwrap();
+    let header = builder.finish().unwrap();
+    let make = |owner, environment| {
+        let mut branch = header.body_types(owner).unwrap();
+        let key = ValueClosure { owner, slot: 0 };
+        let contract = FunctionConstraint {
+            invocation: ValueInvocation::Read,
+            inputs: Box::new([]),
+            result: header.data_type(BuiltinType::Void).unwrap(),
+        };
+        let data = branch
+            .closure(
+                key,
+                header.data_type(environment).unwrap(),
+                contract.clone(),
+            )
+            .unwrap();
+        assert!(
+            branch
+                .closure(key, header.data_type(environment).unwrap(), contract)
+                .is_err()
+        );
+        (branch.finish(), data, key)
+    };
+    let (a, da, ka) = make(first, BuiltinType::Error);
+    let (b, db, kb) = make(second, BuiltinType::I32);
+    assert_eq!(da, db);
+    assert!(header.closure(ka).is_none());
+    let canonical = header
+        .canonical_body_types(std::collections::BTreeMap::from([
+            (first, &a),
+            (second, &b),
+        ]))
+        .unwrap();
+    let ca = canonical.project(first, da).unwrap();
+    let cb = canonical.project(second, db).unwrap();
+    let program = canonical.finish();
+    assert_ne!(ca, cb);
+    assert_eq!(program.data_copyable(ca), Some(false));
+    assert_eq!(program.data_copyable(cb), Some(true));
+    assert_eq!(program.closure(ka), a.closure(ka));
+    assert_eq!(program.closure(kb), b.closure(kb));
+    assert_eq!(
+        program.function_data(FunctionWitness {
+            origin: Origin::Closure(ka),
+            invocation: ValueInvocation::Read
+        }),
+        Some(ca)
+    );
+    assert!(
+        header
+            .canonical_body_types(std::collections::BTreeMap::from([(first, &b)]))
+            .is_err()
+    );
+}

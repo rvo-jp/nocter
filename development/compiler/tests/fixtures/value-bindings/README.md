@@ -6,11 +6,11 @@ and [input/value rules](../../../../spec/language/value-access.md). Each file is
 private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
-`manifest.json` as the sole per-source expectation catalog. All 263 inputs have compiler assertions:
-6 syntax rejections, 8 header rejections, 112 checking rejections and 137 whole-unit acceptances.
-Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 249
+`manifest.json` as the sole per-source expectation catalog. All 283 inputs have compiler assertions:
+6 syntax rejections, 8 header rejections, 122 checking rejections and 147 whole-unit acceptances.
+Rejections assert their diagnostic codes as well as rejection. Declaration tests freeze all 269
 header-valid units without claiming body acceptance and reject the eight invalid headers.
-The 257 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
+The 277 syntax-valid inputs have reviewed lossless `.shape` parser snapshots. Parser tests
 also check token/source projection. Neither shape equality nor manifest registration proves
 memory safety; the closed checker owns the semantic verdicts.
 
@@ -64,7 +64,7 @@ dead/overwritten argument anchors. Interrupted dependent calls with unknown-shap
 only their structural contract and produce no environment. The
 [type foundation and interruption review](../../../../history/reviews/v2.0.0-type-foundation-and-interruption.md)
 records the exact acceptance change and additional source/instance checks.
-These passes do not implement indexing, dependent aggregates, captured environments, erased
+These passes do not implement indexing, dependent aggregates, general captured environments, erased
 callables, generics, outcomes, async, public modules, ABI or native execution. No CLI version switch
 or released-program adapter is added. The incompatible pre-S12 inputs are retired, rather than kept as another mode.
 
@@ -83,3 +83,11 @@ cargo test --locked --manifest-path development/compiler/Cargo.toml -p nocter-ta
 
 To update structural snapshots deliberately, set `NOCTER_UPDATE_ACCESS_SHAPES=1` for the syntax
 test, then review every changed shape. Do not regenerate snapshots to conceal semantic failures.
+
+Owned-capture inputs add one explicit ordinary environment, func/mut/once demand inference,
+source-context Copy versus transfer, partial record return/cleanup, returned environment witnesses,
+callback input supply, prepared-prefix interruption and rejection of missing authority, source/once
+reuse, distinct lexical witnesses, invalid unused bodies and outer-loop control. Multiple/inferred/
+nested captures and contextual completion remain outside this first source scope. The
+[owned-capture review](../../../../history/reviews/v2.0.0-owned-capture-producers.md) records the
+source/flow boundary and the still-separate captured-code instance admission.

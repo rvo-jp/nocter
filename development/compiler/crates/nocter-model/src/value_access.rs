@@ -90,11 +90,19 @@ impl ValueBindingKind {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueFunctionOrigin {
     Declaration(crate::AccessCallableId),
+    Closure(ValueClosure),
     Parameter(crate::AccessParameterId),
     /// A declared callable result, closed by checking its reachable return producers.
     Result(crate::AccessCallableId),
     /// One statically selected call application, independent of source coordinates and type IDs.
     Application(ValueApplication),
+}
+
+/// Body-owned lexical code identity. It carries no source position or environment address.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueClosure {
+    pub owner: crate::AccessCallableId,
+    pub slot: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

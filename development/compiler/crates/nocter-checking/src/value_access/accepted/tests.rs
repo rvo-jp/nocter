@@ -283,5 +283,6 @@ mod support;
 
 mod supply;
 
+mod closures;
 mod dependent_results;
 mod unproduced;

@@ -12,6 +12,36 @@ fn accepted(fixture: &ValueSourceFixture) -> Arc<Unit> {
     let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
     Arc::new(Unit::prepare(&headers.bind(fixture.syntax()).unwrap()).unwrap())
 }
+
+#[test]
+fn uninvoked_owned_capture_projects_its_payload_without_creating_a_code_instance() {
+    let fixture = ValueSourceFixture::new(
+        "func run(take input: error): void {\nlet action = (input;): void {}\n}",
+    );
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+    let instance = graph.instances().get(graph.root()).unwrap();
+    assert!(instance.calls().is_empty());
+    assert!(instance.data().values().any(|d| {
+        d.payload()
+            .is_some_and(|p| p.disposal() == Disposal::OwnedCapture)
+    }));
+}
+
+#[test]
+fn captured_code_invocation_requires_explicit_instance_support() {
+    let fixture = ValueSourceFixture::new(
+        "func run(): i32 {\nlet value = 1\nlet action = (value;): i32 { value }\naction()\n}",
+    );
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    assert!(matches!(
+        InstanceProgram::prepare(unit, root),
+        Err(Failure::UnsupportedCapturedCode(_))
+    ));
+}
 fn callable(unit: &Unit, name: &str) -> AccessCallableId {
     unit.program()
         .resolve(unit.program().symbols().get(name).unwrap())

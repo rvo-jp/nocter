@@ -7,6 +7,7 @@ use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, Ty
 use std::collections::{BTreeMap, BTreeSet};
 
 mod assembly;
+mod capture;
 mod function_view;
 mod payload;
 mod storage;
@@ -76,6 +77,7 @@ impl Place {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Disposal {
+    OwnedCapture,
     /// The supplied environment's destructor, retained symbolically until witness specialization.
     FunctionEnvironment,
     Trivial,
@@ -106,6 +108,12 @@ impl Payload {
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Step {
+    Capture {
+        source: Place,
+        destination: Holder,
+        environment: Payload,
+        payload: Payload,
+    },
     /// Reclassify one selected named witness without constructing or duplicating its value.
     AdaptFunction {
         source: Place,
@@ -152,7 +160,7 @@ pub enum Step {
     },
     /// Replacement through a caller-owned U input; the old payload is initialized by contract.
     ReplaceInput {
-        parameter: nocter_model::AccessParameterId,
+        local: AccessLocalId,
         fields: FieldPath,
         source: Place,
         payload: Payload,
@@ -220,6 +228,7 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
         PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
         PayloadSchema::Record(_) => Disposal::Record,
         PayloadSchema::Function(witness) => match witness.origin {
+            nocter_model::ValueFunctionOrigin::Closure(_) => Disposal::OwnedCapture,
             nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
             nocter_model::ValueFunctionOrigin::Parameter(_) => Disposal::FunctionEnvironment,
             nocter_model::ValueFunctionOrigin::Result(_)

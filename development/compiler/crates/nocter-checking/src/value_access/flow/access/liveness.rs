@@ -275,7 +275,11 @@ fn expression_uses(
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
         }
-        ExpressionKind::Select { source, .. } | ExpressionKind::AdaptFunction { source } => {
+        ExpressionKind::Select { source, .. }
+        | ExpressionKind::AdaptFunction { source }
+        | ExpressionKind::Closure {
+            capture: source, ..
+        } => {
             uses.push((Carrier::Expression(source), false));
         }
         ExpressionKind::Record { ref fields } => {

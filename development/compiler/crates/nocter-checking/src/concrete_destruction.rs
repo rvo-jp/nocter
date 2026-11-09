@@ -389,7 +389,8 @@ impl ConcreteDispatchResolver<'_> {
             | TypeKind::Callable(_) => None,
             TypeKind::ValueFunction {
                 origin:
-                    nocter_model::ValueFunctionOrigin::Parameter(_)
+                    nocter_model::ValueFunctionOrigin::Closure(_)
+                    | nocter_model::ValueFunctionOrigin::Parameter(_)
                     | nocter_model::ValueFunctionOrigin::Result(_)
                     | nocter_model::ValueFunctionOrigin::Application(_),
                 ..

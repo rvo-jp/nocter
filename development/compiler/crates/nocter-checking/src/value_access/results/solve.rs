@@ -226,6 +226,16 @@ fn describe_witness(
     witness: FunctionWitness,
 ) -> Result<String, accepted::Failure> {
     let (kind, name) = match witness.origin {
+        Origin::Closure(id) => {
+            return Ok(format!(
+                "closure {} in `{}`",
+                id.slot,
+                program
+                    .symbols()
+                    .spelling(program.callables().get(id.owner).ok_or(INVALID)?.name())
+                    .ok_or(INVALID)?
+            ));
+        }
         Origin::Declaration(id) => ("code", program.callables().get(id).ok_or(INVALID)?.name()),
         Origin::Parameter(id) => ("input", program.parameters().get(id).ok_or(INVALID)?.name()),
         _ => return Err(INVALID),

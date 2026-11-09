@@ -870,6 +870,7 @@ impl TypeProperties {
                 matches!(
                     origin,
                     crate::ValueFunctionOrigin::Parameter(_)
+                        | crate::ValueFunctionOrigin::Closure(_)
                         | crate::ValueFunctionOrigin::Result(_)
                         | crate::ValueFunctionOrigin::Application(_)
                 )

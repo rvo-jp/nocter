@@ -1,6 +1,6 @@
 use super::super::Context;
 use super::{AccessRule, Creation, Root, Violation};
-use crate::value_access::{Failure, LocalOrigin, source_origin};
+use crate::value_access::{Failure, source_origin};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,17 +44,7 @@ impl Context<'_, '_> {
             }
             root => {
                 let local = match root {
-                    Root::Owned(local) => local,
-                    Root::Input(parameter) => self
-                        .query()
-                        .typed()
-                        .body()
-                        .locals()
-                        .iter()
-                        .find_map(|(id, local)| {
-                            (local.origin == LocalOrigin::Parameter(parameter)).then_some(id)
-                        })
-                        .ok_or(Failure::InconsistentSyntax)?,
+                    Root::Owned(local) | Root::Input(local) => local,
                     Root::Temporary { .. } => return Err(Failure::InconsistentSyntax),
                 };
                 self.typed()

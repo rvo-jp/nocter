@@ -183,6 +183,7 @@ impl Query {
 
 /// Control is prepared once, independently of unresolved value supply. Initialization and ownership
 /// consume this graph only after result identities and supply close; no public constructor exists.
+#[derive(Clone, Debug)]
 pub(super) struct Control {
     pub(super) typed: Arc<TypedQuery>,
     pub(super) graph: Graph,

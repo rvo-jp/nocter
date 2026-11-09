@@ -66,6 +66,7 @@ pub(super) fn publish(
         .expect("exact declaration lineage");
     let header_type_count = types.store().type_count();
     Program {
+        closures: BTreeMap::new(),
         symbols: symbols.into(),
         types,
         header_type_count,

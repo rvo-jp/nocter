@@ -1,0 +1,10 @@
+func observe(input: error): void {}
+func make(take input: error): func(): void {
+    (input;): void { observe(input) }
+}
+func apply(action: func(): void): void { action() }
+func run(take input: error): void {
+    let action = make(input)
+    apply(action)
+    action()
+}

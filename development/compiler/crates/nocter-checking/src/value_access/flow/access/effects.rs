@@ -369,6 +369,7 @@ impl Context<'_, '_> {
                 }
             }
             ExpressionKind::Function(_)
+            | ExpressionKind::Closure { .. }
             | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Select { .. }
             | ExpressionKind::Record { .. }

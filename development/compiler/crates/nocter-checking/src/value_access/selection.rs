@@ -133,7 +133,7 @@ impl Checker<'_, '_> {
         let place = self.place(node, rule)?;
         self.emit_place(node, place)
     }
-    fn emit_place(
+    pub(super) fn emit_place(
         &mut self,
         node: NodeId,
         place: AccessPlaceId,
@@ -144,7 +144,7 @@ impl Checker<'_, '_> {
             ExpressionKind::Place(place),
         )
     }
-    fn intern_place(
+    pub(super) fn intern_place(
         &mut self,
         local: AccessLocalId,
         fields: FieldPath,

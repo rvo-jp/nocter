@@ -1,0 +1,7 @@
+func run(): i32 {
+    var value = 1
+    let action = (value; number: i32): i32 { value + number }
+    value = 20
+    let copy = action
+    action(copy(2))
+}

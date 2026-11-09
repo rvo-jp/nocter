@@ -1,0 +1,4 @@
+func run(take input: error): error {
+    let finish = (input;): error { input }
+    finish()
+}

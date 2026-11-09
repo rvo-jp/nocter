@@ -124,17 +124,23 @@ under their exact schema. This is not evidence about arbitrary structural callba
 Formal and unresolved result witnesses deliberately have no Copy evidence. Their environment
 cleanup remains symbolic; a formal cannot inherit payload properties from one currently known caller. `function_contract`
 projects the selected named, formal or result contract without searching for an implementation.
-Checking must establish each result family's named or own-input witness relation and substitute
+Checking must establish each result family's named/captured-code or own-input witness relation and substitute
 actual bindings at each application before body acceptance. A result header never invents a
 producer or its payload properties. Distinct formals retain distinct witness
 identities even with equal structural signatures. Released
 declaration validation rejects all private witness keys.
 
-`applications` owns the narrow body-type construction capability. A selected factory call interns
+`body_types` owns the narrow body-type construction capability. A selected factory call interns
 its caller/operation/callee key and all permitted views over an immutable header prefix. A
 construction-only reservation forbids selecting two callees for one operation. It is discarded
 on freeze; no dispatch search or source syntax enters the program. Branches share declaration,
 namespace and record metadata instead of cloning those authorities.
+That branch also publishes closed single-value closure environment schemas under lexical
+owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
+schema components. The environment is ordinary closed builtin/record data; Copy follows that
+schema, independently of invocation. All permitted views belong to the same body-owned key.
+Canonical replay merges the schemas and their keys with the body type suffix in the same
+program; headers remain unchanged. `closures` owns their immutable projection, not body checking.
 
 Canonical replay validates exact declaration identity, persistent type-prefix identity and each
 suffix's body owner. It re-interns the leaf keys in semantic owner order and publishes exact
@@ -143,6 +149,6 @@ bodies cannot substitute for each other. Header programs stay unchanged and reus
 extended program cannot masquerade as a fresh header base. Checking rewrites all body data
 slots through this projection before closing relations.
 
-Outcome/capability/generic/user-destructor schemas, nested callback contracts and captured
+Outcome/capability/generic/user-destructor schemas, nested callback contracts and general captured
 environments remain outside the accepted private fragment. Exact
 scalar/unit/error independence is checked under its owning data contracts, never inferred from Copy or value receipt for arbitrary future types.

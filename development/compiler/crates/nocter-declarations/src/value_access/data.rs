@@ -43,10 +43,13 @@ impl Program {
         self.data_schema(data).and_then(|schema| match schema {
             PayloadSchema::Builtin(data) => builtin_copyable(data),
             PayloadSchema::Record(record) => Some(record.copyable()),
-            PayloadSchema::Function(witness) => Some(matches!(
-                witness.origin,
-                nocter_model::ValueFunctionOrigin::Declaration(_)
-            )),
+            PayloadSchema::Function(witness) => match witness.origin {
+                nocter_model::ValueFunctionOrigin::Declaration(_) => Some(true),
+                nocter_model::ValueFunctionOrigin::Closure(id) => {
+                    self.data_copyable(self.closure(id)?.environment())
+                }
+                _ => Some(false),
+            },
         })
     }
     /// The exact closed payload shape, without borrow types or generic eligibility fallbacks.

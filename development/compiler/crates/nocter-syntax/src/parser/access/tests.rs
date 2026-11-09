@@ -110,11 +110,31 @@ fn no_qualifier_or_call_marker_path_and_no_released_grammar_fallback() {
         "func f(x: i32): void { let y = &&x }",
         "func f<T>(x: T): T { return x }",
         "func f(): i32! { return 0 }",
-        "func f(): void { let c = (x) { x } }",
+        "func f(): void { let c = (^x;) { x } }",
     ] {
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
     }
     assert!(!tree("func f(x: &i32): void {}", ParseGoal::SourceFile).has_errors());
+}
+#[test]
+fn owned_capture_closure_heads_do_not_reinterpret_groups_or_unit() {
+    let text = "func run(): void {\nlet unit = ()\nlet grouped = (unit)\nlet action = (unit; edit value: i32, take payload: error): error { payload }\nlet other = (unit, grouped;): void {}\n}";
+    let parsed = tree(text, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    for (kind, expected) in [
+        (NodeKind::ClosureExpression, 2),
+        (NodeKind::ClosureCapture, 3),
+        (NodeKind::UnitExpression, 1),
+        (NodeKind::GroupedExpression, 1),
+        (NodeKind::InputOperation, 2),
+    ] {
+        assert_eq!(
+            parsed.nodes().filter(|(_, n)| n.kind() == kind).count(),
+            expected,
+            "{kind:?}"
+        );
+    }
+    super::super::snapshots::assert_token_projection(&parsed, "owned-capture");
 }
 #[test]
 fn unary_and_binary_precedence_retains_the_original_tokens() {
