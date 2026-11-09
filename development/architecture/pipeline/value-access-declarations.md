@@ -34,9 +34,10 @@ V2CoreUnit syntax + exact source
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated)
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
-       -> guarded private lifecycle schedules + initialization-bit recipes
-       -> closed runtime shapes + body input signatures
-            -> shared Machine stored layouts + call ABI placement (no executable/native admission)
+  -> guarded private lifecycle schedules + initialization-bit recipes
+  -> closed private MIR (runtime shapes, input slots, control, computation, calls and resource phases)
+  -> shared Machine stored layouts + call ABI placement + physical storage projection
+       (no executable/native admission)
 ```
 
 ## Responsibilities
@@ -441,7 +442,8 @@ native execution.
 MIR's private storage lowering consumes the complete lifecycle product and freezes dense activation
 slots and resource-phase storage effects. It projects reachable checked locations without creating
 another source CFG, deciding ownership again or retaining checking/target storage in the result.
-This is a storage companion for subsequent body lowering, not a complete executable MirProgram.
+These requirements live in the same private MIR bodies as computation and control. The private
+product remains separate from released MirProgram admission.
 
 Value storage, address channels, prepared owning values, committed temporary backing, operand and
 predicate snapshots, and protected call answers are distinct roles. A prepared slot can have
@@ -460,5 +462,29 @@ merely because bytes are reserved. Each invocation gets its own frame and copied
 
 Physical resource transfers retain byte counts, base/dereference selection and projection offsets;
 cleanup retains the selected disposal obligation. Tests and writes retain the complete original
-phase order. General value computation, actual ABI ingress/egress, cleanup-helper calls and native
-instruction emission must still be integrated before this companion can execute a source program.
+phase order. Actual ABI ingress/egress, cleanup-helper calls and native instruction emission remain
+required before these bodies can execute a source program.
+
+### Complete Private MIR Bodies
+
+Private body lowering freezes the checked reachable control graph, selected scalar computation,
+address bindings and statically selected calls together with storage requirements and lifecycle
+phases. No separately pairable companion or second source interpreter supplies computation.
+Input slots retain the frozen signature order. Call environment projections, explicit inputs and
+protected result places use the selected instance
+edge, without reconstructing an adapter or its target from types.
+
+Each action evaluates its resource guard once, performs before effects and writes, establishes
+committed call bindings, computes its selected operation, and performs after effects and writes on
+normal completion. Arithmetic computes before writing its destination and retains required i32
+overflow/division checks. Operand snapshots remain before later operand effects. Comparisons may
+normalize relation/operand order only over those completed snapshots. Short-circuit behavior stays
+in the frozen graph and cannot become an eager binary operation. Branch predicates and return
+answers survive their original cleanup boundaries.
+Relational normalization uses the admitted i32 total order; it supplies no rule for floating-point
+or user-defined comparisons.
+
+An ordinary result and an address channel remain distinct. The private computation contract does
+not require source borrow types or a runtime function pointer. Complete private MIR remains
+separate from Machine body construction, actual ABI transfer, cleanup-helper emission and native
+qualification.

@@ -145,7 +145,7 @@ impl StorageProgram {
     /// Place each activation and materialize all frozen resource addresses and byte counts.
     /// # Errors
     /// Rejects invalid representation/projection/flag references and overflowing layouts.
-    pub fn lower(program: &mir::StorageProgram) -> Result<Self, Failure> {
+    pub fn lower(program: &mir::Program) -> Result<Self, Failure> {
         lower::program(program)
     }
     #[must_use]

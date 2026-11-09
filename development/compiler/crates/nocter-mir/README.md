@@ -24,8 +24,8 @@ or assign a machine ABI.
   ordinary call semantics
 - operation and pack schemas
 - whole-program MIR validation
-- private activation requirements and lifecycle storage effects under `value_access`, separate
-  from complete executable MIR bodies
+- complete bounded private bodies under `value_access`, including control, computation, calls,
+  activation requirements and lifecycle phases, separate from released executable admission
 
 ## Invariants
 
@@ -51,14 +51,18 @@ or assign a machine ABI.
 - A fallible deferred output completes as one ordinary fallible value; MIR does not invent a
   second task-failure channel.
 
-## Private Storage Companion
+## Private Value Bodies
 
-`value_access::StorageProgram` consumes the complete private lifecycle product and its exact
-instance data/input authority. Its builder interns dense slots, lowers resource phases and fixes
-call-address bindings after commit-time backing moves. The frozen companion contains a runtime
-environment, input signatures, storage requirements and projected effects, with no checking/target
-storage reference. It is not a MirProgram and has no executable conversion. Full body lowering must
-integrate it within one authority; raw local/location identities cannot pair unrelated generations.
+`value_access::Program` consumes one complete private lifecycle product and its exact instance
+data/input authority. Its builder freezes the reachable control graph, interns dense slots, lowers
+selected scalar operations and static calls, and integrates resource phases and committed call
+bindings. The result contains its runtime environment and closed bodies, with no checking/target
+storage reference. There is no separately pairable storage companion or released MirProgram adapter.
+
+`computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
+access, result witnesses or dispatch. `validate` checks closed representation, graph, signature,
+projection, primitive-operation and flag integrity before publication. It does not repeat source
+ownership analysis. Machine body construction and native qualification remain separate boundaries.
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.

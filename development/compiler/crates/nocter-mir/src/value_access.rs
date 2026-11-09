@@ -1,5 +1,9 @@
-//! Private activation requirements and storage effects, not complete executable MIR bodies.
+//! Closed private control, computation and lifecycle bodies. No released or native admission.
+mod computation;
 mod lower;
+#[cfg(test)]
+mod tests;
+mod validate;
 
 use std::collections::BTreeMap;
 
@@ -94,6 +98,68 @@ pub enum Effect {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Constant {
+    Integer(i32),
+    Boolean(bool),
+    Zero,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallInput {
+    pub source: Place,
+    pub operation: nocter_model::ValueInputOperation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Call {
+    pub target: AccessInstanceId,
+    /// Frozen callee signature order, including its environment when present.
+    pub inputs: Box<[CallInput]>,
+    /// Filled on normal return before adapter cleanup or result receipt.
+    pub answer: Place,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Operation {
+    Constant {
+        destination: Place,
+        value: Constant,
+    },
+    Copy {
+        source: Place,
+        destination: Place,
+    },
+    Storage(Effect),
+    Unary {
+        operation: crate::MirUnaryOperation,
+        operand: Place,
+        destination: Place,
+        check: crate::MirArithmeticCheck,
+    },
+    Binary {
+        operation: crate::MirBinaryOperation,
+        left: Place,
+        right: Place,
+        destination: Place,
+        invert: bool,
+        check: crate::MirArithmeticCheck,
+    },
+    Call(Call),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Terminator {
+    Jump(AccessFlowPointId),
+    Branch {
+        condition: Place,
+        yes: AccessFlowPointId,
+        no: AccessFlowPointId,
+    },
+    Return(Place),
+    Unreachable,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BitValue {
     pub word: usize,
     pub mask: u64,
@@ -119,6 +185,7 @@ pub struct Location {
 pub struct Action {
     /// Run after before-effects/writes and before entering the selected call.
     pub call_bindings: Box<[Effect]>,
+    pub operations: Box<[Operation]>,
     pub alternatives: Box<[Alternative]>,
 }
 
@@ -128,8 +195,23 @@ pub struct Body {
     slots: Arena<MirLocalId, Slot>,
     flags: Box<[u64]>,
     actions: BTreeMap<Location, Action>,
+    entry: AccessFlowPointId,
+    terminators: BTreeMap<AccessFlowPointId, Terminator>,
+    inputs: Box<[MirLocalId]>,
 }
 impl Body {
+    #[must_use]
+    pub const fn entry(&self) -> AccessFlowPointId {
+        self.entry
+    }
+    #[must_use]
+    pub const fn terminators(&self) -> &BTreeMap<AccessFlowPointId, Terminator> {
+        &self.terminators
+    }
+    #[must_use]
+    pub fn inputs(&self) -> &[MirLocalId] {
+        &self.inputs
+    }
     #[must_use]
     pub const fn signature(&self) -> &RuntimeValueSignature {
         &self.signature
@@ -154,14 +236,15 @@ pub enum Failure {
     InvalidBody(AccessInstanceId),
 }
 
-/// Frozen storage companion. It deliberately exposes no executable or native conversion.
+/// Closed private MIR bodies, without a released-program adapter or native capability.
 #[derive(Clone, Debug)]
-pub struct StorageProgram {
+pub struct Program {
     runtime: RuntimeEnvironment,
     bodies: BTreeMap<AccessInstanceId, Body>,
+    root: AccessInstanceId,
 }
-impl StorageProgram {
-    /// Freeze activation requirements from exact selected lifecycle effects and input channels.
+impl Program {
+    /// Freeze computation, control and lifecycle from one exact selected instance program.
     /// # Errors
     /// Rejects missing identities, inconsistent slot roles or unresolved concrete data.
     pub fn lower(program: &lifecycle::Program, abi: RuntimeAbiIdentity) -> Result<Self, Failure> {
@@ -172,7 +255,13 @@ impl StorageProgram {
             .iter()
             .map(|(&id, body)| Ok((id, lower::body(program.instance_program(), id, body)?)))
             .collect::<Result<_, Failure>>()?;
-        Ok(Self { runtime, bodies })
+        let result = Self {
+            runtime,
+            bodies,
+            root: program.instance_program().root(),
+        };
+        validate::program(&result)?;
+        Ok(result)
     }
     #[must_use]
     pub const fn runtime(&self) -> &RuntimeEnvironment {
@@ -181,5 +270,9 @@ impl StorageProgram {
     #[must_use]
     pub const fn bodies(&self) -> &BTreeMap<AccessInstanceId, Body> {
         &self.bodies
+    }
+    #[must_use]
+    pub const fn root(&self) -> AccessInstanceId {
+        self.root
     }
 }

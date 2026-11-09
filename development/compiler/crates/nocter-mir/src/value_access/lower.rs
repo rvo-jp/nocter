@@ -16,19 +16,19 @@ use nocter_target_program::value_access::{Instance, InstanceProgram, lifecycle::
 use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::BTreeMap;
 
-struct Builder<'a> {
-    id: AccessInstanceId,
-    instances: &'a InstanceProgram,
-    instance: &'a Instance,
-    checked: &'a flow::Query,
+pub(super) struct Builder<'a> {
+    pub(super) id: AccessInstanceId,
+    pub(super) instances: &'a InstanceProgram,
+    pub(super) instance: &'a Instance,
+    pub(super) checked: &'a flow::Query,
     slots: ArenaBuilder<MirLocalId, Slot>,
     keys: BTreeMap<SlotKey, MirLocalId>,
 }
 impl Builder<'_> {
-    fn invalid(&self) -> Failure {
+    pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
-    fn data(&self, source: TypeId) -> Result<TypeId, Failure> {
+    pub(super) fn data(&self, source: TypeId) -> Result<TypeId, Failure> {
         self.instance
             .data()
             .get(&source)
@@ -36,7 +36,7 @@ impl Builder<'_> {
             .map(Payload::data)
             .ok_or_else(|| self.invalid())
     }
-    fn expression(&self, id: AccessExpressionId) -> Result<TypeId, Failure> {
+    pub(super) fn expression(&self, id: AccessExpressionId) -> Result<TypeId, Failure> {
         let access = self
             .checked
             .typed()
@@ -47,7 +47,7 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?;
         self.data(access.data())
     }
-    fn arguments(
+    pub(super) fn arguments(
         &self,
         call: AccessExpressionId,
     ) -> Result<&[nocter_checking::value_access::Argument], Failure> {
@@ -63,7 +63,7 @@ impl Builder<'_> {
         };
         Ok(arguments)
     }
-    fn slot(
+    pub(super) fn slot(
         &mut self,
         key: SlotKey,
         data: TypeId,
@@ -91,7 +91,12 @@ impl Builder<'_> {
         self.keys.insert(key, id);
         Ok(id)
     }
-    fn root(&mut self, holder: Holder, selected: TypeId, partial: bool) -> Result<Place, Failure> {
+    pub(super) fn root(
+        &mut self,
+        holder: Holder,
+        selected: TypeId,
+        partial: bool,
+    ) -> Result<Place, Failure> {
         let (key, root, storage) = match holder {
             Holder::Local(local) => {
                 let item = self
@@ -169,7 +174,7 @@ impl Builder<'_> {
             .collect();
         Ok(place)
     }
-    fn selected(
+    pub(super) fn selected(
         &mut self,
         id: nocter_model::AccessPlaceId,
         data: TypeId,
@@ -192,7 +197,11 @@ impl Builder<'_> {
             .collect();
         Ok(place)
     }
-    fn argument(&mut self, call: AccessExpressionId, index: usize) -> Result<Place, Failure> {
+    pub(super) fn argument(
+        &mut self,
+        call: AccessExpressionId,
+        index: usize,
+    ) -> Result<Place, Failure> {
         let argument = self
             .arguments(call)?
             .get(index)
@@ -546,6 +555,7 @@ pub(super) fn body(
             .map(|call| builder.call_bindings(call))
             .transpose()?
             .unwrap_or_default();
+        let operations = builder.computation(operation)?;
         actions.insert(
             Location {
                 point: at.point,
@@ -553,14 +563,48 @@ pub(super) fn body(
             },
             Action {
                 call_bindings,
+                operations,
                 alternatives,
             },
         );
     }
+    let mut terminators = BTreeMap::new();
+    for (point, block) in checked.graph().points().iter() {
+        if !checked.initialization().reachable(point) {
+            continue;
+        }
+        let terminator = match block.terminator {
+            flow::Terminator::Jump(next) => super::Terminator::Jump(next),
+            flow::Terminator::Branch { condition, yes, no } => super::Terminator::Branch {
+                condition: builder.predicate(condition)?,
+                yes,
+                no,
+            },
+            flow::Terminator::Return => {
+                let data = signature.result();
+                super::Terminator::Return(builder.root(Holder::Return, data, false)?)
+            }
+            flow::Terminator::Unreachable => super::Terminator::Unreachable,
+        };
+        terminators.insert(point, terminator);
+    }
+    let inputs = signature
+        .ordered()
+        .map(|input| {
+            builder
+                .keys
+                .get(&SlotKey::Local(input.local))
+                .copied()
+                .ok_or(invalid)
+        })
+        .collect::<Result<Box<[_]>, _>>()?;
     Ok(Body {
         signature,
         slots: builder.slots.finish(),
         flags: lifecycle.flags().initial_words().into(),
         actions,
+        entry: checked.graph().entry(),
+        terminators,
+        inputs,
     })
 }

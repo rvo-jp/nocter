@@ -38,10 +38,11 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   explicit storage roots. Value-model field correspondence preserves its own identity domain;
   only the construction plan retains semantic member indexes. Private input planning consumes
   data and input operation separately and retains that operation alongside derived ABI transport.
-- Private storage lowering consumes only MIR's frozen companion. It places payload/address slots
+- Private storage lowering consumes closed private MIR bodies. It places payload/address slots
   and initialization banks, caches exact typed projection addresses, and freezes byte-counted
   transfers and disposal selections. Equal byte offsets do not collapse distinct projection
-  identities. This companion is separate from executable MachineProgram lowering.
+  identities. Its storage projection is separate from executable MachineProgram lowering;
+  it does not execute or replace the MIR body's scalar operations and control graph.
 - Generic member placement is keyed by the complete concrete type plus semantic member identity;
   distinct specializations cannot overwrite one another's field, variant, payload, or capture
   correspondence.

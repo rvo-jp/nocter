@@ -9,7 +9,7 @@ use nocter_model::AccessInstanceId;
 use nocter_model::ArenaBuilder;
 use std::collections::BTreeMap;
 
-pub(super) fn program(program: &mir::StorageProgram) -> Result<StorageProgram, Failure> {
+pub(super) fn program(program: &mir::Program) -> Result<StorageProgram, Failure> {
     let roots = program.bodies().values().flat_map(|body| {
         body.slots()
             .iter()
@@ -301,7 +301,7 @@ impl Materializer<'_> {
 }
 
 fn body(
-    program: &mir::StorageProgram,
+    program: &mir::Program,
     layouts: &MachineLayoutPlan,
     id: AccessInstanceId,
     source: &mir::Body,

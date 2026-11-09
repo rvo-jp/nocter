@@ -74,9 +74,10 @@ names do not authorize hidden effects, root stability or target primitives.
 
 ## Executable Lifecycle and Target Admission
 
-Integrate the [private activation storage companion](../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
-with value computation, actual input/result ABI transfer and disposal helpers through one executable
-body authority. Qualify environment
+Lower the [closed private MIR bodies](../architecture/pipeline/value-access-declarations.md#complete-private-mir-bodies)
+through common Machine body construction, actual input/result ABI transfer and disposal helpers.
+Physical address channels must remain explicit without fabricating source layout keys or reviving
+borrow data types. Qualify environment
 pack/unpack, prepared input receipt, protected answers, conditional resource steps and normal
 adapter exits. A read/edit body invoked through a consuming adapter needs its
 received environment disposed before answer delivery; a consuming body must not receive a second

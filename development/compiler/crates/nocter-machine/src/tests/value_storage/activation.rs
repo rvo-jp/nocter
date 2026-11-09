@@ -6,13 +6,9 @@ use nocter_target_program::value_access::lifecycle;
 
 fn lower(
     fixture: &ValueSourceFixture,
-) -> (
-    lifecycle::Program,
-    mir::StorageProgram,
-    machine::StorageProgram,
-) {
+) -> (lifecycle::Program, mir::Program, machine::StorageProgram) {
     let lifecycle = lifecycle::Program::prepare(Arc::new(close(fixture))).unwrap();
-    let mir = mir::StorageProgram::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let mir = mir::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
     let machine = machine::StorageProgram::lower(&mir).unwrap();
     (lifecycle, mir, machine)
 }
@@ -367,7 +363,7 @@ fn frame_composition_checks_overflow_after_individually_valid_stored_layouts() {
     .unwrap();
     let lifecycle =
         lifecycle::Program::prepare(Arc::new(close(&ValueSourceFixture::new(&source)))).unwrap();
-    let mir = mir::StorageProgram::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let mir = mir::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
     assert!(matches!(
         machine::StorageProgram::lower(&mir),
         Err(machine::Failure::FrameOverflow(_))

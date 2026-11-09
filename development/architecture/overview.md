@@ -71,9 +71,10 @@ projects checked resource conditions and operation phases into concrete private 
 including normal adapter disposal before answer receipt, without copying the CFG or selecting
 dispatch again. Packed initialization recipes derive from checked ownership snapshots. Closed
 runtime shapes and input channels feed Machine's shared stored-layout and ABI-placement authorities.
-A private MIR storage companion freezes activation requirements and resource phases; Machine places
-their frames/flag banks and materializes projection addresses and storage effects. Full executable
-body integration and native emission remain separate. General carried dependencies,
+Private MIR freezes complete bounded control/computation bodies, selected calls, activation
+requirements and resource phases. Machine's storage projection places their frames/flag banks and
+materializes addresses and storage effects. Common Machine body construction, actual call transport
+and native emission remain separate. General carried dependencies,
 target realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 

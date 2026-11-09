@@ -7,8 +7,8 @@
    their owning contracts. Then close remaining expression/control, capability/library,
    package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
    Integrate ordinary reading/writing examples before extending accepted source scope.
-2. Integrate the private activation/storage companion with value computation, actual input/result
-   ABI transfer and disposal helpers into complete executable bodies; then qualify native behavior.
+2. Lower the closed private MIR bodies through common Machine body construction, actual input/result
+   ABI transfer and disposal helpers; then qualify native behavior.
    Keep required backing, frozen input channels, protected answers, cleanup and adapter disposal
    coherent. Physical frame/effect planning alone does not qualify source execution.
 3. Extend contextual/multiple/nested captures, general R/D/S schemas, interfaces/generics, outcomes,
