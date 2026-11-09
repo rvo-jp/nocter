@@ -22,12 +22,12 @@ Use the [agent instructions](../AGENTS.md) for delegated scope and syntax approv
 
 ## Open Findings
 
-- The released native test `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`
-  exits with status 1 instead of 0 in the full suite. Its cause is untriaged; the existing failure
-  message does not identify the sync/async image or failure code. Investigate with the focused
-  `nocter-native-session` test and its plain-peer fixture before changing product behavior or
-  expectations. This path does not consume the private v2 Unit; the complete compiler gate is
-  not qualified by the successful private-source checks.
+- Investigate the unclassified status-1 failure of the released native test
+  `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
+  It is not consistently reproducible. Native exit assertions identify the sync/async image,
+  but the failing Nocter return/error path and cause remain unclassified. Use the focused
+  `nocter-native-session` test and its plain-peer fixture to establish a reproducer before
+  changing product behavior or expectations. This path does not consume the private v2 Unit.
 - Audit the derived-ordering selector/text discrepancy against the owning current contracts.
   Resolve it in the operator design before admitting comparison derivation; a method spelling
   alone must not select semantics.

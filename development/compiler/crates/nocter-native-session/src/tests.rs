@@ -231,7 +231,7 @@ fn execute_native_status(image: &NativeImage, root: &Path, name: &str, expected:
     assert_eq!(
         status.code(),
         Some(expected),
-        "native image exited with {status:?}"
+        "native image {name} exited with {status:?}"
     );
 }
 
