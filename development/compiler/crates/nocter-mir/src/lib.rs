@@ -30,6 +30,7 @@ mod validation_place;
 mod validation_region;
 mod validation_switch;
 mod validation_types;
+pub mod value_access;
 
 pub use async_frame::{
     MirAsyncFrame, MirCancellationAction, MirFrameField, MirInitialAsyncState, MirSuspensionState,

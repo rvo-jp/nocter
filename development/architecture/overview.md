@@ -70,8 +70,10 @@ this is separate from released target admission and has no native consumer. The 
 projects checked resource conditions and operation phases into concrete private lifecycle schedules,
 including normal adapter disposal before answer receipt, without copying the CFG or selecting
 dispatch again. Packed initialization recipes derive from checked ownership snapshots. Closed
-runtime shapes and input channels feed Machine's shared stored-layout and ABI-placement authorities;
-activation/flag-bank placement and instruction emission remain separate. General carried dependencies,
+runtime shapes and input channels feed Machine's shared stored-layout and ABI-placement authorities.
+A private MIR storage companion freezes activation requirements and resource phases; Machine places
+their frames/flag banks and materializes projection addresses and storage effects. Full executable
+body integration and native emission remain separate. General carried dependencies,
 target realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 

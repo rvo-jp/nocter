@@ -17,6 +17,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - stored layout, aggregate representation, and ABI-owned opaque runtime-storage layout
 - private runtime-environment layout and value-model input ABI through the same layout/placement
   algorithms, without native admission
+- private activation placement and physical resource-phase storage effects under `value_access`
 - immutable-static serialization and data-to-data relocation construction
 - call/result ABI classification and transport shared by primitive and imported calls
 - one canonical imported-service identity domain retained independently of MIR
@@ -37,6 +38,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   explicit storage roots. Value-model field correspondence preserves its own identity domain;
   only the construction plan retains semantic member indexes. Private input planning consumes
   data and input operation separately and retains that operation alongside derived ABI transport.
+- Private storage lowering consumes only MIR's frozen companion. It places payload/address slots
+  and initialization banks, caches exact typed projection addresses, and freezes byte-counted
+  transfers and disposal selections. Equal byte offsets do not collapse distinct projection
+  identities. This companion is separate from executable MachineProgram lowering.
 - Generic member placement is keyed by the complete concrete type plus semantic member identity;
   distinct specializations cannot overwrite one another's field, variant, payload, or capture
   correspondence.

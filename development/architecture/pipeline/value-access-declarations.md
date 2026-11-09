@@ -435,3 +435,30 @@ supply no runtime channel and cannot create an invocation edge. The existing Mac
 register/stack/result placement algorithm serves both input products. This is an internal call
 convention that may be specialized with proof; it is not a new public ABI promise or evidence of
 native execution.
+
+## Private Activation Storage Handoff
+
+MIR's private storage lowering consumes the complete lifecycle product and freezes dense activation
+slots and resource-phase storage effects. It projects reachable checked locations without creating
+another source CFG, deciding ownership again or retaining checking/target storage in the result.
+This is a storage companion for subsequent body lowering, not a complete executable MirProgram.
+
+Value storage, address channels, prepared owning values, committed temporary backing, operand and
+predicate snapshots, and protected call answers are distinct roles. A prepared slot can have
+several selected callable-adapter representations; its extent accommodates those representations
+without changing their data identities. Read/edit call channels bind to committed backing after
+the before phase, so a preparation-time address cannot point at a retired prepared slot. Consuming
+adapter cleanup addresses its received argument carrier, including post-call edits, before answer
+receipt. The protected answer has separate storage throughout that cleanup.
+
+Machine places these requirements using its completed stored layouts. Owned payloads occupy frame
+storage; scoped locals/channels store addresses to independent backing. Field and environment
+projections resolve once through the exact runtime representations. Zero-byte payloads keep
+distinct slots and may share an aligned frame anchor. A conservative addressable activation may
+reserve anchor storage; later proven storage elimination is unrestricted. No payload is initialized
+merely because bytes are reserved. Each invocation gets its own frame and copied flag template.
+
+Physical resource transfers retain byte counts, base/dereference selection and projection offsets;
+cleanup retains the selected disposal obligation. Tests and writes retain the complete original
+phase order. General value computation, actual ABI ingress/egress, cleanup-helper calls and native
+instruction emission must still be integrated before this companion can execute a source program.

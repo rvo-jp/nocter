@@ -32,6 +32,7 @@ mod storage;
 mod structural;
 mod target;
 mod transport;
+pub mod value_access;
 
 pub use async_frame::{
     MachineAsyncFrame, MachineCancellationAction, MachineFrameField, MachineInitialAsyncState,

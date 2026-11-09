@@ -766,7 +766,7 @@ fn is_completion_type(types: &RuntimeTypeTable, ty: TypeId) -> bool {
     )
 }
 
-fn align_up(value: u64, alignment: u64) -> Result<u64, MachineAbiError> {
+pub(crate) fn align_up(value: u64, alignment: u64) -> Result<u64, MachineAbiError> {
     if !alignment.is_power_of_two() {
         return Err(MachineAbiError::InvalidStackAlignment(alignment));
     }
