@@ -109,6 +109,11 @@ stronger implementation precondition repairs an incompatible requirement. An imp
 may promise a narrower result/post-state dependency bound only when it satisfies every behavior
 permitted by the interface; clients continue using the interface's advertised bound.
 
+Authored const member requirements additionally use the
+[const view-matching rule](constant-evaluation.md#published-facts-and-contract-views). A runtime-only
+requirement does not promise const for every implementation; a concrete static binding can carry
+a separately checked availability fact without changing that requirement's ordinary contract.
+
 The frozen relation also covers supported required operators. They match by fixed operation
 family/shape and specialized signature, not a made-up helper name. Comparison requirements bind
 the one type-owned fixed entry under the [comparison contract](comparisons.md#selection-and-requirements);

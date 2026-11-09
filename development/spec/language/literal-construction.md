@@ -128,7 +128,7 @@ the [storage contract](memory-and-regions.md#storage-optimization).
 
 An entry may be declared `const literal ...`. This gives its one checked implementation the same
 constant-evaluation promise as `const func`, under the
-[evaluator domain](generics-and-constants.md#const-calls-and-temporary-evaluation). It is still
+[evaluator domain](constant-evaluation.md#const-calls-and-temporary-evaluation). It is still
 callable at runtime. Pack preparation, explicit transfers, body execution and cleanup use the
 same selected operations. Intrinsic structural field construction needs no user entry call.
 A structural grant has no second `const literal { ... }` spelling: its ordinary constituent
@@ -137,7 +137,9 @@ operations determine evaluator eligibility.
 Const does not make arbitrary container storage, string resources or user destruction evaluable
 or serializable. All branches must check under the promised evaluator domain. Optional runtime
 folding may prove further transformations but cannot manufacture a public const capability.
-Conditional generic const evidence and additional evaluator domains remain separate work.
+Conditional generic const evidence follows the
+[shared eligibility contract](constant-evaluation.md#conditional-generic-const-contracts);
+additional evaluator domains still need their own admission.
 
 Qualification must cover empty/ordinary/keyed selection, unknown generic components, mixed
 contributions, failed input authority, repeated marked sources, spread evaluation, interrupted

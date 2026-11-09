@@ -73,6 +73,28 @@ locations, selected operations and expected resource/access results. Required CT
 checked operations and evaluator capability, not an independent source interpreter. User protocol
 names do not authorize hidden effects, root stability or target primitives.
 
+## Conditional Const Admission
+
+The [const contract](../spec/language/constant-evaluation.md) owns eligibility and publication.
+Before source admission, qualify one checked body/recipe authority through generic condition
+derivation, per-conformance witness facts, exact-generation exports, substitution and actual
+required evaluation. Preserve runtime-valid instances whose const condition is false; distinguish
+those from definition-time known forbidden operations and missing ordinary capabilities.
+
+Exercise const and runtime-only implementations of the same interface, stronger const member/
+callable requirements, forwarded conditions, adapter cleanup, body-change invalidation and
+missing/mismatched evaluator products. Use actual source declarations, frozen selections and
+required initializers; a condition algebra alone is not this evidence. Qualify recursive closure
+without accepting capability cycles or mistaking budget exhaustion for nontermination. Required
+array-length/constant-argument calls need the owning dependency protocol: the current header
+stratum cannot reopen ordinary body checking or publish fabricated type/constant placeholders.
+
+The evaluator must preserve edit-input writes, aliases, partial state and once-only cleanup.
+Compare repeated calls with equal scalar input values but different mutable places, selected enum
+payloads, zero-count repetition and temporary escape. Result-only memoization must not erase
+state transitions. Eligibility, arithmetic failure, evaluator budgets and final serialization need
+distinct source causes. The bounded private native path does not establish this const support.
+
 ## Executable Lifecycle and Target Admission
 
 Extend the [bounded common native path](../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

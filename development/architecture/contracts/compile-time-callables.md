@@ -1,24 +1,22 @@
 # Compile-Time Callable Design
 
-This document owns the compiler-internal boundary for callable evaluation during semantic
-construction. Public constant-expression behavior belongs in `spec/`; this document defines how
-that behavior may be implemented without creating a second type checker or making a later stage
-reinterpret source.
+This document owns the compiler-internal boundary for callable evaluation in the query-backed
+pipeline implementing the [published constant contract](../../../spec/language/constants.md).
+It defines cross-stage ownership without a second type checker or source interpretation downstream.
+The [private handoff](../pipeline/value-access-declarations.md) owns the bounded v2 pipeline;
+its [adopted const contract](../../spec/language/constant-evaluation.md) and
+[realization obligations](../../design/compiler-realization.md#conditional-const-admission)
+require separate qualification.
 
-## Problem
+## Construction Boundaries
 
-The current constant evaluator closes a deliberately small expression language before structural
-type normalization. It receives resolved constant and type identities, produces a typed scalar or
-fixed-array plan, and evaluates that plan without consulting declaration or checking internals.
-That boundary is sound for literals, constant references, built-in operators, and lossless numeric
-conversions.
+Header normalization consumes a restricted syntax-owned structural expression plan for required
+array lengths. Ordinary initializer and callable bodies instead receive full ordinary checking;
+the evaluator consumes only their selected checked operations. These are ordered immutable
+strata, not two competing final-value authorities. The complete checked program joins its final
+values and closed callable plans before downstream consumers can observe them.
 
-A callable body is different. Name resolution, overload selection, generic substitution, operator
-selection, ownership, control flow, and result construction belong to ordinary body checking. A
-compile-time evaluator that reads callable source would have to repeat those decisions. Extending
-the existing syntax planner to understand ordinary bodies would therefore create a second checker.
-
-There is also a real dependency cycle in the current stage order:
+A general construction request can otherwise create this dependency cycle:
 
 ```text
 declaration type
@@ -29,9 +27,10 @@ declaration type
   -> declaration types
 ```
 
-Hiding this cycle with an unevaluated placeholder, an optional constant value, or a second early
-body checker would make correctness depend on which consumer happens to run first. Compile-time
-callables must instead enter through an explicit dependency query whose cycles are diagnosed.
+The header stratum cannot open an unfinished checked body to satisfy such a request. Extending
+that boundary requires an explicit dependency protocol; a placeholder constant, a second early
+body checker or lookup-order fallback cannot supply a value. The dependency-query section below
+owns the active stage ordering and cycle behavior.
 
 ## Authorities
 
@@ -42,7 +41,7 @@ its semantic callable contract and can be forgotten but never inferred from an i
 happens to use supported operations. It is independent of runtime allocation, synchronous waiting,
 and deferred execution guarantees.
 
-The first language surface is `const func` and `const method`. A compile-time callable remains an
+The authored source surface is `const func` and `const method`. A compile-time callable remains an
 ordinary runtime callable. Interface requirements and structural callable values use the same
 capability only when the evaluator can consume their already-selected static witness; compile-time
 evaluation never performs dynamic dispatch.
@@ -56,7 +55,7 @@ body graph for runtime and compile-time-capable callables.
 Program finalization projects each eligible checked body exactly once into a
 `CompileTimeCallableRecipe`. The recipe uses the canonical checked node graph, retains `TypeId`
 only as a reference into that exact checked generation, and freezes every already-selected
-operation and call edge. This first projection validates generic bodies even when no current call
+operation and call edge. This recipe projection validates generic bodies even when no current call
 site supplies a closed specialization.
 
 Finalization then seeds every closed non-generic compile-time root and follows its recipe call
@@ -101,9 +100,8 @@ array-length dependency.
 Recursive source call graphs are valid. Only an active evaluation cycle with no terminating value,
 or a dependency cycle required to construct a declaration type, is rejected. Evaluation uses
 `CompileTimeEvaluationLimits`: one positive semantic-operation step count and one positive
-source-call-depth count. The default limits are 1,000,000 plan operations and 256 nested source
-calls. The counts are independent of host instructions and elapsed time, so compiler resource
-exhaustion becomes a deterministic source diagnostic rather than a host stack overflow. Closed
+source-call-depth count. The API owns the exact default limits. The counts are independent of host
+instructions and elapsed time, so compiler resource exhaustion becomes a deterministic source diagnostic rather than a host stack overflow. Closed
 plans carry parameter and result value shapes in addition to operation-node shapes. The executor
 validates every call boundary itself and memoizes only fully completed typed results, so its
 correctness does not depend on an initializer adapter supplying matching arguments. Both
@@ -115,17 +113,11 @@ published.
 
 ## Dependency Queries
 
-Semantic construction requests facts by stable identity within typed, ordered strata instead of
-placing unrelated partially constructed facts in one heterogeneous cache. The initial query set is:
-
-```text
-callable signature(CallableId, substitution)
-checked body(BodyId, substitution)
-compile-time callable plan(CallableId, substitution)
-constant value(ConstantId)
-static value(StaticId)
-array length(ConstantExpressionId)
-```
+Semantic construction uses separate domains for restricted structural expressions, ordinary
+checked generations, recipe specialization and required initializer values. The owning APIs define
+their concrete keys. A generic body is checked once under declared assumptions; a closed callable
+plan query consumes its recipe and arguments rather than requesting a rechecked body for that
+specialization. Unrelated partially constructed facts cannot share a re-entrant cache.
 
 Each query records its exact dependencies and has one owner. Re-entering an active query produces
 one dependency-cycle diagnostic containing the source-backed edge that closed the cycle. Completed
@@ -196,31 +188,13 @@ The query boundaries are semantic and compiler-internal. The workspace computati
 cache a completed compilation product between editor revisions, but it does not become the
 authority for dependencies inside one semantic construction.
 
-## Initial Value Domain
+## Admission Owners
 
-The first evaluator admits values that have a target-independent semantic representation:
-
-- `bool`, integer, floating-point, and `char` values;
-- static readonly text;
-- tuples and fixed arrays whose elements are recursively admitted;
-- copy nominal values only after their field layout is represented as semantic aggregate values.
-
-Owned `String`, `Vec`, `Map`, `Set`, allocator access, mutable global state, operating-system
-services, asynchronous suspension, synchronous waiting, and destruction are outside the initial
-domain. This is a value-domain boundary, not a list of forbidden source spellings.
-
-## Projection Rules
-
-The checked-body projector accepts an operation only when its complete checked meaning is
-representable in the evaluator plan. In the initial implementation this includes constants,
-parameters and immutable locals, primitive arithmetic and comparisons, tuples and fixed arrays,
-blocks, conditional control flow, and direct calls to compile-time-capable callables.
-
-The projector rejects allocation, mutation through aliases, borrowing of runtime storage, dynamic
-or unresolved dispatch, primitives without an explicit compile-time implementation, asynchronous
-construction or suspension, blocking operations, ambient storage, and destruction. Adding a new
-checked-operation variant forces an exhaustive projection decision; an unclassified operation
-cannot silently become compile-time safe.
+The [checking owner](../../compiler/crates/nocter-checking/README.md) owns exhaustive projection
+of selected checked operations. The [evaluator owner](../../compiler/crates/nocter-constant-evaluation/README.md)
+owns recipe/plan integrity, closed value shapes and deterministic execution. Unsupported
+operations reject at that boundary; this architecture document does not maintain a second list
+of implemented operation variants or a delivery sequence.
 
 ## Cross-Stage Invariants
 
@@ -234,16 +208,3 @@ cannot silently become compile-time safe.
 - Runtime lowering ignores compile-time plans and continues to consume the ordinary checked body.
 - Editor presentation reads authored capability plus the same semantic identities used by
   compilation; it does not infer callability from source text or body contents.
-
-## First Consumers
-
-The first standard-library consumers are scalar helpers currently duplicated between runtime
-functions and authored constant arithmetic: checked capacity arithmetic, duration-unit conversion,
-ASCII classification, and platform numeric derivation. They exercise parameters, conditionals,
-integer operations, direct calls, and target-width integers without requiring compile-time heap
-allocation.
-
-Compile-time table generation and copy aggregate construction follow only after the scalar path is
-complete. Heap-backed collections are deliberately deferred until Nocter has a separate frozen
-allocation representation rather than pretending runtime allocator state exists during
-compilation.

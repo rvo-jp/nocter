@@ -38,9 +38,9 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   grow a second partial operation model.
 - Callable specialization keys contain closed evaluator-domain type shapes rather than `TypeId`, so
   a plan identity cannot be paired with a sibling checked-program type store.
-- One query owns every reachable closed callable specialization. Generic bodies are projected only
-  under an exact argument set, and recursive source calls close as graph edges rather than being
-  mistaken for plan-construction cycles.
+- Generic recipe projection validates eligible bodies before reachable specialization, including
+  uninvoked declarations. One query closes each reachable plan under an exact argument set;
+  recursive source calls remain graph edges rather than plan-construction cycles.
 - Evaluation limits count semantic plan operations and source-call depth, never host instructions
   or elapsed time; all callers use the same nonzero limit contract.
 - One closed-plan executor owns its remaining budget and memoized call results. It validates input,

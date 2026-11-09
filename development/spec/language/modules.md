@@ -113,6 +113,11 @@ source. Metadata does not export a name. A root's `impl Type` is a container of 
 executable implementation. A signature-only private helper in the root is not a private exception.
 Target/primitive/package metadata requires its own selected contract; this table does not supply it.
 
+The root remains the authored contract when a compiler product carries inferred facts.
+[Conditional const eligibility](constant-evaluation.md#published-facts-and-contract-views), like
+inferred execution effects, derives from the exact checked implementation and selected bindings.
+Its publication neither requires another source declaration nor exposes private helper names.
+
 ### Nominal Representation and Visible Fields
 
 A root struct without a structural literal grant declares a nominal/Copy contract and optionally

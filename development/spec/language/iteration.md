@@ -210,8 +210,8 @@ capability. Parser/flow/root/capture/cancellation/evaluator/ABI/native qualifica
 required before compiler admission. No speedup follows from these contracts alone.
 
 User expansion/current heads may advertise const under the
-[shared staging contract](generics-and-constants.md#const-calls-and-temporary-evaluation).
+[shared staging contract](constant-evaluation.md#const-calls-and-temporary-evaluation).
 Intrinsic array/pack traversal likewise needs checked evaluator evidence; a pure-looking user
-traversal is not automatically admitted. Conditional generic const evidence remains explicit
-closure work. Optional runtime folding needs its ordinary semantic proof and does not
-manufacture a public const promise.
+traversal is not automatically admitted. Conditional generic const evidence follows the
+[shared eligibility contract](constant-evaluation.md#conditional-generic-const-contracts). Optional
+runtime folding needs its ordinary semantic proof and does not manufacture a public const promise.

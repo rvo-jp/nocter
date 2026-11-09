@@ -106,8 +106,8 @@ need a reachable producer anchor.
 
 These foundational rules constrain later extensions; they do not admit the complete language.
 The [private handoff](../../architecture/pipeline/value-access-declarations.md) owns implemented
-scope and current source gaps. The [generic/constant](generics-and-constants.md) and
-[opaque-result](opaque-results.md) chapters own their selected source contracts. Full
+scope and current source gaps. The [generic](generics-and-constants.md),
+[constant-evaluation](constant-evaluation.md) and [opaque-result](opaque-results.md) chapters own their selected source contracts. Full
 generic/interface requirement solving, associated-type normalization, erased representations
 and their joining rules, general capability schemas, effects, outcomes and recursive data
 representation still require their corresponding proof and qualification before compiler

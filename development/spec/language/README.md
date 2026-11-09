@@ -24,10 +24,11 @@ to [development design](../../design/README.md).
 17. [Typed Literal Construction](literal-construction.md)
 18. [Explicit User Conversions](explicit-conversions.md)
 19. [Interfaces and Static Operation Binding](interfaces.md)
-20. [Generic Arguments and Compile-Time Values](generics-and-constants.md)
-21. [Static Opaque Results](opaque-results.md)
-22. [Optional Values and Recoverable Failure](outcomes.md)
-23. [Inferred Execution Effects](execution-effects.md)
-24. [Asynchronous Computations and Cancellation](asynchronous-computations.md)
+20. [Generic Arguments and Constant Parameters](generics-and-constants.md)
+21. [Constant Evaluation and Conditional Eligibility](constant-evaluation.md)
+22. [Static Opaque Results](opaque-results.md)
+23. [Optional Values and Recoverable Failure](outcomes.md)
+24. [Inferred Execution Effects](execution-effects.md)
+25. [Asynchronous Computations and Cancellation](asynchronous-computations.md)
 
 The [development specification](../README.md) defines version scope and promotion policy.

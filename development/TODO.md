@@ -2,9 +2,12 @@
 
 ## Immediate Work
 
-1. Close conditional generic const contracts under the adopted design direction. Qualify
-   comparison, typed literal/conversion and const-operator source support against their owning
-   contracts. Then close remaining expression/control, capability/library,
+1. Qualify [const source and conditional eligibility](design/compiler-realization.md#conditional-const-admission)
+   starting with closed const headers and definition-time body-domain checks in the private source
+   path, then required initializers through the common checked-plan/evaluator authority. Extend
+   symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
+   comparison and typed literal/conversion/operator support against their owning contracts.
+   Then close remaining expression/control, capability/library,
    package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
    Integrate ordinary reading/writing examples before extending accepted source scope.
 2. Extend the [bounded private native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

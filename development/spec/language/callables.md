@@ -156,6 +156,14 @@ Neither a hidden original declaration nor the absence of captures may upgrade a 
 back to a stronger invocation contract. Invoke the selected view and validate the complete
 prepared bundle before explicit inputs or the environment are consumed.
 
+### Const Availability
+
+Authored const capability, per-witness conditional availability and matching a const callable
+contract follow [constant evaluation](constant-evaluation.md#conditional-generic-const-contracts).
+Those facts do not change func/mut/once, input operations or the selected invocation adapter.
+Publishing an availability condition does not admit a new evaluator callable representation or
+runtime erasure mode.
+
 ### Statically Witnessed Callable Inputs
 
 A structural callable parameter introduces a witness bound by the selected call. The body uses the

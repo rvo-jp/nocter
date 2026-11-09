@@ -61,7 +61,7 @@ authored source: equal semantic type arguments can retain different source expre
 Keep `const` and `static` distinct. Formatting cannot inline a required initializer into a public
 root, turn a runtime function into const, expand a generated table, replace a constant recipe
 with shared static storage or alter an opaque result to its hidden witness. Staging and final-data
-eligibility belong to the [generic/constant contract](../language/generics-and-constants.md).
+eligibility belong to the [constant-evaluation contract](../language/constant-evaluation.md).
 
 ## Outcome Formatting
 

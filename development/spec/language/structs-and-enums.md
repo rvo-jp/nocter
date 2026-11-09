@@ -212,7 +212,7 @@ outcomes and destruction. Such transformations grant no alias ownership or hidde
 
 Checked const evaluation may construct finite eligible variants and inspect them with the same
 pattern operations. Final-value eligibility and target serialization belong to
-[compile-time values](generics-and-constants.md#constants-statics-and-final-values), not a
+[compile-time values](constant-evaluation.md#constants-statics-and-final-values), not a
 second enum evaluator. Only active payload values are present; an inactive resource-bearing
 variant does not create a resource in an otherwise eligible constant. An enum-owned destructor or
 actual retained resource still prevents final constant/static admission. These selected rules

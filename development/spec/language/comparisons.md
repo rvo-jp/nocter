@@ -152,11 +152,12 @@ bound that forgets its equality path merely because one sample strict comparison
 Removing work or changing call order requires proof preserving all observable behavior.
 
 `const operator ...` makes the same selected body available under the ordinary
-[const contract](generics-and-constants.md#const-calls-and-temporary-evaluation). It is not a second
-entry or overload. A const interface requirement must bind a const-capable entry; a runtime-only
-requirement does not expose a stronger promise from an implementation. Both selected entries of
-an inclusive expression must have the evidence required by its checking context. Conditional
-generic const evidence remains owned by the generic contract, not by comparison normalization.
+[const contract](constant-evaluation.md#const-calls-and-temporary-evaluation). It is not a second
+entry or overload. Const interface requirements and per-witness availability follow the
+[shared conditional contract](constant-evaluation.md#conditional-generic-const-contracts).
+A runtime-only requirement alone is not a const guarantee. Both selected entries of an inclusive
+expression must have the evidence required by its checking context; comparison normalization
+cannot manufacture that evidence.
 
 An equality operation need not prove reflexivity, symmetry or transitivity. A strict comparison's
 existence does not prove irreflexivity, transitivity or comparability. Therefore `<=` is not
