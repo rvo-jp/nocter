@@ -208,3 +208,30 @@ fn postfix_transfer_is_joint_and_preserves_chain_and_capture_structure() {
         assert!(tree(bad, ParseGoal::V2CoreUnit).has_errors(), "{bad}");
     }
 }
+
+#[test]
+fn const_headers_preserve_their_own_node_without_retired_modifier_fallbacks() {
+    let parsed = tree(
+        "const func increment(edit value: i32): void { value += 1 }\nfunc ordinary(): void {}",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, n)| n.kind() == NodeKind::CompileTimeModifier)
+            .count(),
+        1
+    );
+    super::super::snapshots::assert_token_projection(&parsed, "const header");
+    for text in [
+        "const const func f(): void {}",
+        "const async func f(): void {}",
+        "const noalloc func f(): void {}",
+        "const blocking func f(): void {}",
+        "const struct Record {}",
+        "const func f(): const func(): void {}",
+    ] {
+        assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+}

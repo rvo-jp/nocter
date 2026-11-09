@@ -3,8 +3,8 @@
 ## Immediate Work
 
 1. Qualify [const source and conditional eligibility](design/compiler-realization.md#conditional-const-admission)
-   starting with closed const headers and definition-time body-domain checks in the private source
-   path, then required initializers through the common checked-plan/evaluator authority. Extend
+   with required initializers through the common checked-plan/evaluator authority, consuming the
+   [closed body-domain boundary](compiler/crates/nocter-checking/README.md#constant-domain-acceptance). Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,

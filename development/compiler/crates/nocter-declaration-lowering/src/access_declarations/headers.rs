@@ -1,6 +1,6 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{Failure, ValueTypeSyntax, text, type_syntax::data_token, value_type_syntax};
-use nocter_model::ValueInputOperation;
+use nocter_model::{CompileTimeGuarantee, ValueInputOperation};
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
     declaration_name_token, direct_identifier, direct_node, direct_node_iter, first_direct_token,
@@ -16,6 +16,7 @@ pub(super) struct ParameterHeader {
 #[derive(Clone, Debug)]
 pub(super) struct Header {
     pub name: SyntaxToken,
+    pub compile_time: CompileTimeGuarantee,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
     pub result_data: ValueTypeSyntax,
@@ -51,8 +52,14 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         .collect::<Result<_, _>>()?;
     let result_syntax =
         direct_node(tree, tail, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    let compile_time = if direct_node(tree, declaration, NodeKind::CompileTimeModifier).is_some() {
+        CompileTimeGuarantee::Evaluatable
+    } else {
+        CompileTimeGuarantee::RuntimeOnly
+    };
     Ok(Header {
         name,
+        compile_time,
         parameters,
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,

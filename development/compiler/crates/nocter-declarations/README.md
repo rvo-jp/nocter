@@ -86,7 +86,8 @@ TypeIds before publication. They do not expose released type-store eligibility h
 constructors. Unit is a value in this product. Input operation is
 separate from data identity and payload Copy evidence. Stored parameter records carry a data
 TypeId and Read/Edit/Take operation; callable results carry a data TypeId and, for a callable
-result, its structural constraint. Neither introduces a result access operation. No result
+result, its structural constraint. The authored compile-time capability is a separate callable
+header fact; it proves neither body-domain validity nor successful evaluation. Neither introduces a result access operation. No result
 mode/referent set or old read-result normalization remains.
 
 The same program publishes closed nominal record metadata used by parsed callable and body

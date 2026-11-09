@@ -76,10 +76,11 @@ names do not authorize hidden effects, root stability or target primitives.
 ## Conditional Const Admission
 
 The [const contract](../spec/language/constant-evaluation.md) owns eligibility and publication.
-Before source admission, qualify one checked body/recipe authority through generic condition
-derivation, per-conformance witness facts, exact-generation exports, substitution and actual
-required evaluation. Preserve runtime-valid instances whose const condition is false; distinguish
-those from definition-time known forbidden operations and missing ordinary capabilities.
+Extend the [closed body-domain boundary](../compiler/crates/nocter-checking/README.md#constant-domain-acceptance)
+through actual required initializers using the common checked-plan/evaluator authority. As ordinary
+generic/witness schemas are admitted, qualify condition derivation, per-conformance witness facts,
+exact-generation exports and substitution over that same authority. Preserve runtime-valid
+instances whose const condition is false; distinguish those from definition-time known forbidden operations and missing ordinary capabilities.
 
 Exercise const and runtime-only implementations of the same interface, stronger const member/
 callable requirements, forwarded conditions, adapter cleanup, body-change invalidation and

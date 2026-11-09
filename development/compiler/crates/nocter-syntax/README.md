@@ -80,7 +80,8 @@ maintaining another radix/underscore parser.
   declaration spelling.
 - The future core goal never falls back to released borrow/type/expression productions. Its call
   grammar has no access-qualified type or prefix update/transfer assertion, including under
-  grouping. Postfix transfer is a distinct unary node, preserving its position in a chain;
+  grouping. `const func` retains a dedicated compile-time modifier node; repeated, retired or
+  async prefixes have no private grammar fallback. Postfix transfer is a distinct unary node, preserving its position in a chain;
   source ownership and repeated/fresh-source rejection remain semantic work. Contextual input and alias words are recognized structurally,
   never through name/type lookup. Its root
   cannot be admitted by the released target-selection/compile-input boundary. This goal is not

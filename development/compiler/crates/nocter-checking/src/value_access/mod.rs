@@ -1,11 +1,12 @@
 //! Value-access typing and closed private-unit front-end validation.
-//! Accepted future units remain unavailable to released/native consumers.
+//! Private native consumers require the complete Unit; the released pipeline has no adapter.
 pub mod accepted;
 mod annotations;
 mod body_inputs;
 mod calls;
 mod checker;
 mod closures;
+pub mod constant;
 mod construction;
 mod diagnostics;
 mod expressions;

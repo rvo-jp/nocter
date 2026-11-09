@@ -16,6 +16,10 @@ pub enum Failure {
         callable: AccessCallableId,
         diagnostics: Box<[SourceDiagnostic]>,
     },
+    Const {
+        callable: AccessCallableId,
+        diagnostic: Box<super::constant::Diagnostic>,
+    },
     Integrity(flow::IntegrityError),
 }
 
@@ -92,6 +96,30 @@ impl Unit {
             let query = control.finish().map_err(Failure::Integrity)?;
             let query = admit(query, &verified)?;
             bodies.insert(callable, query);
+        }
+        for (&callable, query) in &bodies {
+            if program
+                .callables()
+                .get(callable)
+                .ok_or(Failure::Integrity(
+                    flow::IntegrityError::InconsistentTypedBody,
+                ))?
+                .compile_time()
+                == nocter_model::CompileTimeGuarantee::Evaluatable
+                && let Some(violation) =
+                    super::constant::check(query).map_err(Failure::Integrity)?
+            {
+                let bound = query
+                    .bind_verified(&verified)
+                    .map_err(|failure| Failure::Body { callable, failure })?;
+                let diagnostic = violation
+                    .project(&bound)
+                    .map_err(|failure| Failure::Body { callable, failure })?;
+                return Err(Failure::Const {
+                    callable,
+                    diagnostic: Box::new(diagnostic),
+                });
+            }
         }
         Ok(Self {
             closures,

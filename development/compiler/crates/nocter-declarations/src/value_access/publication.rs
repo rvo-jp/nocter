@@ -56,6 +56,7 @@ pub(super) fn publish(
         );
         Callable {
             name: reservation.name,
+            compile_time: definition.compile_time,
             parameters: parameter_ids,
             result,
             result_contract,

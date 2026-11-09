@@ -93,7 +93,8 @@ beside their owning modules.
 
 The access-declaration query accepts only complete `V2CoreUnit` syntax. It collects all headers,
 canonicalizes declaration symbols, reserves functions and records by name order, and resolves
-data types, input operations, namespaces and value-result constraints before examining body semantics.
+data types, input operations, namespaces, authored const capability and value-result constraints
+before examining body semantics.
 `headers` extracts syntax-only header evidence. `type_syntax::value_type_syntax` projects one
 `ValueTypeSyntax` for input/result headers and checking's local annotations. Its typed invocation and input-operation projection is the only
 decoder for these contexts; neither consumer recovers a mode from names, types or body use.
@@ -110,7 +111,7 @@ body syntax, or source coordinates. Binding an equal surface constructs one curr
 with that same program and the current header/body nodes. Changed headers, a wrong parse goal,
 invalid syntax, and mismatched locators cannot create a context or trigger fallback lowering.
 Body-only edits can rebind but receive no body-validity certificate from declaration reuse.
-The complete neutral surface guards record/field header changes too. Function locators retained
+The complete neutral surface guards record/field and const-capability header changes too. Function locators retained
 for body rebinding do not duplicate record schemas or create a second record-header cache.
 `projection` maps declaration-owned failures through current header evidence; it does not select
 semantic failures from diagnostic codes or recover meaning from source coordinates.

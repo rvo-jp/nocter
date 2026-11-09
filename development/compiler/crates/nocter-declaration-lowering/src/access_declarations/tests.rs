@@ -195,3 +195,33 @@ fn callback_contracts_freeze_formal_identity_before_body_use_and_rebind_exactly(
         Err(Failure::ChangedHeader)
     ));
 }
+
+#[test]
+fn const_capability_is_header_authority_and_not_body_inference() {
+    use nocter_model::CompileTimeGuarantee::{Evaluatable, RuntimeOnly};
+    let text = "const func promised(): i32 { missing }\nfunc ordinary(): i32 { 1 }";
+    let (a, ta) = input(text, ParseGoal::V2CoreUnit);
+    let query = Query::prepare(bound(&a, &ta)).unwrap();
+    for (name, expected) in [("promised", Evaluatable), ("ordinary", RuntimeOnly)] {
+        let id = query
+            .program()
+            .resolve(query.program().symbols().get(name).unwrap())
+            .unwrap();
+        assert_eq!(
+            query.program().callables().get(id).unwrap().compile_time(),
+            expected
+        );
+    }
+    let (b, tb) = input(&text.replace("missing", "4"), ParseGoal::V2CoreUnit);
+    assert!(query.bind(bound(&b, &tb)).is_ok());
+    let (c, tc) = input(&text.replace("const func", "func"), ParseGoal::V2CoreUnit);
+    assert!(matches!(
+        query.bind(bound(&c, &tc)),
+        Err(Failure::ChangedHeader)
+    ));
+    let changed = Query::prepare(bound(&c, &tc)).unwrap();
+    assert!(matches!(
+        changed.bind(bound(&a, &ta)),
+        Err(Failure::ChangedHeader)
+    ));
+}

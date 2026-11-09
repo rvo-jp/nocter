@@ -470,6 +470,35 @@ source-version CLI or general D/S solver. The
 qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
 not a duplicate crate-internal status table.
 
+## Constant-Domain Acceptance
+
+Private `const func` declarations retain the same body, typed operations, selected callees and
+resource ledger as ordinary functions. The authored header capability alone is not body evidence;
+typed-only queries remain incomplete. Whole-unit acceptance additionally checks every const
+body's operation domain, including unused definitions, dead branches and interrupted call inputs.
+Direct calls require the selected declaration's authored const capability. Recursive const
+headers close without executing bodies or proving termination; every definition must independently
+pass ordinary typing, initialization, access and resource validation.
+
+`value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/unit
+operations, finite records of supported data, local values, read/edit aliases, updates, structured
+control, explicit transfer and direct const calls. Record admission is independent of Copy and
+memoized by data identity rather than expanded through shared fields. Function-value formation,
+captures, invocation through values and opaque error-data operations have no evaluator domain here.
+Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
+consume the actual sparse resource transitions; ending a partial container does not destroy its
+missing payload again. An unused read input has no owned cleanup, and an interrupted known result
+has no produced value to classify. Such vacuous cases do not grant an evaluator representation to
+their opaque annotations.
+
+Failures retain source-neutral rules and expression/statement/cleanup sites; exact-current binding
+projects E0421 without repeating lookup, operation selection or ownership analysis. Ordinary
+runtime calls continue to consume the same accepted body. Checked arithmetic, including operations
+that would trap if evaluated, is a supported operation domain. This check executes nothing: it
+provides no required-initializer result, input-materialization proof, budget/termination proof,
+final serialization, generic conditional eligibility or exported const product. Those remain
+[evaluator integration work](../../../design/compiler-realization.md#conditional-const-admission).
+
 ## Owned Capture Bodies
 
 `closures` checks a first explicit single-value environment under the private source contract.

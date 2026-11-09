@@ -63,7 +63,10 @@ impl Context<'_, '_> {
     pub const fn typed(&self) -> &TypedContext<'_, '_> {
         &self.typed
     }
-    pub(super) fn origin(&self, location: Location) -> Result<SyntaxOrigin, Failure> {
+    pub(in crate::value_access) fn origin(
+        &self,
+        location: Location,
+    ) -> Result<SyntaxOrigin, Failure> {
         let origin = self
             .query
             .graph

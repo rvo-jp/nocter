@@ -10,6 +10,7 @@ fn build(reverse: bool) -> Program {
         builder
             .define(
                 id,
+                CompileTimeGuarantee::RuntimeOnly,
                 [ParameterDefinition {
                     name: symbols.get("input").unwrap(),
                     data: BuiltinType::Error.into(),
@@ -50,6 +51,7 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
         builder
             .define(
                 id,
+                CompileTimeGuarantee::RuntimeOnly,
                 [
                     ParameterDefinition {
                         name: symbols.get("read").unwrap(),
@@ -97,9 +99,11 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
     let symbols = SymbolTable::from_spellings(["f"]);
     let mut builder = Builder::new(symbols.clone());
     let id = builder.reserve(symbols.get("f").unwrap());
-    builder.define(id, [], BuiltinType::Void).unwrap();
+    builder
+        .define(id, CompileTimeGuarantee::RuntimeOnly, [], BuiltinType::Void)
+        .unwrap();
     assert!(matches!(
-        builder.define(id, [], BuiltinType::I32),
+        builder.define(id, CompileTimeGuarantee::RuntimeOnly, [], BuiltinType::I32),
         Err(DefinitionError::AlreadyDefined)
     ));
     let program = builder.finish().unwrap();
@@ -128,7 +132,12 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
         operation: ValueInputOperation::Read,
     };
     builder
-        .define(f, [parameter.clone(), parameter], BuiltinType::F64)
+        .define(
+            f,
+            CompileTimeGuarantee::RuntimeOnly,
+            [parameter.clone(), parameter],
+            BuiltinType::F64,
+        )
         .unwrap();
     let violations = builder.finish().unwrap_err();
     assert!(
@@ -244,6 +253,7 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
     builder
         .define(
             id,
+            CompileTimeGuarantee::RuntimeOnly,
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -290,10 +300,18 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     let first = builder.reserve(symbols.get("first").unwrap());
     let second = builder.reserve(symbols.get("second").unwrap());
     let make = builder.reserve(symbols.get("make").unwrap());
-    builder.define(first, [], BuiltinType::Void).unwrap();
+    builder
+        .define(
+            first,
+            CompileTimeGuarantee::RuntimeOnly,
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
     builder
         .define(
             second,
+            CompileTimeGuarantee::RuntimeOnly,
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -305,6 +323,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             make,
+            CompileTimeGuarantee::RuntimeOnly,
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -372,8 +391,22 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     let mut builder = Builder::new(symbols.clone());
     let first = builder.reserve(symbols.get("first").unwrap());
     let second = builder.reserve(symbols.get("second").unwrap());
-    builder.define(first, [], BuiltinType::Void).unwrap();
-    builder.define(second, [], BuiltinType::Void).unwrap();
+    builder
+        .define(
+            first,
+            CompileTimeGuarantee::RuntimeOnly,
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    builder
+        .define(
+            second,
+            CompileTimeGuarantee::RuntimeOnly,
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
     let header = builder.finish().unwrap();
     let make = |owner, environment| {
         let mut branch = header.body_types(owner).unwrap();

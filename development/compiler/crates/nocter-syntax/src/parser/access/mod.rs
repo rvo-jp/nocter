@@ -11,7 +11,7 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.eat_newlines();
     while !parser.at(TokenKind::Eof) {
-        if parser.at_keyword(Keyword::Func) {
+        if parser.at_keyword(Keyword::Func) || parser.at_keyword(Keyword::Const) {
             function(parser);
         } else if parser.at_keyword(Keyword::Struct)
             || (parser.at_contextual(ContextualSpelling::Copy)
@@ -50,7 +50,12 @@ fn record(parser: &mut Parser<'_>) {
 fn function(parser: &mut Parser<'_>) {
     let item = parser.start();
     let marker = parser.start();
-    parser.bump();
+    if parser.at_keyword(Keyword::Const) {
+        let modifier = parser.start();
+        parser.bump();
+        parser.complete(modifier, NodeKind::CompileTimeModifier);
+    }
+    parser.expect_keyword(Keyword::Func);
     parser.expect_name();
     let tail = parser.start();
     let parameters = parser.start();

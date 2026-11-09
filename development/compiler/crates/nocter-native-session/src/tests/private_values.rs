@@ -35,6 +35,11 @@ fn private_scalar_computation_and_scoped_input_calls_execute_natively() {
             9,
         ),
         (
+            "const-runtime-state",
+            "const func increment(edit value: i32): void { value += 1 }\nfunc run(): i32 { var left = 20\nvar right = 20\nincrement(left)\nincrement(right)\nleft + right }",
+            42,
+        ),
+        (
             "negative",
             "func negate(value: i32): i32 { -value }\nfunc run(): i32 { negate(-7) }",
             7,

@@ -6,8 +6,8 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, NominalTypeId, Symbol,
-    SymbolTable, TypeAuthority, TypeId, ValueInputOperation,
+    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, CompileTimeGuarantee,
+    NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, ValueInputOperation,
 };
 
 use crate::DefinitionError;
@@ -81,12 +81,18 @@ pub struct DeclarationViolation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Callable {
     name: Symbol,
+    compile_time: CompileTimeGuarantee,
     parameters: Box<[AccessParameterId]>,
     result: TypeId,
     result_contract: Option<FunctionConstraint>,
 }
 
 impl Callable {
+    /// Authored capability only; body-domain acceptance and evaluation are separate obligations.
+    #[must_use]
+    pub const fn compile_time(&self) -> CompileTimeGuarantee {
+        self.compile_time
+    }
     #[must_use]
     pub const fn result_contract(&self) -> Option<&FunctionConstraint> {
         self.result_contract.as_ref()
@@ -189,6 +195,7 @@ impl Program {
 
 #[derive(Debug)]
 struct Definition {
+    compile_time: CompileTimeGuarantee,
     parameters: Box<[ParameterDefinition]>,
     result_data: ValueDefinition,
 }
@@ -259,6 +266,7 @@ impl Builder {
     pub fn define(
         &mut self,
         id: AccessCallableId,
+        compile_time: CompileTimeGuarantee,
         parameters: impl Into<Box<[ParameterDefinition]>>,
         result_data: impl Into<ValueDefinition>,
     ) -> Result<(), DefinitionError> {
@@ -270,6 +278,7 @@ impl Builder {
             return Err(DefinitionError::AlreadyDefined);
         }
         reservation.definition = Some(Definition {
+            compile_time,
             parameters: parameters.into(),
             result_data: result_data.into(),
         });
