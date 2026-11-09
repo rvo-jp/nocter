@@ -29,8 +29,9 @@ V2CoreUnit
         ExecutableSequence
           BodyResult
             Expression
-              PostfixExpression
+              TransferExpression
                 PostfixExpression
-                  ReferenceExpression
+                  PostfixExpression
+                    ReferenceExpression
+                    MemberSuffix
                   MemberSuffix
-                MemberSuffix

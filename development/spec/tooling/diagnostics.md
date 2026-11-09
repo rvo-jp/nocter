@@ -72,8 +72,9 @@ mutable binding; do not silently rewrite it. A view descriptor Copy still retain
 
 A field of a computed record value delivers a value, not existing mutable storage. Reject local
 alias creation or assignment at that attempted operation. The adopted future call protocol can
-lend update access through its owned temporary; the current bounded checker has not admitted
-that path. Do not call its current non-place rejection proof of future language invalidity.
+lend update access through its owned temporary. Actual implementation coverage belongs to the
+[private handoff](../../architecture/pipeline/value-access-declarations.md); a private scope limit
+is not a general language-invalidity rule.
 An immutable direct source still cannot gain edit through an invented snapshot. Grouping a read/edit alias does not convert
 its referent into an owning result. Preserve known result types on interrupted evaluation, so
 unknown fields and data mismatches still report their structural cause without inventing a

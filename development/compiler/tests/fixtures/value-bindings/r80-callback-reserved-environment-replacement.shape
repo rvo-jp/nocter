@@ -20,7 +20,8 @@ V2CoreUnit
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
                   Expression
                     IfExpression
@@ -33,7 +34,8 @@ V2CoreUnit
                             AssignmentTarget
                               ReferenceExpression
                             Expression
-                              ReferenceExpression
+                              TransferExpression
+                                ReferenceExpression
                           BodyResult
                             Expression
                               ScalarLiteral

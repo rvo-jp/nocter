@@ -1,26 +1,21 @@
-//! One Copy-or-transfer decision for a selected place, closed before initialization.
+//! One unmarked snapshot decision, closed before initialization; explicit transfers are frozen earlier.
 use super::{
     Failure, Query, Rule,
     ir::{ArgumentAction, BoundaryAction, Expression, ExpressionKind},
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
-use nocter_model::{AccessExpressionId, AccessPlaceId, TypeId, ValueAccessMode};
+use nocter_model::{AccessExpressionId, AccessPlaceId, TypeId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum PlaceSupply {
     Copy,
-    Transfer,
     Pending,
-    MissingOwner,
+    MissingCopy,
 }
 
 /// A structural result is pending, never provisional Copy. All consumers use this same choice.
-pub(super) fn select(
-    program: &Program,
-    data: TypeId,
-    source: ValueAccessMode,
-) -> Result<PlaceSupply, Failure> {
+pub(super) fn select(program: &Program, data: TypeId) -> Result<PlaceSupply, Failure> {
     let copyable = program
         .data_copyable(data)
         .ok_or(Failure::InconsistentSyntax)?;
@@ -28,10 +23,8 @@ pub(super) fn select(
         PlaceSupply::Pending
     } else if copyable {
         PlaceSupply::Copy
-    } else if source == ValueAccessMode::Own {
-        PlaceSupply::Transfer
     } else {
-        PlaceSupply::MissingOwner
+        PlaceSupply::MissingCopy
     })
 }
 
@@ -63,8 +56,7 @@ pub(super) fn resolve(
             }
             match resolved(context, query, id, place)? {
                 PlaceSupply::Copy => *action = BoundaryAction::CopyPayload,
-                PlaceSupply::Transfer => expression.kind = ExpressionKind::Move(place),
-                PlaceSupply::Pending | PlaceSupply::MissingOwner => unreachable!("resolved above"),
+                PlaceSupply::Pending | PlaceSupply::MissingCopy => unreachable!("resolved above"),
             }
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -76,8 +68,7 @@ pub(super) fn resolve(
                     }
                     argument.action = match resolved(context, query, argument.value, place)? {
                         PlaceSupply::Copy => ArgumentAction::CopyPlace(place),
-                        PlaceSupply::Transfer => ArgumentAction::ReserveTransfer(place),
-                        PlaceSupply::Pending | PlaceSupply::MissingOwner => {
+                        PlaceSupply::Pending | PlaceSupply::MissingCopy => {
                             unreachable!("resolved above")
                         }
                     };
@@ -113,20 +104,15 @@ fn resolved(
         .places
         .get(place)
         .ok_or(Failure::InconsistentSyntax)?;
-    let local = query
-        .body
-        .locals
-        .get(place.local)
-        .ok_or(Failure::InconsistentSyntax)?;
-    match select(query.program(), place.data, local.access().mode())? {
+    match select(query.program(), place.data)? {
         PlaceSupply::Pending => Err(Failure::InconsistentSyntax),
-        PlaceSupply::MissingOwner => Err(super::diagnostics::query_rejection(
+        PlaceSupply::MissingCopy => Err(super::diagnostics::query_rejection(
             context,
             query,
             Some(origin),
             Rule::MissingTransfer,
-            "this value has no Copy evidence and the source does not own it",
+            "this unmarked value has no Copy evidence; transfer from an eligible owner requires postfix ^",
         )),
-        selected => Ok(selected),
+        PlaceSupply::Copy => Ok(PlaceSupply::Copy),
     }
 }

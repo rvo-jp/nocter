@@ -3,7 +3,7 @@ struct Pair {
     second: error
 }
 func run(take pair: Pair, take replacement: error, flag: bool): Pair {
-    if flag { let old = pair.first }
-    pair.first = replacement
-    return pair
+    if flag { let old = pair.first^ }
+    pair.first = replacement^
+    return pair^
 }

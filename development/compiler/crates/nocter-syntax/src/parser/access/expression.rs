@@ -115,8 +115,17 @@ pub(super) fn postfix(parser: &mut Parser<'_>) -> Expression {
 
 fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     let mut left = primary(parser, allow_braces);
-    while parser.at_punctuation(Punctuation::LeftParen) || parser.at_punctuation(Punctuation::Dot) {
+    while parser.at_punctuation(Punctuation::LeftParen)
+        || parser.at_punctuation(Punctuation::Dot)
+        || (parser.at_punctuation(Punctuation::Caret) && previous_is_joint(parser))
+    {
         let marker = parser.precede(left.completed);
+        if parser.eat_punctuation(Punctuation::Caret) {
+            left = Expression {
+                completed: parser.complete(marker, NodeKind::TransferExpression),
+            };
+            continue;
+        }
         let suffix = parser.start();
         if parser.eat_punctuation(Punctuation::Dot) {
             parser.expect_name();
@@ -211,6 +220,9 @@ fn closure(parser: &mut Parser<'_>) -> (CompletedMarker, bool) {
         loop {
             let capture = parser.start();
             parser.expect_name();
+            if parser.at_punctuation(Punctuation::Caret) && previous_is_joint(parser) {
+                parser.bump();
+            }
             parser.complete(capture, NodeKind::ClosureCapture);
             parser.eat_newlines();
             if !parser.eat_punctuation(Punctuation::Comma) {
@@ -348,4 +360,8 @@ fn if_(parser: &mut Parser<'_>) -> Expression {
     Expression {
         completed: parser.complete(marker, NodeKind::IfExpression),
     }
+}
+
+fn previous_is_joint(parser: &Parser<'_>) -> bool {
+    parser.cursor > 0 && parser.tokens[parser.cursor - 1].is_joint_to_next()
 }

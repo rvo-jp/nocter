@@ -13,7 +13,8 @@ V2CoreUnit
         ExecutableSequence
           ReturnStatement
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
   Item
     FunctionDeclaration
       CallableTail
@@ -46,4 +47,5 @@ V2CoreUnit
                       ReferenceExpression
                       CallSuffix
                         Expression
-                          ReferenceExpression
+                          TransferExpression
+                            ReferenceExpression

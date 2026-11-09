@@ -3,5 +3,5 @@ struct Pair {
     second: error
 }
 func bad(take pair: Pair, flag: bool): void {
-    while flag { let first = pair.first }
+    while flag { let first = pair.first^ }
 }

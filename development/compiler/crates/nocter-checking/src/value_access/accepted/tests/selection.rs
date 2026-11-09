@@ -173,12 +173,12 @@ fn deeply_shared_computed_selection_freezes_one_path_and_only_cleans_its_frontie
     }
     writeln!(
         text,
-        "func identity(take root: R{DEPTH}): R{DEPTH} {{ root }}"
+        "func identity(take root: R{DEPTH}): R{DEPTH} {{ root^ }}"
     )
     .unwrap();
     writeln!(
         text,
-        "func run(take root: R{DEPTH}): error {{ identity(root){}.value }}",
+        "func run(take root: R{DEPTH}): error {{ identity(root^){}.value }}",
         ".left".repeat(DEPTH)
     )
     .unwrap();

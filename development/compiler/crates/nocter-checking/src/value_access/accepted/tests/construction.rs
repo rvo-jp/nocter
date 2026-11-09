@@ -1,6 +1,7 @@
 //! Actual source construction, component ownership and interrupted evaluation.
 use super::support::{record_field, source_case, steps};
 use super::*;
+use crate::value_access::ExpressionKind;
 
 #[test]
 fn component_mapping_keeps_authored_order_and_completed_cleanup_uses_declaration_order() {
@@ -69,7 +70,23 @@ fn interrupted_construction_cleans_components_in_reverse_production_order_withou
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(cleaned, [produced[1], produced[0]]);
+    let components = named(&unit, "build")
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(_, e)| match &e.kind {
+            ExpressionKind::Record { fields } => Some(fields),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        cleaned,
+        [
+            Holder::Expression(components[1].value),
+            Holder::Expression(components[0].value)
+        ]
+    );
     let staged = trace.iter().position(|step| matches!(step, Step::Move { destination, .. } if destination.holder() == Holder::Return)).unwrap();
     let cleanup = trace
         .iter()

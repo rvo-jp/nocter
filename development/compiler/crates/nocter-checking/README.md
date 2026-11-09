@@ -228,14 +228,16 @@ fallback. The common data projection also serves result closure, without paralle
 Its inputs/results are data types; input Read/Edit/Take and local FixedValue/MutableValue/ReadAlias/
 EditAlias are separate facts. Transient operation access descriptors are not qualified data types.
 Take inputs receive writable local value slots; fixed local owners can transfer but cannot update.
-Read inputs never become take from body use. Copyable value supply snapshots before choosing a
-move-only extraction; alias creation never manufactures an owner. Direct call selection is frozen
+Read inputs never become take from body use. Unmarked value supply requires Copy evidence;
+explicit postfix transfer requires an owner and retires it even for Copy data. Alias creation
+never manufactures an owner. Direct call selection is frozen
 before access checking and has no permission-driven alternative target.
 
 `calls` resolves function references and freezes declaration or formal-input dispatch through
 local values, aliases and computed callees. `inputs` freezes input operations and optional
-formal-to-actual witness bindings. `supply` alone selects Copy, transfer or a pending result-supply
-obligation for a place; both ordinary value boundaries and call preparation use that decision.
+formal-to-actual witness bindings. `supply` alone selects an unmarked Copy snapshot or pending result-supply obligation.
+`selection` freezes explicit source transfer after validating owning authority. Ordinary value
+boundaries and call preparation consume those choices without a later Copy fallback.
 Forwarding records the source formal identity; recursive forwarding keeps a finite semantic edge
 instead of expanding witness expressions.
 Binding a callback checks its complete flat contract and retains the selected actual view/data;
@@ -243,7 +245,7 @@ it never coerces the actual environment into the receiving formal's type identit
 unknown-shaped input carries neither an environment nor a witness binding. `annotations` projects local structural
 constraints through the declaration-owned matcher, retaining witness identity. It does not create
 an erased structural datatype. The ordinary value boundary applies the selected invocation
-adapter after Copy-or-move; initialization and replacement use that same transition. Aliases
+adapter after selected value supply; initialization and replacement use that same transition. Aliases
 cannot construct a changed invocation view. Different witnesses do not join or replace one another
 merely because their signatures match.
 
@@ -254,7 +256,7 @@ consumer infers the environment's presence from argument count. Every frozen arg
 never reopen the callable parameter list or infer an environment offset. Direct and value calls
 share argument preparation, atomic commit, interruption and cleanup.
 
-Typed bodies record known Copy/materialization, implicit moves, scoped delegation, call input
+Typed bodies record known Copy/materialization, explicit source transfers, scoped delegation, call input
 preparation, RHS-first replacement and structured control. Unresolved result supply stays pending
 until its exact witness closes; it does not acquire a provisional Copy operation. `construction`
 freezes record components in authored order and applies the ordinary value boundary. Its `FieldValue` plans
@@ -336,15 +338,18 @@ the owning query to current source without influencing semantic selection.
 One selected-operation graph supplies initialization, backward permission demand and alternative
 access/resource states. It preserves scalar snapshots, short-circuit/conditional edges, loop
 successors, scope exits, staged value results, evaluation frames and interrupted call prefixes.
-Read/edit direct operands reserve without early activation; non-Copy take reserves transfer,
-whereas Copy take constructs a prepared snapshot. Direct inputs skip child place evaluation;
+Read/edit direct operands reserve without early activation. Direct marked sources reserve
+transfer independently of Copy and receiving operation; unmarked Copy take snapshots at preparation.
+The argument recipe retains selected callable adapters, which materialize only at invocation
+commit. A marked source to read/edit moves into a caller-owned temporary then lends access;
+produced read/edit values use that same owned evaluation extent. Direct inputs skip child place evaluation;
 `CopyPlace` reads its selected place and constructs exactly one snapshot at preparation. Its
 initialization and read-demand obligations occur there, without retaining a read access through
 later arguments or commit. Pending supply uses that same graph shape and cannot enter
 initialization. Commit checks the full bundle before any source is transferred; no sequential
 activation makes conflicting arguments valid. Earlier nested moves
-are not rolled back. A read of a fresh non-Copy result retains its evaluation temporary until the
-owning frame ends. Return survival is proved by the resource ledger alone; no parallel staged
+are not rolled back. A read/update loan of a produced or transferred value retains its evaluation temporary until
+the owning frame ends. Return survival is proved by the resource ledger alone; no parallel staged
 referent state, old result-referent alternatives or callable-result permission survives.
 
 Initialization distinguishes initialized/uninitialized/maybe selections on reachable paths and
@@ -450,7 +455,8 @@ the target owner's private instance consumer. That consumer receives only the co
 never typed-only evidence. The schema-to-payload projection exposes a cleanup obligation without
 constructing an initialized owner. There is no public parts constructor, compatibility adapter,
 source-version CLI, native consumer or general D/S solver. Qualification and remaining
-work belong in the linked review/plan, not a duplicate crate-internal status table.
+work belong in the [realization plan](../../../design/compiler-realization.md), not a duplicate
+crate-internal status table.
 
 ## Owned Capture Bodies
 
@@ -475,7 +481,8 @@ path. Header parameter identities still select formal callable witnesses and sou
 diagnostics project an input slot directly through its local source locator.
 
 The existing resource ledger's atomic Capture transition transfers a complete environment into
-one closure value. Copy supply snapshots Copy environments; other supply transfers one owner.
+one closure value. Unmarked capture supply snapshots with Copy evidence; a marked capture transfers one owning
+source, including Copy data.
 OwnedCapture disposal retains the schema's environment cleanup obligation. A consuming body owns
 and cleans its remainder; a read/edit body receives scoped input authority. Adapters preserve the
 code/environment identity. Result equations accept only actually produced closure witnesses.

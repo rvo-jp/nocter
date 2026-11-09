@@ -114,8 +114,8 @@ pub enum ArgumentAction {
     ReserveRead(AccessPlaceId),
     ReserveUpdate(AccessPlaceId),
     ReserveTransfer(AccessPlaceId),
-    /// Read a fresh owned temporary without Copy; its caller retains cleanup responsibility.
-    ReadOwnedValue,
+    /// Lend read/update access to a produced value; its caller retains cleanup responsibility.
+    AccessOwnedValue,
     /// Snapshot a selected place at this input preparation, without a retained access.
     CopyPlace(AccessPlaceId),
     /// Intermediate direct supply; cannot enter initialization or accepted products.

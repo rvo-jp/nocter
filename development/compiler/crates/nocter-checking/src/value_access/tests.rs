@@ -75,9 +75,9 @@ fn local_kinds_are_independent_of_data_and_value_supply() {
     );
 }
 #[test]
-fn value_boundaries_select_copy_or_move_without_a_surface_prefix() {
-    let all =
-        queries("func f(take input: error): error { let result = input\nreturn result }").unwrap();
+fn value_boundaries_distinguish_explicit_transfer_from_unmarked_copy() {
+    let all = queries("func f(take input: error): error { let result = input^\nreturn result^ }")
+        .unwrap();
     let f = named(&all, "f");
     assert_eq!(
         f.body()
@@ -146,7 +146,7 @@ fn body_use_never_strengthens_a_read_input_or_fixed_local() {
 }
 #[test]
 fn branches_construct_values_and_terminating_edges_supply_no_answer() {
-    assert!(queries("func f(take a: error, take b: error, flag: bool): error { let result = if flag { a } else { b }\nreturn result }").is_ok());
+    assert!(queries("func f(take a: error, take b: error, flag: bool): error { let result = if flag { a^ } else { b^ }\nreturn result^ }").is_ok());
     assert!(queries("func f(flag: bool): i32 { return if flag { return 4 } else { 3 } }").is_ok());
     reject("func f(): i32 { if true { () } }", Rule::TypeMismatch);
     reject("func f(): i32 {}", Rule::MissingResult);

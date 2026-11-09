@@ -32,4 +32,5 @@ V2CoreUnit
                       ReferenceExpression
                   FieldInitializer
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression

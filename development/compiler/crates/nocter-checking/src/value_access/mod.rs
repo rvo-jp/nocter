@@ -84,7 +84,7 @@ impl Rule {
             ),
             Self::MissingTransfer => (
                 DiagnosticCode::E0371,
-                "value construction needs Copy evidence or an eligible owning source",
+                "value construction needs Copy evidence, a produced value or explicit postfix transfer",
             ),
             Self::UnusedValue => (
                 DiagnosticCode::E0372,

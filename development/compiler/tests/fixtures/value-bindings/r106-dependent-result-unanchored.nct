@@ -1,1 +1,1 @@
-func invalid(take action: func(i32): i32): func(i32): i32 { invalid(action) }
+func invalid(take action: func(i32): i32): func(i32): i32 { invalid(action^) }

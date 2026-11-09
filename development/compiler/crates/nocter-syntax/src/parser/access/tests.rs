@@ -100,7 +100,7 @@ fn retired_words_are_names_only_in_the_future_profile_and_throw_is_reserved() {
     assert!(!tree("func throw(): void {}\n", ParseGoal::SourceFile).has_errors());
 }
 #[test]
-fn no_qualifier_or_call_marker_path_and_no_released_grammar_fallback() {
+fn retired_prefix_assertions_and_type_qualifiers_have_no_fallback() {
     for text in [
         "func f(x: &i32): void {}",
         "func f(x: ^i32): void {}",
@@ -157,7 +157,7 @@ fn unary_and_binary_precedence_retains_the_original_tokens() {
 #[test]
 fn reusable_parse_rebinds_only_equal_normalized_text() {
     let mut sources = SourceMap::new();
-    let text = "func f(take value: error): error { let next = value\nreturn next }\n";
+    let text = "func f(take value: error): error { let next = value^\nreturn next^ }\n";
     let first = sources
         .add_bytes(SourceName::new("one.nct"), text.as_bytes())
         .unwrap();
@@ -184,4 +184,27 @@ fn nesting_limit_recovers_without_losing_the_source_projection() {
     let parsed = tree(&text, ParseGoal::V2CoreUnit);
     assert!(parsed.has_errors());
     super::super::snapshots::assert_token_projection(&parsed, "depth");
+}
+
+#[test]
+fn postfix_transfer_is_joint_and_preserves_chain_and_capture_structure() {
+    let text = "func run(take value: error): void {\nlet action = (value^;): error { value^ }\nlet result = action^()\nlet _ = buffer^.finish()\n}\n";
+    let parsed = tree(text, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::TransferExpression)
+            .count(),
+        3
+    );
+    super::super::snapshots::assert_token_projection(&parsed, "postfix-transfer");
+    for bad in [
+        "func run(take value: error): error { value ^ }",
+        "func run(take value: error): error { value /*gap*/ ^ }",
+        "func run(take value: error): error { ^value }",
+        "func run(): void { let ^value = 1 }",
+    ] {
+        assert!(tree(bad, ParseGoal::V2CoreUnit).has_errors(), "{bad}");
+    }
 }

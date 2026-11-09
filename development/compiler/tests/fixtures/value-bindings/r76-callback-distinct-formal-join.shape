@@ -42,13 +42,15 @@ V2CoreUnit
                   ExecutableSequence
                     BodyResult
                       Expression
-                        ReferenceExpression
+                        TransferExpression
+                          ReferenceExpression
                 ElseClause
                   Block
                     ExecutableSequence
                       BodyResult
                         Expression
-                          ReferenceExpression
+                          TransferExpression
+                            ReferenceExpression
           BodyResult
             Expression
               PostfixExpression

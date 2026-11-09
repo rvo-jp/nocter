@@ -4,5 +4,5 @@ struct Pair {
 }
 func observe(value: Pair): void {}
 func run(take a: error, take b: error): void {
-    observe(Pair { first: a, second: b })
+    observe(Pair { first: a^, second: b^ })
 }

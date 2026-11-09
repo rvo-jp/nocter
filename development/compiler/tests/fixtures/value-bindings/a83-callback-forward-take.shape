@@ -36,7 +36,8 @@ V2CoreUnit
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
                   Expression
                     ScalarLiteral
@@ -64,7 +65,8 @@ V2CoreUnit
                 ReferenceExpression
                 CallSuffix
                   Expression
-                    ReferenceExpression
+                    TransferExpression
+                      ReferenceExpression
   Item
     FunctionDeclaration
       CallableTail

@@ -20,7 +20,8 @@ V2CoreUnit
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
                   Expression
                     IfExpression

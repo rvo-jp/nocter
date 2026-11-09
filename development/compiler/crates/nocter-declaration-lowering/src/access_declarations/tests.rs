@@ -43,7 +43,7 @@ fn input_modes_and_value_result_come_only_from_the_header() {
 #[test]
 fn body_and_trivia_edits_rebind_without_redeciding_headers() {
     let (a, ta) = input(
-        "func f(take value: error): error { return value }",
+        "func f(take value: error): error { return value^ }",
         ParseGoal::V2CoreUnit,
     );
     let query = Query::prepare(bound(&a, &ta)).unwrap();
@@ -69,11 +69,11 @@ fn body_and_trivia_edits_rebind_without_redeciding_headers() {
 #[test]
 fn canonical_reservation_is_independent_of_source_order() {
     let (a, ta) = input(
-        "func beta(take x: error): error { x }\nfunc alpha(): void {}",
+        "func beta(take x: error): error { x^ }\nfunc alpha(): void {}",
         ParseGoal::V2CoreUnit,
     );
     let (b, tb) = input(
-        "func alpha(): void {}\nfunc beta(take x: error): error { x }",
+        "func alpha(): void {}\nfunc beta(take x: error): error { x^ }",
         ParseGoal::V2CoreUnit,
     );
     let qa = Query::prepare(bound(&a, &ta)).unwrap();

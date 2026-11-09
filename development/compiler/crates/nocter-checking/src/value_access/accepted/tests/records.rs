@@ -141,7 +141,7 @@ fn source_field_selection_and_cleanup_preserve_shared_deep_schemas() {
     }
     writeln!(
         text,
-        "func deep(take root: R{DEPTH}): error {{ root{}.value }}",
+        "func deep(take root: R{DEPTH}): error {{ root{}.value^ }}",
         ".left".repeat(DEPTH)
     )
     .unwrap();

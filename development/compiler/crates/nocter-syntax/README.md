@@ -24,7 +24,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - lexing and token subdivision
 - bounded future private-function and closed-record recognition through the explicit `V2CoreUnit`
   development parse goal, with a distinct root, explicit input/binding operation nodes, unit values,
-  named data types, structural record values and member suffixes. Structural initializers use
+  named data types, structural record values, member suffixes and joint postfix transfer nodes.
+  Marked value-capture entries use the same joint caret token. Structural initializers use
   comma-delimited named fields. Control-header parsing leaves the first outer brace to its body,
   while nested delimiters restore ordinary expression recognition without type lookup.
   Local annotations, formal parameter headers and function results recognize bounded
@@ -78,8 +79,9 @@ maintaining another radix/underscore parser.
   supported syntax context; downstream stages never recover guarantees from token text or
   declaration spelling.
 - The future core goal never falls back to released borrow/type/expression productions. Its call
-  grammar has no access-qualified type or standalone update/transfer expression, including direct
-  call assertions under grouping. Contextual input and alias words are recognized structurally,
+  grammar has no access-qualified type or prefix update/transfer assertion, including under
+  grouping. Postfix transfer is a distinct unary node, preserving its position in a chain;
+  source ownership and repeated/fresh-source rejection remain semantic work. Contextual input and alias words are recognized structurally,
   never through name/type lookup. Its root
   cannot be admitted by the released target-selection/compile-input boundary. This goal is not
   exposed as a CLI language-version switch; declaration/body conformance remains separate.

@@ -5,15 +5,14 @@ accepted private units and private instances. Language meaning belongs to the
 [adopted value model](../../spec/language/value-access.md). This boundary has no released-program
 adapter, public CLI or native consumer.
 
-## Current Source Gap
+## Source Scope
 
-The private frontend currently accepts implicit movement of existing owners and unmarked non-Copy
-capture entries. It does not yet implement the adopted postfix transfer syntax, so its accepted
-source is not current v2.0.0 conformance. Its direct edit preparation also excludes the adopted
-produced-value update temporary path. These are implementation gaps, not alternative source modes.
-The parser, frozen supply selection, initialization, reservations, captures, resource consumers
-and source fixtures must migrate together before those paths can be qualified. The
-[realization plan](../../design/compiler-realization.md) owns remaining proof and test obligations.
+The syntax owner defines the bounded private goal. Checking admits explicit postfix retirement,
+unmarked Copy snapshots, marked capture formation and read/edit loans from produced or
+transferred values within its closed data/callable schemas. A direct marked source stays reserved
+through complete invocation preparation, including selected callable adapters. These products do
+not establish general capabilities, public modules, outcomes, async or native realization.
+The [realization plan](../../design/compiler-realization.md) owns remaining integrated obligations.
 
 ## Implemented Handoff
 
@@ -85,9 +84,11 @@ source-surface cache entry but must preserve canonical semantic identities when 
 Every callable result delivers a value of its declared data type. Parameters separately state
 Read/Edit/Take, and locals separately state value mutability or scoped aliasing. Type annotations
 cannot change those operations. Source/body/definition order cannot infer a new input operation.
-Copy-or-move is selected once for value supply. A result whose payload evidence is unresolved
-retains a pending operation until witness closure, before initialization. Existing Copy taking
-inputs snapshot rather than transfer the original. Exact payload contracts remain checking
+Explicit source retirement and unmarked snapshots are selected once for value supply. An
+unmarked result-dependent source retains a pending snapshot obligation until witness closure,
+before initialization; insufficient Copy evidence then rejects instead of selecting an implicit
+move. Explicit retirement never becomes Copy after specialization. Unmarked Copy taking inputs
+snapshot rather than transfer the original. Exact payload contracts remain checking
 evidence, not a generic D/S promise.
 
 Declaration acceptance proves only header integrity. A syntax-valid body with an invalid non-Copy extraction,
@@ -119,8 +120,10 @@ input. Value-supply preparation can remain pending until result closure, without
 authored operation. A value call prepends its environment to explicit inputs; direct declaration
 calls have no runtime environment input. Downstream validation consumes frozen operations rather
 than reinterpreting indices against declaration parameters. A direct
-place reservation is not an early read/update/transfer; explicit computed operations execute at
-their own operand point. A direct Copy input snapshots its selected place at preparation,
+place reservation is not an early read/update/transfer; explicit nested value computations execute
+at their own operand point. A marked direct operand, including a selected invocation adapter,
+retains retirement until complete bundle commit. Read/edit receipt of that value uses the
+caller-owned temporary path rather than surrendering ownership to the callee. A direct Copy input snapshots its selected place at preparation,
 without a child read or retained source access. Copy/transfer/pending direct supply share one
 graph topology; closure cannot reorder nested evaluation or cancellation. Later validation must
 consume those plans, not repeat dispatch or infer intent from source punctuation. Structural
@@ -301,8 +304,7 @@ signature-wide assumption about callable environments.
 Private instance data projection preserves an uninvoked owned environment's payload and its
 environment-data obligation without adding a code instance. A code identity selects the named or
 captured body independently of the value's invocation view. Its derived named source owner guards
-source reuse only and cannot select a closure body. The former UnsupportedCapturedCode private
-boundary is closed for the selected single-value environment scope.
+source reuse only and cannot select a closure body. The selected single-value environment uses the same private code-instance authority.
 
 ## Frozen Invocation Handoff
 

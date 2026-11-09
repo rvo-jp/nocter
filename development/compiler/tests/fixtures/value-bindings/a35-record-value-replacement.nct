@@ -3,7 +3,7 @@ struct Pair {
     second: error
 }
 func replace(take a: error, take b: error, take c: error): Pair {
-    var value = Pair { first: a, second: b }
-    value.first = c
-    value
+    var value = Pair { first: a^, second: b^ }
+    value.first = c^
+    value^
 }

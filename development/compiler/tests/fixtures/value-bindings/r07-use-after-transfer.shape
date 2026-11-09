@@ -25,7 +25,8 @@ V2CoreUnit
             BindingOperation
             BindingPattern
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           ExpressionStatement
             Expression
               PostfixExpression
@@ -35,4 +36,5 @@ V2CoreUnit
                     ReferenceExpression
           ReturnStatement
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

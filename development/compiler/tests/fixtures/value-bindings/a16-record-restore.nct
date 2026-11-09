@@ -3,7 +3,7 @@ struct Pair {
     second: error
 }
 func restore(take pair: Pair, take replacement: error): Pair {
-    let old = pair.first
-    pair.first = replacement
-    return pair
+    let old = pair.first^
+    pair.first = replacement^
+    return pair^
 }

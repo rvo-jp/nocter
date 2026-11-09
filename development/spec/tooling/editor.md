@@ -132,8 +132,9 @@ For produced edit operands, show the caller-owned temporary loan separately from
 place update. The temporary owns its cleanup; the callee receives update access. A computed
 value does not become a local-alias/assignment place, and an immutable direct source is not
 copied merely to satisfy edit. Explain an escaping result/future against that actual temporary
-extent rather than suggesting a longer lifetime annotation. This path is not admitted by the
-current bounded frontend.
+extent rather than suggesting a longer lifetime annotation. The
+[private handoff](../../architecture/pipeline/value-access-declarations.md) owns actual frontend
+coverage; editor integration needs separate evidence.
 
 ## Explicit Transfer Presentation
 

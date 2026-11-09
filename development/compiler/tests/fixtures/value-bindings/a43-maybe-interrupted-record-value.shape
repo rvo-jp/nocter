@@ -35,7 +35,8 @@ V2CoreUnit
                 StructInitializer
                   FieldInitializer
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
                   FieldInitializer
                     Expression
                       IfExpression
@@ -46,15 +47,18 @@ V2CoreUnit
                           ExecutableSequence
                             ReturnStatement
                               Expression
-                                ReferenceExpression
+                                TransferExpression
+                                  ReferenceExpression
                         ElseClause
                           Block
                             ExecutableSequence
                               BodyResult
                                 Expression
-                                  ReferenceExpression
+                                  TransferExpression
+                                    ReferenceExpression
           BodyResult
             Expression
-              PostfixExpression
-                ReferenceExpression
-                MemberSuffix
+              TransferExpression
+                PostfixExpression
+                  ReferenceExpression
+                  MemberSuffix

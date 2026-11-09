@@ -4,5 +4,5 @@ struct Pair {
 }
 struct Outer { pair: Pair }
 func build(take a: error, take b: error): Outer {
-    Outer { pair: Pair { first: a, second: b } }
+    Outer { pair: Pair { first: a^, second: b^ } }
 }

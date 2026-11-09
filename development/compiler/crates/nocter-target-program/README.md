@@ -96,9 +96,9 @@ static instance never shares runtime environment values, owner state or storage 
 
 Each instance retains its exact accepted body and these frozen edges/data maps. Consumers cannot
 recheck a body, select by names, infer an environment offset from arity, recover source-level Copy
-from concrete payloads, or reinterpret a closure's source owner as its code body. The former
-UnsupportedCapturedCode boundary is removed for the bounded owned-capture producer. General
+from concrete payloads, or reinterpret a closure's source owner as its code body. The graph admits the bounded owned-capture producer through that same code authority. General
 captures, nested/factory-result closure bodies, physical input/environment realization, executable
 cleanup, ABI and backend admission remain separate obligations. The
 [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md) owns
-the handoff; review/handoff documents own qualification and remaining work.
+the handoff; the [current realization plan](../../../design/compiler-realization.md) owns remaining
+admission obligations.

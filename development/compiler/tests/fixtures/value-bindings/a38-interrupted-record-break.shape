@@ -35,7 +35,8 @@ V2CoreUnit
                       StructInitializer
                         FieldInitializer
                           Expression
-                            ReferenceExpression
+                            TransferExpression
+                              ReferenceExpression
                         FieldInitializer
                           Expression
                             IfExpression
@@ -50,4 +51,5 @@ V2CoreUnit
                                   ExecutableSequence
                                     BodyResult
                                       Expression
-                                        ReferenceExpression
+                                        TransferExpression
+                                          ReferenceExpression

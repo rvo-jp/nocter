@@ -3,7 +3,7 @@ use crate::value_access::tests::queries;
 
 #[test]
 fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_holder() {
-    let queries = queries("func run(take value: error): error { value }\n").unwrap();
+    let queries = queries("func run(take value: error): error { value^ }\n").unwrap();
     let query = &queries[0];
     let program = query.program();
     let local = query.body().locals().iter().next().unwrap().0;

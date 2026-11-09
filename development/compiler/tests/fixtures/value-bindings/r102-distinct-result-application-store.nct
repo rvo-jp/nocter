@@ -1,6 +1,6 @@
 func increment(value: i32): i32 { value + 1 }
 func decrement(value: i32): i32 { value - 1 }
-func forward(take action: func(i32): i32): func(i32): i32 { action }
+func forward(take action: func(i32): i32): func(i32): i32 { action^ }
 func invalid(): i32 { var action = forward(increment)
 action = forward(decrement)
 action(1) }

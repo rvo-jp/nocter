@@ -42,5 +42,6 @@ V2CoreUnit
                                     ScalarLiteral
                         FieldInitializer
                           Expression
-                            ReferenceExpression
+                            TransferExpression
+                              ReferenceExpression
                 MemberSuffix

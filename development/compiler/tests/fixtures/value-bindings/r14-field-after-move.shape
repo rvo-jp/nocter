@@ -23,11 +23,13 @@ V2CoreUnit
             BindingOperation
             BindingPattern
             Expression
-              PostfixExpression
-                ReferenceExpression
-                MemberSuffix
+              TransferExpression
+                PostfixExpression
+                  ReferenceExpression
+                  MemberSuffix
           ReturnStatement
             Expression
-              PostfixExpression
-                ReferenceExpression
-                MemberSuffix
+              TransferExpression
+                PostfixExpression
+                  ReferenceExpression
+                  MemberSuffix

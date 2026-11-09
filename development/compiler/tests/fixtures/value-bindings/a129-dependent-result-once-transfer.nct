@@ -1,6 +1,6 @@
 func increment(value: i32): i32 { value + 1 }
-func relay(take action: once(i32): i32): once(i32): i32 { action }
-func invoke(take action: once(i32): i32): i32 { let next = relay(action)
-next(1) }
+func relay(take action: once(i32): i32): once(i32): i32 { action^ }
+func invoke(take action: once(i32): i32): i32 { let next = relay(action^)
+next^(1) }
 func run(): i32 { let action: once(i32): i32 = increment
 invoke(action) }

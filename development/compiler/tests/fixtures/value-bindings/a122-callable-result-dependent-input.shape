@@ -25,4 +25,5 @@ V2CoreUnit
         ExecutableSequence
           BodyResult
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

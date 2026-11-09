@@ -2,6 +2,6 @@ struct Pair {
     first: error
     second: error
 }
-func make(take a: error, take b: error): Pair { Pair { first: a, second: b } }
+func make(take a: error, take b: error): Pair { Pair { first: a^, second: b^ } }
 func inspect(value: error): void {}
-func run(take a: error, take b: error): void { inspect(make(a, b).first) }
+func run(take a: error, take b: error): void { inspect(make(a^, b^).first) }

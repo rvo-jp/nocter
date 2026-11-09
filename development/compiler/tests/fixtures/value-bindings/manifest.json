@@ -19,7 +19,7 @@
       "id": "a03-fixed-owner-transfer",
       "file": "a03-fixed-owner-transfer.nct",
       "expectation": "accept",
-      "reason": "Fixed value bindings can transfer a move-only payload without a prefix."
+      "reason": "Fixed value bindings can retire a move-only payload through explicit postfix transfer."
     },
     {
       "id": "a04-edit-original",
@@ -670,11 +670,10 @@
       "diagnostic": "E0384"
     },
     {
-      "id": "r39-edit-input-computed-field",
-      "file": "r39-edit-input-computed-field.nct",
-      "expectation": "check-reject",
-      "reason": "A computed field value cannot supply edit authority without an existing mutable binding.",
-      "diagnostic": "E0387"
+      "id": "a148-edit-input-computed-field",
+      "file": "a148-edit-input-computed-field.nct",
+      "expectation": "accept",
+      "reason": "A computed component lends update access through its caller-owned evaluation temporary without Copy or an invented local binding."
     },
     {
       "id": "r40-grouped-read-field-extraction",

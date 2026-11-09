@@ -1,4 +1,4 @@
 func run(take input: error): error {
-    let action = (input;): void {}
-    input
+    let action = (input^;): void {}
+    input^
 }

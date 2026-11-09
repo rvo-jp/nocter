@@ -1,5 +1,5 @@
 func run(take input: error): error {
-    let action = (input;): error { input }
-    let first = action()
-    action()
+    let action = (input^;): error { input^ }
+    let first = action^()
+    action^()
 }

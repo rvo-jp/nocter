@@ -1,6 +1,6 @@
 func observe(input: error): void {}
 func run(take input: error): void {
-    let action = (input;): void { observe(input) }
+    let action = (input^;): void { observe(input) }
     action()
     action()
 }

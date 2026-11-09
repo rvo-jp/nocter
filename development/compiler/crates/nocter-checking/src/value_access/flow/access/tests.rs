@@ -53,10 +53,10 @@ fn copy_take_snapshot_is_disjoint_from_a_later_edit_of_its_source() {
 #[test]
 fn duplicate_noncopy_transfer_and_live_alias_transfer_are_rejected() {
     reject(
-        "func consume(take a: error,take b: error): void {}\nfunc f(take input: error): void { consume(input,input) }",
+        "func consume(take a: error,take b: error): void {}\nfunc f(take input: error): void { consume(input^,input^) }",
     );
     reject(
-        "func observe(x: error): void {}\nfunc f(take input: error): error { read alias = input\nlet moved = input\nobserve(alias)\nreturn moved }",
+        "func observe(x: error): void {}\nfunc f(take input: error): error { read alias = input\nlet moved = input^\nobserve(alias)\nreturn moved^ }",
     );
 }
 #[test]

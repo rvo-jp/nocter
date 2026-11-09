@@ -40,7 +40,9 @@ V2CoreUnit
                         StructInitializer
                           FieldInitializer
                             Expression
-                              ReferenceExpression
+                              TransferExpression
+                                ReferenceExpression
                           FieldInitializer
                             Expression
-                              ReferenceExpression
+                              TransferExpression
+                                ReferenceExpression

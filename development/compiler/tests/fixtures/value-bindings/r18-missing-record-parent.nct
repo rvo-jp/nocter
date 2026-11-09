@@ -6,6 +6,6 @@ struct Pair {
     second: error
 }
 func bad(take envelope: Envelope, take replacement: error): void {
-    let old = envelope.pair
-    envelope.pair.first = replacement
+    let old = envelope.pair^
+    envelope.pair.first = replacement^
 }

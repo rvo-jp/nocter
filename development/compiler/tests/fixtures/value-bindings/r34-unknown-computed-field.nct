@@ -2,5 +2,5 @@ struct Pair {
     first: error
     second: error
 }
-func make(take a: error, take b: error): Pair { Pair { first: a, second: b } }
-func run(take a: error, take b: error): error { make(a, b).missing }
+func make(take a: error, take b: error): Pair { Pair { first: a^, second: b^ } }
+func run(take a: error, take b: error): error { make(a^, b^).missing }

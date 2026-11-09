@@ -68,7 +68,8 @@ V2CoreUnit
           DropStatement
           BodyResult
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
   Item
     FunctionDeclaration
       CallableTail

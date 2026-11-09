@@ -1,2 +1,2 @@
-func unused(take action: once(i32): i32): i32 { action(if true { action = action
+func unused(take action: once(i32): i32): i32 { action^(if true { action = action^
 1 } else { 1 }) }

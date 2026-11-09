@@ -1,4 +1,4 @@
 func increment(value: i32): i32 { value + 1 }
-func weaken(take action: func(i32): i32): once(i32): i32 { action }
+func weaken(take action: func(i32): i32): once(i32): i32 { action^ }
 func run(): i32 { let action = weaken(increment)
 action(action(1)) }

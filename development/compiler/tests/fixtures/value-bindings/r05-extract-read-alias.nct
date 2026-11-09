@@ -1,5 +1,5 @@
 func invalid(take input: error): error {
     read observed = input
     let result = observed
-    return result
+    return result^
 }

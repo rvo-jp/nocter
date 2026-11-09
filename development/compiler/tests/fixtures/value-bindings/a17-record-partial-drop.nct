@@ -3,7 +3,7 @@ struct Pair {
     second: error
 }
 func release(take pair: Pair): error {
-    let first = pair.first
+    let first = pair.first^
     drop pair
-    return first
+    return first^
 }

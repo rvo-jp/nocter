@@ -3,6 +3,6 @@ struct Pair {
     second: error
 }
 func run(take pair: Pair): error {
-    let finish = (pair;): error { pair.first }
-    finish()
+    let finish = (pair^;): error { pair.first^ }
+    finish^()
 }

@@ -21,7 +21,8 @@ V2CoreUnit
         ExecutableSequence
           BodyResult
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
   Item
     FunctionDeclaration
       CallableTail
@@ -46,9 +47,10 @@ V2CoreUnit
                   BindingOperation
                   BindingPattern
                   Expression
-                    PostfixExpression
-                      ReferenceExpression
-                      MemberSuffix
+                    TransferExpression
+                      PostfixExpression
+                        ReferenceExpression
+                        MemberSuffix
                 AssignmentStatement
                   AssignmentTarget
                     PostfixExpression
@@ -59,7 +61,9 @@ V2CoreUnit
                       ReferenceExpression
                       CallSuffix
                         Expression
-                          ReferenceExpression
+                          TransferExpression
+                            ReferenceExpression
           ReturnStatement
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

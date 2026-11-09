@@ -47,6 +47,22 @@ impl Checker<'_, '_> {
         };
         self.input_plan(syntax, value, expected, binding)
     }
+    fn deferred_transfer(
+        &self,
+        mut value: AccessExpressionId,
+    ) -> Option<nocter_model::AccessPlaceId> {
+        loop {
+            match self.expressions.get(value)?.kind {
+                super::ir::ExpressionKind::Move(place) => return Some(place),
+                super::ir::ExpressionKind::AdaptFunction { source }
+                | super::ir::ExpressionKind::Boundary {
+                    source,
+                    action: super::ir::BoundaryAction::TakeValue,
+                } => value = source,
+                _ => return None,
+            }
+        }
+    }
     pub(super) fn input_plan(
         &self,
         syntax: NodeId,
@@ -57,7 +73,9 @@ impl Checker<'_, '_> {
         self.require_data(value, expected.data, syntax)?;
         let mode = expected.operation.access_mode();
         let action = if let Some(actual) = self.ty(value).normal() {
-            if let Some(place) = self.place_expression(value) {
+            if let Some(place) = self.deferred_transfer(value) {
+                ArgumentAction::ReserveTransfer(place)
+            } else if let Some(place) = self.place_expression(value) {
                 match mode {
                     Mode::Read => ArgumentAction::ReserveRead(place),
                     Mode::Update => {
@@ -72,15 +90,10 @@ impl Checker<'_, '_> {
                     }
                     Mode::Own => {
                         use super::supply::PlaceSupply;
-                        match super::supply::select(
-                            self.program(),
-                            actual.data(),
-                            self.place_ty(place).mode(),
-                        )? {
+                        match super::supply::select(self.program(), actual.data())? {
                             PlaceSupply::Pending => ArgumentAction::PendingValue(place),
                             PlaceSupply::Copy => ArgumentAction::CopyPlace(place),
-                            PlaceSupply::Transfer => ArgumentAction::ReserveTransfer(place),
-                            PlaceSupply::MissingOwner => {
+                            PlaceSupply::MissingCopy => {
                                 return self.reject(Rule::MissingTransfer, syntax);
                             }
                         }
@@ -91,9 +104,8 @@ impl Checker<'_, '_> {
                     return Err(Failure::InconsistentSyntax);
                 }
                 match mode {
-                    Mode::Read => ArgumentAction::ReadOwnedValue,
+                    Mode::Read | Mode::Update => ArgumentAction::AccessOwnedValue,
                     Mode::Own => ArgumentAction::TakeValue,
-                    Mode::Update => return self.reject(Rule::InvalidUpdate, syntax),
                 }
             }
         } else {

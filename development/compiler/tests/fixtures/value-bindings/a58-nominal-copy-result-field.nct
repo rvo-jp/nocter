@@ -4,5 +4,5 @@ struct Outer {
     other: error
 }
 func run(take failure: error): Point {
-    (Outer { point: Point { value: 1 }, other: failure }).point
+    (Outer { point: Point { value: 1 }, other: failure^ }).point
 }

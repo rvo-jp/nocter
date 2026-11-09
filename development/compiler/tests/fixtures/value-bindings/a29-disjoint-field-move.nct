@@ -5,7 +5,7 @@ struct Pair {
 func inspect(value: error): void {}
 func extract(take pair: Pair): error {
     read first = pair.first
-    let second = pair.second
+    let second = pair.second^
     inspect(first)
-    return second
+    return second^
 }

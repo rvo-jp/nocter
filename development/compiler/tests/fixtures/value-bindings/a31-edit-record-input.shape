@@ -29,4 +29,5 @@ V2CoreUnit
                 ReferenceExpression
                 MemberSuffix
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

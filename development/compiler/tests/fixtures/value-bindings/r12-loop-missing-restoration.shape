@@ -18,7 +18,8 @@ V2CoreUnit
             BindingOperation
             BindingPattern
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           WhileStatement
             Expression
               ReferenceExpression

@@ -8,40 +8,30 @@ The [private access handoff](../architecture/pipeline/value-access-declarations.
 implemented cross-stage boundary and its limits. The [work plan](../TODO.md) owns priority.
 These are pending obligations, not passed source fixtures or a full-language soundness proof.
 
-## Explicit Source Supply Admission
+## Remaining Source Supply Coverage
 
-Replace implicit source transfers through syntax, declaration/body projection, selected supply,
-initialization, reservations, captured environments and resource consumers together. Select source
-retirement once and preserve it through witness closure and specialization. Keep named source
-identity distinct from produced anonymous values and capture-formation sources distinct from
-invoked environment slots. A later stage cannot repeat selection from type size, liveness or
-concrete Copy evidence. The source corpus needs an intent review, not mechanical caret insertion.
-No alternate implicit-move source mode or public version switch is permitted.
+The [private handoff](../architecture/pipeline/value-access-declarations.md) owns the admitted
+core and its component contracts. Extend its one frozen source-retirement/snapshot decision
+through each newly admitted family; do not recover source intent from concrete Copy, liveness,
+type size or private-body lookup. Remaining distinguishing cases include:
 
-Required distinguishing cases follow [explicit transfer](../spec/language/value-access.md#explicit-transfer-sources):
-
-| Source situation | Required evidence |
+| Source situation | Remaining evidence |
 | --- | --- |
-| Existing non-Copy value, marked versus unmarked | Transfer versus missing-marker error at the source |
-| Copy value, marked versus unmarked, including generic substitution | Retirement versus snapshot without later reselection |
-| Fixed versus mutable source after transfer | Invalid restoration versus complete replacement |
-| Alias, static, user index/current projection plus caret | No manufactured ownership, even for Copy referents |
-| Fresh value, repeated caret, prefix/type/binding marker | Invalid source or grammar; no alternate parse |
-| Field/element transfer versus computed field of marked parent | Exact retired source and actual remaining cleanup |
-| Partial parent, dynamic overlap and complete-parent destructor | Initialization, conflict and cleanup proof on every exit |
-| Direct argument/receiver/callable versus nested construction | Reserved outer transfer versus committed inner transfer |
-| Later preparation failure/cancellation, including marked Copy | Release uncommitted reservations; preserve prior effects |
-| Completed later read versus surviving overlapping read input | Permit proved sequential access; reject conflicting invocation |
-| Marked source lent to read/edit | Caller-owned temporary, exact cleanup and rejection of dependent escape |
-| Closure formation marker versus marker inside its body | Outside acquisition versus environment/body-local transfer |
-| Captured slot transfer versus body-local transfer | Owning environment required only for the captured source |
-| Named return, throw, catch leaf, pattern leaf and await operand | Explicit source supply at the owning operation's boundary |
-| Anonymous received carrier or intrinsic cursor item | Internal handoff without a hidden move of a named source |
-| Fallible scoped projection versus explicit carrier acquisition | No hidden error extraction from preserved storage |
+| General generic types and opaque capabilities | Preserve explicit retirement and conditional Copy without granting a missing capability |
+| Static storage and user index/current projections | Reject manufactured ownership even for Copy referents |
+| Dynamic array elements, partial parents and user destructors | Exact source identity, overlap, restoration and cleanup on all exits |
+| Named outcome, handler/pattern and future sources | Explicit acquisition at the owning failure/drive boundary |
+| Anonymous pattern/cursor carriers | Internal handoff without a hidden move of a named source |
+| Fallible scoped projection | No hidden error extraction from preserved storage |
 | Marked array spread, including empty/Copy arrays | Whole-source retirement at direct outer commit |
-| Marked pack capture/spread/loop | All owned components retire; count metadata remains |
-| Read/edit pack marked acquisition | Reject caller-component retirement |
-| User source acquisition before outer failure | Preserve committed inner calls, pulls and producer cleanup |
+| Marked pack capture/spread/loop | All owned components retire while original count metadata remains |
+| Read/edit pack marked acquisition | No caller-component retirement |
+| User source acquisition before outer failure | Preserve committed inner calls, pulls and cleanup |
+| Pending cancellation during preparation versus after receipt | Release reservations versus destroy actual received state |
+
+Derive case semantics from [explicit transfer](../spec/language/value-access.md#explicit-transfer-sources).
+The source corpus and consuming tests own actual core assertions; this plan does not duplicate
+completed test inventories or admit another implicit source mode.
 
 ## Dependency and State Proofs
 

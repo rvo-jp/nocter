@@ -55,7 +55,7 @@ impl Context<'_, '_> {
                 return Err(Failure::Integrity);
             };
             let argument = arguments.get(index).ok_or(Failure::Integrity)?;
-            if argument.action == ArgumentAction::ReadOwnedValue {
+            if argument.action == ArgumentAction::AccessOwnedValue {
                 self.world.resources.move_to(
                     self.typed.program(),
                     &Holder::Expression(argument.value).place(),
@@ -320,7 +320,7 @@ impl Context<'_, '_> {
             ArgumentAction::ReserveRead(_)
             | ArgumentAction::ReserveUpdate(_)
             | ArgumentAction::ReserveTransfer(_)
-            | ArgumentAction::ReadOwnedValue => {}
+            | ArgumentAction::AccessOwnedValue => {}
             ArgumentAction::PendingValue(_)
             | ArgumentAction::Unproduced
             | ArgumentAction::Interrupted => {
@@ -343,13 +343,44 @@ impl Context<'_, '_> {
         for (index, argument) in arguments.iter().enumerate() {
             let prepared = Holder::Prepared { call, index };
             if let ArgumentAction::ReserveTransfer(place) = argument.action {
-                self.world.resources.invoke(
-                    self.typed.program(),
-                    &self.resource_place(place)?,
-                    call,
-                    index,
-                    &mut self.steps,
-                )?;
+                let mut source = self.resource_place(place)?;
+                let payload = resources::expression_payload(self.typed, argument.value)?;
+                let data = self
+                    .typed
+                    .body()
+                    .places()
+                    .get(place)
+                    .ok_or(Failure::Integrity)?
+                    .data;
+                if data != payload.data() {
+                    // This adapter is already selected in the typed argument recipe. Materialize
+                    // it only after complete bundle validation, preserving source retirement.
+                    self.world.resources.adapt_function(
+                        self.typed.program(),
+                        &source,
+                        prepared,
+                        payload,
+                        &mut self.steps,
+                    )?;
+                    source = prepared.place();
+                }
+                if argument.operation.access_mode() == Mode::Own {
+                    self.world.resources.invoke(
+                        self.typed.program(),
+                        &source,
+                        call,
+                        index,
+                        &mut self.steps,
+                    )?;
+                } else {
+                    self.world.resources.move_to(
+                        self.typed.program(),
+                        &source,
+                        &Holder::Temporary { call, index }.place(),
+                        false,
+                        &mut self.steps,
+                    )?;
+                }
             } else if self.world.resources.contains(prepared) {
                 let mode = argument.operation.access_mode();
                 if mode == Mode::Own {

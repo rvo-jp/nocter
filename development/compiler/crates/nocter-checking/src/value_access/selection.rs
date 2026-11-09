@@ -32,6 +32,38 @@ impl Checker<'_, '_> {
             }
         }
     }
+    pub fn transfer(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
+        let source = self.unwrap(self.first_child(node)?)?;
+        if self.kind(source)? == NodeKind::TransferExpression {
+            return self.reject_message(
+                Rule::MissingTransfer,
+                node,
+                "the source is already marked for transfer; remove the repeated postfix ^".into(),
+                Vec::new(),
+            );
+        }
+        let place = self.place(source, Rule::MissingTransfer)?;
+        self.transfer_place(node, place)
+    }
+    pub(super) fn transfer_place(
+        &mut self,
+        node: NodeId,
+        place: AccessPlaceId,
+    ) -> Result<AccessExpressionId, Failure> {
+        let access = self.place_ty(place);
+        if access.mode() != Mode::Own {
+            return self.reject_message(
+                Rule::MissingTransfer, node,
+                "postfix transfer requires an owning source; scoped access cannot surrender its referent".into(),
+                Vec::new(),
+            );
+        }
+        self.emit(
+            node,
+            value_type(access.data(), Mode::Own),
+            ExpressionKind::Move(place),
+        )
+    }
     pub fn field(&self, data: TypeId, token: SyntaxToken) -> Result<AccessFieldId, Failure> {
         let schema = self
             .program()
@@ -88,8 +120,12 @@ impl Checker<'_, '_> {
     pub fn place(&mut self, node: NodeId, rule: Rule) -> Result<AccessPlaceId, Failure> {
         let (root, members) = self.selection(node)?;
         let Some(name) = self.name_token(root)? else {
-            return self.reject_message(rule, node,
-                "this operation needs existing storage; bind the computed result before taking scoped access or updating it".to_owned(), Vec::new());
+            let message = if rule == Rule::MissingTransfer {
+                "a produced value has no existing source to retire; remove postfix ^"
+            } else {
+                "this operation needs existing storage; bind the computed result before taking scoped access or updating it"
+            };
+            return self.reject_message(rule, node, message.to_owned(), Vec::new());
         };
         let local = self.place_name(name, rule)?;
         self.local_selection(local, &members)
@@ -181,6 +217,13 @@ impl Checker<'_, '_> {
             .and_then(|symbol| self.program().resolve(symbol))
             .is_some()
         {
+            if rule == Rule::MissingTransfer {
+                return self.reject_message(
+                    rule, token,
+                    "a function declaration constructs a value and has no owning source to retire; remove postfix ^".into(),
+                    Vec::new(),
+                );
+            }
             return self.reject(rule, token);
         }
         self.reject(Rule::UnknownName, token)

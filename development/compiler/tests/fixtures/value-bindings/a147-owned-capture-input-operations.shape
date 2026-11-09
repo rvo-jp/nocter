@@ -45,7 +45,8 @@ V2CoreUnit
                         ReferenceExpression
                     BodyResult
                       Expression
-                        ReferenceExpression
+                        TransferExpression
+                          ReferenceExpression
           BindingStatement
             BindingOperation
             BindingPattern
@@ -59,4 +60,5 @@ V2CoreUnit
                   Expression
                     ReferenceExpression
                   Expression
-                    ReferenceExpression
+                    TransferExpression
+                      ReferenceExpression

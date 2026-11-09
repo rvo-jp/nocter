@@ -34,7 +34,8 @@ V2CoreUnit
                 ReferenceExpression
                 CallSuffix
                   Expression
-                    ReferenceExpression
+                    TransferExpression
+                      ReferenceExpression
                   Expression
                     IfExpression
                       IfCondition

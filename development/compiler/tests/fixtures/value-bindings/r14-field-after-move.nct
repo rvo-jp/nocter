@@ -3,6 +3,6 @@ struct Pair {
     second: error
 }
 func bad(take pair: Pair): error {
-    let first = pair.first
-    return pair.first
+    let first = pair.first^
+    return pair.first^
 }

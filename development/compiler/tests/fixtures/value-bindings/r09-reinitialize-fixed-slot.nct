@@ -1,6 +1,6 @@
 func invalid(take input: error): error {
-    let value = input
-    let next = value
-    value = next
-    return value
+    let value = input^
+    let next = value^
+    value = next^
+    return value^
 }

@@ -40,9 +40,10 @@ V2CoreUnit
             BindingOperation
             BindingPattern
             Expression
-              PostfixExpression
-                ReferenceExpression
-                MemberSuffix
+              TransferExpression
+                PostfixExpression
+                  ReferenceExpression
+                  MemberSuffix
           ExpressionStatement
             Expression
               PostfixExpression
@@ -52,4 +53,5 @@ V2CoreUnit
                     ReferenceExpression
           ReturnStatement
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

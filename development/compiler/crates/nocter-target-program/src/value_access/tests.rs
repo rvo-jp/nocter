@@ -17,7 +17,7 @@ fn accepted(fixture: &ValueSourceFixture) -> Arc<Unit> {
 #[test]
 fn uninvoked_owned_capture_projects_its_payload_without_creating_a_code_instance() {
     let fixture = ValueSourceFixture::new(
-        "func run(take input: error): void {\nlet action = (input;): void {}\n}",
+        "func run(take input: error): void {\nlet action = (input^;): void {}\n}",
     );
     let unit = accepted(&fixture);
     let root = callable(&unit, "run");
@@ -226,7 +226,7 @@ fn unknown_interrupted_result_contracts_do_not_acquire_payloads_or_instance_edge
 #[test]
 fn dead_adapted_locals_keep_contract_only_data_through_instance_projection() {
     let source = ValueSourceFixture::new(
-        "func forward(take action: func(i32): i32): func(i32): i32 { action }\nfunc run(): i32 {\nlet absent = forward(if true { return 1 } else { return 2 })\nlet adapted: once(i32): i32 = absent\nadapted(1)\n}",
+        "func forward(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc run(): i32 {\nlet absent = forward(if true { return 1 } else { return 2 })\nlet adapted: once(i32): i32 = absent\nadapted(1)\n}",
     );
     let unit = accepted(&source);
     let root = callable(&unit, "run");

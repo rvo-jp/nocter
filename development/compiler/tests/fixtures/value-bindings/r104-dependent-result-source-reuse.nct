@@ -1,4 +1,4 @@
-func forward(take action: func(i32): i32): func(i32): i32 { action }
-func invalid(take action: func(i32): i32): func(i32): i32 { let next = forward(action)
-let duplicate = action
-next }
+func forward(take action: func(i32): i32): func(i32): i32 { action^ }
+func invalid(take action: func(i32): i32): func(i32): i32 { let next = forward(action^)
+let duplicate = action^
+next^ }

@@ -144,12 +144,7 @@ impl Checker<'_, '_> {
             nocter_model::FieldPath::default(),
             self.local_ty(local).data(),
         );
-        let captured = self.emit_place(*capture_node, place)?;
-        let data = self
-            .ty(captured)
-            .access()
-            .ok_or(Failure::InconsistentSyntax)?
-            .data();
+        let data = self.place_ty(place).data();
         if matches!(
             self.program().data_schema(data),
             Some(PayloadSchema::Function(_))
@@ -162,7 +157,12 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
-        let captured = self.boundary(*capture_node, captured, Boundary::Value(data))?;
+        let captured = if self.has(*capture_node, nocter_syntax::Punctuation::Caret) {
+            self.transfer_place(*capture_node, place)?
+        } else {
+            let captured = self.emit_place(*capture_node, place)?;
+            self.boundary(*capture_node, captured, Boundary::Value(data))?
+        };
         Ok((capture_token, captured, data))
     }
     fn closure_inputs(&mut self, parameters: NodeId) -> Result<Vec<FunctionInput>, Failure> {

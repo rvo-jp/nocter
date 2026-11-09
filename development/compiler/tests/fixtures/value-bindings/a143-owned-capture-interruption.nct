@@ -1,4 +1,4 @@
 func apply(action: func(): void, number: i32): void {}
 func run(take input: error): void {
-    apply((input;): void {}, if true { return } else { return })
+    apply((input^;): void {}, if true { return } else { return })
 }

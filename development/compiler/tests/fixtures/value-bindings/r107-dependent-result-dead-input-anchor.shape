@@ -33,7 +33,8 @@ V2CoreUnit
                   ExecutableSequence
                     BodyResult
                       Expression
-                        ReferenceExpression
+                        TransferExpression
+                          ReferenceExpression
                 ElseClause
                   Block
                     ExecutableSequence
@@ -43,4 +44,5 @@ V2CoreUnit
                             ReferenceExpression
                             CallSuffix
                               Expression
-                                ReferenceExpression
+                                TransferExpression
+                                  ReferenceExpression

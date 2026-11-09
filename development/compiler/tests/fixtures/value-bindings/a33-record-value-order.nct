@@ -4,6 +4,6 @@ struct Trio {
     third: error
 }
 func build(take a: error, take b: error, take c: error): error {
-    let value = Trio { third: a, first: b, second: c }
-    value.first
+    let value = Trio { third: a^, first: b^, second: c^ }
+    value.first^
 }

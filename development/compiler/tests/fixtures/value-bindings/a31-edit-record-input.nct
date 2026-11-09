@@ -2,4 +2,4 @@ struct Pair {
     first: error
     second: error
 }
-func replace(edit pair: Pair, take replacement: error): void { pair.first = replacement }
+func replace(edit pair: Pair, take replacement: error): void { pair.first = replacement^ }

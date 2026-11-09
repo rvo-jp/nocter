@@ -6,7 +6,7 @@ use nocter_model::ValueInvocation;
 #[test]
 fn owning_a_capture_does_not_make_an_observing_closure_once() {
     let unit = accepted(
-        "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet reader = (input;): void { observe(input) }\nreader()\nreader()\n}",
+        "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet reader = (input^;): void { observe(input) }\nreader()\nreader()\n}",
     );
     let (&id, body) = unit.closures().iter().next().unwrap();
     let schema = unit.program().closure(id).unwrap();
@@ -54,7 +54,7 @@ fn update_and_extraction_select_mut_and_once_without_call_site_markers() {
             .any(|s| matches!(s, Step::ReplaceInput { .. }))
     );
     let consume = accepted(
-        "func run(take input: error): error {\nlet finish = (input;): error { input }\nfinish()\n}",
+        "func run(take input: error): error {\nlet finish = (input^;): error { input^ }\nfinish^()\n}",
     );
     let (&id, body) = consume.closures().iter().next().unwrap();
     assert_eq!(
@@ -92,7 +92,7 @@ fn copied_environments_snapshot_and_distinct_bodies_keep_distinct_code() {
 #[test]
 fn captured_record_partial_return_stages_the_field_and_cleans_only_the_remainder() {
     let unit = accepted(
-        "struct Pair {\nfirst: error\nsecond: error\n}\nfunc run(take pair: Pair): error {\nlet finish = (pair;): error { pair.first }\nfinish()\n}",
+        "struct Pair {\nfirst: error\nsecond: error\n}\nfunc run(take pair: Pair): error {\nlet finish = (pair^;): error { pair.first^ }\nfinish^()\n}",
     );
     let body = unit.closures().values().next().unwrap();
     let trace = steps(body);
@@ -123,7 +123,7 @@ fn closure_body_and_capture_changes_invalidate_the_existing_query() {
 #[test]
 fn returned_environments_keep_their_code_schema_and_input_supply_stays_static() {
     let unit = accepted(
-        "func observe(input: error): void {}\nfunc make(take input: error): func(): void { (input;): void { observe(input) } }\nfunc apply(action: func(): void): void { action() }\nfunc run(take input: error): void {\nlet action = make(input)\napply(action)\naction()\n}",
+        "func observe(input: error): void {}\nfunc make(take input: error): func(): void { (input^;): void { observe(input) } }\nfunc apply(action: func(): void): void { action() }\nfunc run(take input: error): void {\nlet action = make(input^)\napply(action)\naction()\n}",
     );
     let make = named(&unit, "make").typed().source_owner();
     assert!(matches!(
@@ -141,7 +141,7 @@ fn returned_environments_keep_their_code_schema_and_input_supply_stays_static() 
 #[test]
 fn unreachable_environment_moves_do_not_force_consuming_invocation() {
     let unit = accepted(
-        "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet action = (input;): void {\nif false { let moved = input }\nobserve(input)\n}\naction()\naction()\n}",
+        "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet action = (input^;): void {\nif false { let moved = input^ }\nobserve(input)\n}\naction()\naction()\n}",
     );
     let (&id, _) = unit.closures().iter().next().unwrap();
     assert_eq!(
@@ -153,7 +153,7 @@ fn unreachable_environment_moves_do_not_force_consuming_invocation() {
 #[test]
 fn interrupted_callback_input_cleans_the_prepared_environment_once() {
     let unit = accepted(
-        "func apply(action: func(): void, number: i32): void {}\nfunc run(take input: error): void {\napply((input;): void {}, if true { return } else { return })\n}",
+        "func apply(action: func(): void, number: i32): void {}\nfunc run(take input: error): void {\napply((input^;): void {}, if true { return } else { return })\n}",
     );
     let trace = steps(named(&unit, "run"));
     assert_eq!(
@@ -175,7 +175,7 @@ fn interrupted_callback_input_cleans_the_prepared_environment_once() {
 fn invalid_capture_supply_uses_and_unused_bodies_reject_the_whole_unit() {
     for source in [
         "func run(input: error): void { let action = (input;): void {} }",
-        "func run(take input: error): error {\nlet action = (input;): error { input }\nlet first = action()\naction()\n}",
+        "func run(take input: error): error {\nlet action = (input^;): error { input^ }\nlet first = action^()\naction^()\n}",
         "func run(): i32 {\nlet value = 1\nlet action = (value;): i32 { value += 1\nvalue }\naction()\n}",
         "func run(): void {\nlet value = 1\nlet action = (value; x: error): error { x }\n}",
         "func run(): i32 {\nlet value = 1\nlet action = (value;): i32 { break }\naction()\n}",

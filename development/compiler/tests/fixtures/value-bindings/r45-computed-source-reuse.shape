@@ -30,10 +30,12 @@ V2CoreUnit
                 StructInitializer
                   FieldInitializer
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
                   FieldInitializer
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
   Item
     FunctionDeclaration
       CallableTail
@@ -59,10 +61,13 @@ V2CoreUnit
                   ReferenceExpression
                   CallSuffix
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
                 MemberSuffix
           BodyResult
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

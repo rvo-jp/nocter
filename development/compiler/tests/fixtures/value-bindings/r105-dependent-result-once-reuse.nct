@@ -1,3 +1,3 @@
-func relay(take action: once(i32): i32): once(i32): i32 { action }
-func invalid(take action: once(i32): i32): i32 { let next = relay(action)
-next(next(1)) }
+func relay(take action: once(i32): i32): once(i32): i32 { action^ }
+func invalid(take action: once(i32): i32): i32 { let next = relay(action^)
+next^(next^(1)) }

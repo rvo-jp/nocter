@@ -1,2 +1,2 @@
-func apply(take action: func(i32): i32): i32 { let local: once(i32): i32 = action
-local(1) }
+func apply(take action: func(i32): i32): i32 { let local: once(i32): i32 = action^
+local^(1) }

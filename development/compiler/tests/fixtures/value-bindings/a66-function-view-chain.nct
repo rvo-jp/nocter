@@ -1,4 +1,4 @@
-func identity(take value: error): error { value }
+func identity(take value: error): error { value^ }
 func run(take input: error): error { var repeat: mut(take error): error = identity
 let finish: once(take error): error = repeat
-finish(input) }
+finish(input^) }

@@ -311,7 +311,7 @@ fn transfer(
                     | ArgumentAction::CopyPlace(place) => {
                         require_place(typed, state, place, location, violations)?;
                     }
-                    ArgumentAction::ReadOwnedValue | ArgumentAction::TakeValue => {}
+                    ArgumentAction::AccessOwnedValue | ArgumentAction::TakeValue => {}
                     ArgumentAction::PendingValue(_)
                     | ArgumentAction::Unproduced
                     | ArgumentAction::Interrupted => {

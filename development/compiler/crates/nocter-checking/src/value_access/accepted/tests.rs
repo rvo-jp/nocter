@@ -51,6 +51,7 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
         panic!("cases")
     };
     let mut counts = [0; 6];
+    let mut mismatches = Vec::new();
     for case in cases {
         let name = string(field(case, "file"));
         let text = fs::read_to_string(root.join(name)).unwrap();
@@ -99,11 +100,13 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
                     ..
                 }) => {
                     assert!(!diagnostic.source().primary().span().range().is_empty());
-                    assert_eq!(
-                        diagnostic.source().code(),
-                        string(field(case, "diagnostic")),
-                        "{name}"
-                    );
+                    if diagnostic.source().code() != string(field(case, "diagnostic")) {
+                        mismatches.push(format!(
+                            "{name}: expected {}, received {:?}",
+                            string(field(case, "diagnostic")),
+                            diagnostic.source()
+                        ));
+                    }
                     counts[2] += 1;
                 }
                 Err(Failure::Flow { diagnostics, .. }) => {
@@ -112,10 +115,11 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
                     assert_eq!(diagnostics[0].code(), expected, "{name}");
                     counts[if expected == "E0378" { 3 } else { 4 }] += 1;
                 }
-                other => panic!("{name}: {other:?}"),
+                other => panic!("{name}: expected rejection, got {:?}", other.err()),
             }
         }
     }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
     assert!(
         counts.iter().all(|&count| count > 0),
         "each verdict family must be exercised: {counts:?}"
@@ -130,7 +134,7 @@ fn unused_bad_definition_rejects_the_entire_unit_and_recursive_valid_bodies_are_
         Err(Failure::Body { .. })
     ));
     let unit = accepted(
-        "func first(take input: error): error { second(input) }\nfunc second(take input: error): error { first(input) }",
+        "func first(take input: error): error { second(input^) }\nfunc second(take input: error): error { first(input^) }",
     );
     assert_eq!(unit.bodies().len(), 2);
 }
@@ -157,7 +161,7 @@ fn whole_unit_rebinding_checks_every_body_and_the_exact_authority() {
 #[test]
 fn read_of_a_fresh_noncopy_result_disposes_one_evaluation_temporary() {
     let unit = accepted(
-        "func forward(take input: error): error { input }\nfunc observe(input: error): void {}\nfunc sample(take input: error): void { observe(forward(input)) }",
+        "func forward(take input: error): error { input^ }\nfunc observe(input: error): void {}\nfunc sample(take input: error): void { observe(forward(input^)) }",
     );
     let q = named(&unit, "sample");
     let mut disposed = Vec::new();
@@ -180,7 +184,7 @@ fn read_of_a_fresh_noncopy_result_disposes_one_evaluation_temporary() {
 #[test]
 fn cancellation_of_a_reserved_take_prefix_leaves_its_owner_until_scope_cleanup() {
     let unit = accepted(
-        "func consume(take value: error,number: i32): void {}\nfunc sample(take input: error,finish: bool): void { consume(input,if finish { return } else { 0 }) }",
+        "func consume(take value: error,number: i32): void {}\nfunc sample(take input: error,finish: bool): void { consume(input^,if finish { return } else { 0 }) }",
     );
     let q = named(&unit, "sample");
     let local = q.typed().body().locals().iter().next().unwrap().0;
@@ -206,7 +210,7 @@ fn cancellation_of_a_reserved_take_prefix_leaves_its_owner_until_scope_cleanup()
 #[test]
 fn edit_input_replacement_retains_its_initialized_outside_slot() {
     let unit = accepted(
-        "func replace(edit target: error,take replacement: error): void { target = replacement }",
+        "func replace(edit target: error,take replacement: error): void { target = replacement^ }",
     );
     let q = named(&unit, "replace");
     let mut seen = false;
@@ -228,7 +232,7 @@ fn every_call_result_is_a_value_and_conditional_copies_do_not_retain_the_source(
 #[test]
 fn a_conditional_move_does_not_restore_the_source_on_another_path() {
     let (sources, tree) = input(
-        "func invalid(take input: error,flag: bool): error { if flag { let _ = input }\nreturn input }",
+        "func invalid(take input: error,flag: bool): error { if flag { let _ = input^ }\nreturn input^ }",
     );
     let header = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
     assert!(matches!(
@@ -287,3 +291,5 @@ mod closures;
 mod dependent_results;
 mod input_layout;
 mod unproduced;
+
+mod transfers;

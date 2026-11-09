@@ -2,7 +2,7 @@ struct Pair {
     first: error
     second: error
 }
-func make(take a: error, take b: error): Pair { Pair { first: a, second: b } }
+func make(take a: error, take b: error): Pair { Pair { first: a^, second: b^ } }
 func run(take a: error, take b: error): error {
-    let result = make(a, if true { return b } else { b }).first
+    let result = make(a^, if true { return b^ } else { b^ }).first
 }

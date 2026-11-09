@@ -26,4 +26,5 @@ V2CoreUnit
                 Block
           BodyResult
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

@@ -36,17 +36,21 @@ V2CoreUnit
                 StructInitializer
                   FieldInitializer
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
                   FieldInitializer
                     Expression
-                      ReferenceExpression
+                      TransferExpression
+                        ReferenceExpression
           AssignmentStatement
             AssignmentTarget
               PostfixExpression
                 ReferenceExpression
                 MemberSuffix
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           BodyResult
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

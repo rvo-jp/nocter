@@ -22,14 +22,16 @@ V2CoreUnit
             BindingPattern
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
                   Expression
                     ScalarLiteral
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
                   Expression
                     ReferenceExpression

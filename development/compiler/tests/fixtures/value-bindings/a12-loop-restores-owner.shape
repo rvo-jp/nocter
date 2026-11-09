@@ -18,7 +18,8 @@ V2CoreUnit
             BindingOperation
             BindingPattern
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           BindingStatement
             BindingOperation
             BindingPattern
@@ -35,12 +36,14 @@ V2CoreUnit
                   BindingOperation
                   BindingPattern
                   Expression
-                    ReferenceExpression
+                    TransferExpression
+                      ReferenceExpression
                 AssignmentStatement
                   AssignmentTarget
                     ReferenceExpression
                   Expression
-                    ReferenceExpression
+                    TransferExpression
+                      ReferenceExpression
                 AssignmentStatement
                   AssignmentTarget
                     ReferenceExpression
@@ -48,4 +51,5 @@ V2CoreUnit
                     ScalarLiteral
           ReturnStatement
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

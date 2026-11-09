@@ -5,6 +5,6 @@ struct Pair {
 func inspect(value: error): void {}
 func bad(take pair: Pair, take replacement: error): void {
     read first = pair.first
-    pair.first = replacement
+    pair.first = replacement^
     inspect(first)
 }

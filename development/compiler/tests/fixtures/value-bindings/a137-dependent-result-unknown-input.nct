@@ -1,2 +1,2 @@
-func forward(take action: func(i32): i32): func(i32): i32 { action }
+func forward(take action: func(i32): i32): func(i32): i32 { action^ }
 func invalid(): i32 { forward(if true { return 1 } else { return 2 })(1) }

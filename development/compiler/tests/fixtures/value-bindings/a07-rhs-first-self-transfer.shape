@@ -15,12 +15,15 @@ V2CoreUnit
             BindingOperation
             BindingPattern
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           AssignmentStatement
             AssignmentTarget
               ReferenceExpression
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           ReturnStatement
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression

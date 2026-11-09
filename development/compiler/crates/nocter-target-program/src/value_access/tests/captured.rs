@@ -58,7 +58,7 @@ fn complete_owned_capture_corpus_closes_without_retyping_or_symbolic_cleanup() {
 #[test]
 fn binding_an_uninvoked_capture_does_not_instantiate_its_code() {
     let graph = close(
-        "func ignore(action: func(): void): void {}\nfunc run(take input: error): void {\nlet action = (input;): void {}\nignore(action)\n}",
+        "func ignore(action: func(): void): void {}\nfunc run(take input: error): void {\nlet action = (input^;): void {}\nignore(action)\n}",
     );
     assert_eq!(graph.instances().len(), 2);
     assert!(
@@ -124,7 +124,7 @@ fn environment_and_explicit_edit_take_inputs_have_independent_frozen_channels() 
 #[test]
 fn one_checked_body_is_shared_across_read_update_and_consuming_views() {
     let graph = close(
-        "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet action = (input;): void { observe(input) }\naction()\nvar update: mut(): void = action\nupdate()\nlet finish: once(): void = update\nfinish()\n}",
+        "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet action = (input^;): void { observe(input) }\naction()\nvar update: mut(): void = action^\nupdate()\nlet finish: once(): void = update^\nfinish^()\n}",
     );
     assert_eq!(graph.instances().len(), 3);
     let calls = root(&graph).calls().values().collect::<Vec<_>>();
@@ -158,7 +158,7 @@ fn one_checked_body_is_shared_across_read_update_and_consuming_views() {
 #[test]
 fn consuming_adapter_cleans_a_read_environment_before_delivering_the_answer() {
     let graph = close(
-        "func observe(input: error): void {}\nfunc apply(take action: once(): void): void { action() }\nfunc run(take input: error): void {\nlet action = (input;): void { observe(input) }\napply(action)\n}",
+        "func observe(input: error): void {}\nfunc apply(take action: once(): void): void { action^() }\nfunc run(take input: error): void {\nlet action = (input^;): void { observe(input) }\napply(action^)\n}",
     );
     let apply = instance(&graph, "apply").1;
     let call = apply.calls().values().next().unwrap();
@@ -183,7 +183,7 @@ fn consuming_adapter_cleans_a_read_environment_before_delivering_the_answer() {
 #[test]
 fn consuming_adapter_cleans_the_post_update_environment() {
     let graph = close(
-        "func reset(edit target: error, take replacement: error): void { target = replacement }\nfunc apply(take action: once(take error): void, take replacement: error): void { action(replacement) }\nfunc run(take input: error, take replacement: error): void {\nlet action = (input; take next: error): void { reset(input, next) }\napply(action, replacement)\n}",
+        "func reset(edit target: error, take replacement: error): void { target = replacement^ }\nfunc apply(take action: once(take error): void, take replacement: error): void { action^(replacement^) }\nfunc run(take input: error, take replacement: error): void {\nlet action = (input^; take next: error): void { reset(input, next^) }\napply(action^, replacement^)\n}",
     );
     let call = instance(&graph, "apply").1.calls().values().next().unwrap();
     let Environment::Capture {

@@ -534,22 +534,10 @@ impl<'a, 's> Checker<'a, 's> {
             Mode::Own => {
                 if let Some(local) = place {
                     use super::supply::PlaceSupply;
-                    match super::supply::select(
-                        self.program(),
-                        actual.data(),
-                        self.place_ty(local).mode(),
-                    )? {
+                    match super::supply::select(self.program(), actual.data())? {
                         PlaceSupply::Pending => BoundaryAction::PendingValue,
                         PlaceSupply::Copy => BoundaryAction::CopyPayload,
-                        PlaceSupply::Transfer => {
-                            return self.emit(
-                                node,
-                                ValueType::known(expected)
-                                    .with_continuation(self.ty(source).may_complete()),
-                                ExpressionKind::Move(local),
-                            );
-                        }
-                        PlaceSupply::MissingOwner => {
+                        PlaceSupply::MissingCopy => {
                             return self.reject_local(
                                 Rule::MissingTransfer,
                                 node,

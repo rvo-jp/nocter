@@ -3,6 +3,6 @@ struct Pair {
     second: error
 }
 func build(take a: error, take b: error, stop: bool): error {
-    let value = Pair { second: b, first: if stop { return a } else { a } }
-    value.first
+    let value = Pair { second: b^, first: if stop { return a^ } else { a^ } }
+    value.first^
 }

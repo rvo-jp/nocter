@@ -76,8 +76,8 @@ fn argument(
     };
     arguments.get(index).ok_or(INVALID)
 }
-fn argument_updates(action: ArgumentAction) -> bool {
-    matches!(action, ArgumentAction::ReserveUpdate(_))
+fn argument_updates(argument: &crate::value_access::Argument) -> bool {
+    argument.operation == nocter_model::ValueInputOperation::Edit
 }
 #[derive(Clone, Copy)]
 enum Need {
@@ -104,7 +104,7 @@ fn prepared_use(
         | ArgumentAction::CopyPlace(place) => Carrier::Local(root(typed, place)?),
         _ => Carrier::Expression(arg.value),
     };
-    Ok((carrier, argument_updates(arg.action)))
+    Ok((carrier, argument_updates(arg)))
 }
 fn plan(
     typed: &TypedQuery,
@@ -190,7 +190,7 @@ fn plan(
             };
             for (index, arg) in arguments.iter().enumerate() {
                 let carrier = Carrier::Argument { call: *call, index };
-                uses.push((carrier, argument_updates(arg.action)));
+                uses.push((carrier, argument_updates(arg)));
                 definitions.push(carrier);
             }
             definitions.push(Carrier::Expression(*call));

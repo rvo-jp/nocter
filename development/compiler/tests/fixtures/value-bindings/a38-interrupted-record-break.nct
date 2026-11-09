@@ -4,6 +4,6 @@ struct Pair {
 }
 func run(take a: error, take b: error): void {
     loop {
-        let _ = Pair { first: a, second: if true { break } else { b } }
+        let _ = Pair { first: a^, second: if true { break } else { b^ } }
     }
 }

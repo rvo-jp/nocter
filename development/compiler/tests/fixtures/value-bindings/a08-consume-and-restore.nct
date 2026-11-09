@@ -1,6 +1,6 @@
-func identity(take value: error): error { return value }
+func identity(take value: error): error { return value^ }
 func forward(take input: error): error {
-    var value = input
-    value = identity(value)
-    return value
+    var value = input^
+    value = identity(value^)
+    return value^
 }

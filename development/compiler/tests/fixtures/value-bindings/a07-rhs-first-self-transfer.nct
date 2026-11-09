@@ -1,5 +1,5 @@
 func forward(take input: error): error {
-    var value = input
-    value = value
-    return value
+    var value = input^
+    value = value^
+    return value^
 }

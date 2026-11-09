@@ -2,4 +2,4 @@ struct Pair {
     first: error
     second: error
 }
-func build(take a: error, take b: error): Pair { Pair { first: a, first: b } }
+func build(take a: error, take b: error): Pair { Pair { first: a^, first: b^ } }

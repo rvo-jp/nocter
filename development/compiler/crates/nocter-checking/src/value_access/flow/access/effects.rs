@@ -430,10 +430,10 @@ impl Context<'_, '_> {
                 }
                 Prepared::Value(Value::without_referent(Mode::Own))
             }
-            ArgumentAction::ReadOwnedValue => Prepared::Reserved {
+            ArgumentAction::AccessOwnedValue => Prepared::Reserved {
                 region: Root::Temporary { call, index }.region(),
                 actor: None,
-                permission: Mode::Read,
+                permission: argument.operation.access_mode(),
                 at: self.at,
             },
             ArgumentAction::TakeValue => Prepared::Value(self.world.value(argument.value)?),

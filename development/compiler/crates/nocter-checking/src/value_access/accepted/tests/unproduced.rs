@@ -4,7 +4,7 @@ use super::*;
 use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, ValueType};
 use nocter_model::{ValueAccess, ValueAccessMode};
 
-const FORWARD: &str = "func forward(take action: func(i32): i32): func(i32): i32 { action }\n";
+const FORWARD: &str = "func forward(take action: func(i32): i32): func(i32): i32 { action^ }\n";
 
 fn absent(unit: &Unit, name: &str) -> Vec<nocter_model::TypeId> {
     let query = named(unit, name);

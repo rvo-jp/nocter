@@ -30,11 +30,13 @@ V2CoreUnit
                   Type
                     NamedType
             Expression
-              ReferenceExpression
+              TransferExpression
+                ReferenceExpression
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
                   Expression
                     ScalarLiteral

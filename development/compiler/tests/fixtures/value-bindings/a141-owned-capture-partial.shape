@@ -35,11 +35,13 @@ V2CoreUnit
                   ExecutableSequence
                     BodyResult
                       Expression
-                        PostfixExpression
-                          ReferenceExpression
-                          MemberSuffix
+                        TransferExpression
+                          PostfixExpression
+                            ReferenceExpression
+                            MemberSuffix
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix

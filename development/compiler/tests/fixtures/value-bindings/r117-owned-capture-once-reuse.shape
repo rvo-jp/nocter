@@ -27,16 +27,19 @@ V2CoreUnit
                   ExecutableSequence
                     BodyResult
                       Expression
-                        ReferenceExpression
+                        TransferExpression
+                          ReferenceExpression
           BindingStatement
             BindingOperation
             BindingPattern
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
           BodyResult
             Expression
               PostfixExpression
-                ReferenceExpression
+                TransferExpression
+                  ReferenceExpression
                 CallSuffix
