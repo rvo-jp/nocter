@@ -39,7 +39,8 @@ Returning `void` does not erase this obligation. The environment's explicit post
 The state relation includes writes to captured outside targets. Their new dependencies persist
 after the closure is destroyed, even when the environment no longer retains an input descriptor.
 A bodyless contract cannot infer either from a hidden implementation. The
-[origin rules](memory-and-regions.md#edited-state-origins) define defaults and all-exit obligations.
+[origin rules](memory-and-regions.md#edited-state-origins) define defaults, completion bounds
+and the separate deferred cancellation envelope.
 `func`/`once` do not admit a mutating-environment clause.
 
 A result origin can refer to a named input or the callable's implicit `self` environment, using the
@@ -58,6 +59,12 @@ Check the complete origin/state/effect/cleanup relation before selecting and fre
 This is a recorded boundary operation, not type equality, private-body lookup or a second dispatch
 attempt. `mut` cannot become `func`; `once` cannot become a repeatable contract, even if a body
 appears to use fewer rights. A failed proof is an error, never a search for another target.
+
+[Inferred effects](execution-effects.md) remain conditional on static witnesses and cleanup,
+without authored effect parameters. An immediate invocation that returns a future and the
+future's later drive/cancellation are separate phases. Erasure or an invocation adapter must
+preserve both phase facts and the output's dependency/write schema; a result type alone is
+not permission to infer an async declaration or non-waiting constructor.
 
 Ordinary captures are inferred from checked body operations. To deliberately capture a value,
 use the name-only segment before `;`:

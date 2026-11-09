@@ -62,3 +62,13 @@ prelude operation. Preserve `catch name`, explicit `catch _` and `otherwise` rat
 an implicit handler. Keep the declared `let`/`var`/`read`/`edit` operation: rewriting a projection
 as value extraction changes source availability and cleanup. Formatting cannot silence the
 failure-loss warning by inserting a discard or inventing resource completion.
+
+## Async Staging
+
+Keep async on its selected declaration head and future on the result/type it actually wraps.
+An interface default puts default before that ordinary head: `default async method ...` or
+`default const method ...`. Do not introduce another modifier order.
+Preserve parentheses in `await (make_future()?)` versus `await operation()?` and constructor
+grouping in `future R!` versus `(future R)!`. Do not add transfer prefixes or an async closure/
+callable-type flag. Formatting cannot turn a deferred body into immediate work, add cancellation
+qualifiers or convert inferred effect reports into authored source guarantees.

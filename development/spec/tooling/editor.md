@@ -57,3 +57,15 @@ Optional hints may show a Copy snapshot, transfer or projection but are not sour
 The ordinary prelude some function follows normal declaration navigation; its spelling grants
 no intrinsic semantics to a shadowing function. Failure-loss reports use established producer,
 handling and loss evidence, not another editor-side control-flow analysis.
+
+## Deferred Phases and Inferred Effects
+
+Present an async declaration's output separately from its call type future R, and an immediate
+future-returning callable separately from a producer. Show inferred construction/drive/cleanup
+facts as reports, not synthesized source modifiers. A report distinguishes an uncertain witness
+or external-progress cycle from a proven wait and links the selected cause.
+
+Explain completion state and cancellation state separately. An edit `from static` can establish
+independence after await while unstarted cancellation leaves entry dependencies. Ready-output
+disposal includes its own checked state effects. Optional hints may show these dependencies and
+their later use; no new cancellation annotation or editor-derived effect solver is introduced.

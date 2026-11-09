@@ -197,8 +197,10 @@ The complete diagnostic analysis needs its own source-backed qualification befor
 
 Cancellation and a produced outcome are different events. An unstarted future has no body result
 to handle. Ready-output disposal follows its owning async cancellation contract; it must not
-masquerade as successful resource completion. The async/library contracts must close such loss
-paths before their admission rather than treating all future drops as plain value discard.
+masquerade as successful resource completion. The [async contract](asynchronous-computations.md#outcomes-and-resource-completion)
+distinguishes abandonment before output delivery from losing an already delivered outcome.
+Task/library ownership and exact cleanup schemas must be closed before their admission; not
+every future drop is plain source-outcome discard.
 
 Resource release never proves that flush/finish/commit succeeded. Such operations expose their
 own outcomes and partial-progress/cancellation contracts. Trap, immediate process termination,

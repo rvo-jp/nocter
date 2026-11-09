@@ -30,8 +30,19 @@ failure-loss warning rules. Read/edit access to a payload does not create an own
 propagation still needs an owned error. The ordinary some prelude contract has a development
 owner. These rules and their cases are not admitted by the current compiler.
 
-Next close lexical/full-expression/control, enum/pattern, typed-literal/pack/coercion,
-async/effect, capability/library and package/platform source subjects, audit the assembled grammar and integrated reading
+The [async/effect checkpoint](history/reviews/v2.0.0-async-and-effect-contracts.md) separates
+construction/drive/cleanup, pending cancellation and ready-output disposal. Completion uses
+authored edited-state bound B; pending cancellation permits Entry union B after cleanup, rather
+than asserting that an unstarted body completed. Ready-output disposal also composes its own
+outside-write schema. Conditional wait/progress effects remain inferred without modifiers.
+Producer/await source roles are selected; runtime solvers, frames, library task/iteration and
+entry/platform realization are unimplemented.
+
+Next close tuple/enum control-pattern operations: specify read/edit/value scrutinee access,
+payload binding authority, public exhaustive versus opaque schemas and branch cleanup before
+accepting the draft's enum-pattern productions. Do not inherit published ownership/pattern
+behavior or a fixed tag limit implicitly. Then close lexical/full-expression/control and typed-literal/pack/coercion,
+capability/library, async iteration/task and package/platform source subjects, audit the assembled grammar and integrated reading
 examples, then resume the bounded executable-lifecycle task below. Keep draft productions and
 future conformance obligations distinct from the 283 production corpus cases. No human-decision
 or external-authorization blocker is established for this design work.

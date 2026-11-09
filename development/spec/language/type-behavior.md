@@ -123,6 +123,10 @@ its actual selected calls. A destructor cannot throw, suspend or wait. This rule
 an authored `notrap` guarantee or guarantee cleanup after a trap/divergent operation. Full effect
 inference is required before admitting user destructors to executable products.
 
+The [effect contract](execution-effects.md) includes implicit field/backend release and external
+progress dependence. An allocation-free body is not proof of non-waiting destruction, and an
+allocation during safe cleanup is not itself a forbidden wait.
+
 After normal user-body completion, clean the initialized stored fields in reverse representation
 declaration order exactly once. The body cannot move/drop fields into an incomplete state or
 recursively drop `self`; an ordinary checked replacement may preserve complete state. A type with

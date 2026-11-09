@@ -61,8 +61,7 @@ V2Interface = "interface" Name V2GenericParameters? V2WhereClause?
 V2InterfaceMember = "type" Name V2InterfaceBounds?
                   | V2InterfaceCallable | V2Comparison | V2IndexProjection
 V2InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
-V2InterfaceCallable = "const"? "async"? "default"?
-                      ("func" Name | "method" V2Receiver "." Name)
+V2InterfaceCallable = "default"? (V2FunctionHead | V2MethodHead)
                       V2GenericParameters? V2Parameters V2CallableTail V2Block?
 V2TypeBehavior = "impl" V2DeclarationPattern V2WhereClause?
                  "{" LineSequence(V2BehaviorMember) "}"
@@ -248,6 +247,25 @@ propagation obligations. A catch binding inherits that selected operation on the
 An ordinary catch owns its received error; a projected catch aliases the retained error.
 `some(...)` remains an ordinary call to a resolved declaration. No Some/None or success/failure
 match pattern, exception handler block or adjacent double extraction is introduced here.
+
+### Asynchronous Staging
+
+The async positions in function/method/interface heads and the future/await productions follow
+[asynchronous computations](asynchronous-computations.md). The head's declared result describes
+the driven output, not an implicitly fallible constructor. `await operation()?` extracts the
+output outcome after awaiting; `await (make_future()?)` instead extracts an immediate outcome
+before awaiting its future. Constructor order/grouping is not inferred from the type name.
+
+Shared heads may recognize `const async`, but that staging combination is invalid. There is no
+async prefix on an anonymous closure or structural callable type, no call-site transfer marker,
+and no authored effect qualifier to complete the syntax. An ordinary closure/function returning
+future T remains immediate. `for await` in the remaining draft needs its own library iteration
+contract; the producer/await rules do not silently admit it or define an executor entry.
+
+An interface default prefixes the same ordinary callable head, for example
+`default async method edit self.skip(): void!`. Removing default leaves the existing method
+head grammar; there is no separate modifier-order family or `async default` alternative. The
+root contract and completion fragment repeat the same complete header.
 
 An origin on an edit input is its post-state bound. Origins on read/take inputs constrain incoming
 carried provenance under the owning type/schema contract; they never turn a read into an edit or

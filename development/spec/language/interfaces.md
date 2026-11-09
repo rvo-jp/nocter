@@ -31,6 +31,10 @@ ordinary interface fragment. A private interface may define its defaults inline.
 fragment may repeat only the contracted default headers and bodies; it cannot introduce
 requirements, associated types or a second interface identity.
 
+Default prefixes the ordinary callable head, including its staging word when present:
+`default async method ...` or `default const method ...`. The common head/parameter/result
+grammar is not independently restated for interface operations.
+
 Interfaces may require receiver methods, type-owned construction functions and the supported
 comparison/index operation shapes. Construction functions must construct implementing `Self`
 under [type behavior](type-behavior.md#functions-and-methods); this does not admit receiverless

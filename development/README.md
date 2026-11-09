@@ -42,6 +42,11 @@ of information:
    [Outcomes](spec/language/outcomes.md) and their
    [access review](history/reviews/v2.0.0-outcome-access-contracts.md) distinguish payload values
    from scoped projections and explicit failure decisions, without claiming compiler admission.
+   [Async phases](spec/language/asynchronous-computations.md) and
+   [inferred effects](spec/language/execution-effects.md) own completion/cancellation and
+   construction/drive/cleanup distinctions; their
+   [review](history/reviews/v2.0.0-async-and-effect-contracts.md) records design corrections and
+   pending runtime/proof gates.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

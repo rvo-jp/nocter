@@ -189,3 +189,26 @@ as suppression or emit repeated warnings merely as the same local instance moves
 explicit catch handling, recipient transfer, pending retention and actual loss. Trap paths do
 not receive invented unwind cleanup or an implicit handler. Register exact codes and qualify
 conditional/aggregate/async analysis before implementation admission.
+
+## Async and Inferred-Effect Diagnostics
+
+Distinguish producer construction, drive, cancellation and ready-output disposal. A waiting child
+constructor executed during its parent's drive is a parent drive failure even if the child body
+is safe. Relate the originating call, callback witness, destructor/backend or external-progress
+cycle; do not suggest `blocking`, an effect type parameter or a hidden worker as a source repair.
+An unknown fact is not a known wait, and non-waiting is not a CPU/time-bound guarantee.
+
+For temporary-input escape explain that read does not snapshot Copy data and that the producer
+outlives the caller's evaluation frame. An immediate await can retain that evaluation frame
+through suspension; a separately stored future cannot retain a cleaned temporary. Ordinary
+borrowed input roots are not extended by promoting them into hidden future owners.
+
+A failed cancellation post-state identifies the affected outside owner, its entry dependency
+state, completion bound, suspension/cleanup path and remaining invalid root. Keep this separate
+from an uninitialized edit target. Unstarted cancellation does not establish a completion
+`from static` promise. Ready output cleanup may have its own outside-write transition; do not
+report an empty footprint because the output is owned or zero-sized. Await versus cancellation
+must use the corresponding established state evidence without guessing from a source name.
+
+Exact diagnostic registration and production source/target evidence precede admission. None of
+these requirements claims async support in the current private fragment.

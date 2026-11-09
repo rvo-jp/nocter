@@ -40,8 +40,10 @@ func clear(edit holder: Holder from static): void
 `remember` permits only buffer-derived outside dependencies in the resulting holder; if it also
 retains old holder-derived dependencies, it needs `holder | buffer`. `clear` promises no
 caller-dependent origins afterward, not merely no result. Such a promise must hold on failure
-and cancellation too. A body cannot silently weaken it. The clause describes the edited value's
-post-state, not a requirement that the incoming holder already has those origins.
+as well as successful completion. Deferred cancellation uses the separate envelope below; it
+cannot pretend that an unstarted body completed. A body cannot silently weaken its completion
+promise. The clause describes the edited value's post-state, not a requirement that the incoming
+holder already has those origins.
 
 The complete relation includes mutated referents reachable through an edited value's capability
 slots, not merely the value's descriptor fields. A captured update target has its own post-state
@@ -86,6 +88,47 @@ Region/storage requirements remain separate from direct access; an allocator dep
 an exclusive borrow of the allocator. No origin rule permits hidden cloning/sharing, automatic
 region extension, destructor postponement, or resource-lifetime repair. Full library schema and
 platform realization remain separate migration obligations.
+
+### Deferred Completion and Cancellation Bounds
+
+For a deferred invocation, an authored edit bound B applies when its body completes normally or
+with recoverable failure, after that path's producer cleanup. Entry denotes the edited target's
+incoming dependency state at invocation commit. Cancelling an unstarted/pending producer instead
+permits Entry union B after cancellation cleanup. This is an upper bound, not a copied value,
+rollback, restored dependency or automatic lifetime extension. Keep dependency-slot identities
+and read/update strengths, not just an untyped union of names.
+
+The same rule applies to each edited outside owner in the producer's checked write footprint.
+It does not replace the cleanup transitions of received values/captured capabilities. Compose
+those checked schema relations too, including before first drive; every resulting state of an
+explicitly bounded target must still satisfy its envelope. Other reachable owners retain their
+own checked transitions rather than acquiring an empty effect from the absence of a named
+edit input.
+Every actual cancellable/suspension state must establish that envelope after its ordinary
+cancellation cleanup. A new direct-input view must still fit B; Entry adds only already incoming
+dependencies, not every available input. Access into destroyed frame/child/guard storage is
+invalid even if the raw bytes survive. A source-authored cleanup guard may establish the bound;
+the compiler cannot insert state reset, rollback or eager body execution as a repair.
+
+With no explicit edit clause, B already preserves Entry and compatible carried input dependencies
+under the default above, so cancellation adds no new direct-retention permission. With
+`from static`, completion removes caller-dependent origins while unstarted cancellation can
+leave the original ones. A caller that awaited completion and a caller that cancelled therefore
+have different state evidence. No new cancellation qualifier or hidden incoming precondition
+is required. Public bodies cannot silently narrow that conservative cancellation bound.
+
+Ready-output disposal additionally composes the completed B state with the output's own checked
+cleanup/write footprint. A guard-like output may later update an outside owner; its schema cannot
+be erased by wrapping it in future T. The whole future cancellation relation includes both
+pending-producer cancellation and completion followed by unconsumed-output disposal. Likewise,
+after await the completion bound does not erase capabilities/dependencies transferred into the
+live output. Missing result-cleanup evidence is an admission gap, not an empty footprint.
+
+Immediate callables returning futures remain immediate: apply their own post-state bound on
+return, and preserve the returned future's separate transition schema. A mutable callback's
+immediate environment bound is not converted into a deferred one merely because its result is
+future T. This phase rule replaces the earlier same-bound-on-all-cancellations model; complete
+initialization and outside-root survival still hold on every exit.
 
 ## Storage Optimization
 

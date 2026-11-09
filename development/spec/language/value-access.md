@@ -345,5 +345,8 @@ Deferred calls retain needed input/capture roots until drive/output/cancellation
 them. Constructing a frame does not make references independent. Resource cleanup order and drive
 safety survive backing-store/frame optimizations under the
 [future storage rules](memory-and-regions.md#storage-optimization).
+The [async contract](asynchronous-computations.md) distinguishes completed edit bounds from
+pending cancellation and ready-output disposal. Cancellation keeps complete initialization but
+does not assert that an unstarted body established its completion post-state.
 No authored `noalloc`, `notrap` or `blocking` annotation is restored. No rule here promises a
 physical copy, allocation, universal optimal code, or a measured speedup.
