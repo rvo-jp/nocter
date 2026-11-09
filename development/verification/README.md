@@ -25,7 +25,7 @@ end-to-end suites. Those suites repeatedly compile or execute complete Nocter pr
 test latency; excluding them from the fast tier does not create alternate assertions or
 implementations.
 
-Run the complete compiler gate before closing a phase or qualifying a release:
+Run the complete compiler gate for full-pipeline integration or release qualification:
 
 ```sh
 development/verification/verify-compiler.sh
@@ -57,10 +57,16 @@ cases. Record direct feature evidence separately from existing-product regressio
   those suites provide broad regression evidence; they are not evidence that the future feature
   works. Do not repeatedly run them for each small internal checkpoint merely because they are
   part of the complete gate.
-- Keep the complete gate for phase/integration closure, changes crossing the active compiler and
-  its consumers, release qualification and scheduled regression runs. A coherent internal commit
-  need not be declared a completed phase. Use focused checks during its implementation and
-  state the scope of any remaining verification explicitly.
+- A private-source checkpoint closes against its actual syntax/declaration/checking/instance
+  consumers and shared API checks. Do not require unreached CLI, editor, network or native runtime
+  suites merely because the checkpoint is coherent or committed.
+- Keep the complete gate for full-pipeline integration, changes affecting the released execution
+  path, release qualification and scheduled regression runs. Select any required runtime regression
+  cases from a concrete dependency or behavior risk, not a phase label.
+- Investigate failures in potentially affected consumers. For a broader run's unrelated or
+  unclassified failure, preserve the reproducer, actual result and remaining investigation in the
+  current work plan. Do not claim the complete gate passed or weaken that test's expectations.
+  An unexplained result is not proof that the failure is flaky or caused by the environment.
 
 For a language feature, the source acceptance/rejection boundary is the integration target.
 Internal schemas and resource kernels can be necessary milestones, but passing their tests alone

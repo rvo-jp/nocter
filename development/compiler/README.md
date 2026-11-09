@@ -64,31 +64,11 @@ the consuming crate; that directory owns only physical non-Rust inputs shared ac
 
 ## Verification
 
-Run the complete gate from the repository root:
+The [development verification contract](../verification/README.md) owns command invocation,
+evidence selection, full-pipeline requirements and cache lifecycle. Select checks by the actual
+changed behavior and consumers; source admission and native execution are separate claims.
 
-```sh
-development/verification/verify-compiler.sh
-```
-
-For change feedback before the complete gate, run:
-
-```sh
-development/verification/verify-compiler.sh --fast
-```
-
-The gate shares one temporary external Cargo target across formatting, warnings-denied Clippy,
-workspace tests, no-default-features checking, and Rust documentation, then removes it. Complete
-verification therefore cannot accumulate obsolete hash generations in the workspace.
-
-Focused Cargo commands may use `development/compiler/target/` for a fast inner loop. The directory
-is ignored by Git and is a disposable cache, not repository state. Development builds retain line
-tables, test executables omit debug payload, and both profiles disable incremental object graphs.
-Reclaim stale local generations without touching source or release artifacts with:
-
-```sh
-cargo clean --manifest-path development/compiler/Cargo.toml
-```
-
-The [development verification contract](../verification/README.md) owns this cache lifecycle.
-Release qualification independently uses fresh external targets and removes them after verification
-so clean-build evidence does not become a persistent workspace cache.
+Focused Cargo commands may use the ignored `development/compiler/target/` cache. Development
+builds retain line tables, test executables omit debug payload, and both profiles disable
+incremental object graphs. Release qualification independently uses fresh external targets;
+current local changes do not replace a retained qualified artifact.

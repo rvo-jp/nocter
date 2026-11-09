@@ -109,8 +109,9 @@ documents and repair referring links when an authority moves.
 
 ## Verification
 
-Compiler verification commands live in `compiler/README.md`; evidence selection is owned by
-`verification/README.md`. Run the narrowest relevant checks, then the required affected gates.
+The verification entry point, evidence selection and required gates are owned by
+`verification/README.md`. Run checks that consume the changed behavior and shared API checks for
+its affected boundary; use the complete gate only under that guide's integration/release scope.
 Review the changed path for competing authorities and compatibility fallbacks; tests alone do
 not establish a coherent design. Do not count unconsumed editor/native paths as feature evidence.
 
