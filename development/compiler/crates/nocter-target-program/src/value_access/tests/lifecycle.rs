@@ -1,4 +1,5 @@
 //! Actual source admission and concrete lifecycle phases, without pretending to execute native code.
+mod flags;
 use super::*;
 use crate::value_access::lifecycle::{self as lowering, EnvironmentPart, Step};
 use nocter_checking::value_access::flow::{Location, Operation, resources::Step as ResourceStep};
@@ -133,10 +134,10 @@ fn conditional_partial_cleanup_has_distinct_sparse_runtime_conditions() {
         "struct Pair { first: error\nsecond: error }\nfunc run(take pair: Pair, flag: bool): void {\nif flag { let saved = pair.first^ }\n}",
     );
     let id = program.instance_program().root();
-    let conditional = program.bodies()[&id]
+    let (at, conditional) = program.bodies()[&id]
         .actions()
-        .values()
-        .find(|action| {
+        .iter()
+        .find(|(_, action)| {
             action.alternatives().len() == 2
                 && action.alternatives().iter().any(|alternative| {
                     alternative
@@ -147,11 +148,19 @@ fn conditional_partial_cleanup_has_distinct_sparse_runtime_conditions() {
         })
         .unwrap();
     let alternatives = conditional.alternatives();
-    assert_ne!(alternatives[0].condition(), alternatives[1].condition());
-    let mut missing_counts = alternatives
-        .iter()
-        .map(|alternative| {
-            alternative
+    assert_ne!(
+        alternatives[0].flags().tests(),
+        alternatives[1].flags().tests()
+    );
+    let mut missing_counts = program
+        .instance_program()
+        .body(id)
+        .unwrap()
+        .access()
+        .resources()
+        .at(*at)
+        .map(|transition| {
+            transition
                 .condition()
                 .owned()
                 .map(|(_, missing)| missing.len())

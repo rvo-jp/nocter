@@ -117,10 +117,11 @@ pub(super) fn analyze(
             resources: super::resources::Report::default(),
         });
     }
-    let mut pending = BTreeSet::from([(graph.entry(), World::entry(typed)?)]);
+    let entry = World::entry(typed)?;
+    let mut resources = super::resources::Report::new(entry.resources.condition());
+    let mut pending = BTreeSet::from([(graph.entry(), entry)]);
     let mut entries: BTreeMap<_, BTreeSet<World>> = BTreeMap::new();
     let mut violations = BTreeSet::new();
-    let mut resources = super::resources::Report::default();
     while let Some((point, mut world)) = pending.pop_first() {
         world.trim(liveness.entry(point))?;
         if !entries.entry(point).or_default().insert(world.clone()) {

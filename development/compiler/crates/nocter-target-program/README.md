@@ -24,6 +24,7 @@ does not inspect syntax or repeat checking decisions.
   and explicit root without granting released/native target admission
 - concrete logical lifecycle schedules under `value_access::lifecycle`, retaining checked
   ownership conditions, operation phases and normal adapter exits before result receipt
+- activation-local packed initialization tests and writes under `value_access::lifecycle::flags`
 
 ## Invariants
 
@@ -117,6 +118,16 @@ checking's exhaustive resource-step transform. It does not select operations, fi
 `completion` expands the frozen EnvironmentExit recipe only for reached calls; it does not
 reclassify the supplied invocation or the body's environment authority.
 
+`flags` selects facts that distinguish remaining ownership alternatives, shares those facts
+across graph locations, and packs their tests/writes into word recipes. It skips redundant
+facts and bodies with no choices. A bounded guard simplifier shares equal operation/write
+sequences and removes complementary bit tests without changing those operations. The construction
+index is discarded after emission. Changes
+come from checked entry/intermediate/final snapshots, not an independent initialization solver.
+Draft snapshots are consumed before the public body is frozen. Public alternatives retain emitted
+bit guards; the checking report remains the owner of source ownership conditions. There is no
+temporarily empty flag recipe in an accepted lifecycle program.
+
 The [lifecycle handoff](../../../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)
 owns cross-stage ordering, answer protection and physical-consumer obligations. This private
-logical product grants no released ExecutableProgram conversion, layout, ABI or native admission.
+product grants no released ExecutableProgram conversion, payload layout, ABI or native admission.

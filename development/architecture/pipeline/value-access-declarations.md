@@ -34,7 +34,7 @@ V2CoreUnit syntax + exact source
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated)
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
-  -> guarded private lifecycle schedules (concrete obligations and operation phases; no physical storage)
+  -> guarded private lifecycle schedules + initialization-bit recipes (no payload layout/ABI/native admission)
 ```
 
 ## Responsibilities
@@ -355,8 +355,10 @@ The target owner's lifecycle product retains one exact InstanceProgram and its c
 graphs. Each reachable action receives concrete resource schedules before/after its selected
 operation, guarded by owning-container presence and sparse unavailable selections. Payloads
 substitute through the existing instance data map; no operation, path, Copy decision or call
-target is inferred again. Equal guards may merge only equal schedules. Different schedules
-under the same projected condition reject as unresolved realization, never report-order choice.
+target is inferred again. Before bit lowering, equal source guards may merge only equal schedules
+and ownership boundaries.
+Different schedules under the same projected condition reject as unresolved realization, never
+report-order choice.
 
 The call operation uses its frozen body/environment channels and leaves its normally completed
 answer protected. Adapter-owned environment destruction is inserted before result receipt in
@@ -364,7 +366,31 @@ the after phase; body-owned cleanup is not repeated. Trap/divergence does not ex
 completion. Logical resource operations do not duplicate the selected source operation's value
 computation or prescribe physical allocation, storage moves or an ABI.
 
-This is a logical schedule, not executable/native admission. A physical consumer must realize
-guard observations, environment/input storage, backing deadlines and fresh call activations,
+This is not executable/native admission. A physical consumer must place flag banks, realize
+environment/input storage, backing deadlines and fresh call activations,
 while preserving the same semantic owner and phase order. No global resource state is attached
 to a shared code instance. MIR/native and general capability/dependency qualification remain open.
+
+### Initialization Flag Encoding
+
+Checking supplies owning-container/missing-path snapshots at body entry, before each action,
+between its resource phases, and after normal completion. The target owner selects facts that
+distinguish the action's remaining alternatives and emits body-local packed 64-bit tests/writes.
+This does not expand nested record schemas or classify access through a data type. Complete
+container absence and a present container with missing fields remain distinct observations.
+Snapshot projection, rather than a second interpretation of transfer/restore rules, determines
+every bit change. Blocked analysis supplies no entry evidence and cannot seed a flag layout.
+
+One immutable bank template is copied into each fresh activation; shared code never shares
+mutable flag state. Evaluate an action's tests once and retain that selection across both
+phases. Apply before-writes after the complete before-step group and before starting the selected
+operation. Apply after-writes only after normal completion and the complete after-step group,
+including adapter cleanup and answer receipt. Trap/divergence does not execute normal writes.
+No flag storage is emitted for a body without dynamic resource choices. The encoding is an
+internal realization choice, not an ABI promise or a restriction on later bit/CFG optimization.
+
+After encoding, equal operation/write sequences may share a guard across checked alternatives.
+Conjunctions with equal bit keys and one complementary value merge by exact Boolean union;
+bounded simplification may retain the original valid guards when its work limit is reached.
+The emitted program retains physical predicates, while source conditions remain owned by the
+checking report. Sharing code must not merge different flag writes or reorder resource steps.

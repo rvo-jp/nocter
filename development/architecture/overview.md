@@ -69,7 +69,8 @@ root into a private instance program by substituting checked witness edges and d
 this is separate from released target admission and has no native consumer. The same target owner
 projects checked resource conditions and operation phases into concrete private lifecycle schedules,
 including normal adapter disposal before answer receipt, without copying the CFG or selecting
-dispatch again. Physical storage/guard realization remains separate. General carried dependencies,
+dispatch again. Packed initialization recipes derive from checked ownership snapshots; physical
+payload/flag-bank placement and instruction emission remain separate. General carried dependencies,
 target realization and coherent full-language replacement remain separate work. This does not create a second semantic authority
 inside a program or let consumers reinterpret future nodes through released borrow lowering.
 

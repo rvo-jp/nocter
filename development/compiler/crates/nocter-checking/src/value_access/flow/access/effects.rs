@@ -49,6 +49,7 @@ pub(super) fn apply(
     };
     context.ownership_before(operation)?;
     let before = context.steps.len();
+    let operation_state = context.world.resources.condition();
     match operation {
         Operation::BeginEvaluation(_) => {}
         Operation::EndEvaluation(id) => context.end_evaluation_access(*id)?,
@@ -126,7 +127,7 @@ pub(super) fn apply(
     context.ownership_after(operation)?;
     Ok(vec![(
         context.world.clone(),
-        StepPlan::new(context.steps, before),
+        StepPlan::new(context.steps, before, operation_state),
     )])
 }
 impl Context<'_, '_> {
@@ -157,8 +158,9 @@ impl Context<'_, '_> {
             };
             next.commit_inputs(call)?;
             let before = next.steps.len();
+            let operation_state = next.world.resources.condition();
             next.receive_result(call)?;
-            let plan = StepPlan::new(next.steps, before);
+            let plan = StepPlan::new(next.steps, before, operation_state);
             results.push((world, plan));
         }
         Ok(results)

@@ -75,7 +75,8 @@ names do not authorize hidden effects, root stability or target primitives.
 ## Executable Lifecycle and Target Admission
 
 Realize the [private lifecycle schedules](../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)
-as physical guard/storage operations through one executable authority. Qualify environment
+as payload/flag-bank placement and emitted storage operations through one executable authority.
+Qualify environment
 pack/unpack, prepared input receipt, protected answers, conditional resource steps and normal
 adapter exits. A read/edit body invoked through a consuming adapter needs its
 received environment disposed before answer delivery; a consuming body must not receive a second

@@ -405,8 +405,8 @@ field order. Integrity rejection preserves all original component owners and emi
 
 Computed component moves use the same selected resource-place transfer as named fields. Copy
 selection preserves the complete source temporary and constructs only the selected snapshot.
-The source remainder stays in its original evaluation frame; reading the selected result retains
-that result's owner through the read call. Neither operation changes the source's frame or adds
+The source remainder stays in its original evaluation frame; lending the selected result retains
+that result's owner through a read/edit call. Neither operation changes the source's frame or adds
 an independent temporary-survival registry.
 
 `resources::function_view` consumes a materialized named witness and installs the selected view
@@ -419,6 +419,9 @@ the selected operation. Complete bundle validation precedes before-call transfer
 result receipt follows the call. Ordinary before/after phases come from ownership evaluation,
 never a downstream classification by step name. Sparse owning-container/missing-path conditions
 project the same ledger for lifecycle lowering; they do not include a physical drop-flag policy.
+The report retains entry evidence only after successful initialization analysis. Transition
+snapshots additionally retain the ownership state between the before/after phases, so consumers
+can project bit updates from actual ledger states without replaying source initialization rules.
 Payload projection maps every obligation through one exhaustive step transform without changing
 selected operations or places. A dead access holder is not automatic early resource destruction. A staged
 return survives evaluation/lexical cleanup, whose order is reverse actual construction/preparation. A normal return has no evaluation frames and exactly one

@@ -1,4 +1,5 @@
-//! Concrete logical ownership schedules over the checked CFG. No layout, ABI or native admission.
+//! Concrete lifecycle schedules and initialization bits. No payload layout, ABI or native admission.
+pub mod flags;
 use super::{Environment, EnvironmentExit, Instance, InstanceProgram};
 use nocter_checking::value_access::{
     accepted::DataEvidence,
@@ -35,15 +36,11 @@ pub enum Step {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Alternative {
-    condition: Condition,
     before: Box<[Step]>,
     after: Box<[Step]>,
+    flags: flags::Recipe,
 }
 impl Alternative {
-    #[must_use]
-    pub const fn condition(&self) -> &Condition {
-        &self.condition
-    }
     #[must_use]
     pub fn before(&self) -> &[Step] {
         &self.before
@@ -51,6 +48,10 @@ impl Alternative {
     #[must_use]
     pub fn after(&self) -> &[Step] {
         &self.after
+    }
+    #[must_use]
+    pub const fn flags(&self) -> &flags::Recipe {
+        &self.flags
     }
 }
 
@@ -69,12 +70,27 @@ impl Action {
 #[derive(Clone, Debug)]
 pub struct Body {
     actions: BTreeMap<Location, Action>,
+    flags: flags::Layout,
 }
 impl Body {
     #[must_use]
     pub const fn actions(&self) -> &BTreeMap<Location, Action> {
         &self.actions
     }
+    #[must_use]
+    pub const fn flags(&self) -> &flags::Layout {
+        &self.flags
+    }
+}
+
+/// Checking snapshots survive only until their physical bit recipes have been frozen.
+#[derive(Eq, PartialEq)]
+struct Draft {
+    condition: Condition,
+    operation_state: Condition,
+    final_state: Condition,
+    before: Box<[Step]>,
+    after: Box<[Step]>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -88,8 +104,8 @@ pub enum Failure {
     },
 }
 
-/// A complete logical lifecycle schedule for one exact closed instance program.
-/// This neither admits a machine representation nor executes the program.
+/// Lifecycle schedules and activation-local initialization recipes for one exact instance program.
+/// This neither selects payload layouts nor executes the program.
 #[derive(Clone, Debug)]
 pub struct Program {
     instances: Arc<InstanceProgram>,
@@ -134,7 +150,13 @@ fn lower(program: &InstanceProgram) -> Result<BTreeMap<AccessInstanceId, Body>, 
                     let before = project(instance, transition.before_steps())?;
                     let mut after = completion.clone().into_iter().collect::<Vec<_>>();
                     after.extend(project(instance, transition.after_steps())?);
-                    let candidate = (before.into_boxed_slice(), after.into_boxed_slice());
+                    let candidate = Draft {
+                        condition: condition.clone(),
+                        operation_state: transition.operation_condition().clone(),
+                        final_state: transition.after_condition(),
+                        before: before.into(),
+                        after: after.into(),
+                    };
                     match alternatives.entry(condition) {
                         Entry::Occupied(previous) if previous.get() != &candidate => {
                             return Err(Failure::UnresolvedResourceChoice { instance: id, at });
@@ -148,22 +170,15 @@ fn lower(program: &InstanceProgram) -> Result<BTreeMap<AccessInstanceId, Body>, 
                 if alternatives.is_empty() {
                     return Err(INVALID);
                 }
-                actions.insert(
-                    at,
-                    Action {
-                        alternatives: alternatives
-                            .into_iter()
-                            .map(|(condition, (before, after))| Alternative {
-                                condition,
-                                before,
-                                after,
-                            })
-                            .collect(),
-                    },
-                );
+                actions.insert(at, alternatives.into_values().collect());
             }
         }
-        bodies.insert(id, Body { actions });
+        let entry = checked
+            .access()
+            .resources()
+            .entry_condition()
+            .ok_or(INVALID)?;
+        bodies.insert(id, flags::lower(actions, entry)?);
     }
     Ok(bodies)
 }

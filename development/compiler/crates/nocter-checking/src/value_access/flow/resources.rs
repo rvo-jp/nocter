@@ -222,13 +222,15 @@ impl Condition {
 pub(super) struct StepPlan {
     steps: Box<[Step]>,
     before: usize,
+    operation_state: Condition,
 }
 impl StepPlan {
-    pub(super) fn new(steps: Vec<Step>, before: usize) -> Self {
+    pub(super) fn new(steps: Vec<Step>, before: usize, operation_state: Condition) -> Self {
         assert!(before <= steps.len());
         Self {
             steps: steps.into(),
             before,
+            operation_state,
         }
     }
 }
@@ -241,6 +243,17 @@ struct Frame {
 pub(super) struct State {
     owned: BTreeMap<Holder, OwnedValue>,
     frames: Vec<Frame>,
+}
+impl State {
+    pub(super) fn condition(&self) -> Condition {
+        Condition {
+            owned: self
+                .owned
+                .iter()
+                .map(|(&holder, value)| (holder, value.missing.iter().cloned().collect()))
+                .collect(),
+        }
+    }
 }
 /// One reachable ownership alternative. Private fields prevent unvalidated assembly.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -264,14 +277,16 @@ impl Transition {
     }
     #[must_use]
     pub fn condition(&self) -> Condition {
-        Condition {
-            owned: self
-                .before
-                .owned
-                .iter()
-                .map(|(&holder, value)| (holder, value.missing.iter().cloned().collect()))
-                .collect(),
-        }
+        self.before.condition()
+    }
+    /// Ownership after before-steps and before the selected operation starts.
+    #[must_use]
+    pub const fn operation_condition(&self) -> &Condition {
+        &self.plan.operation_state
+    }
+    #[must_use]
+    pub fn after_condition(&self) -> Condition {
+        self.after.condition()
     }
     #[must_use]
     pub fn initialized_before(&self, holder: Holder) -> bool {
@@ -285,9 +300,21 @@ impl Transition {
 /// Source-neutral transition alternatives keyed by the original operation graph.
 #[derive(Clone, Debug, Default)]
 pub struct Report {
+    entry: Option<Condition>,
     transitions: BTreeMap<Location, BTreeSet<Transition>>,
 }
 impl Report {
+    /// No entry evidence exists when initialization blocked resource analysis.
+    #[must_use]
+    pub const fn entry_condition(&self) -> Option<&Condition> {
+        self.entry.as_ref()
+    }
+    pub(super) fn new(entry: Condition) -> Self {
+        Self {
+            entry: Some(entry),
+            transitions: BTreeMap::new(),
+        }
+    }
     pub fn at(&self, at: Location) -> impl Iterator<Item = &Transition> {
         self.transitions.get(&at).into_iter().flatten()
     }
