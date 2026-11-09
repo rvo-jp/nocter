@@ -26,9 +26,10 @@ structural grant is permitted.
 Source discovery order, access failure and a more specialized-looking signature never select a
 member. Conditional/generic fragment applicability must be non-overlapping and established by
 the owning generic contract before admission; this chapter does not provide overlap ranking or
-complete generic solving. Full typed literal/coercion and platform contracts remain required
-before accepting their bodies. The [source grammar](syntactic-grammar.md#files-and-declarations)
-describes their container boundary, not those missing semantics.
+complete generic solving. [Typed literals](literal-construction.md) and
+[explicit conversions](explicit-conversions.md) own their operation contracts. The
+[source grammar](syntactic-grammar.md#files-and-declarations) owns recognition; full source,
+evaluator and platform qualification remains required before compiler admission.
 
 [Synchronous traversal](iteration.md) owns expansion's cursor/result and three receiver families.
 The result is ordinary data with its selected protocol evidence; ordinary methods remain value

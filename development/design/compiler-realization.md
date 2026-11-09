@@ -57,6 +57,7 @@ factory-result closure bodies need code-scoped application identities, not their
 | Owning subject | Remaining integrated evidence |
 | --- | --- |
 | Modules and type behavior | Contract/body agreement, complete headers, audience paths, visibility and operation binding |
+| Typed literals and explicit conversions | Shape/exact-target selection, pack/receiver preparation, explicit retirement, result origins, failure/cleanup and selected const capability |
 | Generics, interfaces and opaque results | Symbolic evidence, associated bindings, static witnesses, finite result equations and non-retyping specialization |
 | Outcomes and error information | Exact layer order, explicit failure selection, recovery cleanup, scoped projections and lost-failure diagnostics |
 | Tuples, arrays, enums and patterns | Exact schema/Copy proof, named-source supply, internal decomposition, ignored remainder and partial restoration |

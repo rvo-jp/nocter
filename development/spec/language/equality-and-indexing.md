@@ -7,7 +7,7 @@ Boolean value. Reading an operand does not transfer its owner. Unit equality is 
 false after evaluating both operands in source order. Do not remove their effects/access validation.
 Opaque `error` has no primitive equality. User-defined, compound and interface equality use their
 own full-language contracts; this bounded foundation does not derive structural equality for them
-or change the published domain. The earlier prefix-based private fragment is superseded.
+or change the published domain.
 
 ## Scalar Enum Equality
 

@@ -202,14 +202,16 @@ headers repeat under the module rules, and supported interface requirements bind
 and associated cursor type. Source predicates preserve receiver operation and result identity.
 No operator introduces a new opaque-result declaration or weaker input/effect contract.
 
-For-await, fallible pulls, integer/range APIs, arbitrary capability erasure and typed sequence/
-string entries remain separate closure tasks. Const traversal may use only the same checked
+For-await, fallible pulls, integer/range APIs and arbitrary capability erasure remain separate
+closure tasks. [Typed literal construction](literal-construction.md) owns its callable entries.
+Const traversal may use only the same checked
 operations within the selected evaluator domain; source syntax supplies no missing const
 capability. Parser/flow/root/capture/cancellation/evaluator/ABI/native qualification is still
 required before compiler admission. No speedup follows from these contracts alone.
 
-The selected user-operator heads carry no const declaration capability. Intrinsic array/pack
-traversal can enter required CTFE only through its checked evaluator evidence; a pure-looking
-user traversal is not automatically admitted. User-operator staging and conditional generic
-const evidence remain explicit closure work. Optional runtime folding still needs its ordinary
-semantic proof and does not manufacture a public const promise.
+User expansion/current heads may advertise const under the
+[shared staging contract](generics-and-constants.md#const-calls-and-temporary-evaluation).
+Intrinsic array/pack traversal likewise needs checked evaluator evidence; a pure-looking user
+traversal is not automatically admitted. Conditional generic const evidence remains explicit
+closure work. Optional runtime folding needs its ordinary semantic proof and does not
+manufacture a public const promise.

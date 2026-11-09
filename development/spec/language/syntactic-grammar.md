@@ -71,8 +71,9 @@ V2BehaviorMember = V2ItemDirectives? (V2Function | V2Method | V2Literal
                    | V2IndexProjection | V2CurrentProjection | V2Coercion | V2Expansion | V2Destructor)
 V2Method = V2MethodHead V2GenericParameters? V2Parameters V2CallableTail V2Block?
 V2StructuralGrant = "literal" "{" List(Name) "}"
-V2Literal = "literal" ("[" "]" | "[" ":" "]" | EmptyStringLiteral)
+V2Literal = "const"? "literal" ("[" "]" | "[" ":" "]" | EmptyStringLiteral)
             V2Parameters V2CallableTail V2Block?
+V2Coercion = "const"? "coerce" V2Receiver "as" V2Type V2OriginClause? V2Block?
 V2Conformance = "impl" V2NamedType ("{" NonEmptyList(V2ConformanceBinding) "}")?
 V2ConformanceBinding = "." Name "=" V2Type | V2OperationMapping
 V2OperationMapping = Name "=" Name
@@ -94,10 +95,36 @@ These envelopes deliberately depend on the separately owned value/access product
 lexical names/lists/trivia, and the [whole-source draft](../../design/source-grammar.md)
 for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
-In particular typed sequence/string literal behavior, generic solving,
-primitives, target selection and package discovery still need their owning contracts before
-compiler admission. A complete whole-language grammar is not claimed here; published productions
-are never an implicit fallback.
+Typed sequence/string entries and explicit conversions have their
+[construction](literal-construction.md) and [conversion](explicit-conversions.md) owners.
+Recognition does not establish source/evaluator implementation. Generic solving, primitives,
+target selection and package discovery still need qualification before compiler admission.
+A complete whole-language grammar is not claimed here; published productions are never an
+implicit fallback.
+
+### Typed Literal and Conversion Expressions
+
+```text
+V2TypedLiteral = V2Owner gap (V2SequenceBody | StringLiteral)
+V2Owner = V2NamedType | BuiltinScalarType | "str" | "error"
+V2SequenceBody = "[" (":" List(V2SequenceSpread) | List(V2SequenceElement)) "]"
+V2SequenceElement = V2Expression | V2SequenceSpread | V2Expression ":" V2Expression
+V2SequenceSpread = "..." V2Expression
+V2Convert = V2Unary ("as" V2Type)*
+```
+
+V2Primary admits V2TypedLiteral; its remaining alternatives are in the whole-source draft.
+Here gap means non-joint owner/delimiter tokens on the same logical line, separated by space,
+tab or a removed same-line comment; an intervening statement newline does not continue a literal.
+It distinguishes a typed literal from joint indexing. The sequence node
+retains ordinary, keyed and expanded contributions without type lookup. Empty `[]`, `[:]`,
+direct keyed contributions, mixed entries and spread-only bodies select or reject shapes under
+the construction owner, not a semantic reparse. A StringLiteral here has no interpolation.
+The leading colon extends empty keyed syntax to spread-only keyed bodies; it is not an optional
+prefix for direct keyed contributions.
+Conversion is an explicit, left-associative expression level; a conversion target's outcome
+suffix belongs to its type. Parenthesize the conversion before propagating its result.
+`using` allocation overrides remain outside adopted literal syntax.
 
 ## Access Syntax
 
@@ -152,9 +179,9 @@ V2Binding = V2BindingOperation V2Pattern (":" V2Type)? "=" V2Expression
 V2Return = "return" V2Expression?
 V2Throw = "throw" V2Expression
 V2Drop = "drop" Name
-V2IndexProjection = "operator" "(" "edit"? "self" "[" V2OrdinaryParameter "]" ")"
+V2IndexProjection = "const"? "operator" "(" "edit"? "self" "[" V2OrdinaryParameter "]" ")"
                     ":" V2Type V2OriginClause? V2WhereClause? V2Block?
-V2CurrentProjection = "operator" "(" "edit"? "self" "[" "]" ")"
+V2CurrentProjection = "const"? "operator" "(" "edit"? "self" "[" "]" ")"
                       ":" V2Type V2OriginClause? V2WhereClause? V2Block?
 
 V2Closure = "(" V2ClosureHead ")" (":" V2Type V2OriginClause?)? V2Block
@@ -350,7 +377,7 @@ diagnostic, never another parse. Exact jointness/recovery cases require parser q
 
 ```text
 V2For = "for" V2InputOperation? V2Pattern "in" V2Header V2Block
-V2Expansion = "operator" "(" "..." V2Receiver ")"
+V2Expansion = "const"? "operator" "(" "..." V2Receiver ")"
               ":" V2Type V2OriginClause? V2WhereClause? V2Block?
 ```
 

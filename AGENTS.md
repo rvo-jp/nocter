@@ -125,8 +125,7 @@ must not be committed; GitHub Pages receives an artifact built from `main`.
 [development/verification/README.md](development/verification/README.md) owns command invocation,
 evidence selection and required gates. Select checks only after the purpose assessment above.
 Review semantic ownership and compatibility fallbacks as well as test results; do not count
-unreached native/editor paths as
-evidence for a private front-end feature.
+unreached native/editor paths as evidence for a private front-end feature.
 
 After public Markdown changes, run documentation generator tests, build into an explicit external
 directory, and run `git diff --check`. Internal instruction/work-plan changes need consistency and

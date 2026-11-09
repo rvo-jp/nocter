@@ -130,7 +130,12 @@ uses the substituted value, not a fictitious runtime generic environment field.
 ## const Calls and Temporary Evaluation
 
 `const func`/`const method` promises that the same ordinary checked implementation is available
-to constant evaluation. It is not compile-time-only and does not create a second callable/body.
+to constant evaluation. The same prefix applies to adopted typed literal, coercion and
+index/current/expansion operator entries. It does not create a new operation identity or
+compile-time-only body. Public/body pairs agree on the capability; an interface requirement
+advertises const explicitly when its callers may depend on it. A runtime-only implementation
+cannot satisfy that requirement. A const implementation may satisfy a runtime-only requirement,
+but callers through that requirement do not recover the stronger promise by private lookup.
 Runtime optimization may evaluate other computations when proved valid, but cannot manufacture
 the public const capability. `const async` and a source-bodyless runtime primitive have no
 implicit evaluator implementation and are invalid combinations.
@@ -151,6 +156,21 @@ effect or a runtime backing request. A pure checked helper name cannot supply a 
 contract. More general temporary heap resources, callable invocation and outcomes require their
 own evaluator extensions before admission. Enum/pattern operations use the same checked
 operations and cleanup as runtime source, not a separate constructor or pattern interpreter.
+
+The same restrictions apply to user operation entries and implicit cleanup. A const place
+projection must produce a valid place under the ordinary access/origin rules, referring to
+eligible evaluator storage or explicitly supported immutable embedded data. It does not become
+a value-returning function. A const expansion's cursor, selected advance/current operations and
+cleanup must all have evaluator evidence. A protocol name or an intrinsic operation on another
+type cannot supply a missing witness. Literal and conversion syntax grants no evaluator storage
+or result-serialization exception.
+
+A generic const body must establish const eligibility from its declared assumptions, including
+interface member capabilities and selected const callable constraints. A non-const requirement
+does not become const merely because one concrete implementation happens to be eligible.
+Automatically exported conditional const obligations are not introduced here; their public
+signature and separate-compilation contract remain unresolved. Report the unavailable selected
+capability locally rather than retyping the body under a more favorable specialization.
 
 Type checking and evaluation consume the same resolved targets, input operations and concrete
 specializations. Target integer widths, overflow, division, shifts, conversion and floating-point

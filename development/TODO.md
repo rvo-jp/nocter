@@ -2,8 +2,9 @@
 
 ## Immediate Work
 
-1. Close typed sequence/string entries, coercion and user-operator/conditional const staging under
-   the adopted design direction. Then close remaining expression/control, capability/library,
+1. Close user comparison semantics and conditional generic const contracts under the adopted
+   design direction. Qualify typed literal/conversion and const-operator source support against
+   their owning contracts. Then close remaining expression/control, capability/library,
    package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
    Integrate ordinary reading/writing examples before extending accepted source scope.
 2. Lower the private instance graph into executable lifecycle operations, then qualify

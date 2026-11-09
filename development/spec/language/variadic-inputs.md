@@ -7,7 +7,8 @@ pack or a fixed array. [Value access](value-access.md) owns supply, reservations
 and cleanup; [fixed arrays](tuples-and-arrays.md) own array element places. These are adopted
 v2.0.0 contracts, not additions to the bounded private compiler.
 [Synchronous traversal](iteration.md) separately owns user-defined expansion and for loops.
-Typed sequence/string entries, dynamic `[T]` and container APIs are not defined by a pack.
+[Typed literal entries](literal-construction.md) reuse this pack protocol; dynamic `[T]` and
+container APIs are not defined by a pack.
 
 ```text
 func inspect(... files: File): void

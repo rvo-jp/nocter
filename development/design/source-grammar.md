@@ -26,7 +26,7 @@ V2DirectiveValue = StringLiteral | integer_literal | "{" List(V2DirectiveField) 
 V2DirectiveField = Name ":" V2DirectiveValue
 ```
 
-## Comparison and Coercion Operations
+## Comparison Operations
 
 These families still need their complete operation, capability, failure and const contracts.
 Index/current projections and synchronous expansion already have separate adopted owners.
@@ -34,14 +34,15 @@ Index/current projections and synchronous expansion already have separate adopte
 ```text
 V2Comparison = "operator" "(" "self" ("==" | "<") Name ":" "Self" ")"
                 ":" "bool" V2WhereClause? V2Block?
-V2Coercion = "coerce" V2Receiver "as" V2Type V2OriginClause? V2Block?
 ```
 
 ## Expressions, Control and Typed Literals
 
 The following block connects the adopted productions to the remaining block, expression,
-package, region, typed literal and async-traversal questions. It does not adopt an unclosed
-for-await protocol, dynamic sequence type, allocation override or coercion merely by spelling it.
+package, region, interpolation and async-traversal questions. Typed construction and explicit
+conversion productions come from the adopted grammar. An allocation override still needs a
+declared input/authority mapping; it is not an implicit parameter of the adopted literal entries.
+This draft does not adopt a for-await protocol, dynamic sequence type or allocation override.
 
 ```text
 V2Block = "{" newline* (V2LocalUses (newline+ V2Entries)? | V2Entries)? newline* "}"
@@ -64,25 +65,19 @@ V2Ordering = V2Shift (("<" | "<=" | ">" | ">=") V2Shift)?
 V2Shift = V2Add (("<<" | ">>") V2Add)*
 V2Add = V2Multiply (("+" | "-") V2Multiply)*
 V2Multiply = V2Convert (("*" | "/" | "%") V2Convert)*
-V2Convert = V2Unary ("as" V2Type)*
 V2Primary = Name | "Self" | BuiltinScalarType | "str" | "error"
             | integer_literal | byte_literal | "true" | "false" | "none" | "(" ")"
             | "(" V2Expression ")"
             | V2TupleValue
             | V2Closure | V2If | V2Match | V2String | V2GenericOwnerMember
-            | V2Owner V2RecordBody | V2Owner gap V2SequenceBody V2AllocationOverride?
-            | V2Owner gap StringLiteral V2AllocationOverride? | V2Array
+            | V2Owner V2RecordBody | V2TypedLiteral | V2Array
 V2String = string_start (string_text | interpolation_start V2Expression interpolation_end)* string_end
 V2GenericOwnerMember = V2GenericOwner "." Name
 V2GenericOwner = Name V2GenericArguments ("." Name V2GenericArguments?)*
                 | (Name | "Self") ("." Name)* "." Name V2GenericArguments
                   ("." Name V2GenericArguments?)*
-V2Owner = V2NamedType | BuiltinScalarType | "str" | "error"
 V2RecordBody = "{" List(V2FieldInitializer) "}"
 V2FieldInitializer = Name ":" V2Expression
-V2SequenceBody = "[" (":" | List(V2SequenceElement)) "]"
-V2SequenceElement = V2Expression | "..." V2Expression | V2Expression ":" V2Expression
-V2AllocationOverride = "using" V2AllocatorPlace
 ```
 
 StructuralConstantExpression is a delimiter-bounded V2 expression restricted to the owning
