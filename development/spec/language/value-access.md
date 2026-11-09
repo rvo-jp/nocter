@@ -129,11 +129,11 @@ which applies the same remaining-field rules as named storage. A chain such as
 `make_outer().inner.first` selects that full path without first moving every containing record.
 It neither reruns `make_outer` nor changes logical field identity because of grouping.
 
-The selected value may be bound, returned, stored, passed to `take`, or supplied as a fresh read
-input under the ordinary value rules. It is not an alias initializer, assignment target or edit
-input. Bind a computed result to an intentional `let`/`var` before requesting scoped access or
-mutation; do not create an invisible owner or extend a temporary's lifetime to satisfy those
-operations. Selecting a non-Copy field from a grouped read/edit alias remains an invalid
+The selected value may be bound, returned, stored, passed to `take`, or lent to a read/edit input
+through its caller-owned evaluation temporary under the ordinary input protocol. It is not a
+scoped local-alias initializer or assignment target. Name an intentional owner when access must
+survive that evaluation frame; do not extend a temporary's lifetime to satisfy those operations.
+Selecting a non-Copy field from a grouped read/edit alias remains an invalid
 extraction from that existing place; grouping cannot launder permission into ownership.
 
 ## Input Operations and Receivers
