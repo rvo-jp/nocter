@@ -43,11 +43,14 @@ At an ordinary value-producing expected-type boundary, apply one rule:
    Do not unwrap, flatten, reorder or implicitly erase a mismatching outcome.
 
 The rule applies to value bindings, stored components, ordinary results and taking inputs.
-Input operations remain independent: an edit input requires an existing compatible place, not
-a freshly injected wrapper. A read input may read an exact existing outcome or a freshly
-constructed temporary. Implicit wrapper construction cannot consume a direct non-Copy source
-merely to satisfy a read input; construct the intended wrapper explicitly when it requires a
-transfer. A Copy source or already fresh value can supply ordinary contextual construction.
+Input operations remain independent. A direct edit place must already have compatible outcome
+data and update authority; do not copy/inject a wrapper from that place to repair the call.
+An already produced value may undergo ordinary contextual construction and lend read/update
+access through its caller-owned evaluation temporary. A read input may also observe a wrapper
+constructed from a Copy source. Implicit wrapper construction cannot consume a direct non-Copy
+source merely to satisfy read/edit; construct the intended value explicitly when it requires a
+transfer. The [temporary protocol](value-access.md#preparation-invocation-and-evaluation-temporaries)
+does not grant ownership to an edit callee or extend an escaping root.
 Do not change an input's operation to repair an injection failure.
 
 `none` has no unconstrained payload type. An expected type or other generic constraints must

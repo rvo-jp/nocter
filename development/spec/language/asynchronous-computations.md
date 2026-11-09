@@ -69,6 +69,11 @@ take. Do not transfer a hidden temporary owner into the future to repair a read 
 Physical scalar transport may use registers or copies while preserving that source access
 contract; it does not grant snapshot semantics or remove the required logical root.
 
+The same caller-owned extent applies to an edit input/receiver supplied by a produced value.
+Its temporary can lend update during immediate invocation/await, but a stored future that still
+needs it cannot outlive the evaluation frame. An immutable existing place is never copied into
+that temporary to repair an edit call. This adopted path needs its own frontend/frame admission.
+
 Automatic backing cannot add an unadvertised outer fallible layer or move a required construction
 request into the producer body. Its managed-storage failure policy belongs to storage/platform
 contracts. Body throw fails the driven output, not construction. An explicitly recoverable
@@ -86,6 +91,12 @@ identity with count and actual entry/component mappings. Receipt/activation happ
 construction, while body operations wait for drive. Unstarted/pending cancellation cleans the
 intact/actual remaining take entries. An argument sequence is not a hidden owning promotion of
 read temporaries or permission to postpone required backing until drive.
+
+A [synchronous for](iteration.md) may run inside the body and suspend during its user body.
+Retain its control cursor, source/item roots and remaining initialization through that suspension.
+Cancellation cleans the actual iteration/cursor/source frames; it does not exhaust the cursor.
+Acquisition, steps, projection and cleanup still satisfy ordinary non-waiting drive checks.
+This supplies no async/fallible-step traversal or for-await protocol.
 
 ## Await and Suspension
 

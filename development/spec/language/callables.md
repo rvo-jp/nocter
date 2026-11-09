@@ -108,6 +108,12 @@ non-Copy callable; it no longer creates an implicit read alias. Use `read alias 
 that operation. `var` permits a locally stored mutable callback to be invoked/updated. A function
 parameter's operation independently determines whether it can read/update/take the callable.
 
+A produced mut callable can invoke through its caller-owned update temporary under the ordinary
+input protocol. A fixed/read existing binding is not copied into a writable environment to
+repair invocation. Result/cleanup roots retain that actual environment extent; this does not
+delay the earlier cleanup required by a consuming invocation adapter. Temporary-update admission
+is separate from the bounded fragment's current callable-instance support.
+
 An expected callable type supplies omitted closure input operations, output type and origin/state
 bounds before checking the body. Explicit `edit`/`take` operations must agree with that contract;
 a parameter data-type annotation alone does not assert an operation. This is contextual completion

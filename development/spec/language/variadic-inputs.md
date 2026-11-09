@@ -5,9 +5,9 @@
 This chapter owns ordinary/keyed variadic inputs and built-in argument expansion from another
 pack or a fixed array. [Value access](value-access.md) owns supply, reservations, dependencies
 and cleanup; [fixed arrays](tuples-and-arrays.md) own array element places. These are adopted
-v2.0.0 contracts, not additions to the bounded private compiler. General user expansion,
-iteration, typed sequence/string entries, dynamic `[T]` and library container APIs remain
-separate contracts. Do not manufacture one of them to implement a variadic signature.
+v2.0.0 contracts, not additions to the bounded private compiler.
+[Synchronous traversal](iteration.md) separately owns user-defined expansion and for loops.
+Typed sequence/string entries, dynamic `[T]` and container APIs are not defined by a pack.
 
 ```text
 func inspect(... files: File): void
@@ -48,11 +48,12 @@ A same-typed read component aliases supplied storage rather than snapshotting Co
 Component data/compatibility is checked under the selected expected input contract, including
 the ordinary [contextual outcome rules](outcomes.md#contextual-construction-and-exact-forwarding).
 A permitted wrapper constructs a temporary before read supply; it cannot implicitly consume a
-direct non-Copy source merely to satisfy read. An edit pack needs initialized compatible writable
-places for every key/value or ordinary component, not newly injected wrappers. A take pack receives
+direct non-Copy source merely to satisfy read. A direct edit component needs an initialized
+compatible writable place, without snapshot/wrapper repair. An already produced component
+can instead lend update through its caller-owned evaluation temporary. A take pack receives
 independent snapshots where the checking context supplies Copy evidence and otherwise eligible
-owners. A fresh computed read operand may live in the caller's evaluation frame; a computed
-value is not an existing edit place. Ordinary retention/temporary rules still apply.
+owners. Fresh computed read/edit operands live in the caller's evaluation frame; they do not
+become assignment/local-alias places. Ordinary retention/temporary rules still apply.
 
 Pack storage is not promised contiguous and is not a user-visible allocator request. Read/edit
 components may refer to unrelated caller places. Distinct entry paths do not prove that their
@@ -128,7 +129,8 @@ fields(key: value, other_key: other_value)
 The built-in expansion source is an existing pack or a fixed array, including a computed array
 value where its category permits the receiving operation. A tuple alone, arbitrary container,
 string or unclosed dynamic `[T]` is not a built-in source. This is not an implicit call to a
-same-spelled iterator or the draft user expansion operator. A spread cannot fill fixed prefix
+same-spelled iterator. Other data uses the declared [traversal protocol](iteration.md#general-argument-expansion).
+A spread cannot fill fixed prefix
 inputs or call a non-variadic target. Those are not runtime arity checks or overload alternatives.
 
 An ordinary receiving pack checks each source entry/array element as one component against its
@@ -145,14 +147,16 @@ key and value separately: it can snapshot a Copy key while reserving transfer of
 leaving the source entry partly initialized after commit. Keep those distinct checked plans;
 do not reselect one to preserve a source the programmer later uses.
 
-Evaluate an expansion source once at its written contribution position, freeze its count and
+Evaluate a built-in expansion source once at its written contribution position, freeze its count and
 entry/root mapping, then prepare entries in ascending order. Keyed entries prepare key before
 value. A subsequent contribution does not run before that preparation. Copy taking operands are
 snapshotted then; direct read/edit and non-Copy taking operands are reserved under the common
 invocation protocol. Read expansion of a Copy array is not a snapshot of that array.
 
-After preparing each contribution, validate the accumulated entry count with checked target
-usize addition before evaluating the next contribution. Count overflow traps before invocation
+After preparing each logical entry, validate the accumulated count with checked target-usize
+addition before preparing another entry/step or evaluating a later contribution. Key/value is
+one logical entry. This also supports producers whose length is known only while traversing.
+Count overflow traps before invocation
 commit; evaluated required CTFE reports it as a compilation error. No wrapping, new fallible
 layer or arbitrary smaller language limit is introduced. Ordinary trap cleanup policy still
 applies, and earlier operand effects/nested transfers are not rolled back.
@@ -182,7 +186,9 @@ A result cannot retain direct storage in received take components that die durin
 It may forward carried dependencies into surviving outside roots or return received values.
 An edit-pack clause after its element type, or after the keyed value type, bounds every edited
 component and its reachable writes, including entries the body never indexes. Read/take packs
-have no input-state clause; their delivered data retains its ordinary dependency schema.
+have no post-state clause: their from, when present, bounds incoming carried provenance under
+the [incoming-origin rules](memory-and-regions.md#incoming-origins), not the source descriptor's
+direct read extent. Their delivered data retains its ordinary dependency schema.
 Callable element types use the grammar's [origin attachment](syntactic-grammar.md#access-syntax):
 group the complete type when the following clause describes the enclosing edited pack rather
 than an inner callable result. Default and explicit post-state relations are the ordinary

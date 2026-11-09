@@ -113,3 +113,24 @@ ownership and inferred environment invocation separately. A result's from-pack b
 all relevant actual origins without presenting new authored lifetime names for each entry.
 Consume established mappings, overlap/state and cleanup evidence rather than reconstructing
 an argument list, evaluating indices or reselecting an expansion in the editor.
+
+## Traversal Presentation
+
+Show the selected expansion family, exact cursor/interface evidence, Item type and read/edit/
+received binding authority. Current-place references navigate to their own zero-input operator;
+do not merge them with unit indexing or expose an alias-returning ordinary method. Source
+interfaces and direct operator requirements project the same frozen operation relation.
+
+Explain cursor-backed versus outside backing and the particular step/cleanup conflicting with
+a retained entry. Present conditional public root/write/cleanup schema requirements alongside
+authored bounds; the editor cannot infer new Copy/authority, inspect private bodies or solve a
+second traversal. Show source acquisition and take-item cleanup distinctly when explaining
+early exit, capture/future escape or cancellation. No v2.0.0 editor implementation follows from
+these requirements alone.
+
+For produced edit operands, show the caller-owned temporary loan separately from a direct
+place update. The temporary owns its cleanup; the callee receives update access. A computed
+value does not become a local-alias/assignment place, and an immutable direct source is not
+copied merely to satisfy edit. Explain an escaping result/future against that actual temporary
+extent rather than suggesting a longer lifetime annotation. This path is not admitted by the
+current bounded frontend.

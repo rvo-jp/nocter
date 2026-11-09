@@ -15,13 +15,22 @@ The [source reading order](README.md#value-binding-reading-order) links adopted 
 and their non-normative migration reviews; use those instead of duplicating completed source
 decisions here. These contracts do not extend the bounded private compiler or its 283-case corpus.
 
-The latest [variadic checkpoint](history/reviews/v2.0.0-variadic-input-contracts.md) closes
-ordinary/keyed argument sequences, built-in pack/fixed-array expansion, entry operations,
-value/access captures and phase-preserving cleanup. It does not turn a pack binder into a
-first-class dynamic array, select a user iterator/expansion, or implement those production paths.
+The latest [traversal checkpoint](history/reviews/v2.0.0-iteration-contracts.md) closes synchronous
+read/edit/take for, current-place projection, explicit source/cursor protocols and general
+argument expansion. It separates sequential from accumulated access and preserves public
+symbolic root/write/cleanup conditions. These contracts do not implement those production paths.
+Range generation is a separate ordinary library API; the draft's range-only/colon-key for
+branches are retired. Std role binding, schema proof/export and traversal realization remain gates.
 
-Next close general expansion/iteration and typed sequence/string entries with their capability/
-backing schemas, plus explicit coercion, then
+The source-composition audit also adopts caller-owned temporary update loans for produced
+inputs/receivers/mut environments, including loop/enum-test inputs. Direct immutable places are
+not snapshotted to repair edit; local aliases/assignment still require places. The bounded
+frontend has not admitted this later path. Before claiming its acceptance, migrate produced-value
+ownership, prepared activation, temporary escape and exact cleanup together; promote affected
+source cases without counting future obligations as passed production tests.
+
+Next close typed sequence/string entries, explicit coercion and user-operator/conditional const
+staging with their capability/backing schemas, then
 remaining lexical/expression/control, capability/library and package/platform subjects,
 including task/async iteration. Audit the assembled grammar and integrated reading examples,
 then resume the bounded executable-lifecycle task below. Keep future conformance obligations

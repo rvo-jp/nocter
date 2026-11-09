@@ -128,7 +128,9 @@ element through a read/edit alias or a user index projection is still invalid. T
 when an outside read/edit parameter exposes an array: the descriptor does not own its elements.
 
 Selection from a computed aggregate value instead delivers a component value under the existing
-computed-field rule. It cannot initialize a scoped alias or edit input. Its remainder belongs
+computed-field rule. It cannot initialize a scoped alias or assignment target. An edit call
+may lend the produced component through its caller-owned temporary; that does not edit the
+original aggregate or grant non-Copy ownership to the callee. Its remainder belongs
 to the evaluation frame and is cleaned at that frame's defined boundary, skipping the selected
 component if transferred. Grouping preserves the category rather than converting an expression
 into writable storage. Bind an intentional owner first when later scoped access is needed.

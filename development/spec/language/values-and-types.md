@@ -72,6 +72,13 @@ evidence may justify its own snapshot into a taking input; it cannot change a mo
 inside a body that had no such evidence. Concrete implementation selection cannot repair a body
 that was invalid under its declared assumptions.
 
+Access, write-footprint and root-survival relations may remain symbolic over the declared
+capability/callable schemas. Record their conditions in the checked public contract and bind
+actual slot/witness relations at use, without retyping the body. Such conditions do not supply
+a missing trait, Copy evidence or input authority, and cannot change a frozen operation.
+A contradiction already known in the body's context is rejected there. Finer exported schema
+facts are public guarantees checked once, not permission for consumers to inspect private code.
+
 ### Known Shape Without a Produced Value
 
 Interrupted evaluation retains a known structural result contract. It establishes neither a

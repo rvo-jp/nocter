@@ -46,8 +46,8 @@ Each parameter pattern still denotes one argument position. Tuple nesting does n
 source arity or create runtime parameters. Names are unique across the complete binding/header;
 `_` binds no name and cannot be referenced or named as an origin. Ordinary lookup is not a
 destructuring search. A failed pattern shape or unavailable authority cannot select a different
-operation. The future for-binding shape may reuse this pattern, but this chapter does not pick
-an iteration protocol or add read/edit iteration spellings.
+operation. [Synchronous for](iteration.md) reuses this pattern with unmarked read, edit or take;
+it has no colon-key binder, per-leaf modes or automatic capture/iteration conversion.
 
 A [variadic binder](variadic-inputs.md#scope-and-parameter-identity) instead names its argument
 sequence. It does not apply a tuple pattern or `_` repeatedly to an unknown number of entries.
@@ -109,8 +109,9 @@ because a pattern names it. Edit needs initialized writable storage. Take named 
 values; taking a Copy scrutinee snapshots it and otherwise transfers an eligible owner. A read/
 edit alias cannot supply a non-Copy take. No field rights are inferred from subsequent mutations.
 
-Evaluate the scrutinee once. A read test can observe a fresh computed value owned by its evaluation
-frame, but an edit test requires an existing writable place. Grouping preserves that distinction.
+Evaluate the scrutinee once. Read/edit tests can lend access from a fresh computed value owned
+by their evaluation frame under the ordinary temporary-input protocol. A direct edit place still
+requires its own update authority; grouping cannot turn it into a copied temporary.
 Fresh owners survive through branch evaluation and its cleanup, including suspension where valid;
 a result depending on a temporary cleaned at handoff cannot escape it.
 An explicitly computed conditional/call still performs its ordinary value construction before

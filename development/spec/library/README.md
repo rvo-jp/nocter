@@ -8,5 +8,6 @@ Unspecified API migration remains open; these contracts do not claim compiler/li
 - [Allocation and Failure](memory.md): physical backing versus exposed allocator obligations.
 - [Vectors](vectors.md): capacity, allocator affinity and sequence-transformation obligations.
 - [Prelude Value Construction](prelude.md): the ordinary some function for explicit optional layers.
+- [Traversal Protocols](iteration.md): source/cursor interfaces for synchronous iteration and expansion.
 
 The [development specification](../README.md) defines version scope and promotion policy.

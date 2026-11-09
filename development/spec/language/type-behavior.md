@@ -18,15 +18,21 @@ set: each member identity has one contract and at most one definition under
 result type, parameter operation, origin bound or generic requirement. Method and construction
 names share the owner member namespace and cannot reuse a name to offer two call styles. Enum
 variants share that named namespace too. Operator
-identities are their fixed family/shape; read and edit index projections are explicitly separate
-identities. Literal identity is its supported shape; one structural grant is permitted.
+identities are their fixed family/shape: read/edit indexed and current projections, and read/
+edit/take expansion, are explicitly separate identities. They are selected before authority
+checking, without permission-ranked overloads. Literal identity is its supported shape; one
+structural grant is permitted.
 
 Source discovery order, access failure and a more specialized-looking signature never select a
 member. Conditional/generic fragment applicability must be non-overlapping and established by
 the owning generic contract before admission; this chapter does not provide overlap ranking or
-complete generic solving. Full literal/coercion/expansion and platform contracts remain required
+complete generic solving. Full typed literal/coercion and platform contracts remain required
 before accepting their bodies. The [source grammar](syntactic-grammar.md#files-and-declarations)
 describes their container boundary, not those missing semantics.
+
+[Synchronous traversal](iteration.md) owns expansion's cursor/result and three receiver families.
+The result is ordinary data with its selected protocol evidence; ordinary methods remain value
+producers, while indexed/current operators have their explicit existing-place protocol.
 
 ## Functions and Methods
 

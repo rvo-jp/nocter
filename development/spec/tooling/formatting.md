@@ -118,3 +118,16 @@ until invocation. Metadata queries and indexed entries retain ordinary `items.le
 Preserve the complete type grouping in `edit action: (mut(): void) from source`, including for
 pack element types. Removing it attaches from to an inner callable result; adding a consecutive
 from is not a substitute. Existing closed array/generic delimiters do not need redundant grouping.
+
+## Traversal Formatting
+
+Use `for pattern in source`, `for edit pattern in source` or `for take pattern in source`.
+Keep tuple patterns for keyed entries and preserve complete-pattern contextual names. Do not
+generate an explicit-read mode, colon-key binder or range-only loop branch. Range helper names
+remain ordinary declarations rather than formatting privileges.
+
+Keep current projection joint as `cursor[]`, distinct from `cursor[()]` and spaced typed literal
+construction. Declarations are `operator (self[]): T` / `operator (edit self[]): T`, while source
+operators use `operator (... self): Cursor` and its edit/take receiver forms. Formatting cannot
+change a fixed operator family, turn a method result into a place, add yield, reorder pulls or
+merge source/body cleanup schedules.

@@ -72,3 +72,24 @@ invented operator calls. [Tuples and fixed arrays](tuples-and-arrays.md#primitiv
 own those structural selections and array extraction/partial initialization. An owning fixed-array
 element can transfer under those rules; this does not turn a user index projection into an owner.
 General library index schemas/ABI and native integration remain unqualified.
+
+## Current-Item Projections
+
+The joint zero-input form `cursor[]` selects an existing current-item place. Its declarations
+are `operator (self[]): T from self` and `operator (edit self[]): T from self`, separate read/
+edit identities. They use the same initialized-place return, authority, origins, local cleanup,
+last-demand and invalidation rules as index projections above, without an index input.
+Computed fresh values still cannot satisfy a place result, and update cannot fall back to read.
+
+This is not an ordinary method returning an alias, dereference prefix, implicit iterator call or
+unit-index shorthand. `cursor[()]` remains a one-input index operation. An implementation needs
+a checked valid place on normal completion; a protocol name/advance result does not authorize
+unchecked projection or remove required effects. [Traversal](iteration.md#current-item-places)
+uses the operation without introducing yield or coroutine bodies. Other capability values may
+explicitly declare it under ordinary type-owned behavior. Native/root/schema qualification is
+still required before acceptance in an executable product.
+
+For both projection families, T is the referent data type. An optional/fallible T refers to a
+carrier in storage; it does not give the operator a value-producing failure envelope. The body
+cannot throw merely because the projected datum contains `!`. Project/handle that existing
+carrier under its ordinary access protocol, or use an ordinary value-returning API for failure.

@@ -21,6 +21,11 @@ ordinary identifier reading. Read is not an explicit branch-input prefix. Copy c
 as well as struct declarations. These positions introduce no new reserved spelling or lookup-
 dependent tokenization; the owning grammar specifies the contextual boundary.
 
+Edit/take also select synchronous for operations only when a complete pattern and in delimiter
+follow; `for take in source` binds an unmarked identifier take. Joint `cursor[]` is a zero-input
+current-place projection, distinct from one-input `cursor[()]` and spaced typed literal syntax.
+No new reserved word, unary access prefix or yielded-reference token is introduced.
+
 Ordinary data types have no `&`/`^` access qualifier, and expressions have no unary access/transfer
 prefix or `move` expression. Receiver operations are words, not `&self`/`^self`. Binary `&&`
 remains conjunction; unary `&&value` has no access-prefix interpretation. Capture-list names

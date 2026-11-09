@@ -36,6 +36,25 @@ never carried dependencies/storage requirements. Returning a view into a taken c
 buffer is still invalid if the callee's separate buffer dies; no retargeting to the caller occurs.
 Local guards that revoke access are roots even when the raw backing bytes survive.
 
+### Incoming Origins
+
+On a read/take ordinary input, an authored from clause bounds its incoming carried dependency/
+storage slots under the public type/schema contract. Validate those slots against the resolved
+input sources before invocation commit, preserving read/update strengths and actual identities.
+Omitting the clause adds no incoming-origin upper bound beyond the type/schema; do not infer
+a new caller precondition from another input, a private body or result-origin elision.
+It is not a post-call state promise, a type qualifier or authority to create an alias/owner.
+The direct access used to supply a read input is separate: from static does not require that
+input's descriptor variable to live forever. Independent incoming data satisfies an empty
+outside-dependency obligation without inventing slots.
+
+A taking snapshot/transfer preserves carried dependencies. Its bound cannot retarget them into
+another root, outlive their backing/guard or supply an exclusive duplicate. A pack clause applies
+to every supplied entry/component, including keyed keys; a tuple leaf names its resolved input
+path. Resolve against the complete header, without origin-name-driven parsing. Read/take inputs
+can still have outside write/cleanup effects through capabilities: an incoming bound does not
+erase those transitions. General capability/schema and source conformance proof remains required.
+
 ### Edited-State Origins
 
 A clause on an edit input bounds its complete post-call dependency state, on normal and outward

@@ -36,7 +36,7 @@ Default prefixes the ordinary callable head, including its staging word when pre
 grammar is not independently restated for interface operations.
 
 Interfaces may require receiver methods, type-owned construction functions and the supported
-comparison/index operation shapes. Construction functions must construct implementing `Self`
+comparison/index/current-projection and expansion operation shapes. Construction functions must construct implementing `Self`
 under [type behavior](type-behavior.md#functions-and-methods); this does not admit receiverless
 utility functions. Interfaces do not define fields, literal storage, destructors or arbitrary
 operator spellings. Every operation is identified by its owning interface plus member identity,

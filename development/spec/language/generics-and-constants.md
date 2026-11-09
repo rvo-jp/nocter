@@ -169,6 +169,11 @@ component preparation, access and remaining-entry cleanup in the evaluator. Ever
 must satisfy the ordinary const domain; variadic syntax cannot admit an allocator, runtime
 callback/capture execution or forbidden destructor that an ordinary const call would reject.
 
+[Synchronous traversal](iteration.md) uses the same checked source, cursor and projection/value
+operations. Required CTFE needs const-capable selected implementations and ordinary access/
+cleanup validity; neither a for statement nor a protocol name makes a runtime-only operation
+evaluable. Frozen intrinsic array/pack plans and user witnesses share the same evaluator boundary.
+
 ## Constants, Statics and Final Values
 
 A `const NAME: Type = expression` is storage-independent data, not an addressable owner. A

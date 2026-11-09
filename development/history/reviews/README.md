@@ -34,6 +34,7 @@ they do not make reviews normative or register compiler support.
 - [Enum Schemas and Pattern Operations](v2.0.0-enum-and-pattern-contracts.md) — complete/opaque enums, explicit branch access, tuple input paths and entry cleanup; not compiler or evaluator qualification
 - [Fixed Aggregate Contracts](v2.0.0-fixed-aggregate-contracts.md) — tuple/array construction, exact empty-array Copy, owning element moves and conditional remainder cleanup; not compiler or evaluator qualification
 - [Variadic Input Contracts](v2.0.0-variadic-input-contracts.md) — ordinary/keyed argument sequences, built-in expansion, pack captures and phase-preserving cleanup; not compiler or evaluator qualification
+- [Synchronous Traversal Contracts](v2.0.0-iteration-contracts.md) — shared for/expansion protocols, current-place projection, source acquisition and retained-root/cleanup conditions; not compiler or evaluator qualification
 
 #### Implementation and Verification
 

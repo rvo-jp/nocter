@@ -276,12 +276,27 @@ reservations, cleans constructed prepared values in reverse order, and does not 
 reserved owner. Earlier executed moves in nested value construction and other effects are not
 rolled back. Once invoked, received values belong to the callee even if it fails.
 
-A read call may use a fresh non-Copy value without cloning. Its evaluation temporary survives
+A read or edit input/receiver may use an already produced value through a caller-owned
+evaluation temporary, without cloning. Read lends read access; edit lends update access to
+that temporary. This does not turn the expression into an assignable place or local alias
+initializer. A direct existing place still needs its own authority: never snapshot a fixed/
+read place or construct an adapter/wrapper merely to repair an edit input. Grouping preserves
+that direct category. Explicit value construction instead keeps its already selected copies,
+moves and effects before lending the resulting temporary.
+Already formed capability/capture accesses remain active under their own schema; storing the
+value as an operand does not downgrade those accesses to deferred reservations.
+
+Its evaluation temporary survives
 through the enclosing statement, loop condition or block-result evaluation. Install/stage a
 result before cleaning remaining evaluation temporaries in reverse construction order. A result
 cannot escape while still depending on a temporary that is cleaned. Moving a temporary into an
 owner transfers its cleanup obligation. Cancellation unwinds nested evaluation/call/lexical frames
 in actual order. A terminal trap without unwinding does not acquire cleanup from these rules.
+
+This general temporary-update protocol is not admitted by the bounded private fragment's
+direct-place-only ordinary edit-input preparation. Its current rejection does not make the source invalid
+under the broader adopted contract. Extending admission requires the same prepared owner,
+activation, temporary escape and cleanup authority rather than a synthesized source local.
 
 ## Return, Replacement and Cleanup
 

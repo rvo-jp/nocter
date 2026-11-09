@@ -10,8 +10,8 @@ or module grammar; unspecified productions remain outside the development specif
 | Spelling | Contextual grammar position |
 | --- | --- |
 | `read` | scoped read binding only |
-| `edit` | scoped update binding, input operation or enum branch input operation |
-| `take` | value-receiving input or enum branch input operation |
+| `edit` | scoped update binding, input operation, enum branch or for operation |
+| `take` | value-receiving input, enum branch or for operation |
 | `mut` | updating invocation head of a callable type |
 | `once` | consuming invocation head of a callable type |
 
@@ -60,6 +60,7 @@ V2Interface = "interface" Name V2GenericParameters? V2WhereClause?
               "{" LineSequence(V2InterfaceMember) "}"
 V2InterfaceMember = "type" Name V2InterfaceBounds?
                   | V2InterfaceCallable | V2Comparison | V2IndexProjection
+                  | V2CurrentProjection | V2Expansion
 V2InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 V2InterfaceCallable = "default"? (V2FunctionHead | V2MethodHead)
                       V2GenericParameters? V2Parameters V2CallableTail V2Block?
@@ -67,7 +68,7 @@ V2TypeBehavior = "impl" V2DeclarationPattern V2WhereClause?
                  "{" LineSequence(V2BehaviorMember) "}"
 V2BehaviorMember = V2ItemDirectives? (V2Function | V2Method | V2Literal
                    | V2StructuralGrant | V2Conformance | V2Comparison
-                   | V2IndexProjection | V2Coercion | V2Expansion | V2Destructor)
+                   | V2IndexProjection | V2CurrentProjection | V2Coercion | V2Expansion | V2Destructor)
 V2Method = V2MethodHead V2GenericParameters? V2Parameters V2CallableTail V2Block?
 V2StructuralGrant = "literal" "{" List(Name) "}"
 V2Literal = "literal" ("[" "]" | "[" ":" "]" | EmptyStringLiteral)
@@ -93,7 +94,7 @@ These envelopes deliberately depend on the separately owned value/access product
 lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
 for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
-In particular typed sequence/string literal and general user expansion behavior, generic solving,
+In particular typed sequence/string literal behavior, generic solving,
 primitives, target selection and package discovery still need their owning contracts before
 compiler admission. A complete whole-language grammar is not claimed here; published productions
 are never an implicit fallback.
@@ -153,6 +154,8 @@ V2Throw = "throw" V2Expression
 V2Drop = "drop" Name
 V2IndexProjection = "operator" "(" "edit"? "self" "[" V2OrdinaryParameter "]" ")"
                     ":" V2Type V2OriginClause? V2WhereClause? V2Block?
+V2CurrentProjection = "operator" "(" "edit"? "self" "[" "]" ")"
+                      ":" V2Type V2OriginClause? V2WhereClause? V2Block?
 
 V2Closure = "(" V2ClosureHead ")" (":" V2Type V2OriginClause?)? V2Block
 V2ClosureHead = (V2ValueCaptures ";" V2ClosureParameters? | V2ClosureParameters)?
@@ -213,7 +216,7 @@ V2WhereClause = "where" V2Predicate ("," V2Predicate)*
 V2Predicate = V2RequirementSubject "impl" InterfaceApplication
              | Name ":" V2Type | "copy" V2RequirementSubject | V2Type "=" V2Type
              | "(" V2Type ("==" | "<") V2Type ")" ":" V2Type
-             | "(" "edit"? V2Type "[" V2Type "]" ")" ":" V2Type
+             | "(" "edit"? V2Type "[" V2Type? "]" ")" ":" V2Type
              | V2InputOperation? V2Type "as" V2Type
              | "(" "..." V2InputOperation? V2RequirementSubject ")" ":" V2Type
 V2RequirementSubject = (Name | "Self") V2TypeMember*
@@ -309,8 +312,35 @@ The selected formal header determines the fixed-prefix/ordinary-tail/keyed-tail 
 never searches another target or treats a key as a parameter-name label. Spread contributes to
 the final pack only. It is not a standalone expression, a fixed-prefix arity splice or an
 invocation of an undeclared iterator/user expansion operator. Built-in pack/fixed-array carriers
-and receiving component preparation are resolved once after recognition. Other expansion
-operators and typed literal contributions remain separate draft subjects.
+and receiving component preparation are resolved once after recognition. General synchronous
+expansion is owned below; typed literal contributions remain a separate draft subject.
+
+### Synchronous Iteration and Expansion Operators
+
+[Iteration](iteration.md) owns loop acquisition, step/binding and exit scheduling. The
+[traversal interfaces](../library/iteration.md) own exact library declaration roles:
+
+```text
+V2For = "for" V2InputOperation? V2Pattern "in" V2Header V2Block
+V2Expansion = "operator" "(" "..." V2Receiver ")"
+              ":" V2Type V2OriginClause? V2WhereClause? V2Block?
+```
+
+Read is unmarked; edit/take choose one fixed traversal/source family before checking authority.
+Recognize an operation prefix only when its following complete pattern and in delimiter fit;
+`for take in source` instead binds an unmarked name take. There is one common tuple pattern,
+not a separate colon-key binder or range-only source syntax. A source header is an ordinary
+expression stopped at its outer block delimiter, without type-name reparsing.
+
+Read/edit current projections use the zero-input V2CurrentProjection family above. A joint
+postfix `[]` requests that place; `[()]` retains a different one-input index identity. The
+generic projection requirement above admits both families by whether an index type occurs.
+An expansion result is ordinary data with the required cursor conformance, not a new opaque
+result declaration, implicit future, failure layer or coroutine. Bodyless required interface
+expansion operations bind an associated cursor type under ordinary conformance rules.
+
+For-await remains a separate draft production, without automatic async/fallible protocol choice.
+These recognition rules do not implement parser, effect/root, cursor, executable or target paths.
 
 ### Outcome Elimination and Recovery
 
@@ -401,6 +431,10 @@ value-binding initializer instead constructs a value even if it is a bare place.
 their input operations before planning direct-place preparation; a computed conditional operand
 has already constructed its ordinary branch value and cannot be reinterpreted as an alias.
 
+At a call/control input boundary, that produced value can lend read/edit through its owned
+evaluation temporary under the value-access contract. It remains a value expression, not an
+assignment/local-alias place. A direct fixed/read place is not snapshotted to invent edit rights.
+
 Blocks retain a prefix of local `use` declarations, newline-separated statements, a possible
 final expression and ordinary unit completion. A non-final expression must be unit or terminating.
 Assignment remains a statement with RHS-first semantics; it has no expression precedence.
@@ -428,6 +462,11 @@ and source fixtures must share one accepted-unit authority. The
 distinguishes that replacement from the earlier checkpoint and from full-language support.
 
 ### Bounded Value Binding Fragment
+
+This implemented fragment has not admitted the later temporary-update input protocol. Its edit
+preparation for ordinary edit data inputs is limited to direct authorized places, even when the broader adopted language can
+lend update from a produced value. Current rejections on that path are not evidence of future
+v2.0.0 invalidity; source/preparation/access/resource admission must migrate together.
 
 The bounded S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
 supplied private module. This is its new source contract, not a compatibility variant or a public

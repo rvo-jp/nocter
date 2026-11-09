@@ -43,7 +43,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | `E0382` | Loop exit outside a loop |
 | `E0383` | Explicit drop does not name an owning value binding |
 | `E0384`, `E0386` | Non-writable assignment target or invalid numeric compound target |
-| `E0387` | Alias creation/update input lacks the required initialized place/authority |
+| `E0387` | Alias creation/direct update input lacks the required initialized place/authority |
 | `E0390` | Invalid selected call target or argument count |
 | `E0407` | Invalid typed discard |
 
@@ -56,9 +56,11 @@ operation, relate that selected contract when explaining its mismatch. Do not de
 annotation as overriding that input operation. A fixed value supplied to an edit input needs an intentional
 mutable binding; do not silently rewrite it. A view descriptor Copy still retains its dependencies.
 
-A field of a computed record value delivers a value, not existing mutable storage. Reject alias
-creation, assignment or edit-input supply at that attempted operation; explain the need to bind
-an intentional owner before taking scoped access. Grouping a read/edit alias does not convert
+A field of a computed record value delivers a value, not existing mutable storage. Reject local
+alias creation or assignment at that attempted operation. The adopted future call protocol can
+lend update access through its owned temporary; the current bounded checker has not admitted
+that path. Do not call its current non-place rejection proof of future language invalidity.
+An immutable direct source still cannot gain edit through an invented snapshot. Grouping a read/edit alias does not convert
 its referent into an owning result. Preserve known result types on interrupted evaluation, so
 unknown fields and data mismatches still report their structural cause without inventing a
 runtime access on that path.
@@ -250,7 +252,8 @@ remain resources, and independent invalid element declarations remain invalid at
 For an unavailable selected element, relate the containing owner, frozen index/position,
 contributing move and later demand. Distinguish a provably missing element from inability to
 prove a dynamic selection disjoint/initialized. A computed aggregate has no existing place for
-a scoped alias. A user index projection/read/edit input has no owning extraction right; an
+a scoped local alias/assignment. A call can lend update to the produced value in its own
+temporary; it does not gain ownership of the original field or container. A user index projection/read/edit input has no owning extraction right; an
 owning fixed-array subplace can have one. Explain that category instead of recommending a
 transfer prefix, blanket constant-index restriction or implicit removal API for every array.
 
@@ -284,3 +287,23 @@ For a from on a trailing callable type, identify its syntactically selected resu
 origin scope. An unknown inner name cannot trigger outer-state reinterpretation. Relate the
 required complete-type grouping when explaining an intended enclosing relation; a second
 ungrouped from does not provide an alternative spelling.
+
+## Traversal Diagnostics
+
+For [synchronous traversal](../language/iteration.md), report the selected read/edit/take family,
+missing operator/cursor evidence, associated Item/Cursor mismatch and unavailable source rights.
+Do not infer take from body use, rank by Copy, call a same-spelled next method or recommend
+unit indexing as a current-projection alias. Current-place data containing ! is not an operator
+failure envelope. A retired colon-key/range-only loop head is not an alternate valid style.
+
+For a failed step/expansion, show the current/prepared entry, actual backing or guard root, and
+advance/cleanup operation that invalidates it. Separate safe sequential for use from simultaneous
+variadic retention. A missing stable-root proof cannot silently trigger Copy, hidden cursor-owner
+retention, a delayed destructor or an inferred authority requirement. Generic schema conditions
+are checked at their definition/actual binding without private-body lookup or retyping.
+
+Distinguish array whole-value loop acquisition, pack component acquisition, direct argument
+reservations and already executed user-source/pull transfers. Count overflow follows the prepared
+logical entry. A break does not pull another item; a cancellation does not drain the producer.
+Qualify exact diagnostic codes and real parser/source/root/effect/cleanup/evaluator/target cases
+before admission; documentation cases are not implemented diagnostic behavior.

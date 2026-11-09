@@ -58,7 +58,11 @@ of information:
    [Variadic inputs](spec/language/variadic-inputs.md) own ordinary/keyed argument sequences,
    built-in expansion, capture and component cleanup; their
    [review](history/reviews/v2.0.0-variadic-input-contracts.md) separates those source rules from
-   unclosed user expansion/literal protocols and missing compiler/evaluator/target qualification.
+   missing compiler/evaluator/target qualification.
+   [Synchronous traversal](spec/language/iteration.md) and its
+   [library protocols](spec/library/iteration.md) own for/current-place and user expansion;
+   their [review](history/reviews/v2.0.0-iteration-contracts.md) records sequential versus
+   accumulated access, public schema conditions and unimplemented qualification obligations.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).
