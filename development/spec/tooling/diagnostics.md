@@ -118,3 +118,32 @@ Keep these causes separate from missing generic Copy evidence and data-type mism
 compiler can end access after the last required use/cleanup; do not recommend broader scopes,
 clones, resource-lifetime extension or symbols on every call as automatic repairs. Passing these
 checks still requires resource/cleanup and native realization validation.
+
+## Module and Operation Contract Diagnostics
+
+For the adopted [module](../language/modules.md), [type behavior](../language/type-behavior.md)
+and [interface](../language/interfaces.md) scope, distinguish these obligations:
+
+- A root body/initializer/private helper identifies the forbidden file role; do not silently
+  publish it or move it to another source.
+- A missing direct `see` names the source dependency needed at that use/pairing, without
+  propagating visibility transitively. A cross-module `see` explains the module boundary and
+  the need for a module contract rather than suggesting a longer filesystem path.
+- A header mismatch relates both declarations and the differing component. A duplicate body
+  relates both definitions; neither failure triggers signature-based replacement selection.
+- Invalid visibility focuses the path/subject. A widening re-export identifies both audiences
+  and its target; inaccessible signature data identifies the exposed declaration and its bound.
+- A structural grant missing/duplicating a field identifies the grant and field schema. A
+  forbidden private completion of its closed schema explains that the grant already owns it.
+  An opaque struct lacking its definition is a different failure.
+- A conformance failure identifies its exact interface member or associated declaration and
+  selected helper/binding. Missing, duplicate, incompatible and redundant mappings are distinct.
+  Adding an inherent method does not satisfy an explicit default override.
+- A name collision lists the distinct operation identities, not merely two equal signatures.
+  Offer required `value.(Interface.member)(...)` selection only for a genuine collision, not
+  as an alternate style or a way to obtain missing authority.
+- A destructor-effect or partial-state failure relates the offending operation and the complete,
+  immediate cleanup obligation. A helper's name cannot establish that it is safe to call.
+
+Fix exact diagnostic code registration before compiler admission. These requirements do not
+invent numeric codes or claim that the bounded private front end handles these subjects.

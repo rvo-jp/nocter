@@ -31,6 +31,10 @@ of information:
 1. **Source semantics:** the future [Value Access Model](spec/language/value-access.md) and its
    linked owning chapters. The [bounded value-binding grammar](spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
    defines the private-unit source boundary; the broader future grammar is a separate scope.
+   [Modules](spec/language/modules.md), [type behavior](spec/language/type-behavior.md) and
+   [interfaces](spec/language/interfaces.md) define adopted source roles and operation binding;
+   their [migration review](history/reviews/v2.0.0-module-and-operation-contracts.md) records the
+   reading exercise and remaining design gates without claiming compiler support.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

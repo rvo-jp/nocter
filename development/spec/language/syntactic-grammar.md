@@ -15,11 +15,96 @@ or module grammar; unspecified productions remain outside the development specif
 | `mut` | updating invocation head of a callable type |
 | `once` | consuming invocation head of a callable type |
 
+## Files and Declarations
+
+These productions own the adopted file/declaration envelopes for
+[modules](modules.md), [type behavior](type-behavior.md) and [interfaces](interfaces.md).
+File role is checked after recognition: a root cannot contain a body/initializer just because
+the shared production can recognize one. An ordinary interface fragment completing defaults
+and a root interface contract have the same syntactic head and one explicitly paired identity.
+Similarly, a public struct contract and its private representation are not two nominal types.
+
+```text
+V2SourceFile = newline* (V2PackageDirectives newline+)?
+               (V2Dependencies (newline+ V2Items)? | V2Items)? newline* eof
+V2Dependencies = V2Dependency (newline+ V2Dependency)*
+V2Dependency = "see" V2SeePath | V2ItemDirectives? "use" V2UseTree
+V2SeePath = ("./" | "../"+) ModuleSegment ("/" ModuleSegment)* ".nct"
+V2UseTree = V2ModulePath ("as" Name)? | "/" "as" Name
+          | (V2ModulePath | "/") "." V2ImportSelection
+V2ImportSelection = Name ("as" Name)? | "{" NonEmptyList(V2SelectedName) "}"
+V2SelectedName = Name ("as" Name)?
+V2ModulePath = ModuleSegment ("/" ModuleSegment)*
+             | "/" ModuleSegment ("/" ModuleSegment)*
+             | ("./" | "../"+) ModuleSegment ("/" ModuleSegment)*
+V2ItemDirectives = V2ItemDirective (newline+ V2ItemDirective)* newline+
+V2ItemDirective = "#" ("visibility" | "target") ":" StringLiteral
+
+V2Items = LineSequence(V2Item)
+V2Item = V2ItemDirectives? (V2Function | V2Primitive | V2Constant | V2Static
+         | V2Alias | V2Struct | V2Enum | V2Interface | V2TypeBehavior | V2Test)
+V2Function = V2FunctionHead V2GenericParameters? V2Parameters V2CallableTail V2Block?
+V2Primitive = "primitive" "func" Name V2GenericParameters? V2Parameters V2CallableTail
+            | "primitive" "type" (Name | "void" | "never")
+V2Constant = "const" Name ":" V2Type ("=" V2Expression)?
+V2Static = "static" Name ":" V2Type ("=" V2Expression)?
+V2Alias = "type" Name V2GenericParameters? "=" V2Type V2WhereClause?
+V2Struct = "copy"? "struct" Name V2GenericParameters? V2WhereClause?
+           ("{" LineSequence(V2Field) "}")?
+V2Field = V2ItemDirectives? Name ":" V2Type
+V2Enum = "enum" Name V2GenericParameters? V2WhereClause?
+         ("{" LineSequence(V2Variant) "}")?
+V2Variant = Name ("(" List(V2PayloadField) ")")?
+V2PayloadField = Name ":" V2Type
+V2Interface = "interface" Name V2GenericParameters? V2WhereClause?
+              "{" LineSequence(V2InterfaceMember) "}"
+V2InterfaceMember = "type" Name V2InterfaceBounds?
+                  | V2InterfaceCallable | V2Comparison | V2IndexProjection
+V2InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
+V2InterfaceCallable = "const"? "async"? "default"?
+                      ("func" Name | "method" V2Receiver "." Name)
+                      V2GenericParameters? V2Parameters V2CallableTail V2Block?
+V2TypeBehavior = "impl" V2DeclarationPattern V2WhereClause?
+                 "{" LineSequence(V2BehaviorMember) "}"
+V2BehaviorMember = V2ItemDirectives? (V2Function | V2Method | V2Literal
+                   | V2StructuralGrant | V2Conformance | V2Comparison
+                   | V2IndexProjection | V2Coercion | V2Expansion | V2Destructor)
+V2Method = V2MethodHead V2GenericParameters? V2Parameters V2CallableTail V2Block?
+V2StructuralGrant = "literal" "{" List(Name) "}"
+V2Literal = "literal" ("[" "]" | "[" ":" "]" | EmptyStringLiteral)
+            V2Parameters V2CallableTail V2Block?
+V2Conformance = "impl" V2NamedType ("{" NonEmptyList(V2ConformanceBinding) "}")?
+V2ConformanceBinding = "." Name "=" V2Type | V2OperationMapping
+V2OperationMapping = Name "=" Name
+V2Destructor = "drop" V2Block
+V2Test = "test" Name V2Block
+V2DeclarationPattern = Name ("<" NonEmptyList(Name) ">")?
+                       | BuiltinScalarType | "str" | "error" | "[" Name "]"
+```
+
+`"./"`, `"../"` and `".nct"` denote adjacent path-token sequences, not new compound tokens.
+Comments/blank lines are trivia for directive attachment. Visibility eligibility follows the
+module chapter, not merely the presence of an optional prefix in these productions. An outer
+`impl` cannot establish a visibility mode for its members. An inner conformance has one optional
+binding block: `.Item = T` and `read = read_bytes` are syntactically distinct entries without
+type lookup. Do not consume a type-binding block as part of the interface name and then require
+another block for mappings. Empty binding blocks and duplicate bindings are invalid.
+
+These envelopes deliberately depend on the separately owned value/access productions below,
+lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
+for still-unclosed package metadata, generic requirements, special operation and expression
+productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
+In particular enum exposure/exhaustiveness, typed literal/pack behavior, generic solving,
+primitives, target selection and package discovery still need their owning contracts before
+compiler admission. A complete whole-language grammar is not claimed here; published productions
+are never an implicit fallback.
+
 ## Access Syntax
 
 These productions close the S12 value/input/callable/alias source boundary. They are separate
-from the released grammar. The complete declaration/module, literal/operator, generic-requirement,
-platform and standard-library migrations are not implied by these productions. The implementation
+from the released grammar. The file/declaration envelopes above extend their source design;
+complete literal/operator, generic-requirement, platform and standard-library migrations are not
+implied by these productions. The implementation
 design records their remaining entry gates; no old grammar is used as a fallback.
 
 ```text

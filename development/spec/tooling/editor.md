@@ -14,3 +14,22 @@ Contract navigation connects a complete implementation header to its `index.nct`
 readers do not need an editor to recover an omitted signature. Semantic tokens/references follow
 resolved identities, not contextual words or source coordinates as semantic keys. The existing
 private-unit checkpoint does not yet provide S12 editor behavior.
+
+## Contract and Interface Navigation
+
+Present each public contract/body pair as one declaration with separate contract and implementation
+locations. Definition navigation selects the root contract; implementation navigation selects its
+matched body. Public API listings include authored root `use` aliases and effective audiences,
+without publishing `see`-visible helpers or compiler-managed fallback names.
+
+For a selected interface operation, retain links to its owning interface, concrete frozen binding
+and selected default/helper. Rename of a helper must not rename a mapped interface operation.
+Associated bindings link to their owning associated declarations, not an equal spelled type in
+another interface. Completion uses source-visible identities and the contracted operation set;
+whole-program access to private bodies is not a source visibility grant.
+
+Show a structural grant as construction availability and a destructor as automatic lifecycle
+behavior, without suggesting a callable `drop` API. Signature help exposes full input/result and
+origin contracts; it cannot depend on reading an implementation body to reconstruct the public
+surface. These contracts follow [module rules](../language/modules.md) and
+[interface binding](../language/interfaces.md), without claiming implemented v2.0.0 editor support.

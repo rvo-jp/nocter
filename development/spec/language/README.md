@@ -12,7 +12,9 @@ Unspecified full-language productions remain open; the bounded grammar declares 
 7. [Memory, Regions, and Allocators](memory-and-regions.md)
 8. [Nominal Payloads](structs-and-enums.md)
 9. [Equality and Index Projections](equality-and-indexing.md)
-10. [Module Contracts and Implementation Signatures](modules.md)
-11. [Asynchronous Frame Storage](asynchronous-computations.md)
+10. [Modules, Visibility and Implementation Signatures](modules.md)
+11. [Type-Owned Behavior and Construction](type-behavior.md)
+12. [Interfaces and Static Operation Binding](interfaces.md)
+13. [Asynchronous Frame Storage](asynchronous-computations.md)
 
 The [development specification](../README.md) defines version scope and promotion policy.

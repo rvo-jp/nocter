@@ -10,6 +10,20 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+The user requested source-design closure before resuming executable lifecycle implementation.
+The [module/operation checkpoint](history/reviews/v2.0.0-module-and-operation-contracts.md)
+migrates directory/see/use/visibility, root/source roles, schema ownership, type behavior,
+interface/default binding and file/item envelopes into owning development chapters. It fixes the
+missing associated-binding production with one mixed conformance block. Closed public structural
+records need no private schema copy; partial/opaque contracts require one private representation.
+These are source design contracts, not additional compiler acceptance.
+
+Next close the remaining generic/associated/opaque/CTFE, enum/pattern, typed-literal/pack/coercion,
+outcome and async subjects in owning chapters, audit the assembled grammar and integrated reading
+examples, then resume the bounded executable-lifecycle task below. Keep draft productions and
+future conformance obligations distinct from the 283 production corpus cases. No human-decision
+or external-authorization blocker is established for this design work.
+
 S12–S16 define the adopted value-binding direction. The user delegated the input-default decision
 and subsequent v2.0.0 source/design/planning/work to the agent. The selected default remains
 unmarked read, with edit/take explicit; no explicit-read input alias or type/name/body-based
@@ -92,10 +106,10 @@ consumption of the changed path under the [verification selection policy](verifi
 The current private fragment does not reach LSP or native products, so their runtime tests are not
 feature evidence. Workspace static checks still verify API compatibility.
 
-Then extend generic/callable/interface contracts, capabilities, outcomes/async
-and public modules under closed owning contracts, followed by target/ABI and native lifecycle
-realization. The four-type fragment's empty D/S evidence is an exact contract, not a generic
-inference result. Full-language grammar assembly remains a draft.
+Extend compiler acceptance of generic/callable/interface contracts, capabilities, outcomes/async
+and public modules only under their closed owning contracts, followed by target/ABI and native
+lifecycle realization. The four-type fragment's empty D/S evidence is an exact contract, not a
+generic inference result. Remaining whole-language grammar assembly stays a draft.
 
 Read each owning crate README before editing. The
 [implementation design](history/reviews/v2.0.0-value-binding-implementation.md) retains the broader
@@ -105,9 +119,10 @@ Earlier [pre-S12 contracts](history/reviews/v2.0.0-access-checkpoint-contracts.m
 evidence; their incompatible executable fixtures and source paths have been retired. Keep current
 released behavior and release artifacts unchanged.
 
-Full v2.0.0 still needs remaining item/module/visibility/construction, generic/interface/CTFE/effect,
-outcome/async, library and platform realization, plus matching formatting/diagnostics/editor
-implementations. Migrate each owning subject before accepting it in the compiler. Audit the
+Full v2.0.0 still needs module/type-operation source implementation and the remaining
+generic/interface/CTFE/effect, enum/outcome/async, library and platform closure/realization, plus
+matching formatting/diagnostics/editor implementations. Migrate each remaining owning subject
+before accepting it in the compiler. Audit the
 previously noted derived-ordering selector/text discrepancy separately from release artifacts.
 
 Follow the [research-to-experiment plan](history/reviews/v2.0.0-runtime-performance-research.md#turning-research-into-nocter-experiments)

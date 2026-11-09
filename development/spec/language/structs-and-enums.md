@@ -11,6 +11,13 @@ ordered field schema. Distinct fields remain distinct semantic places even when 
 and names in other structs are identical. Field names are unique within their struct. A field
 name does not reserve the same spelling in another struct or in the type namespace.
 
+This chapter's complete schemas and raw field construction apply to a private definition or an
+explicitly closed public structural schema. A root's visible fields alone are not a complete
+representation. [Module contracts](modules.md#nominal-representation-and-visible-fields) select
+the single complete schema owner; an outside caller needs the
+[structural grant](type-behavior.md#structural-literal-grants) or a construction function.
+Public enum exposure/exhaustiveness is not closed by these struct rules.
+
 Ordinary structs are move-only. `copy struct` explicitly permits structural Copy only when every
 field has Copy evidence and the struct has no user destructor. An ordinary empty struct and an
 ordinary struct containing only Copy fields remain move-only. An empty `copy struct` satisfies
