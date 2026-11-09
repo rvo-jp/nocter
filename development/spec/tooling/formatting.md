@@ -86,3 +86,16 @@ grouping required to keep an identifier expression outside that contextual prefi
 an explicit-read branch mode, infer take from body use, remove required payload underscores or
 generate a catch-all that changes structural coverage. Discard cleanup and branch results remain
 semantic operations, not formatter repairs.
+
+## Tuple and Fixed-Array Formatting
+
+Format tuple values as `(left, right)` and fixed-array lists as `[first, second]`; repetition is
+`[value; count]`, with no space before its semicolon and one after it. Unit and grouping retain
+their distinct `()` and `(expression)` roles. A formatter cannot invent a single-element tuple,
+expand repetition into repeated producer calls, omit zero-count evaluation or insert a spread.
+
+Keep primitive selection joint with its base, as in `pair.0` and `items[index]`. A spaced typed
+literal is a separate family; whitespace normalization cannot turn selection into construction.
+Preserve authored count expressions and component order rather than sorting, evaluating or
+rewriting types from a hidden representation. Formatting cannot restore a missing element,
+convert a computed selection into a place, or replace an owning move by a projected access.

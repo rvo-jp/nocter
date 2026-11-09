@@ -93,7 +93,7 @@ These envelopes deliberately depend on the separately owned value/access product
 lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
 for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
-In particular typed literal/pack behavior, generic solving,
+In particular typed sequence/string literal and pack behavior, generic solving,
 primitives, target selection and package discovery still need their owning contracts before
 compiler admission. A complete whole-language grammar is not claimed here; published productions
 are never an implicit fallback.
@@ -260,6 +260,27 @@ Tuple patterns have at least two leaves at each tuple node; unit remains `()` as
 payload lists are nonempty when parentheses occur. A payloadless variant omits parentheses in
 declaration, construction and patterns. Pattern parentheses add no per-leaf operation aliases,
 rest syntax, implicit payload omission or nested enum-pattern family.
+
+### Fixed Aggregate Construction
+
+[Tuples and fixed arrays](tuples-and-arrays.md) own these value constructors and their
+component selection, Copy and partial-initialization rules:
+
+```text
+V2TupleValue = "(" V2Expression "," V2Expression ("," V2Expression)* ","? ")"
+V2Array = "[" (V2Expression ";" V2Expression | List(V2Expression)) "]"
+```
+
+`()` remains void; `(expression)` remains grouping. A tuple needs two or more components;
+an array list can be empty or have one element. A repetition count is an expression recognized
+without a type-name lookup and then checked as required compile-time usize data. Its semicolon
+is inside brackets, not a general statement/result separator. Fixed arrays have no spread or
+keyed entries. The typed sequence/string literal family remains in the assembly draft.
+
+Primitive tuple/array selection uses the common postfix productions. Their shared recognition
+does not make built-in owning subplaces and user-declared index projections the same operation.
+The checker records the selected category and supply operation once, including computed-value
+selection, without reparsing after an authority or initialization failure.
 
 ### Outcome Elimination and Recovery
 

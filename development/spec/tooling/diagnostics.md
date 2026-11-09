@@ -234,3 +234,26 @@ show the ignored root, binding and later use/cleanup. Ignoring a read/edit leaf 
 its owner; an ignored owned fallible leaf still follows the failure-loss warning. A tuple
 parameter keeps one argument index with projected names; no arity repair may flatten its leaves.
 Exact code registration and production parser/flow/resource tests precede admission.
+
+## Structural Aggregate Diagnostics
+
+For [tuples and fixed arrays](../language/tuples-and-arrays.md), distinguish invalid tuple arity,
+unknown empty-array element type, component mismatch, expected-length mismatch and a count that
+is not valid required compile-time usize data. Relate the selected expected type or failing
+constant dependency rather than guessing a container, coercion or literal entry.
+
+A repetition failure identifies the element's missing source-context Copy evidence and count;
+a zero count still has producer/cleanup effects. Do not ask for T Copy to snapshot an exact
+`[T; 0]`, or infer Copy for symbolic N from one known caller. Positive-count zero-sized elements
+remain resources, and independent invalid element declarations remain invalid at count zero.
+
+For an unavailable selected element, relate the containing owner, frozen index/position,
+contributing move and later demand. Distinguish a provably missing element from inability to
+prove a dynamic selection disjoint/initialized. A computed aggregate has no existing place for
+a scoped alias. A user index projection/read/edit input has no owning extraction right; an
+owning fixed-array subplace can have one. Explain that category instead of recommending a
+transfer prefix, blanket constant-index restriction or implicit removal API for every array.
+
+Required const indexing failure reports its evaluated out-of-range operation. Runtime indexing
+retains its checked trap contract; the checker must not fabricate an optional or fallible layer.
+Exact diagnostic registration and source/resource/evaluator/target qualification precede admission.

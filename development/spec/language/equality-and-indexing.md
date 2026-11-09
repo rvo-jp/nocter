@@ -67,6 +67,8 @@ exclusive capability cannot become Copy through indexing. Root and range identit
 precise enough for disjointness, and every potentially invalidating resize/relocation conflicts
 while needed access remains. Unknown invalidation is conservative, not hidden address repair.
 
-Primitive tuple/field/array projections retain their owning/subplace rules and are not invented
-operator calls. Exact array extraction/partial-initialization rules and the library index ABI must
-be closed before native integration; this source decision does not prove their implementation.
+Primitive tuple/field/fixed-array selections retain their owning/subplace rules and are not
+invented operator calls. [Tuples and fixed arrays](tuples-and-arrays.md#primitive-component-selection)
+own those structural selections and array extraction/partial initialization. An owning fixed-array
+element can transfer under those rules; this does not turn a user index projection into an owner.
+General library index schemas/ABI and native integration remain unqualified.

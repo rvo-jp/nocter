@@ -158,10 +158,11 @@ semantics apply; host arithmetic or host layout cannot substitute. Evaluate supp
 and conditional paths normally, while still checking the other paths structurally. Arithmetic
 failure on an evaluated required-constant path is a compilation error, never runtime initialization.
 
-Array repetition evaluates its element once and requires source Copy evidence when more than one
-element is needed. A zero count still evaluates and normally cleans that produced element. This
-is not an implicit clone or permission to skip effects. Final array count must be a closed valid
-usize. Full array source/runtime operation contracts remain required before executable admission.
+[Fixed aggregate construction](tuples-and-arrays.md#repetition-and-copy) owns repetition's
+once-only element evaluation, zero-count disposal and source-context Copy requirement. The
+evaluator uses those same operations, including checked indexing and partial initialization;
+it does not invent a pure zero-count shortcut. Final array count must be a closed valid usize.
+Evaluator/resource/target implementation and production conformance remain required.
 
 ## Constants, Statics and Final Values
 

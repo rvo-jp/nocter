@@ -55,6 +55,8 @@ the field whose declared type leads into the non-finite schema. A separately spe
 container capability can terminate direct containment; mentioning an element type behind that
 capability does not itself imply direct containment. This rule does not forbid recursive data
 structures through those independently checked contracts or prescribe physical storage placement.
+A [proven empty fixed array](tuples-and-arrays.md#scope-and-identity) contains no element and
+therefore contributes no by-value edge; this is not implicit recursive boxing.
 
 ```nct
 struct Invalid {

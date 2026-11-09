@@ -80,8 +80,10 @@ Nominal structs opt in with `copy struct`; private Copy fields alone do not make
 nominal Copy. [Enums](structs-and-enums.md#copy-contracts) expose their scalar or opted-in
 `copy enum` policy; a private completion cannot give an opaque root an unadvertised Copy rule.
 Scalars, unit and supported raw boundary values permit Copy.
-Tuples, fixed arrays and optionals require Copy for every component, independently of active
-branch or length. Generic code needs declared evidence. `error`, fallible outcomes and futures
+Tuples and optionals require component Copy evidence, independently of a runtime active branch.
+[Fixed arrays](tuples-and-arrays.md#repetition-and-copy) require element Copy evidence unless
+their exact length is proven zero. Generic code needs evidence in its own checking context;
+an unknown count or a later specialization does not supply it. `error`, fallible outcomes and futures
 remain move-only. Copy types cannot have user destructors. A closure's Copy evidence depends on
 its captures, not its invocation kind. Exclusive update capabilities are non-Copy even when their
 element type is Copy.
@@ -318,6 +320,10 @@ parts. If every field has moved, cleanup releases the empty containing slot with
 field again. This completed-value rule is separate from cleaning a failed construction, whose
 successfully initialized operands are cleaned in reverse actual initialization order under the
 construction contract.
+
+[Structural aggregates](tuples-and-arrays.md) apply the same distinction to tuple fields and
+fixed-array elements, including exact conditional remaining-element cleanup after dynamic moves.
+This does not grant owning extraction through a read/edit or user index projection.
 
 An explicit `drop name` ends a definitely present owning container, including a fixed or Copy
 binding, and makes it unavailable. For a record without a user destructor it cleans remaining

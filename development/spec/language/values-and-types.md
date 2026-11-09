@@ -38,6 +38,10 @@ it does not construct a new nominal type. Structural constructors preserve the i
 order of their components. Storage placement and machine calling conventions do not decide
 source type identity.
 
+[Tuples and fixed arrays](tuples-and-arrays.md) own their structural shapes, required length
+identity, component selection and empty-array Copy proof. Those operations do not assign
+read/edit/owned qualifiers to the component data types or define the dynamic `[T]` family.
+
 Compatibility is checked for the selected boundary. Exact data identity alone does not establish
 availability, Copy, input authority, result origins or retained-state validity. Any permitted
 injection, callable adapter or future erasure must be justified by its owning constructor or

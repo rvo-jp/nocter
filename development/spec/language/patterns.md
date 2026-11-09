@@ -118,6 +118,9 @@ on a successful pattern, rollback or permission-based fallback to read mode.
 Bindings/tag facts describe the received snapshot for a Copy take, not an alias of the original
 source. Existing index/outcome projection rights still govern the operand: take does not make
 a projected container element an owning source for non-Copy removal.
+A primitive [owning fixed-array element](tuples-and-arrays.md#primitive-component-selection)
+instead has its own structural subplace rights; this is not a fallback from a failed user index
+projection to another ownership operation.
 
 ## Variant Identity and Coverage
 

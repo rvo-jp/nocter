@@ -51,6 +51,10 @@ of information:
    [patterns](spec/language/patterns.md) own branch access, coverage, tuple paths and cleanup;
    their [review](history/reviews/v2.0.0-enum-and-pattern-contracts.md) separates those rules
    from missing compiler/evaluator/layout evidence.
+   [Tuples and fixed arrays](spec/language/tuples-and-arrays.md) own structural construction,
+   repetition, component selection and partial initialization; their
+   [review](history/reviews/v2.0.0-fixed-aggregate-contracts.md) records empty-array Copy and
+   dynamic owning-element proof obligations separately from unclosed sequence/pack protocols.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

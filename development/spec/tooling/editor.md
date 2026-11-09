@@ -84,3 +84,17 @@ position and semantic projection paths; callable hover does not invent flattened
 Explain the specific live payload/tag access preventing mutation and the cleanup responsible
 for an ignored owner. Consume the compiler's selected plan and coverage evidence, without an
 editor-side pattern resolver or another cleanup analysis.
+
+## Structural Aggregate Presentation
+
+Present tuple positions and fixed-array element/length identity from canonical checked data.
+Hover can show the evaluated count while retaining navigation to its authored expression.
+Distinguish an exact empty-array Copy proof from Copy of its element type; zero-byte positive
+counts must not be displayed as resource-free by byte size alone.
+
+Show whether selection denotes an owning structural subplace, read/edit projection or computed
+component value. Optional transfer hints and initialization explanations use the frozen position/
+index relation, source-context supply choice and cleanup evidence. They must not rerun index
+expressions, infer a separate owner ledger, flatten an array into fields in a public signature,
+or offer an alternate parse after a failed proof. These presentation requirements are not
+implemented v2.0.0 editor support.

@@ -11,46 +11,22 @@ Linux target work remains deliberately deferred.
 ## Next Work
 
 The user requested source-design closure before resuming executable lifecycle implementation.
-The [module/operation checkpoint](history/reviews/v2.0.0-module-and-operation-contracts.md)
-migrates directory/see/use/visibility, root/source roles, schema ownership, type behavior,
-interface/default binding and file/item envelopes into owning development chapters. It fixes the
-missing associated-binding production with one mixed conformance block. Closed public structural
-records need no private schema copy; partial/opaque contracts require one private representation.
-These are source design contracts, not additional compiler acceptance.
+The [source reading order](README.md#value-binding-reading-order) links adopted owning chapters
+and their non-normative migration reviews; use those instead of duplicating completed source
+decisions here. These contracts do not extend the bounded private compiler or its 283-case corpus.
 
-The [generic/constant/opaque checkpoint](history/reviews/v2.0.0-generic-and-constant-contracts.md)
-closes selected argument/inference/type-selector, CTFE/final-data and result-identity rules. A
-constant is a fresh resource-free value recipe; a static is an immutable place. Closed const
-results can determine array types through the same evaluator. Proof, evaluator, serializer and
-opaque-result compiler qualification remain unimplemented.
+The latest [fixed-aggregate checkpoint](history/reviews/v2.0.0-fixed-aggregate-contracts.md)
+closes tuple/fixed-array construction, exact empty-array Copy, primitive owning subplaces and
+dynamic-index partial initialization/cleanup. Source/evaluator/target implementations remain
+unqualified. It deliberately does not define dynamic `[T]`, typed sequence/string entries,
+variadic input receipt or expansion by analogy with fixed arrays or released APIs.
 
-The [outcome access checkpoint](history/reviews/v2.0.0-outcome-access-contracts.md) closes
-selected construction/forwarding, throw, nested optional, scoped payload projection and
-failure-loss warning rules. Read/edit access to a payload does not create an owner; failure
-propagation still needs an owned error. The ordinary some prelude contract has a development
-owner. These rules and their cases are not admitted by the current compiler.
-
-The [async/effect checkpoint](history/reviews/v2.0.0-async-and-effect-contracts.md) separates
-construction/drive/cleanup, pending cancellation and ready-output disposal. Completion uses
-authored edited-state bound B; pending cancellation permits Entry union B after cleanup, rather
-than asserting that an unstarted body completed. Ready-output disposal also composes its own
-outside-write schema. Conditional wait/progress effects remain inferred without modifiers.
-Producer/await source roles are selected; runtime solvers, frames, library task/iteration and
-entry/platform realization are unimplemented.
-
-The [enum/pattern checkpoint](history/reviews/v2.0.0-enum-and-pattern-contracts.md) selects
-complete versus opaque schemas, Copy policy and read/edit/take match/if-is operations. Tuple
-leaves keep one input position plus semantic paths; named values are staged before remainder
-cleanup. A destructor-bearing carrier stays complete. Async input receipt and pattern-entry
-discard remain separate phases. Finite eligible enum values/patterns join the same const domain.
-These are adopted contracts, not compiler, resource, evaluator or target qualification.
-
-Next close literal/pack/expansion/coercion and iteration contracts, then remaining lexical/
-expression/control, capability/library and package/platform subjects, including task/async
-iteration. Audit the assembled grammar and integrated reading examples, then resume the bounded
-executable-lifecycle task below. Keep draft productions and
-future conformance obligations distinct from the 283 production corpus cases. No human-decision
-or external-authorization blocker is established for this design work.
+Next close those literal/pack/expansion schemas and explicit coercion, then iteration and
+remaining lexical/expression/control, capability/library and package/platform subjects,
+including task/async iteration. Audit the assembled grammar and integrated reading examples,
+then resume the bounded executable-lifecycle task below. Keep future conformance obligations
+distinct from actual production cases. No human-decision or external-authorization blocker
+is established for this delegated design work.
 
 S12–S16 define the adopted value-binding direction. The user delegated the input-default decision
 and subsequent v2.0.0 source/design/planning/work to the agent. The selected default remains
