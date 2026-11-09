@@ -39,6 +39,9 @@ of information:
    [opaque results](spec/language/opaque-results.md) select their source/staging boundary;
    their [review](history/reviews/v2.0.0-generic-and-constant-contracts.md) distinguishes that
    design from missing evaluator, solver and native evidence.
+   [Outcomes](spec/language/outcomes.md) and their
+   [access review](history/reviews/v2.0.0-outcome-access-contracts.md) distinguish payload values
+   from scoped projections and explicit failure decisions, without claiming compiler admission.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

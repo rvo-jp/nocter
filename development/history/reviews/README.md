@@ -29,6 +29,7 @@ they do not make reviews normative or register compiler support.
 - [Source Grammar Assembly](v2.0.0-source-grammar-assembly.md) — full-language draft; its scope exceeds compiler acceptance
 - [Module and Operation Contracts](v2.0.0-module-and-operation-contracts.md) — owning source-role/member migration, associated-binding grammar repair and adversarial design cases; not compiler qualification
 - [Generic, Constant and Opaque Contracts](v2.0.0-generic-and-constant-contracts.md) — generic elaboration, type selection, CTFE/final-data separation and shared opaque identities; not evaluator/compiler qualification
+- [Outcome Construction and Access](v2.0.0-outcome-access-contracts.md) — success/failure selection, nested optionals, scoped payload access and failure-loss diagnostics; not compiler qualification
 
 #### Implementation and Verification
 

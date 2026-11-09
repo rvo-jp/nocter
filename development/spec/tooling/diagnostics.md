@@ -167,3 +167,25 @@ witnesses, unanchored recursive witness relations, failed interface/associated r
 invalid origins. Public messages use the advertised contract; relate private witness locations
 only as appropriate implementation evidence. Do not suggest runtime boxing or a public Copy
 capability inferred from the hidden type. Exact code registration precedes compiler admission.
+
+## Outcome and Payload Access Diagnostics
+
+Distinguish malformed nesting, unknown optional payload, incompatible exact forwarding and
+unavailable Copy/transfer. Successful error data never produces a diagnostic recommending a
+failure conversion merely because its type is error. A throw needs an owned error and a declared
+failure layer; absence and failure propagation need their matching result layer.
+
+For a projected payload, identify the retained carrier/tag and requested read/edit operation.
+Explain failure propagation separately when the error cannot be transferred from a read input
+or an initialized edit referent. A projected catch binding is an alias, not a fabricated owned
+error; do not recommend throw unless ownership is actually supplied. A fallback place that dies
+at handler cleanup identifies that local and cleanup boundary. Neither returning a capability
+nor grouping converts dead storage into a valid alias.
+
+The [failure-loss warning](../language/outcomes.md#failure-decisions-and-resource-completion)
+is enabled by default and is not a language-validity error. Relate its producer and loss operation,
+including replacement, discarded aggregate fields or unused named owners. Do not treat `let _`
+as suppression or emit repeated warnings merely as the same local instance moves. Distinguish
+explicit catch handling, recipient transfer, pending retention and actual loss. Trap paths do
+not receive invented unwind cleanup or an implicit handler. Register exact codes and qualify
+conditional/aggregate/async analysis before implementation admission.

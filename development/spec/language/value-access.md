@@ -53,6 +53,10 @@ Persistent/returned access uses a capability value with a checked dependency con
 also expose an existing element place through its separately declared
 [projection protocol](equality-and-indexing.md#index-projections); it does
 not make an ordinary function return an alias.
+Optional/fallible payloads expose existing storage under the
+[scoped outcome protocol](outcomes.md#scoped-payload-projections), including local recovery.
+That protocol preserves the carrier and its active tag for read/edit access; ordinary value
+elimination remains Copy-or-move and cannot acquire ownership through an alias.
 
 ## Value Construction and Copy
 
@@ -331,8 +335,9 @@ kind, result origins, edited-state relations, effects and cleanup obligations. C
 and specialization cannot invent capabilities omitted by a public contract. Names/source
 locations are presentation, never semantic operation or dependency identities.
 
-Optional/fallible tags do not erase carried dependencies. `?`/`await` deliver value payloads under
-their owning contracts; they cannot extract a move-only payload through read/edit access. Successful
+Optional/fallible tags do not erase carried dependencies. Ordinary `?`/`await` deliver value
+payloads under their owning contracts; scoped outcome projections instead retain checked access
+to an active payload. Neither can extract a move-only payload through read/edit access. Successful
 error-valued results use ordinary `return`; `throw` constructs failure with the single error
 payload. Explicit `some(...)`, ordinary optional lifting and `()` keep their adopted meanings.
 

@@ -17,6 +17,7 @@ Unspecified full-language productions remain open; the bounded grammar declares 
 12. [Interfaces and Static Operation Binding](interfaces.md)
 13. [Generic Arguments and Compile-Time Values](generics-and-constants.md)
 14. [Static Opaque Results](opaque-results.md)
-15. [Asynchronous Frame Storage](asynchronous-computations.md)
+15. [Optional Values and Recoverable Failure](outcomes.md)
+16. [Asynchronous Frame Storage](asynchronous-computations.md)
 
 The [development specification](../README.md) defines version scope and promotion policy.

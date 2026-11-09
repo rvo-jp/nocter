@@ -8,8 +8,9 @@ not infer a binding's operation or turn a value binding into an alias.
 
 `let _ = expression` constructs/discards one value under the ordinary Copy-or-move rule. For a
 non-Copy owner this removes and destroys that value. For a Copy place this discards a snapshot,
-leaving the source available. An unhandled fallible outcome still requires its diagnostic; discard
-is not handling failure. A non-final expression must produce `void` or terminate. A final block
+leaving the source available. An unhandled fallible outcome still receives the
+[default-enabled discard warning](outcomes.md#failure-decisions-and-resource-completion);
+discard is not handling failure. A non-final expression must produce `void` or terminate. A final block
 expression is an ordinary value-producing boundary, not an implicit scoped alias.
 
 ### Assignment Order and Reinitialization

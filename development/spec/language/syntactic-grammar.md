@@ -228,6 +228,27 @@ same `V2InterfaceSelection` shape selects an ambiguous interface operation in ex
 Associated bindings use the named interface's declarations; conformance blocks continue using
 their own single mixed-binding production rather than this requirement block.
 
+### Outcome Elimination and Recovery
+
+[Outcomes](outcomes.md) own contextual construction, exact forwarding, failure exit, propagation
+and scoped payload projection. The source envelope is:
+
+```text
+V2Expression = V2Or V2Recovery*
+V2Recovery = "catch" (Name | "_") V2Block | "otherwise" V2Block
+V2Unary = ("!" | "-") V2Unary | V2Await ("?" | "!")?
+V2Await = "await" V2Await | V2Postfix
+```
+
+Remaining binary/postfix/block productions stay in the whole-source assembly until their
+semantic families migrate. At an existing-place access boundary, the same outcome syntax can
+select a payload projection; it is not another syntax form or a type qualifier. The checked
+operation distinguishes value extraction from read/edit access and records tag, cleanup and
+propagation obligations. A catch binding inherits that selected operation on the failure payload.
+An ordinary catch owns its received error; a projected catch aliases the retained error.
+`some(...)` remains an ordinary call to a resolved declaration. No Some/None or success/failure
+match pattern, exception handler block or adjacent double extraction is introduced here.
+
 An origin on an edit input is its post-state bound. Origins on read/take inputs constrain incoming
 carried provenance under the owning type/schema contract; they never turn a read into an edit or
 an owner. Names resolve against the complete header, including later inputs, not source order.
@@ -270,7 +291,8 @@ contract, including `decode<Config>(bytes)`. Interface disambiguation uses the a
 receiver assertions or direct argument-mode assertions are added.
 
 A `read`/`edit` initializer must denote an existing place: a name, a grouped place, or its checked
-field/element/range projection. Parsing retains a non-place initializer for a focused diagnostic;
+field/element/range/outcome projection, including surviving-place recovery under the outcome
+protocol. Parsing retains a non-place initializer for a focused diagnostic;
 lookup/type analysis does not reparse it. These declarations activate access immediately. A plain
 value-binding initializer instead constructs a value even if it is a bare place. Calls select
 their input operations before planning direct-place preparation; a computed conditional operand

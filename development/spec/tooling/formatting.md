@@ -52,3 +52,13 @@ Keep `const` and `static` distinct. Formatting cannot inline a required initiali
 root, turn a runtime function into const, expand a generated table, replace a constant recipe
 with shared static storage or alter an opaque result to its hidden witness. Staging and final-data
 eligibility belong to the [generic/constant contract](../language/generics-and-constants.md).
+
+## Outcome Formatting
+
+Use `throw expression` without a transfer marker. Preserve outcome constructor order/grouping
+and the single expression-level extraction suffix. Format explicit `some(...)` as an ordinary
+call; do not insert it at every optional injection or replace a shadowing declaration by the
+prelude operation. Preserve `catch name`, explicit `catch _` and `otherwise` rather than adding
+an implicit handler. Keep the declared `let`/`var`/`read`/`edit` operation: rewriting a projection
+as value extraction changes source availability and cleanup. Formatting cannot silence the
+failure-loss warning by inserting a discard or inventing resource completion.

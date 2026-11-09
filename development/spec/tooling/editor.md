@@ -47,3 +47,13 @@ Do not dump large emitted table initializers into hover. Opaque-result completio
 advertised interface, associated selections and origins; implementation navigation may expose
 the matched private body. Editor consumers use established values/witness relations without
 running an independent evaluator, deriving hidden Copy evidence or searching for another body.
+
+## Outcome Payload Access
+
+Present value extraction separately from scoped payload projection. Hover on a projected catch
+binding shows its read/edit operation and error data; an ordinary catch binding instead owns
+its error. Retain the carrier/tag/root links needed to explain invalidation and failed propagation.
+Optional hints may show a Copy snapshot, transfer or projection but are not source assertions.
+The ordinary prelude some function follows normal declaration navigation; its spelling grants
+no intrinsic semantics to a shadowing function. Failure-loss reports use established producer,
+handling and loss evidence, not another editor-side control-flow analysis.

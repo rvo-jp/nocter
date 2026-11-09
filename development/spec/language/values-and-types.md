@@ -118,8 +118,8 @@ Normal completion and bare `return` still supply unit without writing the litera
 `void` expression still performs its effects. A zero-byte payload does not make the producer pure,
 remove initialization requirements, or change the distinct places used by access checking.
 
-An optional unit can distinguish absence from presence of completion. Its exact construction and
-branch rules belong to the future outcome contract; ordinary generic substitution does not invent
+An optional unit can distinguish absence from presence of completion. Its construction and
+branch rules belong to the [outcome contract](outcomes.md); ordinary generic substitution does not invent
 a second unit value. `never` remains distinct: it describes a path producing no normal result.
 The adopted storable-unit direction does not broaden `never` to arbitrary data-bearing positions.
 

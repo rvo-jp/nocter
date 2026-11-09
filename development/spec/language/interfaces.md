@@ -89,6 +89,12 @@ resolve an implementation collision, or explicitly replace a default. A redundan
 mapping for an already unique required member is invalid. Helpers may remain private; the
 conformance grants the interface operation, not a public alias for the helper.
 
+Automatic matching uses members visible at the conformance declaration, including its direct
+`see` sources, not every inventoried private source. An explicit mapping resolves its helper
+in the mapping fragment's own source context. The root directly links that fragment; it need
+not inherit the fragment's helper imports or `see` edges. Checked implementation binding can
+carry a private helper identity without making its name visible at the root or caller.
+
 Selection uses the member identity first, then validates compatibility. Do not search by signature
 for a different helper after failure. Compare callable kind, receiver/input operations, generic
 requirements, data/result constructors, packs, origins and edited-state contracts after interface

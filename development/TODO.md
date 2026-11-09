@@ -24,7 +24,13 @@ constant is a fresh resource-free value recipe; a static is an immutable place. 
 results can determine array types through the same evaluator. Proof, evaluator, serializer and
 opaque-result compiler qualification remain unimplemented.
 
-Next close lexical/full-expression/control, enum/pattern, typed-literal/pack/coercion, outcome,
+The [outcome access checkpoint](history/reviews/v2.0.0-outcome-access-contracts.md) closes
+selected construction/forwarding, throw, nested optional, scoped payload projection and
+failure-loss warning rules. Read/edit access to a payload does not create an owner; failure
+propagation still needs an owned error. The ordinary some prelude contract has a development
+owner. These rules and their cases are not admitted by the current compiler.
+
+Next close lexical/full-expression/control, enum/pattern, typed-literal/pack/coercion,
 async/effect, capability/library and package/platform source subjects, audit the assembled grammar and integrated reading
 examples, then resume the bounded executable-lifecycle task below. Keep draft productions and
 future conformance obligations distinct from the 283 production corpus cases. No human-decision
