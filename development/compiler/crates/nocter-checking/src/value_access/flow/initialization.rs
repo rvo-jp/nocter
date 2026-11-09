@@ -307,7 +307,7 @@ fn transfer(
                 {
                     ArgumentAction::ReserveRead(place)
                     | ArgumentAction::ReserveUpdate(place)
-                    | ArgumentAction::ReserveTransfer(place)
+                    | ArgumentAction::ReserveTransfer { place, .. }
                     | ArgumentAction::CopyPlace(place) => {
                         require_place(typed, state, place, location, violations)?;
                     }
@@ -325,13 +325,13 @@ fn transfer(
                 for argument in arguments(typed, *call)? {
                     if let ArgumentAction::ReserveRead(place)
                     | ArgumentAction::ReserveUpdate(place)
-                    | ArgumentAction::ReserveTransfer(place) = argument.action
+                    | ArgumentAction::ReserveTransfer { place, .. } = argument.action
                     {
                         require_place(typed, state, place, location, violations)?;
                     }
                 }
                 for argument in arguments(typed, *call)? {
-                    if let ArgumentAction::ReserveTransfer(place) = argument.action {
+                    if let ArgumentAction::ReserveTransfer { place, .. } = argument.action {
                         remove_place(typed, state, place, location)?;
                     }
                 }

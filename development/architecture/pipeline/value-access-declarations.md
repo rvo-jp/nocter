@@ -122,7 +122,9 @@ calls have no runtime environment input. Downstream validation consumes frozen o
 than reinterpreting indices against declaration parameters. A direct
 place reservation is not an early read/update/transfer; explicit nested value computations execute
 at their own operand point. A marked direct operand, including a selected invocation adapter,
-retains retirement until complete bundle commit. Read/edit receipt of that value uses the
+retains retirement until complete bundle commit. The frozen input recipe names each delayed
+adapter operation in materialization order; resource validation does not select adapters from
+type differences. Read/edit receipt of that value uses the
 caller-owned temporary path rather than surrendering ownership to the callee. A direct Copy input snapshots its selected place at preparation,
 without a child read or retained source access. Copy/transfer/pending direct supply share one
 graph topology; closure cannot reorder nested evaluation or cancellation. Later validation must
@@ -154,8 +156,10 @@ operands do not erase declared callable/record data, while the shared graph cann
 unreached value merely because its data is known. A computed member chain retains one producer,
 resolved field path and selected Copy/Move operation. Its producer executes once; later passes
 consume the path without member lookup. Existing-place selection and construction use that same
-field-resolution boundary. Computed selection delivers a value and cannot supply a scoped alias,
-assignment target or edit input by extending a temporary's lifetime.
+field-resolution boundary. Computed selection delivers a value and cannot supply a scoped alias
+or assignment target by extending a temporary's lifetime. A read/edit call may instead receive
+access through the selected value's caller-owned evaluation temporary; that does not turn the
+expression into an existing place or allow that temporary's direct storage to escape.
 
 The semantic body has no source/syntax IDs, ranges, names, or symbol IDs. Exact body bytes and
 body-local locators form a separate reusable source recipe. One locator projection serves the

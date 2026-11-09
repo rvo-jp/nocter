@@ -115,7 +115,7 @@ fn taking_copy_input_does_not_reserve_a_transfer_of_the_original() {
         .iter()
         .filter_map(|(_, e)| {
             if let ExpressionKind::Call { arguments, .. } = &e.kind {
-                Some(arguments[0].action)
+                Some(arguments[0].action.clone())
             } else {
                 None
             }

@@ -506,7 +506,7 @@ impl Builder<'_> {
                 argument.action,
                 ArgumentAction::ReserveRead(_)
                     | ArgumentAction::ReserveUpdate(_)
-                    | ArgumentAction::ReserveTransfer(_)
+                    | ArgumentAction::ReserveTransfer { .. }
                     | ArgumentAction::CopyPlace(_)
                     | ArgumentAction::PendingValue(_)
                     | ArgumentAction::Unproduced

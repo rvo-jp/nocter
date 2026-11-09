@@ -95,7 +95,7 @@ fn consuming_formal_invocation_uses_its_symbolic_environment_once() {
     assert_eq!(all[0].1[0].operation, ValueInputOperation::Take);
     assert!(matches!(
         all[0].1[0].action,
-        ArgumentAction::ReserveTransfer(_)
+        ArgumentAction::ReserveTransfer { .. }
     ));
     let trace = steps(query);
     let invoked = trace

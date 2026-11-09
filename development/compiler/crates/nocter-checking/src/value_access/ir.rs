@@ -109,11 +109,15 @@ pub enum SelectionAction {
 }
 
 /// Preparation of a selected direct call, before its atomic invocation commit.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ArgumentAction {
     ReserveRead(AccessPlaceId),
     ReserveUpdate(AccessPlaceId),
-    ReserveTransfer(AccessPlaceId),
+    ReserveTransfer {
+        place: AccessPlaceId,
+        /// Selected adapter operations delayed until commit, in materialization order.
+        adapters: Vec<AccessExpressionId>,
+    },
     /// Lend read/update access to a produced value; its caller retains cleanup responsibility.
     AccessOwnedValue,
     /// Snapshot a selected place at this input preparation, without a retained access.

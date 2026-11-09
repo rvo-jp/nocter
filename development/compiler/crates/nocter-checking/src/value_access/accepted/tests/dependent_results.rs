@@ -101,7 +101,7 @@ fn generic_returned_environments_keep_transfer_and_symbolic_cleanup() {
         .unwrap();
     assert!(matches!(
         consuming.action,
-        ArgumentAction::ReserveTransfer(_)
+        ArgumentAction::ReserveTransfer { .. }
     ));
     assert!(steps(invoke).iter().any(|step| matches!(step, Step::Receive { payload, .. } if payload.disposal() == Disposal::FunctionEnvironment)));
     assert!(steps(relay).iter().any(|step| matches!(step, Step::Move { destination, payload, .. } if destination.holder() == Holder::Return && payload.disposal() == Disposal::FunctionEnvironment)));

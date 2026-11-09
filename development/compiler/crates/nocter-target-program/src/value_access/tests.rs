@@ -183,7 +183,10 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
             _ => None,
         })
         .unwrap();
-    assert!(matches!(call[0].action, ArgumentAction::ReserveTransfer(_)));
+    assert!(matches!(
+        call[0].action,
+        ArgumentAction::ReserveTransfer { .. }
+    ));
     for (_, selected) in graph.instances().iter() {
         for evidence in selected.data.values() {
             let payload = evidence.payload().unwrap();

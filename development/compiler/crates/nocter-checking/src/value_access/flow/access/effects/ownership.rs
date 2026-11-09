@@ -319,7 +319,7 @@ impl Context<'_, '_> {
             )?,
             ArgumentAction::ReserveRead(_)
             | ArgumentAction::ReserveUpdate(_)
-            | ArgumentAction::ReserveTransfer(_)
+            | ArgumentAction::ReserveTransfer { .. }
             | ArgumentAction::AccessOwnedValue => {}
             ArgumentAction::PendingValue(_)
             | ArgumentAction::Unproduced
@@ -342,19 +342,16 @@ impl Context<'_, '_> {
         };
         for (index, argument) in arguments.iter().enumerate() {
             let prepared = Holder::Prepared { call, index };
-            if let ArgumentAction::ReserveTransfer(place) = argument.action {
+            if let ArgumentAction::ReserveTransfer {
+                place,
+                ref adapters,
+            } = argument.action
+            {
                 let mut source = self.resource_place(place)?;
-                let payload = resources::expression_payload(self.typed, argument.value)?;
-                let data = self
-                    .typed
-                    .body()
-                    .places()
-                    .get(place)
-                    .ok_or(Failure::Integrity)?
-                    .data;
-                if data != payload.data() {
-                    // This adapter is already selected in the typed argument recipe. Materialize
-                    // it only after complete bundle validation, preserving source retirement.
+                for &adapter in adapters {
+                    let payload = resources::expression_payload(self.typed, adapter)?;
+                    // Replay the selected operation, never infer an adapter from type inequality.
+                    // Complete bundle validation still precedes any source retirement.
                     self.world.resources.adapt_function(
                         self.typed.program(),
                         &source,

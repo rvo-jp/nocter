@@ -396,7 +396,7 @@ impl Context<'_, '_> {
         let prepared = match argument.action {
             ArgumentAction::ReserveRead(place)
             | ArgumentAction::ReserveUpdate(place)
-            | ArgumentAction::ReserveTransfer(place) => {
+            | ArgumentAction::ReserveTransfer { place, .. } => {
                 let mode = match argument.action {
                     ArgumentAction::ReserveRead(_) => Mode::Read,
                     ArgumentAction::ReserveUpdate(_) => Mode::Update,

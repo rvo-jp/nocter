@@ -108,7 +108,7 @@ fn environment_preparation_preserves_the_explicit_take_input_and_its_commit_inde
     assert_eq!(arguments[1].operation, ValueInputOperation::Take);
     assert!(matches!(
         arguments[1].action,
-        ArgumentAction::ReserveTransfer(_)
+        ArgumentAction::ReserveTransfer { .. }
     ));
     let invoked = steps(query)
         .into_iter()

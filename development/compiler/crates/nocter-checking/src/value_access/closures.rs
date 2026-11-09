@@ -274,7 +274,7 @@ fn invocation(
                         .ok_or(Failure::InconsistentSyntax)?
                         .action
                     {
-                        ArgumentAction::ReserveTransfer(place) if selects(place) => {
+                        ArgumentAction::ReserveTransfer { place, .. } if selects(place) => {
                             return Ok(ValueInvocation::Take);
                         }
                         ArgumentAction::ReserveUpdate(place) if selects(place) => {

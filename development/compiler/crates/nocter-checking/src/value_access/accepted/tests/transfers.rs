@@ -1,6 +1,7 @@
 //! Source retirement, invocation commit and caller-owned access temporaries.
 use super::support::steps;
 use super::*;
+use crate::value_access::{ArgumentAction, ExpressionKind};
 
 fn rejects(text: &str, code: &str) {
     let (sources, tree) = input(text);
@@ -120,6 +121,66 @@ fn function_adapter_is_materialized_at_commit_and_not_during_interrupted_prepara
             .any(|s| matches!(s, Step::AdaptFunction { .. } | Step::Invoke { .. }))
     );
     assert_eq!(trace.iter().filter(|s| matches!(s, Step::Dispose { payload, .. } if payload.disposal() == Disposal::FunctionEnvironment)).count(), 1);
+}
+
+#[test]
+fn direct_transfer_replays_the_selected_adapter_for_every_receiving_operation() {
+    for mode in ["", "edit ", "take "] {
+        let unit = accepted(&format!(
+            "func sink({mode}action: once(): void): void {{}}\nfunc run(take value: error): void {{\nlet action = (value^;): void {{}}\nsink(action^)\n}}"
+        ));
+        let query = named(&unit, "run");
+        let (call, argument) = query
+            .typed()
+            .body()
+            .expressions()
+            .iter()
+            .find_map(|(id, expression)| match &expression.kind {
+                ExpressionKind::Call { arguments, .. } => Some((id, &arguments[0])),
+                _ => None,
+            })
+            .unwrap();
+        let ArgumentAction::ReserveTransfer { adapters, .. } = &argument.action else {
+            panic!("expected deferred source retirement: {argument:?}");
+        };
+        let [adapter] = adapters.as_slice() else {
+            panic!("one selected invocation adapter: {argument:?}");
+        };
+        let expression = query.typed().body().expressions().get(*adapter).unwrap();
+        assert!(matches!(
+            expression.kind,
+            ExpressionKind::AdaptFunction { .. }
+        ));
+        let trace = steps(query);
+        let adaptations: Vec<_> = trace
+            .iter()
+            .filter_map(|step| match step {
+                Step::AdaptFunction {
+                    destination,
+                    payload,
+                    ..
+                } => Some((destination, payload)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(adaptations.len(), 1);
+        assert_eq!(*adaptations[0].0, Holder::Prepared { call, index: 0 });
+        assert_eq!(
+            adaptations[0].1.data(),
+            expression.ty.normal().unwrap().data()
+        );
+        if mode != "take " {
+            assert_eq!(
+                trace
+                    .iter()
+                    .filter(|step| matches!(step, Step::Dispose { source, payload }
+                if *source == Holder::Temporary { call, index: 0 }.place()
+                    && payload.disposal() == Disposal::OwnedCapture))
+                    .count(),
+                1
+            );
+        }
+    }
 }
 
 #[test]

@@ -50,12 +50,19 @@ impl Checker<'_, '_> {
     fn deferred_transfer(
         &self,
         mut value: AccessExpressionId,
-    ) -> Option<nocter_model::AccessPlaceId> {
+    ) -> Option<(nocter_model::AccessPlaceId, Vec<AccessExpressionId>)> {
+        let mut adapters = Vec::new();
         loop {
             match self.expressions.get(value)?.kind {
-                super::ir::ExpressionKind::Move(place) => return Some(place),
-                super::ir::ExpressionKind::AdaptFunction { source }
-                | super::ir::ExpressionKind::Boundary {
+                super::ir::ExpressionKind::Move(place) => {
+                    adapters.reverse();
+                    return Some((place, adapters));
+                }
+                super::ir::ExpressionKind::AdaptFunction { source } => {
+                    adapters.push(value);
+                    value = source;
+                }
+                super::ir::ExpressionKind::Boundary {
                     source,
                     action: super::ir::BoundaryAction::TakeValue,
                 } => value = source,
@@ -73,8 +80,8 @@ impl Checker<'_, '_> {
         self.require_data(value, expected.data, syntax)?;
         let mode = expected.operation.access_mode();
         let action = if let Some(actual) = self.ty(value).normal() {
-            if let Some(place) = self.deferred_transfer(value) {
-                ArgumentAction::ReserveTransfer(place)
+            if let Some((place, adapters)) = self.deferred_transfer(value) {
+                ArgumentAction::ReserveTransfer { place, adapters }
             } else if let Some(place) = self.place_expression(value) {
                 match mode {
                     Mode::Read => ArgumentAction::ReserveRead(place),

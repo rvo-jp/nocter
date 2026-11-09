@@ -340,8 +340,10 @@ access/resource states. It preserves scalar snapshots, short-circuit/conditional
 successors, scope exits, staged value results, evaluation frames and interrupted call prefixes.
 Read/edit direct operands reserve without early activation. Direct marked sources reserve
 transfer independently of Copy and receiving operation; unmarked Copy take snapshots at preparation.
-The argument recipe retains selected callable adapters, which materialize only at invocation
-commit. A marked source to read/edit moves into a caller-owned temporary then lends access;
+The argument recipe retains the exact selected callable-adapter operation identities in
+materialization order, which replay only at invocation commit. Resource flow does not infer an
+adapter from a difference between source/result type IDs. A marked source to read/edit moves
+into a caller-owned temporary then lends access;
 produced read/edit values use that same owned evaluation extent. Direct inputs skip child place evaluation;
 `CopyPlace` reads its selected place and constructs exactly one snapshot at preparation. Its
 initialization and read-demand obligations occur there, without retaining a read access through
