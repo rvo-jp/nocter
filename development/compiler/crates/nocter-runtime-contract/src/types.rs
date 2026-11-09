@@ -23,6 +23,12 @@ pub enum RuntimePrimitive {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeType {
     Primitive(RuntimePrimitive),
+    /// A storable unit value, distinct from completion-only primitive Void.
+    Unit,
+    /// The code witness is selected statically; only the optional environment occupies storage.
+    StaticCallable {
+        environment: Option<TypeId>,
+    },
     Pointer(TypeId),
     Borrow {
         capability: BorrowCapability,
@@ -127,6 +133,7 @@ impl RuntimeTypeTableBuilder {
                 | RuntimeType::Fallible(ty)
                 | RuntimeType::Future(ty) => Some(*ty),
                 RuntimeType::Borrow { referent, .. } => Some(*referent),
+                RuntimeType::StaticCallable { environment } => *environment,
                 RuntimeType::FixedArray { element, .. } => Some(*element),
                 RuntimeType::Tuple(elements) => {
                     if elements.len() < 2 {
@@ -155,6 +162,7 @@ impl RuntimeTypeTableBuilder {
                     Some(*value)
                 }
                 RuntimeType::Primitive(_)
+                | RuntimeType::Unit
                 | RuntimeType::Aggregate
                 | RuntimeType::Closure
                 | RuntimeType::ErasedCallable
@@ -230,6 +238,26 @@ mod tests {
             .insert(owner, RuntimeType::Pointer(referenced))
             .unwrap();
 
+        assert_eq!(
+            builder.finish().unwrap_err(),
+            RuntimeTypeTableBuildError::UnknownReference { owner, referenced }
+        );
+    }
+
+    #[test]
+    fn static_callable_environment_requires_a_closed_type_reference() {
+        let semantic = TypeStore::new();
+        let owner = semantic.builtin(BuiltinType::Bool);
+        let referenced = semantic.builtin(BuiltinType::I8);
+        let mut builder = RuntimeTypeTableBuilder::new();
+        builder
+            .insert(
+                owner,
+                RuntimeType::StaticCallable {
+                    environment: Some(referenced),
+                },
+            )
+            .unwrap();
         assert_eq!(
             builder.finish().unwrap_err(),
             RuntimeTypeTableBuildError::UnknownReference { owner, referenced }

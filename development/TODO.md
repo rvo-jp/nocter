@@ -7,9 +7,10 @@
    their owning contracts. Then close remaining expression/control, capability/library,
    package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
    Integrate ordinary reading/writing examples before extending accepted source scope.
-2. Place payloads/flag banks and realize private environment/input operations from lifecycle schedules,
-   then qualify layout, ABI, MIR and native behavior. Keep required backing, frozen input channels,
-   protected answers, actual cleanup and adapter disposal coherent.
+2. Place activation payloads/flag banks and emit private environment/input operations from lifecycle
+   schedules using the shared stored-layout/input ABI boundary; then qualify MIR and native behavior.
+   Keep required backing, frozen input channels, protected answers, actual cleanup and adapter
+   disposal coherent. Register/stack placement alone does not qualify executable transport.
 3. Extend contextual/multiple/nested captures, general R/D/S schemas, interfaces/generics, outcomes,
    async and public modules only with their owning specification and end-to-end evidence.
 4. Run the vertical [optimization experiments](design/optimization.md) after their ordinary source

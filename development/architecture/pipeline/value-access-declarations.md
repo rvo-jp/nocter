@@ -34,7 +34,9 @@ V2CoreUnit syntax + exact source
        + exact payload contracts + logical resource/cleanup transitions
   -> accepted private unit (all definitions validated)
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
-  -> guarded private lifecycle schedules + initialization-bit recipes (no payload layout/ABI/native admission)
+       -> guarded private lifecycle schedules + initialization-bit recipes
+       -> closed runtime shapes + body input signatures
+            -> shared Machine stored layouts + call ABI placement (no executable/native admission)
 ```
 
 ## Responsibilities
@@ -394,3 +396,42 @@ Conjunctions with equal bit keys and one complementary value merge by exact Bool
 bounded simplification may retain the original valid guards when its work limit is reached.
 The emitted program retains physical predicates, while source conditions remain owned by the
 checking report. Sharing code must not merge different flag writes or reorder resource steps.
+
+## Private Stored Representation
+
+The private instance graph projects produced concrete payload identities into a source-independent
+runtime environment. Unproduced structural contracts have no stored representation. Original
+value-field identities survive this boundary; they are never converted into published-language
+field identities or reconstructed from names. Access operations remain separate from data shape.
+
+For the bounded private fragment, the explicitly selected runtime ABI supplies scalar and error
+handle layouts. A stored `void` value selects a zero-byte, alignment-one runtime unit, distinct
+from the published pipeline's completion-only runtime void. Records use declaration-order member
+placement with each member's alignment and final aggregate padding. Machine owns the single
+recursive layout calculation, checked size arithmetic and member correspondence for both pipeline
+inputs. Equal offsets, including zero-byte members, do not identify logical fields.
+
+A statically selected named function carries no runtime payload. A statically selected closure
+carries only its inline environment, at offset zero; no code pointer, allocation header or erased
+callable wrapper is introduced. Invocation views keep distinct type identities but do not add
+payload bytes. This representation is valid only while the instance graph supplies the unique
+code witness. Runtime dispatch requires a separately qualified representation.
+
+This stored-layout boundary does not grant call ABI, activation placement, executable cleanup,
+MIR or native admission. Those consumers must use the selected layouts without repeating the
+calculation or recovering source semantics.
+
+### Private Input ABI
+
+The private input ABI keeps the checked environment input before explicit inputs, preserving
+each exact body-local identity and input operation. Under the selected runtime ABI, read and
+edit input operations carry one address even for zero-byte data; take carries the stored value's ordinary
+Machine transport class. Access does not create a pointer/borrow data type. The captured environment
+starts at carrier offset zero, while a named code token adds no body input. Adapter ownership and
+post-call disposal remain in the lifecycle schedule rather than being inferred from register class.
+An ordinary result uses its stored-value transport, including a zero-byte unit result. A known
+signature remains typed even when its body does not return. Unproduced structural expressions
+supply no runtime channel and cannot create an invocation edge. The existing Machine
+register/stack/result placement algorithm serves both input products. This is an internal call
+convention that may be specialized with proof; it is not a new public ABI promise or evidence of
+native execution.

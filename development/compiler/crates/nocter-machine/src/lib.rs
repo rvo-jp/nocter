@@ -1,7 +1,8 @@
 //! Target-independent machine-program and ABI layout authority.
 //!
-//! This crate consumes only validated MIR and the closed toolchain identities retained by that
-//! program. It never receives syntax, name resolution, generic requirements, or rendered types.
+//! Executable lowering consumes validated MIR; stored layout and input planning also accept a
+//! closed runtime environment/signature. Neither path receives syntax, name resolution, generic
+//! requirements, checking storage or rendered types.
 
 mod async_frame;
 mod call;
@@ -64,11 +65,10 @@ pub use identity::{
     MachineOperationId, MachinePackId, MachineStackId, MachineTestId, MachineValueId,
 };
 
-pub(crate) use layout::MachineLayoutPlan;
 pub use layout::{
     MachineCaptureLayout, MachineEnumVariantLayout, MachineFieldLayout, MachineLayout,
-    MachineLayoutError, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
-    MachinePayloadLayout, MachineScalar, MachineTupleElementLayout,
+    MachineLayoutError, MachineLayoutKind, MachineLayoutPlan, MachineLayoutStore,
+    MachineOutcomeKind, MachinePayloadLayout, MachineScalar, MachineTupleElementLayout,
 };
 pub use linkage::{MachineLinkageError, MachineLinkageKey};
 pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};
@@ -100,7 +100,7 @@ pub(crate) use transport::MachineAbiPlan;
 pub use transport::{
     MachineAbiError, MachineArgumentAbi, MachineArgumentLocation, MachineCallableAbi,
     MachinePackAbi, MachineRegisterSpan, MachineResultAbi, MachineResultLocation,
-    MachineReturnedValue, MachineStackSlot, MachineValueClass,
+    MachineReturnedValue, MachineStackSlot, MachineValueCallableAbi, MachineValueClass,
 };
 
 #[cfg(test)]

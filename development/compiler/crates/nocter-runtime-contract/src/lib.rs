@@ -28,6 +28,7 @@ mod representation;
 mod runtime_storage;
 mod target;
 mod target_service;
+mod value_input;
 
 pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
@@ -89,7 +90,8 @@ pub use primitive::{
 };
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
-    RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
+    RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeValueFieldRepresentation,
+    RuntimeVariantRepresentation,
 };
 pub use runtime_storage::{
     RuntimeStorageBinding, RuntimeStorageBindingError, RuntimeStorageLayout,
@@ -104,6 +106,7 @@ pub use types::{
     RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuildError,
     RuntimeTypeTableBuilder,
 };
+pub use value_input::{RuntimeValueInput, RuntimeValueSignature};
 mod types;
 pub use target::{
     RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeAsyncAbiSchema, RuntimeAsyncStateTags,

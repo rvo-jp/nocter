@@ -85,7 +85,9 @@ fn validate_representations(
             (kind, representation),
             (
                 RuntimeType::Aggregate,
-                RuntimeTypeRepresentation::Struct { .. } | RuntimeTypeRepresentation::Enum { .. }
+                RuntimeTypeRepresentation::Struct { .. }
+                    | RuntimeTypeRepresentation::ValueRecord { .. }
+                    | RuntimeTypeRepresentation::Enum { .. }
             ) | (
                 RuntimeType::Closure,
                 RuntimeTypeRepresentation::Closure { .. }
@@ -108,6 +110,17 @@ fn validate_representation(
     representation: &RuntimeTypeRepresentation,
 ) -> Result<(), RuntimeEnvironmentError> {
     match representation {
+        RuntimeTypeRepresentation::ValueRecord { fields } => {
+            let mut identities = BTreeSet::new();
+            for field in fields {
+                if !identities.insert(field.field()) {
+                    return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
+                        owner,
+                    ));
+                }
+                require_member_type(types, owner, field.ty())?;
+            }
+        }
         RuntimeTypeRepresentation::Struct { fields } => {
             let mut identities = BTreeSet::new();
             for field in fields {
@@ -194,12 +207,13 @@ impl std::error::Error for RuntimeEnvironmentError {}
 
 #[cfg(test)]
 mod tests {
-    use nocter_model::{BuiltinType, TypeStore};
+    use nocter_model::{AccessFieldId, ArenaBuilder, BuiltinType, TypeStore};
 
     use super::RuntimeEnvironmentError;
     use crate::{
         RuntimeAbiIdentity, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
-        RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
+        RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
+        RuntimeValueFieldRepresentation,
     };
 
     #[test]
@@ -237,5 +251,45 @@ mod tests {
             RuntimeAbiIdentity::Arm64DarwinV1,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn value_record_members_validate_identity_and_closed_type_references() {
+        let semantic = TypeStore::new();
+        let owner = semantic.builtin(BuiltinType::Bool);
+        let member = semantic.builtin(BuiltinType::I8);
+        let mut ids = ArenaBuilder::<AccessFieldId, ()>::new();
+        let field = ids.insert(());
+        for (fields, expected) in [
+            (
+                vec![RuntimeValueFieldRepresentation::new(field, member)],
+                RuntimeEnvironmentError::UnknownRepresentationType { owner, member },
+            ),
+            (
+                vec![RuntimeValueFieldRepresentation::new(field, owner); 2],
+                RuntimeEnvironmentError::DuplicateRepresentationMember(owner),
+            ),
+        ] {
+            let mut types = RuntimeTypeTableBuilder::new();
+            types.insert(owner, RuntimeType::Aggregate).unwrap();
+            let representations = RuntimeTypeRepresentationTable::new(
+                [(
+                    owner,
+                    RuntimeTypeRepresentation::ValueRecord {
+                        fields: fields.into_boxed_slice(),
+                    },
+                )]
+                .into(),
+            );
+            assert_eq!(
+                RuntimeEnvironment::new(
+                    types.finish().unwrap(),
+                    representations,
+                    RuntimeAbiIdentity::Arm64DarwinV1
+                )
+                .unwrap_err(),
+                expected
+            );
+        }
     }
 }

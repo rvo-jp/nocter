@@ -25,6 +25,7 @@ does not inspect syntax or repeat checking decisions.
 - concrete logical lifecycle schedules under `value_access::lifecycle`, retaining checked
   ownership conditions, operation phases and normal adapter exits before result receipt
 - activation-local packed initialization tests and writes under `value_access::lifecycle::flags`
+- private stored-shape and body-input projection under `value_access::storage`
 
 ## Invariants
 
@@ -54,7 +55,8 @@ does not inspect syntax or repeat checking decisions.
   reached values; MIR cannot reopen declaration storage.
 - MIR receives no unresolved requirement, interface implementation, or generic lookup.
 - Private future function-witness keys have no released representation or runtime-type
-  mapping. Both boundaries reject them rather than guessing a closure/function-pointer layout.
+  mapping through released executable closure. That boundary rejects them rather than guessing a
+  closure/function-pointer layout; the private storage product uses its selected static witnesses.
 
 The cross-stage contract is documented in
 [Target, Executable, and MIR Program Design](../../../architecture/pipeline/target-program.md).
@@ -131,3 +133,15 @@ temporarily empty flag recipe in an accepted lifecycle program.
 The [lifecycle handoff](../../../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)
 owns cross-stage ordering, answer protection and physical-consumer obligations. This private
 product grants no released ExecutableProgram conversion, payload layout, ABI or native admission.
+
+## Private Storage Projection
+
+`value_access::storage` projects produced concrete payload IDs into a closed RuntimeEnvironment
+for an explicitly selected runtime ABI. It emits shapes and exact value-field identities, leaving
+all size/alignment/member-offset computation to Machine. Unproduced contracts add no stored type.
+The same module projects each body's frozen environment/explicit input slots and concrete result
+into a RuntimeValueSignature. Data substitution uses the existing instance table; it never
+reclassifies Copy, access, dispatch or cleanup. No released executable adapter is introduced.
+
+The [private stored-representation contract](../../../architecture/pipeline/value-access-declarations.md#private-stored-representation)
+owns the representation policy and remaining realization obligations.

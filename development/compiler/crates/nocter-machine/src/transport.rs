@@ -1,11 +1,15 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{
     MirBody, MirCallSignature, MirCallTarget, MirFunction, MirOperationKind, MirProgram, MirRoot,
 };
-use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, TypeId};
-use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
+use nocter_model::{
+    AccessLocalId, Arena, ArenaBuilder, ExecutableItemId, TypeId, ValueInputOperation,
+};
+use nocter_runtime_contract::{
+    RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeValueInput, RuntimeValueSignature,
+};
 
 use crate::identity::{MachineId, MachineRuntimeCallAbiId, MachineTable};
 use crate::{MachineLayout, MachineLayoutStore, MachineTarget};
@@ -221,6 +225,74 @@ impl MachineCallableAbi {
     #[must_use]
     pub const fn stack_argument_size(&self) -> u64 {
         self.stack_argument_size
+    }
+}
+
+/// Private value-model channels paired with their shared Machine ABI placement.
+/// The retained input operation, not a register class or data type, describes the body access.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MachineValueCallableAbi {
+    signature: RuntimeValueSignature,
+    transport: MachineCallableAbi,
+}
+
+impl MachineValueCallableAbi {
+    /// Plans input transport without manufacturing borrow data identities.
+    ///
+    /// # Errors
+    /// Rejects missing stored layouts, duplicate body locals or overflowing ABI placement.
+    pub fn build(
+        signature: RuntimeValueSignature,
+        layouts: &MachineLayoutStore,
+    ) -> Result<Self, MachineAbiError> {
+        let mut locals = BTreeSet::new();
+        let arguments = signature.ordered().map(|input| {
+            if !locals.insert(input.local) {
+                return Err(MachineAbiError::DuplicateValueInput(input.local));
+            }
+            let layout = layouts
+                .get(input.data)
+                .ok_or(MachineAbiError::MissingLayout(input.data))?;
+            let (class, alignment) = match input.operation {
+                ValueInputOperation::Read | ValueInputOperation::Edit => (
+                    MachineValueClass::Direct { words: 1 },
+                    layouts.target().pointer_alignment(),
+                ),
+                ValueInputOperation::Take => (
+                    layouts
+                        .class(input.data)
+                        .ok_or(MachineAbiError::MissingLayout(input.data))?,
+                    layout.alignment(),
+                ),
+            };
+            Ok(ArgumentShape {
+                ty: input.data,
+                class,
+                alignment,
+            })
+        });
+        let result = plan_stored_result(layouts, signature.result())?;
+        let transport = place_signature(layouts.target(), arguments, result, None)?;
+        Ok(Self {
+            signature,
+            transport,
+        })
+    }
+
+    #[must_use]
+    pub const fn signature(&self) -> &RuntimeValueSignature {
+        &self.signature
+    }
+
+    #[must_use]
+    pub const fn transport(&self) -> &MachineCallableAbi {
+        &self.transport
+    }
+
+    pub fn inputs(&self) -> impl Iterator<Item = (RuntimeValueInput, MachineArgumentAbi)> + '_ {
+        self.signature
+            .ordered()
+            .zip(self.transport.arguments().iter().copied())
     }
 }
 
@@ -497,19 +569,50 @@ pub(crate) fn plan_signature(
     result: TypeId,
     pack: Option<MachinePackAbi>,
 ) -> Result<MachineCallableAbi, MachineAbiError> {
-    let target = layouts.target();
-    let mut general_register_window_open = true;
-    let mut next_general_register = pack.map_or(0, |pack| pack.pointer.first + pack.pointer.words);
-    let mut next_float_register = 0;
-    let mut next_stack_offset = 0_u64;
-    let mut arguments = Vec::with_capacity(parameters.len());
-
-    for ty in parameters.iter().copied() {
+    let arguments = parameters.iter().copied().map(|ty| {
         if is_completion_type(types, ty) {
             return Err(MachineAbiError::CompletionArgument(ty));
         }
         let layout = require_layout(types, layouts, ty)?;
         let class = layouts.class(ty).ok_or(MachineAbiError::UnknownType(ty))?;
+        Ok(ArgumentShape {
+            ty,
+            class,
+            alignment: layout.alignment(),
+        })
+    });
+    place_signature(
+        layouts.target(),
+        arguments,
+        plan_result(types, layouts, result)?,
+        pack,
+    )
+}
+
+struct ArgumentShape {
+    ty: TypeId,
+    class: MachineValueClass,
+    alignment: u64,
+}
+
+fn place_signature(
+    target: MachineTarget,
+    parameters: impl Iterator<Item = Result<ArgumentShape, MachineAbiError>>,
+    result: MachineResultAbi,
+    pack: Option<MachinePackAbi>,
+) -> Result<MachineCallableAbi, MachineAbiError> {
+    let mut general_register_window_open = true;
+    let mut next_general_register = pack.map_or(0, |pack| pack.pointer.first + pack.pointer.words);
+    let mut next_float_register = 0;
+    let mut next_stack_offset = 0_u64;
+    let mut arguments = Vec::with_capacity(parameters.size_hint().0);
+
+    for parameter in parameters {
+        let ArgumentShape {
+            ty,
+            class,
+            alignment,
+        } = parameter?;
         let transport_words = match class {
             MachineValueClass::Zero => 0,
             MachineValueClass::Direct { words } => words,
@@ -551,7 +654,7 @@ pub(crate) fn plan_signature(
             ) {
                 general_register_window_open = false;
             }
-            let (size, alignment) = stack_transport(layout, class, target)?;
+            let (size, alignment) = stack_transport(alignment, class, target)?;
             let offset = align_up(next_stack_offset, alignment)?;
             next_stack_offset = offset
                 .checked_add(size)
@@ -573,7 +676,7 @@ pub(crate) fn plan_signature(
     Ok(MachineCallableAbi {
         arguments: arguments.into_boxed_slice(),
         pack,
-        result: plan_result(types, layouts, result)?,
+        result,
         stack_argument_size,
     })
 }
@@ -587,36 +690,45 @@ pub(crate) fn plan_result(
         Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => Ok(MachineResultAbi::Completion),
         Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => Ok(MachineResultAbi::Diverging),
         Some(_) => {
-            let target = layouts.target();
-            let _ = require_layout(types, layouts, ty)?;
-            let class = layouts.class(ty).ok_or(MachineAbiError::UnknownType(ty))?;
-            let location = match class {
-                MachineValueClass::Zero => MachineResultLocation::Omitted,
-                MachineValueClass::Direct { words } => {
-                    if words > target.direct_result_register_count() {
-                        return Err(MachineAbiError::InvalidDirectResult { ty, words });
-                    }
-                    MachineResultLocation::Registers(MachineRegisterSpan { first: 0, words })
-                }
-                MachineValueClass::Float32 | MachineValueClass::Float64 => {
-                    MachineResultLocation::Registers(MachineRegisterSpan { first: 0, words: 1 })
-                }
-                MachineValueClass::Indirect => MachineResultLocation::CallerStorage {
-                    pointer_register: target.indirect_result_register(),
-                },
-            };
-            Ok(MachineResultAbi::Value(MachineReturnedValue {
-                ty,
-                class,
-                location,
-            }))
+            require_layout(types, layouts, ty)?;
+            plan_stored_result(layouts, ty)
         }
         None => Err(MachineAbiError::UnknownType(ty)),
     }
 }
 
+fn plan_stored_result(
+    layouts: &MachineLayoutStore,
+    ty: TypeId,
+) -> Result<MachineResultAbi, MachineAbiError> {
+    let target = layouts.target();
+    let class = layouts
+        .class(ty)
+        .ok_or(MachineAbiError::MissingLayout(ty))?;
+    let location = match class {
+        MachineValueClass::Zero => MachineResultLocation::Omitted,
+        MachineValueClass::Direct { words } => {
+            if words > target.direct_result_register_count() {
+                return Err(MachineAbiError::InvalidDirectResult { ty, words });
+            }
+            MachineResultLocation::Registers(MachineRegisterSpan { first: 0, words })
+        }
+        MachineValueClass::Float32 | MachineValueClass::Float64 => {
+            MachineResultLocation::Registers(MachineRegisterSpan { first: 0, words: 1 })
+        }
+        MachineValueClass::Indirect => MachineResultLocation::CallerStorage {
+            pointer_register: target.indirect_result_register(),
+        },
+    };
+    Ok(MachineResultAbi::Value(MachineReturnedValue {
+        ty,
+        class,
+        location,
+    }))
+}
+
 fn stack_transport(
-    layout: &MachineLayout,
+    alignment: u64,
     class: MachineValueClass,
     target: MachineTarget,
 ) -> Result<(u64, u64), MachineAbiError> {
@@ -625,12 +737,11 @@ fn stack_transport(
         MachineValueClass::Direct { words } => target
             .word_size()
             .checked_mul(u64::from(words))
-            .map(|size| (size, layout.alignment().max(target.word_size())))
+            .map(|size| (size, alignment.max(target.word_size())))
             .ok_or(MachineAbiError::StackOverflow),
-        MachineValueClass::Float32 | MachineValueClass::Float64 => Ok((
-            target.word_size(),
-            layout.alignment().max(target.word_size()),
-        )),
+        MachineValueClass::Float32 | MachineValueClass::Float64 => {
+            Ok((target.word_size(), alignment.max(target.word_size())))
+        }
         MachineValueClass::Indirect => Ok((target.pointer_size(), target.pointer_alignment())),
     }
 }
@@ -668,6 +779,7 @@ fn align_up(value: u64, alignment: u64) -> Result<u64, MachineAbiError> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAbiError {
+    DuplicateValueInput(AccessLocalId),
     UnknownType(TypeId),
     MissingRuntimePrimitive(RuntimePrimitive),
     MissingLayout(TypeId),

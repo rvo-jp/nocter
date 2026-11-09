@@ -3,6 +3,7 @@ mod build;
 mod invocation;
 pub mod lifecycle;
 mod projection;
+pub mod storage;
 #[cfg(test)]
 mod tests;
 

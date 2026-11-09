@@ -75,7 +75,7 @@ names do not authorize hidden effects, root stability or target primitives.
 ## Executable Lifecycle and Target Admission
 
 Realize the [private lifecycle schedules](../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)
-as payload/flag-bank placement and emitted storage operations through one executable authority.
+as activation/flag-bank placement and emitted storage operations through one executable authority.
 Qualify environment
 pack/unpack, prepared input receipt, protected answers, conditional resource steps and normal
 adapter exits. A read/edit body invoked through a consuming adapter needs its
@@ -85,7 +85,9 @@ destruction. Static code sharing must not merge runtime activations, environment
 Preserve all frozen call targets, invocation views, input-channel mappings and result obligations.
 Interrupted evaluation can carry a known type without a value, witness, environment or cleanup;
 never invent an executable edge for it. Close required runtime helpers before graph freeze.
-Then qualify physical layout, ABI, MIR and native consumers with the same source behavior.
+Use the [private stored-layout/input boundary](../architecture/pipeline/value-access-declarations.md#private-stored-representation)
+for data geometry and call placement. Qualify their actual activation/backing, caller-to-body
+transport and result use, then MIR and native consumers with the same source behavior.
 Keep trap/divergence, recoverable cleanup and pending/ready cancellation distinct.
 
 ## Proof Obligations and Validation

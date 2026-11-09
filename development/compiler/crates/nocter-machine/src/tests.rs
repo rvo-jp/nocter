@@ -18,6 +18,7 @@ use crate::{
 };
 
 mod destruction;
+mod value_storage;
 
 #[test]
 fn preserves_checked_arithmetic_dispositions_without_machine_reproof() {

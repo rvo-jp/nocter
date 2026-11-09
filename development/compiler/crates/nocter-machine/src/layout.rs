@@ -2,9 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, VariantId};
+use nocter_model::{AccessFieldId, CaptureId, FieldId, ParameterId, TypeId, VariantId};
 use nocter_runtime_contract::{
-    RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation, RuntimeTypeTable,
+    RuntimeAbiIdentity, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
+    RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTable,
 };
 
 use crate::MachineTarget;
@@ -127,6 +128,10 @@ impl MachineCaptureLayout {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachineLayoutKind {
+    Unit,
+    StaticCallable {
+        environment: Option<TypeId>,
+    },
     Scalar(MachineScalar),
     Pointer,
     View {
@@ -204,7 +209,7 @@ impl MachineLayout {
     }
 }
 
-/// One immutable layout per concrete runtime type used by a validated MIR program.
+/// One immutable layout per concrete runtime type in the selected storage closure.
 #[derive(Debug)]
 pub struct MachineLayoutStore {
     target: MachineTarget,
@@ -214,12 +219,14 @@ pub struct MachineLayoutStore {
 
 /// Construction-time correspondence between validated semantic members and frozen layouts.
 ///
-/// Semantic member identities are intentionally discarded by [`Self::finish`]. Downstream target
-/// materializers receive only the completed physical layout store.
+/// Semantic member identities are intentionally discarded by [`Self::finish`], after their
+/// consumers have frozen physical projections. Final target materializers receive only the
+/// completed physical layout store.
 #[derive(Debug)]
-pub(crate) struct MachineLayoutPlan {
+pub struct MachineLayoutPlan {
     store: MachineLayoutStore,
     fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
+    value_fields: BTreeMap<(TypeId, AccessFieldId), MachineFieldLayout>,
     variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
     payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
     captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
@@ -260,18 +267,6 @@ impl MachineLayoutStore {
 
 impl MachineLayoutPlan {
     pub(crate) fn build(program: &MirProgram) -> Result<Self, MachineLayoutError> {
-        let target = MachineTarget::select(program.runtime_abi());
-        let mut builder = LayoutBuilder {
-            program,
-            target,
-            layouts: BTreeMap::new(),
-            classes: BTreeMap::new(),
-            active: BTreeSet::new(),
-            fields: BTreeMap::new(),
-            variants: BTreeMap::new(),
-            payloads: BTreeMap::new(),
-            captures: BTreeMap::new(),
-        };
         let mut roots = BTreeSet::new();
         // Machine-generated CFGs use these canonical control and offset carriers independently of
         // whether source MIR happens to mention them.
@@ -304,10 +299,56 @@ impl MachineLayoutPlan {
                 }
             }
         }
+        Self::compute(
+            program.types(),
+            program.type_representations(),
+            program.runtime_abi(),
+            roots
+                .into_iter()
+                .filter(|&ty| !is_completion_type(program.types(), ty)),
+        )
+    }
+
+    /// Computes stored layouts from a closed runtime environment and explicit storage roots.
+    /// No invocation, ABI placement, MIR or executable admission is implied.
+    ///
+    /// # Errors
+    /// Rejects unsized, symbolic, recursive-by-value or overflowing storage requests.
+    pub fn from_runtime(
+        environment: &RuntimeEnvironment,
+        roots: impl IntoIterator<Item = TypeId>,
+    ) -> Result<Self, MachineLayoutError> {
+        Self::compute(
+            environment.types(),
+            environment.type_representations(),
+            environment.abi(),
+            roots,
+        )
+    }
+
+    fn compute(
+        types: &RuntimeTypeTable,
+        representations: &RuntimeTypeRepresentationTable,
+        abi: RuntimeAbiIdentity,
+        roots: impl IntoIterator<Item = TypeId>,
+    ) -> Result<Self, MachineLayoutError> {
+        let target = MachineTarget::select(abi);
+        let mut builder = LayoutBuilder {
+            types,
+            representations,
+            abi,
+            target,
+            layouts: BTreeMap::new(),
+            classes: BTreeMap::new(),
+            active: BTreeSet::new(),
+            fields: BTreeMap::new(),
+            value_fields: BTreeMap::new(),
+            variants: BTreeMap::new(),
+            payloads: BTreeMap::new(),
+            captures: BTreeMap::new(),
+        };
         for ty in roots {
-            if !is_completion_type(program.types(), ty) {
-                builder.layout(ty)?;
-            }
+            builder.layout(ty)?;
         }
         Ok(Self {
             store: MachineLayoutStore {
@@ -316,14 +357,21 @@ impl MachineLayoutPlan {
                 classes: builder.classes,
             },
             fields: builder.fields,
+            value_fields: builder.value_fields,
             variants: builder.variants,
             payloads: builder.payloads,
             captures: builder.captures,
         })
     }
 
+    /// Resolves an exact value-model field before discarding construction correspondence.
     #[must_use]
-    pub(crate) fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
+    pub fn value_field(&self, ty: TypeId, field: AccessFieldId) -> Option<MachineFieldLayout> {
+        self.value_fields.get(&(ty, field)).copied()
+    }
+
+    #[must_use]
+    pub fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
         self.store.get(ty)
     }
 
@@ -356,7 +404,9 @@ impl MachineLayoutPlan {
         self.captures.get(&(ty, capture)).copied()
     }
 
-    pub(crate) fn finish(self) -> MachineLayoutStore {
+    /// Discards semantic member indexes after all physical projections have been materialized.
+    #[must_use]
+    pub fn finish(self) -> MachineLayoutStore {
         self.store
     }
 }
@@ -369,13 +419,21 @@ impl std::ops::Deref for MachineLayoutPlan {
     }
 }
 
+enum Member {
+    Published(FieldId),
+    Value(AccessFieldId),
+}
+
 struct LayoutBuilder<'program> {
-    program: &'program MirProgram,
+    types: &'program RuntimeTypeTable,
+    representations: &'program RuntimeTypeRepresentationTable,
+    abi: RuntimeAbiIdentity,
     target: MachineTarget,
     layouts: BTreeMap<TypeId, MachineLayout>,
     classes: BTreeMap<TypeId, crate::MachineValueClass>,
     active: BTreeSet<TypeId>,
     fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
+    value_fields: BTreeMap<(TypeId, AccessFieldId), MachineFieldLayout>,
     variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
     payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
     captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
@@ -390,8 +448,7 @@ impl LayoutBuilder<'_> {
             return Err(MachineLayoutError::RecursiveValue(ty));
         }
         let kind = self
-            .program
-            .types()
+            .types
             .get(ty)
             .cloned()
             .ok_or(MachineLayoutError::UnknownType(ty))?;
@@ -411,9 +468,29 @@ impl LayoutBuilder<'_> {
     ) -> Result<MachineLayout, MachineLayoutError> {
         match kind {
             RuntimeType::Primitive(primitive) => self.primitive(ty, *primitive),
+            RuntimeType::Unit => Ok(MachineLayout {
+                size: 0,
+                alignment: 1,
+                kind: MachineLayoutKind::Unit,
+            }),
+            RuntimeType::StaticCallable { environment } => {
+                let (size, alignment) = if let Some(environment) = environment {
+                    let layout = self.layout(*environment)?;
+                    (layout.size, layout.alignment)
+                } else {
+                    (0, 1)
+                };
+                Ok(MachineLayout {
+                    size,
+                    alignment,
+                    kind: MachineLayoutKind::StaticCallable {
+                        environment: *environment,
+                    },
+                })
+            }
             RuntimeType::Storage(role) => {
                 let storage = role
-                    .layout(self.program.runtime_abi())
+                    .layout(self.abi)
                     .ok_or(MachineLayoutError::UnsupportedRuntimeStorage(ty))?;
                 Ok(MachineLayout {
                     size: storage.size(),
@@ -424,8 +501,7 @@ impl LayoutBuilder<'_> {
             RuntimeType::Pointer(_) | RuntimeType::Future(_) => Ok(self.pointer()),
             RuntimeType::Borrow { referent, .. } => {
                 let referent = self
-                    .program
-                    .types()
+                    .types
                     .get(*referent)
                     .ok_or(MachineLayoutError::UnknownType(*referent))?;
                 if matches!(
@@ -506,12 +582,12 @@ impl LayoutBuilder<'_> {
                 )
             }
             RuntimeType::Fallible(payload) => {
-                let primary = if is_void(self.program.types(), *payload) {
+                let primary = if is_void(self.types, *payload) {
                     None
                 } else {
                     Some((self.layout(*payload)?.clone(), *payload))
                 };
-                let error = primitive(self.program.types(), RuntimePrimitive::Error)?;
+                let error = primitive(self.types, RuntimePrimitive::Error)?;
                 let alternate = self.layout(error)?.clone();
                 Self::outcome(
                     ty,
@@ -522,7 +598,7 @@ impl LayoutBuilder<'_> {
             }
             RuntimeType::Opaque => {
                 let Some(RuntimeTypeRepresentation::Opaque { witness, .. }) =
-                    self.program.type_representations().get(ty)
+                    self.representations.get(ty)
                 else {
                     return Err(MachineLayoutError::MissingRepresentation(ty));
                 };
@@ -580,13 +656,21 @@ impl LayoutBuilder<'_> {
 
     fn nominal(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
         let representation = self
-            .program
-            .type_representations()
+            .representations
             .get(ty)
             .cloned()
             .ok_or(MachineLayoutError::MissingRepresentation(ty))?;
         match representation {
-            RuntimeTypeRepresentation::Struct { fields } => self.structure(ty, &fields),
+            RuntimeTypeRepresentation::Struct { fields } => self.structure(
+                ty,
+                fields
+                    .iter()
+                    .map(|f| (Member::Published(f.field()), f.ty())),
+            ),
+            RuntimeTypeRepresentation::ValueRecord { fields } => self.structure(
+                ty,
+                fields.iter().map(|f| (Member::Value(f.field()), f.ty())),
+            ),
             RuntimeTypeRepresentation::Enum { variants } => self.enumeration(ty, &variants),
             RuntimeTypeRepresentation::Opaque { .. }
             | RuntimeTypeRepresentation::Closure { .. } => {
@@ -598,12 +682,9 @@ impl LayoutBuilder<'_> {
     fn structure(
         &mut self,
         ty: TypeId,
-        fields: &[nocter_runtime_contract::RuntimeFieldRepresentation],
+        members: impl IntoIterator<Item = (Member, TypeId)>,
     ) -> Result<MachineLayout, MachineLayoutError> {
-        let members = fields
-            .iter()
-            .map(|field| (field.field(), field.ty()))
-            .collect::<Vec<_>>();
+        let members = members.into_iter().collect::<Vec<_>>();
         let (size, alignment, offsets) =
             self.member_offsets(ty, members.iter().map(|(_, field_type)| *field_type))?;
         let fields = members
@@ -614,7 +695,11 @@ impl LayoutBuilder<'_> {
                     ty: field_type,
                     offset,
                 };
-                if self.fields.insert((ty, field), layout).is_some() {
+                let previous = match field {
+                    Member::Published(field) => self.fields.insert((ty, field), layout),
+                    Member::Value(field) => self.value_fields.insert((ty, field), layout),
+                };
+                if previous.is_some() {
                     return Err(MachineLayoutError::InvalidRepresentation(ty));
                 }
                 Ok(layout)
@@ -729,8 +814,7 @@ impl LayoutBuilder<'_> {
     }
 
     fn closure(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
-        let Some(RuntimeTypeRepresentation::Closure { captures }) =
-            self.program.type_representations().get(ty)
+        let Some(RuntimeTypeRepresentation::Closure { captures }) = self.representations.get(ty)
         else {
             return Err(MachineLayoutError::MissingRepresentation(ty));
         };
