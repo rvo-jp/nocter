@@ -1,127 +1,131 @@
-# Nocter Development Agent Rules
+# Nocter Agent Rules
 
-These rules supplement the [repository rules](../AGENTS.md) for work under `development/`.
-Repository-wide principles, document placement and commit policy are owned there.
+These rules apply throughout the repository. Paths in this file are relative to `development/`
+unless explicitly identified as repository-root paths. The root `AGENTS.md` is only a discovery
+entry point; maintain the rules here.
 
-## Task Context
+## Working Principles
 
-For development work, start from `README.md` and `TODO.md`. Before compiler changes, read
-`compiler/README.md`, `architecture/overview.md` and the current contracts relevant to the task.
-Use `architecture/README.md` to locate affected cross-component contracts. For unreleased
-language work, read `spec/README.md` and the owning chapters; for published behavior, read the
-corresponding root `../spec/` chapters. Read each affected crate's colocated README completely
-before editing it. Do not require unrelated documents merely as a startup ritual.
+- Leave enough information in the owning documents for a new session to establish current goals,
+  contracts, implementation limits, remaining work and blockers without conversation records.
+- Keep one authority for each code decision. Derive downstream representations, caches and indexes
+  from it; do not maintain parallel sources of meaning. Prefer a coherent design over a local patch.
+- Keep one authoritative document for each fact or contract. Link to that owner instead of copying
+  the same information into summaries, plans or catalogs.
+- Keep directories and documents current. Git commits and tags are the only history: remove
+  superseded specifications, history directories, chronological ledgers, session logs and completed
+  work reports. Retain rationale and evidence only when they explain a current decision or problem.
+- Commit at coherent, verified boundaries. Inspect `git status --short` before editing and preserve
+  unrelated user changes. Do not stop merely to report progress or combine unrelated work.
+- Question existing code and directory boundaries before extending them. Evaluate them against the
+  user's purpose; their existence alone does not justify retaining them.
+- Review affected code during implementation and before committing. Periodically examine the
+  broader design, duplication and document/directory structure; improve them when concrete benefits
+  outweigh disruption. Avoid superficial churn and unnecessary abstractions.
+- Address bugs when found. Fix a bounded defect and verify its behavior. If a larger redesign is
+  needed, report its impact and record the affected owner and next action in `TODO.md`.
+- Periodically check the user's goals and priorities and propose better designs with concrete
+  examples and tradeoffs. Use documented goals for routine decisions; ask when intent is genuinely
+  missing. Do not repeatedly seek approval for delegated work.
+- Before running a test, identify the behavior or risk it must verify and whether that test
+  actually observes it. Question existing assertions and test selection; unrelated passing tests
+  do not establish correctness. Use the smallest sufficient evidence for the affected consumers.
+- Periodically challenge existing rules and procedures, including this file. Revise those that no
+  longer serve the project's goals instead of following them mechanically. Do not weaken a product
+  contract or test expectation merely to obtain a passing result.
 
-## Behavioral Inputs
+## Task Context and Authorities
 
-Derive language behavior from the owning version's current specification and explicitly selected
-external platform standards. Derive published library behavior from its checked `std/**/index.nct`
-contract and assigned behavior guide; adopted unreleased library changes come from
-`development/spec/library/`. Do not claim unmigrated APIs or implementations are supported.
+Start from [README.md](README.md) and [TODO.md](TODO.md). Read relevant owners rather than unrelated
+documents as a startup ritual. Before compiler changes, read `compiler/README.md`, the relevant
+architecture contracts and each affected crate's colocated README completely.
 
-Do not use an archived compiler, its tests, diagnostics, generated structures, runtime behavior
-or published binaries as a language oracle. Do not restore, copy, port, execute or depend on an
-archived implementation, or copy a previous standard-library implementation to bootstrap the
-new compiler. Git history can explain a change but cannot fill a missing current contract.
-An unclosed v2.0.0 subject has no implicit fallback to the published language.
+- `spec/` owns adopted unreleased contracts; repository-root `spec/` owns published contracts.
+  Derive behavior from the owning version's specification and explicitly selected platform standards.
+  An unclosed v2.0.0 subject has no implicit fallback to the published language.
+- Repository-root `std/**/index.nct` owns published library declarations and API documentation.
+  Repository-root `std/README.md` assigns longer observable subjects to behavior guides.
+  Adopted unreleased library changes belong in `spec/library/`.
+- `architecture/overview.md` owns compiler-wide authority boundaries; `architecture/README.md`
+  locates cross-component contracts. Follow one-way semantic ownership; diagnostic source locations
+  and rendered names must not become semantic identity or an alternative lookup authority.
+- Each compiler crate's colocated README owns its responsibilities and local invariants. Every
+  workspace member must have one. Rust source/rustdoc owns exact APIs; manifests own membership
+  and dependencies. Architecture documents must not duplicate crate internals.
+- `TODO.md` owns remaining work, blockers and unresolved findings. Remove completed entries.
+  `design/` holds current unresolved design, not competing specifications or archived decisions.
+
+Do not use an archived compiler, its tests, diagnostics, generated structures, runtime behavior or
+published binaries as a language oracle. Do not restore, copy, port, execute or depend on an archived
+implementation, or copy an earlier standard-library implementation to bootstrap the new compiler.
+Git history may explain a change but cannot fill a missing current contract.
 
 ## Delegated v2.0.0 Work
 
-The agent is authorized to decide v2.0.0 language design, source alternatives, semantics,
-analysis, optimization, implementation, verification and ordinary work order. Resolve those
-decisions autonomously within the user's documented goals and explicit preferences. Explain
-consequential choices and tradeoffs with concrete examples, subject to the syntax approval
-boundary below. Ordinary work and next tasks do not require approval.
+Language semantics, internal models, analysis, optimization, implementation, verification,
+refactoring, documentation maintenance and ordinary work order are delegated. Resolve them against
+the documented goals. Explain consequential choices without turning routine work into approvals.
 
-Obtain the user's approval before a major change of syntax-design direction. This includes
-replacing the basic binding/input/result/transfer notation or its user-facing meaning, changing
-a pervasive default, or introducing a central source concept that substantially changes how
-ordinary programs are read or written. Apply this boundary when revisiting adopted decisions too.
-Clarifying or completing syntax within the adopted direction, internal models, analyses,
-optimization, refactoring, tests and documentation maintenance remain delegated. Assess the
-impact on the programmer's model, not merely the number of edited productions or files.
+Obtain approval before a major change of syntax-design direction, including revisiting an adopted
+decision. Examples are replacing basic binding/input/result/transfer notation or its meaning,
+changing a pervasive default, or introducing a central source concept that substantially changes
+ordinary reading and writing. Judge the programmer's model, not the number of edited files.
+Clarifying or completing syntax within the adopted direction remains delegated.
 
-Before requesting approval, prepare a concrete proposal with representative before/after code,
-the problem it solves, alternatives, consequences, migration impact and a recommendation. Keep
-it clearly pending in the current design work; do not replace the adopted specification or
-implement it as accepted behavior before approval. Continue independent authorized work while
-that decision is pending. An explicit user adoption already provides approval for that change.
+Prepare representative before/after code, the problem, alternatives, consequences, migration impact
+and a recommendation before asking. Keep a pending proposal separate from adopted contracts; do
+not implement it as accepted behavior before approval. Continue independent authorized work.
 
-Ask for genuinely missing requirements that cannot be established from current documents or
-the user's instructions, or for actions outside authorization. Release publication, replacement
-of qualified artifacts, external messages and unrelated product decisions are not delegated.
-Follow the root goal-confirmation policy without turning it into another approval procedure.
+Audit the owning chapter and its references before calling a subject unspecified. Reduce a semantic
+question to a minimal program, compare alternatives against the goals and resolve it within the
+delegated scope. Write the adopted rule into its owning specification before implementation or
+conformance admission. Keep current rationale, counterexamples and proof obligations with that
+subject. Use primary research as evidence, not authority over the project's goals.
 
-## Specification Closure
+Distinguish adopted design, implemented scope and verified support. Document actual implementation
+limits with the responsible component and link to that owner. Planned fixtures are not passing
+conformance. Do not silently amend released behavior or claim unmigrated APIs are supported.
 
-Audit the owning chapter and its references before deciding that behavior is unspecified or
-contradictory. Reduce an unresolved semantic question to a minimal program, compare alternatives
-against the documented goals, and resolve it within the delegated scope. If the user's intent
-is genuinely missing, present the distinguishing example, consequences and a recommendation
-when requesting clarification. Internal representation and ordinary implementation sequencing
-do not require a user decision.
+Release publication, replacement of qualified artifacts, external messages and unrelated product
+decisions require separate authorization. Preserve qualified artifact contents and published tags;
+directory cleanup does not authorize rebuilding or replacing a release.
 
-Write the adopted rule directly into its owning specification before implementation or
-conformance admission. Keep the rationale, relevant counterexamples, proof obligations and
-valid/conflicting/failure/cancellation cases with the current subject, without a parallel
-decision log. Unresolved proposals must remain clearly separate from adopted contracts.
-Use primary research as evidence, not authority over the project's goals.
+## Documentation and Repository Placement
 
-Distinguish selected design, implemented compiler scope and verified support. Record actual
-implementation limits with the responsible component and remaining work in `TODO.md`; link
-instead of copying an earlier grammar or preserving a superseded specification. Planned source
-fixtures are not passed production conformance. Do not silently amend the released contract.
+Write public documentation in English, including the root README, both specification trees,
+contributor guides, architecture and website content. Internal instructions and `TODO.md` may use
+another language when useful.
 
-## Compiler Boundaries
+Keep the repository root user-facing. Its README explains the product, installation, released use
+and further reading; it may link to development without copying contributor workflows or plans.
+Keep compiler source, contributor documentation, local packaging, generated candidates and agent
+policy under `development/`. Root discovery/configuration files remain only where their tools need
+that scope; scope Git exclusions and attributes to the directory that owns the affected files.
 
-The compiler is built as an acyclic sequence of authorities:
+Within each active version scope, give each normative subject one owner. Put language semantics in
+`spec/language/`, target/ABI contracts in `spec/platform/` and observable compiler/editor behavior in
+`spec/tooling/`. These paths apply within either specification tree. Promote qualifying contracts
+by moving them, without retaining editable copies. Keep pending alternatives outside normative
+specifications. README catalogs explain reading order and link to owners; generated navigation
+derives membership from the directory structure.
 
-```text
-source -> syntax -> declarations and types -> checked program
-       -> executable program -> MIR -> machine program -> code generation
-```
+Keep product sources and API documentation together under repository-root `std/`. Keep runnable
+user packages in repository-root `examples/`; invalid and diagnostic fixtures belong under
+`compiler/tests/fixtures/`. Use exact release or milestone names, not bare `v0`, when identifying
+contracts or compatibility boundaries.
 
-Source locations are diagnostic and editor projections, never semantic identity. Semantic types
-do not contain source syntax or rendered names. Dispatch is selected once, monomorphized items
-form one program graph, and later stages cannot repeat earlier decisions.
-
-Give each responsibility one owning component. Choose file, module and crate boundaries for
-their actual contracts and dependency direction. Do not introduce adapters to archived concepts,
-hidden fallback lookup, name-based semantic equality or independently maintained parallel indexes.
-
-## Development Document Responsibilities
-
-The root rules own language/library documentation placement. Within development:
-
-- `architecture/overview.md` owns the compiler-wide pipeline and cross-crate authority boundaries.
-- Other `architecture/` documents own current cross-responsibility contracts, not completed-work
-  reports or duplicated crate internals.
-- Each compiler crate's colocated README owns its responsibility, input/output contract,
-  internal responsibility split and local invariants. Update it with responsibility changes.
-- `compiler/Cargo.toml` owns workspace membership, crate manifests own exact dependencies,
-  and Rust source/rustdoc owns exact APIs. Documentation links to these instead of copying lists.
-- `TODO.md` owns remaining work, blockers and unresolved findings. Completed work is removed.
-- `site/` owns the documentation build mechanism and website-only static inputs.
-
-Every workspace member must have one colocated README. Update the owning architecture contract
-when a cross-crate edge changes; do not repeat crate-internal details there. Remove obsolete
-documents and repair referring links when an authority moves.
+Edit source Markdown, not generated HTML. The website build excludes adopted unreleased contracts,
+unresolved design and internal control files. Generated output belongs outside the repository and
+must not be committed; GitHub Pages receives an artifact built from `main`.
 
 ## Verification
 
-The verification entry point, evidence selection and required gates are owned by
-`verification/README.md`. Run checks that consume the changed behavior and shared API checks for
-its affected boundary; use the complete gate only under that guide's integration/release scope.
-Review the changed path for competing authorities and compatibility fallbacks; tests alone do
-not establish a coherent design. Do not count unconsumed editor/native paths as feature evidence.
+[verification/README.md](verification/README.md) owns command invocation, evidence selection and
+required gates. Select checks only after the purpose assessment above. Review semantic ownership
+and compatibility fallbacks as well as test results; do not count unreached native/editor paths as
+evidence for a private front-end feature.
 
-For public Markdown changes, follow the root documentation policy with:
-
-```sh
-node development/site/test-generation.js
-node development/site/build-docs.js --output /tmp/nocter-site
-git diff --check
-```
-
-Internal instruction/work-plan edits require a consistency and diff review. Run link validation
-when references change, and additional checks only where the change affects their subject.
+After public Markdown changes, run documentation generator tests, build into an explicit external
+directory, and run `git diff --check`. Internal instruction/work-plan changes need consistency and
+diff review; validate links when references change. Do not run compiler suites for a document or
+path-only change without identifying an affected compiler behavior.

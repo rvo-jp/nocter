@@ -9,7 +9,7 @@ current development HEAD. Do not rebuild it or replace it as part of v2.0.0 work
 | Identity | Qualified value |
 | --- | --- |
 | Release-content commit | `a42b1fb523a9103f45b400e0172c17e473d07929` |
-| Retained archive | `dist/nocter-v0.73.0-arm64-darwin.tar.gz` |
+| Retained archive | `development/dist/nocter-v0.73.0-arm64-darwin.tar.gz` |
 | Archive bytes | 9,609,573 |
 | Archive SHA-256 | `2b30313c5a9b98cb43374df14ff81ce61a0ce0006cd4c8d10967f999950e5a78` |
 | Compiler SHA-256 | `a11439bddf2a3a3a1e545f6adcb55832265255fa52b838a067a451e79a0e15d1` |

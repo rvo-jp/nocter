@@ -31,8 +31,8 @@ Run an installed compiler from the repository root:
 
 ```sh
 node development/benchmarks/run.js \
-  --compiler v0.36.0=dist/.nocter/nocter \
-  --output /tmp/nocter-v0.36.0-performance.json
+  --compiler candidate=development/dist/.nocter/nocter \
+  --output /tmp/nocter-candidate-performance.json
 ```
 
 Compare two valid installed homes by naming both compiler binaries:

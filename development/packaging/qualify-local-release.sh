@@ -321,7 +321,7 @@ if env NOCTER_HOME="$tampered_standard_home" "$home/nocter" doctor >/dev/null 2>
   exit 1
 fi
 
-dist="$repository_root/dist"
+dist="$repository_root/development/dist"
 mkdir -p "$dist"
 candidate="$dist/$archive_name"
 temporary_candidate="$dist/.${archive_name}.qualified.$$"

@@ -48,12 +48,12 @@ and implementation sources for compression, archives, fixed and variable byte co
 cursor, dynamic storage, generated Unicode data, and Unicode casing. It also proves
 that these commands do not mutate the installed home and that changing either the installed
 compiler or one standard-library source invalidates the home.
-Only after every check passes does it replace the generated candidate outputs in `dist/`. That
+Only after every check passes does it replace the generated candidate outputs in `development/dist/`. That
 directory is current-candidate staging: successful qualification keeps only the newly qualified
 archive. Published archives and tags remain immutable. Record qualification and artifact identity
 with the corresponding Git commit and release metadata rather than maintaining audit journals
 in the working tree.
 
-Generated repository-root `dist/.nocter/`, `dist/SHA256SUMS`, and
-`dist/nocter-v<version>-arm64-darwin.tar.gz` outputs are not committed to git. Packaging and
+Generated `development/dist/.nocter/`, `development/dist/SHA256SUMS`, and
+`development/dist/nocter-v<version>-arm64-darwin.tar.gz` outputs are not committed to git. Packaging and
 qualification do not tag, push, upload, or publish anything.

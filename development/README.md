@@ -19,9 +19,9 @@ current source gaps are owned by the [cross-stage handoff](architecture/pipeline
 
 ## Work Policies
 
-[Repository instructions](../AGENTS.md) own general maintenance and information placement;
-[development instructions](AGENTS.md) own delegated scope, syntax approvals and implementation
-procedure. Crate READMEs, source/rustdoc and manifests own local responsibilities, APIs and exact
+[Agent instructions](AGENTS.md) own repository-wide maintenance rules, information placement,
+delegated scope and syntax approvals. The root agent file only points to that owner.
+Crate READMEs, source/rustdoc and manifests own local responsibilities, APIs and exact
 membership/dependencies. Read those owners rather than reconstructing policy from earlier work.
 
 ## Repository Layout
@@ -35,6 +35,7 @@ development/
 ├── benchmarks/        # repeatable measurement tools
 ├── compiler/          # compiler workspace and consumed source fixtures
 ├── design/            # unresolved current design and realization requirements
+├── dist/              # ignored local candidate archives and installed home
 ├── packaging/         # assembly and installed-artifact qualification
 ├── site/              # documentation generator and website-only inputs
 ├── spec/              # adopted unreleased contracts
@@ -44,3 +45,6 @@ development/
 
 Rust, Cargo and Node.js are development requirements. Exact commands and qualification
 requirements belong to the linked component guides.
+
+Git exclusions and attributes for development files live in this directory. Local generated
+outputs belong here or outside the repository; the root agent file remains only for discovery.

@@ -62,7 +62,7 @@ function parseArguments(argv, repository) {
     }
   }
   if (options.compilers.length === 0) {
-    options.compilers.push({ label: "installed", binary: path.join(repository, "dist/.nocter/nocter") });
+    options.compilers.push({ label: "installed", binary: path.join(repository, "development/dist/.nocter/nocter") });
   }
   const labels = new Set();
   for (const compiler of options.compilers) {

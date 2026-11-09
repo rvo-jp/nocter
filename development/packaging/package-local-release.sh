@@ -8,7 +8,7 @@ compiler_manifest="$repository_root/development/compiler/Cargo.toml"
 version_file="$script_directory/VERSION"
 release_file="$script_directory/RELEASE.json"
 standard_root="$repository_root/std"
-output_directory="${1:-$repository_root/dist}"
+output_directory="${1:-$repository_root/development/dist}"
 
 node "$repository_root/development/verification/verify-repository-metadata.js"
 node "$repository_root/development/unicode/generate.js" --check
