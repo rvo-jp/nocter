@@ -74,7 +74,17 @@ impl Unit {
         let mut bodies = BTreeMap::new();
         let mut closures = BTreeMap::new();
         for (callable, control) in controls {
+            if control.typed.code() != nocter_model::ValueCode::Declaration(callable) {
+                return Err(Failure::Integrity(
+                    flow::IntegrityError::InconsistentTypedBody,
+                ));
+            }
             for (&id, nested) in &control.typed.closures {
+                if nested.typed.code() != nocter_model::ValueCode::Closure(id) {
+                    return Err(Failure::Integrity(
+                        flow::IntegrityError::InconsistentTypedBody,
+                    ));
+                }
                 let checked = nested.clone().finish().map_err(Failure::Integrity)?;
                 let checked = admit(checked, &verified)?;
                 closures.insert(id, checked);
@@ -126,6 +136,14 @@ impl Unit {
     pub fn body(&self, callable: AccessCallableId) -> Option<&flow::Query> {
         self.bodies.get(&callable)
     }
+    /// Select the exact accepted named or captured body. Source ownership is not code identity.
+    #[must_use]
+    pub fn code_body(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
+        match code {
+            nocter_model::ValueCode::Declaration(id) => self.bodies.get(&id),
+            nocter_model::ValueCode::Closure(id) => self.closures.get(&id),
+        }
+    }
     #[must_use]
     pub fn bodies(&self) -> impl ExactSizeIterator<Item = (AccessCallableId, &flow::Query)> {
         self.bodies.iter().map(|(&id, query)| (id, query))
@@ -157,7 +175,7 @@ fn admit(
     query: flow::Query,
     verified: &super::results::Verified<'_, '_>,
 ) -> Result<flow::Query, Failure> {
-    let callable = query.typed().callable();
+    let callable = query.typed().source_owner();
     let bound = query
         .bind_verified(verified)
         .map_err(|failure| Failure::Body { callable, failure })?;

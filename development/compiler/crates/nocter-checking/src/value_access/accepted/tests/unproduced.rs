@@ -91,8 +91,8 @@ fn recursive_return_anchors_come_from_real_returns_not_absent_arguments() {
         }}"
     ));
     absent(&unit, "factory");
-    let factory = named(&unit, "factory").typed().callable();
-    let increment = named(&unit, "increment").typed().callable();
+    let factory = named(&unit, "factory").typed().source_owner();
+    let increment = named(&unit, "increment").typed().source_owner();
     assert_eq!(
         unit.result_witness(factory).unwrap().origin,
         nocter_model::ValueFunctionOrigin::Declaration(increment)

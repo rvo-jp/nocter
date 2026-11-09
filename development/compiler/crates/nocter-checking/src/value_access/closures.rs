@@ -17,7 +17,7 @@ impl Checker<'_, '_> {
         node: NodeId,
         _reachable: bool,
     ) -> Result<nocter_model::AccessExpressionId, Failure> {
-        if self.in_closure {
+        if matches!(self.code, nocter_model::ValueCode::Closure(_)) {
             return self.reject_message(
                 Rule::TypeMismatch,
                 node,
@@ -42,18 +42,30 @@ impl Checker<'_, '_> {
         else {
             return self.reject(Rule::UnknownType, result_node);
         };
+        let closure = ValueClosure {
+            owner: self.types.owner(),
+            slot: self
+                .closures
+                .len()
+                .try_into()
+                .map_err(|_| Failure::InconsistentSyntax)?,
+        };
         let mut nested = Checker::new(
             self.context,
             result,
             self.types.clone(),
             self.projection.clone(),
             self.body_bytes.clone(),
-            true,
+            nocter_model::ValueCode::Closure(closure),
         );
         let environment = nested.locals.insert(Local {
             data,
             kind: ValueBindingKind::MutableValue,
             origin: LocalOrigin::Capture,
+        });
+        nested.environment = Some(super::BodyInput {
+            local: environment,
+            operation: ValueInputOperation::Take,
         });
         nested.origins.locals.insert(
             environment,
@@ -71,14 +83,6 @@ impl Checker<'_, '_> {
         let mut control = super::flow::Control::prepare(Arc::new(query))
             .map_err(|_| Failure::InconsistentSyntax)?;
         let invocation = invocation(&control, environment)?;
-        let closure = ValueClosure {
-            owner: self.types.owner(),
-            slot: self
-                .closures
-                .len()
-                .try_into()
-                .map_err(|_| Failure::InconsistentSyntax)?,
-        };
         let contract = FunctionConstraint {
             invocation,
             inputs: inputs.into(),
@@ -89,6 +93,10 @@ impl Checker<'_, '_> {
             .closure(closure, data, contract)
             .map_err(|_| Failure::InconsistentSyntax)?;
         let typed = Arc::make_mut(&mut control.typed);
+        typed.body.inputs.environment = Some(super::BodyInput {
+            local: environment,
+            operation: invocation.operation(),
+        });
         typed.body.locals = typed.body.locals.map(|id, local| {
             let mut local = local.clone();
             if id == environment {
@@ -198,6 +206,7 @@ impl Checker<'_, '_> {
                 kind: operation.binding_kind(),
                 origin: LocalOrigin::ClosureParameter,
             });
+            self.inputs.push(super::BodyInput { local, operation });
             self.origins
                 .locals
                 .insert(local, self.site(SyntaxOrigin::Token(token))?);

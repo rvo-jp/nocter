@@ -481,3 +481,19 @@ and cleans its remainder; a read/edit body receives scoped input authority. Adap
 code/environment identity. Result equations accept only actually produced closure witnesses.
 Unit admission validates every nested body, even an uninvoked or unreachable producer, before
 publishing its closure-body catalog. Capture/body edits invalidate the enclosing source recipe.
+
+## Frozen Body Input Channels
+
+A typed query's code identity selects its named or captured body. Its derived source owner selects
+only the enclosing source reuse guard; these are separate roles, not interchangeable lookup keys.
+The accepted Unit exposes exact code-to-body selection without a name or header/body fallback.
+
+`body_inputs` owns coverage and contract validation of the typed body's input layout: one optional
+environment channel and an authored-order sequence of explicit input slots and operations. Named
+parameters retain their exact declaration identities; captured and anonymous inputs retain their
+body-local roles. Every input local occurs exactly once, with a matching slot kind and contract.
+Control construction consumes this order for root scope cleanup. Capture demand freezes the
+environment operation with its local authority before final contract validation and flow admission.
+No downstream consumer infers input position or an environment channel from local allocation order,
+body use, source names or argument count. Mutation tests reject reordered/duplicate/missing slots,
+changed operations, substituted environments and an enclosing source owner used as closure code.

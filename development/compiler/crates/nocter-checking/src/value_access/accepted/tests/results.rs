@@ -28,7 +28,7 @@ fn result_relations_close_before_body_resource_acceptance() {
         .unwrap();
     for name in ["make", "forward"] {
         let query = named(&unit, name);
-        let witness = unit.result_witness(query.typed().callable()).unwrap();
+        let witness = unit.result_witness(query.typed().source_owner()).unwrap();
         assert_eq!(witness.origin, Origin::Declaration(increment));
         assert!(query.typed().results_closed());
         assert_eq!(

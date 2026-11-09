@@ -54,17 +54,28 @@ reached body operations infer func/mut/once over one retained graph before ordin
 access and resource admission. Nested bodies share canonical types, source byte/locator guards and
 flow admission with named bodies. Returned captured-code witnesses, static callback input supply,
 partial consuming return and interrupted preparation are source-checked. Uninvoked environment
-payloads project without creating code instances. Captured-code invocations/bindings remain an
-explicit UnsupportedCapturedCode private-target boundary; no executable or native claim follows.
+payloads project without creating code instances.
 
-Next close captured code in the existing private instance graph. Introduce a code identity that
-selects a named body or checked closure body, retain explicit environment versus ordinary inputs,
-and specialize already selected witnesses without retyping or erased dispatch. Preserve the
-inferred body invocation separately from its supplied adapter view and account for adapter-owned
-environment cleanup. Add direct/value/formal calls, returned environments, recursion, distinct
-lexical producers and uninvoked-code cases before claiming this target admission. Closure bodies
-with nested producers or factory-result applications need code-scoped operation identities; they
-must not borrow the enclosing named function's result-application domain.
+The [captured-instance checkpoint](history/reviews/v2.0.0-captured-code-instances.md) closes named
+and captured bodies through one code identity and one private instance arena. Checked input layouts
+freeze the environment channel and explicit local-slot order/operations. Edges retain prepared input
+bindings, concrete result obligations and normal environment exits. The supplied view stays separate
+from body invocation; an owned read/edit adapter environment is disposed before answer delivery,
+whereas a consuming body owns its remaining cleanup. Recursive bindings share reserved instances;
+runtime environment contents and adapter views do not duplicate a code body. The former
+UnsupportedCapturedCode boundary is removed for this bounded producer scope. Source-selected
+Copy/move and interrupted/unproduced evidence remain unchanged. No ABI/native claim follows.
+
+Next lower this bounded graph into a closed executable lifecycle product. Realize environment
+pack/unpack, prepared-bundle input receipt, staged answers, existing conditional resource steps and
+normal adapter exits under one authority. A read/edit body invoked through once must dispose the
+received post-call environment after the body finishes and before handing off its protected answer;
+a consuming body must not receive a second destruction. Preserve caller snapshots, partial moves,
+interrupted prefixes and exact body/input identities without another lookup, typing or Copy choice.
+Keep trap/divergence behavior separate from normal cleanup. Only then admit physical layout/ABI and
+MIR/native lowering for the explicitly closed data domain; do not claim executable cleanup from a
+logical graph alone. Nested producer/factory-result closure bodies need code-scoped application
+identities before expansion and cannot borrow their enclosing function's application domain.
 
 Then expand multi-value environments, contextual closure completion and inferred read/update
 captures with retained-state/write footprints. Preserve R/D/S and source-context Copy through every

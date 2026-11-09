@@ -1,29 +1,31 @@
 //! Closed static instances of the private value-binding product. No ABI or native admission.
 mod build;
+mod invocation;
 mod projection;
 #[cfg(test)]
 mod tests;
 
+pub use invocation::{Environment, EnvironmentExit, InputBinding, Invocation};
 use nocter_checking::value_access::{
     accepted::{DataEvidence, Unit},
     flow,
 };
 use nocter_model::{
     AccessCallableId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
-    ValueInvocation,
+    ValueCode, ValueInvocation,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
-/// A selected named witness; this representation cannot contain an unresolved formal.
+/// A selected named or captured witness; this representation cannot contain an unresolved formal.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConcreteWitness {
-    declaration: AccessCallableId,
+    code: ValueCode,
     invocation: ValueInvocation,
 }
 impl ConcreteWitness {
     #[must_use]
-    pub const fn declaration(self) -> AccessCallableId {
-        self.declaration
+    pub const fn code(self) -> ValueCode {
+        self.code
     }
     #[must_use]
     pub const fn invocation(self) -> ValueInvocation {
@@ -34,13 +36,13 @@ impl ConcreteWitness {
 /// Construction is private: exact checked call bindings determine the specialization key.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct InstanceKey {
-    callable: AccessCallableId,
+    code: ValueCode,
     witnesses: BTreeMap<AccessParameterId, ConcreteWitness>,
 }
 impl InstanceKey {
     #[must_use]
-    pub const fn callable(&self) -> AccessCallableId {
-        self.callable
+    pub const fn code(&self) -> ValueCode {
+        self.code
     }
     #[must_use]
     pub const fn witnesses(&self) -> &BTreeMap<AccessParameterId, ConcreteWitness> {
@@ -51,7 +53,7 @@ impl InstanceKey {
 #[derive(Clone, Debug)]
 pub struct Instance {
     key: InstanceKey,
-    calls: BTreeMap<AccessExpressionId, AccessInstanceId>,
+    calls: BTreeMap<AccessExpressionId, Invocation>,
     data: BTreeMap<TypeId, DataEvidence>,
 }
 impl Instance {
@@ -61,7 +63,7 @@ impl Instance {
     }
     /// Only reachable invocation commits have an instance edge. Value references alone do not.
     #[must_use]
-    pub const fn calls(&self) -> &BTreeMap<AccessExpressionId, AccessInstanceId> {
+    pub const fn calls(&self) -> &BTreeMap<AccessExpressionId, Invocation> {
         &self.calls
     }
     /// Source data identities map to concrete payloads or checked unproduced structural contracts.
@@ -73,7 +75,6 @@ impl Instance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
-    UnsupportedCapturedCode(nocter_model::ValueClosure),
     UnknownRoot(AccessCallableId),
     UnboundRoot(AccessParameterId),
     InvalidAcceptedUnit,
@@ -110,6 +111,6 @@ impl InstanceProgram {
     /// Pair each instance with its original checked body. Selected operations remain unchanged.
     #[must_use]
     pub fn body(&self, instance: AccessInstanceId) -> Option<&flow::Query> {
-        self.unit.body(self.instances.get(instance)?.key.callable)
+        self.unit.code_body(self.instances.get(instance)?.key.code)
     }
 }

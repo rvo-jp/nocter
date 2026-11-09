@@ -7,16 +7,16 @@ use nocter_checking::value_access::{
     flow::resources::payload,
 };
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
-use nocter_model::{TypeId, ValueFunctionOrigin};
+use nocter_model::{TypeId, ValueCode, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn witness(
     key: &InstanceKey,
     selected: FunctionWitness,
 ) -> Result<ConcreteWitness, Failure> {
-    let declaration = match selected.origin {
-        ValueFunctionOrigin::Closure(id) => return Err(Failure::UnsupportedCapturedCode(id)),
-        ValueFunctionOrigin::Declaration(id) => id,
+    let code = match selected.origin {
+        ValueFunctionOrigin::Closure(id) => ValueCode::Closure(id),
+        ValueFunctionOrigin::Declaration(id) => ValueCode::Declaration(id),
         ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
             return Err(Failure::InvalidAcceptedUnit);
         }
@@ -25,11 +25,11 @@ pub(super) fn witness(
             if !supplied.invocation.can_supply(selected.invocation) {
                 return Err(Failure::InvalidAcceptedUnit);
             }
-            supplied.declaration
+            supplied.code
         }
     };
     Ok(ConcreteWitness {
-        declaration,
+        code,
         invocation: selected.invocation,
     })
 }
@@ -40,9 +40,9 @@ pub(super) fn callee(
     target: ValueFunctionOrigin,
     arguments: &[Argument],
 ) -> Result<InstanceKey, Failure> {
-    let callable = match target {
-        ValueFunctionOrigin::Closure(id) => return Err(Failure::UnsupportedCapturedCode(id)),
-        ValueFunctionOrigin::Declaration(id) => id,
+    let code = match target {
+        ValueFunctionOrigin::Closure(id) => ValueCode::Closure(id),
+        ValueFunctionOrigin::Declaration(id) => ValueCode::Declaration(id),
         ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
             return Err(Failure::InvalidAcceptedUnit);
         }
@@ -51,7 +51,7 @@ pub(super) fn callee(
                 .witnesses
                 .get(&id)
                 .ok_or(Failure::InvalidAcceptedUnit)?
-                .declaration
+                .code
         }
     };
     let mut witnesses = BTreeMap::new();
@@ -63,28 +63,32 @@ pub(super) fn callee(
             }
         }
     }
-    let key = InstanceKey {
-        callable,
-        witnesses,
-    };
+    let key = InstanceKey { code, witnesses };
     validate_key(program, &key)?;
     Ok(key)
 }
 
 /// Validate identity-domain coverage, without rechecking signatures or choosing a call candidate.
 pub(super) fn validate_key(program: &Program, key: &InstanceKey) -> Result<(), Failure> {
-    let declaration = program
-        .callables()
-        .get(key.callable)
-        .ok_or(Failure::InvalidAcceptedUnit)?;
     let mut expected = BTreeSet::new();
-    for &id in declaration.parameters() {
-        let parameter = program
-            .parameters()
-            .get(id)
-            .ok_or(Failure::InvalidAcceptedUnit)?;
-        if parameter.contract().is_some() {
-            expected.insert(id);
+    match key.code {
+        ValueCode::Declaration(id) => {
+            let declaration = program
+                .callables()
+                .get(id)
+                .ok_or(Failure::InvalidAcceptedUnit)?;
+            for &id in declaration.parameters() {
+                let parameter = program
+                    .parameters()
+                    .get(id)
+                    .ok_or(Failure::InvalidAcceptedUnit)?;
+                if parameter.contract().is_some() {
+                    expected.insert(id);
+                }
+            }
+        }
+        ValueCode::Closure(id) => {
+            program.closure(id).ok_or(Failure::InvalidAcceptedUnit)?;
         }
     }
     if expected != key.witnesses.keys().copied().collect() {
@@ -133,20 +137,18 @@ pub(super) fn data(
             .ok_or(Failure::InvalidAcceptedUnit)?
         {
             PayloadSchema::Function(selected) => {
-                if let ValueFunctionOrigin::Closure(id) = selected.origin {
+                let selected = witness(key, selected)?;
+                if let ValueCode::Closure(id) = selected.code {
                     pending.insert(
                         program
                             .closure(id)
                             .ok_or(Failure::InvalidAcceptedUnit)?
                             .environment(),
                     );
-                    concrete.insert(source, evidence);
-                    continue;
                 }
-                let selected = witness(key, selected)?;
                 program
                     .function_data(FunctionWitness {
-                        origin: ValueFunctionOrigin::Declaration(selected.declaration),
+                        origin: selected.code.origin(),
                         invocation: selected.invocation,
                     })
                     .ok_or(Failure::InvalidAcceptedUnit)?

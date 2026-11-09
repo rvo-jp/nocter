@@ -50,7 +50,7 @@ does not inspect syntax or repeat checking decisions.
 - Checked constant references remain identities until executable closure freezes exactly the
   reached values; MIR cannot reopen declaration storage.
 - MIR receives no unresolved requirement, interface implementation, or generic lookup.
-- Private future named-function witness keys have no released representation or runtime-type
+- Private future function-witness keys have no released representation or runtime-type
   mapping. Both boundaries reject them rather than guessing a closure/function-pointer layout.
 
 The cross-stage contract is documented in
@@ -64,29 +64,41 @@ TargetProgram adapter exists. Roots requiring externally supplied callback witne
 unbound. Scalar/record runtime inputs remain ordinary data rather than specialization arguments.
 This product grants no ABI, layout, executable cleanup or backend capability.
 
-`build` interns keys of one callable and its concrete formal-witness bindings, reserves before
-following recursive edges, and freezes only after every reachable instance is defined. Only
-checking-reachable invocation commits create call edges. A function reference or interrupted
-argument does not force an uninvoked body into the graph. Construction indexes are discarded;
-one immutable instance arena is the published authority.
+`build` interns keys of one named/captured code identity and its concrete formal-witness bindings.
+A concrete witness pairs code identity with the supplied invocation view; the code instance itself
+is shared across views. Runtime environment contents do not enter its key. The builder reserves
+before following recursive edges and freezes only after every reachable instance is defined.
+Only checking-reachable invocation commits create call edges. A value reference, uninvoked binding
+or interrupted argument does not force a code instance. Construction indexes are discarded; one
+immutable instance arena is the published authority.
 
-`projection` substitutes already selected named/formal origins and invocation views. Callable
-results arrive with checking-closed named or caller-formal witnesses; the body's resolved result data enters the
-same projection table. No target-side result inference or second instance graph exists. It verifies
-formal identity coverage without repeating signature matching or target search. One table maps
-source data IDs to concrete payload obligations or checked unproduced structural contracts in
-the existing program type authority. The latter carry no physical environment or cleanup and
-are never passed to witness substitution. Schema
-cleanup classification remains checking-owned. Record closure visits shared schemas iteratively,
-without expanding payload trees. No symbolic environment destruction remains in this concrete
-projection, while the original body's source-selected moves/reservations stay unchanged.
+`projection` substitutes already selected named/captured/formal origins and invocation views.
+Callable results arrive with checking-closed code or caller-formal witnesses. The body's resolved
+result data enters the same projection table; no target-side result inference or second instance
+graph exists. Exact formal identity coverage is verified without repeating signature matching or
+target search. One table maps source data IDs to concrete payload obligations or checked unproduced
+structural contracts in the existing program authority. Unproduced data has no payload or code
+instance. Captured payloads include their ordinary environment-data obligations even when reached
+through a formal witness. Record schemas are visited iteratively, without expanding payload trees.
+Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
 
-Each instance pairs frozen call edges and data projections with its original checked body. Later
-consumers must use those edges/projections and the recorded direct/value invocation kind; they
-cannot infer an environment offset from arity, recheck a body, select by names, or reinterpret
-source-level Copy from the concrete payload. A generic returned environment keeps its selected
-transfer even when concrete payload projection establishes a named Copy value. Uninvoked bounded owned-capture payloads preserve their environment data in this projection
-without creating code instances. Reached captured-code calls or witness bindings return the
-explicit UnsupportedCapturedCode boundary. Captured instance specialization and general producers
-require further closure before admission. The [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md)
-owns the handoff; the review/handoff own work status.
+`invocation` binds each reached call's committed prepared bundle to the checked body's frozen input
+layout. An edge retains the concrete instance, direct/value kind, explicit argument-to-local map,
+environment channel and concrete input/result obligations. A named value supplies a code token without a
+body environment; a captured value supplies its exact carrier and environment payloads to the declared body
+slot. Original body invocation and supplied adapter view remain distinct. Normal completion either
+retains the environment, leaves remaining-payload cleanup with a consuming body, or disposes an
+adapter-owned environment before result delivery. Copy supply refers to its prepared snapshot,
+not its original source owner. No unwind/cancellation guarantee is inferred from this normal exit
+recipe. Final freeze verifies each edge's input/result payloads against its selected concrete body.
+Input locals are relative to the selected body and a fresh invocation activation; sharing a
+static instance never shares runtime environment values, owner state or storage between calls.
+
+Each instance retains its exact accepted body and these frozen edges/data maps. Consumers cannot
+recheck a body, select by names, infer an environment offset from arity, recover source-level Copy
+from concrete payloads, or reinterpret a closure's source owner as its code body. The former
+UnsupportedCapturedCode boundary is removed for the bounded owned-capture producer. General
+captures, nested/factory-result closure bodies, physical input/environment realization, executable
+cleanup, ABI and backend admission remain separate obligations. The
+[private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md) owns
+the handoff; review/handoff documents own qualification and remaining work.

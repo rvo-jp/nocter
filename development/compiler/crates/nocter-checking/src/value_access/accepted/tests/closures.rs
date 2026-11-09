@@ -125,7 +125,7 @@ fn returned_environments_keep_their_code_schema_and_input_supply_stays_static() 
     let unit = accepted(
         "func observe(input: error): void {}\nfunc make(take input: error): func(): void { (input;): void { observe(input) } }\nfunc apply(action: func(): void): void { action() }\nfunc run(take input: error): void {\nlet action = make(input)\napply(action)\naction()\n}",
     );
-    let make = named(&unit, "make").typed().callable();
+    let make = named(&unit, "make").typed().source_owner();
     assert!(matches!(
         unit.result_witness(make).unwrap().origin,
         nocter_model::ValueFunctionOrigin::Closure(_)

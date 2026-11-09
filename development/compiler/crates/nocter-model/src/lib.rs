@@ -56,6 +56,6 @@ pub use type_store::{
 };
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};
 pub use value_access::{
-    ValueAccess, ValueAccessMode, ValueApplication, ValueBindingKind, ValueClosure,
+    ValueAccess, ValueAccessMode, ValueApplication, ValueBindingKind, ValueClosure, ValueCode,
     ValueFunctionOrigin, ValueInputOperation, ValueInvocation,
 };

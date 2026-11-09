@@ -48,6 +48,7 @@ they do not make reviews normative or register compiler support.
 - [Input-dependent Callable Results](v2.0.0-dependent-callable-results.md) — canonical application types, own-input result relations and per-call witness substitution
 - [Type Foundation and Interrupted Callable Results](v2.0.0-type-foundation-and-interruption.md) — type/operation boundaries and structural contracts without produced payloads
 - [Owned-Capture Producers](v2.0.0-owned-capture-producers.md) — shared body proofs, inferred invocation and explicit captured-instance boundary
+- [Captured Code Instances](v2.0.0-captured-code-instances.md) — frozen input channels, shared code bodies and normal adapter cleanup obligations
 
 #### Research and Adoption Audits
 

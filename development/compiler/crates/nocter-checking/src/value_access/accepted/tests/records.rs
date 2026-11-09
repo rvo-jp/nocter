@@ -47,7 +47,7 @@ fn source_aggregate_and_component_copy_use_the_same_selected_boundary_operation(
         let callable = unit
             .program()
             .callables()
-            .get(query.typed().callable())
+            .get(query.typed().source_owner())
             .unwrap();
         assert_eq!(
             unit.program()

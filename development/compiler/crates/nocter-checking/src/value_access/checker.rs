@@ -25,7 +25,9 @@ pub(super) struct LoopFrame {
 }
 pub(super) struct Checker<'a, 's> {
     pub closures: BTreeMap<nocter_model::ValueClosure, super::flow::Control>,
-    pub in_closure: bool,
+    pub code: nocter_model::ValueCode,
+    pub environment: Option<super::BodyInput>,
+    pub inputs: Vec<super::BodyInput>,
     pub context: &'a DeclarationContext<'s>,
     pub body_bytes: Arc<[u8]>,
     pub result: TypeId,
@@ -79,7 +81,7 @@ pub(super) fn prepare(
             .map_err(|_| Failure::InconsistentSyntax)?,
         Arc::new(projection),
         body_bytes,
-        false,
+        nocter_model::ValueCode::Declaration(callable),
     );
     for (&parameter, &token) in declaration.parameters().iter().zip(source.parameters()) {
         let parameter_declaration = context
@@ -91,6 +93,10 @@ pub(super) fn prepare(
             data: parameter_declaration.data(),
             kind: parameter_declaration.operation().binding_kind(),
             origin: LocalOrigin::Parameter(parameter),
+        });
+        checker.inputs.push(super::BodyInput {
+            local,
+            operation: parameter_declaration.operation(),
         });
         checker
             .origins
@@ -114,7 +120,7 @@ impl<'a, 's> Checker<'a, 's> {
         types: nocter_declarations::value_access::BodyTypes,
         projection: Arc<BodySyntaxProjection>,
         body_bytes: Arc<[u8]>,
-        in_closure: bool,
+        code: nocter_model::ValueCode,
     ) -> Self {
         let pending_results = super::results::is_result(types.program(), result);
         Self {
@@ -123,7 +129,9 @@ impl<'a, 's> Checker<'a, 's> {
             types,
             projection,
             body_bytes,
-            in_closure,
+            code,
+            environment: None,
+            inputs: Vec::new(),
             pending_results,
             closures: BTreeMap::new(),
             equalities: Vec::new(),
@@ -141,7 +149,7 @@ impl<'a, 's> Checker<'a, 's> {
     }
     pub(super) fn finish(self, root: AccessBlockId) -> Query {
         Query {
-            callable: self.types.owner(),
+            code: self.code,
             program: Arc::new(self.types.finish()),
             header: self.context.program_handle(),
             body_bytes: self.body_bytes,
@@ -152,6 +160,10 @@ impl<'a, 's> Checker<'a, 's> {
             closures: self.closures,
             origins: self.origins,
             body: TypedBody {
+                inputs: super::BodyInputs {
+                    environment: self.environment,
+                    explicit: self.inputs.into(),
+                },
                 root,
                 locals: self.locals.finish(),
                 expressions: self.expressions.finish(),

@@ -122,7 +122,7 @@ fn close_applications(
             let Origin::Application(application) = witness.origin else {
                 continue;
             };
-            if application.owner != query.callable()
+            if application.owner != query.source_owner()
                 || application.call != id
                 || *target != Origin::Declaration(application.callee)
             {
@@ -182,7 +182,7 @@ fn prove_equalities(
                 evidence
                     .data(control.typed.program(), data)
                     .map_err(|failure| accepted::Failure::Body {
-                        callable: control.typed.callable,
+                        callable: control.typed.source_owner(),
                         failure,
                     })
             };

@@ -190,10 +190,12 @@ pub(super) struct Control {
 }
 impl Control {
     pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
+        super::body_inputs::layout(&typed)?;
         let graph = build::build(typed.body())?;
         Ok(Self { typed, graph })
     }
     pub(super) fn finish(self) -> Result<Query, IntegrityError> {
+        super::body_inputs::contract(&self.typed)?;
         if !self.typed.results_closed() {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }

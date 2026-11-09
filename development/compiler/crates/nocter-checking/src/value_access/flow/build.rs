@@ -141,12 +141,7 @@ impl Builder<'_> {
     fn scope(&self, block: AccessBlockId) -> Result<Frame> {
         let mut locals = Vec::new();
         if block == self.body.root() {
-            locals.extend(
-                self.body
-                    .locals()
-                    .iter()
-                    .filter_map(|(id, local)| local.origin.is_input().then_some(id)),
-            );
+            locals.extend(self.body.inputs().ordered().map(|input| input.local));
         }
         for &id in &self.body.blocks().get(block).ok_or(INVALID)?.statements {
             if let Statement::Bind { local, .. } = self.body.statements().get(id).ok_or(INVALID)? {

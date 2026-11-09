@@ -31,7 +31,11 @@ pub(super) fn named<'a>(queries: &'a [Query], name: &str) -> &'a Query {
     queries
         .iter()
         .find(|q| {
-            q.program().callables().get(q.callable()).unwrap().name()
+            q.program()
+                .callables()
+                .get(q.source_owner())
+                .unwrap()
+                .name()
                 == q.program().symbols().get(name).unwrap()
         })
         .unwrap()

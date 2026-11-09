@@ -179,7 +179,7 @@ fn reject(
     message: &str,
 ) -> accepted::Failure {
     accepted::Failure::Body {
-        callable: query.callable,
+        callable: query.source_owner(),
         failure: super::diagnostics::query_rejection(
             context,
             query,

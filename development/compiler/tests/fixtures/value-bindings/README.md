@@ -91,3 +91,9 @@ reuse, distinct lexical witnesses, invalid unused bodies and outer-loop control.
 nested captures and contextual completion remain outside this first source scope. The
 [owned-capture review](../../../../history/reviews/v2.0.0-owned-capture-producers.md) records the
 source/flow boundary and the still-separate captured-code instance admission.
+
+Captured-code target tests close the same accepted owned-capture corpus through one named/captured
+instance graph. Additional source-backed cases cover invocation-view sharing, runtime environment
+values, distinct lexical witnesses, returned callbacks, recursion, unused bindings and normal
+adapter cleanup. The [captured-instance review](../../../../history/reviews/v2.0.0-captured-code-instances.md)
+records the closed logical handoff; executable lifecycle and native realization remain separate.

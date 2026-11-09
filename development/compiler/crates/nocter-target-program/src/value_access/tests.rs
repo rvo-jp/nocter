@@ -7,6 +7,7 @@ use nocter_declaration_lowering::access_declarations;
 use nocter_model::{ValueFunctionOrigin, ValueInvocation};
 use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
+mod captured;
 
 fn accepted(fixture: &ValueSourceFixture) -> Arc<Unit> {
     let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
@@ -31,15 +32,25 @@ fn uninvoked_owned_capture_projects_its_payload_without_creating_a_code_instance
 }
 
 #[test]
-fn captured_code_invocation_requires_explicit_instance_support() {
+fn captured_code_invocation_selects_its_checked_body() {
     let fixture = ValueSourceFixture::new(
         "func run(): i32 {\nlet value = 1\nlet action = (value;): i32 { value }\naction()\n}",
     );
     let unit = accepted(&fixture);
     let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 2);
+    let edge = graph
+        .instances()
+        .get(graph.root())
+        .unwrap()
+        .calls()
+        .values()
+        .next()
+        .unwrap();
     assert!(matches!(
-        InstanceProgram::prepare(unit, root),
-        Err(Failure::UnsupportedCapturedCode(_))
+        graph.instances().get(edge.target()).unwrap().key().code(),
+        ValueCode::Closure(_)
     ));
 }
 fn callable(unit: &Unit, name: &str) -> AccessCallableId {
@@ -57,7 +68,7 @@ fn instance<'a>(graph: &'a InstanceProgram, name: &str) -> (AccessInstanceId, &'
     graph
         .instances()
         .iter()
-        .find(|(_, instance)| instance.key.callable == callable)
+        .find(|(_, instance)| instance.key.code == ValueCode::Declaration(callable))
         .unwrap()
 }
 
@@ -70,11 +81,11 @@ fn forwarded_formals_close_to_one_named_dispatch_without_rechecking_bodies() {
         let (id, selected) = instance(&graph, name);
         assert_eq!(selected.key.witnesses.len(), 1);
         let witness = selected.key.witnesses.values().next().unwrap();
-        assert_eq!(witness.declaration, increment);
+        assert_eq!(witness.code, ValueCode::Declaration(increment));
         assert_eq!(witness.invocation, ValueInvocation::Read);
         assert!(std::ptr::eq(
             graph.body(id).unwrap(),
-            graph.unit().body(selected.key.callable).unwrap()
+            graph.unit().code_body(selected.key.code).unwrap()
         ));
     }
     let (increment_id, _) = instance(&graph, "increment");
@@ -83,7 +94,7 @@ fn forwarded_formals_close_to_one_named_dispatch_without_rechecking_bodies() {
             .1
             .calls
             .values()
-            .copied()
+            .map(Invocation::target)
             .collect::<Vec<_>>(),
         [increment_id]
     );
@@ -94,7 +105,7 @@ fn recursion_reuses_the_reserved_instance_instead_of_expanding_witness_terms() {
     let graph = close_case("a88-callback-recursive-forward.nct");
     assert_eq!(graph.instances().len(), 3);
     let (apply_id, apply) = instance(&graph, "apply");
-    assert!(apply.calls.values().any(|&id| id == apply_id));
+    assert!(apply.calls.values().any(|call| call.target() == apply_id));
     assert_eq!(apply.calls.len(), 2);
 }
 
@@ -105,12 +116,12 @@ fn equal_signatures_keep_distinct_positions_and_targets() {
     let mut targets = apply
         .calls
         .values()
-        .map(|id| graph.instances().get(*id).unwrap().key.callable)
+        .map(|call| graph.instances().get(call.target()).unwrap().key.code)
         .collect::<Vec<_>>();
     targets.sort();
     let mut expected = vec![
-        callable(graph.unit(), "increment"),
-        callable(graph.unit(), "decrement"),
+        ValueCode::Declaration(callable(graph.unit(), "increment")),
+        ValueCode::Declaration(callable(graph.unit(), "decrement")),
     ];
     expected.sort();
     assert_eq!(targets, expected);
@@ -135,7 +146,13 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
         .program()
         .parameters()
         .iter()
-        .find(|(_, p)| p.owner() == apply.key.callable)
+        .find(|(_, p)| {
+            p.owner()
+                == match apply.key.code {
+                    ValueCode::Declaration(id) => id,
+                    ValueCode::Closure(_) => panic!("named body"),
+                }
+        })
         .unwrap();
     assert_eq!(
         graph.unit().program().data_copyable(parameter.data()),
@@ -260,7 +277,7 @@ fn repeated_concrete_bindings_share_one_instance_and_distinct_bindings_do_not() 
         graph
             .instances()
             .iter()
-            .filter(|(_, i)| i.key.callable == apply)
+            .filter(|(_, i)| i.key.code == ValueCode::Declaration(apply))
             .count(),
         2
     );
@@ -270,7 +287,7 @@ fn repeated_concrete_bindings_share_one_instance_and_distinct_bindings_do_not() 
         .unwrap()
         .calls
         .values()
-        .copied()
+        .map(Invocation::target)
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 3);
     assert_eq!(calls[0], calls[2]);
@@ -359,7 +376,7 @@ fn direct_and_value_invocations_keep_explicit_environment_shape() {
         }
         let apply = graph
             .instances()
-            .get(*root.calls.values().next().unwrap())
+            .get(root.calls.values().next().unwrap().target())
             .unwrap();
         assert_eq!(apply.key.witnesses.len(), 1);
     }
@@ -404,7 +421,7 @@ func run(): i32 { bounce(increment, decrement, false) }",
     let instances = graph
         .instances()
         .iter()
-        .filter(|(_, i)| i.key.callable == bounce)
+        .filter(|(_, i)| i.key.code == ValueCode::Declaration(bounce))
         .collect::<Vec<_>>();
     assert_eq!(instances.len(), 2);
     for (index, (id, instance)) in instances.iter().enumerate() {
@@ -413,9 +430,9 @@ func run(): i32 { bounce(increment, decrement, false) }",
             instance
                 .calls
                 .values()
-                .any(|&target| target == instances[1 - index].0)
+                .any(|call| call.target() == instances[1 - index].0)
         );
-        assert!(!instance.calls.values().any(|target| target == id));
+        assert!(!instance.calls.values().any(|call| call.target() == *id));
     }
 }
 
@@ -433,7 +450,7 @@ fn callable_results_enter_the_same_instance_graph_with_resolved_payloads() {
             graph
                 .instances()
                 .iter()
-                .any(|(_, instance)| instance.key.callable == increment)
+                .any(|(_, instance)| instance.key.code == ValueCode::Declaration(increment))
         );
         for (id, instance) in graph.instances().iter() {
             assert!(graph.body(id).unwrap().typed().results_closed());
@@ -496,14 +513,14 @@ fn separate_result_applications_close_to_their_own_factory_and_callback_instance
     let producers = graph
         .instances()
         .iter()
-        .filter(|(_, i)| i.key.callable == forward)
-        .map(|(_, i)| i.key.witnesses.values().next().unwrap().declaration)
+        .filter(|(_, i)| i.key.code == ValueCode::Declaration(forward))
+        .map(|(_, i)| i.key.witnesses.values().next().unwrap().code)
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         producers,
         std::collections::BTreeSet::from([
-            callable(graph.unit(), "increment"),
-            callable(graph.unit(), "decrement")
+            ValueCode::Declaration(callable(graph.unit(), "increment")),
+            ValueCode::Declaration(callable(graph.unit(), "decrement"))
         ])
     );
     let root = graph.instances().get(graph.root()).unwrap();

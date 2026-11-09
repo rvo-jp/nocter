@@ -1,5 +1,5 @@
 //! Root-driven interning closes selected calls once. Recursive edges reuse reserved instances.
-use super::{Failure, Instance, InstanceKey, InstanceProgram, projection};
+use super::{Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
 use nocter_checking::value_access::{ExpressionKind, accepted::Unit, flow::Operation};
 use nocter_model::{AccessCallableId, AccessInstanceId, ArenaBuilder};
 use std::{
@@ -37,7 +37,7 @@ impl Builder {
             .key
             .clone();
         let body = unit
-            .body(key.callable)
+            .code_body(key.code)
             .ok_or(Failure::InvalidAcceptedUnit)?;
         let data = projection::data(unit, &key, body)?;
         let mut invocations = BTreeSet::new();
@@ -66,7 +66,10 @@ impl Builder {
                 return Err(Failure::InvalidAcceptedUnit);
             };
             let selected = projection::callee(unit.program(), &key, *target, arguments)?;
-            calls.insert(call, self.intern(selected));
+            let code = selected.code;
+            let target = self.intern(selected);
+            let edge = invocation::bind(unit, &data, body, call, code, target)?;
+            calls.insert(call, edge);
         }
         self.instances
             .get_mut(id)
@@ -99,7 +102,7 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCallableId) -> Result<InstanceP
         pending: Vec::new(),
     };
     let root = builder.intern(InstanceKey {
-        callable: root,
+        code: nocter_model::ValueCode::Declaration(root),
         witnesses: BTreeMap::new(),
     });
     while let Some(id) = builder.pending.pop() {
@@ -111,6 +114,41 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCallableId) -> Result<InstanceP
             .clone()
             .ok_or(Failure::InvalidAcceptedUnit)
     })?;
+    for (_, instance) in instances.iter() {
+        for call in instance.calls.values() {
+            let callee = instances
+                .get(call.target())
+                .ok_or(Failure::InvalidAcceptedUnit)?;
+            let body = unit
+                .code_body(callee.key.code)
+                .ok_or(Failure::InvalidAcceptedUnit)?
+                .typed();
+            let result = body.result_data();
+            if callee
+                .data
+                .get(&result)
+                .and_then(nocter_checking::value_access::accepted::DataEvidence::payload)
+                != Some(call.result())
+            {
+                return Err(Failure::InvalidAcceptedUnit);
+            }
+            for binding in call.inputs() {
+                let local = body
+                    .body()
+                    .locals()
+                    .get(binding.input.local)
+                    .ok_or(Failure::InvalidAcceptedUnit)?;
+                if callee
+                    .data
+                    .get(&local.data)
+                    .and_then(nocter_checking::value_access::accepted::DataEvidence::payload)
+                    != Some(binding.payload)
+                {
+                    return Err(Failure::InvalidAcceptedUnit);
+                }
+            }
+        }
+    }
     Ok(InstanceProgram {
         unit,
         root,

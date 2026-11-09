@@ -175,7 +175,7 @@ changed authority/body is rejected before diagnostics can use stale coordinates.
 Before access/resource validation, checking propagates static code/view producer facts through
 this same graph's reachable successors, without depending on initialization. Actual staged
 return values and prepared argument producers, rather than provisional expression types,
-establish result equations. Finite monotone closure requires a named or own-input anchor and
+establish result equations. Finite monotone closure requires a named/captured-code or own-input anchor and
 preserves invocation views. Selected call applications substitute actual bindings into those
 established relations, then deferred identity equalities are proved. Projection closes existing type/witness identities and freezes pending value supply
 from the exact payload schema and source access. It does not repeat typing or graph construction;
@@ -248,7 +248,7 @@ one private InstanceProgram. It retains the exact Unit/body/type authority, neve
 adapter or source context. An entry with unbound callback formals is not a concrete root. This
 internal failure does not introduce a public CLI or target ABI rule.
 
-Checking supplies selected declaration/formal targets, formal-to-actual bindings, direct/value
+Checking supplies selected declaration/captured/formal targets, formal-to-actual bindings, direct/value
 invocation kind, explicit preparation actions, initialization reachability and resource obligations.
 The target owner substitutes these facts into concrete instance keys and call edges. It does not
 repeat name lookup, signature compatibility, body checking, access proof or Copy selection. The
@@ -261,13 +261,13 @@ obligations or checked unproduced structural contracts in the same declaration T
 The accepted Unit owns that distinction; a type-only application has no payload, cleanup or
 environment to specialize. Checking rejects any reached value use of it before flow admission.
 Checking owns the payload classifier; the
-projection resolves a symbolic named-code environment to its exact cleanup contract without
+projection resolves a symbolic code environment to its exact cleanup contract without
 inventing an owner. Closed record schemas are visited once per data identity, not expanded by path.
 Consumers receive each instance with its exact checked body and those frozen maps.
 
 The body's checking-closed result data enters that same payload projection. The target owner
 never re-infers a result producer. Returned formal data uses the instance's existing binding and
-payload maps. Captured environments and general retained footprints still need their own source
+payload maps. General captured environments and retained footprints still need their own source
 closure. Layout, physical environment/argument realization, executable cleanup, target services,
 MIR and native output are not established by this graph. Later implementation must extend this
 same instance authority rather than create another call graph or infer environment shape from
@@ -289,9 +289,40 @@ one value in the existing resource ledger. Copy and cleanup consume the exact sc
 signature-wide assumption about callable environments.
 
 Private instance data projection preserves an uninvoked owned environment's payload and its
-environment-data obligation without adding a code instance. A reached captured-code invocation or
-witness binding currently returns UnsupportedCapturedCode; it is not an invalid accepted Unit,
-a released/native capability or permission to erase its environment. Concrete captured-code
-instance keys, environment realization and adapter cleanup must close in that existing graph
-before admission. Nested closure/factory-result bodies require code-scoped operation identities;
-they cannot reuse an enclosing named function's application identity domain.
+environment-data obligation without adding a code instance. A code identity selects the named or
+captured body independently of the value's invocation view. Its derived named source owner guards
+source reuse only and cannot select a closure body. The former UnsupportedCapturedCode private
+boundary is closed for the selected single-value environment scope.
+
+## Frozen Invocation Handoff
+
+Checking publishes one input layout per body: an optional environment input and an ordered explicit
+sequence of local slots with selected operations. Coverage and origin/operation/data consistency
+are checked before complete flow admission. Root cleanup consumes this order. Named parameter
+identities and closure input roles remain distinct; a consumer cannot rediscover input order from
+local allocation order or an enclosing named header.
+
+Private instances use code identity plus concrete formal witnesses as their key. A witness retains
+its supplied invocation view, while a code instance is shared across views and runtime environment
+contents. Selected captured-code bindings use the same finite recursive interning as named code;
+no captured-code registry, second call graph or source rechecking enters target closure.
+Static instance sharing does not share runtime activations, environment contents or owner storage.
+
+Each reached call edge retains its concrete instance, direct/value invocation kind, prepared-bundle
+to explicit-body-input mapping, environment binding and concrete input/answer payloads. A named function
+value supplies a code token without a body environment; a captured value supplies the exact ordinary
+environment payload to its body slot. Body invocation and supplied view stay separate. On normal
+completion the environment is retained, its remaining cleanup belongs to a consuming body, or an
+adapter disposes its received post-call environment before answer delivery. A supplied Copy
+snapshot is distinct from its original source owner. These recipes imply no unwind/cancellation
+cleanup guarantee. Final graph freeze compares every input/answer payload with the selected callee's
+concrete projections rather than inferring types or a result again.
+
+Only reachable invocation commits add edges. Uninvoked values/bindings and interrupted prepared
+prefixes retain payload/cleanup evidence without creating code instances. Source-selected generic
+transfers do not become non-invalidating copies merely because concrete projection finds Copy.
+The next executable consumer must lower these same frozen channels, body graphs, resource steps
+and normal adapter exits into environment/input/result realization. This graph grants no ABI,
+physical storage, executable cleanup, MIR or native capability. Nested closure/factory-result
+bodies still require code-scoped application identities before source admission; they cannot reuse
+the enclosing named function's operation identity domain.

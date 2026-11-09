@@ -273,10 +273,39 @@ pub struct Block {
     pub ty: ValueType,
 }
 
+/// A selected body input operation and its exact local slot, independent of physical ABI.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BodyInput {
+    pub local: AccessLocalId,
+    pub operation: ValueInputOperation,
+}
+/// Environment and explicit inputs are distinct channels with frozen source order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BodyInputs {
+    pub(super) environment: Option<BodyInput>,
+    pub(super) explicit: Box<[BodyInput]>,
+}
+impl BodyInputs {
+    #[must_use]
+    pub const fn environment(&self) -> Option<BodyInput> {
+        self.environment
+    }
+    #[must_use]
+    pub fn explicit(&self) -> &[BodyInput] {
+        &self.explicit
+    }
+    pub fn ordered(&self) -> impl Iterator<Item = BodyInput> + '_ {
+        self.environment
+            .into_iter()
+            .chain(self.explicit.iter().copied())
+    }
+}
+
 /// Type/call evidence only. This cannot be passed to native/checked-program consumers: initialization,
 /// access liveness, escaping roots, cleanup schedules and numeric safety proofs remain unvalidated.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypedBody {
+    pub(super) inputs: BodyInputs,
     pub(super) root: AccessBlockId,
     pub(super) locals: Arena<AccessLocalId, Local>,
     pub(super) expressions: Arena<AccessExpressionId, Expression>,
@@ -287,6 +316,10 @@ pub struct TypedBody {
 }
 
 impl TypedBody {
+    #[must_use]
+    pub const fn inputs(&self) -> &BodyInputs {
+        &self.inputs
+    }
     #[must_use]
     pub const fn root(&self) -> AccessBlockId {
         self.root

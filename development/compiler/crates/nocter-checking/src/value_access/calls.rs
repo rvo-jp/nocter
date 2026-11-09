@@ -91,7 +91,9 @@ impl Checker<'_, '_> {
             .program()
             .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
-        if self.in_closure && super::results::is_result(self.program(), contract.result) {
+        if matches!(self.code, nocter_model::ValueCode::Closure(_))
+            && super::results::is_result(self.program(), contract.result)
+        {
             return self.reject_message(
                 Rule::TypeMismatch,
                 node,

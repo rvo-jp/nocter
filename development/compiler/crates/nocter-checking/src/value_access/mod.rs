@@ -2,6 +2,7 @@
 //! Accepted future units remain unavailable to released/native consumers.
 pub mod accepted;
 mod annotations;
+mod body_inputs;
 mod calls;
 mod checker;
 mod closures;
@@ -20,9 +21,9 @@ mod tests;
 mod types;
 
 pub use ir::{
-    Argument, ArgumentAction, Binary, Block, BoundaryAction, CallKind, Expression, ExpressionKind,
-    FieldValue, Local, LocalOrigin, Place, SelectionAction, Statement, TypedBody, Unary, ValueType,
-    WitnessBinding,
+    Argument, ArgumentAction, Binary, Block, BodyInput, BodyInputs, BoundaryAction, CallKind,
+    Expression, ExpressionKind, FieldValue, Local, LocalOrigin, Place, SelectionAction, Statement,
+    TypedBody, Unary, ValueType, WitnessBinding,
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -174,7 +175,7 @@ pub struct Query {
     closures: BTreeMap<nocter_model::ValueClosure, flow::Control>,
     program: Arc<Program>,
     header: Arc<Program>,
-    callable: AccessCallableId,
+    code: nocter_model::ValueCode,
     body_bytes: Arc<[u8]>,
     result_data: nocter_model::TypeId,
     results_closed: bool,
@@ -202,8 +203,12 @@ impl Query {
         self.result_data
     }
     #[must_use]
-    pub const fn callable(&self) -> AccessCallableId {
-        self.callable
+    pub const fn code(&self) -> nocter_model::ValueCode {
+        self.code
+    }
+    #[must_use]
+    pub const fn source_owner(&self) -> AccessCallableId {
+        self.code.source_owner()
     }
     #[must_use]
     pub const fn body(&self) -> &TypedBody {
@@ -249,7 +254,7 @@ impl Query {
             return Err(Failure::ChangedAuthority);
         }
         let source = context
-            .callable_source(self.callable)
+            .callable_source(self.source_owner())
             .ok_or(Failure::UnknownCallable)?;
         let syntax = context.syntax();
         let range = syntax

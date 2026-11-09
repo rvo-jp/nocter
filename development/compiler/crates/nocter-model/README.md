@@ -23,6 +23,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   without source names or runtime layout. Applications pair caller/operation/callee identities.
   Formal/result/application witnesses remain nonconcrete and may carry storage; named witnesses
   are concrete capture-free leaves. Canonical body replay and result closure retain one authority
+- named/captured body code identities, with a derived named source owner used only for source reuse
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
 - logical field paths with concatenation and prefix/overlap relations; the declaration owner validates each field

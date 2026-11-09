@@ -105,6 +105,30 @@ pub struct ValueClosure {
     pub slot: u32,
 }
 
+/// Selected code, independently of a value's invocation view or runtime environment.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueCode {
+    Declaration(crate::AccessCallableId),
+    Closure(ValueClosure),
+}
+impl ValueCode {
+    #[must_use]
+    pub const fn origin(self) -> ValueFunctionOrigin {
+        match self {
+            Self::Declaration(id) => ValueFunctionOrigin::Declaration(id),
+            Self::Closure(id) => ValueFunctionOrigin::Closure(id),
+        }
+    }
+    /// The named declaration whose complete source body owns this code's reuse guard.
+    #[must_use]
+    pub const fn source_owner(self) -> crate::AccessCallableId {
+        match self {
+            Self::Declaration(id) => id,
+            Self::Closure(id) => id.owner,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueApplication {
     pub owner: crate::AccessCallableId,
