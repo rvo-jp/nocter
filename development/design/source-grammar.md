@@ -7,7 +7,7 @@ This is a non-normative draft for unresolved v2.0.0 productions. The
 imports them without editable copies. Recognition here does not admit a feature to the compiler
 or select its semantics. Each remaining subject needs its owning contract, integrated source
 examples and conformance before promotion. Important syntax-direction changes follow the
-[approval boundary](../AGENTS.md).
+[approval boundary](../../AGENTS.md).
 
 Imports include Name, ModuleSegment, literal/string/interpolation tokens, StringLiteral,
 EmptyStringLiteral, BuiltinScalarType, trivia/newline/eof, gap and jointness, and the List,

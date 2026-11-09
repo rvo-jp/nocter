@@ -14,7 +14,7 @@
 4. Run the vertical [optimization experiments](design/optimization.md) after their ordinary source
    and executable paths are admitted. Qualify correctness and generated operations before timing.
 
-Use the [development instructions](AGENTS.md) for delegated scope and syntax approvals, and the
+Use the [agent instructions](../AGENTS.md) for delegated scope and syntax approvals, and the
 [verification guide](verification/README.md) to select checks that consume the changed path.
 
 ## Open Findings

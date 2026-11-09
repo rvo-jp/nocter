@@ -23,5 +23,5 @@ This directory is excluded from website publication and search, but its links ar
 - [Compiler Realization](compiler-realization.md): remaining source, proof and executable admission obligations.
 - [Optimization Experiments](optimization.md): research candidates, evidence and experimental controls.
 
-The [current work plan](../TODO.md) selects work order. The [agent instructions](../AGENTS.md)
+The [current work plan](../TODO.md) selects work order. The [agent instructions](../../AGENTS.md)
 define the delegated decision scope and required syntax approvals.
