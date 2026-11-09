@@ -10,6 +10,18 @@ Linux target work remains deliberately deferred.
 
 ## Next Work
 
+### Documentation and Directory Migration
+
+Apply the current [repository policy](../AGENTS.md) to the existing document tree before extending
+its organization. Inventory `development/history/` and its incoming links. Move still-needed
+current design, proof obligations, research and implementation limits into their single owning
+documents; remove superseded specifications, completed plans and chronological records from the
+working tree. Update catalogs, reading paths, website rules and relevant tests together. Preserve
+current released contracts and qualified artifacts, and verify links and publication boundaries.
+The existing history tree has not yet been migrated; the policy update alone does not complete it.
+
+### Language and Compiler Work
+
 The user requested source-design closure before resuming executable lifecycle implementation.
 The [source reading order](README.md#value-binding-reading-order) links adopted owning chapters
 and their non-normative migration reviews; use those instead of duplicating completed source
