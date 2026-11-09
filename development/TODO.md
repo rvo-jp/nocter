@@ -15,6 +15,12 @@ The [source reading order](README.md#value-binding-reading-order) links adopted 
 and their non-normative migration reviews; use those instead of duplicating completed source
 decisions here. These contracts do not extend the bounded private compiler or its 283-case corpus.
 
+The latest [explicit-transfer checkpoint](history/reviews/v2.0.0-explicit-transfer-contracts.md)
+records the user's adoption of mandatory postfix source retirement, including Copy data. Owning
+chapters now apply it to supply, capture, results, outcomes, async, patterns, packs and traversal.
+The [pre-S24 snapshot](history/reviews/v2.0.0-pre-explicit-transfer-fragment.md) records implemented
+private grammar/capture scope; it is not current source conformance or a compatibility mode.
+
 The latest [traversal checkpoint](history/reviews/v2.0.0-iteration-contracts.md) closes synchronous
 read/edit/take for, current-place projection, explicit source/cursor protocols and general
 argument expansion. It separates sequential from accumulated access and preserves public
@@ -44,75 +50,30 @@ default. Uncontextualized closure inputs default to read; a selected expected co
 omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
 Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
 
-The bounded front end includes closed records, named/computed fields, local named function values,
-[statically witnessed inputs](history/reviews/v2.0.0-callable-input-witnesses.md), and
-[input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md).
-The source corpus has 283 cases: 147 accepted units, 122 checking rejections, 8 header rejections
-and 6 syntax rejections. Returning a taking formal now preserves that input witness; each call
-application substitutes its own selected actual bindings. Distinct calls cannot conflate their
-results, including through joins/replacement or recursive permutations. Generic formal values
-retain transfer and symbolic cleanup; an exact named caller result can separately establish Copy.
+The pre-S24 prototype includes closed records, named/computed fields and statically witnessed
+named/formal/captured callable results and private instance closure. Its corpus has 283 cases:
+147 accepted units, 122 checking rejections, 8 header rejections and 6 syntax rejections. These
+qualify the earlier implicit-move prototype only. Read the linked implementation records rather
+than treating that count as current v2.0.0 acceptance.
 
-Body-owned application types replay over the immutable header prefix into one canonical authority.
-A shared visitor projects every body data slot; header source binding remains separate from type
-lookup. Result summaries use reachable returned values and prepared producers. Static application
-instantiation uses those established summaries and frozen bindings. Both use one finite equation
-solver; no retyping, signature search or expanding witness names. The same private instance graph
-consumes closed named/formal results through its existing binding/payload maps. No CLI/native or
-performance claim follows.
+Before executable-lifecycle lowering, replace implicit source movement atomically through the
+private parser, selected supply, reservations, initialization, capture/access/resource consumers
+and source fixtures. Marked Copy transfers must retire and reserve like other explicit transfers;
+unmarked Copy inputs snapshot. A non-Copy capture needs formation-time permission distinct from
+its later body slot. Audit each source fixture's intended availability/timing rather than adding
+carets mechanically or accepting both modes. Preserve frozen callable witnesses, interruption,
+actual input channels and one cleanup authority. Follow the transfer review's boundary cases.
 
-[Deferred supply](history/reviews/v2.0.0-deferred-value-supply.md) closes Copy-versus-move before
-initialization over one unchanged control graph. Do not recover Copy for a generic formal from a
-known concrete caller or make a header cache depend on body syntax.
+Then lower the migrated graph into a closed executable lifecycle product: environment pack/unpack,
+prepared-bundle receipt, staged answers, conditional resource steps and adapter exits. Preserve
+received-environment cleanup before delivering a dependent answer; a consuming body must not
+receive a second destruction. Keep trap/divergence separate from normal cleanup. Code-scoped
+application identities are required for nested producers. No physical ABI/MIR/native admission
+follows from a logical instance graph alone.
 
-The [type foundation and interruption checkpoint](history/reviews/v2.0.0-type-foundation-and-interruption.md)
-closes signature-only evidence for interrupted applications. The unchanged former r110 source is
-now accepted as `a137-dependent-result-unknown-input.nct`. Unproduced structural contracts remain
-distinct from actual payloads through the accepted Unit and private instance graph. They cannot
-enter reached value use, input preparation or invocation, and acquire no Copy/move/environment
-cleanup operation. Conditional typing retains the normally producing branch's identity while
-checking both known shapes. The [type-system foundation](spec/language/values-and-types.md#type-system-foundation)
-owns identity/compatibility/inference boundaries; full generic/interface/capability closure remains
-explicitly separate work rather than an implicit released-language fallback.
-
-The [owned-capture checkpoint](history/reviews/v2.0.0-owned-capture-producers.md) admits a first
-single-value environment with explicit parameter/result data. Formation uses Copy-or-move;
-reached body operations infer func/mut/once over one retained graph before ordinary initialization,
-access and resource admission. Nested bodies share canonical types, source byte/locator guards and
-flow admission with named bodies. Returned captured-code witnesses, static callback input supply,
-partial consuming return and interrupted preparation are source-checked. Uninvoked environment
-payloads project without creating code instances.
-
-The [captured-instance checkpoint](history/reviews/v2.0.0-captured-code-instances.md) closes named
-and captured bodies through one code identity and one private instance arena. Checked input layouts
-freeze the environment channel and explicit local-slot order/operations. Edges retain prepared input
-bindings, concrete result obligations and normal environment exits. The supplied view stays separate
-from body invocation; an owned read/edit adapter environment is disposed before answer delivery,
-whereas a consuming body owns its remaining cleanup. Recursive bindings share reserved instances;
-runtime environment contents and adapter views do not duplicate a code body. The former
-UnsupportedCapturedCode boundary is removed for this bounded producer scope. Source-selected
-Copy/move and interrupted/unproduced evidence remain unchanged. No ABI/native claim follows.
-
-Next lower this bounded graph into a closed executable lifecycle product. Realize environment
-pack/unpack, prepared-bundle input receipt, staged answers, existing conditional resource steps and
-normal adapter exits under one authority. A read/edit body invoked through once must dispose the
-received post-call environment after the body finishes and before handing off its protected answer;
-a consuming body must not receive a second destruction. Preserve caller snapshots, partial moves,
-interrupted prefixes and exact body/input identities without another lookup, typing or Copy choice.
-Keep trap/divergence behavior separate from normal cleanup. Only then admit physical layout/ABI and
-MIR/native lowering for the explicitly closed data domain; do not claim executable cleanup from a
-logical graph alone. Nested producer/factory-result closure bodies need code-scoped application
-identities before expansion and cannot borrow their enclosing function's application domain.
-
-Then expand multi-value environments, contextual closure completion and inferred read/update
-captures with retained-state/write footprints. Preserve R/D/S and source-context Copy through every
-carrier; the current environment's empty outside D/S follows only its exact closed data schema.
-Do not generalize that property to capability/callable captures. Keep each source scope, schema,
-body proof and target consumer closed together, without hidden clones or a second owner ledger.
-
-Then close physical environment/argument realization and executable cleanup before MIR/native
-admission. General captured producers remain separate until R/D/S, retained-state/write footprints and
-destruction are proved under the same authority. No human-decision blocker remains for this work.
+Broader temporary-update loans, multi-value/contextual/inferred captures, capabilities and public
+state footprints require their own coherent admission. Preserve R/D/S and source-context evidence;
+do not generalize the prototype's exact empty outside dependency schemas to arbitrary captures.
 
 Use direct source tests and affected-crate checks; select broader downstream tests by their actual
 consumption of the changed path under the [verification selection policy](verification/README.md#selecting-evidence-for-a-change).

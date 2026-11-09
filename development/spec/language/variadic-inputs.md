@@ -38,22 +38,23 @@ join. Required witness/capability schemas must be closed independently before co
 ## One Operation per Entry
 
 An unmarked pack reads each component; edit updates each existing component; take receives each
-component by ordinary Copy-or-move. A keyed contribution has two components, key then value,
+component by ordinary value-supply. A keyed contribution has two components, key then value,
 and applies the same operation to both. Keys are ordinary data, not implicitly read-only labels.
 No operation is inferred from Copy, literals, a body mutation, the key type or later use.
 A keyed pack is an ordered sequence of pairs, not a map. Repeated keys remain distinct entries;
 there is no automatic comparison, hashing, deduplication or replacement by key.
 
-A same-typed read component aliases supplied storage rather than snapshotting Copy data.
-Component data/compatibility is checked under the selected expected input contract, including
-the ordinary [contextual outcome rules](outcomes.md#contextual-construction-and-exact-forwarding).
-A permitted wrapper constructs a temporary before read supply; it cannot implicitly consume a
-direct non-Copy source merely to satisfy read. A direct edit component needs an initialized
-compatible writable place, without snapshot/wrapper repair. An already produced component
-can instead lend update through its caller-owned evaluation temporary. A take pack receives
-independent snapshots where the checking context supplies Copy evidence and otherwise eligible
-owners. Fresh computed read/edit operands live in the caller's evaluation frame; they do not
-become assignment/local-alias places. Ordinary retention/temporary rules still apply.
+A same-typed read component aliases supplied storage rather than snapshotting Copy data. Component
+data/compatibility is checked under the selected expected input contract, including the ordinary
+[contextual outcome rules](outcomes.md#contextual-construction-and-exact-forwarding). A permitted
+wrapper constructs a temporary before read supply; it cannot implicitly consume a direct non-Copy
+source merely to satisfy read. A direct edit component needs an initialized compatible writable
+place, without snapshot/wrapper repair. An already produced component can instead lend update
+through its caller-owned evaluation temporary. A take pack receives independent values: snapshots
+from unmarked Copy sources, transfers from marked eligible owners, or already produced values. The
+receiving take does not silently move an unmarked source. Fresh computed read/edit operands live in
+the caller's evaluation frame; they do not become assignment/local-alias places. Ordinary
+retention/temporary rules still apply.
 
 Pack storage is not promised contiguous and is not a user-visible allocator request. Read/edit
 components may refer to unrelated caller places. Distinct entry paths do not prove that their
@@ -88,14 +89,14 @@ disjoint. Even when K is usize, the index selects an ordinal rather than looking
 Existing-place replacement stages the complete RHS, then uses ordinary tuple replacement and
 old-component cleanup, with old value before old key, preserving every origin and authority.
 
-Read/edit entries remain aliases and cannot supply a non-Copy value. Named take-pack entries
-are locally writable owning subplaces. They can move or be restored under the same conditional
-initialization rules as structural array/tuple components. A non-Copy transfer makes that entry
-or selected pair component unavailable; the pack name/count remains. Uninitialized components
-cannot be read, aliased, supplied as values or included in a complete re-expansion. Replacement
-can identify a missing component without reading it. A later reading/accessing selection needs
-proof of initialized/disjoint storage, using the frozen index and actual root mapping, not
-expression text or distinct logical ordinals alone.
+Read/edit entries remain aliases and cannot supply a non-Copy value. Named take-pack entries are
+locally writable owning subplaces. They can move or be restored under the same conditional
+initialization rules as structural array/tuple components. A postfix-marked transfer, even for Copy
+data, makes that entry or selected pair component unavailable; the pack name/count remains.
+Uninitialized components cannot be read, aliased, supplied as values or included in a complete
+re-expansion. Replacement can identify a missing component without reading it. A later
+reading/accessing selection needs proof of initialized/disjoint storage, using the frozen index and
+actual root mapping, not expression text or distinct logical ordinals alone.
 
 The pack itself has no Copy evidence to inspect or clone. Component supply uses the body's
 declared/contextual evidence, without gaining Copy from a particular caller. Empty packs have
@@ -117,7 +118,7 @@ flatten an ordinary array/tuple argument without `...`.
 
 ```text
 func forward(... take jobs: Job): void {
-    submit(...jobs)
+    submit(...jobs^)
 }
 
 // Separate uses with suitable declared values and writable counts:
@@ -141,17 +142,20 @@ entry already has that shape. Explicit expansion can therefore adapt a sequence 
 keyed tail, or keyed entries to an ordinary tuple-valued tail; this does not equate the two
 callable types or add an automatic callable adapter.
 
-The selected receiver determines preparation granularity before authority/Copy checking. Taking
-an ordinary non-Copy tuple entry transfers that whole entry. A keyed take instead prepares its
-key and value separately: it can snapshot a Copy key while reserving transfer of a non-Copy value,
-leaving the source entry partly initialized after commit. Keep those distinct checked plans;
-do not reselect one to preserve a source the programmer later uses.
+An unmarked existing expansion source lends read/edit components or supplies Copy snapshots to take.
+It cannot implicitly transfer non-Copy components. `...array^` instead transfers the whole owning
+array; `...pack^` transfers every owned component, key then value, including Copy components, while
+retaining pack count metadata. A read/edit pack cannot surrender its caller components. These
+sequence operations follow [explicit transfer sources](value-access.md#explicit-transfer-sources).
+The receiving operation still determines entry/pair component preparation, without adding another
+retirement of a caller source or choosing a different source operation from later use.
 
 Evaluate a built-in expansion source once at its written contribution position, freeze its count and
-entry/root mapping, then prepare entries in ascending order. Keyed entries prepare key before
-value. A subsequent contribution does not run before that preparation. Copy taking operands are
-snapshotted then; direct read/edit and non-Copy taking operands are reserved under the common
-invocation protocol. Read expansion of a Copy array is not a snapshot of that array.
+entry/root mapping, then prepare entries in ascending order. Keyed entries prepare key before value.
+A subsequent contribution does not run before that preparation. Unmarked Copy taking operands are
+snapshotted then; direct read/edit sources and marked intrinsic transfers are reserved under the
+common invocation protocol, including marked Copy data. Read expansion of a Copy array is not a
+snapshot of that array.
 
 After preparing each logical entry, validate the accumulated count with checked target-usize
 addition before preparing another entry/step or evaluating a later contribution. Key/value is
@@ -161,12 +165,13 @@ commit; evaluated required CTFE reports it as a compilation error. No wrapping, 
 layer or arbitrary smaller language limit is introduced. Ordinary trap cleanup policy still
 applies, and earlier operand effects/nested transfers are not rolled back.
 
-For builtin array expansion, element supply does not transfer the array container itself. After
-commit, transferred non-Copy elements are missing under its ordinary partial-initialization
-rules; Copy elements remain. An empty initialized source has no element transfers. Expanding
-an incomplete source requires proof that the entire contributed range is initialized; len alone
-is not that proof. Computed array construction may already have transferred outside values even
-when none of its reserved elements later reaches invocation.
+A direct marked intrinsic source commits with the outer call bundle. `...array^` leaves the
+entire original array unavailable, even for an empty or Copy array; its evaluation owner supplies
+components and cleans the remaining carrier. `...pack^` retires all owned components, retaining
+only sequence metadata in the original pack. Unmarked read/edit expansion preserves original
+places; unmarked take expansion snapshots Copy components. Complete expansion requires every
+contributed component initialized; len alone is not that proof. Computed array construction may
+already have transferred outside values before the outer call is ready.
 
 No source-level allocation, user callback, destructor, failure or suspension is inserted between
 the final bundle validation and transfer/activation commit. Required actual backing is ready
@@ -215,14 +220,15 @@ An explicit name in the value-capture segment can name a pack:
 
 ```text
 func make_submitter(... take jobs: Job): once(): void {
-    (jobs;) { submit(...jobs) }
+    (jobs^;) { submit(...jobs^) }
 }
 ```
 
 This assumes a compatible Job/submit contract and body effects. Capture preserves entry count
-and constructs each captured ordinary component, or key then value, by Copy-or-move in order.
-It requires complete supplied entries. A non-Copy owning component moves at formation; a read/
-edit component without Copy cannot supply ownership. There is no capture-time reservation until
+and constructs each captured ordinary component, or key then value, by value-supply in order.
+It requires complete supplied entries. A marked capture transfers all owned components, even
+Copy data; an unmarked capture copies components only with source-context Copy evidence. A
+read/edit pack cannot retire caller components by adding a caret. There is no capture-time reservation until
 first invocation, hidden caller-owner retention or implicit container/allocator API call.
 Earlier executed captures are not rolled back if later formation exits.
 
@@ -234,8 +240,9 @@ the ordinary invocation inference. Ownership of the capture alone does not imply
 environment Copy needs its structural component proof, never a grant from an observed empty
 runtime pack. General capture schemas/physical backing still require qualification.
 
-Unlisted read/edit/value capture inference uses the same checked body operations as other free
-bindings, without upgrading a read capture to value ownership just to permit escape. A selected
+Unlisted capture inference permits read/edit or Copy value capture, without an implicit outside
+move. A non-Copy value capture needs an explicit marked pack entry; a caret inside the body
+cannot supply that formation-time permission. No escape use upgrades a read capture to ownership. A selected
 value capture of the pack has the formation rule above; an access capture preserves its entry/
 actual-root mapping and needed extent instead of constructing element owners. Source-visible
 Copy evidence, conflicts, origins, destructor effects and cleanup survive both forms.

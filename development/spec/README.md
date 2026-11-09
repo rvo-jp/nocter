@@ -7,9 +7,11 @@ within their explicitly defined scope. It is intended for Nocter developers. The
 
 These chapters specify selected behavior, not complete v2.0.0 support. An omitted subject has no
 implicit fallback to a released production. Shared behavior is inherited only where a chapter
-explicitly selects it. The bounded private grammar does not grant public CLI, ABI or native
-admission. Implementation coverage and next work belong to the [handoff](../TODO.md) and linked
-qualification records; they do not change the rules here.
+explicitly selects it. The implemented private prototype predates mandatory postfix transfer; its
+[recorded grammar](../history/reviews/v2.0.0-pre-explicit-transfer-fragment.md) is not current
+language conformance or a compatibility mode. It grants no public CLI, ABI or native admission.
+Implementation coverage and next work belong to the [handoff](../TODO.md) and linked qualification
+records; they do not change the rules here.
 
 ## Reading Order
 

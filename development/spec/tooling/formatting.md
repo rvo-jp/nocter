@@ -15,11 +15,21 @@ environment clause is separated from its parameter list by one space:
 Do not move a clause between these subjects or add parentheses that change its attachment.
 Preserve `from a | b` order in canonical source; it is not name-based semantic identity.
 
-Value captures use `(file; path: Path) { ... }`, with no space before `;` and one after it when
-parameters follow. Do not insert retired symbolic captures or ordinary type qualifiers.
-Type/outcome grouping preserves constructor order. A formatter cannot convert an owning `let`
-into `read`, introduce Copy evidence, or repair lifetime/authority by changing source operations.
-Published formatting remains unchanged until a qualified release transition.
+Value captures use `(file^; path: Path) { ... }` for transfer or an unmarked Copy entry, with no
+space before `;` and one after it when parameters follow. Do not insert retired prefix captures or
+ordinary type qualifiers. Type/outcome grouping preserves constructor order. A formatter cannot
+convert an owning `let` into `read`, introduce Copy evidence, or repair lifetime/authority by
+changing source operations. Published formatting remains unchanged until a qualified release
+transition.
+
+## Transfer Formatting
+
+Keep the caret joint with its complete source: `value^`, `record.field^`, `buffer^.finish()`
+and `callback^(args)`. Preserve its position relative to grouping, selection, outcome and await:
+`record^.field` and `record.field^` retire different sources. Use `...items^` for a transferred
+expansion source. Never add or remove a caret using Copy evidence, last use or inferred input mode.
+It changes logical availability even when no physical move instruction remains. Do not move it
+to a type, binding name or prefix.
 
 ## Contract and Operation Formatting
 
@@ -55,13 +65,13 @@ eligibility belong to the [generic/constant contract](../language/generics-and-c
 
 ## Outcome Formatting
 
-Use `throw expression` without a transfer marker. Preserve outcome constructor order/grouping
-and the single expression-level extraction suffix. Format explicit `some(...)` as an ordinary
-call; do not insert it at every optional injection or replace a shadowing declaration by the
-prelude operation. Preserve `catch name`, explicit `catch _` and `otherwise` rather than adding
-an implicit handler. Keep the declared `let`/`var`/`read`/`edit` operation: rewriting a projection
-as value extraction changes source availability and cleanup. Formatting cannot silence the
-failure-loss warning by inserting a discard or inventing resource completion.
+Use `throw expression`, retaining `throw reason^` for an existing owning source. Preserve outcome
+constructor order/grouping and the single expression-level extraction suffix. Format explicit
+`some(...)` as an ordinary call; do not insert it at every optional injection or replace a shadowing
+declaration by the prelude operation. Preserve `catch name`, explicit `catch _` and `otherwise`
+rather than adding an implicit handler. Keep the declared `let`/`var`/`read`/`edit` operation:
+rewriting a projection as value extraction changes source availability and cleanup. Formatting
+cannot silence the failure-loss warning by inserting a discard or inventing resource completion.
 
 ## Async Staging
 
@@ -108,12 +118,12 @@ callable pack may omit its name; a keyed pack retains its name and both colons. 
 annotation writes both types. Formatting cannot infer a pack kind or turn its binder into a
 tuple/discard pattern.
 
-At a call, use `...items` with no intervening space and `key: value` for a direct keyed entry.
-Do not insert/delete expansion, labels or tuple construction, reorder keys or deduplicate them.
-Preserve the complete fixed prefix and contribution order. A pack value capture remains the
-existing `(items; ...)` form; it cannot become a bare-name array binding or postpone ownership
-until invocation. Metadata queries and indexed entries retain ordinary `items.len()` and
-`items[index]` spelling without synthesized access markers.
+At a call, use `...items` with no intervening space and `key: value` for a direct keyed entry. Do
+not insert/delete expansion, labels or tuple construction, reorder keys or deduplicate them.
+Preserve the complete fixed prefix and contribution order. A pack value capture remains the existing
+`(items^; ...)` transfer or unmarked Copy form; it cannot become a bare-name array binding or
+postpone ownership until invocation. Metadata queries and indexed entries retain ordinary
+`items.len()` and `items[index]` spelling without synthesized access markers.
 
 Preserve the complete type grouping in `edit action: (mut(): void) from source`, including for
 pack element types. Removing it attaches from to an inner callable result; adding a consecutive

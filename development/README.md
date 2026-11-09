@@ -30,7 +30,8 @@ of information:
 
 1. **Source semantics:** the future [Value Access Model](spec/language/value-access.md) and its
    linked owning chapters. The [bounded value-binding grammar](spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
-   defines the private-unit source boundary; the broader future grammar is a separate scope.
+   links the non-normative pre-S24 prototype snapshot. It accepts implicit moves that the current
+   mandatory postfix transfer contract rejects; it is not a current-language subset or compatibility mode.
    [Modules](spec/language/modules.md), [type behavior](spec/language/type-behavior.md) and
    [interfaces](spec/language/interfaces.md) define adopted source roles and operation binding;
    their [migration review](history/reviews/v2.0.0-module-and-operation-contracts.md) records the
@@ -63,10 +64,13 @@ of information:
    [library protocols](spec/library/iteration.md) own for/current-place and user expansion;
    their [review](history/reviews/v2.0.0-iteration-contracts.md) records sequential versus
    accumulated access, public schema conditions and unimplemented qualification obligations.
+   [Explicit transfer](spec/language/value-access.md#explicit-transfer-sources) and its
+   [migration review](history/reviews/v2.0.0-explicit-transfer-contracts.md) close source retirement
+   across those subjects, while compiler migration remains pending.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).
-3. **Implemented scope and verification:** the [captured code instances](history/reviews/v2.0.0-captured-code-instances.md),
+3. **Implemented pre-S24 prototype scope and verification:** the [captured code instances](history/reviews/v2.0.0-captured-code-instances.md),
    [owned-capture producers](history/reviews/v2.0.0-owned-capture-producers.md),
    [type foundation and interrupted results](history/reviews/v2.0.0-type-foundation-and-interruption.md),
    [input-dependent callable results](history/reviews/v2.0.0-dependent-callable-results.md),

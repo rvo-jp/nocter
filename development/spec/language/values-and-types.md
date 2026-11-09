@@ -68,8 +68,8 @@ generic/interface forms requires their own closed contracts before compiler admi
 
 A generic body is checked against its declared assumptions. Substitution preserves constructor
 order, input operations, invocation contracts and carried dependencies. A caller's concrete Copy
-evidence may justify its own snapshot into a taking input; it cannot change a move selected
-inside a body that had no such evidence. Concrete implementation selection cannot repair a body
+evidence may justify its own unmarked snapshot into a taking input; it cannot remove source
+retirement selected by a caret inside the generic body. Concrete implementation selection cannot repair a body
 that was invalid under its declared assumptions.
 
 Access, write-footprint and root-survival relations may remain symbolic over the declared
@@ -85,7 +85,7 @@ Interrupted evaluation retains a known structural result contract. It establishe
 runtime payload nor a code/environment witness. For example, in the bounded callable fragment:
 
 ```text
-func forward(take action: func(i32): i32): func(i32): i32 { action }
+func forward(take action: func(i32): i32): func(i32): i32 { action^ }
 func run(): i32 {
     forward(if true { return 1 } else { return 2 })(1)
 }

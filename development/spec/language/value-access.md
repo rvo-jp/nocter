@@ -8,10 +8,10 @@ needed for safety; that information is not removed from the type system.
 The [type-system foundation](values-and-types.md#type-system-foundation) separates data identity,
 boundary compatibility, inference and evidence for an actually produced value.
 
-Ordinary type-side `&T`/`^T`, explicit `&place`/`^place`, and permission-inferred `let` are not
-alternative source forms. The
-[bounded private-unit fragment](syntactic-grammar.md#bounded-value-binding-fragment) selects a
-smaller source scope; it does not define full-language conformance, target realization or a
+Ordinary type-side `&T`/`^T`, prefix `&place`/`^place`, and permission-inferred `let` are not
+alternative source forms. Postfix place^ selects transfer under the rules below. The
+[bounded private-unit prototype](syntactic-grammar.md#bounded-value-binding-fragment) predates
+mandatory transfer and does not qualify current source conformance, target realization or a
 general soundness proof. Other chapters state the extent of their future
 migration; an unchanged released production does not silently become a v2.0.0 production.
 
@@ -24,7 +24,7 @@ migration; an unchanged released production does not silently become a v2.0.0 pr
 | `read alias = place` | Read existing storage through a scoped alias |
 | `edit alias = place` | Update existing writable storage through a scoped alias |
 
-`let` and `var` construct values under the same Copy-or-move rule. Both can deliver their values
+`let` and `var` construct values under the same value-supply rule. Both can deliver their values
 elsewhere; only `var` permits ordinary updates/replacement. A `let` value cannot be reinitialized
 after transfer/drop. A `var` slot can be reinitialized by a complete replacement. Optional type
 annotations constrain the data type, never change the binding operation.
@@ -34,7 +34,7 @@ var count = 10
 let snapshot = count       // independent i32 value
 count = 20                 // snapshot is still 10
 let file = open(path)?
-let next = file            // move-only value; file is now unavailable
+let next = file^           // explicit transfer; file is now unavailable
 read inspect = next       // next stays responsible for the file
 ```
 
@@ -56,7 +56,7 @@ not make an ordinary function return an alias.
 Optional/fallible payloads expose existing storage under the
 [scoped outcome protocol](outcomes.md#scoped-payload-projections), including local recovery.
 That protocol preserves the carrier and its active tag for read/edit access; ordinary value
-elimination remains Copy-or-move and cannot acquire ownership through an alias.
+elimination follows the supply rule and cannot acquire ownership through an alias.
 
 ## Value Construction and Copy
 
@@ -65,14 +65,15 @@ aggregate component construction, ordinary block/return results, selected outcom
 construction and `take` argument supply. Resolve the data type and capabilities, then apply:
 
 1. An already constructed value transfers to the destination, preserving its dependencies.
-2. An initialized readable place with source-level Copy evidence supplies a separate snapshot.
-3. Otherwise an initialized owning place eligible for extraction transfers its value and becomes
-   unavailable. Ordinary read/edit aliases cannot supply this extraction.
+2. A marked place^ supplies an explicit transfer from an initialized eligible owning place,
+   making that source unavailable at the consuming operation's commit point, even for Copy data.
+3. An unmarked initialized readable place supplies a separate snapshot only with source-level
+   Copy evidence. An existing non-Copy owner needs ^; it does not move implicitly.
 4. Otherwise reject the boundary. Do not silently create an alias, invoke a clone, infer Copy from
    later specialization, or choose the operation from whether the source has a later use.
 
-A fixed owner is eligible for transfer, subject to access/initialization checks. Copyable inputs
-remain available after supplying values, including `take` arguments. Copy is structural, has no
+A fixed owner is eligible for transfer, subject to access/initialization checks. Unmarked Copy
+inputs remain available after value supply; marked transfers do not. Copy is structural, has no
 user hook, allocation or resource acquisition, and does not mean that a large value is cheap.
 A permitted Copy can be optimized away only while preserving snapshot semantics.
 
@@ -88,14 +89,14 @@ remain move-only. Copy types cannot have user destructors. A closure's Copy evid
 its captures, not its invocation kind. Exclusive update capabilities are non-Copy even when their
 element type is Copy.
 
-Copy removes only the need to read the old containing place. Dependencies carried inside the
-copied payload and external storage requirements survive. Copying a read-view descriptor does not
-copy its referent. For an existing owner, selection of Copy versus move is fixed by the checking
-context; monomorphization cannot rewrite an unconstrained generic move into a non-invalidating Copy.
+Copy removes only the need to read the old containing place. Dependencies carried inside the copied
+payload and external storage requirements survive. Copying a read-view descriptor does not copy its
+referent. For an existing place, its written marker and source-context Copy evidence select supply
+once; monomorphization cannot turn a marked transfer into a non-invalidating Copy.
 
 ```text
 func identity<T>(take value: T): T {
-    return value
+    return value^
 }
 ```
 
@@ -109,6 +110,99 @@ is a separate control fact, not permission to erase the known type or manufactur
 value. Inference and structural type/field validation use that known type; execution, ownership
 and cleanup follow only reached operations. A control expression with no known result shape
 cannot supply a record field type merely because its continuation is unreachable.
+
+## Explicit Transfer Sources
+
+Postfix `place^` selects transfer from an existing owning place. It is mandatory when an
+existing non-Copy value is supplied as a value, and retires the selected source even for Copy T.
+An unmarked Copy place still snapshots. A fixed owner may transfer; a var can later restore its
+absent value by complete replacement. A field/owning fixed-array element retires only that
+subplace; transferring the containing value retires the complete value and its field containers.
+
+```text
+let next = file^
+let copied = count
+let transferred = count^
+let product = buffer^.finish()?
+consume(make_value())
+```
+
+These are schematic uses with appropriate declarations. A fresh call/literal/constant recipe,
+already produced result or computed component needs no marker; applying ^ to that value or to
+another transfer result is invalid. Grouping preserves the original place/transfer category.
+There is no type qualifier, prefix form, caller-side edit assertion or overloaded ^ hook.
+
+The source must be complete, initialized and eligible for transfer under access, dependency,
+relocation and ancestor-destructor rules. A read/edit alias, user index/current projection,
+static place or non-owning scoped outcome projection cannot gain extraction rights through ^,
+even when its data is Copy. A copied view descriptor still carries its referent dependencies;
+transferring its owning holder does not transfer ownership of those referents. No root is
+retargeted, extended or silently cloned. Incomplete owners can instead receive their existing
+direct drop/remaining-field cleanup, which is not complete-value transfer.
+
+`take` describes receipt/cleanup at the destination. The suffix describes retirement at the
+source. Passing a fresh value or unmarked Copy snapshot to take does not need ^. Conversely,
+read/edit can receive `place^` through a caller-owned evaluation temporary: commit transfer
+there, lend the requested access, and retain the temporary only for its ordinary evaluation
+extent. A marked source supplies a value, not a scoped alias initializer or assignment target. The
+marker does not select a callee, input mode, callable view or overload.
+
+### Preparation and Commit
+
+A direct marked call input/receiver evaluates its place/path/index once and reserves transfer,
+including for Copy T. It does not retire the source merely when the caret token is evaluated.
+After every operand/backing check succeeds, validate the complete bundle and commit transfer
+with invocation. Later operand reads can finish before that point; conflicting writes, another
+transfer or a simultaneous surviving input alias cannot invalidate the reserved source.
+No intervening user callback, destructor or failure is inserted into commit. If preparation
+fails recoverably or is cancelled, release the reservation without consuming that source.
+
+```text
+send(data^, load_options()?)
+```
+
+Assuming load_options exits recoverably before send invokes, the reserved data has not moved.
+Transparent parentheses do not make this eager. An unmarked Copy taking operand instead
+snapshots at preparation as before; the explicit source retirement never becomes Copy after
+specialization. Argument data wrappers/adapters prepared by the ordinary boundary retain the
+same commit, with actual backing/validation ready beforehand.
+
+Other value-producing consumers keep their established boundaries. A local/RHS, return, throw,
+explicit capture or aggregate component commits its transfer when that value is constructed or
+staged. Thus `(file^, fail()?)` has already transferred its first component when the second exits.
+An explicit inner call, outcome elimination or data-field selection of a transferred whole owner
+must acquire its value before proceeding; an outer call cannot undo that completed operation.
+Member lookup for `buffer^.finish(arguments)` instead retains its direct marked receiver until
+that invocation commits. No later liveness, Copy instantiation or private-body lookup changes
+these recorded producer categories or commit points.
+
+Postfix order is left to right: `record.field^` transfers that field; `record^.field` first
+acquires the complete record and then produces a computed component. The latter's remainder
+keeps its ordinary evaluation cleanup. `value^?`, `value^!`, `return value^`, `throw reason^`
+and `await pending^` use the same rule. Await acquires a marked future when await starts, before
+drive/suspension; its ordinary cancellation behavior remains. Scope cleanup and explicit
+`drop name` need no caret because they dispose a value rather than supply one elsewhere.
+
+### Anonymous Carriers and Sequences
+
+Once a carrier is already received/produced, its internal payload/tuple-pattern/cursor transfer
+can hand off values under its checked protocol without tokens on synthesized slots. It must
+not silently move another named source. Named take parameters, handler locals, pattern leaves
+and captures are existing owners again, so their later source-level transfers need ^.
+
+An existing pack is an argument sequence, not ordinary data. In sequence capture, loop source
+or expansion positions, `pack^` explicitly transfers all its owning components, including Copy
+keys/values, under the same per-entry formation/preparation rule. Its metadata count remains;
+transferred component values do not. An unmarked value acquisition needs component Copy evidence.
+Read/edit packs cannot transfer caller components through this suffix. Bare-name data contexts
+still cannot turn pack or pack^ into a first-class array/tuple.
+
+For `...array^`, the marker transfers the complete array into the expansion's evaluation owner;
+it is not an alternate spelling for moving individual original elements. At a direct built-in
+call expansion reserve that whole transfer until outer invocation commit; acquired anonymous
+components then supply the receiving pack. Unmarked direct built-in components follow their
+own declared input operation, and a taking non-Copy component needs an explicit source transfer
+or an already produced owner. General user-source acquisition remains its own inner invocation.
 
 ## Field Selection from Values
 
@@ -140,14 +234,14 @@ extraction from that existing place; grouping cannot launder permission into own
 
 | Input | Contract |
 | --- | --- |
-| `value: T` | Read caller storage; leave caller ownership intact |
-| `edit value: T` | Update caller storage; leave it initialized on outward recoverable exits |
+| `value: T` | Read supplied storage without taking its owner |
+| `edit value: T` | Update supplied storage; leave it initialized on outward recoverable exits |
 | `take value: T` | Receive a value and its transfer/cleanup responsibility |
 
 Read is the sole default input operation for named functions, methods, constructors, interface
 requirements and structural callable types, independently of Copy, representation, naming or
 body use. Do not add explicit `read value: T` as an equivalent input spelling. Plain `self` reads
-the receiver. Ordinary value-producing boundaries remain Copy-or-move; a colon followed by T
+the receiver. Ordinary value-producing boundaries remain value-supply; a colon followed by T
 states the data type and does not impose one universal operation on every declaration position.
 
 This default lets an observation retain its argument without constructing another value, including
@@ -178,12 +272,13 @@ impl Buffer {
 
 var buffer = Buffer.create(64)?
 buffer.append(42)
-let product = buffer.finish()?
+let product = buffer^.finish()?
 ```
 
 Calls uniformly omit input/receiver assertions. Lookup selects one operation before access
 checking. Missing authority is an error, not permission to select another body, clone a value,
-or add a call-site marker. Keep complete signatures in both public contract and implementation.
+or silently insert a transfer. Postfix ^ selects source transfer, not an input-mode assertion.
+Keep complete signatures in both public contract and implementation.
 
 Read accesses may overlap reads. Overlapping read/update, update/update and transfer/access may
 not be simultaneously active. Proved-disjoint projections may be used independently. Delegation
@@ -258,9 +353,10 @@ Copying the taken buffer at the caller does not redirect the view into the calle
 
 Evaluate the callable/receiver and explicit inputs exactly once, left to right. A direct read or
 edit place is reserved while later operands are evaluated, then its operation activates at
-invocation. A direct non-Copy `take` source is reserved for transfer. A Copy `take` operand is
-snapshotted when that operand is prepared. The snapshot is not reread after later operands.
-Primitive scalar operations likewise preserve each prepared scalar value.
+invocation. A direct marked source is reserved for transfer regardless of Copy or destination mode.
+An unmarked Copy `take` operand is snapshotted when that operand is prepared. The snapshot is not
+reread after later operands. Primitive scalar operations likewise preserve each prepared scalar
+value.
 
 Reservations prevent destruction, transfer, replacement and conflicting writes, but are not
 already-active read/edit calls. This permits `buffer.append(buffer.len())` when the inner read
@@ -293,10 +389,10 @@ cannot escape while still depending on a temporary that is cleaned. Moving a tem
 owner transfers its cleanup obligation. Cancellation unwinds nested evaluation/call/lexical frames
 in actual order. A terminal trap without unwinding does not acquire cleanup from these rules.
 
-This general temporary-update protocol is not admitted by the bounded private fragment's
-direct-place-only ordinary edit-input preparation. Its current rejection does not make the source invalid
-under the broader adopted contract. Extending admission requires the same prepared owner,
-activation, temporary escape and cleanup authority rather than a synthesized source local.
+The implemented pre-S24 prototype has not admitted this complete temporary-update/explicit- transfer
+protocol. Its acceptance/rejection is not current source conformance. Extending admission requires
+the same prepared owner, activation, temporary escape and cleanup authority rather than a
+synthesized source local.
 
 ## Return, Replacement and Cleanup
 
@@ -312,10 +408,10 @@ Old-value cleanup must be valid with the replacement's retained dependencies. Re
 `throw`, `?` and cancellation preserve exactly the initialized resources of their path. Conditional
 cleanup is not permission to read maybe-initialized data or skip a required user destructor.
 
-A field can move when no live access prevents it. If a user destructor needs the complete parent,
-all paths reaching it must restore required fields, including failure/cancellation paths. Do not
-blanket-ban such moves, call a destructor with missing fields, or silently skip it. Without a
-user destructor, partial cleanup destroys only initialized owned parts.
+An existing owning field can transfer with ^ when no live access prevents it. If a user destructor
+needs the complete parent, all paths reaching it must restore required fields, including
+failure/cancellation paths. Do not blanket-ban such moves, call a destructor with missing fields, or
+silently skip it. Without a user destructor, partial cleanup destroys only initialized owned parts.
 
 For a record without a user destructor, moving a field makes that selected value unavailable,
 not its initialized siblings. A containing value is incomplete while any of its fields is

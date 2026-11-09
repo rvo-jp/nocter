@@ -73,7 +73,7 @@ those shapes can be admitted.
 
 A structural value is written `Type { field: expression, ... }`, with every declared field exactly
 once and no unknown fields. Initializer order is free and evaluation is left to right in the order
-written. Each component uses ordinary Copy-or-move value construction, not an implicit read input
+written. Each component uses ordinary value construction, not an implicit read input
 or an alias. Empty records use `Type {}`. Commas separate fields and one trailing comma is allowed.
 There is no field shorthand, default, update spread or positional construction.
 

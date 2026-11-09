@@ -16,6 +16,22 @@ preserves retired diagnostic requirements. The
 identifies the private source/checking scope. These rules do not change released code assignments
 or diagnostic behavior.
 
+## Explicit Transfer Diagnostics
+
+An unmarked existing non-Copy value identifies the supplying place and missing postfix caret.
+Offer `place^` only when it owns a complete initialized value and no access/destructor obligation
+prevents transfer. Distinguish this from a read/edit alias, projection or static source, where a
+caret cannot create ownership, and from a fresh value/repeated caret, where no existing source
+can be retired. A marked Copy value becomes unavailable too; diagnose later demands at that source
+without suggesting that specialization or last-use analysis can remove retirement.
+
+Relate direct call reservations to final commit and any simultaneous conflicting input. A later
+preparation failure alone does not consume the reserved source. Distinguish earlier nested
+construction, capture formation and outcome acquisition, which can already have committed. A
+body caret cannot authorize an implicit outside non-Copy capture; point to its formation-time
+capture segment. Pack diagnostics distinguish component retirement from retained count metadata.
+These adopted obligations do not qualify the pre-S24 prototype or allocate new numeric codes.
+
 ## Private Header Diagnostics
 
 Resolve all headers before bodies. Duplicate function names use `E0241`, duplicate/shadowing
@@ -37,7 +53,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | --- | --- |
 | `E0340`, `E0341` | Name resolution or conflicting binding |
 | `E0370` | Data/type/result mismatch, incompatible callable witness/annotation, unknown field/body data type, invalid/missing/duplicate record initializer, or insufficient local/result type information |
-| `E0371`, `E0377` | Value construction has neither Copy evidence nor an eligible owning source |
+| `E0371`, `E0377` | Value construction lacks Copy, an already produced value or a marked eligible owning source |
 | `E0372`, `E0373` | Non-unit intermediate expression or missing normal result |
 | `E0375` | Integer outside the selected data type's range |
 | `E0382` | Loop exit outside a loop |
@@ -91,13 +107,15 @@ change the lack of Copy evidence for a generic formal contract.
 ## Named-Slot Initialization Diagnostics
 
 `E0378` identifies a reached read/update/extraction/drop/compound operation that lacks its required
-initialization. Value use and transfer require a complete selected value; field replacement
-requires present containing records, and `drop name` requires a present owning container rather
-than restoring moved fields. A missing sibling does not invalidate a disjoint selected field. Relate the declaration and contributing transfers/drops/backedges. A Copy boundary
-is not a transfer of its source; an explicit drop is destruction even for Copy. A mutable owning
-slot can be restored by a complete replacement; a fixed binding cannot be assigned after transfer.
-Check RHS-first compound targets after all right-hand effects. Unreachable code keeps structural
-typing requirements without acquiring fictitious runtime initialization obligations.
+initialization. Value use and transfer require a complete selected value; field replacement requires
+present containing records, and `drop name` requires a present owning container rather than
+restoring moved fields. A missing sibling does not invalidate a disjoint selected field. Relate the
+declaration and contributing transfers/drops/backedges. An unmarked Copy snapshot is not a transfer
+of its source; a marked Copy source is retired; an explicit drop is destruction even for Copy. A
+mutable owning slot can be restored by a complete replacement; a fixed binding cannot be assigned
+after transfer. Check RHS-first compound targets after all right-hand effects. Unreachable code
+keeps structural typing requirements without acquiring fictitious runtime initialization
+obligations.
 
 Initialization does not establish dependency survival or absence of conflicts. Conditional cleanup
 is not permission to read missing parts or skip required user destruction.
@@ -177,12 +195,12 @@ unavailable Copy/transfer. Successful error data never produces a diagnostic rec
 failure conversion merely because its type is error. A throw needs an owned error and a declared
 failure layer; absence and failure propagation need their matching result layer.
 
-For a projected payload, identify the retained carrier/tag and requested read/edit operation.
-Explain failure propagation separately when the error cannot be transferred from a read input
-or an initialized edit referent. A projected catch binding is an alias, not a fabricated owned
-error; do not recommend throw unless ownership is actually supplied. A fallback place that dies
-at handler cleanup identifies that local and cleanup boundary. Neither returning a capability
-nor grouping converts dead storage into a valid alias.
+For a projected payload, identify the retained carrier/tag and requested read/edit operation. A
+fallible projected `?` cannot implicitly extract its error; explain that explicit value elimination
+needs a marked owner, while a read/edit referent cannot surrender caller storage. A projected catch
+binding is an alias, not a fabricated owned error; do not recommend throw unless ownership is
+actually supplied. A fallback place that dies at handler cleanup identifies that local and cleanup
+boundary. Neither returning a capability nor grouping converts dead storage into a valid alias.
 
 The [failure-loss warning](../language/outcomes.md#failure-decisions-and-resource-completion)
 is enabled by default and is not a language-validity error. Relate its producer and loss operation,

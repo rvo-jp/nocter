@@ -13,7 +13,7 @@ realization require their own closure. Released syntax/iteration is not a fallba
 ```text
 for item in items { inspect(item) }
 for edit item in items { item.update() }
-for take item in items { submit(item) }
+for take item in items^ { submit(item^) }
 ```
 
 These are separate schematic uses under independently declared data/helpers. Unmarked for binds
@@ -35,7 +35,9 @@ Evaluate the source expression once. An existing read source is observed in plac
 edit source needs initialized writable storage. A produced source value can instead lend
 update access from its loop-owned evaluation temporary under ordinary call preparation;
 it does not become a local-alias/assignment place or a hidden copy of an immutable source.
-A take source supplies a value by Copy-or-move.
+A take source uses ordinary value supply: an unmarked existing source requires Copy, otherwise
+an eligible owner requires a postfix caret. A fresh source needs no caret. An explicitly marked
+source can also lend read/edit access after acquisition into the loop evaluation owner.
 The selected source operator is an ordinary immediate value-producing invocation, returning
 one owned cursor. Store it in the loop's mutable control frame; advancing that frame does not
 grant mutation of a source originally received for read.
@@ -47,17 +49,18 @@ keep their normal input commit points. A source carrier's own temporary stays in
 loop evaluation frame until cursor/body cleanup completes, without permitting an escaping
 dependency on that temporary.
 
-A fixed array's read/edit cursor accesses its original element places in ascending index order.
-A take array loop acquires the complete array value before the first iteration, snapshotting a
-Copy array or moving an eligible owning array. Its cursor owns the remaining initialized array
-and delivers elements in index order. An early break disposes unused elements; it does not
-restore the original array. Empty arrays still perform acquisition and retain their type's
-ordinary Copy proof. Zero-byte elements remain distinct logical items.
+A fixed array's read/edit cursor accesses its original element places in ascending index order. A
+take array loop acquires the complete array value before the first iteration, snapshotting a Copy
+array from an unmarked source or transferring a marked owning array, even if Copy. Its cursor owns
+the remaining initialized array and delivers elements in index order. An early break disposes unused
+elements; it does not restore the original array. Empty arrays still perform acquisition and retain
+their type's ordinary Copy proof. Zero-byte elements remain distinct logical items.
 
 A pack read/edit cursor uses its fixed count and actual entry/component map under the available
 input authority. A take loop acquires count and component values using the same operation as
 [pack value capture](variadic-inputs.md#closures-and-qualification): ordinary entries, or key
-then value, use Copy-or-move in order before the first step. Its cursor owns the received
+then value, copy with evidence for an unmarked source or transfer every owned component for
+a marked source before the first step. Its cursor owns the received
 sequence. The original pack count remains; transferred components become unavailable. A
 complete acquisition needs initialized contributed entries and sufficient ownership/Copy,
 without granting ownership through a read/edit pack. No first-class dynamic array is invented.
@@ -155,8 +158,10 @@ requesting the next. Preserve keyed pair validation and key-before-value prepara
 returned by a taking iterator is already produced: it belongs to the prepared prefix, rather
 than being a merely reserved caller place. A taking user source operator can already have
 consumed its receiver before the outer call commits. Later failure does not undo that inner
-invocation. Direct intrinsic source components instead remain reserved until the outer call's
-commit, as before; these are recorded producer categories, not alternate plans selected by use.
+invocation. Direct marked intrinsic whole-array/pack transfers instead remain reserved until the outer
+call's commit, including Copy sources; unmarked take components snapshot with Copy evidence.
+The variadic preparation contract records these producer categories, without alternate plans
+selected from later use.
 
 A fresh tuple Item for a keyed taking tail prepares computed component values, not aliases to
 an invented caller tuple place. Preserve the tuple carrier's actual remaining temporary cleanup

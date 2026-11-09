@@ -1,7 +1,9 @@
 # Development Language Contracts
 
 These chapters own adopted v2.0.0 language rules. They do not describe the released compiler.
-Unspecified full-language productions remain open; the bounded grammar declares its own scope.
+Unspecified full-language productions remain open. The pre-S24 private prototype and its grammar are
+recorded separately from current source rules; see the [transfer migration
+review](../../history/reviews/v2.0.0-explicit-transfer-contracts.md).
 
 1. [Value Access Model](value-access.md)
 2. [Values and Types](values-and-types.md)

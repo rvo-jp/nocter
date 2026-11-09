@@ -38,7 +38,7 @@ the required read/edit projection before checking authority and then selects tha
 operation. A missing edit authority/operator is an error; it does not fall back to another body.
 A read use requests the read projection; an edit alias/input, replacement or compound target
 requests the edit projection. A value-producing use requests a read projection followed by the
-ordinary Copy-or-move supply check. The projected place itself carries access authority, not
+ordinary value supply check. The projected place itself carries access authority, not
 ownership of the container element; non-Copy extraction needs a checked exchange/removal API.
 There is no automatic copy, hole in the container or silent conversion to an owning element.
 
@@ -52,7 +52,7 @@ items[i] = replacement     // RHS first, then edit projection and replacement
 Each operator body supplies an initialized place with `return place` (or its final place result),
 checked against the projection kind and origin bound. This is the defined result protocol of an
 index operator, not an alternative result permission on `func` or `method`. A computed fresh value
-is not a projected place. Nested ordinary value construction still follows Copy-or-move.
+is not a projected place. Nested ordinary value construction still follows value-supply.
 
 The index operator evaluates receiver/index inputs once in their selected order. It identifies
 and stages the place/access, runs normal operator-local cleanup, and hands off the checked

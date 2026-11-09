@@ -37,7 +37,7 @@ func combine((left, right): (i32, i32)): i32 {
 ```
 
 The first four lines are alternative declarations. Let/var acquire one aggregate value by ordinary
-Copy-or-move. Read/edit identify one existing aggregate and project its components without
+value-supply. Read/edit identify one existing aggregate and project its components without
 constructing owners. Optional annotations constrain data, never the operation. Named take-input
 and take-branch leaves are locally writable, like other take parameters; a read leaf does not
 become writable because its datum is Copy. Scoped aliases cannot escape as ordinary T values.
@@ -81,7 +81,7 @@ text. Neither matching mechanism may invent extra arguments.
 ## Enum Branch Input
 
 Match and enum if-is tests use the input vocabulary: unmarked reads, edit updates, take receives
-a value by Copy-or-move. Do not add an equivalent explicit-read mode. The mode selects access
+a value by value-supply. Do not add an equivalent explicit-read mode. The mode selects access
 before tag inspection or body checking, independently of Copy, later use and which arm matches.
 It is a new pattern-binding operation, not a repeated assertion on a declared function call.
 
@@ -98,15 +98,16 @@ match edit message {
     Message.empty { () }
 }
 
-if take message is Message.report(reason) {
-    consume(reason)
+if take message^ is Message.report(reason) {
+    consume(reason^)
 }
 ```
 
 These are separate schematic uses with compatible enclosing result types and independently
 declared helpers. The unmarked arms alias existing payloads; they do not move a resource merely
 because a pattern names it. Edit needs initialized writable storage. Take named leaves receive
-values; taking a Copy scrutinee snapshots it and otherwise transfers an eligible owner. A read/
+values; an unmarked scrutinee snapshots only with Copy evidence, while a marked owning
+scrutinee transfers even Copy data. A read/
 edit alias cannot supply a non-Copy take. No field rights are inferred from subsequent mutations.
 
 Evaluate the scrutinee once. Read/edit tests can lend access from a fresh computed value owned
@@ -117,16 +118,16 @@ a result depending on a temporary cleaned at handoff cannot escape it.
 An explicitly computed conditional/call still performs its ordinary value construction before
 the pattern observes it. A read branch mode does not undo transfers performed by its operand.
 
-Take acquires the complete carrier before the test, even on a false if-is path. A non-Copy source
-is unavailable on both paths; Copy leaves its source intact. On a false path or whole `_` arm,
-clean that received carrier before entering the fallback. There is no delayed move depending
-on a successful pattern, rollback or permission-based fallback to read mode.
-Bindings/tag facts describe the received snapshot for a Copy take, not an alias of the original
-source. Existing index/outcome projection rights still govern the operand: take does not make
-a projected container element an owning source for non-Copy removal.
-A primitive [owning fixed-array element](tuples-and-arrays.md#primitive-component-selection)
-instead has its own structural subplace rights; this is not a fallback from a failed user index
-projection to another ownership operation.
+Take acquires the complete carrier before the test, even on a false if-is path. A marked source is
+unavailable on both paths, including Copy data; an unmarked source requires Copy and stays intact.
+On a false path or whole `_` arm, clean that received carrier before entering the fallback. There is
+no delayed move depending on a successful pattern, rollback or permission-based fallback to read
+mode. Bindings/tag facts describe the received snapshot for a Copy take, not an alias of the
+original source. Existing index/outcome projection rights still govern the operand: take does not
+make a projected container element an owning source for non-Copy removal. A primitive [owning
+fixed-array element](tuples-and-arrays.md#primitive-component-selection) instead has its own
+structural subplace rights; this is not a fallback from a failed user index projection to another
+ownership operation.
 
 ## Variant Identity and Coverage
 
@@ -160,12 +161,13 @@ cannot retroactively make a read pattern take its payload.
 
 ## Binding Formation and Cleanup
 
-For an acquired value, process named leaves in written tuple/payload order using the ordinary
-value-supply rule on each selected component. Copy evidence can snapshot a component; otherwise
-an eligible component transfers. Record those choices in the source checking context, not after
-concrete specialization. Stage all named bindings before running ignored/remainder cleanup.
-Names enter body scope only after formation completes. No partial binding is an argument or
-result from an interrupted scrutinee evaluation.
+For an already acquired anonymous carrier, process named leaves in written tuple/payload order. Copy
+evidence can snapshot a component; otherwise an eligible owned component transfers internally. No
+per-leaf caret is required in the pattern: the source carrier has already been supplied. Once a leaf
+has a name, transferring that existing owning binding requires its postfix caret. Record those
+choices in the source checking context, not after concrete specialization. Stage all named bindings
+before running ignored/remainder cleanup. Names enter body scope only after formation completes. No
+partial binding is an argument or result from an interrupted scrutinee evaluation.
 
 `_` creates no component alias/value binding. In a read/edit pattern it leaves its component in
 the original carrier. In value decomposition it leaves that component for the received carrier's

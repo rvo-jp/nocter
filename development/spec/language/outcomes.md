@@ -34,7 +34,7 @@ still require qualification. Published outcome rules are not a fallback.
 At an ordinary value-producing expected-type boundary, apply one rule:
 
 1. An existing value of exactly the expected type is forwarded with its tags unchanged, under
-   ordinary Copy-or-move supply. Exact forwarding has priority over adding a layer.
+   ordinary value supply. Exact forwarding has priority over adding a layer.
 2. At expected `U?`, the contextually typed literal `none` constructs outer absence. Otherwise
    supply a value to U recursively and construct one present layer.
 3. At expected `U!`, supply a value to U recursively and construct one success layer. A plain
@@ -84,11 +84,11 @@ valid value construction. There is no `throw ^error` alternative.
 
 ```text
 func recorded(take reason: error): error! {
-    return reason // success containing error information
+    return reason^ // success containing error information
 }
 
 func failed(take reason: error): error! {
-    throw reason  // failure containing the same kind of error information
+    throw reason^ // failure containing the same kind of error information
 }
 ```
 
@@ -100,8 +100,10 @@ failure-to-absence or absence-to-failure conversion occurs. A result lacking the
 is an error. To construct a different nested absence use an explicit ordinary value constructor,
 not hidden flattening or a destination chosen from a later use.
 
-For a value elimination, supply the complete carrier under Copy-or-move before selecting its
-tag. A moved source is unavailable on every continuation. Snapshotting a Copy optional instead
+For a value elimination, supply the complete carrier under value-supply before selecting its
+tag. An existing non-Copy carrier requires its postfix transfer, as in `stored^?` or
+`stored^ catch failure { ... }`; a marked Copy carrier also retires. A transferred source is
+unavailable on every continuation. Snapshotting an unmarked Copy optional instead
 leaves its source intact. Stage the successful result before destroying remaining temporaries;
 on propagation stage the error/absence result before normal scope cleanup. Edits already
 performed are not rolled back, and outward edit post-state/initialization promises still apply.
@@ -120,7 +122,7 @@ next layer, as in `(operation()?)?`; `operation()??` is not expression syntax.
 failure binds the error and evaluates the recovery body, whose normal result must supply the
 same payload data. The body may instead return, throw, break, continue or terminate under those
 constructs' ordinary rules. It is not a dynamic enclosing handler. A trailing error value does
-not implicitly rethrow; use `throw failure` with eligible ownership or `?` on another outcome.
+not implicitly rethrow; use `throw failure^` with eligible ownership or `?` on another outcome.
 
 For ordinary value recovery, the complete carrier is supplied first and the named error is a
 fixed owning handler local. Protect the recovery result before cleaning handler locals. `catch _`
@@ -158,7 +160,7 @@ On presence/success, preserve the carrier and alias its active payload. An edit 
 update authority and must keep that payload/carrier initialized. The live access prevents tag
 replacement, incompatible mutation, transfer or destruction of its carrier. This is the same
 existing-element protocol as [index projection](equality-and-indexing.md#index-projections),
-without restoring ordinary `&T`/`^T` types. A value-producing use still extracts under Copy-or-move;
+without restoring ordinary `&T`/`^T` types. A value-producing use still extracts under value-supply;
 context does not turn an arbitrary conditional value into a place.
 
 In projection recovery, a named catch binding has the same read/edit operation into the existing
@@ -168,11 +170,11 @@ must itself produce a surviving compatible place; a fallback local cleaned at ha
 invalid. A terminating fallback needs no projected result. Stage the projection, then complete
 handler-local cleanup before delivering it; do not postpone a guard's destruction to keep it valid.
 
-A projected `?` may propagate absence without transferring a payload. Propagating failure still
-requires its error value: an eligible owning carrier can transfer it on that exit, whereas a
-read input cannot surrender its caller's error and an edit input cannot leave that caller's
-carrier uninitialized. Reject those failures at the attempted propagation, rather than copying
-an error or weakening the input operation. Use explicit local recovery when ownership is absent.
+A projected `?` may propagate absence without transferring a payload. A fallible projected `?`
+cannot implicitly retire the carrier or extract its error on the failure branch. Reject that
+use even for a locally owned carrier. Use explicit value elimination such as `carrier^?` when
+ownership can be surrendered, or local recovery without surrendering caller storage. A read/edit
+input cannot supply another owner's error by adding a caret. No implicit error copy repairs this.
 Projected `!` instead traps on the non-value branch with the same non-unwinding rule.
 
 Projection preserves payload dependencies and the active-variant relation. Copy of a projected

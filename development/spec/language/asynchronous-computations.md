@@ -22,7 +22,7 @@ async func add_later(take value: i32): i32 {
 
 async func example(): i32 {
     let pending: future i32 = add_later(41)
-    await pending
+    await pending^
 }
 ```
 
@@ -102,7 +102,8 @@ This supplies no async/fallible-step traversal or for-await protocol.
 
 Await is valid in the nearest async function/method/default body; a nested ordinary closure does
 not inherit permission. The operand supplies one owned future T. A read/edit alias cannot
-surrender another owner's future. No transfer marker is added. Await consumes that instance and
+surrender another owner's future. A named owning operand requires `await pending^`; a fresh
+`await operation()` needs no caret. Await consumes that instance and
 delivers T on normal completion, preserving outside dependencies.
 
 One await eliminates one future layer. `await operation()?` awaits first and propagates its

@@ -159,7 +159,8 @@ V2CurrentProjection = "operator" "(" "edit"? "self" "[" "]" ")"
 
 V2Closure = "(" V2ClosureHead ")" (":" V2Type V2OriginClause?)? V2Block
 V2ClosureHead = (V2ValueCaptures ";" V2ClosureParameters? | V2ClosureParameters)?
-V2ValueCaptures = NonEmptyList(Name)
+V2ValueCaptures = NonEmptyList(V2ValueCapture)
+V2ValueCapture = Name V2TransferSuffix?
 V2ClosureParameters = NonEmptyList(V2ClosureParameter)
 V2ClosureParameter = V2InputOperation? V2Pattern (":" V2Type)? | V2ClosurePackParameter
 V2ClosurePackParameter = "..." V2InputOperation? Name (":" V2Type (":" V2Type)?)?
@@ -315,6 +316,33 @@ invocation of an undeclared iterator/user expansion operator. Built-in pack/fixe
 and receiving component preparation are resolved once after recognition. General synchronous
 expansion is owned below; typed literal contributions remain a separate draft subject.
 
+### Postfix Transfer Sources
+
+[Value supply](value-access.md#explicit-transfer-sources) owns source retirement and commit:
+
+```text
+V2Postfix = V2Primary V2PostfixPart*
+V2PostfixPart = "(" List(V2CallArgument) ")" | "." Name | "." integer_literal
+                | "[" V2Expression? "]" | V2InterfaceSelection | V2TransferSuffix
+                | V2GenericArguments "(" List(V2CallArgument) ")"
+V2TransferSuffix = "^"
+```
+
+The suffix is joint with its immediately preceding place/sequence source. Postfix parts bind
+left to right: `buffer^.finish()` retains a marked direct receiver; `record.field^` marks the
+field; `record^.field` acquires the whole owner before computed field selection. Parentheses
+preserve a marked direct source. A source requiring ^ cannot also move without it; fresh values
+cannot take a redundant suffix. There is no prefix/type/binding/result-name form or overloaded
+caret. Binary caret is not selected by this grammar and cannot be recovered through whitespace,
+type lookup or failed transfer checking.
+
+`value^?` / `value^!` first supplies the marked outcome carrier; the existing extraction layer
+still admits one suffix. Closure value-capture entries are names with an optional joint ^,
+where an unmarked entry copies only with evidence and a marked entry transfers even Copy data.
+Pack^ is restricted to the sequence-source/capture/expansion roles; it is not ordinary data.
+Missing ownership, repeated transfer or a suffix on a fresh/computed result is a semantic
+diagnostic, never another parse. Exact jointness/recovery cases require parser qualification.
+
 ### Synchronous Iteration and Expansion Operators
 
 [Iteration](iteration.md) owns loop acquisition, step/binding and exit scheduling. The
@@ -372,7 +400,7 @@ output outcome after awaiting; `await (make_future()?)` instead extracts an imme
 before awaiting its future. Constructor order/grouping is not inferred from the type name.
 
 Shared heads may recognize `const async`, but that staging combination is invalid. There is no
-async prefix on an anonymous closure or structural callable type, no call-site transfer marker,
+async prefix on an anonymous closure or structural callable type, no input-mode assertion,
 and no authored effect qualifier to complete the syntax. An ordinary closure/function returning
 future T remains immediate. `for await` in the remaining draft needs its own library iteration
 contract; the producer/await rules do not silently admit it or define an executor entry.
@@ -394,8 +422,9 @@ result type instead describes the result. A `func` or `once` head cannot have th
 clause. A callable result consumes its complete V2 type, so `func(i32): File!` and
 `(func(i32): File)!` have different constructor trees. Grouping preserves those distinctions.
 
-An explicit value-capture segment must be nonempty and ends with `;`. `(file; path: Path) { ... }`
-and `(file;) { ... }` capture values; `(path: Path) { ... }` has no explicit capture segment.
+An explicit value-capture segment must be nonempty and ends with `;`. `(file^; path: Path) { ... }`
+and `(file^;) { ... }` transfer a source; unmarked entries require component Copy evidence.
+`(path: Path) { ... }` has no explicit capture segment.
 The old `(^file; ...)` has no production. An expected callable contract can supply omitted closure
 input operations; explicit operations must agree. Without an expected callable contract,
 unmarked closure inputs default to read before checking the body. Body use cannot silently select
@@ -463,156 +492,10 @@ distinguishes that replacement from the earlier checkpoint and from full-languag
 
 ### Bounded Value Binding Fragment
 
-This implemented fragment has not admitted the later temporary-update input protocol. Its edit
-preparation for ordinary edit data inputs is limited to direct authorized places, even when the broader adopted language can
-lend update from a produced value. Current rejections on that path are not evidence of future
-v2.0.0 invalidity; source/preparation/access/resource admission must migrate together.
-
-The bounded S12/S16 replacement uses the internal `V2CoreUnit` goal below for definitions in one
-supplied private module. This is its new source contract, not a compatibility variant or a public
-package format. Its implementation and qualification are tracked in the
-[development record](../../history/reviews/v2.0.0-dependent-callable-results.md).
-The old corpus cannot qualify this grammar by relabeling its status. No bodies are thereby
-permitted in contract-only `index.nct`.
-
-This fragment imports future Name/literal/trivia/token/newline rules, `List`/`LineSequence`, and
-`V2InputOperation`. It imports no released type, statement or expression root:
-
-```text
-V2CoreUnit = LineSequence(V2CoreFunction | V2CoreRecord)
-V2CoreRecord = "copy"? "struct" Name "{" LineSequence(Name ":" V2CoreType) "}"
-V2CoreFunction = "func" Name "(" List(V2CoreParameter) ")" ":" V2CoreAnnotation V2CoreBlock
-V2CoreParameter = V2InputOperation? Name ":" V2CoreAnnotation
-V2CoreType = Name | "void"
-V2CoreAnnotation = V2CoreType | V2InvocationKind "(" List(V2InputOperation? V2CoreType) ")" ":" V2CoreType
-V2CoreBlock = "{" LineSequence(V2CoreEntry) "}"
-V2CoreEntry = V2CoreStatement | V2CoreExpression
-V2CoreStatement = ("let" | "var" | "read" | "edit") (Name | "_")
-                   (":" V2CoreAnnotation)? "=" V2CoreExpression
-                 | V2CorePostfix V2CoreAssignment V2CoreExpression
-                 | "return" V2CoreExpression? | "drop" Name
-                 | "break" | "continue"
-                 | "while" V2CoreExpression V2CoreBlock | "loop" V2CoreBlock
-V2CoreAssignment = "=" | "+=" | "-=" | "*=" | "/=" | "%="
-V2CoreExpression = V2CoreOr
-V2CoreOr = V2CoreAnd ("||" V2CoreAnd)*
-V2CoreAnd = V2CoreEquality ("&&" V2CoreEquality)*
-V2CoreEquality = V2CoreOrdering (("==" | "!=") V2CoreOrdering)?
-V2CoreOrdering = V2CoreAdd (("<" | "<=" | ">" | ">=") V2CoreAdd)?
-V2CoreAdd = V2CoreMultiply (("+" | "-") V2CoreMultiply)*
-V2CoreMultiply = V2CorePrefix (("*" | "/" | "%") V2CorePrefix)*
-V2CorePrefix = ("!" | "-") V2CorePrefix | V2CorePostfix
-V2CorePostfix = V2CorePrimary (("(" List(V2CoreExpression) ")") | ("." Name))*
-V2CorePrimary = V2CoreRecordValue | V2CoreClosure | Name | integer_literal | "true" | "false" | "(" ")"
-               | "(" V2CoreExpression ")" | V2CoreIf
-V2CoreRecordValue = Name "{" List(Name ":" V2CoreExpression) "}"
-V2CoreIf = "if" V2CoreExpression V2CoreBlock
-           ("else" (V2CoreBlock | V2CoreIf))?
-V2CoreClosure = "(" (NonEmptyList(Name) ";")? List(V2CoreClosureParameter) ")"
-                (":" V2CoreType)? V2CoreBlock
-V2CoreClosureParameter = V2InputOperation? Name (":" V2CoreType)?
-```
-
-Call openers stay on their callee's logical line. Parentheses preserve a place's category. Binary levels
-associate left; comparisons allow one ungrouped operator; short-circuit right operands are
-conditional edges. A return without a same-line operand is bare unit return. Blocks supply their
-final expression or normal unit completion. A non-final expression must be unit or terminating.
-Recognized non-place alias initializers/assignment targets are semantic errors, not alternate parses.
-A complete discard is exactly `let _ = expression`, without an annotation; other `_` bindings
-in this bounded grammar fail validation.
-
-Resolve all named headers before bodies. Every parameter's mode comes from its head: read when
-unmarked, otherwise edit/take. The result is always a delivered value, never I/U access. No
-body-selected mode, result qualifier, `from`, generic, receiver,
-pack, outcome, async, const or module production is inherited into this fragment. Such constructs
-are outside this private goal, not prohibited in the complete language. Direct calls resolve one
-named function (including transparent grouping) and its argument count/contract before permission
-checks. Functions are not storage places. A place here is a local/input name followed by zero or more declared record-field selections,
-with transparent grouping. Resolve each field once through its containing record; two distinct
-fields are disjoint logical places, while a field overlaps its containing place. Member selection
-from computed record values follows [value selection](value-access.md#field-selection-from-values);
-indexing remains outside this bounded fragment. Structural record values
-initialize every field exactly once in authored order under ordinary value construction; follow
-the nominal payload construction and interrupted-cleanup contract. At the outer level of `if`/
-`while` conditions, the first `{` starts the control body; nested delimiters restore record-value
-syntax without type lookup. Record data names resolve before bodies, including forward references. Follow
-[nominal payload rules](structs-and-enums.md#nominal-value-payloads) for
-finite containment, explicit Copy opt-in and closed field types. All fields are private-unit
-members in this fragment; visibility and module contracts are not inherited.
-
-Use the owning value-binding algorithm: Copy snapshots readable admitted data; otherwise move an
-eligible owner. Read/edit aliases never supply non-Copy extraction. Fixed owners may transfer/drop
-but cannot be assigned; mutable owners and take inputs can update/reinitialize their slots. Edit
-aliases/inputs update their original places and must remain valid on outward recoverable exits.
-Read inputs remain read even for Copy data, and a read Copy input can supply a separate take
-snapshot. Two taking uses of a known-Copy scalar can succeed; two transfers of one non-Copy owner
-cannot commit together. There are no source-level access/transfer prefix operations.
-
-`bool`, `i32` and `void` are Copy and have empty carried-access/external-storage requirements and
-trivial cleanup. The opaque move-only `error` owns its private immutable graph under the
-[error contract](../library/error.md#value-access); it has empty
-outside D/S and graph cleanup. These are exact admitted data contracts, not implications of Copy
-or value ownership. No constructor or failure outcome is introduced for error by this fragment.
-A read error parameter therefore cannot be returned as an error value; a take error can transfer
-it. Closed record payloads compose these exact leaf contracts and retain their schema cleanup.
-All admitted value results are independent of callee-local storage under those contracts. Ordinary read/
-edit aliases can still have R into local/input storage and need ordinary access validation.
-
-Primitive arithmetic/ordering use i32, logic uses bool, and equality compares matching bool/i32/
-void values under the [primitive equality rule](equality-and-indexing.md#core-primitive-equality).
-Uncontextualized integer literals default to i32; decode magnitude before range checks and admit
-`-2147483648` through grouping of its literal operand. Preserve checked overflow/division/remainder
-semantics and each prepared scalar payload. Unit `()` is the one void value. A non-producing local
-initializer cannot infer a data type; an annotation can provide it. Termination does not invent a
-stored value or a continuing flow edge.
-
-At ordinary conditional/block value boundaries, normally producing branches apply Copy-or-move
-to a common inferred/expected data type. A terminating branch contributes no answer. An if without
-else completes with unit and its normally producing then branch must be unit. A computed conditional
-operand has already constructed its answer; a direct named operand instead follows the selected
-call's read/edit/take preparation. Do not reinterpret computed moves as delayed direct reservations.
-A condition that terminates contributes no continuing branch; structurally unreachable code still
-has its own name/type obligations without fictitious runtime resource reads.
-
-Assignment is RHS-first. Reinitialize only writable owning slots; clean initialized old values
-conditionally and never read missing ones. Compound assignment reads its target only after the
-right-hand side. Propagate definite initialization, access demand and owner state through every
-reachable branch/backedge/exit; include zero-iteration while paths and actual break/continue
-successors. Non-breaking loops and literal-true while without a reachable break have no normal
-completion. Never derive a continuing edge from a dead break or choose Copy from later liveness.
-
-Stage value results before normal cleanup. Track owner responsibility in one ledger and alias/
-reservation relationships in the shared graph; access validation cannot invent a second survival
-set. Validate all definitions, including unused/recursive ones, before publishing an accepted unit.
-Exact source rebinding preserves the same immutable declaration identities and every body.
-Private front-end acceptance alone grants no target admission, native ABI, CLI mode or
-released-program adapter. The complete model's capability/state-footprint obligations remain required
-before admitting dependent aggregates or general callable environments.
-
-Within the bounded value-binding fragment, named function values and local callable annotations
-use [named function witnesses](callables.md#named-function-witnesses). Such an annotation has
-unnamed, nonvariadic inputs over `V2CoreType`; it checks the selected named or formal witness's
-input operations/data and result, and may select its permitted invocation adapter. Calls through these
-values remain statically selected. Top-level callable parameters also admit these flat contracts
-under [statically witnessed inputs](callables.md#statically-witnessed-callable-inputs). Callable
-produced results lacking an established witness for a required input, nested callback contracts, record
-fields containing callable contracts, general captured environments and erased
-callables remain outside this bounded fragment. This limit does not change their full future grammar or justify treating
-every structural callable contract as a capture-free Copy value.
-
-Callable result annotations in this fragment follow
-[statically witnessed results](callables.md#statically-witnessed-callable-results): their reachable
-producers must close to one named or own-input witness relation before unit acceptance, with
-actual witnesses substituted independently at each call.
-An interrupted call may retain only its structural result contract, under the
-[known-shape rules](values-and-types.md#known-shape-without-a-produced-value), without a produced
-callable environment or executable edge.
-
-Closure head recognition is structural and distinguishes grouped expressions and unit without
-type lookup. The [bounded owned-capture scope](callables.md#bounded-owned-capture-producers)
-admits exactly one explicit ordinary value capture, complete ordinary input/result data annotations,
-and no nested or inferred outside captures. Recognition of a broader head does not admit it.
-No released closure production or symbolic capture prefix is a fallback. Closure invocation
-access is inferred from reached operations on its owned environment; explicit input operations
-remain independent. Contextual completion of omitted input operations and data annotations is
-outside this first producer scope.
+The implemented private frontend still uses the
+[pre-explicit-transfer fragment](../../history/reviews/v2.0.0-pre-explicit-transfer-fragment.md).
+It accepts implicit moves and name-only non-Copy captures that are invalid under the adopted
+postfix-transfer contract, and does not yet admit that new grammar. It is therefore not a subset
+or conformance qualification of the current source language. No compatibility mode is selected.
+Parser, typed supply, reservations, initialization, captures, cleanup and source cases must migrate
+together. Until then, retain its 283-case evidence as prototype evidence only.

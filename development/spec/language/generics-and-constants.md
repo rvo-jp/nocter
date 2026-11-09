@@ -195,7 +195,7 @@ temporary operation does not make its result an eligible final value.
 A constant reference constructs a fresh instance of that eligible data, like a named literal;
 there is no living constant owner to move from. This permits a storage-independent record/enum
 constant without asserting that its ordinary type is Copy. Each reference constructs its own
-value; an ordinary binding of that value follows Copy-or-move thereafter. This is not a general
+value; an ordinary binding of that value follows value-supply thereafter. This is not a general
 clone operation: no final resource, destructor, outside mutable identity or evaluator address may
 be replicated. Generic code acquires no Copy evidence from the existence of such a constant.
 Aliasing, assigning or explicitly dropping the constant name is invalid because it is not a place.

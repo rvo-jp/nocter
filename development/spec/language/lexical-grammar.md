@@ -27,9 +27,11 @@ current-place projection, distinct from one-input `cursor[()]` and spaced typed 
 No new reserved word, unary access prefix or yielded-reference token is introduced.
 
 Ordinary data types have no `&`/`^` access qualifier, and expressions have no unary access/transfer
-prefix or `move` expression. Receiver operations are words, not `&self`/`^self`. Binary `&&`
-remains conjunction; unary `&&value` has no access-prefix interpretation. Capture-list names
-before `;` select value construction, not a punctuation-prefix operation.
+prefix or `move` expression. Receiver operations are words, not `&self`/`^self`. Binary `&&` remains
+conjunction; unary `&&value` has no access-prefix interpretation. Postfix `place^` is the sole
+explicit transfer spelling and must be joint with its operand. It can precede member/call/outcome
+suffixes, as in `buffer^.finish()` and `stored^?`. Capture entries before `;` can carry this same
+suffix. There is no prefix or type/name qualifier.
 
 The existing ellipsis starts a final ordinary/keyed pack parameter, including in a closure head,
 or a contribution in a call tail. It is not a standalone unary operator or access assertion.

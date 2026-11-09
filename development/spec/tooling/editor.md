@@ -4,7 +4,7 @@
 
 Present the selected [value-access contract](../language/value-access.md) without redoing selection.
 Hover/signature help exposes input operations, callable invocation, delivered value type, result
-origins and edited-state bounds. Distinguish default-read inputs from Copy-or-move value supply,
+origins and edited-state bounds. Distinguish default-read inputs from value supply,
 and fixed `let` holders from mutable `var` holders. Optional hints can show transfers, snapshots
 and retained roots; those hints are not mandatory source tokens or a second type system.
 
@@ -134,3 +134,11 @@ value does not become a local-alias/assignment place, and an immutable direct so
 copied merely to satisfy edit. Explain an escaping result/future against that actual temporary
 extent rather than suggesting a longer lifetime annotation. This path is not admitted by the
 current bounded frontend.
+
+## Explicit Transfer Presentation
+
+Show postfix source retirement separately from the receiving read/edit/take contract. A marked
+Copy source is retired; an unmarked Copy source snapshots. Show the selected field/element or
+whole owner and its commit boundary, including pending call reservations. Capture formation and
+invocation refer to different slots. Inlay hints cannot insert or erase these operations, infer
+a missing outside move, or present the pre-S24 private prototype as current source conformance.

@@ -62,7 +62,7 @@ owned capture or forward an already dependent descriptor when the outside roots 
 At a callable boundary, a checked invocation adapter may supply `func` to `mut`, or `func`/`mut`
 to `once`, with exact explicit input operations and compatible data/result contracts. `func` to
 `mut` preserves the environment state and must satisfy the receiving post-state bound. Taking
-adaptation receives its own environment value under Copy-or-move, invokes it with the required
+adaptation receives its own environment value under value-supply, invokes it with the required
 read/edit access, and completes normal environment cleanup before handing off the answer. Reject
 any answer depending on that destroyed environment storage. Forwarded carried dependencies remain.
 
@@ -77,25 +77,29 @@ future's later drive/cancellation are separate phases. Erasure or an invocation 
 preserve both phase facts and the output's dependency/write schema; a result type alone is
 not permission to infer an async declaration or non-waiting constructor.
 
-Ordinary captures are inferred from checked body operations. To deliberately capture a value,
-use the name-only segment before `;`:
+Read/update captures are inferred from checked body operations. To acquire an existing source
+as an owned environment value, use the explicit capture segment before `;`:
 
 ```text
-let reader = (file; path: Path) {
+let reader = (file^; path: Path) {
     file.read(path)
 }
 ```
 
-A listed ordinary data name constructs an environment value under the same Copy-or-move rule as
-`let next = file`. Repeated names are invalid. Unlisted captures use inferred read/update/value
-operations; no escape use silently upgrades a read capture into a move. A value-capture list
-cannot copy an exclusive capability. Capture ownership alone does not choose `once`: the body can
-read an owned capture repeatedly. Inferred update captures suspend the parent's conflicting access.
+A marked entry transfers its owning source at formation, even for Copy data. An unmarked entry
+copies only with source-context evidence; it cannot move a non-Copy source. Repeated names,
+including one marked and one unmarked use of the same name, are invalid. Type/binding/prefix
+markers are not alternatives. A listed pack follows the same marked-transfer/unmarked-copy
+sequence protocol under [variadic captures](variadic-inputs.md#closures-and-qualification).
 
-A listed pack name instead captures its count and component values under the
-[variadic capture protocol](variadic-inputs.md#closures-and-qualification), using the same
-component Copy-or-move rule and ordinary invocation inference. This does not give a bare pack
-name an ordinary data type, source allocator API or whole-pack assignment operation.
+Unlisted captures can infer read/update or a permitted Copy value capture. They cannot infer
+retirement of an outside owner. A non-Copy value capture therefore needs an explicit name^ entry.
+A caret inside the closure body refers to the environment/body binding when invoked; it cannot
+silently move the outside source at formation. No escape use upgrades read access into ownership.
+Capture ownership alone does not choose once: reading an owned capture can remain repeatable.
+Inferred update captures suspend the parent's conflicting access. Invocation inference observes
+actual operations on environment slots; transferring a captured slot requires receiving its
+owning environment, whereas transferring a body-local value does not consume that environment.
 
 Explicit capture entries are evaluated left to right at closure formation. Earlier executed
 moves are not rolled back after a later formation failure; constructed captures are cleaned in
@@ -103,10 +107,11 @@ reverse order. An inferred capture activates at formation, not at its first invo
 captures retain the dependencies needed by future invocation/output/destruction. Capturing access
 to a local does not permit the closure to escape that local's lifetime.
 
-A fresh closure constructs a value. `let second = callback` copies with evidence or moves a
-non-Copy callable; it no longer creates an implicit read alias. Use `read alias = callback` for
-that operation. `var` permits a locally stored mutable callback to be invoked/updated. A function
-parameter's operation independently determines whether it can read/update/take the callable.
+A fresh closure constructs a value. `let second = callback` copies with evidence; `let second =
+callback^` transfers even Copy data. An unmarked non-Copy source is invalid; it cannot create an
+implicit read alias. Use `read alias = callback` for that operation. `var` permits a locally stored
+mutable callback to be invoked/updated. A function parameter's operation independently determines
+whether it can read/update/take the callable.
 
 A produced mut callable can invoke through its caller-owned update temporary under the ordinary
 input protocol. A fixed/read existing binding is not copied into a writable environment to
@@ -122,8 +127,8 @@ of an anonymous implementation, not re-inference of a named declaration's defaul
 Without an expected callable contract, every unmarked closure input is read, just as in a named
 function. The body may infer data types, captures, environment invocation and result shape; it
 cannot silently change an unmarked input to edit/take because its operations need those rights.
-A stand-alone identity of non-Copy data therefore needs `(take value: File) { value }`. An inline
-`(value) { value }` can instead inherit take from a previously selected expected callable contract.
+A stand-alone identity of non-Copy data therefore needs `(take value: File) { value^ }`. An inline
+`(value) { value^ }` can instead inherit take from a previously selected expected callable contract.
 A read identity with source-level Copy evidence can return a snapshot normally. Insufficient data
 information requires an ordinary annotation. Later uses cannot retroactively select input/capture
 operations or invocation kind. Erased contracts preserve the same facts without run-time name
@@ -131,34 +136,11 @@ lookup or authority repair.
 
 ### Bounded Owned-Capture Producers
 
-The private fragment additionally selects a first owned-capture producer:
-`(value; parameters): R { body }`. It requires exactly one explicit capture, named and fully
-typed ordinary parameters, and an explicit ordinary data result type. The environment and
-inputs/result range over the fragment's closed builtin/record data. Nested closures, inferred
-outside captures and callable results inside the closure body are outside this first scope;
-omitting an annotation does not select an alternate input operation. The complete closure
-grammar above remains the intended source design.
-Contextual completion of omitted operations/data remains outside this first scope; write the
-input operation explicitly when an enclosing callable constraint needs edit/take.
-
-Formation constructs the captured value under the ordinary Copy-or-move rule. The closure body
-has its own local inputs, return target and loop scope. The captured name denotes the environment
-value; it does not denote the original outside slot. Invocation access is inferred from checked
-operations on that environment: observation requires func, update requires mut, extraction or
-explicit destruction requires once. Ownership of the capture alone does not require once. Copy
-evidence follows the captured data, independently of invocation kind. A mut view requires writable
-access to its stored environment; a once view consumes one supplied instance.
-
-The body is checked even when formation is unreachable. Read/update invocation must preserve an
-initialized environment on every normal return. A consuming invocation owns and cleans the
-environment's remaining payload; a returned component is staged before cleanup. An uninvoked
-closure owns the environment's cleanup obligation. Copying a Copy closure snapshots its environment;
-moving a non-Copy closure transfers that same obligation. This scope's outside D/S independence
-follows its exact closed environment schemas, not ownership or invocation kind.
-
-This source/flow boundary grants no erased representation, executable specialization, ABI or
-native capability for captured code. Those consumers must explicitly close the same environment
-schema and checked body before admitting it.
+The implemented one-capture scope is retained in the non-normative [pre-explicit-transfer
+snapshot](../../history/reviews/v2.0.0-pre-explicit-transfer-fragment.md#recorded-capture-scope).
+Its implicit movement/name-only non-Copy capture syntax is not current v2.0.0 source conformance.
+Migrate that producer and its prepared instance/resource consumers with postfix transfer, without a
+parallel source mode or a second ownership ledger.
 
 ### Named Function Witnesses
 
@@ -203,22 +185,23 @@ formal witness. Forwarding that formal to another function preserves the binding
 searching its signature for a candidate. Recursive forwarding retains the same finite declaration
 and formal-input identities, without constructing an expanding series of witness names.
 
-A callable parameter's structural contract does not establish Copy. Extracting a value from a
-read callable input therefore fails without separate Copy evidence, even when a current caller
-supplies a capture-free named function. A taking callback may move or be dropped; an edit callback
-may delegate update access. A consuming invocation requires an owning source or Copy evidence.
-Cleanup of an owning formal environment remains an obligation tied to its witness, not a claim
-that the environment is trivial or independent. The concrete supplied environment must satisfy
-that obligation and retain its carried dependencies.
+A callable parameter's structural contract does not establish Copy. Extracting a value from a read
+callable input therefore fails without separate Copy evidence, even when a current caller supplies a
+capture-free named function. A taking callback may move or be dropped; an edit callback may delegate
+update access. A consuming invocation requires a marked owning source, an already produced value or
+Copy evidence. Cleanup of an owning formal environment remains an obligation tied to its witness,
+not a claim that the environment is trivial or independent. The concrete supplied environment must
+satisfy that obligation and retain its carried dependencies.
 
 ### Statically Witnessed Callable Results
 
 A structural callable result delivers an owning environment value satisfying its invocation and
-explicit input/result contract. The compiler retains the returned code witness; the signature
-does not select runtime erasure. A result contract alone does not grant Copy. The exact
-established producer schema may separately prove Copy. Value supply must establish Copy or an
-eligible owning source; the result signature cannot substitute for that evidence. Receiving and forwarding the value follows
-ordinary value supply, and reading an owning result keeps it alive for the selected operation.
+explicit input/result contract. The compiler retains the returned code witness; the signature does
+not select runtime erasure. A result contract alone does not grant Copy. The exact established
+producer schema may separately prove Copy. Value supply must establish Copy, an already produced
+value or a marked eligible owning source; the result signature cannot substitute for that evidence.
+Receiving and forwarding the value follows ordinary value supply, and reading an owning result keeps
+it alive for the selected operation.
 
 In the bounded private fragment, reachable return producers establish one named code witness or
 one of the function's own input witnesses, possibly through other such results. Explicit and
@@ -244,7 +227,7 @@ func run(): i32 { let action = forward()
 A taking relay preserves its formal witness without claiming that the formal has Copy:
 
 ```text
-func relay(take action: func(i32): i32): func(i32): i32 { action }
+func relay(take action: func(i32): i32): func(i32): i32 { action^ }
 func decrement(value: i32): i32 { value - 1 }
 func example(): i32 {
     let first = relay(increment)

@@ -53,14 +53,15 @@ module functions. A nominal variant or literal entry is not an automatically gen
 factory. There is no implicit `new` entry.
 
 A `method` has an explicit receiver: `self` reads it, `edit self` updates it and `take self`
-receives a value under ordinary Copy-or-move supply. The receiver and ordinary inputs follow the
+receives a value under ordinary value supply. The receiver and ordinary inputs follow the
 [value access rules](value-access.md); they do not depend on whether the result constructs
 another value. The receiver has no alternate expanded `self: T` signature.
 
-Call construction as `Buffer.create(64)` and methods as `buffer.len()`. Type-qualified method
-calls and value-qualified construction calls are invalid; no UFCS conversion is performed.
-Calls have no caller-side access markers. Result data is ordinary data, without a separate
-ownership marker before the callable name or result type.
+Call construction as `Buffer.create(64)` and methods as `buffer.len()`. Type-qualified method calls
+and value-qualified construction calls are invalid; no UFCS conversion is performed. Calls omit
+input-mode assertions. A marked source such as `buffer^.finish()` selects explicit source retirement
+under value access, without repeating the receiver contract. Result data is ordinary data, without a
+separate ownership marker before the callable name or result type.
 
 The public contract and implementation repeat complete signatures. Public bodyless construction
 entries are valid contracts; their result does not require a body to be present in `index.nct`.
@@ -98,7 +99,7 @@ factory is the mechanism for hidden state, validation or additional initializati
 
 Actual field initializers may be written in any order. Require every granted field exactly once
 with no extras, shorthand, defaults or update spread. Evaluate in written order with the ordinary
-Copy-or-move component rule. Interrupted construction cleans successfully produced components in
+value-supply component rule. Interrupted construction cleans successfully produced components in
 reverse production order and never drops an uncompleted record. Complete record cleanup follows
 reverse representation declaration order. [Nominal payloads](structs-and-enums.md) own these value
 and partial-initialization rules; a grant does not weaken them.

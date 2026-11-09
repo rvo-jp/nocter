@@ -36,7 +36,14 @@ they do not make reviews normative or register compiler support.
 - [Variadic Input Contracts](v2.0.0-variadic-input-contracts.md) — ordinary/keyed argument sequences, built-in expansion, pack captures and phase-preserving cleanup; not compiler or evaluator qualification
 - [Synchronous Traversal Contracts](v2.0.0-iteration-contracts.md) — shared for/expansion protocols, current-place projection, source acquisition and retained-root/cleanup conditions; not compiler or evaluator qualification
 
+- [Explicit Transfer Contracts](v2.0.0-explicit-transfer-contracts.md) — user-adopted postfix source retirement, preserved invocation commit and pending prototype migration
+
 #### Implementation and Verification
+
+The records below qualify the pre-S24 private prototype. They do not establish acceptance of
+the subsequently adopted mandatory postfix transfer syntax.
+
+- [Pre-Explicit-Transfer Private Fragment](v2.0.0-pre-explicit-transfer-fragment.md) — non-normative implemented grammar/capture snapshot, separated from the current language authority
 
 - [Bounded Value Binding Front End](v2.0.0-value-binding-front-end.md) — implemented private-unit scope, production tests, qualification, and limits
 - [Nominal Payload Schema Checkpoint](v2.0.0-nominal-payload-schemas.md) — declaration schema evidence

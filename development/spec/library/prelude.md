@@ -9,12 +9,13 @@ The adopted v2.0.0 synthetic prelude exposes this ordinary function contract fro
 func some<T>(take value: T): T?
 ```
 
-It constructs exactly one present layer around its received value. Supply uses ordinary
-Copy-or-move: a Copy source remains available, an eligible non-Copy source transfers, and a
-read/edit alias without Copy cannot supply ownership. Existing optional/fallible tags inside T
-are preserved, never flattened. Ordinary result injection in a generic body suffices to implement
-the operation; no identifier-based compiler intrinsic, extra allocator request, wrapper heap
-object or new source keyword is implied.
+It constructs exactly one present layer around its received value. Supply uses ordinary value
+supply: an unmarked Copy source remains available, a marked owning source transfers even for Copy
+data, and a read/edit alias without Copy cannot supply ownership. An existing non-Copy source
+therefore needs `some(value^)`; a fresh value needs no marker. Existing optional/fallible tags
+inside T are preserved, never flattened. Ordinary result injection from `return value^` in a generic
+body suffices to implement the operation; no identifier-based compiler intrinsic, extra allocator
+request, wrapper heap object or new source keyword is implied.
 
 Context or complete explicit arguments determine T when its value is `none` or otherwise
 insufficient for inference. The [outcome contract](../language/outcomes.md) owns injection and

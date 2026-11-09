@@ -54,9 +54,9 @@ there is no general implicit numeric/user coercion. A missing unique type needs 
 rather than a guess from later uses. The number of listed array elements must equal the expected
 length. Repetition uses the same expected/inferred element-data rule for its one producer.
 
-Evaluate listed components once, left to right, supplying each by ordinary Copy-or-move before
+Evaluate listed components once, left to right, supplying each by ordinary value-supply before
 evaluating the next. This is value construction, not a bundle of delayed call reservations.
-For example, `(file, fail()?)` can already have moved file when the second operand exits. Clean
+For example, `(file^, fail()?)` can already have moved file when the second operand exits. Clean
 successfully constructed components in reverse actual construction order on recoverable exit or
 cancellation; do not roll back earlier moves or destroy an unfinished aggregate as a whole.
 An interrupted component's known shape remains structurally checked without fabricating a value.
@@ -93,7 +93,7 @@ A tuple has Copy evidence exactly when every component has it. A fixed array has
 when its length is proven zero or its element type has Copy evidence in the checking context.
 An exact zero-length type contains no element resources or carried element dependencies; this
 does not grant Copy to T or to an unproved symbolic-length array. In particular `[File; 0]` may
-be Copy while File is not. `[file; 0]` still evaluates, moves and destroys file under the preceding
+be Copy while File is not. `[file^; 0]` still evaluates, moves and destroys file under the preceding
 rule. A non-Copy read input still cannot construct that seed, even with a zero repetition count.
 The empty array's Copy evidence cannot undo those effects.
 
@@ -121,7 +121,8 @@ unchecked indexing form or implicit recoverable outcome in this selected contrac
 
 Selection from existing tuple/array storage identifies a component place and inherits its
 authority and initialization state. Read/edit access never creates an owner. A value-producing
-use snapshots a Copy component or moves an eligible owning component under ordinary supply.
+use snapshots an unmarked Copy component or transfers a marked owning component under ordinary
+supply. `files[0]^` retires that element, including when its data is Copy.
 An owning fixed-array element is a structural subplace, like an owning tuple/record field; it
 is not a user-defined index projection whose receiver only lends an element. Taking a non-Copy
 element through a read/edit alias or a user index projection is still invalid. The same applies
@@ -143,7 +144,7 @@ own earlier transfers. Indexing is not permission to change that evaluation orde
 
 ## Partial Initialization and Restoration
 
-Moving a non-Copy element from an owning array makes that position unavailable and the whole
+Transferring a marked element from an owning array makes that position unavailable and the whole
 array incomplete. Initialized disjoint elements remain usable. A complete array read, snapshot,
 transfer or alias requires every element initialized; giving a type annotation cannot hide a
 hole. Dropping a present owning array instead cleans only its remaining initialized elements,
@@ -151,7 +152,7 @@ in reverse index order, and ends the container even if every element already mov
 
 ```text
 var files: [File; 2] = [open(first)?, open(second)?]
-let saved = files[0]
+let saved = files[0]^
 files[0] = open(replacement)?
 ```
 
