@@ -2,13 +2,16 @@
 
 Each review file owns its findings, remediation status, and evidence. This catalog intentionally
 does not duplicate those mutable facts. Reviews are non-normative: public behavior remains owned
-exclusively by [`spec/`](../../../spec/README.md).
+by the [published specification](../../../spec/README.md) and adopted unreleased behavior by the
+[development specification](../../spec/README.md), within each version's scope.
 
 An implementation qualification proves the recorded implementation against its specification and
 tests. A final design review asks whether each responsibility can be replaced internally without
 forcing consumers that use only its contract to change.
 
 ## Review Catalog
+
+- [Platform Expansion Notes](platform-expansion.md) — unadopted target/archive/profile planning, separated from the published platform contract
 
 ### Value Binding Reviews
 
@@ -54,7 +57,7 @@ they do not make reviews normative or register compiler support.
 #### Superseded Source and Checkpoint Records
 
 These preserve pre-S12 proposals and implementation evidence. Their source forms, present-tense
-adoption labels, and work orders describe those earlier checkpoints. Use the owning `spec/`
+adoption labels, and work orders describe those earlier checkpoints. Use the owning version's specification
 chapters for source rules and the bounded front-end record for implemented support.
 
 - [Value Access Model: Earlier Direction](v2.0.0-values-and-access-operations.md)

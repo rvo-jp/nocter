@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "contract": "../../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment",
+  "contract": "../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment",
   "compiler_status": "checked-private-unit",
   "cases": [
     {

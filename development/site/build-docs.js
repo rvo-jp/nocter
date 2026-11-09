@@ -20,6 +20,7 @@ const OUTPUT_ROOT = outputTransaction.directory;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
 const SKIP_PUBLICATION_PREFIXES = [
+    "development/spec/",
     "development/history/",
     "development/compiler/tests/fixtures/"
 ];
@@ -415,6 +416,11 @@ function validateSourceLinks(files) {
         const searchable = markdown
             .replace(/```[\s\S]*?```/g, fenced => "\n".repeat((fenced.match(/\n/g) || []).length))
             .replace(/`[^`\n]*`/g, "");
+        const relativeSource = normalizePath(path.relative(PROJECT_ROOT, file));
+        const userDocumentation = isPublishedUserDocumentation(relativeSource);
+        if (userDocumentation && /^#{1,6}\s+Future Direction\b/im.test(searchable)) {
+            throw new Error(`Published user documentation contains an unreleased direction: ${relativeSource}`);
+        }
 
         for (const match of searchable.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
             const href = match[1].trim();
@@ -448,6 +454,10 @@ function validateSourceLinks(files) {
                 throw new Error(`Documentation source ${normalizePath(path.relative(PROJECT_ROOT, file))} has an unresolved local link: ${href}`);
             }
 
+            if (userDocumentation && normalizePath(path.relative(PROJECT_ROOT, target)).startsWith("development/spec/")) {
+                throw new Error(`Published user documentation links to an unreleased specification: ${relativeSource}: ${href}`);
+            }
+
             if (hash && target.endsWith(".md")) {
                 let headingIds = headingIdsBySource.get(target);
 
@@ -462,6 +472,13 @@ function validateSourceLinks(files) {
             }
         }
     }
+}
+
+function isPublishedUserDocumentation(relativeSource) {
+    return sourceSet.has(relativeSource) && (
+        relativeSource === "README.md"
+        || ["spec/", "std/", "examples/"].some(prefix => relativeSource.startsWith(prefix))
+    );
 }
 
 function markdownHeadingIds(markdown) {

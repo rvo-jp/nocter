@@ -1,12 +1,15 @@
 # Contributor Documentation
 
-Nocter development is contract-first. Language, platform, and tooling behavior belongs in
-[`spec/`](../spec/README.md). Standard-library behavior belongs with its compiler-checked public
+Nocter development is contract-first. Published language, platform and tooling behavior belongs in
+[`spec/`](../spec/README.md); adopted unreleased contracts belong in the
+[development specification](spec/README.md). Each version has one owning rule, and an unclosed
+v2.0.0 subject cannot inherit released behavior through a fallback. Standard-library behavior belongs with its compiler-checked public
 surface under [`std`](../std/README.md). Implementation milestones and reviews record how
 the compiler reached those contracts without becoming another authority.
 
 ## Current Work
 
+- [Development specification](spec/README.md) — adopted unreleased contracts, excluded from the user documentation site
 - [Current handoff](TODO.md) — next concrete work and blockers only
 - [Compiler architecture](architecture/overview.md) — pipeline and cross-responsibility authority boundaries
 - [Architecture contracts](architecture/README.md)
@@ -25,8 +28,8 @@ are not behavioral or architectural inputs.
 These entry points cover the v2.0.0 redesign. Read them in order; each owns a different kind
 of information:
 
-1. **Source semantics:** the future [Value Access Model](../spec/language/value-access.md) and its
-   linked owning chapters. The [bounded value-binding grammar](../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
+1. **Source semantics:** the future [Value Access Model](spec/language/value-access.md) and its
+   linked owning chapters. The [bounded value-binding grammar](spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
    defines the private-unit source boundary; the broader future grammar is a separate scope.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
@@ -57,9 +60,10 @@ program and alternatives are compared. Under an explicitly delegated design scop
 resolves the decision and records its evidence; otherwise the user selects the language behavior.
 The [input-default and delegation record](history/reviews/v2.0.0-parameter-defaults.md#decision-and-scope)
 records the v2.0.0 model/source-design and normal work-sequencing delegation. The adopted rule is
-written in the owning specification chapter before implementation or conformance tests proceed.
+written in the owning version's specification chapter before implementation or conformance tests proceed.
 
-The specification is the sole source for:
+The published and development specifications own the following subjects within their respective
+version scopes:
 
 - lexical and syntactic grammar
 - name resolution and visibility
@@ -78,7 +82,8 @@ each longer observable subject to one behavior guide without repeating signature
 Escalate a language decision only when at least two materially different observable behaviors
 remain consistent after the owning specification chapter and its cross-references have been
 audited. Reduce the ambiguity to one minimal source example, compare concrete consequences, record
-the selected behavior in `spec/`, and derive conformance cases before implementation continues.
+the selected behavior in its owning version's specification, and derive conformance cases before
+implementation continues.
 Internal representation, implementation order, and diagnostic wording not fixed by the
 specification do not require a language decision.
 

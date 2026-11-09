@@ -3,7 +3,8 @@
 This document owns the compiler-wide pipeline, dependency direction, and contracts that cross crate
 boundaries. It does not define Nocter language behavior and does not describe a crate's private
 module structure. Public language, platform, and tooling behavior belongs to the
-[language specification](../../spec/README.md); standard-library behavior belongs to its
+[published specification](../../spec/README.md); adopted unreleased rules belong to the
+[development specification](../spec/README.md). Standard-library behavior belongs to its
 [checked source and colocated documentation](../../std/README.md); crate-local design belongs to the
 relevant colocated `README.md`.
 
@@ -222,7 +223,7 @@ and wrappers whose only purpose is to bypass an owner contract.
 
 This document changes only when a pipeline edge, cross-crate authority, or dependency rule changes.
 A crate-internal refactor changes that crate's README. A public language, platform, or tooling
-change changes `spec/`; a public standard-library change changes its owning `index.nct` or colocated
+change updates its version's specification (`development/spec/` for unreleased contracts); a public standard-library change changes its owning `index.nct` or colocated
 README. A temporary implementation plan changes a milestone. Review findings and remediation
 evidence belong in `development/history/reviews/`; release qualification belongs in
 `development/history/release-audits/`.

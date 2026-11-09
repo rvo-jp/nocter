@@ -1,21 +1,19 @@
 # Value Access Model
 
-## Future Direction: v2.0.0
-
-This chapter owns the adopted v2.0.0 value-binding foundation. It is not part of the current
-released contract; current ownership remains in [Ownership, Borrowing, and Drop](ownership.md).
+This chapter owns the adopted v2.0.0 value-binding foundation within the
+[development specification](../README.md).
 Ordinary data types describe values. Binding and parameter operations describe how those values
 are accessed. Capability values and callable contracts retain the access/dependency information
 needed for safety; that information is not removed from the type system.
 
-This direction replaces the earlier future type-side `&T`/`^T`, explicit `&place`/`^place`, and
-permission-inferred `let` rules. They are not optional aliases. The
+Ordinary type-side `&T`/`^T`, explicit `&place`/`^place`, and permission-inferred `let` are not
+alternative source forms. The
 [bounded private-unit fragment](syntactic-grammar.md#bounded-value-binding-fragment) selects a
 smaller source scope; it does not define full-language conformance, target realization or a
 general soundness proof. Other chapters state the extent of their future
 migration; an unchanged released production does not silently become a v2.0.0 production.
 
-### Values and Scoped Aliases
+## Values and Scoped Aliases
 
 | Declaration | Meaning |
 | --- | --- |
@@ -51,10 +49,10 @@ Creating `edit` requires initialized writable storage or existing edit authority
 a parent read cannot delegate update. Aliases cannot be stored or returned as plain data T.
 Persistent/returned access uses a capability value with a checked dependency contract. Indexing can
 also expose an existing element place through its separately declared
-[projection protocol](equality-and-indexing.md#future-direction-v2-0-0-index-projections); it does
+[projection protocol](equality-and-indexing.md#index-projections); it does
 not make an ordinary function return an alias.
 
-### Value Construction and Copy
+## Value Construction and Copy
 
 Every value-producing boundary delivers a value: `let`/`var` initialization, replacement,
 aggregate component construction, ordinary block/return results, selected outcome payload
@@ -102,7 +100,7 @@ value. Inference and structural type/field validation use that known type; execu
 and cleanup follow only reached operations. A control expression with no known result shape
 cannot supply a record field type merely because its continuation is unreachable.
 
-### Field Selection from Values
+## Field Selection from Values
 
 A field selected from existing storage remains a place. Transparent grouping does not change
 that operation. A field selected from a computed record value instead delivers a value: evaluate
@@ -128,7 +126,7 @@ mutation; do not create an invisible owner or extend a temporary's lifetime to s
 operations. Selecting a non-Copy field from a grouped read/edit alias remains an invalid
 extraction from that existing place; grouping cannot launder permission into ownership.
 
-### Input Operations and Receivers
+## Input Operations and Receivers
 
 | Input | Contract |
 | --- | --- |
@@ -184,7 +182,7 @@ An update must remain initialized on success, recoverable failure and cancellati
 value through an update requires an exchange with a ready replacement; an unfilled fallible gap
 is invalid. Completed changes need not be rolled back.
 
-### Values Can Carry Dependencies
+## Values Can Carry Dependencies
 
 The compiler distinguishes:
 
@@ -210,10 +208,10 @@ release its own demand and reparent children to a surviving authority, preservin
 permissions, dependencies and pending call reservations. Never extend a root's lifetime to make
 reparenting succeed. Ending access does not move observable resource destruction earlier.
 
-### Result Origins and Retained Update State
+## Result Origins and Retained Update State
 
 Ordinary T results deliver values; there is no separate result permission or `yield`/`view`
-return syntax. The [origin rules](memory-and-regions.md#future-direction-v2-0-0-value-access-origins)
+return syntax. The [origin rules](memory-and-regions.md#value-access-origins)
 constrain outside dependencies. A single eligible source may be elided. Ambiguous public origins
 need an explicit `from` upper bound, resolved without a private body.
 
@@ -246,7 +244,7 @@ an owned view can preserve outside dependencies without retaining its dying desc
 Taking an ordinary buffer cannot return a view into that buffer when callee cleanup destroys it.
 Copying the taken buffer at the caller does not redirect the view into the caller's different slot.
 
-### Preparation, Invocation and Evaluation Temporaries
+## Preparation, Invocation and Evaluation Temporaries
 
 Evaluate the callable/receiver and explicit inputs exactly once, left to right. A direct read or
 edit place is reserved while later operands are evaluated, then its operation activates at
@@ -275,7 +273,7 @@ cannot escape while still depending on a temporary that is cleaned. Moving a tem
 owner transfers its cleanup obligation. Cancellation unwinds nested evaluation/call/lexical frames
 in actual order. A terminal trap without unwinding does not acquire cleanup from these rules.
 
-### Return, Replacement and Cleanup
+## Return, Replacement and Cleanup
 
 Evaluate a return once under the ordinary value-construction rule, stage its value/dependencies,
 perform callee cleanup, and then hand off. Protect returned capabilities through cleanup and
@@ -284,7 +282,7 @@ local, temporary, consumed parameter/environment or revoked guard. Do not suspen
 function, postpone a guard destructor, extend a region, or add reference counting to repair it.
 Return the actual guard/owner when the resource must survive.
 
-Assignment is RHS-first under [assignment and flow](bindings-and-initialization.md#future-direction-v2-0-0-assignment-and-flow).
+Assignment is RHS-first under [assignment and flow](bindings-and-initialization.md#assignment-and-flow).
 Old-value cleanup must be valid with the replacement's retained dependencies. Recoverable failure,
 `throw`, `?` and cancellation preserve exactly the initialized resources of their path. Conditional
 cleanup is not permission to read maybe-initialized data or skip a required user destructor.
@@ -322,9 +320,9 @@ still apply and cannot be bypassed. A wholly moved/dropped container is absent a
 dropped again. An alias cannot destroy an outside referent. Unit and scalar payloads have no
 destructor work; their logical initialization still matters.
 The opaque error owns its private immutable failure graph under its
-[error contract](../../std/error/README.md), not a special exemption from these operations.
+[error contract](../library/error.md), not a special exemption from these operations.
 
-### Generic, Outcome, Async and Optimization Boundaries
+## Generic, Outcome, Async and Optimization Boundaries
 
 Function types, interface witnesses and generic forwarding retain input operations, invocation
 kind, result origins, edited-state relations, effects and cleanup obligations. Call-site inference
@@ -339,6 +337,6 @@ payload. Explicit `some(...)`, ordinary optional lifting and `()` keep their ado
 Deferred calls retain needed input/capture roots until drive/output/cancellation no longer needs
 them. Constructing a frame does not make references independent. Resource cleanup order and drive
 safety survive backing-store/frame optimizations under the
-[future storage rules](memory-and-regions.md#future-direction-v2-0-0-storage-optimization).
+[future storage rules](memory-and-regions.md#storage-optimization).
 No authored `noalloc`, `notrap` or `blocking` annotation is restored. No rule here promises a
 physical copy, allocation, universal optimal code, or a measured speedup.

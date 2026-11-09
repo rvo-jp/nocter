@@ -252,16 +252,3 @@ If the target bin directory requires elevated permissions, the user may use
 `sudo ln -s ...` or a user-owned directory that is already on `PATH`.
 `NOCTER_HOME` may point to the active Nocter home when symlink-based executable
 resolution is unavailable or intentionally bypassed.
-
-## Future Direction
-
-Additional targets require a target backend, executable writer, primitive set, and target-gated
-standard-library declarations. Those declarations must remain in the same stable directory modules
-used by portable code; ordinary programs must not name CPU instructions, object formats, or OS
-syscall details. Cross compilation will use an explicit target option such as `--target x64-linux`.
-
-Additional host archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or
-`nocter-v<version>-arm64-linux.tar.gz`, while retaining `.nocter/` as their archive root.
-
-Future build-profile options may control optimization level, debug information, and diagnostics,
-but cannot weaken language safety checks.

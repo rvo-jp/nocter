@@ -104,7 +104,7 @@ v2.0.0 removes the authored modifier rather than adding one to future types.
 
 ## Non-negotiable Boundaries
 
-- `spec/` is the sole source of public language behavior.
+- `spec/` owns published behavior; `development/spec/` owns adopted unreleased behavior in its stated scope. No cross-version fallback or duplicate editable rule is permitted.
 - A crate knows another responsibility only through its exported contract.
 - A later phase cannot revisit an earlier representation to repeat a decision.
 - Source projection cannot affect semantic selection.

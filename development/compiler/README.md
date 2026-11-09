@@ -8,8 +8,9 @@ backend, package tooling, and conformance suite.
 This file is only the workspace entry point. It does not duplicate language rules, compiler-stage
 contracts, or milestone status.
 
-- [`spec/`](../../spec/README.md) is the sole authority for public language, platform, CLI,
-  diagnostic, and editor behavior.
+- [`spec/`](../../spec/README.md) owns published language, platform, CLI, diagnostic and editor behavior.
+- [Development specifications](../spec/README.md) own adopted unreleased contracts. Their stated
+  scope is authoritative for v2.0.0 work; absent productions have no released fallback.
 - [`std`](../../std/README.md) owns compiler-checked standard-library declarations and
   declaration documentation, and assigns longer observable subjects to behavior guides.
 - [Compiler architecture](../architecture/overview.md) owns the pipeline, dependency direction, and

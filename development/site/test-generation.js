@@ -112,6 +112,8 @@ try {
     }
     fs.rmSync(unindexedReview);
 
+    assertUnreleasedSpecificationBoundary(early);
+
     const malformedTable = path.join(early, "spec/guides/malformed-table.md");
     fs.writeFileSync(
         malformedTable,
@@ -289,6 +291,9 @@ function assertPublicationBoundary(root) {
     const privateSources = [
         "development/history/index.html",
         "development/history/milestones/index.html",
+        "development/spec/index.html",
+        "development/spec/language/value-access/index.html",
+        "spec/language/value-access/index.html",
         "std/str/text/index.html",
         "std/json/output/index/index.html",
         "std/internal/utf8/index/index.html"
@@ -298,6 +303,42 @@ function assertPublicationBoundary(root) {
             throw new Error(`documentation generation published private standard-library source ${relative}`);
         }
     }
+}
+
+function assertUnreleasedSpecificationBoundary(root) {
+    const draft = path.join(root, "development/spec/language/unindexed-contract.md");
+    const marker = "Unreleased Contract Publication Sentinel";
+    fs.writeFileSync(draft, `# ${marker}\n`);
+    build(root);
+    const output = generatedRoot(root);
+    if (collectFiles(output).some(file => file.replaceAll(path.sep, "/").includes("/development/spec/"))) {
+        throw new Error("unreleased specifications entered the website artifact");
+    }
+    const search = fs.readFileSync(path.join(output, "search-index.json"), "utf8");
+    const sitemap = fs.readFileSync(path.join(output, "sitemap.xml"), "utf8");
+    if (search.includes(marker) || sitemap.includes("/development/spec/")) {
+        throw new Error("unreleased specifications entered search or the sitemap");
+    }
+    const userPage = path.join(root, "spec/language/values-and-types.md");
+    const original = fs.readFileSync(userPage, "utf8");
+    fs.appendFileSync(userPage, "\n## Future Direction: Pending Release\n");
+    let rejected = runBuild(root);
+    if (rejected.status === 0 || !combinedOutput(rejected).includes("contains an unreleased direction")) {
+        throw new Error("published user documentation accepted a future direction");
+    }
+    fs.writeFileSync(userPage, `${original}\n[Pending contract](../../development/spec/language/unindexed-contract.md)\n`);
+    rejected = runBuild(root);
+    if (rejected.status === 0 || !combinedOutput(rejected).includes("links to an unreleased specification")) {
+        throw new Error("published user documentation linked into the unreleased specification");
+    }
+    fs.writeFileSync(userPage, original);
+    fs.appendFileSync(draft, "\n[Missing rule](missing-rule.md)\n");
+    rejected = runBuild(root);
+    if (rejected.status === 0 || !combinedOutput(rejected).includes("unresolved local link")) {
+        throw new Error("unpublished development specifications escaped link validation");
+    }
+    fs.rmSync(draft);
+    build(root);
 }
 
 function assertDocumentTreeNavigation(root) {

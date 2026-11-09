@@ -1,0 +1,60 @@
+# Equality, Indexing, and Core Operators
+
+## Core Primitive Equality
+
+Initial primitive `==`/`!=` compare matching `bool`, `i32`, or `void` payloads and construct a
+Boolean value. Reading an operand does not transfer its owner. Unit equality is true and inequality
+false after evaluating both operands in source order. Do not remove their effects/access validation.
+Opaque `error` has no primitive equality. User-defined, compound and interface equality use their
+own full-language contracts; this bounded foundation does not derive structural equality for them
+or change the published domain. The earlier prefix-based private fragment is superseded.
+
+## Index Projections
+
+An index operator exposes an existing element place, rather than returning an ordinary value.
+Its declaration names the element data type; the receiver form selects read or edit projection:
+
+```text
+impl Items<T> {
+    operator (self[index: usize]): T from self
+    operator (edit self[index: usize]): T from self
+}
+```
+
+These are two fixed index-operation identities, not permission-ranked overloads. Context selects
+the required read/edit projection before checking authority and then selects that one declared
+operation. A missing edit authority/operator is an error; it does not fall back to another body.
+A read use requests the read projection; an edit alias/input, replacement or compound target
+requests the edit projection. A value-producing use requests a read projection followed by the
+ordinary Copy-or-move supply check. The projected place itself carries access authority, not
+ownership of the container element; non-Copy extraction needs a checked exchange/removal API.
+There is no automatic copy, hole in the container or silent conversion to an owning element.
+
+```text
+let snapshot = numbers[i]   // Copy numeric element into a value
+read observed = items[i]   // retain read access to the existing element
+edit working = items[i]    // retain update access to the existing element
+items[i] = replacement     // RHS first, then edit projection and replacement
+```
+
+Each operator body supplies an initialized place with `return place` (or its final place result),
+checked against the projection kind and origin bound. This is the defined result protocol of an
+index operator, not an alternative result permission on `func` or `method`. A computed fresh value
+is not a projected place. Nested ordinary value construction still follows Copy-or-move.
+
+The index operator evaluates receiver/index inputs once in their selected order. It identifies
+and stages the place/access, runs normal operator-local cleanup, and hands off the checked
+projection. It does not suspend or later resume, and introduces no `yield` or implicit coroutine.
+The place and any guard/structure needed for its validity must survive that cleanup. Reject a
+projection into a dead local, consumed index input or revoked local guard; do not postpone cleanup
+to make it valid. Child access remains rooted in the surviving receiver/input, with conflicts and
+last use handled by the same access graph as `read`/`edit`.
+
+A projected element may itself contain dependencies. Copying its descriptor retains them; an
+exclusive capability cannot become Copy through indexing. Root and range identities must be
+precise enough for disjointness, and every potentially invalidating resize/relocation conflicts
+while needed access remains. Unknown invalidation is conservative, not hidden address repair.
+
+Primitive tuple/field/array projections retain their owning/subplace rules and are not invented
+operator calls. Exact array extraction/partial-initialization rules and the library index ABI must
+be closed before native integration; this source decision does not prove their implementation.

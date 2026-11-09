@@ -248,7 +248,7 @@ navigation, references, rename, completion, hover, and semantic highlighting thr
 identity. Hover renders the canonical declaration kind, name, and type, distinguishes `static`
 storage from `const` values, and never prints an initializer's potentially large contents.
 
-## Future Direction
+## Unsupported Constant Forms
 
 This chapter does not define associated or interface constants, constant parameters other than
 `usize`, constant defaults or predicates, compile-time construction of owned `String` and `Vec`

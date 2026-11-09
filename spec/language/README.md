@@ -19,7 +19,6 @@ rule has one owning chapter and cross-topic chapters link to that authority.
 - [Control Flow](control-flow.md)
 - [Errors and Optionals](errors-and-optionals.md)
 - [Ownership, Borrowing, and Drop](ownership.md)
-- [Value Access Model — Future Direction for v2.0.0](value-access.md)
 - [Memory, Regions, and Allocators](memory-and-regions.md)
 - [Asynchronous Computations](asynchronous-computations.md)
 

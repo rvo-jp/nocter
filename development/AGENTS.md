@@ -8,6 +8,7 @@ Before compiler work, read:
 
 - `../README.md`
 - `../spec/README.md`
+- `spec/README.md` when working on the unreleased language
 - `README.md`
 - `TODO.md`
 - `compiler/README.md`
@@ -30,10 +31,12 @@ development:
   language oracle
 - do not infer missing behavior from published binaries or historical implementation documents
 - do not copy the previous standard-library implementation to bootstrap compiler behavior
-- derive language, platform, and tooling behavior only from `spec/` and external platform standards
-  explicitly cited by it
-- derive standard-library behavior only from its checked `std/**/index.nct` contract and
-  the sole behavior guide assigned by `std/README.md`
+- derive published behavior from `spec/` and adopted unreleased behavior from `development/spec/`,
+  plus external platform standards explicitly selected by the owning version's contract; do not
+  use the published specification as an implicit fallback for an unclosed v2.0.0 subject
+- derive published standard-library behavior from its checked `std/**/index.nct` contract and
+  assigned behavior guide; derive adopted v2.0.0 changes from `development/spec/library/` without
+  claiming that an unmigrated API or implementation is already supported
 
 Historical milestone and release records may be consulted only for release-history work explicitly
 requested by the user. They are never evidence for language semantics or new compiler structure.
@@ -78,7 +81,7 @@ When a genuine observable ambiguity remains:
 3. compare the alternatives against the design principles
 4. recommend one alternative with concrete consequences
 5. ask the user to decide
-6. record the decision in English in the owning `spec/` chapter
+6. record the decision in English in the owning version's chapter (`development/spec/` for v2.0.0)
 7. derive valid, boundary, and invalid conformance cases from the adopted rule
 
 Internal choices that cannot affect accepted programs, diagnostics required by the specification,
@@ -102,7 +105,9 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 ## Documentation Ownership
 
-- `spec/`: sole normative source for language, platform, CLI, diagnostics, and editor behavior
+- `spec/`: normative source for published language, platform, CLI, diagnostics, and editor behavior
+- `development/spec/`: sole normative source for adopted unreleased contracts in their stated scope;
+  excluded from website pages/search but included in repository link validation
 - `std/**/index.nct`: sole normative source for exact standard-library declarations and
   declaration documentation
 - `std/README.md`: sole assignment of longer observable subjects to behavior guides

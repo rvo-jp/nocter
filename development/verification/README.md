@@ -4,7 +4,7 @@
 
 This directory owns repository-development verification entry points whose intermediate artifacts
 must not become persistent repository caches. Release assembly and artifact qualification remain
-under [`development/packaging/`](../packaging/).
+under [`development/packaging/`](../packaging).
 
 `lsp-client.js` is the single development-side JSON-RPC process client used by installed-artifact
 qualification and performance measurement. It owns framing, ordered requests, notifications,

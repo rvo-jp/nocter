@@ -1,8 +1,5 @@
 # Ownership, Borrowing, and Drop
 
-The adopted v2.0.0 replacement is defined separately under the explicitly future
-[Value Access Model](value-access.md). This chapter continues to define current released behavior.
-
 ## Borrowing
 
 Borrows distinguish readonly access from readwrite access.

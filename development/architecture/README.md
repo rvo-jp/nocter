@@ -5,7 +5,8 @@ target adapters, or standard-library implementation modules. It does not define 
 platform, tooling, or standard-library behavior.
 
 Public language, platform, CLI, diagnostic, and editor behavior belongs to
-[`spec/`](../../spec/README.md). Exact standard-library declarations and their observable behavior
+[`spec/`](../../spec/README.md); adopted unreleased contracts belong to the
+[development specification](../spec/README.md). Exact standard-library declarations and their observable behavior
 belong under [`std/`](../../std/README.md). A workspace crate's private mechanism belongs in that
 crate's colocated `README.md`. Work order, rejected migrations, qualification evidence, and release
 history belong under [`development/history/`](../history/README.md).

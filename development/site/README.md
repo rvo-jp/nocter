@@ -39,8 +39,8 @@ bypassing source-tree isolation.
 The website publishes:
 
 - user-facing Markdown from the repository root, `spec/`, `examples/`, and `releases/`;
-- current contributor Markdown under `development/`, except internal handoff and historical
-  records;
+- current contributor Markdown under `development/`, except internal handoff, unreleased
+  specifications and historical records;
 - every runnable Nocter source under `examples/`;
 - public standard-library READMEs and exact checked `index.nct` module-contract sources under
   `std/`, excluding the `internal/` subtree.
@@ -51,6 +51,9 @@ complete canonical source, including visibly restricted declarations and module-
 does not relabel those source forms as public API. Private standard-library implementation sources
 and package-only modules remain available in the repository but do not become website pages.
 Markdown links to an existing non-published repository file resolve to its GitHub source page.
+`development/spec/` is excluded from pages, navigation, sitemap and search. Its Markdown links
+remain validated, and developer links open its revision-pinned repository source. Published
+user guides cannot contain Future Direction sections or link directly into that unreleased tree.
 Compiler diagnostic fixtures and `development/history/` are not published; milestone, review, and
 release-audit links are still validated as historical records.
 
@@ -118,6 +121,7 @@ Generation fails when:
 - the Pages artifact contains a hidden entry, symbolic link, hard link, or other unsupported node;
 - two authored sources claim one output path;
 - a local Markdown link or heading anchor is unresolved or escapes the repository;
+- published user documentation contains an unreleased direction or links into `development/spec/`;
 - the syntax highlighter keyword set differs from the lexical specification;
 - the normative named-built-in list differs from checked standard-library `primitive type`
   declarations;
@@ -147,7 +151,8 @@ It builds source trees with different timestamps and compares every output byte.
 that output cannot enter the source repository, stale generated files are removed, the deployment
 manifest preserves the exact source revision, unsupported artifact nodes are rejected, private
 standard-library implementation sources stay private, newly discovered public pages enter
-navigation without README registration, historical records remain excluded, every standard-library
+navigation without README registration, historical records and newly added unreleased specifications remain excluded from pages/search/
+sitemap, unreleased links are still validated, public user pages cannot mix future contracts, every standard-library
 behavior guide links its checked contract, named built-in declarations cannot drift from the
 language catalog, unrelated Rust text cannot register diagnostics, diagnostic drift is rejected,
 every behavior guide remains assigned by the standard-library catalog, and table pipes inside code

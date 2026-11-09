@@ -2,8 +2,8 @@
 
 This document owns the bounded handoff between syntax, declarations, typed bodies and accepted
 private units for the adopted value-binding goal. Language meaning belongs to the
-[future value model](../../../spec/language/value-access.md) and
-[bounded grammar](../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment).
+[future value model](../../spec/language/value-access.md) and
+[bounded grammar](../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment).
 The earlier type-qualified/result-access checkpoint is retired; its historical records are not
 an alternate source mode. This boundary has no released-program adapter or native consumer.
 

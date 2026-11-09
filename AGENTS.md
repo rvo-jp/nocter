@@ -3,7 +3,7 @@
 ## Public Documentation Language
 
 Write all public-facing documentation in English. This includes the repository `README.md`,
-`spec/`, `development/README.md`, and `development/architecture/`, plus release notes and generated website
+`spec/`, `development/spec/`, `development/README.md`, and `development/architecture/`, plus release notes and generated website
 content.
 
 Internal agent instructions and handoff files that are excluded from the public documentation build,
@@ -27,8 +27,12 @@ build and test instructions, repository-local packaging, architecture, implement
 milestone planning, maintenance policy, and handoff state. Root documentation may link to the
 `development/` entry point, but must not duplicate its contents.
 
-Public language semantics belong under `spec/`. Standard-library declarations and declaration
-documentation belong to each root `std/**/index.nct`; `std/README.md` assigns each longer
+Published language, platform and tooling semantics belong under `spec/`. Adopted unreleased
+contracts belong under `development/spec/`, which is excluded from website publication and search.
+Each version has one normative owner per subject; proposals and superseded decisions remain in
+`development/history/`. A public release promotes contracts by moving them, not retaining editable
+copies in both trees. Adopted unreleased library changes belong under `development/spec/library/`.
+Published standard-library declarations and declaration documentation belong to each root `std/**/index.nct`; `std/README.md` assigns each longer
 observable subject to one behavior guide. The product sources and their API documentation remain
 together under `std/`; contributor-only implementation contracts remain under `development/`.
 

@@ -1,8 +1,8 @@
 # Value Binding Conformance Inputs
 
 These sources derive from the owning future
-[bounded value-binding grammar](../../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
-and [input/value rules](../../../../../spec/language/value-access.md). Each file is one supplied
+[bounded value-binding grammar](../../../../spec/language/syntactic-grammar.md#bounded-value-binding-fragment)
+and [input/value rules](../../../../spec/language/value-access.md). Each file is one supplied
 private module, not a runnable package or a contract-only `index.nct`.
 
 The production `V2CoreUnit` syntax, declaration and closed accepted-unit tests consume
