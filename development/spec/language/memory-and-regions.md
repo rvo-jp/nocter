@@ -14,6 +14,11 @@ Resolve those names to one input identity plus component paths. Elision can cons
 one eligible input subtree without an authored whole-input name; it never merges slot identities
 or narrows an edit postcondition's coverage to the leaves actually used.
 
+A [variadic input](variadic-inputs.md#origins-cleanup-and-deferred-calls) likewise denotes one
+formal subtree with entry/component paths mapped to the actual roots of each call. A pack's
+many actual arguments do not introduce many authored lifetime names or merge their identities.
+An edit-pack bound covers every component and reachable write, not only indexed entries.
+
 Ordinary results deliver values. Independent values need no caller-place origin. A capability or
 dependent result needs a bound for each externally dependent slot. One eligible source may be
 elided; multiple sources need a stable explicit public bound, such as `from first | second`.

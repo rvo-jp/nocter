@@ -6,8 +6,10 @@ This chapter owns structural tuple/fixed-array construction, primitive component
 array partial initialization for v2.0.0. [Value access](value-access.md) owns value supply,
 authority, reservations and cleanup; [patterns](patterns.md) own tuple decomposition. These
 adopted contracts do not extend the bounded private compiler. Dynamic sequences, `[T]`, typed
-sequence/string literal entries, packs, expansion, iteration and target representation require
-their own contracts. A recognized draft production does not import any of those behaviors.
+sequence/string literal entries, general user expansion, iteration and target representation require
+their own contracts. [Variadic inputs](variadic-inputs.md) separately own built-in fixed-array
+argument expansion; it is not an array literal spread or a definition of `[T]`. A recognized
+draft production does not import any of the other behaviors.
 
 A tuple has at least two ordered components, whose types can differ. Its identity includes the
 ordered component types. A fixed array `[T; N]` has N ordered elements of one storable data type T.
@@ -161,8 +163,9 @@ every relevant exit, including failure/cancellation.
 
 A dynamic selected position has semantic identity tied to that one evaluated index and containing
 array, not to the index expression's text or its later variable value. Initialization/conflict
-proofs may retain that index value and path conditions. A later selection needs proof that its
-element is initialized; distinct expression spellings do not establish disjointness. If a later
+proofs may retain that index value and path conditions. A later selection for reading/access
+needs proof that its element is initialized; replacement can identify a missing element without
+reading it. Distinct expression spellings do not establish disjointness. If a later
 index may equal an already moved position, reject that use unless the checked relation rules it
 out or a complete replacement restores it. Do not silently clone, turn extraction into a read,
 insert an unrequested fallible lookup or rescan an earlier expression.

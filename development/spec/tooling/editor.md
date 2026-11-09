@@ -98,3 +98,18 @@ index relation, source-context supply choice and cleanup evidence. They must not
 expressions, infer a separate owner ledger, flatten an array into fields in a public signature,
 or offer an alternate parse after a failed proof. These presentation requirements are not
 implemented v2.0.0 editor support.
+
+## Variadic Presentation
+
+Show one final formal pack with its ordinary/keyed kind, component data, declared operation
+and origin/state bounds. Signature help maps contributions to its entry/component paths after
+the fixed prefix. Do not flatten its public signature into a particular invocation's count or
+display a first-class array type for its binder. len and indexing are checked pack operations;
+ordinary members with those spellings do not share their authority.
+
+Transfer/capture explanations use the frozen prepared sources, actual roots, Copy evidence and
+remaining initialization, including separate key/value supply. Show a capture's formation-time
+ownership and inferred environment invocation separately. A result's from-pack bound preserves
+all relevant actual origins without presenting new authored lifetime names for each entry.
+Consume established mappings, overlap/state and cleanup evidence rather than reconstructing
+an argument list, evaluating indices or reselecting an expansion in the editor.

@@ -26,6 +26,11 @@ prefix or `move` expression. Receiver operations are words, not `&self`/`^self`.
 remains conjunction; unary `&&value` has no access-prefix interpretation. Capture-list names
 before `;` select value construction, not a punctuation-prefix operation.
 
+The existing ellipsis starts a final ordinary/keyed pack parameter, including in a closure head,
+or a contribution in a call tail. It is not a standalone unary operator or access assertion.
+Contextual input-operation words still require a complete following binder/type; a pack named
+take remains unmarked when no following name/type completes an operation-prefixed alternative.
+
 `from` retains its contextual contract role. On an edit parameter it describes post-call state;
 on a result it describes the delivered value. Origin names resolve after the complete input set
 is collected, allowing a later parameter as the source. Tokenization never depends on this lookup.

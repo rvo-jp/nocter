@@ -152,3 +152,9 @@ Callable results consume their complete type: `func(i32): File!` has a fallible 
 while `(func(i32): File)!` is a fallible value containing a callable. The same distinction applies
 to `future T`, pointer operands and grouped type constructors. Type recognition does not prove
 lifetime validity, permit moving a payload from read storage, or erase descriptor dependencies.
+
+The [grammar's origin attachment](syntactic-grammar.md#access-syntax) likewise delimits a type
+before a clause on its enclosing input/result. If a callable remains open at the type's right
+edge, group that complete type; an ungrouped from belongs to the inner callable's result.
+Origin-name lookup cannot choose another owner. Already closed array/generic delimiters do not
+require another group merely because their contents include a callable.

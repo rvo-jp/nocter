@@ -15,13 +15,13 @@ The [source reading order](README.md#value-binding-reading-order) links adopted 
 and their non-normative migration reviews; use those instead of duplicating completed source
 decisions here. These contracts do not extend the bounded private compiler or its 283-case corpus.
 
-The latest [fixed-aggregate checkpoint](history/reviews/v2.0.0-fixed-aggregate-contracts.md)
-closes tuple/fixed-array construction, exact empty-array Copy, primitive owning subplaces and
-dynamic-index partial initialization/cleanup. Source/evaluator/target implementations remain
-unqualified. It deliberately does not define dynamic `[T]`, typed sequence/string entries,
-variadic input receipt or expansion by analogy with fixed arrays or released APIs.
+The latest [variadic checkpoint](history/reviews/v2.0.0-variadic-input-contracts.md) closes
+ordinary/keyed argument sequences, built-in pack/fixed-array expansion, entry operations,
+value/access captures and phase-preserving cleanup. It does not turn a pack binder into a
+first-class dynamic array, select a user iterator/expansion, or implement those production paths.
 
-Next close those literal/pack/expansion schemas and explicit coercion, then iteration and
+Next close general expansion/iteration and typed sequence/string entries with their capability/
+backing schemas, plus explicit coercion, then
 remaining lexical/expression/control, capability/library and package/platform subjects,
 including task/async iteration. Audit the assembled grammar and integrated reading examples,
 then resume the bounded executable-lifecycle task below. Keep future conformance obligations

@@ -99,3 +99,22 @@ literal is a separate family; whitespace normalization cannot turn selection int
 Preserve authored count expressions and component order rather than sorting, evaluating or
 rewriting types from a hidden representation. Formatting cannot restore a missing element,
 convert a computed selection into a place, or replace an owning move by a projected access.
+
+## Variadic Formatting
+
+Keep ellipsis before an input operation: `... take items: T` or `... edit entries: K: V`.
+Unmarked read is `... items: T`, without an explicit-read alternative. A structural ordinary
+callable pack may omit its name; a keyed pack retains its name and both colons. A keyed closure
+annotation writes both types. Formatting cannot infer a pack kind or turn its binder into a
+tuple/discard pattern.
+
+At a call, use `...items` with no intervening space and `key: value` for a direct keyed entry.
+Do not insert/delete expansion, labels or tuple construction, reorder keys or deduplicate them.
+Preserve the complete fixed prefix and contribution order. A pack value capture remains the
+existing `(items; ...)` form; it cannot become a bare-name array binding or postpone ownership
+until invocation. Metadata queries and indexed entries retain ordinary `items.len()` and
+`items[index]` spelling without synthesized access markers.
+
+Preserve the complete type grouping in `edit action: (mut(): void) from source`, including for
+pack element types. Removing it attaches from to an inner callable result; adding a consecutive
+from is not a substitute. Existing closed array/generic delimiters do not need redundant grouping.

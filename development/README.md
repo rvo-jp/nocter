@@ -54,7 +54,11 @@ of information:
    [Tuples and fixed arrays](spec/language/tuples-and-arrays.md) own structural construction,
    repetition, component selection and partial initialization; their
    [review](history/reviews/v2.0.0-fixed-aggregate-contracts.md) records empty-array Copy and
-   dynamic owning-element proof obligations separately from unclosed sequence/pack protocols.
+   dynamic owning-element proof obligations separately from general sequence protocols.
+   [Variadic inputs](spec/language/variadic-inputs.md) own ordinary/keyed argument sequences,
+   built-in expansion, capture and component cleanup; their
+   [review](history/reviews/v2.0.0-variadic-input-contracts.md) separates those source rules from
+   unclosed user expansion/literal protocols and missing compiler/evaluator/target qualification.
 2. **Current compiler contracts:** the [architecture overview](architecture/overview.md),
    [private-unit handoff](architecture/pipeline/value-access-declarations.md), and the relevant
    [crate README](compiler/README.md#crate-documentation).

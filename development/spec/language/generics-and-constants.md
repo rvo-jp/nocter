@@ -164,6 +164,11 @@ evaluator uses those same operations, including checked indexing and partial ini
 it does not invent a pure zero-count shortcut. Final array count must be a closed valid usize.
 Evaluator/resource/target implementation and production conformance remain required.
 
+[Variadic input](variadic-inputs.md) count/index/forward operations consume the same checked
+component preparation, access and remaining-entry cleanup in the evaluator. Every input/effect
+must satisfy the ordinary const domain; variadic syntax cannot admit an allocator, runtime
+callback/capture execution or forbidden destructor that an ordinary const call would reject.
+
 ## Constants, Statics and Final Values
 
 A `const NAME: Type = expression` is storage-independent data, not an addressable owner. A

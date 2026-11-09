@@ -49,6 +49,11 @@ destructuring search. A failed pattern shape or unavailable authority cannot sel
 operation. The future for-binding shape may reuse this pattern, but this chapter does not pick
 an iteration protocol or add read/edit iteration spellings.
 
+A [variadic binder](variadic-inputs.md#scope-and-parameter-identity) instead names its argument
+sequence. It does not apply a tuple pattern or `_` repeatedly to an unknown number of entries.
+An ordinary pack's element can still be tuple data, selected/decomposed inside the body under
+the normal entry authority and pattern rules.
+
 ### Header Origins and Correspondence
 
 Each named leaf in a parameter pattern identifies its input position plus a semantic tuple path.

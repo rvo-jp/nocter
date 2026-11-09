@@ -81,6 +81,12 @@ starts; discarded take leaves do not run destructors early at construction. Unst
 instead cleans the received values through their intact schemas. Copy transport does not erase
 these source cleanup events or their effect phase.
 
+A [variadic input](variadic-inputs.md#origins-cleanup-and-deferred-calls) retains one formal pack
+identity with count and actual entry/component mappings. Receipt/activation happens at producer
+construction, while body operations wait for drive. Unstarted/pending cancellation cleans the
+intact/actual remaining take entries. An argument sequence is not a hidden owning promotion of
+read temporaries or permission to postpone required backing until drive.
+
 ## Await and Suspension
 
 Await is valid in the nearest async function/method/default body; a nested ordinary closure does

@@ -93,7 +93,7 @@ These envelopes deliberately depend on the separately owned value/access product
 lexical names/lists/trivia, and the [whole-source draft](../../history/reviews/v2.0.0-source-grammar-assembly.md)
 for still-unclosed package metadata, special operation and expression
 productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
-In particular typed sequence/string literal and pack behavior, generic solving,
+In particular typed sequence/string literal and general user expansion behavior, generic solving,
 primitives, target selection and package discovery still need their owning contracts before
 compiler admission. A complete whole-language grammar is not claimed here; published productions
 are never an implicit fallback.
@@ -127,16 +127,17 @@ V2GenericArgument = V2Type | StructuralConstantExpression
 V2OriginClause = "from" V2Origin ("|" V2Origin)*
 V2Origin = Name | "self" | "static"
 
-V2Parameter = V2OrdinaryParameter | V2KeyedParameter
-V2OrdinaryParameter = "..."? V2InputOperation? V2Pattern ":" V2Type V2OriginClause?
+V2Parameter = V2OrdinaryParameter | V2PackParameter | V2KeyedParameter
+V2OrdinaryParameter = V2InputOperation? V2Pattern ":" V2Type V2OriginClause?
+V2PackParameter = "..." V2InputOperation? Name ":" V2Type V2OriginClause?
 V2KeyedParameter = "..." V2InputOperation? Name ":" V2Type ":" V2Type V2OriginClause?
 V2Parameters = "(" List(V2Parameter) ")"
 V2CallableType = "const"? V2CallableKind "(" List(V2CallableParameter) ")"
                  ":" V2Type V2OriginClause?
 V2CallableKind = "func" | "once" | "mut" V2OriginClause?
-V2CallableParameter = V2KeyedParameter | V2OrdinaryCallableParameter
-V2OrdinaryCallableParameter = "..."? V2InputOperation?
-                              (V2Pattern ":" V2Type | V2Type) V2OriginClause?
+V2CallableParameter = V2KeyedParameter | V2CallablePackParameter | V2OrdinaryCallableParameter
+V2OrdinaryCallableParameter = V2InputOperation? (V2Pattern ":" V2Type | V2Type) V2OriginClause?
+V2CallablePackParameter = "..." V2InputOperation? (Name ":" V2Type | V2Type) V2OriginClause?
 
 V2FunctionHead = "const"? "async"? "func" Name
 V2MethodHead = "const"? "async"? "method" V2Receiver "." Name
@@ -150,14 +151,15 @@ V2Binding = V2BindingOperation V2Pattern (":" V2Type)? "=" V2Expression
 V2Return = "return" V2Expression?
 V2Throw = "throw" V2Expression
 V2Drop = "drop" Name
-V2IndexProjection = "operator" "(" "edit"? "self" "[" V2Parameter "]" ")"
+V2IndexProjection = "operator" "(" "edit"? "self" "[" V2OrdinaryParameter "]" ")"
                     ":" V2Type V2OriginClause? V2WhereClause? V2Block?
 
 V2Closure = "(" V2ClosureHead ")" (":" V2Type V2OriginClause?)? V2Block
 V2ClosureHead = (V2ValueCaptures ";" V2ClosureParameters? | V2ClosureParameters)?
 V2ValueCaptures = NonEmptyList(Name)
 V2ClosureParameters = NonEmptyList(V2ClosureParameter)
-V2ClosureParameter = V2InputOperation? V2Pattern (":" V2Type)?
+V2ClosureParameter = V2InputOperation? V2Pattern (":" V2Type)? | V2ClosurePackParameter
+V2ClosurePackParameter = "..." V2InputOperation? Name (":" V2Type (":" V2Type)?)?
 ```
 
 `BuiltinScalarType`, `Name`, `List`, `NonEmptyList`, `InterfaceApplication` and the constant-expression
@@ -179,7 +181,20 @@ A keyed pack always names its binding, including in a callable type:
 `func(... K: V): R` has only the ordinary named-pack interpretation (name K, element type V),
 never a key/value interpretation selected by type lookup. Keyed pack names bind semantic input
 positions just as other named callable inputs do; the names are not part of type identity.
-Recognition does not bypass the separate pack/body/ABI migration gate.
+Pack parameters require one name rather than a per-entry tuple pattern or discard. An ordinary
+non-variadic tuple parameter retains its pattern form. Closure packs permit omitted types under
+the selected expected contract; a keyed annotation writes both types. Index projections have
+one ordinary index input, without a variadic/keyed index header.
+The [variadic rules](variadic-inputs.md) own pack body operations, preparation and cleanup;
+their compiler/body/ABI qualification remains separate from recognition.
+
+Origin attachment is syntactic. A from following an ungrouped callable type belongs to the
+nearest still-open callable result, not an enclosing parameter/result selected by name lookup.
+To attach an enclosing clause, delimit that complete callable-containing type first, for example
+`edit action: (mut(): void) from buffer` or `: (func(): View) from buffer`. This also applies when
+future wraps the trailing callable type. A second consecutive from cannot bypass the required
+grouping to spell the enclosing relation. Origins inside the type resolve in their own callable
+header; an unknown name is an error, never a reason to reinterpret the clause as outer state.
 
 ### Generic Arguments and Requirements
 
@@ -281,6 +296,21 @@ Primitive tuple/array selection uses the common postfix productions. Their share
 does not make built-in owning subplaces and user-declared index projections the same operation.
 The checker records the selected category and supply operation once, including computed-value
 selection, without reparsing after an authority or initialization failure.
+
+### Argument Expansion
+
+[Variadic inputs](variadic-inputs.md#calls-and-built-in-expansion) own these contribution roles:
+
+```text
+V2CallArgument = V2Expression | "..." V2Expression | V2Expression ":" V2Expression
+```
+
+The selected formal header determines the fixed-prefix/ordinary-tail/keyed-tail roles; syntax
+never searches another target or treats a key as a parameter-name label. Spread contributes to
+the final pack only. It is not a standalone expression, a fixed-prefix arity splice or an
+invocation of an undeclared iterator/user expansion operator. Built-in pack/fixed-array carriers
+and receiving component preparation are resolved once after recognition. Other expansion
+operators and typed literal contributions remain separate draft subjects.
 
 ### Outcome Elimination and Recovery
 

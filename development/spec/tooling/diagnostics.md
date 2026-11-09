@@ -257,3 +257,30 @@ transfer prefix, blanket constant-index restriction or implicit removal API for 
 Required const indexing failure reports its evaluated out-of-range operation. Runtime indexing
 retains its checked trap contract; the checker must not fabricate an optional or fallible layer.
 Exact diagnostic registration and source/resource/evaluator/target qualification precede admission.
+
+## Variadic Input Diagnostics
+
+For [variadic inputs](../language/variadic-inputs.md), separate malformed/final-pack placement,
+ordinary/keyed shape mismatch, unsupported tuple/discard binders, fixed-prefix arity and missing
+generic/element data. A keyed callable requires its binding name; a one-colon named ordinary
+pack is never reparsed using type lookup. A colon in the fixed prefix is not a named argument.
+
+Explain pack names as argument sequences at a failed bare-name data/alias/drop operation. Show
+the selected element/key/value operation, frozen source entry and actual root for unavailable
+initialization, missing ownership or overlap. Distinct entry ordinals do not prove distinct
+actual places. A keyed index is ordinal, not a map lookup, and duplicate keys are not declaration
+errors. Receiver-selected pair versus separate key/value preparation cannot change after failure.
+
+A spread outside the final variadic tail, unsupported carrier or incomplete contributed range
+reports that contract failure without a guessed iterator, dynamic array type or alternate call
+target. For capture/async escape relate the actual roots and cleanup phase. Distinguish capture
+formation moves, invocation commit and pending cancellation; no transfer prefix, container
+allocation, snapshot of a declared read or delayed transfer is an automatic repair.
+
+Qualify exact diagnostic codes and actual source/capture/resource/evaluator/target cases before
+compiler admission. These obligations do not extend current private diagnostic support.
+
+For a from on a trailing callable type, identify its syntactically selected result owner and
+origin scope. An unknown inner name cannot trigger outer-state reinterpretation. Relate the
+required complete-type grouping when explaining an intended enclosing relation; a second
+ungrouped from does not provide an alternative spelling.

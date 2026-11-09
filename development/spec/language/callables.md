@@ -36,6 +36,12 @@ binds names to component paths without flattening arity. Callable-type pattern n
 those paths, not another implementation or discard action. Concrete body-entry bindings and
 their cleanup follow the selected declaration, with ordinary effect/initialization evidence.
 
+A [variadic input](variadic-inputs.md) is likewise one formal input with entry/component paths,
+not a callable whose type changes with actual arity. Read/edit/take applies to each contributed
+component. A pack binding is an argument sequence, not a new ordinary array/capability type;
+its indexing, forwarding and component cleanup follow the owning pack protocol. Distinct concrete
+callable witnesses are not erased or joined merely because they occupy that sequence.
+
 Each invocation has fresh symbolic input extents. A callback permitted to run with arbitrary
 short-lived read inputs cannot store such an input for a later call unless its public environment
 post-state contract permits it and the caller establishes a sufficiently long-lived source.
@@ -80,11 +86,16 @@ let reader = (file; path: Path) {
 }
 ```
 
-A listed name constructs an environment value under the same source-level Copy-or-move rule as
+A listed ordinary data name constructs an environment value under the same Copy-or-move rule as
 `let next = file`. Repeated names are invalid. Unlisted captures use inferred read/update/value
 operations; no escape use silently upgrades a read capture into a move. A value-capture list
 cannot copy an exclusive capability. Capture ownership alone does not choose `once`: the body can
 read an owned capture repeatedly. Inferred update captures suspend the parent's conflicting access.
+
+A listed pack name instead captures its count and component values under the
+[variadic capture protocol](variadic-inputs.md#closures-and-qualification), using the same
+component Copy-or-move rule and ordinary invocation inference. This does not give a bare pack
+name an ordinary data type, source allocator API or whole-pack assignment operation.
 
 Explicit capture entries are evaluated left to right at closure formation. Earlier executed
 moves are not rolled back after a later formation failure; constructed captures are cleaned in
