@@ -30,8 +30,22 @@ An unclosed v2.0.0 subject has no implicit fallback to the published language.
 The agent is authorized to decide v2.0.0 language design, source alternatives, semantics,
 analysis, optimization, implementation, verification and ordinary work order. Resolve those
 decisions autonomously within the user's documented goals and explicit preferences. Explain
-consequential choices and tradeoffs with concrete examples. Ordinary design alternatives and
-next tasks do not require approval.
+consequential choices and tradeoffs with concrete examples, subject to the syntax approval
+boundary below. Ordinary work and next tasks do not require approval.
+
+Obtain the user's approval before a major change of syntax-design direction. This includes
+replacing the basic binding/input/result/transfer notation or its user-facing meaning, changing
+a pervasive default, or introducing a central source concept that substantially changes how
+ordinary programs are read or written. Apply this boundary when revisiting adopted decisions too.
+Clarifying or completing syntax within the adopted direction, internal models, analyses,
+optimization, refactoring, tests and documentation maintenance remain delegated. Assess the
+impact on the programmer's model, not merely the number of edited productions or files.
+
+Before requesting approval, prepare a concrete proposal with representative before/after code,
+the problem it solves, alternatives, consequences, migration impact and a recommendation. Keep
+it clearly pending in the current design work; do not replace the adopted specification or
+implement it as accepted behavior before approval. Continue independent authorized work while
+that decision is pending. An explicit user adoption already provides approval for that change.
 
 Ask for genuinely missing requirements that cannot be established from current documents or
 the user's instructions, or for actions outside authorization. Release publication, replacement

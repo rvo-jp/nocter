@@ -55,12 +55,8 @@ then resume the bounded executable-lifecycle task below. Keep future conformance
 distinct from actual production cases. No human-decision or external-authorization blocker
 is established for this delegated design work.
 
-S12–S16 define the adopted value-binding direction. The user delegated the input-default decision
-and subsequent v2.0.0 source/design/planning/work to the agent. The selected default remains
-unmarked read, with edit/take explicit; no explicit-read input alias or type/name/body-based
-default. Uncontextualized closure inputs default to read; a selected expected contract can supply
-omitted operations. See the [decision record](history/reviews/v2.0.0-parameter-defaults.md).
-Do not stop for approval of ordinary design alternatives or work order; publication remains separate.
+Use the current [development agent instructions](AGENTS.md) for delegated work and approval
+boundaries, and the owning specification for input defaults and other adopted source rules.
 
 The pre-S24 prototype includes closed records, named/computed fields and statically witnessed
 named/formal/captured callable results and private instance closure. Its corpus has 283 cases:

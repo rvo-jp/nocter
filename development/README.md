@@ -94,12 +94,11 @@ examples do not extend the implemented source boundary or introduce an alternate
 
 ## Specification Workflow
 
-When a public rule is incomplete, implementation pauses. The ambiguity is reduced to a minimal
-program and alternatives are compared. Under an explicitly delegated design scope, the agent
-resolves the decision and records its evidence; otherwise the user selects the language behavior.
-The [input-default and delegation record](history/reviews/v2.0.0-parameter-defaults.md#decision-and-scope)
-records the v2.0.0 model/source-design and normal work-sequencing delegation. The adopted rule is
-written in the owning version's specification chapter before implementation or conformance tests proceed.
+Resolve an incomplete public rule before implementing the affected behavior. Reduce the ambiguity
+to a minimal program and compare alternatives against the documented goals. The current
+[development agent instructions](AGENTS.md) own delegated decision scope and approval boundaries.
+Write the adopted rule in its owning specification chapter before implementation or conformance
+admission. Independent work can continue while a required decision remains pending.
 
 The published and development specifications own the following subjects within their respective
 version scopes:
@@ -118,20 +117,11 @@ each longer observable subject to one behavior guide without repeating signature
 
 ## Maintenance Workflow
 
-Escalate a language decision only when at least two materially different observable behaviors
-remain consistent after the owning specification chapter and its cross-references have been
-audited. Reduce the ambiguity to one minimal source example, compare concrete consequences, record
-the selected behavior in its owning version's specification, and derive conformance cases before
-implementation continues.
-Internal representation, implementation order, and diagnostic wording not fixed by the
-specification do not require a language decision.
-
-Keep one authority replacement coherent: do not introduce a new producer while retaining an
-undocumented compatibility path. Passing tests are necessary but do not replace an audit for
-duplicate producers, reverse lookup, order dependence, or hidden fallback behavior. Exact compiler
-verification commands live in the [compiler workspace guide](compiler/README.md); documentation
-changes also run the [site generator](site/README.md) into an explicit directory outside the
-repository.
+The [repository instructions](../AGENTS.md) and [development instructions](AGENTS.md) own review,
+defect handling, authority replacement and approval policy. Exact compiler verification commands
+live in the [compiler workspace guide](compiler/README.md), evidence selection in the
+[verification guide](verification/README.md), and documentation build details in the
+[site generator guide](site/README.md).
 
 ## Repository Layout
 
