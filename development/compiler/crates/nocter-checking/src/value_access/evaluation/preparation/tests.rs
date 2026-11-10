@@ -443,6 +443,43 @@ fn raw_type_names_are_resolved_only_when_their_declaration_is_requested() {
     }
 }
 
+fn header_data(
+    program: &nocter_declarations::value_access::Program,
+    owner: DeclarationId,
+    position: nocter_declarations::value_access::HeaderPosition,
+) -> nocter_model::TypeId {
+    use nocter_declarations::value_access::HeaderPosition;
+    match position {
+        HeaderPosition::Field(index) => {
+            let DeclarationId::Record(id) = owner else {
+                panic!("record");
+            };
+            program
+                .fields()
+                .get(program.records().get(id).unwrap().fields()[index])
+                .unwrap()
+                .data()
+        }
+        HeaderPosition::Parameter(index) => {
+            let DeclarationId::Code(id) = owner else {
+                panic!("code");
+            };
+            program
+                .parameters()
+                .get(program.codes().get(id).unwrap().parameters()[index])
+                .unwrap()
+                .data()
+        }
+        HeaderPosition::Result => {
+            let DeclarationId::Code(id) = owner else {
+                panic!("code");
+            };
+            program.codes().get(id).unwrap().result()
+        }
+        HeaderPosition::Name => unreachable!(),
+    }
+}
+
 #[test]
 fn anonymous_header_lengths_use_ordinary_usize_checking_and_execution_before_parent_readiness() {
     use nocter_declarations::value_access::{CodeKind, DeclarationId, HeaderPosition};
@@ -512,13 +549,15 @@ fn anonymous_header_lengths_use_ordinary_usize_checking_and_execution_before_par
             Some(Fact::Body(_))
         ));
         assert_eq!(requests.active_depth(), 0);
-        // Executing a length does not publish an array schema or excuse its parent's missing contract.
-        assert!(matches!(
-            preparation.require_header(&mut requests, parent),
-            Err(SourceFailure::Declarations(declarations::Failure::Headers(
-                _
-            )))
-        ));
+        // Only the explicit header request publishes its normalized shape after execution.
+        preparation.require_header(&mut requests, parent).unwrap();
+        let program = preparation.context.program();
+        assert!(program.header_ready(parent));
+        let data = header_data(program, parent, position);
+        let Some(PayloadSchema::Array(array)) = program.data_schema(data) else {
+            panic!("normalized array");
+        };
+        assert_eq!(array.length(), 42);
     }
 }
 

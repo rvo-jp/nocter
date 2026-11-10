@@ -15,6 +15,31 @@ pub(super) use recipes::Recipes;
 pub(super) struct Sources {
     pub codes: Arc<BTreeMap<AccessCodeId, CodeSource>>,
     pub records: Arc<BTreeMap<NominalTypeId, Arc<RecordSource>>>,
+    expressions: Arc<BTreeMap<NodeId, AccessCodeId>>,
+}
+impl Sources {
+    pub(super) fn new(
+        codes: BTreeMap<AccessCodeId, CodeSource>,
+        records: BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    ) -> Result<Self, super::Failure> {
+        let mut expressions = BTreeMap::new();
+        for (&id, source) in &codes {
+            if source.header.is_none() && expressions.insert(source.body, id).is_some() {
+                return Err(super::Failure::InconsistentSyntax);
+            }
+        }
+        Ok(Self {
+            codes: Arc::new(codes),
+            records: Arc::new(records),
+            expressions: Arc::new(expressions),
+        })
+    }
+    pub(super) fn expression(&self, node: NodeId) -> Option<AccessCodeId> {
+        self.expressions.get(&node).copied()
+    }
+    pub(super) fn expression_ids(&self) -> impl Iterator<Item = AccessCodeId> + '_ {
+        self.expressions.values().copied()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,6 +91,11 @@ impl CodeSource {
         self.header
             .as_ref()
             .map_or(&[], |header| &header.parameters)
+    }
+    /// The authored type annotation of a named parameter, without resolving it.
+    #[must_use]
+    pub fn parameter_type(&self, position: usize) -> Option<NodeId> {
+        self.header.as_ref()?.parameter_types.get(position).copied()
     }
     /// The result annotation, or the expression requiring a usize result for anonymous code.
     #[must_use]
@@ -218,6 +248,11 @@ impl BodySources {
             }
         }
         Ok(())
+    }
+    /// Whether this evidence retains the selected source owner, independently of byte validation.
+    #[must_use]
+    pub fn contains(&self, owner: AccessCodeId) -> bool {
+        self.bodies.contains_key(&owner)
     }
     /// Verify source dependencies without lookup, checking or evaluation of their contents.
     /// # Errors

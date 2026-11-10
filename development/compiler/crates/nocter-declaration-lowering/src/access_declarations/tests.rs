@@ -288,8 +288,8 @@ fn const_capability_is_header_authority_and_not_body_inference() {
 }
 
 #[test]
-fn recognized_array_headers_reject_locally_without_inventing_a_length_or_schema() {
-    use nocter_declarations::value_access::{DeclarationRule, HeaderPosition};
+fn array_headers_request_their_real_length_code_without_inventing_a_schema() {
+    use nocter_declarations::value_access::{CodeKind, HeaderPosition};
     for (source, annotation, position) in [
         (
             "struct Data { values: [i32; count()] }",
@@ -325,20 +325,32 @@ fn recognized_array_headers_reject_locally_without_inventing_a_length_or_schema(
         let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
         assert!(!tree.has_errors(), "{source}: {:?}", tree.diagnostics());
         let syntax = bound(&sources, &tree);
-        let Err(Failure::Headers(diagnostics)) = Query::prepare(syntax) else {
-            panic!("array normalization is not admitted: {source}");
-        };
-        assert_eq!(diagnostics.len(), 1);
-        let diagnostic = &diagnostics[0];
+        let mut preparation = Preparation::prepare(syntax).unwrap();
+        let owner = preparation.declaration_ids().next().unwrap();
+        let early = preparation.current();
+        let guard = early.header_source(owner, position).unwrap();
         assert_eq!(
-            diagnostic.violation().rule,
-            DeclarationRule::UnsupportedArrayType
-        );
-        assert_eq!(diagnostic.violation().position, position);
-        assert_eq!(diagnostic.source().code(), "E0291");
-        assert_eq!(
-            syntax.text_at(diagnostic.source().primary().span().range()),
+            syntax.text_at(tree.node(guard.bind(&early).unwrap()).unwrap().range()),
             Some(annotation)
+        );
+        let Err(Failure::RequiredValues(required)) = preparation.advance(owner) else {
+            panic!("required length request: {source}");
+        };
+        assert_eq!(required.len(), 1);
+        assert!(!preparation.current().program().header_ready(owner));
+        let context = preparation.context(required[0]).unwrap();
+        let code = context.program().codes().get(required[0]).unwrap();
+        assert_eq!(code.name(), None);
+        assert_eq!(
+            code.kind(),
+            CodeKind::TypeExpression(nocter_declarations::value_access::TypeExpressionSource {
+                declaration: owner,
+                position
+            })
+        );
+        assert_eq!(
+            context.program().data_kind(code.result()),
+            Some(BuiltinType::Usize)
         );
     }
 }
@@ -475,4 +487,73 @@ fn nested_header_lengths_have_distinct_code_roots_and_neutral_source_recipes() {
         project_declaration_syntax(bound(&changed_sources, &changed_tree)).surface(),
         &preparation.surface
     );
+}
+
+#[test]
+fn a_header_requests_all_missing_lengths_in_authored_order_without_publishing_a_partial_shape() {
+    let text = "struct Data { a: ([i32; one()], [i32; two()])\nb: [[i32; three()]; four()] }";
+    let (sources, tree) = input(text, ParseGoal::V2CoreUnit);
+    let syntax = bound(&sources, &tree);
+    let mut preparation = Preparation::prepare(syntax).unwrap();
+    let owner = preparation.declaration_ids().next().unwrap();
+    let HeaderProgress::RequireValues(required) =
+        preparation.advance_with_values(owner, |_| None).unwrap()
+    else {
+        panic!("length prerequisites");
+    };
+    let context = preparation.current();
+    let expressions = required
+        .iter()
+        .map(|&id| {
+            syntax
+                .text_at(
+                    tree.node(context.code_source(id).unwrap().body())
+                        .unwrap()
+                        .range(),
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expressions, ["one()", "two()", "three()", "four()"]);
+    assert!(!context.program().header_ready(owner));
+    assert!(context.program().fields().is_empty());
+}
+
+#[test]
+fn malformed_completed_lengths_leave_raw_definition_loading_retryable_and_require_source_evidence()
+{
+    use nocter_model::{ConstantValue, FrozenData, FrozenNode};
+    let (sources, tree) = input(
+        "struct Data { values: [i32; count()] }",
+        ParseGoal::V2CoreUnit,
+    );
+    let syntax = bound(&sources, &tree);
+    let bad = FrozenData::new(vec![FrozenNode::Scalar(ConstantValue::Bool(true))]).unwrap();
+    let good = FrozenData::new(vec![FrozenNode::Scalar(ConstantValue::Integer(42))]).unwrap();
+    let mut preparation = Preparation::prepare(syntax).unwrap();
+    let owner = preparation.declaration_ids().next().unwrap();
+    assert!(matches!(
+        preparation.advance_with_values(owner, |_| Some(&bad)),
+        Err(Failure::InconsistentSyntax)
+    ));
+    assert!(!preparation.current().program().header_ready(owner));
+    assert_eq!(
+        preparation
+            .advance_with_values(owner, |_| Some(&good))
+            .unwrap(),
+        HeaderProgress::Ready
+    );
+    assert!(matches!(
+        preparation.finish(),
+        Err(Failure::MissingValueEvidence)
+    ));
+    let mut preparation = Preparation::prepare(syntax).unwrap();
+    let owner = preparation.declaration_ids().next().unwrap();
+    preparation
+        .advance_with_values(owner, |_| Some(&good))
+        .unwrap();
+    assert!(matches!(
+        preparation.finish_with_dependencies(BodySources::default()),
+        Err(Failure::MissingValueEvidence)
+    ));
 }

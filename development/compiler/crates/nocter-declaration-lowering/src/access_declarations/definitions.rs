@@ -1,14 +1,17 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    CodeSource, DataTypeSyntax, Failure, ValueTypeSyntax,
+    DataTypeSyntax, Failure, ValueTypeSyntax,
     headers::{Header, RecordHeader},
+    source::Sources,
     text,
 };
 use nocter_declarations::value_access::{
     DataReference, DeclarationId, DeclarationViolation, FieldDefinition, FunctionDefinition,
     HeaderPosition, HeaderPublication, ParameterDefinition, TupleData, ValueDefinition,
 };
-use nocter_model::{AccessCodeId, NominalTypeId, Symbol, ValueInputOperation};
+use nocter_model::{
+    AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, ValueInputOperation,
+};
 use nocter_syntax::{BoundSyntax, SyntaxToken};
 use std::collections::BTreeMap;
 
@@ -33,25 +36,34 @@ impl From<Header> for Recipe {
     }
 }
 
-struct Definitions<'a, 's> {
+pub(super) struct Progress {
+    pub violations: Vec<DeclarationViolation>,
+    pub missing: Vec<AccessCodeId>,
+}
+struct Definitions<'a, 's, 'v> {
     publication: &'a mut HeaderPublication,
     syntax: BoundSyntax<'s>,
-    sources: &'a BTreeMap<AccessCodeId, CodeSource>,
+    sources: &'a Sources,
+    values: &'a mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
     violations: Vec<DeclarationViolation>,
+    missing: Vec<AccessCodeId>,
 }
-pub(super) fn define(
+pub(super) fn define<'v>(
     publication: &mut HeaderPublication,
     syntax: BoundSyntax<'_>,
     id: DeclarationId,
     functions: &BTreeMap<AccessCodeId, Recipe>,
-    sources: &BTreeMap<AccessCodeId, CodeSource>,
+    sources: &Sources,
+    values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
     records: &BTreeMap<NominalTypeId, RecordHeader>,
-) -> Result<Vec<DeclarationViolation>, Failure> {
+) -> Result<Progress, Failure> {
     let mut definitions = Definitions {
         publication,
         syntax,
         sources,
+        values,
         violations: Vec::new(),
+        missing: Vec::new(),
     };
     match id {
         DeclarationId::Record(id) => {
@@ -61,9 +73,12 @@ pub(super) fn define(
             definitions.function(id, functions.get(&id).ok_or(Failure::InconsistentSyntax)?)?;
         }
     }
-    Ok(definitions.violations)
+    Ok(Progress {
+        violations: definitions.violations,
+        missing: definitions.missing,
+    })
 }
-impl Definitions<'_, '_> {
+impl Definitions<'_, '_, '_> {
     fn symbol(&self, token: SyntaxToken) -> Result<Symbol, Failure> {
         self.publication
             .symbols()
@@ -96,19 +111,32 @@ impl Definitions<'_, '_> {
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
             DataTypeSyntax::Named(token) => self.data(*token, owner, position),
-            DataTypeSyntax::Array { .. } => {
-                self.violations.push(DeclarationViolation {
-                    declaration: owner,
-                    position,
-                    rule: nocter_declarations::value_access::DeclarationRule::UnsupportedArrayType,
-                });
-                Ok(None)
+            DataTypeSyntax::Array { element, length } => {
+                let element = self.data_type(element, owner, position)?;
+                let code = self
+                    .sources
+                    .expression(*length)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                let Some(value) = (self.values)(code) else {
+                    self.missing.push(code);
+                    return Ok(None);
+                };
+                let FrozenNode::Scalar(ConstantValue::Integer(length)) = value.node() else {
+                    return Err(Failure::InconsistentSyntax);
+                };
+                let length = u64::try_from(*length).map_err(|_| Failure::InconsistentSyntax)?;
+                Ok(element.map(|element| DataReference::Array {
+                    element: Box::new(element),
+                    length,
+                }))
             }
             DataTypeSyntax::Tuple(fields) => {
                 let fields = fields
                     .iter()
                     .map(|field| self.data_type(field, owner, position))
-                    .collect::<Result<Option<Vec<_>>, _>>()?;
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .collect::<Option<Vec<_>>>();
                 Ok(fields.map(|fields| {
                     let mut fields = fields.into_iter();
                     DataReference::Tuple(TupleData::new(
@@ -139,7 +167,9 @@ impl Definitions<'_, '_> {
                     data,
                 }))
             })
-            .collect::<Result<Option<Vec<_>>, Failure>>()?;
+            .collect::<Result<Vec<_>, Failure>>()?
+            .into_iter()
+            .collect::<Option<Vec<_>>>();
         if let Some(fields) = fields {
             self.publication
                 .define_record(id, header.copy, fields)
@@ -166,7 +196,9 @@ impl Definitions<'_, '_> {
                             .data_type(data, owner, position)?
                             .map(|data| (*operation, data)))
                     })
-                    .collect::<Result<Option<Vec<_>>, Failure>>()?;
+                    .collect::<Result<Vec<_>, Failure>>()?
+                    .into_iter()
+                    .collect::<Option<Vec<_>>>();
                 let result = self.data_type(&contract.result, owner, position)?;
                 match (inputs, result) {
                     (Some(inputs), Some(result)) => {
@@ -193,6 +225,7 @@ impl Definitions<'_, '_> {
                     name: self.symbol(
                         *self
                             .sources
+                            .codes
                             .get(&id)
                             .and_then(|s| s.parameters().get(index))
                             .ok_or(Failure::InconsistentSyntax)?,

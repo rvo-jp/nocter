@@ -2,21 +2,19 @@
 
 ## Immediate Work
 
-1. Qualify [const source and conditional eligibility](design/compiler-realization.md#conditional-const-admission)
-   beyond the [required frozen-data initializer boundary](compiler/crates/nocter-checking/README.md#required-private-initializers)
-   with fixed arrays, enums and early structural dependencies. Extend
-   [staged source preparation](compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
-   through the [structural type request closure](design/compiler-realization.md#structural-type-request-closure),
-   connecting admitted usize computation to required lengths through the same dependency
-   coordinator. Connect the [registered header-expression code roots](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
-   and their selected ordinary usize execution to deferred header normalization using the
-   [closed array metadata](compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary). Retain
-   the selected supplying-body proof with each value-dependent header before admitting array source. Extend
-   symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
-   comparison and typed literal/conversion/operator support against their owning contracts.
-   Then close remaining expression/control, capability/library,
-   package/platform and task/async-iteration subjects in the [source draft](design/source-grammar.md).
-   Integrate ordinary reading/writing examples before extending accepted source scope.
+1. Extend [computed source array headers](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+   into local annotations, value construction/repetition, selected indexing, sparse partial
+   initialization and cleanup, evaluator array data/publication, and native storage/ABI.
+   Follow the [structural type request closure](design/compiler-realization.md#structural-type-request-closure)
+   through the same ordinary checking/evaluator and declaration-owned array schemas; preserve
+   source supplier guards and dynamic index identity without count expansion or a constant-index
+   restriction. Keep the body admission boundary explicit until combined source proofs close.
+   Then extend [conditional const admission](design/compiler-realization.md#conditional-const-admission)
+   with enums, ordinary generic/witness schemas, constant arguments, symbolic conditions and exports.
+   Qualify comparison and typed literal/conversion/operator support against their owning contracts.
+   Close remaining expression/control, capability/library, package/platform and task/async-iteration
+   subjects in the [source draft](design/source-grammar.md). Integrate ordinary reading/writing
+   examples before extending accepted source scope.
 2. Extend the [bounded private native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
    with source/runtime error construction and observable nontrivial record/capture destruction.
    Qualify adapter cleanup before protected answer receipt and absence of repeated body-owned

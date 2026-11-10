@@ -87,113 +87,53 @@ callable requirements, forwarded conditions, adapter cleanup, body-change invali
 missing/mismatched evaluator products. Use actual source declarations, frozen selections and
 required initializers; a condition algebra alone is not this evidence. Qualify recursive closure
 without accepting capability cycles or mistaking budget exhaustion for nontermination. Required
-array-length/constant-argument calls need the owning dependency protocol: the current header
-stratum cannot reopen ordinary body checking or publish fabricated type/constant placeholders.
-
-Early structural requests must start from the declaration owner's
-[closed reservation domain](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary),
-before type-dependent definition publication. The existing coordinator records distinct header,
-typed-body and required-value keys in one dependency query; extend source type normalization to
-request its values through that authority. A checked body may consume
-only closed contracts for its selected references; if one is unavailable, suspend its unpublished
-work and require that contract rather than treating an unknown length as zero, unit or a fresh
-opaque type. Compute a required length through the ordinary checked usize/evaluator path, then
-intern the resulting array identity in the same type authority. Publication still requires every
-declaration and every definition to close.
-
-Use the already-reserved input/field identities when publishing a ready contract; normalization
-order cannot allocate new slots or renumber a formal witness. The current
-[staged source path](../compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
-can retain bodies over earlier ready declaration views and replay their type suffixes after later
-contracts close. Requested contracts load their raw source type recipes and publish transitive
-record schemas on demand. The same readiness/value coordinator executes selected const closures
-while unrelated raw definitions and contracts remain unready. Extend that boundary with
-header-dependent required-value requests through the one dependency protocol. A reservation alone
-cannot type-check an unfinished signature. Qualify actual array source through the combined path rather than treating ready-view/slot tests as array conformance.
-
-Keep type/value cycles distinct from callable recursion. A request that needs its own unfinished
-normalized type or value is a dependency error, including an authored requirement in dead source.
-Callable-only recursion instead closes one checked graph and remains subject to execution budgets.
-Body evidence used by a header value must participate in header reuse invalidation. Extend the
-[shared source evidence](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
-from the enclosing type-annotation roots to executable header-expression identities, and connect
-the selected supplying-body proof to the normalized header query. The common query now retains
-successful prerequisites; checking projects per-body source roots and a compact header guard set
-from that same completion DAG. Body-independent
-header-surface equality cannot certify an evaluated length after a supplying const body changes.
-Preserve exact source recipes and causal edges across those requests. This integration, not
-reservation closure alone, is the remaining gate for array type lengths.
+constant-argument and further structural requests must use the same dependency protocol; no stage
+may publish fabricated type/constant placeholders to break a cycle.
 
 ### Structural Type Request Closure
 
-This is the remaining construction design, not implemented array admission. Extend the existing
-[on-demand recipe loading](../compiler/crates/nocter-declaration-lowering/README.md#future-private-access-declarations)
-with computed type dependencies while keeping the closed name/input/field domain fixed.
-Normalization must return a typed dependency request without publishing a provisional contract.
-Source lowering owns loading the requested recipe; declarations own validation and normalized identity; the existing checking/value
-coordinator owns ordinary body acceptance and required execution. The declaration authority now reserves anonymous
-[expression-code contracts](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
-[Source registration](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
-pairs them with their exact executable roots within record-field and callable type annotations.
-The parser and shared type projection preserve fixed-array element/length syntax, including
-blocks within ordinary count expressions. Selected counts can check and execute through the
-ordinary usize path before their enclosing header is ready. Requested array headers and local
-annotations still reject explicitly without publishing a schema. Connect those established
-expression values to deferred header normalization; do not manufacture a named function, source
-text or a separate expression checker. An enclosing type-annotation root alone cannot grant
-executable code or a result contract.
+The [source header path](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+now connects ordinary usize execution to the declaration owner's closed array references,
+finite-containment and Copy rules. Its shared query records header/body/value prerequisites and
+publishes selected supplier guards with reusable headers. The
+[checking owner](../compiler/crates/nocter-checking/README.md#required-private-initializers) defines
+its exact admitted scope. Header qualification does not establish array value operations.
 
-Keep executable code identity, a selected named callable contract and the source-reuse owner as
-separate roles. Carry that separation through body-type branches, call-application/closure keys,
-input layouts, result closure, evaluator plans and diagnostics. An anonymous length expression
-has its own code identity and expected usize result, no named-function witness or formal inputs,
-and no source `return` target. Its diagnostic owner remains the exact header slot. If its ordinary
-source contains unsupported const operations, first preserve ordinary typing/safety and then
-apply the same const-domain rejection; an expression-specific source scan cannot replace that
-validation. Each anonymous expression's distinct code ID gives its required value a distinct key in the
-common query, independently of named declaration initializers. Actual execution must consume the
-shared value/work/storage budget.
+Extend this path to local annotations, repetition counts and later constant-generic arguments
+without reopening ordinary body checking through a competing evaluator or changing the closed
+name/input/field domain. Each required expression needs its own semantic code identity and actual
+source root. Body-local code must retain its real lexical/source owner and remain independent of
+unrelated sibling allocation; a source body edit cannot renumber existing header slots. Reuse the
+ordinary type/safety and const-domain checks before execution. Preserve source causes, exact
+prefix ancestry, body-local type suffix replay and the common value/work/storage budgets.
 
-Keep deferred header normalization on the
-[query-owned iterative progress path](../compiler/crates/nocter-dependency-query/README.md#invariants).
-Introducing raw type/value dependencies must preserve deep-schema preparation without host
-recursion, exact dependency causes and the shared active/completed authority. Do not replace this
-proof with a source depth or array-length ceiling, or charge header traversal as source
-execution-call depth.
+Keep type/value cycles distinct from callable recursion. Needing an unfinished normalized type
+or value is a dependency error, including authored requirements in unexecuted source. Callable-only
+recursion closes one checked graph and remains subject to execution budgets. Reusable types must
+retain every selected supplier's source evidence, including transitive constant initializers and
+unexecuted callees that participate in ordinary validation. Header-surface equality alone cannot
+certify a computed length after a supplying body changes.
 
-The declaration owner now normalizes already-closed array references and exposes homogeneous
-[fixed-array metadata](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
-Connect source-computed counts to that same resolver; metadata tests alone do not qualify the
-source/body/evaluator/storage paths.
+Continue using the declaration owner's one type identity and payload dependency policy. Counts
+must close before selecting containment edges; a zero array has no element-payload edge but still
+needs valid element names, storable types and independent declaration closure. Do not introduce a
+second eager containment or Copy validator, provisional zero count or fresh opaque type. Raw
+missing definitions, authored rejections and unknown IDs remain distinct at source projection.
 
-Separate nominal name identity from payload-schema dependencies. In particular, the
-[array containment contract](../spec/language/tuples-and-arrays.md#scope-and-identity) requires
-evaluating the count before deciding which element-payload edges need closure. Requesting every
-element's complete record schema before normalizing the count would incorrectly turn a valid
-zero-length containment break into a cycle. A known nominal leaf does not itself prove payload
-validity or Copy; every independent declaration must still validate before whole-unit publication.
-Finite containment, structural Copy and ready-schema publication must consume one declaration-owned
-dependency model and policy; separate eager and deferred validators cannot maintain competing
-containment or Copy rules.
+Array values need their own combined source proofs over these same schemas: contextual/inferred
+construction, once-only seed evaluation even at zero repetition, Copy requirements, selected
+indexing, bounds checks, partial initialization/restoration, aliases, access reservations and
+remaining-element cleanup. Dynamic selected indices retain their evaluated identity and checked
+path conditions. Neither a constant-index restriction nor a language-level count ceiling may
+replace those proofs. Large cardinalities must retain homogeneous/sparse representations rather
+than expanding the payload into tuple-like metadata or compiler state.
 
-When extending raw-definition loading, preserve the existing
-[declaration rejection boundary](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
-and its source projection. A known contract needing a recipe, a rejected definition and an unknown
-declaration remain distinct. Loading a recipe cannot invent a valid default or discard the exact
-declaration/header-position cause while a body or value request is active.
-
-Qualify the boundary with computed lengths in fields and function signatures, forward helpers,
-dead authored dependencies, zero/positive containment, type/value cycles and supplying-body edits.
-Then qualify local annotations, construction/repetition, selected indexing, partial initialization,
-cleanup and native execution against the same normalized array identity. A test of early scalar
-evaluation or of a reserved array key cannot stand in for those source paths.
-
-The evaluator must preserve edit-input writes, aliases, partial state and once-only cleanup.
-Compare repeated calls with equal scalar input values but different mutable places, selected enum
-payloads, zero-count repetition and temporary escape. Result-only memoization must not erase
-state transitions. Eligibility, arithmetic failure, evaluator budgets and final serialization need
-distinct source causes. The current [initializer boundary](../compiler/crates/nocter-checking/README.md#required-private-initializers)
-does not establish conditional generic eligibility or publication of unadmitted aggregate/static forms.
+Then qualify evaluator array data/publication and native layout, zero-sized element addressing,
+input/result channels and destruction against those accepted source operations. Compare repeated
+calls with equal scalar inputs but different editable places; result-only memoization must not
+erase state transitions. Unsupported operations, arithmetic errors, dependency cycles, budgets
+and final serialization retain distinct source causes. The existing native header cases prove
+that unused/computed array types coexist with scalar execution, not array value or ABI support.
 
 ## Executable Lifecycle and Target Admission
 

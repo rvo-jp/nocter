@@ -1,6 +1,7 @@
 //! Value-access typing and closed private-unit front-end validation.
 //! Private native consumers require the complete Unit; the released pipeline has no adapter.
 pub mod accepted;
+mod admission;
 mod annotations;
 mod body_inputs;
 mod booleans;
@@ -47,6 +48,7 @@ pub enum Rule {
     UnknownName,
     UnknownField,
     UnknownType,
+    UnsupportedData,
     UnknownResultType,
     ShadowedName,
     TypeMismatch,
@@ -78,6 +80,10 @@ impl Rule {
             Self::UnknownField => (
                 DiagnosticCode::E0370,
                 "the selected field does not exist in this data type",
+            ),
+            Self::UnsupportedData => (
+                DiagnosticCode::E0370,
+                "data operations are outside this private fragment",
             ),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),

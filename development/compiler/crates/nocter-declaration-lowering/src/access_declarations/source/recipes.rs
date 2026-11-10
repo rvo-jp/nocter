@@ -156,9 +156,6 @@ impl Recipes {
                 ))
             })
             .collect::<Result<_, Failure>>()?;
-        Ok(Sources {
-            codes: Arc::new(sources),
-            records: Arc::new(record_sources),
-        })
+        Sources::new(sources, record_sources)
     }
 }

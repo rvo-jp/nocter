@@ -110,8 +110,10 @@ Every selected contract is closed before body checking consumes it. Source data-
 resolve as selected recipes load; requested callable contracts and transitive record schemas
 establish finite containment and Copy as body preparation needs them. Required execution needs
 only the selected contracts and ordinarily accepted const closure; unrelated contracts can remain unready. Every
-header and body must close before complete Unit admission. Source type normalization still cannot
-request computed values.
+header and body must close before complete Unit admission. Source header normalization requests
+computed lengths through that same coordinator, retaining selected supplier guards with its
+closed type metadata. This does not admit array values into body/resource or runtime storage
+operations.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a

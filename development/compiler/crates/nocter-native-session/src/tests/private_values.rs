@@ -443,3 +443,24 @@ fn private_size_integers_preserve_unsigned_arithmetic_literals_and_data() {
         execute_native_status(&compile(source), &package.0, name, 42);
     }
 }
+
+#[test]
+fn private_computed_array_headers_reach_native_without_runtime_array_values() {
+    for (name, source) in [
+        (
+            "array-header-body-types",
+            "struct Data { values: [i32; width()] }\nconst BASE: usize = 40\nconst func width(): usize { let two: usize = 2\nlet pair = (BASE, two)\npair.0 + pair.1 }\nfunc run(): i32 { if width() == 42 { 42 } else { 0 } }",
+        ),
+        (
+            "array-header-empty-recursion",
+            "copy struct Node { next: [Node; zero()] }\nconst func zero(): usize { 0 }\nfunc run(): i32 { 42 }",
+        ),
+        (
+            "array-header-large-metadata",
+            "copy struct Huge { values: [[error; 0]; 18446744073709551615] }\nfunc run(): i32 { 42 }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}

@@ -81,7 +81,7 @@ impl Checker<'_, '_> {
             true,
         )?;
         self.types = nested.types.clone();
-        let query = nested.finish(root);
+        let query = nested.finish(root)?;
         let mut control = super::flow::Control::prepare(Arc::new(query))
             .map_err(|_| Failure::InconsistentSyntax)?;
         let invocation = invocation(&control, environment)?;

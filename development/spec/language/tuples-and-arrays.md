@@ -5,7 +5,8 @@
 This chapter owns structural tuple/fixed-array construction, primitive component selection and
 array partial initialization for v2.0.0. [Value access](value-access.md) owns value supply,
 authority, reservations and cleanup; [patterns](patterns.md) own tuple decomposition. These
-adopted contracts do not extend the bounded private compiler. Dynamic sequences, `[T]`, typed
+adopted contracts have a separate [implementation boundary](../../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence).
+Dynamic sequences, `[T]`, typed
 sequence/string literal entries, general user expansion, iteration and target representation require
 their own contracts. [Variadic inputs](variadic-inputs.md) separately own built-in fixed-array
 argument expansion; it is not an array literal spread or a definition of `[T]`. A recognized

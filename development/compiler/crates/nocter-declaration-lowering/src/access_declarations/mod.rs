@@ -37,6 +37,16 @@ pub enum Failure {
     Headers(Vec<HeaderDiagnostic>),
     InconsistentSyntax,
     ChangedHeader,
+    RequiredValues(Box<[AccessCodeId]>),
+    MissingValueEvidence,
+}
+
+/// The next source-header construction action, sharing the declaration owner's readiness rules.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HeaderProgress {
+    Ready,
+    RequireHeaders(Box<[DeclarationId]>),
+    RequireValues(Box<[AccessCodeId]>),
 }
 
 /// Closed reusable declaration query without current syntax identities.
@@ -141,32 +151,57 @@ impl<'source> Preparation<'source> {
     /// # Errors
     /// Projects raw type/contract failures, or rejects an identity outside this source domain.
     pub fn advance(&mut self, required: impl Into<DeclarationId>) -> Result<HeaderStep, Failure> {
+        match self.advance_with_values(required, |_| None)? {
+            HeaderProgress::Ready => Ok(HeaderStep::Ready),
+            HeaderProgress::RequireHeaders(headers) => Ok(HeaderStep::Require(headers)),
+            HeaderProgress::RequireValues(values) => Err(Failure::RequiredValues(values)),
+        }
+    }
+    /// Advance the same raw-definition/publication path with completed required values.
+    /// # Errors
+    /// Preserves authored header rejections; malformed values are construction inconsistencies.
+    pub fn advance_with_values<'value>(
+        &mut self,
+        required: impl Into<DeclarationId>,
+        mut value: impl FnMut(AccessCodeId) -> Option<&'value nocter_model::FrozenData>,
+    ) -> Result<HeaderProgress, Failure> {
         let required = required.into();
         if !self
             .headers
             .is_defined(required)
             .ok_or(Failure::InconsistentSyntax)?
         {
-            let violations = definitions::define(
+            let progress = definitions::define(
                 &mut self.headers,
                 self.syntax,
                 required,
                 &self.functions,
-                &self.sources.codes,
+                &self.sources,
+                &mut value,
                 &self.records,
             )?;
-            if !violations.is_empty() {
+            if !progress.violations.is_empty() {
                 return Err(projection::project_violations(
                     self.syntax.tree(),
                     &self.sources.codes,
                     &self.sources.records,
-                    violations,
+                    progress.violations,
                 ));
             }
+            if !progress.missing.is_empty() {
+                return Ok(HeaderProgress::RequireValues(progress.missing.into()));
+            }
         }
-        self.headers
-            .advance(required)
-            .map_err(|failure| self.project_failure(failure))
+        Ok(
+            match self
+                .headers
+                .advance(required)
+                .map_err(|failure| self.project_failure(failure))?
+            {
+                HeaderStep::Ready => HeaderProgress::Ready,
+                HeaderStep::Require(headers) => HeaderProgress::RequireHeaders(headers),
+            },
+        )
     }
     fn publish(&mut self, required: DeclarationId) -> Result<(), Failure> {
         let mut requests = DependencyQuery::default();
@@ -214,6 +249,13 @@ impl<'source> Preparation<'source> {
         let ids: Vec<_> = self.declaration_ids().collect();
         for id in ids {
             self.publish(id)?;
+        }
+        if self.sources.expression_ids().any(|id| {
+            dependencies
+                .as_ref()
+                .is_none_or(|sources| !sources.contains(id))
+        }) {
+            return Err(Failure::MissingValueEvidence);
         }
         let program = self.headers.finish().map_err(|failure| {
             project_failure(

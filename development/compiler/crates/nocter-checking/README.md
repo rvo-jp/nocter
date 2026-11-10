@@ -226,9 +226,9 @@ entry delegates contract readiness, ordinary body preparation and required execu
 [initializer coordinator](#required-private-initializers). Known but unready declarations request
 their complete contracts; unknown names remain source failures. The complete name domain forbids
 shadowing independently of readiness, and dead source retains its requirements. Record construction
-and annotation leaves, including closure input data, use that same request. This stage does not yet
-request values during source type normalization. Raw type recipes load only as their declarations
-are requested.
+and annotation leaves, including closure input data, use that same request. Header type
+normalization can request required usize values through that same query; raw type recipes load
+only as their declarations are requested.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
@@ -463,9 +463,12 @@ return survives evaluation/lexical cleanup, whose order is reverse actual constr
 Return owner with the checking-closed result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
 
-Declaration-owned array descriptors do not yet grant body/resource operations or evaluator
-representation in this fragment. Domain checks reject them explicitly, including empty Copy
-arrays; zero count is not permission to substitute tuple or scalar behavior.
+`admission` validates known body result/input/local/expression data before a typed query freezes,
+including callable constraints and capture environments. Declaration-owned array descriptors do
+not yet grant body/resource operations or evaluator representation in this fragment. Array-bearing
+body data rejects locally with E0370 before flow; unused array declarations do not affect scalar
+bodies. Resource/evaluator boundaries independently reject unsupported arrays, including empty
+Copy arrays; zero count is not permission to substitute tuple or scalar behavior.
 
 Payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
 snapshot contracts, plus its closed record/tuple compositions over those leaves and exact
@@ -573,7 +576,8 @@ classification through body and value requests; a record failure never acquires 
 callable owner. Lowering projects its owning field. Completed independent values survive failed
 header work, but final Unit closure cannot admit any invalid unused declaration. Raw type recipes
 load as requested through lowering; unknown or unsupported types in an unrelated header do not
-block independent values. Header steps still cannot request computed lengths.
+block independent values. Source header steps can also request computed lengths; completed
+values are read from this query before the declaration authority decides payload dependencies.
 Constant references become validated primitive literals or immutable frozen-aggregate expressions in
 ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.
@@ -594,13 +598,18 @@ Already completed dependencies survive a failed request, while its active branch
 publishing unfinished facts. Callable-only recursion still closes through ready contracts and the
 ordinary selected call graph. The same pass also checks ordinary and
 unused definitions. Whole-unit closure requires every header, body and required value; selected
-const-closure acceptance never grants complete Unit admission. Source type normalization cannot
-yet request these values; header-dependent normalization remains a separate integration gate.
+const-closure acceptance never grants complete Unit admission. Header-dependent normalization
+requests these same values before publishing a closed array shape. Pure finite-payload header
+cycles retain declaration-owned rejection; mixed header/body/value cycles report E0324 at the
+responsible source request, including known but unready declaration names.
 The [registered anonymous header roots](../nocter-declaration-lowering/README.md#exact-source-evidence)
 also enter this same body/value path with a declared usize result and no formal inputs or source
 return target. Selected counts can check and execute before their enclosing contract is ready;
 ordinary typing, dead authored dependencies, const eligibility and evaluation errors retain their
-real count-expression causes. Successful count execution alone grants no array schema or Unit.
+real count-expression causes. Successful count execution alone does not publish its enclosing
+contract. The explicit header request normalizes and validates it afterward; whole-Unit closure
+still needs every header, body and required value. Header-only work does not add source call depth,
+and nested type/value requests share the same execution/storage budgets.
 
 The same `accepted::check_queries` routine canonically replays and ordinarily validates a selected
 const closure before any execution, and later closes the complete Unit. Each temporary closure
@@ -633,8 +642,8 @@ resources. Each constant reference creates a fresh ordinary value without granti
 Constant names remain non-addressable. Constant member selection resolves fields through the
 ordinary field authority, then selects established frozen components; scalar selections become
 ordinary literals before control facts and flow admission. No runtime initializer call results.
-Fixed arrays, enums, generic conditions and early structural type dependencies still require
-integration. General outcome/callback/resource evaluation is not
+Fixed-array value evaluation/publication, enums and generic conditions still require integration;
+computed source-header lengths already use this path. General outcome/callback/resource evaluation is not
 admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
 resumable checking and reusable closed const plans remain compilation-cost improvements, not
 permission to cache mutable call results or change source validity.

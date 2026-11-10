@@ -106,9 +106,10 @@ locator mechanism, so initializer-only edits rebind headers without retaining st
 `ValueTypeSyntax` for input/result headers and checking's local annotations. Recursive
 `DataTypeSyntax` preserves tuple/group shape, named leaves and array element/length syntax for
 both consumers; record fields use that same data projection. A recognized array retains its
-ordinary length-expression node under its actual annotation. Recognition does not normalize the
-length: requested array headers currently reject locally with E0291 before publication. Checking
-similarly rejects local array annotations rather than reporting an internal syntax failure.
+ordinary length-expression node under its actual annotation. `definitions` requests that root's
+completed usize value before constructing a closed array reference; it never evaluates syntax,
+substitutes a provisional count or interprets a literal specially. Local body annotations remain
+a separate checking admission boundary.
 The shared typed invocation and input-operation projection is the only
 decoder for these contexts; neither consumer recovers a mode from names, types or body use.
 `definitions` resolves only the selected input/result or record recipe through one value
@@ -146,9 +147,14 @@ the complete query entry drives those same steps through the construction depend
 Required contracts close transitive record payloads, validating finite containment and Copy before exposing their field TypeIds.
 Raw source data names resolve as their selected recipes load; an unknown type in an unrelated
 header cannot block an independent required value. Complete closure still validates that header.
-Header steps cannot yet request array-length values.
-`advance` exposes the declaration owner's next complete-or-required step without traversing record
-fields or inventing a dependency graph here. Its define-once readiness query belongs to declarations,
+`advance_with_values` exposes `HeaderProgress`: ready, required declaration headers or required
+expression values. The caller lends completed `FrozenData` facts by code ID; reading them can
+record the same dependency edge in the common query. Only an integer in the target usize domain
+can become a length. Missing values leave the define-once raw header unloaded; all missing counts
+in a header are returned in authored order without publishing a partial shape. `advance` drives
+the same path without value facts and reports `Failure::RequiredValues` when needed; there is no
+literal-only standalone evaluator or alternate normalization path. Payload/Copy readiness still
+belongs to declarations, not a source-side dependency graph. Its define-once readiness query belongs to declarations,
 not to a parallel source-side loaded set. Reserved identity enumeration also delegates to that
 owner rather than deriving semantic membership from source recipes. Checking can schedule these
 steps iteratively through its common query, including unused records at final closure. Exact-current
@@ -195,7 +201,10 @@ edges reject during graph construction. Deep chains have no recursive destructor
 `collect_sources` compacts one root into the existing checked `BodySources` collection; a standalone
 header query therefore retains only selected supplier guards, rather than the whole Unit graph.
 `Preparation::finish_with_dependencies` validates that evidence against its completed authority
-and retains it with `Query`. Binding checks both header syntax and those supplying bodies.
+and retains it with `Query`. A value-dependent header cannot finish without source evidence
+covering every registered length expression. The producer additionally owns complete transitive
+supplier evidence; guard membership alone is not proof of evaluation. Binding checks both header
+syntax and those supplying bodies.
 This source proof does not establish a computed value or authorize unfinished type normalization.
 
 `HeaderSource` separately identifies one parameter/result or record-field type annotation by its
@@ -215,10 +224,23 @@ and result cause are the real count expression, whose expected usize result belo
 neutral locator catalog. `BodySource` guards their exact bytes and ancestry without permitting
 caller-supplied code/source joins.
 
-Selected anonymous counts can use ordinary body checking, const-domain validation and required
-usize execution while their enclosing header remains unready. This is isolated expression
-execution, not array admission. Header normalization still rejects arrays; it cannot yet request
-these values. Selected supplying-body evidence can accompany a header query, but connecting it
-to actual value-dependent normalization is still required.
-That integration remains part of the
+Source header normalization uses those anonymous counts through ordinary body checking,
+const-domain validation and required usize execution while the enclosing header remains unready.
+Closed array references enter the declaration owner's same finite-containment, Copy and type
+identity path. A proven zero count removes only the element-payload edge; it does not skip count
+computation, type-name validation or independent declarations. Positive containment cycles retain
+the owning field diagnostic. Mixed type/value cycles belong to the shared coordinator.
+
+Computed array fields in otherwise admitted private source can close into a complete Unit.
+Reusable header queries retain only selected supplying-body guards, including transitive constants
+and authored unexecuted callees. Unrelated body edits remain reusable; changing a supplier rejects
+binding and a fresh source preparation recomputes the normalized length. The source catalog's
+current expression-node/code-ID reverse index is derived once from that same executable-root
+catalog and rebuilt during rebinding; it is not another semantic namespace.
+
+Array value construction/repetition, local array annotations, element selection, resource
+transitions, evaluator array data and runtime storage remain outside this private source fragment.
+Known array data in body inputs/results/operations is rejected by the checking owner before flow
+admission. Native qualification covers scalar code with computed/unused array headers, not array
+values or layout. Remaining work belongs to the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

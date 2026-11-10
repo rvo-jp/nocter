@@ -313,5 +313,6 @@ mod statics;
 
 mod tuples;
 
+mod header_arrays;
 mod integers;
 mod staged;

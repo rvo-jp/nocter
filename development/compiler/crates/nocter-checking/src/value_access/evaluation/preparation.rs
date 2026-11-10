@@ -6,9 +6,10 @@ use super::{
 };
 use crate::value_access::staged::SourceFailure;
 use crate::value_access::{ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
+use declarations::HeaderProgress;
 use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations::{self as declarations, Context};
-use nocter_declarations::value_access::{DeclarationId, HeaderStep};
+use nocter_declarations::value_access::DeclarationId;
 use nocter_dependency_query::{
     DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep,
 };
@@ -119,22 +120,43 @@ impl<'a, 'source> Preparation<'a, 'source> {
         requests: &mut Dependencies,
         declaration: DeclarationId,
     ) -> Result<(), SourceFailure> {
+        self.require_header_at(requests, declaration, None)
+    }
+    fn require_header_at(
+        &mut self,
+        requests: &mut Dependencies,
+        declaration: DeclarationId,
+        origin: Option<SyntaxOrigin>,
+    ) -> Result<(), SourceFailure> {
         match requests.resolve_steps(self, Request::Header(declaration)) {
             Ok(fact) if matches!(&*fact, Fact::Header) => Ok(()),
             Err(QueryError::Computation(failure)) => Err(failure),
             Err(QueryError::Cycle(path)) => {
-                let headers = path
+                if let Some(headers) = path
                     .iter()
                     .map(|request| match request {
                         Request::Header(id) => Some(*id),
                         _ => None,
                     })
                     .collect::<Option<Vec<_>>>()
-                    .ok_or(INVALID)?;
-                match &self.headers {
-                    Headers::Publishing(owner) => Err(owner.reject_cycle(&headers).into()),
-                    Headers::Closed => Err(INVALID.into()),
+                {
+                    return match &self.headers {
+                        Headers::Publishing(owner) => Err(owner.reject_cycle(&headers).into()),
+                        Headers::Closed => Err(INVALID.into()),
+                    };
                 }
+                let origin = origin
+                    .or_else(|| {
+                        path.iter().find_map(|request| match request {
+                            Request::Value(id) => self
+                                .context
+                                .code_source(*id)
+                                .map(|source| SyntaxOrigin::Node(source.body())),
+                            _ => None,
+                        })
+                    })
+                    .ok_or(INVALID)?;
+                Err(self.cycle(&path, origin)?.into())
             }
             _ => Err(INVALID.into()),
         }
@@ -159,8 +181,11 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     self.require_statics(requests, &query)?;
                     return Ok(query);
                 }
-                Err(BodyFailure::RequiredHeader { declaration, .. }) => {
-                    self.require_header(requests, declaration)?;
+                Err(BodyFailure::RequiredHeader {
+                    declaration,
+                    origin,
+                }) => {
+                    self.require_header_at(requests, declaration, Some(origin))?;
                 }
                 Err(BodyFailure::RequiredConstant {
                     initializer,
@@ -243,21 +268,31 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn cycle(&self, path: &[Request], origin: SyntaxOrigin) -> Result<Failure, Failure> {
         let code = |request| match request {
             Request::Body(id) | Request::Value(id) | Request::Header(DeclarationId::Code(id)) => {
-                Ok(id)
+                Some(id)
             }
-            Request::Header(DeclarationId::Record(_)) => Err(INVALID),
+            Request::Header(DeclarationId::Record(_)) => None,
         };
-        let root = code(*path.first().ok_or(INVALID)?)?;
+        let root = code(*path.first().ok_or(INVALID)?)
+            .or_else(|| {
+                path.iter().find_map(|request| match request {
+                    Request::Value(id) => Some(*id),
+                    _ => None,
+                })
+            })
+            .ok_or(INVALID)?;
         let names = path
             .iter()
             .map(|&request| {
-                let id = code(request)?;
-                let name = self.context.program().code_label(id).ok_or(INVALID)?;
-                let role = match request {
-                    Request::Header(_) => "header",
-                    Request::Body(_) => "body",
-                    Request::Value(_) => "value",
+                let (declaration, role) = match request {
+                    Request::Header(id) => (id, "header"),
+                    Request::Body(id) => (id.into(), "body"),
+                    Request::Value(id) => (id.into(), "value"),
                 };
+                let name = self
+                    .context
+                    .program()
+                    .declaration_label(declaration)
+                    .ok_or(INVALID)?;
                 Ok(format!("{role} {name}"))
             })
             .collect::<Result<Vec<_>, Failure>>()?;
@@ -480,7 +515,7 @@ impl DependencyComputation<Request, Fact, SourceFailure> for Preparation<'_, '_>
 impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
     fn advance(
         &mut self,
-        _: &Dependencies,
+        requests: &Dependencies,
         request: Request,
     ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
         let Request::Header(declaration) = request else {
@@ -492,18 +527,28 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
         let Headers::Publishing(headers) = &mut self.headers else {
             return Err(INVALID.into());
         };
-        match headers.advance(declaration)? {
-            HeaderStep::Ready => {
+        match headers.advance_with_values(declaration, |id| {
+            dependencies::value(requests, id).map(|value| &value.frozen)
+        })? {
+            HeaderProgress::Ready => {
                 self.context = headers.current();
                 Ok(DependencyStep::Complete(Fact::Header))
             }
-            HeaderStep::Require(dependencies) => Ok(DependencyStep::Require(
+            HeaderProgress::RequireHeaders(dependencies) => Ok(DependencyStep::Require(
                 dependencies
                     .into_vec()
                     .into_iter()
                     .map(Request::Header)
                     .collect(),
             )),
+            HeaderProgress::RequireValues(values) => {
+                if dependencies::value_depth(requests) == 0 {
+                    self.budget.restart_work();
+                }
+                Ok(DependencyStep::Require(
+                    values.into_vec().into_iter().map(Request::Value).collect(),
+                ))
+            }
         }
     }
     fn compute_current(

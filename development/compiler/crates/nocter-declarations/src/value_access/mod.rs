@@ -77,7 +77,6 @@ pub enum DeclarationRule {
     ParameterShadowsCallable { declaration: AccessCodeId },
     ParameterShadowsRecord { declaration: NominalTypeId },
     UnsupportedDataType { data: BuiltinType },
-    UnsupportedArrayType,
     DuplicateRecord { first: NominalTypeId },
     RecordShadowsCallable { declaration: AccessCodeId },
     DuplicateField { first: usize },
@@ -314,6 +313,25 @@ impl Program {
         self.static_declaration(id)?;
         Some(id)
     }
+    /// Presentation of any named contract, including one whose schema is not ready.
+    #[must_use]
+    pub fn declaration_label(&self, declaration: DeclarationId) -> Option<String> {
+        match declaration {
+            DeclarationId::Code(id) if self.codes.get(id).is_some() => return self.code_label(id),
+            DeclarationId::Record(id) if self.records.records.get(id).is_some() => {
+                return self
+                    .symbols
+                    .spelling(self.records.records.get(id)?.name())
+                    .map(str::to_owned);
+            }
+            _ => {}
+        }
+        let (&name, _) = self
+            .namespace
+            .iter()
+            .find(|(_, owner)| **owner == declaration)?;
+        self.symbols.spelling(name).map(str::to_owned)
+    }
     /// Presentation only: anonymous code is labeled by its real owning declaration.
     #[must_use]
     pub fn code_label(&self, id: AccessCodeId) -> Option<String> {
@@ -324,13 +342,9 @@ impl Program {
         let CodeKind::TypeExpression(source) = code.kind() else {
             return None;
         };
-        let (&name, _) = self
-            .namespace
-            .iter()
-            .find(|(_, owner)| **owner == source.declaration)?;
         Some(format!(
             "type expression in {}",
-            self.symbols.spelling(name)?
+            self.declaration_label(source.declaration)?
         ))
     }
     #[must_use]

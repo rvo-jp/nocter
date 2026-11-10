@@ -7,7 +7,7 @@ use crate::access_declarations::{
 use nocter_declarations::value_access::Reservations;
 use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::NodeId;
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 impl Sources {
     pub(in crate::access_declarations) fn reserve(
@@ -79,9 +79,6 @@ impl Sources {
             .iter()
             .map(|(&id, header)| (id, header.source.clone()))
             .collect();
-        Ok(Self {
-            codes: Arc::new(sources),
-            records: Arc::new(record_sources),
-        })
+        Self::new(sources, record_sources)
     }
 }

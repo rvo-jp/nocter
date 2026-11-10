@@ -156,8 +156,9 @@ closure still requires every code slot. A selected anonymous contract can publis
 owning authored header is ready, without making that parent ready. Presentation derives a label
 from the real owning declaration, including an unready owner, rather than interning a synthetic
 name. The [source owner](../nocter-declaration-lowering/README.md#exact-source-evidence) pairs these
-contracts with exact executable roots. Array normalization and value-dependent header reuse
-remain with the [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).
+contracts with exact executable roots and supplies source-computed lengths with their required
+supplier evidence. Array value operations remain part of the
+[structural request work](../../../design/compiler-realization.md#structural-type-request-closure).
 
 The declaration product also admits closed fixed-array metadata as `PayloadSchema::Array` with an
 `ArraySchema` element TypeId and u64 cardinality. It reuses the model's `FixedArray` identity and
@@ -175,8 +176,9 @@ that record ready or valid. Complete closure still rejects independently invalid
 declarations. Positive counts require the ordinary ready element payloads. Copy and containment
 rejection occur before publishing any parent field or array type.
 
-These are declaration metadata contracts. Source count normalization, array value checking,
-resource cleanup, const-data publication and runtime realization remain separate admission gates;
+These are declaration metadata contracts. Source normalization feeds closed counts into this
+same resolver. Array value checking, resource cleanup, const-data publication and runtime
+realization remain separate admission gates;
 the [source owner](../nocter-declaration-lowering/README.md#exact-source-evidence) states the current
 source boundary.
 

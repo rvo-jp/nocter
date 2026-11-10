@@ -115,7 +115,7 @@ pub(super) fn prepare(
             true,
         )?
     };
-    Ok(checker.finish(root))
+    checker.finish(root)
 }
 
 impl<'a, 's> Checker<'a, 's> {
@@ -156,8 +156,9 @@ impl<'a, 's> Checker<'a, 's> {
             scopes: vec![BTreeMap::new()],
         }
     }
-    pub(super) fn finish(self, root: AccessBlockId) -> Query {
-        Query {
+    pub(super) fn finish(self, root: AccessBlockId) -> Result<Query, Failure> {
+        self.admit_body()?;
+        Ok(Query {
             code: self.code,
             program: Arc::new(self.types.finish()),
             source: self.source,
@@ -181,7 +182,7 @@ impl<'a, 's> Checker<'a, 's> {
                 blocks: self.blocks.finish(),
                 loops: self.loops.finish(),
             },
-        }
+        })
     }
 
     pub fn syntax(&self) -> BoundSyntax<'_> {
@@ -626,5 +627,10 @@ impl Authored for NodeId {
 impl Authored for SyntaxToken {
     fn origin(self) -> SyntaxOrigin {
         SyntaxOrigin::Token(self)
+    }
+}
+impl Authored for SyntaxOrigin {
+    fn origin(self) -> SyntaxOrigin {
+        self
     }
 }
