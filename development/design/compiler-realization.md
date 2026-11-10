@@ -100,6 +100,13 @@ opaque type. Compute a required length through the ordinary checked usize/evalua
 intern the resulting array identity in the same type authority. Publication still requires every
 declaration and every definition to close.
 
+Use the already-reserved input/field identities when publishing a ready contract; normalization
+order cannot allocate new slots or renumber a formal witness. The current declaration publisher
+still closes all typed headers together. Early requests therefore still need closed ready-contract
+views and canonical type replay over their exact authority lineage; a reservation by itself grants
+no permission to type-check against an unfinished signature. Source admission must exercise the
+combined request path rather than treating construction-only slot tests as array conformance.
+
 Keep type/value cycles distinct from callable recursion. A request that needs its own unfinished
 normalized type or value is a dependency error, including an authored requirement in dead source.
 Callable-only recursion instead closes one checked graph and remains subject to execution budgets.

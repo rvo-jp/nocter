@@ -15,11 +15,11 @@ fn nested(reverse: bool) -> super::super::Program {
         "Inner", "Outer", "Ordinary", "Empty", "f", "input", "left", "right", "value",
     ]);
     let mut reservations = Reservations::new(symbols.clone());
-    let empty = reservations.reserve_record(symbols.get("Empty").unwrap());
-    let inner = reservations.reserve_record(symbols.get("Inner").unwrap());
-    let ordinary = reservations.reserve_record(symbols.get("Ordinary").unwrap());
-    let outer = reservations.reserve_record(symbols.get("Outer").unwrap());
-    let function = reservations.reserve(symbols.get("f").unwrap());
+    let empty = reservations.reserve_record(symbols.get("Empty").unwrap(), 0);
+    let inner = reservations.reserve_record(symbols.get("Inner").unwrap(), 1);
+    let ordinary = reservations.reserve_record(symbols.get("Ordinary").unwrap(), 0);
+    let outer = reservations.reserve_record(symbols.get("Outer").unwrap(), 2);
+    let function = reservations.reserve(symbols.get("f").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     let records = if reverse {
         [outer, ordinary, inner, empty]
@@ -97,9 +97,9 @@ fn records_share_the_program_authority_and_preserve_canonical_ids() {
 fn copy_opt_in_is_not_inferred_from_empty_or_all_copy_fields() {
     let symbols = SymbolTable::from_spellings(["Empty", "CopyEmpty", "Plain", "value"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let empty = reservations.reserve_record(symbols.get("Empty").unwrap());
-    let copy_empty = reservations.reserve_record(symbols.get("CopyEmpty").unwrap());
-    let plain = reservations.reserve_record(symbols.get("Plain").unwrap());
+    let empty = reservations.reserve_record(symbols.get("Empty").unwrap(), 0);
+    let copy_empty = reservations.reserve_record(symbols.get("CopyEmpty").unwrap(), 0);
+    let plain = reservations.reserve_record(symbols.get("Plain").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     builder.define_record(empty, false, []).unwrap();
     builder.define_record(copy_empty, true, []).unwrap();
@@ -129,9 +129,9 @@ fn copy_opt_in_is_not_inferred_from_empty_or_all_copy_fields() {
 fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
     let symbols = SymbolTable::from_spellings(["A", "B", "Plain", "first", "second"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
-    let b = reservations.reserve_record(symbols.get("B").unwrap());
-    let plain = reservations.reserve_record(symbols.get("Plain").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 2);
+    let b = reservations.reserve_record(symbols.get("B").unwrap(), 1);
+    let plain = reservations.reserve_record(symbols.get("Plain").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
@@ -182,10 +182,10 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
 fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
     let symbols = SymbolTable::from_spellings(["A", "B", "C", "Self", "value"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
-    let b = reservations.reserve_record(symbols.get("B").unwrap());
-    let c = reservations.reserve_record(symbols.get("C").unwrap());
-    let recursive = reservations.reserve_record(symbols.get("Self").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 1);
+    let b = reservations.reserve_record(symbols.get("B").unwrap(), 1);
+    let c = reservations.reserve_record(symbols.get("C").unwrap(), 1);
+    let recursive = reservations.reserve_record(symbols.get("Self").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     for (id, child) in [(a, b), (b, a), (c, a), (recursive, recursive)] {
         builder
@@ -216,8 +216,8 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
 fn missing_or_second_definitions_never_replace_a_valid_schema() {
     let symbols = SymbolTable::from_spellings(["A", "B"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
-    let b = reservations.reserve_record(symbols.get("B").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 0);
+    let b = reservations.reserve_record(symbols.get("B").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder.define_record(a, true, []).unwrap();
     assert_eq!(
@@ -242,7 +242,7 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
     identities.insert(());
     let absent = identities.insert(());
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     assert_eq!(
         builder.define_record(absent, true, []),
@@ -269,11 +269,11 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
 fn duplicate_record_names_and_callable_collisions_fail_before_any_definition() {
     let symbols = SymbolTable::from_spellings(["A", "f"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
-    let duplicate = reservations.reserve_record(symbols.get("A").unwrap());
-    let collision = reservations.reserve_record(symbols.get("f").unwrap());
-    let repeated_collision = reservations.reserve_record(symbols.get("f").unwrap());
-    let f = reservations.reserve(symbols.get("f").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 0);
+    let duplicate = reservations.reserve_record(symbols.get("A").unwrap(), 0);
+    let collision = reservations.reserve_record(symbols.get("f").unwrap(), 0);
+    let repeated_collision = reservations.reserve_record(symbols.get("f").unwrap(), 0);
+    let f = reservations.reserve(symbols.get("f").unwrap(), 0);
     assert_eq!(
         reservations.finish().unwrap_err(),
         [
@@ -300,7 +300,7 @@ fn duplicate_record_names_and_callable_collisions_fail_before_any_definition() {
 fn duplicate_field_names_fail_after_valid_reservations() {
     let symbols = SymbolTable::from_spellings(["A", "value"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 2);
     let mut builder = reservations.finish().unwrap();
     let value = field(&symbols, "value", DataReference::Builtin(BuiltinType::I32));
     builder
@@ -322,8 +322,8 @@ fn reserved_and_unknown_record_names_fail_without_requesting_a_schema() {
     let foreign_symbols = SymbolTable::from_spellings(["a", "b", "c", "d"]);
     let unknown = foreign_symbols.get("d").unwrap();
     let mut reservations = Reservations::new(symbols.clone());
-    let builtin = reservations.reserve_record(symbols.get("i32").unwrap());
-    let absent = reservations.reserve_record(unknown);
+    let builtin = reservations.reserve_record(symbols.get("i32").unwrap(), 0);
+    let absent = reservations.reserve_record(unknown, 0);
     assert_eq!(
         reservations.finish().unwrap_err(),
         [
@@ -347,7 +347,7 @@ fn unsupported_field_data_and_unknown_field_names_cannot_enter_frozen_schemas() 
     let foreign_symbols = SymbolTable::from_spellings(["a", "b", "c", "d"]);
     let unknown = foreign_symbols.get("d").unwrap();
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
@@ -382,8 +382,8 @@ fn unsupported_field_data_and_unknown_field_names_cannot_enter_frozen_schemas() 
 fn field_names_are_local_and_type_names_do_not_change_field_identity() {
     let symbols = SymbolTable::from_spellings(["A", "B"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
-    let b = reservations.reserve_record(symbols.get("B").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 1);
+    let b = reservations.reserve_record(symbols.get("B").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     let fields = [field(
         &symbols,
@@ -412,7 +412,12 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
     let mut reservations = Reservations::new(symbols.clone());
     let ids: Vec<_> = names
         .iter()
-        .map(|name| reservations.reserve_record(symbols.get(name).unwrap()))
+        .map(|name| {
+            reservations.reserve_record(
+                symbols.get(name).unwrap(),
+                if name == &names[0] { 0 } else { 2 },
+            )
+        })
         .collect();
     let mut builder = reservations.finish().unwrap();
     builder.define_record(ids[0], true, []).unwrap();
@@ -443,8 +448,8 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
 fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
     let symbols = SymbolTable::from_spellings(["Failure", "Wrapper", "error", "value"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let failure = reservations.reserve_record(symbols.get("Failure").unwrap());
-    let wrapper = reservations.reserve_record(symbols.get("Wrapper").unwrap());
+    let failure = reservations.reserve_record(symbols.get("Failure").unwrap(), 1);
+    let wrapper = reservations.reserve_record(symbols.get("Wrapper").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
@@ -482,8 +487,8 @@ fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
 fn callable_parameters_cannot_shadow_authored_record_names() {
     let symbols = SymbolTable::from_spellings(["A", "f"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve_record(symbols.get("A").unwrap());
-    let f = reservations.reserve(symbols.get("f").unwrap());
+    let a = reservations.reserve_record(symbols.get("A").unwrap(), 0);
+    let f = reservations.reserve(symbols.get("f").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     builder.define_record(a, false, []).unwrap();
     builder

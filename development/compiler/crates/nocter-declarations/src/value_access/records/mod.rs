@@ -97,20 +97,39 @@ struct Definition {
 #[derive(Debug)]
 struct Reservation {
     name: Symbol,
+    fields: Box<[AccessFieldId]>,
     definition: Option<Definition>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FieldSlot {
+    owner: NominalTypeId,
+    position: usize,
 }
 
 #[derive(Debug, Default)]
 pub(super) struct Builder {
     reservations: ArenaBuilder<NominalTypeId, Reservation>,
+    fields: ArenaBuilder<AccessFieldId, FieldSlot>,
 }
 
 impl Builder {
-    pub fn reserve(&mut self, name: Symbol) -> NominalTypeId {
+    pub fn reserve(&mut self, name: Symbol, field_count: usize) -> NominalTypeId {
+        let owner = self.reservations.next_id();
+        let fields = (0..field_count)
+            .map(|position| self.fields.insert(FieldSlot { owner, position }))
+            .collect();
         self.reservations.insert(Reservation {
             name,
+            fields,
             definition: None,
         })
+    }
+
+    pub fn field_ids(&self, id: NominalTypeId) -> Option<&[AccessFieldId]> {
+        self.reservations
+            .get(id)
+            .map(|reserved| reserved.fields.as_ref())
     }
 
     pub fn names(&self) -> impl Iterator<Item = (NominalTypeId, Symbol)> {
@@ -131,6 +150,12 @@ impl Builder {
             .ok_or(DefinitionError::UnknownId)?;
         if reservation.definition.is_some() {
             return Err(DefinitionError::AlreadyDefined);
+        }
+        if fields.len() != reservation.fields.len() {
+            return Err(DefinitionError::WrongArity {
+                expected: reservation.fields.len(),
+                actual: fields.len(),
+            });
         }
         reservation.definition = Some(Definition { copy, fields });
         Ok(())
@@ -181,13 +206,18 @@ impl Builder {
         if !violations.is_empty() {
             return Err(violations);
         }
-        Ok(Validated { reserved, copyable })
+        Ok(Validated {
+            reserved,
+            fields: self.fields.finish(),
+            copyable,
+        })
     }
 }
 
 /// Construction-only capability: every record has a finite shape and valid explicit Copy policy.
 pub(super) struct Validated {
     reserved: Arena<NominalTypeId, Reservation>,
+    fields: Arena<AccessFieldId, FieldSlot>,
     copyable: BTreeMap<NominalTypeId, bool>,
 }
 
@@ -212,44 +242,35 @@ impl Validated {
                 (id, data)
             })
             .collect();
-        let mut fields = ArenaBuilder::new();
+        let fields = self.fields.map(|_, slot| {
+            let field = &self
+                .reserved
+                .get(slot.owner)
+                .and_then(|reserved| reserved.definition.as_ref())
+                .expect("validated field owner")
+                .fields[slot.position];
+            Field {
+                owner: slot.owner,
+                name: field.name,
+                position: slot.position,
+                data: super::data::resolved_data(&mut types, |record| data[&record], &field.data),
+            }
+        });
         let records = self.reserved.map(|id, reservation| {
-            let definition = reservation
-                .definition
-                .as_ref()
-                .expect("validated definition");
-            let mut field_namespace = BTreeMap::new();
-            let field_ids = definition
+            let field_namespace = reservation
                 .fields
                 .iter()
-                .enumerate()
-                .map(|(position, field)| {
-                    let field_id = fields.insert(Field {
-                        owner: id,
-                        name: field.name,
-                        position,
-                        data: super::data::resolved_data(
-                            &mut types,
-                            |record| data[&record],
-                            &field.data,
-                        ),
-                    });
-                    field_namespace.insert(field.name, field_id);
-                    field_id
-                })
+                .map(|&id| (fields.get(id).expect("reserved field").name, id))
                 .collect();
             Record {
                 name: reservation.name,
                 data: data[&id],
                 copyable: self.copyable[&id],
-                fields: field_ids,
+                fields: reservation.fields.clone(),
                 field_namespace,
             }
         });
-        let schemas = Schemas {
-            records,
-            fields: fields.finish(),
-        };
+        let schemas = Schemas { records, fields };
         (
             types
                 .commit(&base)

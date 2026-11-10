@@ -2,13 +2,208 @@ use super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn wrong_slot_counts_leave_both_definition_kinds_retryable_without_resizing() {
+    let symbols = SymbolTable::from_spellings(["Box", "run", "value"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Box").unwrap(), 1);
+    let run = reservations.reserve(symbols.get("run").unwrap(), 1);
+    let mut builder = reservations.finish().unwrap();
+    let fields = builder.field_ids(record).unwrap().to_vec();
+    let inputs = builder.parameter_ids(run).unwrap().to_vec();
+    let kind = CallableKind::Function(CompileTimeGuarantee::RuntimeOnly);
+    let parameter = ParameterDefinition {
+        name: symbols.get("value").unwrap(),
+        data: BuiltinType::I32.into(),
+        operation: ValueInputOperation::Read,
+    };
+    let field = FieldDefinition {
+        name: symbols.get("value").unwrap(),
+        data: BuiltinType::Bool.into(),
+    };
+    for actual in [0, 2] {
+        assert_eq!(
+            builder.define(
+                run,
+                kind,
+                vec![parameter.clone(); actual],
+                BuiltinType::Void
+            ),
+            Err(DefinitionError::WrongArity {
+                expected: 1,
+                actual
+            })
+        );
+        assert_eq!(
+            builder.define_record(record, true, vec![field.clone(); actual]),
+            Err(DefinitionError::WrongArity {
+                expected: 1,
+                actual
+            })
+        );
+        assert_eq!(builder.parameter_ids(run), Some(inputs.as_slice()));
+        assert_eq!(builder.field_ids(record), Some(fields.as_slice()));
+    }
+    builder
+        .define(run, kind, [parameter], BuiltinType::Void)
+        .unwrap();
+    builder.define_record(record, true, [field]).unwrap();
+    // Completed definitions keep precedence over an arity error on a later attempted replacement.
+    assert_eq!(
+        builder.define(run, kind, [], BuiltinType::Void),
+        Err(DefinitionError::AlreadyDefined)
+    );
+    assert_eq!(
+        builder.define_record(record, false, []),
+        Err(DefinitionError::AlreadyDefined)
+    );
+    let program = builder.finish().unwrap();
+    assert_eq!(program.callables().get(run).unwrap().parameters(), inputs);
+    assert_eq!(program.records().get(record).unwrap().fields(), fields);
+    assert_eq!(
+        program.data_kind(program.parameters().get(inputs[0]).unwrap().data()),
+        Some(BuiltinType::I32)
+    );
+    assert_eq!(
+        program.data_kind(program.fields().get(fields[0]).unwrap().data()),
+        Some(BuiltinType::Bool)
+    );
+}
+
+#[test]
+fn untyped_slot_reservations_do_not_publish_incomplete_declarations() {
+    let symbols = SymbolTable::from_spellings(["Box", "run"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Box").unwrap(), 3);
+    let run = reservations.reserve(symbols.get("run").unwrap(), 2);
+    let builder = reservations.finish().unwrap();
+    assert_eq!(builder.field_ids(record).unwrap().len(), 3);
+    assert_eq!(builder.parameter_ids(run).unwrap().len(), 2);
+    assert_eq!(
+        builder.finish().unwrap_err(),
+        [
+            DeclarationViolation {
+                declaration: DeclarationId::Callable(run),
+                position: HeaderPosition::Name,
+                rule: DeclarationRule::MissingDefinition
+            },
+            DeclarationViolation {
+                declaration: DeclarationId::Record(record),
+                position: HeaderPosition::Name,
+                rule: DeclarationRule::MissingDefinition
+            },
+        ]
+    );
+}
+
+#[test]
+fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definitions() {
+    let symbols = SymbolTable::from_spellings([
+        "Box", "alpha", "beta", "action", "value", "item", "first", "second",
+    ]);
+    let symbol = |name| symbols.get(name).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbol("Box"), 2);
+    let alpha = reservations.reserve(symbol("alpha"), 2);
+    let beta = reservations.reserve(symbol("beta"), 1);
+    let mut builder = reservations.finish().unwrap();
+    let fields = builder.field_ids(record).unwrap().to_vec();
+    let inputs = builder.parameter_ids(alpha).unwrap().to_vec();
+    let beta_input = builder.parameter_ids(beta).unwrap()[0];
+    let kind = CallableKind::Function(CompileTimeGuarantee::RuntimeOnly);
+    // Definitions deliberately run in the reverse callable order. Formal witness keys must use
+    // the earlier input reservations rather than an allocation position in this traversal.
+    builder
+        .define(
+            beta,
+            kind,
+            [ParameterDefinition {
+                name: symbol("item"),
+                data: DataReference::Record(record).into(),
+                operation: ValueInputOperation::Edit,
+            }],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    builder
+        .define(
+            alpha,
+            kind,
+            [
+                ParameterDefinition {
+                    name: symbol("action"),
+                    operation: ValueInputOperation::Read,
+                    data: ValueDefinition::Function(FunctionDefinition {
+                        invocation: ValueInvocation::Read,
+                        inputs: Box::new([]),
+                        result: BuiltinType::I32.into(),
+                    }),
+                },
+                ParameterDefinition {
+                    name: symbol("value"),
+                    data: BuiltinType::Usize.into(),
+                    operation: ValueInputOperation::Take,
+                },
+            ],
+            BuiltinType::Usize,
+        )
+        .unwrap();
+    builder
+        .define_record(
+            record,
+            true,
+            [
+                FieldDefinition {
+                    name: symbol("first"),
+                    data: BuiltinType::I32.into(),
+                },
+                FieldDefinition {
+                    name: symbol("second"),
+                    data: BuiltinType::Bool.into(),
+                },
+            ],
+        )
+        .unwrap();
+    let program = builder.finish().unwrap();
+    assert_eq!(program.callables().get(alpha).unwrap().parameters(), inputs);
+    assert_eq!(
+        program.callables().get(beta).unwrap().parameters(),
+        &[beta_input]
+    );
+    assert_eq!(program.records().get(record).unwrap().fields(), fields);
+    for (position, &id) in inputs.iter().enumerate() {
+        let parameter = program.parameters().get(id).unwrap();
+        assert_eq!((parameter.owner(), parameter.position()), (alpha, position));
+    }
+    for (position, &id) in fields.iter().enumerate() {
+        let field = program.fields().get(id).unwrap();
+        assert_eq!((field.owner(), field.position()), (record, position));
+        assert_eq!(
+            program
+                .records()
+                .get(record)
+                .unwrap()
+                .resolve_field(field.name()),
+            Some(id)
+        );
+    }
+    let parameter = program.parameters().get(inputs[0]).unwrap();
+    let Some(PayloadSchema::Function(witness)) = program.data_schema(parameter.data()) else {
+        panic!("formal witness");
+    };
+    assert_eq!(
+        witness.origin,
+        nocter_model::ValueFunctionOrigin::Parameter(inputs[0])
+    );
+}
+
+#[test]
 fn one_closed_namespace_preserves_declaration_roles_before_and_after_type_publication() {
     let symbols = SymbolTable::from_spellings(["Item", "run"]);
     let mut reservations = Reservations::new(symbols.clone());
     let item_name = symbols.get("Item").unwrap();
     let run_name = symbols.get("run").unwrap();
-    let item = reservations.reserve_record(item_name);
-    let run = reservations.reserve(run_name);
+    let item = reservations.reserve_record(item_name, 0);
+    let run = reservations.reserve(run_name, 0);
     let mut builder = reservations.finish().unwrap();
     // A forward record reference needs no invented TypeId or complete record definition.
     assert_eq!(
@@ -45,10 +240,10 @@ fn invalid_callable_names_fail_before_requesting_any_definition_or_type() {
     let symbols = SymbolTable::from_spellings(["f", "i32"]);
     let foreign = SymbolTable::from_spellings(["a", "b", "c"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let first = reservations.reserve(symbols.get("f").unwrap());
-    let duplicate = reservations.reserve(symbols.get("f").unwrap());
-    let builtin = reservations.reserve(symbols.get("i32").unwrap());
-    let unknown = reservations.reserve(foreign.get("c").unwrap());
+    let first = reservations.reserve(symbols.get("f").unwrap(), 0);
+    let duplicate = reservations.reserve(symbols.get("f").unwrap(), 0);
+    let builtin = reservations.reserve(symbols.get("i32").unwrap(), 0);
+    let unknown = reservations.reserve(foreign.get("c").unwrap(), 0);
     assert_eq!(
         reservations.finish().unwrap_err(),
         [
@@ -77,8 +272,8 @@ fn repeated_parameters_retain_the_first_input_even_when_it_shadows_a_declaration
     let mut reservations = Reservations::new(symbols.clone());
     let item_name = symbols.get("Item").unwrap();
     let run_name = symbols.get("run").unwrap();
-    let item = reservations.reserve_record(item_name);
-    let run = reservations.reserve(run_name);
+    let item = reservations.reserve_record(item_name, 0);
+    let run = reservations.reserve(run_name, 4);
     let mut builder = reservations.finish().unwrap();
     builder.define_record(item, false, []).unwrap();
     builder
@@ -125,8 +320,8 @@ fn repeated_parameters_retain_the_first_input_even_when_it_shadows_a_declaration
 fn build(reverse: bool) -> Program {
     let symbols = SymbolTable::from_spellings(["alpha", "beta", "input"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let a = reservations.reserve(symbols.get("alpha").unwrap());
-    let b = reservations.reserve(symbols.get("beta").unwrap());
+    let a = reservations.reserve(symbols.get("alpha").unwrap(), 1);
+    let b = reservations.reserve(symbols.get("beta").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     for id in if reverse { [b, a] } else { [a, b] } {
         builder
@@ -169,7 +364,7 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
     ] {
         let symbols = SymbolTable::from_spellings(["f", "read", "edit", "take"]);
         let mut reservations = Reservations::new(symbols.clone());
-        let id = reservations.reserve(symbols.get("f").unwrap());
+        let id = reservations.reserve(symbols.get("f").unwrap(), 3);
         let mut builder = reservations.finish().unwrap();
         builder
             .define(
@@ -221,7 +416,7 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
 fn incomplete_or_double_definition_never_publishes_a_program() {
     let symbols = SymbolTable::from_spellings(["f"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let id = reservations.reserve(symbols.get("f").unwrap());
+    let id = reservations.reserve(symbols.get("f").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder
         .define(
@@ -246,7 +441,7 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
         Some(BuiltinType::Void)
     );
     let mut reservations = Reservations::new(symbols.clone());
-    reservations.reserve(symbols.get("f").unwrap());
+    reservations.reserve(symbols.get("f").unwrap(), 0);
     let builder = reservations.finish().unwrap();
     assert!(
         builder
@@ -260,7 +455,7 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
 fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
     let symbols = SymbolTable::from_spellings(["f", "x"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let f = reservations.reserve(symbols.get("f").unwrap());
+    let f = reservations.reserve(symbols.get("f").unwrap(), 2);
     let mut builder = reservations.finish().unwrap();
     let parameter = ParameterDefinition {
         name: symbols.get("x").unwrap(),
@@ -385,7 +580,7 @@ fn named_function_views_have_exact_copy_payloads_without_upgrading_restricted_vi
 fn callable_result_headers_publish_signatures_without_inventing_producers_or_copy() {
     let symbols = SymbolTable::from_spellings(["make"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let id = reservations.reserve(symbols.get("make").unwrap());
+    let id = reservations.reserve(symbols.get("make").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder
         .define(
@@ -434,9 +629,9 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     use nocter_model::{AccessExpressionId, ArenaBuilder, ValueFunctionOrigin as Origin};
     let symbols = SymbolTable::from_spellings(["first", "second", "make"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let first = reservations.reserve(symbols.get("first").unwrap());
-    let second = reservations.reserve(symbols.get("second").unwrap());
-    let make = reservations.reserve(symbols.get("make").unwrap());
+    let first = reservations.reserve(symbols.get("first").unwrap(), 0);
+    let second = reservations.reserve(symbols.get("second").unwrap(), 0);
+    let make = reservations.reserve(symbols.get("make").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder
         .define(
@@ -527,8 +722,8 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     use nocter_model::{ValueClosure, ValueFunctionOrigin as Origin};
     let symbols = SymbolTable::from_spellings(["first", "second"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let first = reservations.reserve(symbols.get("first").unwrap());
-    let second = reservations.reserve(symbols.get("second").unwrap());
+    let first = reservations.reserve(symbols.get("first").unwrap(), 0);
+    let second = reservations.reserve(symbols.get("second").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder
         .define(

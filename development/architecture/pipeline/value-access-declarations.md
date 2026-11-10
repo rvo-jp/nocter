@@ -68,7 +68,8 @@ all permitted formal/result-family views in the header TypeAuthority. Body check
 application-type branch over that prefix; canonical replay validates lineage and owner domains
 before all bodies share one final authority. Declaration metadata and source reuse remain shared;
 no consumer chooses between header and body stores as lookup fallbacks.
-Reservation closure freezes the complete callable/record name domain before any type normalization.
+Reservation closure freezes the complete callable/record name and input/field identity domains
+before any type normalization.
 Definition construction cannot append declarations; final publication rejects incomplete or invalid
 headers. One tagged name table survives those transitions and serves each role-specific lookup.
 Neither construction state is body-checking admission.

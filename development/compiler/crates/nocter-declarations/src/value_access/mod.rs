@@ -270,7 +270,15 @@ struct Definition {
 #[derive(Debug)]
 struct Reservation {
     name: Symbol,
+    parameters: Box<[AccessParameterId]>,
     definition: Option<Definition>,
+}
+
+/// Identity and authored position, without a provisional data type or input operation.
+#[derive(Clone, Copy, Debug)]
+struct ParameterSlot {
+    owner: AccessCallableId,
+    position: usize,
 }
 
 /// Construction-only identity reservation. No header can be defined before names are closed.
@@ -278,6 +286,7 @@ struct Reservation {
 pub struct Reservations {
     symbols: SymbolTable,
     callables: ArenaBuilder<AccessCallableId, Reservation>,
+    parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
     records: records::Builder,
 }
 
@@ -287,20 +296,26 @@ impl Reservations {
         Self {
             symbols,
             callables: ArenaBuilder::new(),
+            parameters: ArenaBuilder::new(),
             records: records::Builder::default(),
         }
     }
 
-    pub fn reserve(&mut self, name: Symbol) -> AccessCallableId {
+    pub fn reserve(&mut self, name: Symbol, parameter_count: usize) -> AccessCallableId {
+        let owner = self.callables.next_id();
+        let parameters = (0..parameter_count)
+            .map(|position| self.parameters.insert(ParameterSlot { owner, position }))
+            .collect();
         self.callables.insert(Reservation {
             name,
+            parameters,
             definition: None,
         })
     }
 
     /// Reserve records in canonical namespace order, independently of definition order.
-    pub fn reserve_record(&mut self, name: Symbol) -> NominalTypeId {
-        self.records.reserve(name)
+    pub fn reserve_record(&mut self, name: Symbol, field_count: usize) -> NominalTypeId {
+        self.records.reserve(name, field_count)
     }
 
     /// Close the complete name domain before resolving types or checking definitions.
@@ -320,6 +335,7 @@ impl Reservations {
         Ok(Builder {
             symbols: self.symbols,
             callables: self.callables,
+            parameters: self.parameters.finish(),
             records: self.records,
             namespace,
         })
@@ -332,15 +348,31 @@ impl Reservations {
 pub struct Builder {
     symbols: SymbolTable,
     callables: ArenaBuilder<AccessCallableId, Reservation>,
+    parameters: Arena<AccessParameterId, ParameterSlot>,
     records: records::Builder,
     namespace: BTreeMap<Symbol, DeclarationId>,
 }
 
 impl Builder {
+    /// Reserved input identities in authored order; this grants no typed parameter contract.
+    #[must_use]
+    pub fn parameter_ids(&self, id: AccessCallableId) -> Option<&[AccessParameterId]> {
+        self.callables
+            .get(id)
+            .map(|reserved| reserved.parameters.as_ref())
+    }
+
+    /// Reserved field identities in authored order; this grants no payload or Copy evidence.
+    #[must_use]
+    pub fn field_ids(&self, id: NominalTypeId) -> Option<&[nocter_model::AccessFieldId]> {
+        self.records.field_ids(id)
+    }
+
     /// Defines an ordinary or explicitly Copy record. Every field stores a value, not an access.
     ///
     /// # Errors
-    /// Rejects an unknown reservation or a second definition without changing the first one.
+    /// Rejects an unknown reservation, a mismatched reserved field count, or a second definition
+    /// without changing the first one.
     pub fn define_record(
         &mut self,
         id: NominalTypeId,
@@ -363,7 +395,8 @@ impl Builder {
     }
 
     /// # Errors
-    /// Rejects a missing reservation or a second definition without replacing the first one.
+    /// Rejects a missing reservation, a mismatched reserved input count, or a second definition
+    /// without replacing the first one.
     pub fn define(
         &mut self,
         id: AccessCallableId,
@@ -378,9 +411,16 @@ impl Builder {
         if reservation.definition.is_some() {
             return Err(DefinitionError::AlreadyDefined);
         }
+        let parameters = parameters.into();
+        if parameters.len() != reservation.parameters.len() {
+            return Err(DefinitionError::WrongArity {
+                expected: reservation.parameters.len(),
+                actual: parameters.len(),
+            });
+        }
         reservation.definition = Some(Definition {
             kind,
-            parameters: parameters.into(),
+            parameters,
             result_data: result_data.into(),
         });
         Ok(())
@@ -431,6 +471,7 @@ impl Builder {
         Ok(publication::publish(
             self.symbols,
             &reserved,
+            &self.parameters,
             namespace,
             records,
         ))

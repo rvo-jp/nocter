@@ -81,6 +81,41 @@ fn canonical_reservation_is_independent_of_source_order() {
     assert_eq!(qa.program().callables(), qb.program().callables());
     assert_eq!(qa.program().parameters(), qb.program().parameters());
 }
+
+#[test]
+fn field_and_formal_input_reservations_are_independent_of_source_definition_order() {
+    use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
+    use nocter_model::{ValueFunctionOrigin, ValueInvocation};
+    let records = "copy struct Item { value: i32\nflag: bool }";
+    let functions = [
+        "func apply(action: func(i32): i32, edit item: Item): i32 { unknown }",
+        "func identity(value: i32): i32 { value }",
+    ];
+    let first = format!("{records}\n{}\n{}", functions[0], functions[1]);
+    let second = format!("{}\n{}\n{records}", functions[1], functions[0]);
+    let (sources_a, tree_a) = input(&first, ParseGoal::V2CoreUnit);
+    let (sources_b, tree_b) = input(&second, ParseGoal::V2CoreUnit);
+    let a = Query::prepare(bound(&sources_a, &tree_a)).unwrap();
+    let b = Query::prepare(bound(&sources_b, &tree_b)).unwrap();
+    assert_eq!(a.program().callables(), b.program().callables());
+    assert_eq!(a.program().parameters(), b.program().parameters());
+    assert_eq!(a.program().records(), b.program().records());
+    assert_eq!(a.program().fields(), b.program().fields());
+    let program = a.program();
+    let apply = program
+        .resolve(program.symbols().get("apply").unwrap())
+        .unwrap();
+    let parameter_id = program.callables().get(apply).unwrap().parameters()[0];
+    let parameter = program.parameters().get(parameter_id).unwrap();
+    assert_eq!(
+        program.data_schema(parameter.data()),
+        Some(PayloadSchema::Function(FunctionWitness {
+            origin: ValueFunctionOrigin::Parameter(parameter_id),
+            invocation: ValueInvocation::Read,
+        }))
+    );
+    assert_eq!((parameter.owner(), parameter.position()), (apply, 0));
+}
 #[test]
 fn header_errors_are_local_and_cannot_be_repaired_by_a_body() {
     for text in [

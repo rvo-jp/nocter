@@ -5,7 +5,7 @@ use super::{
     value_type_syntax,
 };
 use nocter_declarations::value_access::CallableKind;
-use nocter_model::{CompileTimeGuarantee, ValueInputOperation};
+use nocter_model::{CompileTimeGuarantee, SymbolTable, ValueInputOperation};
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
     declaration_name_token, direct_identifier, direct_node, direct_node_iter, first_direct_token,
@@ -142,4 +142,31 @@ pub(super) fn collect(
     functions.sort_by_key(|h| text(syntax, h.name));
     records.sort_by_key(|h| text(syntax, h.name));
     Ok((functions, records))
+}
+
+/// Header spellings only; initializer and callable bodies never participate in this symbol prefix.
+pub(super) fn symbols(
+    syntax: BoundSyntax<'_>,
+    functions: &[Header],
+    records: &[RecordHeader],
+) -> SymbolTable {
+    SymbolTable::from_spellings(
+        functions
+            .iter()
+            .flat_map(|h| {
+                std::iter::once(h.name).chain(h.result_data.tokens()).chain(
+                    h.parameters
+                        .iter()
+                        .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
+                )
+            })
+            .chain(records.iter().flat_map(|r| {
+                std::iter::once(r.name).chain(
+                    r.fields
+                        .iter()
+                        .flat_map(|(name, data, _)| std::iter::once(*name).chain(data.tokens())),
+                )
+            }))
+            .map(|token| text(syntax, token)),
+    )
 }

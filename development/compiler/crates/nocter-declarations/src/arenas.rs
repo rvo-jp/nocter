@@ -70,6 +70,7 @@ definition_slots!(OpaqueTypeId);
 pub enum DefinitionError {
     UnknownId,
     AlreadyDefined,
+    WrongArity { expected: usize, actual: usize },
 }
 
 impl fmt::Display for DefinitionError {
@@ -80,6 +81,12 @@ impl fmt::Display for DefinitionError {
             }
             Self::AlreadyDefined => {
                 formatter.write_str("reserved definition was already completed")
+            }
+            Self::WrongArity { expected, actual } => {
+                write!(
+                    formatter,
+                    "definition has {actual} slots, but {expected} were reserved"
+                )
             }
         }
     }

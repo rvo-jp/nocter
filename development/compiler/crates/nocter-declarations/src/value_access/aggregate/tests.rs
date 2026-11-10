@@ -11,7 +11,7 @@ fn pair(first: DataReference, second: DataReference) -> DataReference {
 fn nominal_fields_and_tuple_positions_cannot_substitute_for_each_other() {
     let symbols = SymbolTable::from_spellings(["Box", "value"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let record = reservations.reserve_record(symbols.get("Box").unwrap());
+    let record = reservations.reserve_record(symbols.get("Box").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
@@ -45,8 +45,9 @@ fn nominal_containment_and_copy_validation_follow_leaves_inside_tuples() {
     for (recursive, copy) in [(true, false), (false, true)] {
         let symbols = SymbolTable::from_spellings(["Box", "Item", "value"]);
         let mut reservations = Reservations::new(symbols.clone());
-        let owner = reservations.reserve_record(symbols.get("Box").unwrap());
-        let item = reservations.reserve_record(symbols.get("Item").unwrap());
+        let owner = reservations.reserve_record(symbols.get("Box").unwrap(), 1);
+        let item =
+            reservations.reserve_record(symbols.get("Item").unwrap(), usize::from(recursive));
         let mut builder = reservations.finish().unwrap();
         builder
             .define_record(
@@ -79,7 +80,7 @@ fn nominal_containment_and_copy_validation_follow_leaves_inside_tuples() {
 fn shared_structural_copy_proof_visits_shapes_without_expanding_the_payload() {
     let symbols = SymbolTable::from_spellings(["run"]);
     let mut reservations = Reservations::new(symbols.clone());
-    let run = reservations.reserve(symbols.get("run").unwrap());
+    let run = reservations.reserve(symbols.get("run").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder
         .define(

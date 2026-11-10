@@ -1,17 +1,18 @@
 //! Freeze data contracts, formal witness identities and callables in one declaration authority.
 use super::{
-    Callable, DeclarationId, FunctionConstraint, FunctionInput, Parameter, Program, Reservation,
-    ValueDefinition, data::resolved_data, functions, records,
+    Callable, DeclarationId, FunctionConstraint, FunctionInput, Parameter, ParameterSlot, Program,
+    Reservation, ValueDefinition, data::resolved_data, functions, records,
 };
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, ArenaBuilder, Symbol, SymbolTable, TypeKind,
-    ValueFunctionOrigin, ValueInvocation,
+    AccessCallableId, AccessParameterId, Arena, Symbol, SymbolTable, TypeKind, ValueFunctionOrigin,
+    ValueInvocation,
 };
 use std::collections::BTreeMap;
 
 pub(super) fn publish(
     symbols: SymbolTable,
     reserved: &Arena<AccessCallableId, Reservation>,
+    parameter_slots: &Arena<AccessParameterId, ParameterSlot>,
     namespace: BTreeMap<Symbol, DeclarationId>,
     records: records::Validated,
 ) -> Program {
@@ -27,34 +28,32 @@ pub(super) fn publish(
         }),
     );
     let mut types = base_types.transaction();
-    let mut parameters = ArenaBuilder::<AccessParameterId, Parameter>::new();
+    let parameters = parameter_slots.map(|id, slot| {
+        let parameter = &reserved
+            .get(slot.owner)
+            .and_then(|reserved| reserved.definition.as_ref())
+            .expect("validated input owner")
+            .parameters[slot.position];
+        let (data, contract) = publish_value(
+            &mut types,
+            &records,
+            ValueFunctionOrigin::Parameter(id),
+            &parameter.data,
+        );
+        Parameter {
+            owner: slot.owner,
+            name: parameter.name,
+            position: slot.position,
+            data,
+            operation: parameter.operation,
+            contract,
+        }
+    });
     let callables = reserved.map(|id, reservation| {
         let definition = reservation
             .definition
             .as_ref()
             .expect("validated definition");
-        let parameter_ids = definition
-            .parameters
-            .iter()
-            .enumerate()
-            .map(|(position, parameter)| {
-                let next = parameters.next_id();
-                let (data, contract) = publish_value(
-                    &mut types,
-                    &records,
-                    ValueFunctionOrigin::Parameter(next),
-                    &parameter.data,
-                );
-                parameters.insert(Parameter {
-                    owner: id,
-                    name: parameter.name,
-                    position,
-                    data,
-                    operation: parameter.operation,
-                    contract,
-                })
-            })
-            .collect::<Box<[_]>>();
         let (result, result_contract) = publish_value(
             &mut types,
             &records,
@@ -64,7 +63,7 @@ pub(super) fn publish(
         Callable {
             name: reservation.name,
             kind: definition.kind,
-            parameters: parameter_ids,
+            parameters: reservation.parameters.clone(),
             result,
             result_contract,
         }
@@ -79,7 +78,7 @@ pub(super) fn publish(
         types,
         header_type_count,
         callables: callables.into(),
-        parameters: parameters.finish().into(),
+        parameters: parameters.into(),
         namespace: namespace.into(),
         records: records.into(),
     }

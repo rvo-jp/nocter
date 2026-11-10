@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use headers::RecordHeader;
 use nocter_declarations::value_access::{Program, Reservations};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
-use nocter_model::{AccessCallableId, SymbolTable};
+use nocter_model::AccessCallableId;
 use nocter_syntax::{
     BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxSurface, NodeId, NodeKind,
     SyntaxOrigin, SyntaxToken, project_declaration_syntax,
@@ -92,24 +92,7 @@ impl Query {
         let tree = syntax.tree();
         let projection = project_declaration_syntax(syntax);
         let (functions, records) = headers::collect(syntax)?;
-        let symbols =
-            SymbolTable::from_spellings(
-                functions
-                    .iter()
-                    .flat_map(|h| {
-                        std::iter::once(h.name).chain(h.result_data.tokens()).chain(
-                            h.parameters
-                                .iter()
-                                .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
-                        )
-                    })
-                    .chain(records.iter().flat_map(|r| {
-                        std::iter::once(r.name).chain(r.fields.iter().flat_map(
-                            |(name, data, _)| std::iter::once(*name).chain(data.tokens()),
-                        ))
-                    }))
-                    .map(|token| text(syntax, token)),
-            );
+        let symbols = headers::symbols(syntax, &functions, &records);
         let symbol = |token| {
             symbols
                 .get(text(syntax, token))
@@ -118,11 +101,16 @@ impl Query {
         let mut reservations = Reservations::new(symbols.clone());
         let record_headers = records
             .into_iter()
-            .map(|h| Ok((reservations.reserve_record(symbol(h.name)?), h)))
+            .map(|h| {
+                Ok((
+                    reservations.reserve_record(symbol(h.name)?, h.fields.len()),
+                    h,
+                ))
+            })
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
         let function_headers = functions
             .into_iter()
-            .map(|h| Ok((reservations.reserve(symbol(h.name)?), h)))
+            .map(|h| Ok((reservations.reserve(symbol(h.name)?, h.parameters.len()), h)))
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
         let sources: BTreeMap<_, _> = function_headers
             .iter()

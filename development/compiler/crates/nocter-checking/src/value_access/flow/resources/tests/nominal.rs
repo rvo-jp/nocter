@@ -21,8 +21,8 @@ impl Fixture {
             "Leaf", "Outer", "a", "b", "head", "left", "right", "tail",
         ]);
         let mut reservations = Reservations::new(symbols.clone());
-        let leaf = reservations.reserve_record(symbols.get("Leaf").unwrap());
-        let outer = reservations.reserve_record(symbols.get("Outer").unwrap());
+        let leaf = reservations.reserve_record(symbols.get("Leaf").unwrap(), 2);
+        let outer = reservations.reserve_record(symbols.get("Outer").unwrap(), 4);
         let mut builder = reservations.finish().unwrap();
         let field = |name: &str, data| FieldDefinition {
             name: symbols.get(name).unwrap(),
@@ -560,7 +560,9 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
     let mut reservations = Reservations::new(symbols.clone());
     let ids: Vec<_> = names
         .iter()
-        .map(|s| reservations.reserve_record(symbols.get(s).unwrap()))
+        .map(|s| {
+            reservations.reserve_record(symbols.get(s).unwrap(), if s == &names[0] { 0 } else { 2 })
+        })
         .collect();
     let mut builder = reservations.finish().unwrap();
     builder.define_record(ids[0], false, []).unwrap();

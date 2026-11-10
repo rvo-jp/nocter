@@ -74,13 +74,23 @@ coordinates, or checking internals.
 The value-access product owns immutable declaration facts and their type authority for the future
 private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
-Construction has three one-way states: `Reservations` assigns callable/record identities;
+Construction has three one-way states: `Reservations` assigns callable/record and input/field identities;
 its consuming `finish` validates and closes the complete name domain into a `Builder`; that
 builder resolves and defines headers, then publishes a `Program` only after all header checks.
 No definition or type resolution is available during reservation, and no new declaration can be
 reserved after name closure. Neither construction state is body-checking admission or an incomplete
 semantic program. Defining headers in a different order cannot change parameter identities.
 The lowering owner reserves functions and records in canonical namespace order.
+
+Reservation takes each callable's input count and each record's field count, assigning the entire
+slot domain in authored position order before any data type is resolved. Construction-only slot
+queries expose those identities, not parameter contracts, field payloads or a partial program.
+Definitions must match their reserved arity exactly; a wrong count leaves the slot/definition
+state untouched and can be retried. A second definition still rejects without replacement.
+Publication maps those exact reserved slots into typed parameters and fields; it never assigns
+new identities during type normalization. Formal callable witness keys therefore use the same
+input identities that were available before any definition. Missing definitions cannot publish
+merely because their slots exist.
 
 `namespace` constructs one tagged callable/record name table at reservation closure. The same table
 serves forward header references, parameter-shadowing checks and published role-specific lookup;
