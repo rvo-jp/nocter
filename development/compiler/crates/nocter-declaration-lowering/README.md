@@ -136,6 +136,8 @@ as requested, without re-reading or checking a body. `finish` yields the complet
 the eager query entry delegates to that same construction. Required contracts close transitive
 record payloads before exposing their field TypeIds. Raw source data-name resolution and finite
 containment validation still close before these views, so this does not admit array-length calls.
+`current` shares the already established view without publishing another contract. Cloning a
+context shares that exact immutable program and source pairing; it cannot extend readiness.
 
 Body queries retain their origin header view and open declaration-owned type branches over that
 prefix. A later context can bind existing evidence only if its header view preserves the earlier

@@ -221,6 +221,14 @@ impl Program {
             && self.records.records.is_complete()
             && self.records.fields.is_complete()
     }
+    /// A complete published contract, including its established transitive record schemas.
+    #[must_use]
+    pub fn header_ready(&self, declaration: impl Into<DeclarationId>) -> bool {
+        match declaration.into() {
+            DeclarationId::Callable(id) => self.callables.get(id).is_some(),
+            DeclarationId::Record(id) => self.records.records.get(id).is_some(),
+        }
+    }
     /// Retains every established contract and its exact type prefix from the same construction.
     #[must_use]
     pub fn preserves_headers(&self, older: &Self) -> bool {
@@ -384,7 +392,8 @@ impl Reservations {
     }
 }
 
-/// Define closed reserved headers in any order. Only `finish` publishes a semantic program.
+/// Define closed reserved headers in any order. Validation opens the sole publication writer;
+/// `finish` closes the complete program through that same path.
 /// There is no operation for appending another declaration after reservation closure.
 #[derive(Debug)]
 pub struct Builder {

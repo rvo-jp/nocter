@@ -48,7 +48,7 @@ pub struct Query {
 }
 
 /// One current source/semantic pairing. Callers cannot assemble its parts independently.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
@@ -202,11 +202,16 @@ impl<'source> Preparation<'source> {
         self.headers
             .publish(required)
             .map_err(|_| Failure::InconsistentSyntax)?;
-        Ok(Context {
+        Ok(self.current())
+    }
+    /// Share only the contracts already established by this construction.
+    #[must_use]
+    pub fn current(&self) -> Context<'source> {
+        Context {
             program: Arc::new(self.headers.snapshot()),
             syntax: self.syntax,
             sources: self.sources.clone(),
-        })
+        }
     }
     /// Finish the complete reusable header query without re-normalizing published contracts.
     #[must_use]

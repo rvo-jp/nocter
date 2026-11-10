@@ -473,7 +473,6 @@ impl<'a, 's> Checker<'a, 's> {
         )
     }
     pub fn require_header(&self, token: SyntaxToken) -> Result<(), Failure> {
-        use nocter_declarations::value_access::DeclarationId;
         let spelling = self.text(token)?;
         if self.lookup(spelling).is_none()
             && let Some(declaration) = self
@@ -481,10 +480,7 @@ impl<'a, 's> Checker<'a, 's> {
                 .symbols()
                 .get(spelling)
                 .and_then(|symbol| self.program().declaration(symbol))
-            && match declaration {
-                DeclarationId::Callable(id) => self.program().callables().get(id).is_none(),
-                DeclarationId::Record(id) => self.program().records().get(id).is_none(),
-            }
+            && !self.program().header_ready(declaration)
         {
             return Err(Failure::RequiredHeader {
                 declaration,

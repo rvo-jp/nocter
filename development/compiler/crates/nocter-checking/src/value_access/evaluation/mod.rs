@@ -154,7 +154,7 @@ pub(super) struct Output {
     pub(super) values: BTreeMap<AccessCallableId, Arc<FrozenData>>,
     pub(super) dependencies: Arc<super::source_dependencies::SourceDependencies>,
 }
-pub(super) use preparation::prepare;
+pub(super) use preparation::{prepare, prepare_source};
 fn failure_at(
     context: &DeclarationContext<'_>,
     code: AccessCallableId,

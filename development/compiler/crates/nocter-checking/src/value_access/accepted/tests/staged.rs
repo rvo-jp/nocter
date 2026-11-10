@@ -2,55 +2,7 @@
 use super::*;
 use crate::value_access::{Query as TypedQuery, Rule, evaluation};
 use nocter_constant_evaluation::state;
-use nocter_declarations::value_access::PayloadSchema;
-use std::{collections::BTreeMap, sync::Arc};
-
-#[test]
-fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_headers() {
-    let source = "struct Late { pair: (bool, bool) }\nfunc alpha(): i32 { let pair = (40, true)\nlet action = (pair;): i32 { if pair.1 { pair.0 + 2 } else { 0 } }\naction() }\nfunc beta(action: func(): i32): i32 { action() }";
-    let (sources, tree) = input(source);
-    let syntax = bound(&sources, &tree);
-    let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-    let ids: Vec<_> = headers.callable_ids().collect();
-    let early = headers.context(ids[0]).unwrap();
-    assert_eq!(early.program().callables().len(), 1);
-    assert!(early.program().records().is_empty());
-    assert!(matches!(Unit::prepare(&early), Err(Failure::Integrity(_))));
-    let typed = TypedQuery::prepare(&early, ids[0]).unwrap();
-    let original_program = typed.program.clone();
-    let later = headers.context(ids[1]).unwrap();
-    assert!(typed.bind(&later).is_ok());
-    let headers = headers.finish();
-    let context = headers.bind(syntax).unwrap();
-    let evaluation = evaluation::prepare(
-        &context,
-        state::Limits::default(),
-        BTreeMap::from([(ids[0], typed)]),
-    )
-    .unwrap();
-    assert!(
-        Arc::ptr_eq(&evaluation.queries[&ids[0]].program, &original_program),
-        "a successful body must not be checked again against the larger header view"
-    );
-    let unit = Unit::close_evaluation(&context, evaluation).unwrap();
-    assert!(unit.bind(&context).is_ok());
-    assert_eq!(unit.bodies().len(), 2);
-    let (&code, _) = unit.closures().iter().next().unwrap();
-    let environment = unit.program().closure(code).unwrap().environment();
-    let Some(PayloadSchema::Aggregate(schema)) = unit.program().data_schema(environment) else {
-        panic!("tuple environment");
-    };
-    assert_eq!(
-        schema
-            .components()
-            .map(|c| unit.program().data_kind(c.data).unwrap())
-            .collect::<Vec<_>>(),
-        [
-            nocter_model::BuiltinType::I32,
-            nocter_model::BuiltinType::Bool
-        ]
-    );
-}
+use std::fmt::Write as _;
 
 #[test]
 fn missing_callable_contracts_are_requests_even_in_dead_source_and_cannot_bind_backwards() {
@@ -170,7 +122,47 @@ fn completing_callables_alone_cannot_admit_a_unit_with_unready_unused_records() 
 }
 
 #[test]
-fn seed_const_bodies_retain_recursive_evaluation_and_sibling_body_invalidation() {
+fn whole_unit_closure_rejects_missing_bodies_and_incorrect_initializer_value_coverage() {
+    let (sources, tree) = input("const ANSWER: i32 = 42\nfunc run(): i32 { ANSWER }");
+    let syntax = bound(&sources, &tree);
+    let headers = declarations::Query::prepare(syntax).unwrap();
+    let context = headers.bind(syntax).unwrap();
+    let program = context.program();
+    let answer = program
+        .resolve_constant(program.symbols().get("ANSWER").unwrap())
+        .unwrap();
+    let run = program
+        .resolve(program.symbols().get("run").unwrap())
+        .unwrap();
+    for mutation in 0..4 {
+        let mut output = evaluation::prepare(&context, state::Limits::default()).unwrap();
+        match mutation {
+            0 => {
+                output.queries.remove(&run);
+            }
+            1 => {
+                output.values.remove(&answer);
+            }
+            2 => {
+                output.values.insert(run, output.values[&answer].clone());
+            }
+            _ => {
+                let value = output.values.remove(&answer).unwrap();
+                output.values.insert(run, value);
+            }
+        }
+        assert!(
+            matches!(
+                Unit::close_evaluation(&context, output),
+                Err(Failure::Integrity(_))
+            ),
+            "coverage mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn progressive_const_bodies_retain_recursive_evaluation_and_sibling_body_invalidation() {
     let source = "const func alpha(value: i32): i32 { if value == 0 { 42 } else { omega(value - 1) } }\nconst func omega(value: i32): i32 { alpha(value) }\nconst result: i32 = alpha(2)\nfunc run(): i32 { result }";
     let (sources, tree) = input(source);
     let compiled = SourceUnit::prepare(bound(&sources, &tree)).unwrap();
@@ -198,4 +190,104 @@ fn seed_const_bodies_retain_recursive_evaluation_and_sibling_body_invalidation()
         query.bind(&context),
         Err(BodyFailure::ChangedBody)
     ));
+}
+
+#[test]
+fn progressive_header_requests_do_not_hide_constant_or_static_cycles() {
+    for source in [
+        "const A: i32 = helper()\nconst func helper(): i32 { B }\nconst B: i32 = A",
+        "const A: i32 = if false { B } else { 42 }\nconst B: i32 = A",
+        "static a: i32 = helper()\nconst func helper(): i32 { a }",
+    ] {
+        let (sources, tree) = input(source);
+        let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+            SourceUnit::prepare(bound(&sources, &tree))
+        else {
+            panic!("the active value cycle must reject: {source}")
+        };
+        assert_eq!(diagnostic.rule(), evaluation::Rule::DependencyCycle);
+        assert!(!diagnostic.source().primary().span().range().is_empty());
+    }
+}
+
+#[test]
+fn early_value_success_does_not_skip_unused_definitions_or_execution_limits() {
+    let prefix = "const ANSWER: i32 = helper()\nconst func helper(): i32 { 42 }\n";
+    for suffix in [
+        "func z_unused(): i32 { true }",
+        "const func z_unused(): i32 { runtime() }\nfunc runtime(): i32 { 0 }",
+    ] {
+        let (sources, tree) = input(&format!("{prefix}{suffix}"));
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(matches!(
+            failure,
+            SourceFailure::Checking(
+                Failure::Body {
+                    failure: BodyFailure::Rejected(_),
+                    ..
+                } | Failure::Const { .. }
+            )
+        ));
+    }
+    let (sources, tree) = input(prefix);
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(1).unwrap(),
+        std::num::NonZeroU32::new(16).unwrap(),
+    );
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare_with_limits(bound(&sources, &tree), limits)
+    else {
+        panic!("required execution must retain the operation budget")
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        evaluation::Rule::Execution(state::Rule::StepLimit)
+    );
+}
+
+#[test]
+fn ordinary_body_value_requests_restart_outer_work_but_share_nested_work() {
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(64).unwrap(),
+        std::num::NonZeroU32::new(16).unwrap(),
+    );
+    let mut source = String::new();
+    for i in 0..32 {
+        writeln!(
+            source,
+            "func f{i:02}(): i32 {{ z{i:02} }}\nconst z{i:02}: i32 = {i}"
+        )
+        .unwrap();
+    }
+    let (sources, tree) = input(&source);
+    let compiled = SourceUnit::prepare_with_limits(bound(&sources, &tree), limits).unwrap();
+    for i in 0..32 {
+        let program = compiled.unit().program();
+        let id = program
+            .resolve_constant(program.symbols().get(&format!("z{i:02}")).unwrap())
+            .unwrap();
+        assert_eq!(
+            compiled.unit().constant_value(id),
+            Some(&state::Value::integer(i).freeze())
+        );
+    }
+    let total = (0..32)
+        .map(|i| format!("z{i:02}"))
+        .collect::<Vec<_>>()
+        .join(" + ");
+    writeln!(
+        source,
+        "func a_request(): i32 {{ root }}\nconst root: i32 = {total}"
+    )
+    .unwrap();
+    let (sources, tree) = input(&source);
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare_with_limits(bound(&sources, &tree), limits)
+    else {
+        panic!("nested dependencies must consume the same work budget")
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        evaluation::Rule::Execution(state::Rule::StepLimit)
+    );
 }

@@ -78,14 +78,27 @@ impl Unit {
                 flow::IntegrityError::InconsistentTypedBody,
             ));
         }
-        let evaluation = super::evaluation::prepare(context, limits.into(), BTreeMap::new())?;
+        let evaluation = super::evaluation::prepare(context, limits.into())?;
         Self::close_evaluation(context, evaluation)
     }
     pub(super) fn close_evaluation(
         context: &DeclarationContext<'_>,
         evaluation: super::evaluation::Output,
     ) -> Result<Self, Failure> {
-        if !context.program().headers_complete() {
+        let declarations = context.program().callables();
+        let complete_bodies = evaluation.queries.len() == declarations.len()
+            && declarations
+                .iter()
+                .all(|(id, _)| evaluation.queries.contains_key(&id));
+        let initializer_count = declarations
+            .iter()
+            .filter(|(_, declaration)| declaration.kind().is_initializer())
+            .count();
+        let complete_values = initializer_count == evaluation.values.len()
+            && declarations.iter().all(|(id, declaration)| {
+                !declaration.kind().is_initializer() || evaluation.values.contains_key(&id)
+            });
+        if !context.program().headers_complete() || !complete_bodies || !complete_values {
             return Err(Failure::Integrity(
                 flow::IntegrityError::InconsistentTypedBody,
             ));

@@ -1,0 +1,18 @@
+struct Unused {
+    pair: (bool, bool)
+}
+
+const ANSWER: i32 = helper(2)
+
+const func helper(value: i32): i32 {
+    let pair = (value, true)
+    if pair.0 == 0 { 42 } else { helper(pair.0 - 1) }
+}
+
+func run(): i32 {
+    ANSWER + helper(2) - 42
+}
+
+func z_unused(action: func(): i32): i32 {
+    action()
+}

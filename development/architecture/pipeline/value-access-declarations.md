@@ -22,15 +22,14 @@ V2CoreUnit syntax + exact source
   -> exact-current declaration preparation
        validated source references/containment + reserved identities + one namespace/source catalog
        requested callable/record + transitive records -> complete immutable ready-header view
-  -> ordinary typed-body preparation over ready contracts
+  -> dependency-scheduled ordinary typed-body preparation over ready contracts
        missing header -> same declaration preparation -> retry unpublished draft
+       missing constant -> ordinary checking of selected const closure -> closed execution
+       unrelated headers can remain unready during required execution
+       frozen values feed typing; immutable static views retain global place identity
        successful query retains its own header-prefix boundary
-  -> complete reusable access-declaration query + exact-current context
+  -> complete reusable access-declaration query + typed queries + required frozen values
        all callable/record contracts + neutral header surface + projection recipe
-  -> dependency-scheduled ordinary typed-body preparation
-       missing constant -> same ordinary checking of selected const closure -> closed execution
-       completed frozen values feed typing; immutable static views retain global place identity
-       successful body query -> same declaration authority + typed operations + source recipe
   -> canonical replay of body application types + complete body data projection
        shared declaration facts and one final type authority; exact header source binding retained
   -> source-neutral control/evaluation graph
@@ -91,7 +90,8 @@ No borrowed wrapper or released storable-type heuristic supplies a missing futur
 `nocter-declaration-lowering` owns canonical header collection, normalization and diagnostic
 projection. It reserves functions and records in namespace order and maps resolved identities to neutral
 syntax locators. Its exact-current preparation supplies immutable ready declaration contexts while
-checking retains successful bodies. The complete reusable query contains no source identity, syntax ID, range, or body text.
+checking's common readiness/value coordinator retains successful bodies and executes selected const
+closures. The complete reusable query contains no source identity, syntax ID, range, or body text.
 Binding checks the complete header surface before resolving locators to current syntax. The
 current context has no public parts constructor; a caller cannot pair unrelated program/syntax
 products or relabel released source as future source.
@@ -100,8 +100,10 @@ products or relabel released source as future source.
 
 Every selected contract is closed before body checking consumes it. Source data-name references
 and finite containment validation still close together; callable contracts and transitive record
-schemas become ready as body preparation requests them. All headers must close before the
-required-value executor and complete Unit admission.
+schemas become ready as body preparation requests them. Required execution needs only the selected
+contracts and ordinarily accepted const closure; unrelated contracts can remain unready. Every
+header and body must close before complete Unit admission. Source type normalization still cannot
+request computed values.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a

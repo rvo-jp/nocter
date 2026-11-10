@@ -114,6 +114,14 @@ fn private_indirect_aggregate_inputs_and_results_execute_natively() {
 fn private_callbacks_and_mutable_captures_use_the_same_native_call_path() {
     for (name, source, expected) in [
         (
+            "early-value-late-headers",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/native/value-access/early-value-late-headers.nct"
+            )),
+            42,
+        ),
+        (
             "late-header-replay",
             "func run(): i32 { let pair = (40, true)\nlet action = (pair;): i32 { if pair.1 { pair.0 + 2 } else { 0 } }\naction() }\nfunc z_unused(action: func(): i32): i32 { action() }",
             42,

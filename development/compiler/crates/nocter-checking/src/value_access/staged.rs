@@ -1,9 +1,8 @@
 //! One ordinary body preparation path over progressively closed declaration contracts.
-use super::{Failure as BodyFailure, accepted, checker, evaluation};
+use super::{accepted, evaluation};
 use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations as declarations;
 use nocter_syntax::BoundSyntax;
-use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub enum SourceFailure {
@@ -30,41 +29,13 @@ impl SourceUnit {
         syntax: BoundSyntax<'_>,
         limits: impl Into<state::Limits>,
     ) -> Result<Self, SourceFailure> {
-        let mut headers =
+        let headers =
             declarations::Preparation::prepare(syntax).map_err(SourceFailure::Declarations)?;
-        let ids: Vec<_> = headers.callable_ids().collect();
-        let mut queries = BTreeMap::new();
-        for id in ids {
-            let mut context = headers.context(id).map_err(SourceFailure::Declarations)?;
-            loop {
-                match checker::prepare(&context, id, &()) {
-                    Ok(query) => {
-                        queries.insert(id, query);
-                        break;
-                    }
-                    Err(BodyFailure::RequiredHeader { declaration, .. }) => {
-                        context = headers
-                            .context(declaration)
-                            .map_err(SourceFailure::Declarations)?;
-                    }
-                    // Values still use the existing shared dependency/evaluator authority below.
-                    // No successful body is reopened when a later constant finishes.
-                    Err(BodyFailure::RequiredConstant { .. }) => break,
-                    Err(failure) => {
-                        return Err(SourceFailure::Checking(accepted::Failure::Body {
-                            callable: id,
-                            failure,
-                        }));
-                    }
-                }
-            }
-        }
-        let declarations = headers.finish();
+        let (declarations, evaluation) =
+            evaluation::prepare_source(headers, limits.into()).map_err(SourceFailure::Checking)?;
         let context = declarations
             .bind(syntax)
             .map_err(SourceFailure::Declarations)?;
-        let evaluation = evaluation::prepare(&context, limits.into(), queries)
-            .map_err(SourceFailure::Checking)?;
         let unit = accepted::Unit::close_evaluation(&context, evaluation)
             .map_err(SourceFailure::Checking)?;
         Ok(Self { declarations, unit })

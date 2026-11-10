@@ -105,8 +105,9 @@ order cannot allocate new slots or renumber a formal witness. The current
 [staged source path](../compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
 can retain bodies over earlier ready declaration views and replay their type suffixes after later
 contracts close. Requested contracts publish transitive record schemas on demand, while raw source
-data references and containment validation still require a complete first stratum; required values
-execute only after all headers close. Extend that boundary with deferred source reference/shape
+data references and containment validation still require a complete first stratum. The same
+readiness/value coordinator executes selected const closures while unrelated headers remain
+unready. Extend that boundary with deferred source reference/shape
 normalization and header-dependent required-value requests through the one
 dependency protocol. A reservation alone cannot type-check an unfinished signature. Qualify actual
 array source through the combined path rather than treating ready-view/slot tests as array conformance.
@@ -118,6 +119,33 @@ Body bytes used by a header value must participate in header reuse invalidation;
 body-independent header-surface equality cannot certify an evaluated length after a supplying const
 body changes. Preserve exact source recipes and causal edges across those requests. This integration,
 not reservation closure alone, is the remaining gate for array type lengths.
+
+### Structural Type Request Closure
+
+This is the remaining construction design, not implemented array admission. Retain source type
+recipes until their selected declaration is requested rather than eagerly resolving every header.
+The closed name/input/field domain stays fixed. Normalization can then return a typed dependency
+request without publishing a provisional contract. Source lowering owns loading the requested
+recipe; declarations own validation and normalized identity; the existing checking/value
+coordinator owns ordinary body acceptance and required execution. A length expression needs its
+own semantic code identity and exact source recipe. Do not manufacture a named function, source
+text or a separate expression checker to evaluate it.
+
+Separate nominal name identity from payload-schema dependencies. In particular, the
+[array containment contract](../spec/language/tuples-and-arrays.md#scope-and-identity) requires
+evaluating the count before deciding which element-payload edges need closure. Requesting every
+element's complete record schema before normalizing the count would incorrectly turn a valid
+zero-length containment break into a cycle. A known nominal leaf does not itself prove payload
+validity or Copy; every independent declaration must still validate before whole-unit publication.
+Finite containment, structural Copy and ready-schema publication must consume one declaration-owned
+dependency model and policy; separate eager and deferred validators cannot maintain competing
+containment or Copy rules.
+
+Qualify the boundary with computed lengths in fields and function signatures, forward helpers,
+dead authored dependencies, zero/positive containment, type/value cycles and supplying-body edits.
+Then qualify local annotations, construction/repetition, selected indexing, partial initialization,
+cleanup and native execution against the same normalized array identity. A test of early scalar
+evaluation or of a reserved array key cannot stand in for those source paths.
 
 The evaluator must preserve edit-input writes, aliases, partial state and once-only cleanup.
 Compare repeated calls with equal scalar input values but different mutable places, selected enum

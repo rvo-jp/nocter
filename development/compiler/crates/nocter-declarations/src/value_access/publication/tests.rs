@@ -44,6 +44,8 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
     let mut headers = builder.into_publication().unwrap();
     headers.publish(run).unwrap();
     let early = headers.snapshot();
+    assert!(early.header_ready(run));
+    assert!(!early.header_ready(parent));
     assert!(
         !early.headers_complete(),
         "unreferenced records are part of unit closure"
@@ -66,6 +68,9 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
     assert!(early.fields().is_empty());
     headers.publish(parent).unwrap();
     let later = headers.snapshot();
+    assert!(later.header_ready(parent));
+    assert!(later.header_ready(child));
+    assert!(!later.header_ready(unused));
     assert!(later.preserves_headers(&early));
     assert!(!early.preserves_headers(&later));
     assert_eq!(later.records().len(), 2);

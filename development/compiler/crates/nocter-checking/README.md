@@ -221,16 +221,13 @@ with adjacent stages.
 
 ## Bounded Future Value Binding Typing
 
-`accepted::SourceUnit` owns staged source preparation and the resulting complete Unit with its
-reusable header query. `staged` asks lowering for ready declaration contexts and uses the same ordinary
-body checker. A reference to a known but unready callable or record returns `RequiredHeader`; preparation
-publishes that contract and retries the unpublished draft. It never guesses the signature, changes
-dispatch or reparses source. The complete name domain still forbids shadowing independently of
-readiness, and dead source retains its header requirements. Successful body queries are retained
-without rechecking. Missing constant values continue through the required-value coordinator below.
-Record construction and named annotation leaves, including closure input data, use that same
-request. A ready record includes its transitive payload schemas. This stage does not yet request
-values during source type normalization; raw reference/containment validation remains eager.
+`accepted::SourceUnit` pairs the resulting complete Unit with its reusable header query. Its source
+entry delegates contract readiness, ordinary body preparation and required execution to the
+[initializer coordinator](#required-private-initializers). Known but unready declarations request
+their complete contracts; unknown names remain source failures. The complete name domain forbids
+shadowing independently of readiness, and dead source retains its requirements. Record construction
+and annotation leaves, including closure input data, use that same request. This stage does not yet
+request values during source type normalization; raw reference/containment validation remains eager.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
@@ -496,8 +493,10 @@ transitions alone cannot replace the combined source proofs or establish executa
 The whole-unit constructor validates every definition, including unused/recursive callees, and
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
 same shared declaration facts, canonical type authority, closed result evidence and all body/flow
-reports. It rejects an incomplete ready-header view before evaluation or acceptance. Binding
-validates every original body before exposing current projections. An equal but separately rebuilt program or changed sibling
+reports. It rejects an incomplete ready-header view before evaluation or acceptance. Admission
+also proves exact callable-body and required-initializer-value coverage; a coordinator's
+omitted body or missing, extra or role-substituted value cannot become a complete Unit. Source
+binding validates every original body before exposing current projections. An equal but separately rebuilt program or changed sibling
 cannot substitute for that authority. The sole body catalog exposes exact semantic-ID lookup for
 the target owner's private instance consumer. That consumer receives only the complete Unit,
 never typed-only evidence. The schema-to-payload projection exposes a cleanup obligation without
@@ -548,11 +547,13 @@ exclude those thunks. Their execution role grants no source return target: an in
 use `return` to leave its value-expression boundary. Nested source callables retain their own
 return targets. Runtime instance closure rejects an initializer as an entry root.
 
-`evaluation::preparation` owns one common `DependencyQuery` for required values. The ordinary
-body checker requests a missing constant only after selecting its declaration identity. An
-unpublished draft stops at that request; preparation resolves the dependency and retries that
-draft through the same checker. Successful typed bodies are cached once. No provisional value,
-syntax dependency scanner, second source interpreter or completed-body retyping supplies a fact.
+`evaluation::preparation` owns the common coordinator for contract readiness, typed bodies and one
+`DependencyQuery` for required values. It accepts either a closed context or the exact-current
+declaration preparation. A missing callable/record contract advances the ready header view; a
+missing constant requests its value only after selecting its declaration identity. An unpublished
+draft stops at either request and retries through the same checker after its dependency is ready.
+Successful typed bodies remain in this coordinator's sole cache. No provisional value, syntax
+dependency scanner, second source interpreter or completed-body retyping supplies a fact.
 Constant references become validated primitive literals or immutable frozen-aggregate expressions in
 ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.
@@ -560,12 +561,13 @@ All authored source remains structurally checked, including unevaluated branches
 callees are prepared through all authored call edges; callable-only recursion remains a graph,
 while a constant reference requests a value and exposes an active declaration cycle.
 
-Staged source preparation can seed this coordinator with successful queries from earlier header
-views. Each seed must bind to the complete current context before use; the coordinator retains its
-original typed program until canonical replay. Seeded const bodies contribute the same exact-source
-dependencies as newly checked bodies. Static requirements are still resolved from cached queries,
-so reuse cannot hide a value cycle or a changed supplying body. All headers close before this
-required-value execution phase; header-dependent evaluation remains a separate integration gate.
+Required values can execute with unrelated callable/record contracts still unready. Every selected
+const body retains its origin header view until canonical replay and contributes its exact body
+bytes to source dependencies. Static requirements are still resolved from cached queries, so reuse
+cannot hide a value cycle or a changed supplying body. The same pass also checks ordinary and
+unused definitions. Whole-unit closure requires every header, body and required value; selected
+const-closure acceptance never grants complete Unit admission. Source type normalization cannot
+yet request these values; header-dependent lengths remain a separate integration gate.
 
 The same `accepted::check_queries` routine canonically replays and ordinarily validates a selected
 const closure before any execution, and later closes the complete Unit. Each temporary closure
