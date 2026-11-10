@@ -31,6 +31,10 @@ Run the complete compiler gate for full-pipeline integration or release qualific
 development/verification/verify-compiler.sh
 ```
 
+Native integration tests need permission to execute temporary images and create loopback TCP
+listeners. A host permission rejection during fixture setup is an environment failure; run under
+an environment permitting those operations rather than weakening the expected source behavior.
+
 The full tier is the same entry point with its default `--full` behavior. It adds the CLI, command,
 native-session, and language-server suites, no-default-features checking, and warnings-denied Rust
 documentation. Both tiers first verify that the machine-readable release license, shipped legal
