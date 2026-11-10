@@ -70,6 +70,15 @@ select different resource phases. Initialization thunks have no inputs and canno
 targets. Positional type identities retain the producer's nominal distinctions within one immutable
 table; structurally similar records do not make call edges interchangeable.
 
+Plan tables, execution sites and failure roots retain a complete `ValueCodeRoot`. Different
+required expressions can share a source owner without sharing an executable plan; the parent's
+plan need not exist to execute an expression. Expression roots are input-free initializer plans,
+never ordinary call targets. Direct calls continue to select declaration code explicitly. The
+validated plan supplies the result type; the evaluator cannot infer usize or any other data
+contract from a code key. Work/storage/depth accounting and failure call paths use the same
+executor for declaration and expression roots. This closed-plan support does not itself admit
+body-local count source through checking's dependency query.
+
 `Type::builtin` owns the admitted primitive domain for the current 64-bit profile. The checker uses that same admission
 for body-domain checks. Ordered aggregate schemas compose those leaves without claiming Copy. Checking retains source
 record/tuple type distinctions while using that one evaluator shape. Schema

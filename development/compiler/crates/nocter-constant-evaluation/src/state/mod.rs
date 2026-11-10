@@ -6,7 +6,7 @@ mod validation;
 mod value;
 pub use budget::{Budget, Limits};
 pub use execution::{Error, Executor, Rule};
-use nocter_model::{AccessCodeId, AccessFlowPointId, Arena};
+use nocter_model::{AccessCodeId, AccessFlowPointId, Arena, ValueCodeRoot};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::{Data, Value};
 
@@ -71,7 +71,7 @@ impl Place {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Site {
-    pub code: AccessCodeId,
+    pub code: ValueCodeRoot,
     pub point: AccessFlowPointId,
     pub action: usize,
 }
@@ -186,14 +186,14 @@ pub struct Static {
 pub struct Program {
     types: Box<[Type]>,
     statics: BTreeMap<nocter_model::ValueStatic, Static>,
-    plans: BTreeMap<AccessCodeId, Plan>,
+    plans: BTreeMap<ValueCodeRoot, Plan>,
 }
 impl Program {
     /// # Errors
     /// Rejects invalid types, slots, control, call contracts or resource-plan references.
     pub fn new(
         types: impl Into<Box<[Type]>>,
-        plans: BTreeMap<AccessCodeId, Plan>,
+        plans: BTreeMap<ValueCodeRoot, Plan>,
         statics: BTreeMap<nocter_model::ValueStatic, Static>,
     ) -> Result<Self, Rule> {
         let program = Self {

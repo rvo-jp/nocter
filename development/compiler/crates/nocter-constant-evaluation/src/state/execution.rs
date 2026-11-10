@@ -3,7 +3,7 @@ use super::{
     memory::{Cell, Frame, Memory},
 };
 use crate::{ConstantScalarType, scalar};
-use nocter_model::{AccessCodeId, ConstantValue, ValueInputOperation};
+use nocter_model::{ConstantValue, ValueCodeRoot, ValueInputOperation};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     InvalidPlan,
@@ -17,7 +17,7 @@ pub enum Rule {
 pub struct Error {
     pub rule: Rule,
     pub site: Option<Site>,
-    pub code: AccessCodeId,
+    pub code: ValueCodeRoot,
     pub trace: Box<[Site]>,
 }
 type Result<T> = std::result::Result<T, Rule>;
@@ -49,8 +49,9 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     /// Reports a failed closed initializer with its exact operation and call path.
     pub fn evaluate_initializer(
         &mut self,
-        code: AccessCodeId,
+        code: impl Into<ValueCodeRoot>,
     ) -> std::result::Result<Value, Error> {
+        let code = code.into();
         self.site = None;
         self.failed_site = None;
         self.trace.clear();
@@ -69,7 +70,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn tick(&mut self) -> Result<()> {
         self.budget.step()
     }
-    fn invoke(&mut self, code: AccessCodeId, inputs: &[Cell]) -> Result<Value> {
+    fn invoke(&mut self, code: ValueCodeRoot, inputs: &[Cell]) -> Result<Value> {
         if self
             .memory
             .frames
@@ -119,7 +120,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.memory.frames.pop();
         result
     }
-    fn run(&mut self, code: AccessCodeId, plan: &Plan, frame: usize) -> Result<Value> {
+    fn run(&mut self, code: ValueCodeRoot, plan: &Plan, frame: usize) -> Result<Value> {
         let mut point = plan.entry;
         loop {
             let block = plan.points.get(point).ok_or(Rule::InvalidPlan)?;
@@ -306,7 +307,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             } => {
                 let _input_storage = self.memory.storage.items(inputs.len())?;
                 let inputs = self.inputs(frame, inputs, taken)?;
-                (*destination, self.invoke(*target, &inputs)?)
+                (*destination, self.invoke((*target).into(), &inputs)?)
             }
         };
         self.write(frame, &Place::root(destination), value)

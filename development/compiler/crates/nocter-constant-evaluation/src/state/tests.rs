@@ -3,6 +3,7 @@ use super::*;
 use crate::CompileTimeEvaluationLimits;
 use nocter_model::ArenaBuilder;
 use std::num::{NonZeroU32, NonZeroU64};
+mod expression_roots;
 pub(super) fn literal() -> Plan {
     let mut points = ArenaBuilder::new();
     let entry = points.insert(Point {
@@ -64,7 +65,7 @@ fn equal_ownership_guards_cannot_choose_conflicting_resource_phases() {
     assert!(matches!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(id, invalid)]),
+            BTreeMap::from([(id.into(), invalid)]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)
@@ -85,7 +86,7 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
     assert!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(id, wrong_value)]),
+            BTreeMap::from([(id.into(), wrong_value)]),
             BTreeMap::new()
         )
         .is_err()
@@ -112,7 +113,7 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
     assert!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(id, missing_call)]),
+            BTreeMap::from([(id.into(), missing_call)]),
             BTreeMap::new()
         )
         .is_err()
@@ -138,7 +139,7 @@ fn exhausted_work_is_not_replenished_by_another_closed_request() {
     };
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(good, literal()), (bad, loop_plan)]),
+        BTreeMap::from([(good.into(), literal()), (bad.into(), loop_plan)]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -205,7 +206,7 @@ fn arithmetic_failure_releases_its_frame_before_reusing_the_executor() {
     });
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(good, literal()), (bad, failure)]),
+        BTreeMap::from([(good.into(), literal()), (bad.into(), failure)]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -252,7 +253,7 @@ fn sparse_guards_have_one_sorted_prefix_free_form_before_phase_matching() {
         assert!(matches!(
             Program::new(
                 [Type::I32, Type::Record(vec![0, 0].into())],
-                BTreeMap::from([(id, plan)]),
+                BTreeMap::from([(id.into(), plan)]),
                 BTreeMap::new()
             ),
             Err(Rule::InvalidPlan)
@@ -288,7 +289,7 @@ fn unread_scoped_inputs_still_require_initialized_caller_data() {
     });
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(root, source), (function, target)]),
+        BTreeMap::from([(root.into(), source), (function.into(), target)]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -323,7 +324,7 @@ fn widened_integer_payloads_still_require_their_exact_slot_domain() {
             point
         });
         assert_eq!(
-            Program::new([ty], BTreeMap::from([(id, plan)]), BTreeMap::new()).is_ok(),
+            Program::new([ty], BTreeMap::from([(id.into(), plan)]), BTreeMap::new()).is_ok(),
             valid
         );
     }

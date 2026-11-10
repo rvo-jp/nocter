@@ -3,9 +3,10 @@
 ## Immediate Work
 
 1. Connect the [registered body-owned required expressions](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
-   to ordinary lexical checking, the common value query and evaluator code identities under the
+   to ordinary lexical checking and the common value query under the
    [body-expression contract](design/compiler-realization.md#body-owned-required-expressions).
-   Preserve header slots, exact code roots and the distinction between lexical scope and callable identity.
+   Carry full roots through checked-body closure and source-cause projection into the root-aware
+   evaluator. Preserve header slots and the distinction between lexical scope and callable identity.
    Extend [computed source array headers](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
    into local annotations, value construction/repetition, selected indexing, sparse partial
    initialization and cleanup, evaluator array data/publication, and native storage/ABI.

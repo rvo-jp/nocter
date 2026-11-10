@@ -139,8 +139,10 @@ that unused/computed array types coexist with scalar execution, not array value 
 
 The [model/type owners](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
 and [source owner](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
-provide body-owned expression roots and exact source pairing. Their connection to ordinary
-lexical checking, the shared value query and evaluator code identities remains required before
+provide body-owned expression roots and exact source pairing. The
+[closed evaluator](../compiler/crates/nocter-constant-evaluation/README.md#stateful-value-plans)
+also retains those roots independently of source ownership. Their connection through ordinary
+lexical checking, the shared value query, checked-body closure and source-cause projection remains required before
 local count admission. Do not append these roots to the closed header reservation arena: adding an expression
 in one body would otherwise renumber sibling expressions or invalidate an unrelated header query.
 Pair each expression key with its actual root through its enclosing body's source authority.
@@ -155,6 +157,14 @@ and reuse evidence. Ordinary lexical name validation must be preserved; a second
 lookup for count syntax would miss local shadowing and unavailable bindings. Lexical values need
 their actual compile-time evidence. An unavailable runtime input cannot silently become an
 expression-code argument, evaluator capture or runtime-sized type.
+
+Capture lexical availability at the ordinary annotation-checking site and retain it as an input
+to that expression's shared query request. The source-root catalog cannot reconstruct binding
+decisions. In particular, a visible local cannot disappear so global lookup can find another
+declaration; expression-local binding checks must retain the enclosing shadowing constraints.
+Unavailable enclosing values need an explicit local diagnostic, without fabricating evaluator
+inputs. The expression owns its internal control targets and cannot return, break or continue
+into the enclosing callable/loop. A source pairing alone is not this lexical proof.
 
 Carry the complete expression-code identity through header/body/value requests, unpublished body
 type branches, selected applications/closures, evaluator plans and failure projection. Sharing a

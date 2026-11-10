@@ -662,7 +662,7 @@ pub(super) fn prepare(
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
     while let Some(id) = pending.pop() {
-        if plans.contains_key(&id) {
+        if plans.contains_key(&id.into()) {
             continue;
         }
         let query = bodies.get(&id).ok_or(INVALID)?;
@@ -681,7 +681,7 @@ pub(super) fn prepare(
                 }
             }
         }
-        plans.insert(id, plan);
+        plans.insert(id.into(), plan);
     }
     let mut statics = BTreeMap::new();
     for plan in plans.values() {

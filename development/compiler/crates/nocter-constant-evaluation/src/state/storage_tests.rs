@@ -17,7 +17,7 @@ fn returned_values_retain_one_charge_without_charging_handle_clones() {
     let (code, _) = super::tests::code_ids();
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(code, super::tests::literal())]),
+        BTreeMap::from([(code.into(), super::tests::literal())]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -41,7 +41,7 @@ fn retained_outputs_eventually_exhaust_storage_and_failed_frames_are_reusable() 
     let (code, _) = super::tests::code_ids();
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(code, super::tests::literal())]),
+        BTreeMap::from([(code.into(), super::tests::literal())]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -212,7 +212,12 @@ fn closed_literal_dags_validate_and_execute_without_expanding_shared_subgraphs()
         };
         point
     });
-    let program = Program::new(types, BTreeMap::from([(code, plan)]), BTreeMap::new()).unwrap();
+    let program = Program::new(
+        types,
+        BTreeMap::from([(code.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
     let mut budget = budget(1024);
     let value = Executor::new(&program, &mut budget, 0)
         .evaluate_initializer(code)
@@ -228,7 +233,7 @@ fn excessive_suspended_depth_rejects_without_overflow_or_allocating_a_frame() {
     let (code, _) = super::tests::code_ids();
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(code, super::tests::literal())]),
+        BTreeMap::from([(code.into(), super::tests::literal())]),
         BTreeMap::new(),
     )
     .unwrap();
