@@ -13,7 +13,8 @@ pub enum Data {
     Unit,
     Bool(bool),
     Integer(i128),
-    Record(Box<[Value]>),
+    /// Ordered physical storage; the validated slot type owns its record/tuple/array identity.
+    Aggregate(Box<[Value]>),
 }
 struct Node {
     data: Data,
@@ -48,8 +49,8 @@ impl Value {
         Self::plain(Data::Integer(value.into()))
     }
     #[must_use]
-    pub fn record(fields: impl Into<Box<[Self]>>) -> Self {
-        Self::plain(Data::Record(fields.into()))
+    pub fn aggregate(fields: impl Into<Box<[Self]>>) -> Self {
+        Self::plain(Data::Aggregate(fields.into()))
     }
     #[must_use]
     pub fn data(&self) -> &Data {
@@ -73,7 +74,7 @@ impl Value {
         }
         if Arc::get_mut(self.node.as_mut().expect("live value")).is_none() {
             let count = match self.data() {
-                Data::Record(fields) => fields.len(),
+                Data::Aggregate(fields) => fields.len(),
                 _ => 0,
             };
             let allocation = storage.items(count)?;
@@ -102,7 +103,7 @@ impl PartialEq for Value {
                 (Data::Unit, Data::Unit) => {}
                 (Data::Bool(a), Data::Bool(b)) if a == b => {}
                 (Data::Integer(a), Data::Integer(b)) if a == b => {}
-                (Data::Record(a), Data::Record(b)) if a.len() == b.len() => {
+                (Data::Aggregate(a), Data::Aggregate(b)) if a.len() == b.len() => {
                     pending.extend(a.iter().zip(b));
                 }
                 _ => return false,
@@ -123,7 +124,7 @@ impl Drop for Value {
             return;
         };
         let Some(Node {
-            data: Data::Record(fields),
+            data: Data::Aggregate(fields),
             ..
         }) = Arc::into_inner(node)
         else {
@@ -135,7 +136,7 @@ impl Drop for Value {
                 continue;
             };
             if let Some(Node {
-                data: Data::Record(fields),
+                data: Data::Aggregate(fields),
                 ..
             }) = Arc::into_inner(node)
             {
@@ -146,7 +147,7 @@ impl Drop for Value {
 }
 impl Storage {
     pub(super) fn primitive(&self, data: Data) -> Result<Value, Rule> {
-        if matches!(data, Data::Record(_)) {
+        if matches!(data, Data::Aggregate(_)) {
             return Err(Rule::InvalidPlan);
         }
         let allocation = self.items(0)?;
@@ -157,7 +158,7 @@ impl Storage {
             })),
         })
     }
-    pub(super) fn record(
+    pub(super) fn aggregate(
         &self,
         fields: impl ExactSizeIterator<Item = Value>,
     ) -> Result<Value, Rule> {
@@ -168,7 +169,7 @@ impl Storage {
         }
         Ok(Value {
             node: Some(Arc::new(Node {
-                data: Data::Record(fields),
+                data: Data::Aggregate(fields),
                 allocation: Some(allocation),
             })),
         })
@@ -177,7 +178,7 @@ impl Storage {
         if value.belongs_to(self) {
             return Ok(value.clone());
         }
-        if !matches!(value.data(), Data::Record(_)) {
+        if !matches!(value.data(), Data::Aggregate(_)) {
             return self.primitive(value.data().clone());
         }
         let mut pending = vec![self.entry((value.clone(), false))?];
@@ -190,7 +191,7 @@ impl Storage {
             }
             if !source.belongs_to(self)
                 && !*expanded
-                && let Data::Record(fields) = source.data()
+                && let Data::Aggregate(fields) = source.data()
             {
                 pending.push(self.entry((source.clone(), true))?);
                 for field in fields.iter().rev() {
@@ -202,7 +203,7 @@ impl Storage {
                 source.clone()
             } else {
                 match source.data() {
-                    Data::Record(fields) => self.record(fields.iter().map(|field| {
+                    Data::Aggregate(fields) => self.aggregate(fields.iter().map(|field| {
                         completed
                             .get(&field.identity())
                             .expect("postorder value")
@@ -235,7 +236,7 @@ impl Value {
             if ids.contains_key(&value.identity()) {
                 continue;
             }
-            if !expanded && let Data::Record(fields) = value.data() {
+            if !expanded && let Data::Aggregate(fields) = value.data() {
                 pending.push((value, true));
                 pending.extend(fields.iter().rev().map(|field| (field, false)));
                 continue;
@@ -244,7 +245,7 @@ impl Value {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
                 Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
-                Data::Record(fields) => FrozenNode::Aggregate(
+                Data::Aggregate(fields) => FrozenNode::Aggregate(
                     fields.iter().map(|field| ids[&field.identity()]).collect(),
                 ),
             };
@@ -254,7 +255,7 @@ impl Value {
         FrozenData::new(nodes).expect("postorder frozen data")
     }
     /// Reconstruct the selected immutable plan datum without visiting unrelated graph nodes.
-    /// Shared records remain shared; no source executes during reconstruction.
+    /// Shared aggregates remain shared; no source executes during reconstruction.
     #[must_use]
     pub fn from_frozen(data: &nocter_model::FrozenData) -> Option<Self> {
         use nocter_model::{ConstantValue, FrozenNode};
@@ -274,7 +275,7 @@ impl Value {
                 FrozenNode::Unit => Self::unit(),
                 FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
                 FrozenNode::Scalar(ConstantValue::Integer(value)) => Self::integer(*value),
-                FrozenNode::Aggregate(fields) => Self::record(
+                FrozenNode::Aggregate(fields) => Self::aggregate(
                     fields
                         .iter()
                         .map(|id| values.get(id).cloned())

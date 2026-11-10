@@ -8,10 +8,11 @@ pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Res
 pub(super) fn place_data(program: &Program, slots: &[super::Slot], place: &Place) -> Result<usize> {
     let mut data = slots.get(place.slot).ok_or(INVALID)?.data;
     for &field in &place.fields {
-        let Type::Record(fields) = program.types.get(data).ok_or(INVALID)? else {
-            return Err(INVALID);
-        };
-        data = *fields.get(field).ok_or(INVALID)?;
+        data = program
+            .types
+            .get(data)
+            .and_then(|ty| ty.component(field))
+            .ok_or(INVALID)?;
     }
     Ok(data)
 }
@@ -34,8 +35,15 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
                         _ => None,
                     })
                     .is_some_and(|spec| spec.contains(*value)) => {}
-            (Some(Type::Record(fields)), Data::Record(values)) if fields.len() == values.len() => {
+            (Some(Type::Record(fields)), Data::Aggregate(values))
+                if fields.len() == values.len() =>
+            {
                 pending.extend(fields.iter().copied().zip(values.iter().cloned()));
+            }
+            (Some(Type::Array { element, length }), Data::Aggregate(values))
+                if u64::try_from(values.len()).ok() == Some(*length) =>
+            {
+                pending.extend(values.iter().cloned().map(|value| (*element, value)));
             }
             _ => return false,
         }
@@ -46,6 +54,11 @@ pub(super) fn validate(program: &Program) -> Result<()> {
     for (id, data) in program.types.iter().enumerate() {
         if let Type::Record(fields) = data
             && fields.iter().any(|&field| field >= id)
+        {
+            return Err(INVALID);
+        }
+        if let Type::Array { element, length } = data
+            && (*element >= program.types.len() || (*length != 0 && *element >= id))
         {
             return Err(INVALID);
         }
@@ -200,6 +213,11 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             }
             equal(slot(*destination)?.data, data(source)?)
         }
+        Operation::Index {
+            destination,
+            base,
+            index,
+        } => index_operation(program, plan, *destination, base, index),
         Operation::Copy {
             destination,
             source,
@@ -223,24 +241,8 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             operation,
             left,
             right,
-        } => {
-            if matches!(
-                operation,
-                crate::CompileTimeBinaryOperation::ShiftLeft
-                    | crate::CompileTimeBinaryOperation::ShiftRightSigned
-                    | crate::CompileTimeBinaryOperation::ShiftRightUnsigned
-            ) {
-                return Err(INVALID);
-            }
-            if !matches!(
-                program.types.get(data(left)?),
-                Some(Type::I32 | Type::Usize)
-            ) {
-                return Err(INVALID);
-            }
-            equal(data(left)?, data(right)?)?;
-            equal(data(destination)?, data(left)?)
-        }
+        } => binary_operation(program, plan, destination, *operation, left, right),
+
         Operation::Compare {
             destination,
             operation,
@@ -273,6 +275,50 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             inputs,
         } => call(program, plan, *destination, *target, inputs),
     }
+}
+fn binary_operation(
+    program: &Program,
+    plan: &super::Plan,
+    destination: &Place,
+    operation: crate::CompileTimeBinaryOperation,
+    left: &Place,
+    right: &Place,
+) -> Result<()> {
+    if matches!(
+        operation,
+        crate::CompileTimeBinaryOperation::ShiftLeft
+            | crate::CompileTimeBinaryOperation::ShiftRightSigned
+            | crate::CompileTimeBinaryOperation::ShiftRightUnsigned
+    ) {
+        return Err(INVALID);
+    }
+    let data = place(program, plan, left)?;
+    if !matches!(program.types.get(data), Some(Type::I32 | Type::Usize))
+        || place(program, plan, right)? != data
+        || place(program, plan, destination)? != data
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+fn index_operation(
+    program: &Program,
+    plan: &super::Plan,
+    destination: usize,
+    base: &Place,
+    index: &Place,
+) -> Result<()> {
+    let Some(Type::Array { element, .. }) = program.types.get(place(program, plan, base)?) else {
+        return Err(INVALID);
+    };
+    let result = plan.slots.get(destination).ok_or(INVALID)?;
+    if result.storage != Storage::Alias
+        || result.data != *element
+        || program.types.get(place(program, plan, index)?) != Some(&Type::Usize)
+    {
+        return Err(INVALID);
+    }
+    Ok(())
 }
 fn call(
     program: &Program,
@@ -344,17 +390,15 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
             fields,
         } => {
             let ty = owned(&Place::root(*destination))?;
-            let Some(Type::Record(schema)) = program.types.get(ty) else {
+            let schema = program.types.get(ty).ok_or(INVALID)?;
+            if schema.component_count() != u64::try_from(fields.len()).ok() {
                 return Err(INVALID);
-            };
+            }
             let mut seen = BTreeSet::new();
             for (field, source) in fields {
-                if schema.get(*field) != Some(&owned(source)?) || !seen.insert(*field) {
+                if schema.component(*field) != Some(owned(source)?) || !seen.insert(*field) {
                     return Err(INVALID);
                 }
-            }
-            if seen.len() != schema.len() {
-                return Err(INVALID);
             }
         }
     }

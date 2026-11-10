@@ -15,7 +15,7 @@ struct PathData {
 #[derive(Clone, Default)]
 pub(super) struct Path(Option<Arc<PathData>>);
 impl Path {
-    fn extended(&self, storage: &Storage, tail: &[usize]) -> Result<Self> {
+    pub(super) fn extended(&self, storage: &Storage, tail: &[usize]) -> Result<Self> {
         if tail.is_empty() {
             return Ok(self.clone());
         }
@@ -203,7 +203,7 @@ impl Memory {
             }
         };
         for &field in address.fields.iter() {
-            let Data::Record(values) = value.data() else {
+            let Data::Aggregate(values) = value.data() else {
                 return Err(Rule::InvalidPlan);
             };
             value = values.get(field).ok_or(Rule::InvalidPlan)?.clone();
@@ -225,12 +225,12 @@ impl Memory {
         };
         let mut root = root;
         for &field in &address.fields[..address.fields.len() - 1] {
-            let Data::Record(values) = root.make_mut(&self.storage)? else {
+            let Data::Aggregate(values) = root.make_mut(&self.storage)? else {
                 return Err(Rule::InvalidPlan);
             };
             root = values.get_mut(field).ok_or(Rule::InvalidPlan)?;
         }
-        let Data::Record(values) = root.make_mut(&self.storage)? else {
+        let Data::Aggregate(values) = root.make_mut(&self.storage)? else {
             return Err(Rule::InvalidPlan);
         };
         *values

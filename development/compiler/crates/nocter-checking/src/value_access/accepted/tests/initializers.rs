@@ -630,12 +630,12 @@ fn ordinary_source_validation_precedes_evaluator_storage_allocation() {
 fn record_constants_are_fresh_noncopy_values_with_nested_unit_fields() {
     let source = "struct Empty {}\nstruct Pair { left: i32\nright: i32\nempty: Empty\nunit: void }\nconst func make(): Pair { var value = Pair { right: 2, left: 40, empty: Empty {}, unit: () }\nvalue.left += 1\nvalue^ }\nconst ORIGINAL: Pair = make()\nconst SECOND: Pair = ORIGINAL\nconst func calculate(): i32 { var first = SECOND\nlet next = ORIGINAL\nfirst.left = 1\nfirst.left + next.left }\nconst ANSWER: i32 = calculate()";
     assert_eq!(answer(source, "ANSWER"), Value::integer(42));
-    let ValueData::Record(fields) = answer(source, "SECOND").data().clone() else {
+    let ValueData::Aggregate(fields) = answer(source, "SECOND").data().clone() else {
         panic!("record");
     };
     assert_eq!(fields[0], Value::integer(41));
     assert_eq!(fields[1], Value::integer(2));
-    assert_eq!(fields[2], Value::record(Vec::new()));
+    assert_eq!(fields[2], Value::aggregate(Vec::new()));
     assert_eq!(fields[3], Value::unit());
 }
 #[test]

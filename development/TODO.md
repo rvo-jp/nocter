@@ -18,13 +18,15 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close the evaluator handoff for evaluated array indices: a selected address must retain its numeric
-index after the source variable changes, with validated usize/bounds/type roles and deterministic
-failure before an invalid address is published. Reuse existing canonical address and value-storage
-mechanisms. Array type metadata must remain homogeneous; listed value storage must not imply a
-compact repetition implementation. Source admission remains gated until the
+Connect evaluated selections to one checking-owned source of retained-index facts for
+initialization, access and resource flow. The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
+is an execution consumer, not proof of source safety. Preserve the evaluated numeric index through
+reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
+Use the existing canonical address/value storage and shared structural relation, without a second
+ownership registry. Source admission remains gated until the
 [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
-connects initialization, access and ownership to stable values across reservations, joins and loops.
+closes joins, loops and cleanup as well as ordinary value construction. Compact repetition and
+native storage remain separate consumers to close before product admission.
 
 ## Migration Checklist
 

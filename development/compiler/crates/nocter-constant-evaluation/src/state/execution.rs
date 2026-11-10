@@ -8,6 +8,7 @@ use nocter_model::{ConstantValue, ValueCodeRoot, ValueInputOperation};
 pub enum Rule {
     InvalidPlan,
     ArithmeticFailure,
+    IndexOutOfBounds,
     StepLimit,
     CallDepthLimit,
     StorageLimit,
@@ -246,6 +247,14 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 )?;
                 return Ok(());
             }
+            Operation::Index {
+                destination,
+                base,
+                index,
+            } => {
+                return self.index(frame, *destination, base, index);
+            }
+
             Operation::Copy {
                 destination,
                 source,
@@ -311,6 +320,35 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             }
         };
         self.write(frame, &Place::root(destination), value)
+    }
+    fn index(
+        &mut self,
+        frame: usize,
+        destination: usize,
+        base: &Place,
+        index: &Place,
+    ) -> Result<()> {
+        // Resolve the base before reading the index. Do not read the complete array:
+        // the checked plan can select initialized components of an incomplete owner.
+        let mut address = self.memory.address(frame, base)?;
+        let data =
+            super::validation::place_data(self.program, &self.memory.frames[frame].slots, base)?;
+        let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
+            return Err(Rule::InvalidPlan);
+        };
+        let index = self.read(frame, index)?;
+        let Data::Integer(index) = index.data() else {
+            return Err(Rule::InvalidPlan);
+        };
+        let index = u64::try_from(*index).map_err(|_| Rule::InvalidPlan)?;
+        if index >= *length {
+            return Err(Rule::IndexOutOfBounds);
+        }
+        // Host representation capacity is a storage limit, never a language bound.
+        let index = usize::try_from(index).map_err(|_| Rule::StorageLimit)?;
+        address.fields = address.fields.extended(&self.memory.storage, &[index])?;
+        self.memory.frames[frame].set(&self.memory.storage, destination, Cell::Alias(address))?;
+        Ok(())
     }
     fn inputs(&self, frame: usize, inputs: &[Input], taken: &[Option<Value>]) -> Result<Vec<Cell>> {
         inputs
@@ -381,7 +419,9 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 self.write(
                     frame,
                     &Place::root(*destination),
-                    self.memory.storage.record(values.into_vec().into_iter())?,
+                    self.memory
+                        .storage
+                        .aggregate(values.into_vec().into_iter())?,
                 )?;
                 Ok(self
                     .memory

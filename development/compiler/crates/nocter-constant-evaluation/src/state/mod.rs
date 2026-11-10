@@ -17,8 +17,25 @@ pub enum Type {
     I32,
     Usize,
     Record(Box<[usize]>),
+    Array { element: usize, length: u64 },
 }
 impl Type {
+    fn component(&self, index: usize) -> Option<usize> {
+        match self {
+            Self::Record(fields) => fields.get(index).copied(),
+            Self::Array { element, length } if u64::try_from(index).ok()? < *length => {
+                Some(*element)
+            }
+            _ => None,
+        }
+    }
+    fn component_count(&self) -> Option<u64> {
+        match self {
+            Self::Record(fields) => u64::try_from(fields.len()).ok(),
+            Self::Array { length, .. } => Some(*length),
+            _ => None,
+        }
+    }
     #[must_use]
     pub const fn scalar(&self) -> Option<crate::ConstantScalarType> {
         match self {
@@ -111,6 +128,12 @@ pub enum Operation {
     Alias {
         destination: usize,
         source: Place,
+    },
+    /// Capture one checked array element address, never the mutable index slot itself.
+    Index {
+        destination: usize,
+        base: Place,
+        index: Place,
     },
     Copy {
         destination: Place,

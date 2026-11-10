@@ -17,7 +17,7 @@ fn static_values_are_evaluated_but_their_names_denote_readonly_places() {
         Data::from_frozen(unit.static_value(source).unwrap())
             .unwrap()
             .data(),
-        nocter_constant_evaluation::state::Data::Record(_)
+        nocter_constant_evaluation::state::Data::Aggregate(_)
     ));
     assert!(unit.constant_value(source.initializer).is_none());
     let answer = unit

@@ -117,6 +117,36 @@ publication or serialize a runtime object. Checking's
 [initializer boundary](../nocter-checking/README.md#required-private-initializers) owns source
 admission, exact-generation reuse and the currently supported final-value scope.
 
+### Evaluated Array Addresses
+
+The closed stateful domain retains fixed arrays as homogeneous element-type/target-u64-length
+metadata, separately from ordered record/tuple schemas. Schema validation does not expand a count.
+Positive containment edges follow the finite table order; a zero-length edge requires a valid
+element type but contributes no payload containment. Nominal/structural identity remains the
+producer's type-table identity, never a physical value's shape.
+
+Listed arrays use the same `Data::Aggregate` nodes, metered import, copy-on-write, assembly and
+frozen publication as records/tuples. The selected slot schema validates their exact count and
+homogeneous element data. This physical sharing does not turn an array into a tuple or an empty
+array into void. It is listed storage, not a compact repetition implementation; neither a large
+length descriptor nor shared seed handles authorize count expansion outside the storage budget.
+
+`Operation::Index` requires an array base, a usize index and an alias result of the element type.
+Execution resolves the canonical base, reads the evaluated index once, checks it against the
+schema length, then appends the numeric index to the existing metered address path. It never
+retains the mutable index slot as the address recipe or reads the whole array to form an address.
+Later index mutation, a repeated operation on a backedge and a nested call cannot retarget an
+older address. New selections still read their own current evaluated index. Bounds failure
+reports `IndexOutOfBounds` at that operation and publishes no selected address or result. Failed
+frames release their storage through the same executor recovery as arithmetic/budget failures.
+
+Closed-plan tests qualify listed construction/publication, array fields, independent snapshots,
+selected edits, backedge re-execution, cross-frame addresses, exact bounds and failed-budget
+cleanup. Checking still gates array source bodies and evaluator projection; this domain alone
+proves neither source conflict/initialization safety, dynamic resource-hole cleanup, compact
+repetition nor native array storage. The remaining integration follows the
+[evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure).
+
 ### Live Working Storage
 
 `state::Limits` adds a deterministic storage limit without giving the expression-tree executor an

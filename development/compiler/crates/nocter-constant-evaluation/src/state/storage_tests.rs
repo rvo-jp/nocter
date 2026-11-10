@@ -78,11 +78,11 @@ fn importing_foreign_data_preserves_sharing_and_cannot_bypass_the_new_budget() {
     let leaf = integer(&first.storage, 42);
     let shared = first
         .storage
-        .record([leaf.clone(), leaf].into_iter())
+        .aggregate([leaf.clone(), leaf].into_iter())
         .unwrap();
     let foreign = first
         .storage
-        .record([shared.clone(), shared].into_iter())
+        .aggregate([shared.clone(), shared].into_iter())
         .unwrap();
     assert_eq!(first.storage_used(), 7);
     let second = budget(100);
@@ -104,7 +104,7 @@ fn updating_shared_data_charges_the_copied_path_and_preserves_the_snapshot() {
     use super::memory::{Cell, Frame, Memory};
     let budget = budget(100);
     let leaf = integer(&budget.storage, 1);
-    let record = budget.storage.record([leaf].into_iter()).unwrap();
+    let record = budget.storage.aggregate([leaf].into_iter()).unwrap();
     let snapshot = record.clone();
     let mut memory = Memory::new(budget.storage.clone());
     let mut frame = Frame::new(
@@ -132,7 +132,7 @@ fn updating_shared_data_charges_the_copied_path_and_preserves_the_snapshot() {
     memory.store(&address, replacement).unwrap();
     assert_eq!(budget.storage_used(), before + 2);
     assert_eq!(memory.read(&address).unwrap(), Value::integer(2));
-    assert_eq!(snapshot, Value::record(vec![Value::integer(1)]));
+    assert_eq!(snapshot, Value::aggregate(vec![Value::integer(1)]));
     drop(snapshot);
     let after_snapshot = budget.storage_used();
     let replacement = integer(&budget.storage, 3);
@@ -146,7 +146,7 @@ fn updating_shared_data_charges_the_copied_path_and_preserves_the_snapshot() {
 fn insufficient_space_rejects_shared_path_copy_before_mutation() {
     let budget = budget(4);
     let leaf = integer(&budget.storage, 1);
-    let record = budget.storage.record([leaf].into_iter()).unwrap();
+    let record = budget.storage.aggregate([leaf].into_iter()).unwrap();
     let mut edited = record.clone();
     assert_eq!(
         edited.make_mut(&budget.storage).unwrap_err(),
@@ -162,7 +162,7 @@ fn insufficient_space_rejects_shared_path_copy_before_mutation() {
 fn deeply_nested_values_import_and_release_without_recursive_host_stack_growth() {
     let mut source = Value::integer(1);
     for _ in 0..10_000 {
-        source = Value::record(vec![source]);
+        source = Value::aggregate(vec![source]);
     }
     let budget = budget(100_000);
     let imported = budget.storage.import(&source).unwrap();
@@ -174,7 +174,7 @@ fn deeply_nested_values_import_and_release_without_recursive_host_stack_growth()
 }
 #[test]
 fn wide_import_and_staging_fail_without_leaking_reservations() {
-    let source = Value::record(vec![Value::integer(1); 1_000]);
+    let source = Value::aggregate(vec![Value::integer(1); 1_000]);
     let budget = budget(10);
     assert_eq!(
         budget.storage.import(&source).unwrap_err(),
@@ -195,7 +195,7 @@ fn closed_literal_dags_validate_and_execute_without_expanding_shared_subgraphs()
     let mut source = Value::integer(42);
     for index in 0..120 {
         types.push(Type::Record(vec![index, index].into()));
-        source = Value::record(vec![source.clone(), source]);
+        source = Value::aggregate(vec![source.clone(), source]);
     }
     let mut plan = super::tests::literal();
     plan.result = 120;
@@ -252,7 +252,7 @@ fn excessive_suspended_depth_rejects_without_overflow_or_allocating_a_frame() {
 fn publication_roundtrip_preserves_deep_shared_data_without_expanding_a_tree() {
     let mut value = Value::integer(42);
     for _ in 0..10_000 {
-        value = Value::record(vec![value.clone(), value]);
+        value = Value::aggregate(vec![value.clone(), value]);
     }
     let frozen = value.freeze();
     assert_eq!(frozen.nodes().len(), 10_001);
@@ -277,7 +277,7 @@ fn publication_views_restore_only_reachable_data_and_preserve_selected_sharing()
         Some(Value::integer(42))
     );
     let selected = Value::from_frozen(&frozen.at(2).unwrap()).unwrap();
-    let Data::Record(fields) = selected.data() else {
+    let Data::Aggregate(fields) = selected.data() else {
         panic!("selected aggregate");
     };
     assert_eq!(fields.len(), 2);

@@ -28,6 +28,10 @@ impl Rule {
                 DiagnosticCode::E0325,
                 "required constant evaluation encountered invalid checked arithmetic",
             ),
+            Self::Execution(state::Rule::IndexOutOfBounds) => (
+                DiagnosticCode::E0325,
+                "required constant evaluation selected an out-of-range array element",
+            ),
             Self::Execution(state::Rule::StepLimit) => (
                 DiagnosticCode::E0322,
                 "required constant evaluation exhausted its operation budget",
