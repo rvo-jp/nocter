@@ -305,3 +305,5 @@ mod comparisons;
 mod statics;
 
 mod tuples;
+
+mod integers;

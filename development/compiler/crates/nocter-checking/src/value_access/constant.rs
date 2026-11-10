@@ -75,6 +75,7 @@ impl DataDomain<'_> {
                     Domain::Publication => matches!(
                         builtin,
                         nocter_model::BuiltinType::Bool
+                            | nocter_model::BuiltinType::Usize
                             | nocter_model::BuiltinType::I32
                             | nocter_model::BuiltinType::Void
                     ),

@@ -79,7 +79,7 @@ headers in a different order cannot change parameter identities. The lowering ow
 reserves functions and records in canonical namespace order.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
-one privately owned type authority. Callable headers admit `bool`, `i32`, `void`, opaque move-only
+one privately owned type authority. Callable headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
 `error`, closed nominal records and structural tuples, and flat callable input/result contracts.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
@@ -122,7 +122,7 @@ the supplied program's sole type authority. It never falls back to a different h
 `data_copyable` consumes that validated shape with iterative memoized structural traversal;
 `data_kind` deliberately remains a builtin-only projection. These APIs do not publish arbitrary
 borrow types, generic eligibility guesses, or a second type store. Current
-aggregate schemas contain only values over the four closed builtin leaves, records and tuples.
+aggregate schemas contain only values over the closed builtin leaves, records and tuples.
 A tuple is Copy exactly when every component is; it does not make an ordinary nominal component
 Copy. These schemas are metadata, not proof of body acceptance, partial initialization, survival, destruction or
 native execution. Selected source places consume these schemas through the private body checker;

@@ -198,7 +198,7 @@ pub(super) fn supported(data: BuiltinType) -> bool {
 
 pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
     match data {
-        BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void => Some(true),
+        BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Usize | BuiltinType::Void => Some(true),
         BuiltinType::Error => Some(false),
         _ => None,
     }

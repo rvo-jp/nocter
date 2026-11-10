@@ -4,7 +4,9 @@
 
 1. Qualify [const source and conditional eligibility](design/compiler-realization.md#conditional-const-admission)
    beyond the [required frozen-data initializer boundary](compiler/crates/nocter-checking/README.md#required-private-initializers)
-   with fixed arrays, enums and early structural dependencies. Extend
+   with fixed arrays, enums and early structural dependencies. Connect admitted usize
+   computation to required lengths through the same dependency coordinator before admitting array
+   source. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,

@@ -9,7 +9,7 @@ fn budget(units: u64) -> Budget {
     ))
 }
 fn integer(storage: &MeteredStorage, value: i32) -> Value {
-    storage.primitive(Data::I32(value)).unwrap()
+    storage.primitive(Data::Integer(value.into())).unwrap()
 }
 #[test]
 fn returned_values_retain_one_charge_without_charging_handle_clones() {

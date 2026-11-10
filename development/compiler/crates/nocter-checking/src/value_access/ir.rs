@@ -216,7 +216,7 @@ pub enum ExpressionKind {
         source: AccessExpressionId,
     },
     Constant(nocter_model::FrozenData),
-    Integer(i32),
+    Integer(i128),
     Boolean(bool),
     Unit,
     Aggregate {

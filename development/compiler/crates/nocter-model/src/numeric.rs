@@ -8,6 +8,21 @@ pub enum BuiltinNumericType {
 }
 
 impl BuiltinNumericType {
+    /// Mathematical bounds of the current integer profile, independent of host word size.
+    #[must_use]
+    pub const fn integer_bounds(self) -> Option<(i128, i128)> {
+        let Self::Integer { bits, signed } = self else {
+            return None;
+        };
+        if bits == 0 || bits > 64 {
+            return None;
+        }
+        Some(if signed {
+            (-(1_i128 << (bits - 1)), (1_i128 << (bits - 1)) - 1)
+        } else {
+            (0, (1_i128 << bits) - 1)
+        })
+    }
     #[must_use]
     pub const fn for_builtin(builtin: BuiltinType) -> Option<Self> {
         let numeric = match builtin {

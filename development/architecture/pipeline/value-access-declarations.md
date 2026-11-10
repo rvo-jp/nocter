@@ -414,7 +414,8 @@ value-field identities survive this boundary; they are never converted into publ
 field identities or reconstructed from names. Access operations remain separate from data shape.
 
 For the bounded private fragment, the explicitly selected runtime ABI supplies scalar and error
-handle layouts. A stored `void` value selects a zero-byte, alignment-one runtime unit, distinct
+handle layouts. The private usize domain uses the qualified 64-bit numeric profile and its
+explicit runtime usize role, independently of the compiler host. A stored `void` value selects a zero-byte, alignment-one runtime unit, distinct
 from the published pipeline's completion-only runtime void. Records and tuples use
 declaration/index-order member placement with each member's alignment and final aggregate padding. Machine owns the single
 recursive layout calculation, checked size arithmetic and member correspondence for both pipeline

@@ -146,6 +146,22 @@ impl Context<'_> {
     fn primitive(&self, data: TypeId, role: RuntimePrimitive) -> bool {
         self.program.runtime.types().get(data) == Some(&RuntimeType::Primitive(role))
     }
+    fn integer(&self, data: TypeId) -> bool {
+        self.primitive(data, RuntimePrimitive::Signed(32))
+            || self.primitive(data, RuntimePrimitive::Usize)
+    }
+    fn integer_literal(&self, data: TypeId, value: i128) -> bool {
+        let builtin = if self.primitive(data, RuntimePrimitive::Signed(32)) {
+            nocter_model::BuiltinType::I32
+        } else if self.primitive(data, RuntimePrimitive::Usize) {
+            nocter_model::BuiltinType::Usize
+        } else {
+            return false;
+        };
+        nocter_model::BuiltinNumericType::for_builtin(builtin)
+            .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+            .is_some_and(|(minimum, maximum)| value >= minimum && value <= maximum)
+    }
     #[allow(clippy::too_many_lines)]
     fn operation(&self, operation: &Operation) -> Result<(), Failure> {
         let integer = RuntimePrimitive::Signed(32);
@@ -158,7 +174,9 @@ impl Context<'_> {
             Operation::Constant { destination, value } => {
                 self.place(destination)?;
                 self.require(match value {
-                    super::Constant::Integer(_) => self.primitive(destination.data, integer),
+                    super::Constant::Integer(value) => {
+                        self.integer_literal(destination.data, *value)
+                    }
                     super::Constant::Boolean(_) => self.primitive(destination.data, boolean),
                     super::Constant::Zero => matches!(
                         self.program.runtime.types().get(destination.data),
@@ -214,7 +232,7 @@ impl Context<'_> {
                     | Binary::Multiply
                     | Binary::Divide
                     | Binary::Remainder => {
-                        self.primitive(left.data, integer)
+                        self.integer(left.data)
                             && left.data == destination.data
                             && !invert
                             && *check
@@ -225,12 +243,12 @@ impl Context<'_> {
                                 }
                     }
                     Binary::Equal => {
-                        (self.primitive(left.data, boolean) || self.primitive(left.data, integer))
+                        (self.primitive(left.data, boolean) || self.integer(left.data))
                             && self.primitive(destination.data, boolean)
                             && *check == Check::NotRequired
                     }
                     Binary::Less => {
-                        self.primitive(left.data, integer)
+                        self.integer(left.data)
                             && self.primitive(destination.data, boolean)
                             && *check == Check::NotRequired
                     }
@@ -417,8 +435,10 @@ impl Context<'_> {
                 ) => {}
                 (
                     FrozenNode::Scalar(ConstantValue::Integer(value)),
-                    Some(RuntimeType::Primitive(RuntimePrimitive::Signed(32))),
-                ) if i32::try_from(*value).is_ok() => {}
+                    Some(RuntimeType::Primitive(
+                        RuntimePrimitive::Signed(32) | RuntimePrimitive::Usize,
+                    )),
+                ) if self.integer_literal(data, *value) => {}
                 (FrozenNode::Aggregate(values), Some(RuntimeType::Aggregate)) => {
                     let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueAggregate {
                         fields,

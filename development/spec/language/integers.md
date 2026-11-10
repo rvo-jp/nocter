@@ -2,8 +2,8 @@
 
 ## Scope
 
-This chapter owns the adopted v2.0.0 intrinsic i32 arithmetic contract. It closes this fixed-width
-primitive domain without importing an unspecified numeric catalog, implicit conversion or user
+This chapter owns the adopted v2.0.0 intrinsic i32 and usize arithmetic contract. It closes these
+primitive domains without importing an unspecified numeric catalog, implicit conversion or user
 operator family. [Comparisons](comparisons.md) own equality and ordering; the
 [grammar](syntactic-grammar.md#expressions-places-and-statement-boundaries) owns precedence.
 
@@ -13,10 +13,38 @@ An unrepresentable result is a safety failure; there is no implicit wrapping, sa
 result type. Operand preparation follows the ordinary value model: an earlier scalar operand is
 captured before evaluation of a later operand that can update its source.
 
+## Unsigned Size Integers and Literal Context
+
+`usize` is the unsigned pointer-size integer of the selected target. The currently qualified
+64-bit target profile gives it values from 0 through 18446744073709551615. Compiler host integer
+size does not select this range. Another profile requires corresponding evaluator and runtime
+representation qualification before admission.
+
+Addition, subtraction and multiplication require their mathematical result to fit the selected
+integer data type. Unsigned subtraction below zero fails; it does not wrap. Negating a usize
+value has the same checked meaning as subtracting it from usize zero. Only zero succeeds.
+A negative integer literal cannot supply usize, including in dead source, unless its value is zero.
+
+An integer literal is checked with the integer data required by a selected binding, input, result,
+aggregate component or arithmetic context. Without a determining context it defaults to i32.
+A tree of these arithmetic operations whose leaves are integer literals can receive that context
+as a whole, including grouped expressions and unary negation. Within one arithmetic/comparison
+operation, an already typed integer operand can determine the other operand's literal expression,
+on either side. Two literal-only
+operands without another integer context use i32. A named constant, place or callable result
+retains its declared/inferred data type; its numerical value does not make it a contextual literal.
+
+This is literal typing, not implicit integer conversion. Arithmetic and primitive comparison
+require equal operand data types. Context cannot reinterpret a typed i32 as usize or vice versa,
+change a selected callable, or insert a conversion. Runtime operand evaluation and snapshots
+remain in source order even when constraints are obtained from the other operand.
+
 ## Division and Remainder
 
 Division truncates the mathematical quotient toward zero. Its result must be representable in the
-result type. Division by zero and -2147483648 divided by -1 therefore fail.
+result type. Division by zero therefore fails. For i32, -2147483648 divided by -1 also fails.
+Unsigned division computes the nonnegative integral quotient; its remainder is between zero and
+the divisor minus one.
 
 Remainder directly computes the mathematical remainder associated with truncating division. For a
 nonzero divisor, `a = b * q + r` holds in mathematical integers, and r is zero or has a's sign.

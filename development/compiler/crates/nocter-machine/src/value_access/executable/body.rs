@@ -376,7 +376,7 @@ impl<'a> Builder<'a> {
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
             mir::Operation::Constant { destination, value } => {
                 let value = match value {
-                    mir::Constant::Integer(value) => MachineConstant::Integer(i128::from(*value)),
+                    mir::Constant::Integer(value) => MachineConstant::Integer(*value),
                     mir::Constant::Boolean(value) => MachineConstant::Bool(*value),
                     mir::Constant::Zero => return Ok(()),
                 };

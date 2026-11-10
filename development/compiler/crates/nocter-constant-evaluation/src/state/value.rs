@@ -12,7 +12,7 @@ use std::{
 pub enum Data {
     Unit,
     Bool(bool),
-    I32(i32),
+    Integer(i128),
     Record(Box<[Value]>),
 }
 struct Node {
@@ -44,8 +44,8 @@ impl Value {
         Self::plain(Data::Bool(value))
     }
     #[must_use]
-    pub fn integer(value: i32) -> Self {
-        Self::plain(Data::I32(value))
+    pub fn integer(value: impl Into<i128>) -> Self {
+        Self::plain(Data::Integer(value.into()))
     }
     #[must_use]
     pub fn record(fields: impl Into<Box<[Self]>>) -> Self {
@@ -101,7 +101,7 @@ impl PartialEq for Value {
             match (left.data(), right.data()) {
                 (Data::Unit, Data::Unit) => {}
                 (Data::Bool(a), Data::Bool(b)) if a == b => {}
-                (Data::I32(a), Data::I32(b)) if a == b => {}
+                (Data::Integer(a), Data::Integer(b)) if a == b => {}
                 (Data::Record(a), Data::Record(b)) if a.len() == b.len() => {
                     pending.extend(a.iter().zip(b));
                 }
@@ -243,7 +243,7 @@ impl Value {
             let node = match value.data() {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
-                Data::I32(value) => FrozenNode::Scalar(ConstantValue::Integer(i128::from(*value))),
+                Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
                 Data::Record(fields) => FrozenNode::Aggregate(
                     fields.iter().map(|field| ids[&field.identity()]).collect(),
                 ),
@@ -262,9 +262,7 @@ impl Value {
             values.push(match node {
                 FrozenNode::Unit => Self::unit(),
                 FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
-                FrozenNode::Scalar(ConstantValue::Integer(value)) => {
-                    Self::integer(i32::try_from(*value).ok()?)
-                }
+                FrozenNode::Scalar(ConstantValue::Integer(value)) => Self::integer(*value),
                 FrozenNode::Aggregate(fields) => Self::record(
                     fields
                         .iter()

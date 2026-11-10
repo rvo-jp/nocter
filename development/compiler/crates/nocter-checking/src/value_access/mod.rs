@@ -101,7 +101,7 @@ impl Rule {
             ),
             Self::IntegerRange => (
                 DiagnosticCode::E0375,
-                "integer literal is outside the i32 range",
+                "integer literal is outside the selected integer range",
             ),
             Self::InvalidReturn => (
                 DiagnosticCode::E0370,
@@ -121,7 +121,7 @@ impl Rule {
             ),
             Self::CompoundOperand => (
                 DiagnosticCode::E0386,
-                "compound assignment requires i32 data",
+                "compound assignment requires integer data",
             ),
             Self::InvalidUpdate => (
                 DiagnosticCode::E0387,
@@ -386,3 +386,5 @@ fn source_origin(syntax: BoundSyntax<'_>, origin: SyntaxOrigin) -> Result<Source
         }
     }
 }
+
+mod integers;

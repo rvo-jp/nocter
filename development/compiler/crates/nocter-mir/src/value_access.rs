@@ -99,7 +99,7 @@ pub enum Effect {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Constant {
-    Integer(i32),
+    Integer(i128),
     Boolean(bool),
     Zero,
 }

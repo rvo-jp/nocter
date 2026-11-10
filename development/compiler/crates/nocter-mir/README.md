@@ -69,7 +69,8 @@ schema, memoizing shared type/node pairs; record-field keys and tuple positions 
 separate meaning even at equal offsets; it does not grant Copy or infer another constructor.
 Selected unit-comparison intrinsics lower only their final computation to a Boolean constant;
 their operand operations remain in the consumed graph. A zero-byte operand is not interpreted as
-an integer comparison. `validate` checks closed representation, graph, signature,
+an integer comparison. Integer constants retain mathematical values; validation checks their
+exact i32/usize domain against the selected data identity before any physical encoding. `validate` checks closed representation, graph, signature,
 projection, primitive-operation and flag integrity before publication. It does not repeat source
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.

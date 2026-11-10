@@ -334,9 +334,9 @@ type Result<T> = std::result::Result<T, IntegrityError>;
 /// Rejects a type outside the supplied private program's supported payload domain.
 pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
     let disposal = match program.data_schema(data).ok_or(INVALID)? {
-        PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void) => {
-            Disposal::Trivial
-        }
+        PayloadSchema::Builtin(
+            BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Usize | BuiltinType::Void,
+        ) => Disposal::Trivial,
         PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
         PayloadSchema::Aggregate(_) => Disposal::Aggregate,
         PayloadSchema::Function(witness) => match witness.origin {

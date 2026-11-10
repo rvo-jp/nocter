@@ -203,6 +203,26 @@ fn private_required_arithmetic_checks_reach_native_traps() {
 
     for (name, source) in [
         (
+            "usize-overflow",
+            "func run(): i32 { let value: usize = 18446744073709551615\nlet unused = value + 1\n0 }",
+        ),
+        (
+            "usize-underflow",
+            "func run(): i32 { let value: usize = 0\nlet unused = value - 1\n0 }",
+        ),
+        (
+            "usize-multiply-overflow",
+            "func run(): i32 { let value: usize = 18446744073709551615\nlet unused = value * 2\n0 }",
+        ),
+        (
+            "usize-negate",
+            "func run(): i32 { let value: usize = 1\nlet unused = -value\n0 }",
+        ),
+        (
+            "usize-source-order",
+            "func run(): i32 { let value: usize = 0\nlet unused = (18446744073709551615 + 1) + if true { return 42 } else { value }\n0 }",
+        ),
+        (
             "overflow",
             "func add(a: i32, b: i32): i32 { a + b }\nfunc run(): i32 { let unused = add(2147483647, 1)\n0 }",
         ),
@@ -368,6 +388,39 @@ fn private_structural_tuples_share_native_calls_constants_and_static_places() {
         (
             "tuple-zero-byte-channels",
             "func assign(edit left: void, edit right: void): i32 { left = ()\nright = ()\n42 }\nfunc run(): i32 { var pair = ((), ())\nassign(pair.0, pair.1) }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}
+
+#[test]
+fn private_size_integers_preserve_unsigned_arithmetic_literals_and_data() {
+    for (name, source) in [
+        (
+            "usize-high-domain",
+            "func run(): i32 { let maximum: usize = 18446744073709551615\nlet high: usize = 9223372036854775808\nif maximum > high && high > 0 && maximum / high == 1 && maximum % high == 9223372036854775807 { 42 } else { 0 } }",
+        ),
+        (
+            "usize-literal-context",
+            "func receive(value: usize): usize { value }\nfunc run(): i32 { let value: usize = 40\nif 1 + (1 + value) == receive(40 + 2) && (1 + 1) + value == 42 { 42 } else { 0 } }",
+        ),
+        (
+            "usize-input-snapshots",
+            "func increment(edit value: usize): usize { value += 1\nvalue }\nfunc run(): i32 { var value: usize = 20\nlet total = value + increment(value) + 1\nif total == 42 { 42 } else { 0 } }",
+        ),
+        (
+            "usize-static-data",
+            "copy struct Size { value: usize }\nstatic MAX: Size = Size { value: 18446744073709551615 }\nconst HIGH: (usize, usize) = (9223372036854775808, 9223372036854775807)\nfunc run(): i32 { if MAX.value == HIGH.0 + HIGH.1 { 42 } else { 0 } }",
+        ),
+        (
+            "usize-const-loop",
+            "const func width(): usize { var value: usize = 1\nvar count: usize = 0\nwhile count < 6 { value *= 2\ncount += 1 }\nvalue }\nconst WIDTH: usize = width()\nfunc run(): i32 { if WIDTH == 64 { 42 } else { 0 } }",
+        ),
+        (
+            "usize-zero-negation",
+            "func run(): i32 { let value: usize = 0\nif -value == 0 { 42 } else { 0 } }",
         ),
     ] {
         let package = TempPackage::new();

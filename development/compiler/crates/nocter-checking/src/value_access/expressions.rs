@@ -17,22 +17,55 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        self.expression_with_context(
+            node,
+            expected.map(|boundary| boundary.ty().data()),
+            expected,
+            reachable,
+        )
+    }
+    pub fn input_expression(
+        &mut self,
+        node: NodeId,
+        data: nocter_model::TypeId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        // Callable contracts select invocation adapters later; their formal witness is not a
+        // concrete expected value identity. Ordinary data can constrain literal construction.
+        let hint = (!matches!(
+            self.program().data_schema(data),
+            Some(nocter_declarations::value_access::PayloadSchema::Function(
+                _
+            ))
+        ))
+        .then_some(data);
+        self.expression_with_context(node, hint, None, reachable)
+    }
+    pub(super) fn expression_with_context(
+        &mut self,
+        node: NodeId,
+        hint: Option<nocter_model::TypeId>,
+        expected: Option<Boundary>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
             NodeKind::ReferenceExpression => self.reference_value(node)?,
-            NodeKind::ScalarLiteral => self.literal(node, false)?,
+            NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node)?,
             NodeKind::ClosureExpression => self.closure(node, reachable)?,
             NodeKind::StructLiteral => self.record_value(node, reachable)?,
-            NodeKind::TupleExpression => self.tuple_value(node, expected, reachable)?,
-            NodeKind::UnaryExpression => self.unary(node, reachable)?,
+            NodeKind::TupleExpression => {
+                self.tuple_value(node, hint.map(Boundary::Value), reachable)?
+            }
+            NodeKind::UnaryExpression => self.unary(node, hint, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression
             | NodeKind::EqualityExpression
             | NodeKind::OrderingExpression
             | NodeKind::AdditiveExpression
-            | NodeKind::MultiplicativeExpression => self.binary(node, reachable)?,
+            | NodeKind::MultiplicativeExpression => self.binary(node, hint, reachable)?,
             NodeKind::PostfixExpression => {
                 let suffix = *self
                     .children(node)
@@ -44,7 +77,13 @@ impl Checker<'_, '_> {
                     self.call(node, reachable)?
                 }
             }
-            NodeKind::IfExpression => return self.if_expression(node, expected, reachable),
+            NodeKind::IfExpression => {
+                return self.if_expression(
+                    node,
+                    expected.or_else(|| hint.map(Boundary::Value)),
+                    reachable,
+                );
+            }
             _ => return Err(Failure::InconsistentSyntax),
         };
         if let Some(boundary) = expected {
@@ -61,22 +100,35 @@ impl Checker<'_, '_> {
             ExpressionKind::Unit,
         )
     }
-    fn literal(&mut self, node: NodeId, negative: bool) -> Result<AccessExpressionId, Failure> {
+    fn literal(
+        &mut self,
+        node: NodeId,
+        negative: bool,
+        hint: Option<nocter_model::TypeId>,
+    ) -> Result<AccessExpressionId, Failure> {
         let token = self.token(node)?;
         match token.kind() {
             TokenKind::IntegerLiteral => {
                 let Some(magnitude) = decode_integer_literal(self.text(token)?) else {
                     return self.reject(Rule::IntegerRange, node);
                 };
-                let signed = i64::try_from(magnitude)
-                    .ok()
-                    .and_then(|value| i32::try_from(if negative { -value } else { value }).ok());
-                let Some(value) = signed else {
+                let data = self
+                    .integer_hint(hint)
+                    .unwrap_or(self.data(BuiltinType::I32));
+                let builtin = self
+                    .program()
+                    .data_kind(data)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                let (minimum, maximum) = nocter_model::BuiltinNumericType::for_builtin(builtin)
+                    .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                let value = i128::from(magnitude) * if negative { -1 } else { 1 };
+                if value < minimum || value > maximum {
                     return self.reject(Rule::IntegerRange, node);
-                };
+                }
                 self.emit(
                     node,
-                    value_type(self.data(BuiltinType::I32), Mode::Own),
+                    value_type(data, Mode::Own),
                     ExpressionKind::Integer(value),
                 )
             }
@@ -89,7 +141,12 @@ impl Checker<'_, '_> {
             _ => Err(Failure::InconsistentSyntax),
         }
     }
-    fn unary(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
+    fn unary(
+        &mut self,
+        node: NodeId,
+        hint: Option<nocter_model::TypeId>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let operation = if self.has(node, P::Bang) {
             Unary::Not
         } else {
@@ -101,42 +158,87 @@ impl Checker<'_, '_> {
             && self.kind(unwrapped)? == NodeKind::ScalarLiteral
             && self.token(unwrapped)?.kind() == TokenKind::IntegerLiteral
         {
-            return self.literal(unwrapped, true);
+            return self.literal(unwrapped, true, hint);
         }
-        let operand = self.expression(child, None, reachable)?;
-        let data = self.data(if operation == Unary::Not {
-            BuiltinType::Bool
+        let operand = self.expression_with_context(
+            child,
+            if operation == Unary::Not {
+                None
+            } else {
+                self.integer_hint(hint)
+            },
+            None,
+            reachable,
+        )?;
+        let data = if operation == Unary::Not {
+            self.data(BuiltinType::Bool)
         } else {
-            BuiltinType::I32
-        });
+            self.ty(operand)
+                .access()
+                .map(Ty::data)
+                .filter(|&data| self.integer_data(data))
+                .or(self.integer_hint(hint))
+                .unwrap_or(self.data(BuiltinType::I32))
+        };
         self.require_data(operand, data, child)?;
         let ty = value_type(data, Mode::Own).with_continuation(self.ty(operand).may_complete());
-        self.emit(node, ty, ExpressionKind::Unary { operation, operand })
+        if operation == Unary::CheckedNegate
+            && self.program().data_kind(data) == Some(BuiltinType::Usize)
+        {
+            // Unsigned negation uses the ordinary checked subtraction kernel, including its trap.
+            let zero = self.emit(
+                node,
+                value_type(data, Mode::Own),
+                ExpressionKind::Integer(0),
+            )?;
+            self.emit(
+                node,
+                ty,
+                ExpressionKind::Binary {
+                    operation: Binary::CheckedSubtract,
+                    left: zero,
+                    right: operand,
+                },
+            )
+        } else {
+            self.emit(node, ty, ExpressionKind::Unary { operation, operand })
+        }
     }
-    fn binary(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
+    fn binary(
+        &mut self,
+        node: NodeId,
+        hint: Option<nocter_model::TypeId>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let children = self.children(node);
         let [left_node, right_node] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
         let mut operation = self.binary_operation(node)?;
-        let left = self.expression(*left_node, None, reachable)?;
-        let right_demand = super::booleans::right_demand(operation, self.normal_boolean(left));
-        let right = self.expression(
-            *right_node,
-            None,
-            reachable
-                && self.ty(left).may_complete()
-                && right_demand != super::booleans::Demand::Never,
-        )?;
-        let boolean = self.data(BuiltinType::Bool);
-        let integer = self.data(BuiltinType::I32);
         let logical = matches!(operation, Binary::And | Binary::Or);
-        let equality = matches!(operation, Binary::Equal | Binary::NotEqual);
-        if equality {
-            let left_data = self.ty(left).access().map(Ty::data);
-            let right_data = self.ty(right).access().map(Ty::data);
-            let valid =
-                |data| data == boolean || data == integer || data == self.data(BuiltinType::Void);
+        let arithmetic = matches!(
+            operation,
+            Binary::CheckedAdd
+                | Binary::CheckedSubtract
+                | Binary::CheckedMultiply
+                | Binary::CheckedDivide
+                | Binary::CheckedRemainder
+        );
+        let hint = arithmetic.then(|| self.integer_hint(hint)).flatten();
+        let (left, right, right_demand) =
+            self.binary_operands(*left_node, *right_node, operation, hint, reachable)?;
+        let boolean = self.data(BuiltinType::Bool);
+        let left_data = self.ty(left).access().map(Ty::data);
+        let right_data = self.ty(right).access().map(Ty::data);
+        let integer = self
+            .integer_hint(left_data)
+            .or(self.integer_hint(right_data))
+            .or(hint)
+            .unwrap_or(self.data(BuiltinType::I32));
+        if matches!(operation, Binary::Equal | Binary::NotEqual) {
+            let valid = |data| {
+                data == boolean || self.integer_data(data) || data == self.data(BuiltinType::Void)
+            };
             if left_data.is_some_and(|data| !valid(data))
                 || right_data.is_some_and(|data| !valid(data))
                 || matches!((left_data, right_data), (Some(a), Some(b)) if a != b)
@@ -155,18 +257,7 @@ impl Checker<'_, '_> {
             self.require_data(left, expected, *left_node)?;
             self.require_data(right, expected, *right_node)?;
         }
-        let result_data = if matches!(
-            operation,
-            Binary::CheckedAdd
-                | Binary::CheckedSubtract
-                | Binary::CheckedMultiply
-                | Binary::CheckedDivide
-                | Binary::CheckedRemainder
-        ) {
-            integer
-        } else {
-            boolean
-        };
+        let result_data = if arithmetic { integer } else { boolean };
         let ty = value_type(result_data, Mode::Own).with_continuation(
             self.ty(left).may_complete()
                 && (right_demand != super::booleans::Demand::Always
@@ -182,6 +273,7 @@ impl Checker<'_, '_> {
             },
         )
     }
+
     pub fn binary_operation(&self, node: NodeId) -> Result<Binary, Failure> {
         let token = self.token(node)?;
         let TokenKind::Punctuation(punctuation) = token.kind() else {

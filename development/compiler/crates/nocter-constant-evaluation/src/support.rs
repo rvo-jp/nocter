@@ -16,22 +16,12 @@ impl IntegerSpec {
 }
 
 pub(crate) fn integer_spec(builtin: BuiltinType) -> Option<IntegerSpec> {
-    let (signed, bits) = match builtin {
-        BuiltinType::I8 => (true, 8),
-        BuiltinType::I16 => (true, 16),
-        BuiltinType::I32 => (true, 32),
-        BuiltinType::I64 | BuiltinType::Isize => (true, 64),
-        BuiltinType::U8 => (false, 8),
-        BuiltinType::U16 => (false, 16),
-        BuiltinType::U32 => (false, 32),
-        BuiltinType::U64 | BuiltinType::Usize => (false, 64),
-        _ => return None,
+    let numeric = nocter_model::BuiltinNumericType::for_builtin(builtin)?;
+    let nocter_model::BuiltinNumericType::Integer { bits, signed } = numeric else {
+        return None;
     };
-    let (minimum, maximum) = if signed {
-        (-(1_i128 << (bits - 1)), (1_i128 << (bits - 1)) - 1)
-    } else {
-        (0, (1_i128 << bits) - 1)
-    };
+    let (minimum, maximum) = numeric.integer_bounds()?;
+    let bits = u32::from(bits);
     Some(IntegerSpec {
         signed,
         bits,

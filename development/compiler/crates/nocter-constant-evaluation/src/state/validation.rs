@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 type Result<T> = std::result::Result<T, Rule>;
 const INVALID: Rule = Rule::InvalidPlan;
 pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Result<usize> {
-    let mut data = plan.slots.get(place.slot).ok_or(INVALID)?.data;
+    place_data(program, &plan.slots, place)
+}
+pub(super) fn place_data(program: &Program, slots: &[super::Slot], place: &Place) -> Result<usize> {
+    let mut data = slots.get(place.slot).ok_or(INVALID)?.data;
     for &field in &place.fields {
         let Type::Record(fields) = program.types.get(data).ok_or(INVALID)? else {
             return Err(INVALID);
@@ -20,9 +23,17 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             continue;
         }
         match (program.types.get(data), value.data()) {
-            (Some(Type::Unit), Data::Unit)
-            | (Some(Type::Bool), Data::Bool(_))
-            | (Some(Type::I32), Data::I32(_)) => {}
+            (Some(Type::Unit), Data::Unit) | (Some(Type::Bool), Data::Bool(_)) => {}
+            (Some(ty @ (Type::I32 | Type::Usize)), Data::Integer(value))
+                if ty
+                    .scalar()
+                    .and_then(|ty| match ty {
+                        crate::ConstantScalarType::Integer(builtin) => {
+                            crate::support::integer_spec(builtin)
+                        }
+                        _ => None,
+                    })
+                    .is_some_and(|spec| spec.contains(*value)) => {}
             (Some(Type::Record(fields)), Data::Record(values)) if fields.len() == values.len() => {
                 pending.extend(fields.iter().copied().zip(values.iter().cloned()));
             }
@@ -218,7 +229,10 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             ) {
                 return Err(INVALID);
             }
-            if program.types.get(data(left)?) != Some(&Type::I32) {
+            if !matches!(
+                program.types.get(data(left)?),
+                Some(Type::I32 | Type::Usize)
+            ) {
                 return Err(INVALID);
             }
             equal(data(left)?, data(right)?)?;
@@ -234,12 +248,17 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
                 operation,
                 crate::CompileTimeComparisonOperation::Equal
                     | crate::CompileTimeComparisonOperation::NotEqual
-            ) && program.types.get(data(left)?) != Some(&Type::I32)
-            {
+            ) && !matches!(
+                program.types.get(data(left)?),
+                Some(Type::I32 | Type::Usize)
+            ) {
                 return Err(INVALID);
             }
             if program.types.get(slot(*destination)?.data) != Some(&Type::Bool)
-                || !matches!(program.types.get(data(left)?), Some(Type::Bool | Type::I32))
+                || !matches!(
+                    program.types.get(data(left)?),
+                    Some(Type::Bool | Type::I32 | Type::Usize)
+                )
             {
                 return Err(INVALID);
             }

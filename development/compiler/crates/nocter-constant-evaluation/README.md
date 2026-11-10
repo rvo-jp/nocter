@@ -75,10 +75,10 @@ select different resource phases. Initialization thunks have no inputs and canno
 targets. Positional type identities retain the producer's nominal distinctions within one immutable
 table; structurally similar records do not make call edges interchangeable.
 
-`Type::builtin` owns the admitted fixed-width primitive domain. The checker uses that same admission
+`Type::builtin` owns the admitted primitive domain for the current 64-bit profile. The checker uses that same admission
 for body-domain checks. Ordered aggregate schemas compose those leaves without claiming Copy. Checking retains source
 record/tuple type distinctions while using that one evaluator shape. Schema
-projection and value validation memoize shared subgraphs rather than expanding trees. Boolean/i32
+projection and value validation memoize shared subgraphs rather than expanding trees. Boolean/i32/usize
 arithmetic delegates to the common scalar operations without a target-dependent fallback. The
 selected integer domain preserves the distinction between checked-quotient remainder in the
 published contract and direct remainder in the [adopted contract](../../../spec/language/integers.md);
@@ -135,7 +135,8 @@ shared data reserves its new node and field references before shallow cloning; d
 shared until their own path is updated. Thus scalar snapshots and independent aggregate values keep
 their semantics while sharing physical data. Returned handles keep their lease after frame
 teardown or publication. This is evaluator storage identity, not source nominal identity or a
-source comparison capability.
+source comparison capability. Integer nodes carry mathematical i128 data; exact i32/usize
+range and operation identity come from validated slots, not from the payload or host integer size.
 
 `Program::new` validates every literal shape and each operation/call's type edges. Execution
 preserves that closed typing invariant through typed writes and canonical alias bindings; it does

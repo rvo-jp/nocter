@@ -282,6 +282,15 @@ publication. Alias creation and mutation still require existing storage.
 Tuple diagnostic labels use a bounded rendering traversal so shared type graphs do not expand
 exponentially in an error message; this does not limit source tuple arity or depth.
 
+`integers` owns contextual integer-operand preparation and a construction-only memoized syntax
+classification of literal-only arithmetic. Selected data constraints can flow from either operand
+without reevaluating an expression or converting a typed name/call. Execution and scalar snapshots
+remain left to right. Input data hints remain separate from binding operations, so a read/edit
+input does not accidentally acquire a copied or moved value. Unsigned negation freezes the same
+checked subtraction operation as zero minus the operand. i32/usize range checks use the model's
+numeric profile; the private source currently qualifies its 64-bit usize only. Array lengths and
+early structural dependencies still need their own integration before array source admission.
+
 `ValueType` keeps known result access separately from possible normal completion. Calls,
 construction, operators and compatible branches retain known data on interruption. Type inference
 and field validation read that known access; flow/resource consumers require a possible normal
@@ -444,7 +453,7 @@ return survives evaluation/lexical cleanup, whose order is reverse actual constr
 Return owner with the checking-closed result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
 
-Payload evidence consumes the declaration authority's exact bool/i32/void and opaque owned-error
+Payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
 snapshot contracts, plus its closed record/tuple compositions over those leaves and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
@@ -496,7 +505,7 @@ Direct calls require the selected declaration's authored const capability. Recur
 headers close without executing bodies or proving termination; every definition must independently
 pass ordinary typing, initialization, access and resource validation.
 
-`value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/unit
+`value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/usize/unit
 operations, finite record/tuple compositions of supported data, local values, read/edit aliases,
 updates, structured control, explicit transfer and direct const calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. Function-value formation,
@@ -561,7 +570,7 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, i32, unit and finite closed record/tuple compositions of those
+Final publication admits bool, i32, usize, unit and finite closed record/tuple compositions of those
 leaves. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
 execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.

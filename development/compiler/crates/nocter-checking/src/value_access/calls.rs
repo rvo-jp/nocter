@@ -79,11 +79,17 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let kind = match (self.program().data_kind(data), value.node()) {
             (
-                Some(nocter_model::BuiltinType::I32),
+                Some(builtin @ (nocter_model::BuiltinType::I32 | nocter_model::BuiltinType::Usize)),
                 nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(value)),
-            ) => ExpressionKind::Integer(
-                i32::try_from(*value).map_err(|_| Failure::InconsistentSyntax)?,
-            ),
+            ) => {
+                let (min, max) = nocter_model::BuiltinNumericType::for_builtin(builtin)
+                    .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                if *value < min || *value > max {
+                    return Err(Failure::InconsistentSyntax);
+                }
+                ExpressionKind::Integer(*value)
+            }
             (
                 Some(nocter_model::BuiltinType::Bool),
                 nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Bool(value)),
@@ -169,7 +175,7 @@ impl Checker<'_, '_> {
             plans.push(self.input_plan(*callee, value, expected, None)?);
         }
         for (syntax, expected) in arguments.into_iter().zip(contract.inputs) {
-            let value = self.expression(syntax, None, reachable && continues)?;
+            let value = self.input_expression(syntax, expected.data, reachable && continues)?;
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }

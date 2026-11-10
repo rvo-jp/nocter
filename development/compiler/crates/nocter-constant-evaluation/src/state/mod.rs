@@ -15,15 +15,30 @@ pub enum Type {
     Unit,
     Bool,
     I32,
+    Usize,
     Record(Box<[usize]>),
 }
 impl Type {
+    #[must_use]
+    pub const fn scalar(&self) -> Option<crate::ConstantScalarType> {
+        match self {
+            Self::Bool => Some(crate::ConstantScalarType::Bool),
+            Self::I32 => Some(crate::ConstantScalarType::Integer(
+                nocter_model::BuiltinType::I32,
+            )),
+            Self::Usize => Some(crate::ConstantScalarType::Integer(
+                nocter_model::BuiltinType::Usize,
+            )),
+            _ => None,
+        }
+    }
     /// Fixed-width primitive evaluator domain; absent types require an explicit extension.
     #[must_use]
     pub const fn builtin(data: nocter_model::BuiltinType) -> Option<Self> {
         match data {
             nocter_model::BuiltinType::Bool => Some(Self::Bool),
             nocter_model::BuiltinType::I32 => Some(Self::I32),
+            nocter_model::BuiltinType::Usize => Some(Self::Usize),
             nocter_model::BuiltinType::Void => Some(Self::Unit),
             _ => None,
         }

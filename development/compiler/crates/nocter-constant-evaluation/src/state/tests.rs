@@ -302,3 +302,29 @@ fn unread_scoped_inputs_still_require_initialized_caller_data() {
     );
     assert_eq!(budget.storage_used(), 0);
 }
+
+#[test]
+fn widened_integer_payloads_still_require_their_exact_slot_domain() {
+    let (id, _) = code_ids();
+    for (ty, value, valid) in [
+        (Type::I32, i128::from(i32::MAX), true),
+        (Type::I32, i128::from(u64::MAX), false),
+        (Type::Usize, i128::from(u64::MAX), true),
+        (Type::Usize, -1, false),
+        (Type::Usize, i128::from(u64::MAX) + 1, false),
+    ] {
+        let mut plan = literal();
+        plan.points = plan.points.map(|_, point| {
+            let mut point = point.clone();
+            point.actions[0].operation = Operation::Literal {
+                destination: 0,
+                value: Value::integer(value),
+            };
+            point
+        });
+        assert_eq!(
+            Program::new([ty], BTreeMap::from([(id, plan)]), BTreeMap::new()).is_ok(),
+            valid
+        );
+    }
+}

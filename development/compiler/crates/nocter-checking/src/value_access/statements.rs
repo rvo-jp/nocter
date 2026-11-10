@@ -271,7 +271,7 @@ impl Checker<'_, '_> {
         let statement = if self.has(node, Punctuation::Equal) {
             Statement::Assign { target, value }
         } else {
-            if data != self.data(BuiltinType::I32) {
+            if !self.integer_data(data) {
                 return self.reject(Rule::CompoundOperand, node);
             }
             Statement::CompoundAssign {

@@ -213,6 +213,20 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         }
         Ok(())
     }
+    fn scalar_type(&self, frame: usize, place: &Place) -> Result<ConstantScalarType> {
+        let slots = &self
+            .memory
+            .frames
+            .get(frame)
+            .ok_or(Rule::InvalidPlan)?
+            .slots;
+        let data = super::validation::place_data(self.program, slots, place)?;
+        self.program
+            .types
+            .get(data)
+            .and_then(super::Type::scalar)
+            .ok_or(Rule::InvalidPlan)
+    }
     fn operation(&mut self, frame: usize, op: &Operation, taken: &[Option<Value>]) -> Result<()> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
@@ -244,7 +258,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 operand,
             } => {
                 let value = self.read(frame, operand)?;
-                let (ty, value) = scalar_value(value.data())?;
+                let ty = self.scalar_type(frame, operand)?;
+                let value = scalar_value(value.data())?;
                 (
                     *destination,
                     from_scalar(
@@ -259,8 +274,9 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 left,
                 right,
             } => {
-                let (ty, left) = scalar_value(self.read(frame, left)?.data())?;
-                let (_, right) = scalar_value(self.read(frame, right)?.data())?;
+                let ty = self.scalar_type(frame, left)?;
+                let left = scalar_value(self.read(frame, left)?.data())?;
+                let right = scalar_value(self.read(frame, right)?.data())?;
                 let value = from_scalar(
                     &scalar::value_binary(*operation, ty, &left, &right).map_err(scalar_rule)?,
                     &self.memory.storage,
@@ -273,8 +289,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 left,
                 right,
             } => {
-                let (_, left) = scalar_value(self.read(frame, left)?.data())?;
-                let (_, right) = scalar_value(self.read(frame, right)?.data())?;
+                let left = scalar_value(self.read(frame, left)?.data())?;
+                let right = scalar_value(self.read(frame, right)?.data())?;
                 (
                     *destination,
                     from_scalar(
@@ -373,22 +389,17 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         }
     }
 }
-fn scalar_value(value: &Data) -> Result<(ConstantScalarType, ConstantValue)> {
+fn scalar_value(value: &Data) -> Result<ConstantValue> {
     match value {
-        Data::Bool(v) => Ok((ConstantScalarType::Bool, ConstantValue::Bool(*v))),
-        Data::I32(v) => Ok((
-            ConstantScalarType::Integer(nocter_model::BuiltinType::I32),
-            ConstantValue::Integer(i128::from(*v)),
-        )),
+        Data::Bool(value) => Ok(ConstantValue::Bool(*value)),
+        Data::Integer(value) => Ok(ConstantValue::Integer(*value)),
         _ => Err(Rule::InvalidPlan),
     }
 }
 fn from_scalar(value: &ConstantValue, storage: &super::budget::Storage) -> Result<Value> {
     match value {
-        ConstantValue::Bool(v) => storage.primitive(Data::Bool(*v)),
-        ConstantValue::Integer(v) => storage.primitive(Data::I32(
-            i32::try_from(*v).map_err(|_| Rule::ArithmeticFailure)?,
-        )),
+        ConstantValue::Bool(value) => storage.primitive(Data::Bool(*value)),
+        ConstantValue::Integer(value) => storage.primitive(Data::Integer(*value)),
         _ => Err(Rule::InvalidPlan),
     }
 }

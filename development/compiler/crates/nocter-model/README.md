@@ -23,6 +23,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
+- one builtin numeric profile and its mathematical integer bounds, independent of host word size
 - future function-witness keys pairing a concrete declaration, symbolic formal input or symbolic
   result family or selected call application with an invocation view; projection preserves them
   without source names or runtime layout. Applications pair caller/operation/callee identities.
