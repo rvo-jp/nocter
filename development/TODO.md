@@ -32,8 +32,7 @@ native storage remain separate consumers to close before product admission.
 
 - [ ] Complete array construction/repetition, evaluated indexing, sparse partial initialization,
   restoration and cleanup, evaluator data/publication, and native storage/ABI through ordinary
-  source, including evaluator projection of zero-length containment cycles and empty arrays with
-  otherwise unsupported element data. Extend the [typed construction/selection drafts](compiler/crates/nocter-checking/README.md#array-construction-drafts)
+  source. Extend the [typed construction/selection drafts](compiler/crates/nocter-checking/README.md#array-construction-drafts)
   and [concrete ledger](compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
   through the [structural request closure](design/compiler-realization.md#structural-type-request-closure).
   Preserve count supplier guards, one type authority, shared index relations and homogeneous/sparse

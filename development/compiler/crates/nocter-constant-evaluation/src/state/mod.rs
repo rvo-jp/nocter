@@ -12,12 +12,18 @@ pub use value::{Data, Value};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
+    /// A declared data identity without a payload representation in this table. No Value validates
+    /// against it; an empty array can still retain it as its uninstantiated element identity.
+    Unavailable,
     Unit,
     Bool,
     I32,
     Usize,
     Record(Box<[usize]>),
-    Array { element: usize, length: u64 },
+    Array {
+        element: usize,
+        length: u64,
+    },
 }
 impl Type {
     fn component(&self, index: usize) -> Option<usize> {

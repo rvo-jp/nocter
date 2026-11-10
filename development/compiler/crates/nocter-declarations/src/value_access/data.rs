@@ -110,6 +110,25 @@ impl Program {
             _ => None,
         }
     }
+    /// The named record identity, including before its payload schema is ready.
+    /// This grants no field, containment, Copy or payload-readiness evidence.
+    #[must_use]
+    pub fn record_identity(&self, data: TypeId) -> Option<NominalTypeId> {
+        match self.types.store().get(data)? {
+            TypeKind::Nominal {
+                definition,
+                arguments,
+            } if arguments.as_slice().is_empty()
+                && self
+                    .namespace
+                    .values()
+                    .any(|&id| id == DeclarationId::Record(*definition)) =>
+            {
+                Some(*definition)
+            }
+            _ => None,
+        }
+    }
     /// Source-name lookup; semantic equality continues to use resolved `TypeId` only.
     #[must_use]
     pub fn type_named(&self, spelling: &str) -> Option<TypeId> {

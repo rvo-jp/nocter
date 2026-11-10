@@ -125,6 +125,13 @@ Positive containment edges follow the finite table order; a zero-length edge req
 element type but contributes no payload containment. Nominal/structural identity remains the
 producer's type-table identity, never a physical value's shape.
 
+`Type::Unavailable` names declared data for which this closed table provides no payload representation.
+Every literal value rejects against it. A zero-length array can retain that element identity
+without constructing it, while a positive element cannot smuggle unit/scalar/aggregate data into
+that shape. The descriptor creates no source type or runtime representation. Checking derives
+its payload-domain decision from the same projected table and links zero-element identities
+without introducing positive containment cycles.
+
 Listed arrays use the same `Data::Aggregate` nodes, metered import, copy-on-write, assembly and
 frozen publication as records/tuples. The selected slot schema validates their exact count and
 homogeneous element data. This physical sharing does not turn an array into a tuple or an empty

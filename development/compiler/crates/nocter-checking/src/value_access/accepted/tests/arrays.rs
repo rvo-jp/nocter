@@ -67,11 +67,45 @@ fn required_array_lengths_can_execute_bodies_that_construct_and_transfer_arrays(
     assert_eq!(answer(source, "ANSWER"), list(&[20, 22]));
 }
 #[test]
-fn empty_containment_cycles_remain_valid_source_without_claiming_evaluator_shape_support() {
-    let source = "struct Node { next: [Node; 0] }\nfunc empty(): [Node; 0] { [] }";
-    accepted(source);
-    let (sources, tree) = input(&source.replace("func empty", "const func empty"));
+fn empty_containment_cycles_and_unrepresented_elements_need_no_element_payload() {
+    for (source, expected) in [
+        (
+            "struct Node { next: [Node; 0] }\nconst ANSWER: Node = Node { next: [] }",
+            Datum::aggregate(vec![list(&[])]),
+        ),
+        ("const ANSWER: [error; 0] = []", list(&[])),
+        (
+            "struct Node { next: [Node; 0]\nvalue: error }\nconst ANSWER: [Node; 0] = []",
+            list(&[]),
+        ),
+        (
+            "struct First { next: [Second; 0] }\nstruct Second { back: First }\nconst ANSWER: Second = Second { back: First { next: [] } }",
+            Datum::aggregate(vec![Datum::aggregate(vec![list(&[])])]),
+        ),
+        (
+            "const func work(): ([error; 0], [error; 0]) { let original: [error; 0] = []\n(original, original) }\nconst ANSWER: ([error; 0], [error; 0]) = work()",
+            Datum::aggregate(vec![list(&[]), list(&[])]),
+        ),
+    ] {
+        assert_eq!(answer(source, "ANSWER"), expected, "{source}");
+    }
+    let source = "const func invalid(take value: error): [error; 1] { [value^] }";
+    let (sources, tree) = input(source);
     assert!(
         matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) if diagnostic.source().code() == "E0421")
+    );
+}
+
+#[test]
+fn empty_payloads_preserve_element_identity_and_independent_declaration_validation() {
+    let source = "struct Item {}\nfunc consume(values: [Item; 0]): void {}\nfunc run(): void { let values: [error; 0] = []\nconsume(values) }";
+    let (sources, tree) = input(source);
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. })) if error.rule() == crate::value_access::Rule::TypeMismatch)
+    );
+    let source = "struct Bad { value: Missing }\nconst ANSWER: [Bad; 0] = []";
+    let (sources, tree) = input(source);
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Declarations(declarations::Failure::Headers(errors))) if errors.iter().any(|error| error.source().code() == "E0290"))
     );
 }

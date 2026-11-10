@@ -63,6 +63,11 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
         })
         .unwrap();
     assert_eq!(early.data_schema(key), None);
+    assert_eq!(early.record_identity(key), Some(parent));
+    assert_eq!(
+        early.declaration_label(parent.into()).as_deref(),
+        Some("Parent")
+    );
     assert_eq!(early.data_copyable(key), None);
     assert_eq!(early.type_named("Parent"), None);
     assert!(early.fields().is_empty());

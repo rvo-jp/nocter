@@ -341,11 +341,14 @@ impl<'a, 's> Checker<'a, 's> {
             return "…".into();
         }
         *remaining -= 1;
-        match self
-            .program()
-            .data_schema(data)
-            .expect("closed data authority")
-        {
+        let Some(schema) = self.program().data_schema(data) else {
+            return self
+                .program()
+                .record_identity(data)
+                .and_then(|id| self.program().declaration_label(id.into()))
+                .expect("declared data authority");
+        };
+        match schema {
             PayloadSchema::Array(array) => format!(
                 "[{}; {}]",
                 self.data_label_with_budget(array.element(), remaining),

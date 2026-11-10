@@ -667,5 +667,5 @@ pub(super) fn prepare(
             );
         }
     }
-    plan::Program::new(types.values, plans, statics).map_err(|_| INVALID)
+    plan::Program::new(types.finish(), plans, statics).map_err(|_| INVALID)
 }

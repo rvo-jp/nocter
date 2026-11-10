@@ -28,7 +28,7 @@ fn string(value: &Value) -> &str {
 fn accepted(text: &str) -> Unit {
     let (sources, tree) = input(text);
     SourceUnit::prepare(bound(&sources, &tree))
-        .unwrap()
+        .unwrap_or_else(|failure| panic!("{text}: {failure:?}"))
         .into_unit()
 }
 fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {

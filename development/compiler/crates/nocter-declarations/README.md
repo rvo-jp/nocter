@@ -82,7 +82,9 @@ the same define-once methods. It cannot append reservations or replace an establ
 This single writer validates and normalizes requested callable or record contracts and exposes
 immutable `Program` views containing only ready entries. Each contract first closes its positive
 by-value payload dependencies. Its consuming `finish` closes every remaining callable and record, including unused
-records. `Builder::finish` uses that same path.
+records. `Builder::finish` uses that same path. `record_identity` and `declaration_label` can
+identify/name a reserved nominal before its payload schema is ready; they grant no fields,
+containment, Copy or payload-readiness evidence.
 No authored definition or type resolution is available during reservation, and no new declaration
 can be reserved after name closure. Untyped construction grants no body-checking admission. A ready view
 can support typed-only checking of its established contracts, but only `headers_complete` can

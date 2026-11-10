@@ -528,14 +528,18 @@ headers close without executing bodies or proving termination; every definition 
 pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/usize/unit
-operations, finite acyclic record/tuple/array compositions of supported data, local values, read/edit aliases,
+operations, finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
 updates, structured control, explicit transfer and direct const calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
 single shape projection used by const-domain validation, final-data admission and closed-plan
 construction; homogeneous arrays retain an element ID and u64 count, never expanded type lists.
-Zero-length containment cycles and empty arrays with otherwise unsupported element data remain
-outside this evaluator projection, with a local domain rejection rather than recursive planning;
-ordinary declaration/body validity is independent of that limit. Function-value formation,
+Zero-length element edges are linked after the positive-containment walk. They retain source
+identity without requiring an element payload, including recursive nominal graphs and otherwise
+unsupported element data. An element declaration can still be unready during required evaluation;
+that identity-only edge does not request its payload header or manufacture a ready schema. Final
+Unit closure still validates every independent declaration. `Type::Unavailable` retains such an
+identity without accepting a value; positive occurrences of unsupported data remain outside the
+evaluator domain. The projection's supported-payload fact is derived from these same shapes. Function-value formation,
 captures, invocation through values and opaque error-data operations have no evaluator domain here.
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its
