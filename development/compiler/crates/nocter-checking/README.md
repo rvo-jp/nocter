@@ -466,12 +466,13 @@ not acquire unwind guarantees.
 
 `admission` validates known body result/input/local/expression data before a typed query freezes,
 including callable constraints and capture environments. Declaration-owned array descriptors do
-not yet grant body/resource operations or evaluator representation in this fragment. Array-bearing
+not yet grant source body operations or evaluator representation in this fragment. Array-bearing
 body data rejects locally with E0370 before flow; unused array declarations do not affect scalar
-bodies. Resource/evaluator boundaries independently reject unsupported arrays, including empty
-Copy arrays; zero count is not permission to substitute tuple or scalar behavior.
+bodies. The internal [concrete array resource frontier](#concrete-array-resource-frontiers) does not
+relax this source gate. Evaluator and runtime boundaries still reject arrays, including empty Copy
+arrays; zero count is not permission to substitute tuple or scalar behavior.
 
-Payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
+Source-admitted payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
 snapshot contracts, plus its closed record/tuple compositions over those leaves and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
@@ -769,8 +770,35 @@ value; partially completed count facts cannot publish a Unit. Count values are n
 named constants or runtime-callable bodies. List/repetition construction and bracket selection
 have explicit authored rejection gates. Repetition count preparation does not check or execute
 the seed: once-only seed evaluation, including at zero count, requires the combined construction
-proof. Array value construction/selection, resource transitions, evaluator array data and native
+proof. Array value construction/selection, source-integrated resource validation, evaluator array data and native
 storage remain integration work.
+
+## Concrete Array Resource Frontiers
+
+The ordinary resource ledger accepts closed array payload descriptors for internal ownership
+transitions. Positive lengths validate the element schema once; zero lengths carry no element
+resource edge. `Disposal::Aggregate` retains the structural container obligation, while the
+declaration schema selects record/tuple or homogeneous cleanup. No element-sized metadata list,
+parallel array ownership map or new subarray type is constructed.
+
+Concrete element paths use the [declaration-owned projection](../nocter-declarations/README.md#future-value-declaration-boundary).
+The existing prefix-free missing-path set records transferred elements and partial element fields.
+An intact array remains one whole-payload disposal. For an incomplete array, `resources::payload`
+derives the affected indices from those paths and emits `DisposeArrayElements` for each nonempty
+intact interval, interleaved with partial-element cleanup in reverse index order. Its half-open
+u64 bounds and array payload survive payload projection unchanged; they do not become host
+ordinals or a guessed tuple schema. `ReleaseContainer` ends the array after its remainder,
+including when every element has moved. Restoration, initialized replacement and absence of the
+parent use the same atomic transfer/replacement rules as other structural places.
+
+Ledger qualification covers maximum u64 cardinality, first/last and out-of-bounds positions,
+empty arrays, zero-sized elements, partial record elements, replacement and container retirement.
+These tests start with declaration-backed logical owners. They do not qualify array construction,
+source initialization/access/conflict analysis, or a runtime-selected index. Distinct dynamic
+index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
+checked equality/disjointness conditions must close across reservations, joins and loops before
+source array admission. The evaluator projector and private MIR explicitly reject array interval
+cleanup until their value/storage realization is implemented.
 
 ## Frozen Body Input Channels
 

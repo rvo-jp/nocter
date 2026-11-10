@@ -44,6 +44,77 @@ fn zero_array_breaks_self_containment_without_granting_copy_to_its_element() {
         );
     }
 }
+
+#[test]
+fn concrete_array_paths_validate_bounds_without_host_ordinals_or_count_expansion() {
+    use nocter_model::{FieldPath, ValueField};
+    let symbols = SymbolTable::from_spellings(["Data", "values", "empty"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Data").unwrap(), 2);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define_record(
+            record,
+            false,
+            [
+                FieldDefinition {
+                    name: symbols.get("values").unwrap(),
+                    data: array(
+                        DataReference::Tuple(TupleData::new(
+                            BuiltinType::Error.into(),
+                            BuiltinType::Void.into(),
+                            [],
+                        )),
+                        u64::MAX,
+                    ),
+                },
+                FieldDefinition {
+                    name: symbols.get("empty").unwrap(),
+                    data: array(BuiltinType::Error.into(), 0),
+                },
+            ],
+        )
+        .unwrap();
+    let program = builder.finish().unwrap();
+    let record = program.records().get(record).unwrap();
+    let root = record.data();
+    let values = program
+        .component(root, record.fields()[0].into())
+        .unwrap()
+        .data;
+    let empty = program
+        .component(root, record.fields()[1].into())
+        .unwrap()
+        .data;
+    let element = program
+        .component(values, ValueField::Array(u64::MAX - 1))
+        .unwrap();
+    assert!(
+        program
+            .component(values, ValueField::Array(u64::MAX))
+            .is_none()
+    );
+    assert!(program.component(empty, ValueField::Array(0)).is_none());
+    assert!(program.component(values, ValueField::Tuple(0)).is_none());
+    assert!(
+        program
+            .component(element.data, ValueField::Array(0))
+            .is_none()
+    );
+    assert!(program.component(root, ValueField::Array(0)).is_none());
+    assert_eq!(program.component_position(element.field), None);
+    let path = FieldPath::new([
+        ValueField::Record(record.fields()[0]),
+        element.field,
+        ValueField::Tuple(0),
+    ]);
+    assert_eq!(
+        program.project_data(root, &path),
+        program.data_type(BuiltinType::Error)
+    );
+    let invalid = FieldPath::new([ValueField::Record(record.fields()[1]), ValueField::Array(0)]);
+    assert_eq!(program.project_data(root, &invalid), None);
+}
 #[test]
 fn positive_counts_retain_containment_edges_and_failed_cycles_publish_no_fields() {
     for length in [0, 1, u64::MAX] {

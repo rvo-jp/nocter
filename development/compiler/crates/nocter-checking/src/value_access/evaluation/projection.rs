@@ -226,7 +226,9 @@ impl Builder<'_, '_> {
                     })
                     .collect::<Result<_>>()?,
             },
-            Step::Capture { .. } | Step::AdaptFunction { .. } => return Err(INVALID),
+            Step::Capture { .. }
+            | Step::AdaptFunction { .. }
+            | Step::DisposeArrayElements { .. } => return Err(INVALID),
         })
     }
     fn computation(&mut self, op: &flow::Operation) -> Result<plan::Operation> {

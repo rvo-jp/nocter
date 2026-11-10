@@ -17,7 +17,7 @@ mod closures;
 pub use body_types::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
 pub use closures::Closure;
 mod aggregate;
-pub use aggregate::{AggregateForm, AggregateSchema, Component};
+pub use aggregate::{AggregateForm, AggregateSchema};
 mod data;
 mod functions;
 pub use functions::{
@@ -28,7 +28,7 @@ mod namespace;
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
-pub use data::{ArraySchema, DataReference, PayloadSchema, TupleData};
+pub use data::{ArraySchema, Component, DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};
 pub use records::{Field, FieldDefinition, Record};
 

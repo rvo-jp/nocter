@@ -1,13 +1,6 @@
 //! One closed component projection for nominal records and structural tuples.
-use super::{Field, Record};
+use super::{Component, Field, Record};
 use nocter_model::{AccessFieldId, SparseArena, TypeId, ValueField};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Component {
-    pub field: ValueField,
-    pub data: TypeId,
-    pub position: usize,
-}
 
 /// A positive family projection; consumers must handle every admitted aggregate family.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,13 +52,11 @@ impl<'a> AggregateSchema<'a> {
                 (record.fields().get(selected.position()) == Some(&id)).then_some(Component {
                     field,
                     data: selected.data(),
-                    position: selected.position(),
                 })
             }
             (Shape::Tuple(fields), ValueField::Tuple(position)) => Some(Component {
                 field,
                 data: *fields.get(position)?,
-                position,
             }),
             _ => None,
         }

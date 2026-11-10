@@ -12,6 +12,13 @@ pub enum PayloadSchema<'a> {
     Function(super::FunctionWitness),
 }
 
+/// One schema-validated logical component, independent of physical or packed positions.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Component {
+    pub field: nocter_model::ValueField,
+    pub data: TypeId,
+}
+
 /// A construction-time type reference, resolved once before metadata is published.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataReference {
@@ -205,27 +212,38 @@ impl Program {
             _ => None,
         }
     }
-    /// Validate one semantic component against its containing aggregate.
+    /// Validate one concrete logical component against its containing data shape.
     #[must_use]
     pub fn component(
         &self,
         data: TypeId,
         field: nocter_model::ValueField,
     ) -> Option<super::Component> {
-        let PayloadSchema::Aggregate(schema) = self.data_schema(data)? else {
-            return None;
-        };
-        schema.component(field)
+        match self.data_schema(data)? {
+            PayloadSchema::Aggregate(schema) => schema.component(field),
+            PayloadSchema::Array(array) => {
+                let nocter_model::ValueField::Array(index) = field else {
+                    return None;
+                };
+                (index < array.length()).then_some(super::Component {
+                    field,
+                    data: array.element(),
+                })
+            }
+            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => None,
+        }
     }
-    /// Positional encoding of an established logical selection; this grants no projection rights.
+    /// Packed record/tuple ordinal of an established selection, without projection rights.
+    /// Homogeneous array positions are not aggregate ordinals and have no encoding here.
     #[must_use]
     pub fn component_position(&self, field: nocter_model::ValueField) -> Option<usize> {
         match field {
             nocter_model::ValueField::Record(id) => Some(self.fields().get(id)?.position()),
             nocter_model::ValueField::Tuple(position) => Some(position),
+            nocter_model::ValueField::Array(_) => None,
         }
     }
-    /// Validates an already selected logical path against its exact containing aggregate schemas.
+    /// Validates an already selected logical path against its exact containing data schemas.
     /// No name lookup, permission inference or physical offset participates in this projection.
     #[must_use]
     pub fn project_data(&self, mut data: TypeId, path: &FieldPath) -> Option<TypeId> {

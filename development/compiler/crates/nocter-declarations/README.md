@@ -207,6 +207,12 @@ cannot construct a new schema or choose another type authority. `component` and
 or inferring access permissions. A tuple position cannot select a nominal field or vice versa.
 An empty path preserves its validated data type; a scalar projection or a field from another owner
 is rejected.
+Concrete `ValueField::Array` projections validate the u64 index against the homogeneous descriptor
+and select its element type without expanding components. They cannot select tuple/record data,
+and tuple/record selectors cannot select arrays. `Component` retains only the selected logical key
+and data. Packed record/tuple ordinals come from `component_position`; that separate encoding has
+no array case. These metadata projections establish neither dynamic-index relations nor access
+or initialization evidence.
 
 `data_schema` exposes builtin, aggregate, fixed-array and named/formal/result/application witness schemas from
 the supplied program's sole type authority. It never falls back to a different header/body store.

@@ -6,6 +6,10 @@
    and [computed source array headers](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
    into array value construction/repetition, selected indexing, sparse partial
    initialization and cleanup, evaluator array data/publication, and native storage/ABI.
+   Connect the [concrete array ledger](compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
+   to frozen runtime selector identities and checked equality/disjointness conditions shared by
+   initialization, access and ownership, including call reservations, joins and loops. Concrete
+   metadata indices alone must not establish dynamic disjointness or grant source admission.
    Follow the [structural type request closure](design/compiler-realization.md#structural-type-request-closure)
    through the same ordinary checking/evaluator and declaration-owned array schemas; preserve
    source supplier guards and dynamic index identity without count expansion or a constant-index

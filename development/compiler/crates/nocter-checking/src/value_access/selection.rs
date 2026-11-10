@@ -185,7 +185,10 @@ impl Checker<'_, '_> {
                     .program()
                     .component(container, field)
                     .ok_or(Failure::InconsistentSyntax)?;
-                let index = component.position;
+                let index = self
+                    .program()
+                    .component_position(field)
+                    .ok_or(Failure::InconsistentSyntax)?;
                 let nocter_model::FrozenNode::Aggregate(children) = value.node() else {
                     return Err(Failure::InconsistentSyntax);
                 };

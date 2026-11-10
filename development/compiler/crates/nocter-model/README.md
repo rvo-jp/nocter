@@ -39,8 +39,9 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   declaration roles and callable witnesses remain declaration-owned facts
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
-- logical field paths with record-field identities and tuple positions, concatenation and
+- logical field paths with record-field identities, tuple positions and concrete u64 array indices, concatenation and
   prefix/overlap relations; the declaration owner validates each selection against its containing data schema, independently of memory offsets
+  or host ordinals. Concrete indices do not encode runtime selector identity or prove a dynamic relation
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
   and distinct future code/input/field and body-local/selected-place/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering

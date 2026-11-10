@@ -22,7 +22,7 @@ fn inferred_and_annotated_tuple_shapes_share_one_identity_and_structural_copy() 
         .program()
         .component(pair, ValueField::Tuple(1))
         .unwrap();
-    assert_eq!(shape.position, 1);
+    assert_eq!(unit.program().component_position(shape.field), Some(1));
     assert_eq!(
         shape.data,
         unit.program().data_type(BuiltinType::Bool).unwrap()

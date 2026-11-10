@@ -191,6 +191,7 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
                 for step in transition.steps() {
                     let payload = match step {
                         flow::resources::Step::Dispose { payload, .. }
+                        | flow::resources::Step::DisposeArrayElements { payload, .. }
                         | flow::resources::Step::ReplaceInput { payload, .. } => *payload,
                         flow::resources::Step::Capture { .. }
                         | flow::resources::Step::AdaptFunction { .. }
@@ -272,7 +273,7 @@ mod tests {
     use nocter_model::{BuiltinType, SymbolTable};
 
     #[test]
-    fn array_metadata_and_copy_do_not_grant_evaluator_or_resource_admission() {
+    fn array_resource_descriptors_do_not_grant_evaluator_or_final_data_admission() {
         for length in [0, 1, u64::MAX] {
             let symbols = SymbolTable::from_spellings(["run", "Holder", "value"]);
             let mut reservations = Reservations::new(symbols.clone());
@@ -306,23 +307,23 @@ mod tests {
             let program = builder.finish().unwrap();
             let data = program.codes().get(code).unwrap().result();
             assert_eq!(program.data_copyable(data), Some(true));
-            for purpose in [Domain::Execution, Domain::Publication] {
-                assert!(
-                    !DataDomain {
-                        purpose,
-                        program: &program,
-                        supported: BTreeMap::new()
-                    }
-                    .supports(data)
-                    .unwrap()
+            for data in [data, program.records().get(holder).unwrap().data()] {
+                assert_eq!(
+                    flow::resources::payload(&program, data).unwrap().disposal(),
+                    flow::resources::Disposal::Aggregate
                 );
+                for purpose in [Domain::Execution, Domain::Publication] {
+                    assert!(
+                        !DataDomain {
+                            purpose,
+                            program: &program,
+                            supported: BTreeMap::new()
+                        }
+                        .supports(data)
+                        .unwrap()
+                    );
+                }
             }
-            assert!(flow::resources::payload(&program, data).is_err());
-            assert!(
-                flow::resources::payload(&program, program.records().get(holder).unwrap().data())
-                    .is_err(),
-                "a nominal wrapper cannot hide the unsupported array"
-            );
         }
     }
 }

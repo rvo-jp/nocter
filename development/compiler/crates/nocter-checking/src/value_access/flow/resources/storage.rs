@@ -90,7 +90,7 @@ impl State {
     pub fn take(&mut self, program: &Program, source: &Place) -> Result<Payload> {
         let value = self.owned.get(&source.holder()).ok_or(INVALID)?;
         let selected = value.selected(program, source.fields())?;
-        if !self.initialized(program, source)? {
+        if !value.complete(source.fields()) {
             return Err(INVALID);
         }
         if source.fields().is_root() {

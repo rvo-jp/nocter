@@ -1,6 +1,6 @@
 //! Sparse availability and cleanup frontiers. Fully initialized subtrees remain shared schemas.
 use super::{Disposal, FieldPath, INVALID, Payload, Place, Program, Result, Step, payload};
-use nocter_declarations::value_access::PayloadSchema;
+use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -9,6 +9,10 @@ pub(super) struct OwnedValue {
     // Prefix-free unavailable selections. Do not merge missing siblings into their parent:
     // the parent container still exists and permits restoring an individual child.
     pub missing: BTreeSet<FieldPath>,
+}
+enum Pending {
+    Value(Place, Payload),
+    Emit(Step),
 }
 impl OwnedValue {
     pub fn new(payload: Payload) -> Self {
@@ -45,18 +49,14 @@ impl OwnedValue {
     }
     /// Maximal initialized regions in destruction order, without enumerating intact descendants.
     pub fn cleanup(&self, program: &Program, place: &Place) -> Result<Vec<Step>> {
-        enum Pending {
-            Value(Place, Payload),
-            Container(Place, Payload),
-        }
         let selected = self.container(program, place.fields())?;
         let mut pending = vec![Pending::Value(place.clone(), selected)];
         let mut cleanup = Vec::new();
         while let Some(next) = pending.pop() {
             let (place, selected) = match next {
                 Pending::Value(place, selected) => (place, selected),
-                Pending::Container(source, payload) => {
-                    cleanup.push(Step::ReleaseContainer { source, payload });
+                Pending::Emit(step) => {
+                    cleanup.push(step);
                     continue;
                 }
             };
@@ -73,20 +73,65 @@ impl OwnedValue {
             if selected.disposal() != Disposal::Aggregate {
                 return Err(INVALID);
             }
-            let PayloadSchema::Aggregate(aggregate) =
-                program.data_schema(selected.data()).ok_or(INVALID)?
-            else {
-                return Err(INVALID);
-            };
-            // The container ends after surviving fields. Stack insertion follows declaration
-            // order; field visitation is reverse declaration order.
-            pending.push(Pending::Container(place.clone(), selected));
-            for field in aggregate.components() {
-                let child = place.project(field.field);
-                let data = field.data;
-                pending.push(Pending::Value(child, payload(program, data)?));
+            // The container ends after surviving regions. Stack insertion follows component
+            // order so cleanup visits them in reverse.
+            pending.push(Pending::Emit(Step::ReleaseContainer {
+                source: place.clone(),
+                payload: selected,
+            }));
+            match program.data_schema(selected.data()).ok_or(INVALID)? {
+                PayloadSchema::Aggregate(aggregate) => {
+                    for field in aggregate.components() {
+                        let child = place.project(field.field);
+                        pending.push(Pending::Value(child, payload(program, field.data)?));
+                    }
+                }
+                PayloadSchema::Array(array) => {
+                    self.array_frontier(program, &place, selected, array, &mut pending)?;
+                }
+                PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => return Err(INVALID),
             }
         }
         Ok(cleanup)
+    }
+    fn array_frontier(
+        &self,
+        program: &Program,
+        place: &Place,
+        selected: Payload,
+        array: ArraySchema,
+        pending: &mut Vec<Pending>,
+    ) -> Result<()> {
+        let depth = place.fields().fields().len();
+        let indices = self
+            .missing
+            .iter()
+            .filter(|hole| place.fields().is_prefix_of(hole))
+            .map(|hole| {
+                let Some(nocter_model::ValueField::Array(index)) = hole.fields().get(depth) else {
+                    return Err(INVALID);
+                };
+                (*index < array.length()).then_some(*index).ok_or(INVALID)
+            })
+            .collect::<Result<BTreeSet<_>>>()?;
+        let element = payload(program, array.element())?;
+        let mut start = 0;
+        // The final length boundary closes the last intact span; no array elements are enumerated.
+        for index in indices.into_iter().chain(std::iter::once(array.length())) {
+            if start < index {
+                pending.push(Pending::Emit(Step::DisposeArrayElements {
+                    source: place.clone(),
+                    payload: selected,
+                    start,
+                    end: index,
+                }));
+            }
+            if index < array.length() {
+                let child = place.project(nocter_model::ValueField::Array(index));
+                pending.push(Pending::Value(child, element));
+                start = index.checked_add(1).ok_or(INVALID)?;
+            }
+        }
+        Ok(())
     }
 }

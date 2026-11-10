@@ -82,6 +82,7 @@ pub enum Disposal {
     FunctionEnvironment,
     Trivial,
     OwnedError,
+    /// A structural container; its declaration schema selects component or homogeneous cleanup.
     Aggregate,
 }
 /// A schema-selected cleanup obligation, concrete or tied to a formal environment witness.
@@ -121,7 +122,7 @@ pub enum Step {
         from: Payload,
         payload: Payload,
     },
-    /// Transfer complete component obligations into one record; no second value is constructed.
+    /// Transfer complete component obligations into one record/tuple; no second value is constructed.
     Assemble {
         destination: Holder,
         payload: Payload,
@@ -146,7 +147,15 @@ pub enum Step {
         source: Place,
         payload: Payload,
     },
-    /// End a partial record's containing slot after cleaning its surviving regions. This does
+    /// Dispose initialized elements in [start, end) in reverse index order, retaining the array
+    /// container. Payload is the array's obligation, not a fabricated subarray type.
+    DisposeArrayElements {
+        source: Place,
+        payload: Payload,
+        start: u64,
+        end: u64,
+    },
+    /// End a partial structural container's slot after cleaning its surviving regions. This does
     /// not destroy its payload again or prescribe physical allocation/deallocation.
     ReleaseContainer {
         source: Place,
@@ -193,6 +202,7 @@ impl Step {
             | Self::Receive { payload, .. }
             | Self::Move { payload, .. }
             | Self::Dispose { payload, .. }
+            | Self::DisposeArrayElements { payload, .. }
             | Self::ReleaseContainer { payload, .. }
             | Self::Invoke { payload, .. }
             | Self::ReplaceInput { payload, .. } => *payload = map(*payload)?,
@@ -351,6 +361,12 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
                 pending.extend(schema.components().map(|component| component.data));
                 Disposal::Aggregate
             }
+            PayloadSchema::Array(array) => {
+                if !array.is_empty() {
+                    pending.push(array.element());
+                }
+                Disposal::Aggregate
+            }
             PayloadSchema::Function(witness) => match witness.origin {
                 nocter_model::ValueFunctionOrigin::Closure(id) => {
                     pending.push(program.closure(id).ok_or(INVALID)?.environment());
@@ -361,7 +377,7 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
                 nocter_model::ValueFunctionOrigin::Result(_)
                 | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
             },
-            PayloadSchema::Builtin(_) | PayloadSchema::Array(_) => return Err(INVALID),
+            PayloadSchema::Builtin(_) => return Err(INVALID),
         };
 
         if current == data {

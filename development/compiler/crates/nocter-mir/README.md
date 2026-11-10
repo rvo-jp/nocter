@@ -77,6 +77,8 @@ MirProgram conversion.
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.
+Private array interval cleanup remains outside this stored-body boundary and rejects explicitly;
+the checking ledger's logical array frontier is not runtime layout or executable admission.
 
 Each body additionally freezes the reachable static address-slot bindings separately from its
 ordered inputs. One program-owned static table retains their exact runtime data and frozen values.

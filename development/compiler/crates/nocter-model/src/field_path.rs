@@ -5,6 +5,8 @@ use crate::AccessFieldId;
 pub enum ValueField {
     Record(AccessFieldId),
     Tuple(usize),
+    /// A concrete logical array position, not a tuple ordinal or a dynamic-index proof.
+    Array(u64),
 }
 impl From<AccessFieldId> for ValueField {
     fn from(field: AccessFieldId) -> Self {
@@ -96,5 +98,8 @@ mod tests {
             nested.fields(),
             [ValueField::Record(a), ValueField::Record(b)]
         );
+        let element = left.project(ValueField::Array(u64::MAX - 1));
+        assert!(left.overlaps(&element));
+        assert!(!element.overlaps(&left.project(ValueField::Array(0))));
     }
 }
