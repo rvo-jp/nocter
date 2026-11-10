@@ -1,5 +1,6 @@
 mod call;
 mod ownership;
+mod selection;
 use super::super::resources::StepPlan;
 use super::super::{IntegrityError, Location, Operation};
 use super::{
@@ -8,8 +9,7 @@ use super::{
     state::{Key, Node, Prepared, Value, World},
 };
 use crate::value_access::{
-    ArgumentAction, BoundaryAction, ExpressionKind, IndexAction, Query as TypedQuery, Referent,
-    SelectionAction,
+    ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, Referent, SelectionAction,
 };
 use nocter_model::{AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode};
 
@@ -309,8 +309,12 @@ impl Context<'_, '_> {
         if kind == RetentionKind::Access(Mode::Update) && !self.world.writable_actor(parent)? {
             return Err(Failure::Integrity);
         }
-        self.world
-            .check(&region, parent, mode, self.at, self.live)?;
+        if kind == RetentionKind::Place {
+            self.world.check_lifetime(&region, self.at)?;
+        } else {
+            self.world
+                .check(&region, parent, mode, self.at, self.live)?;
+        }
         self.world.nodes.insert(
             key,
             Node {
@@ -339,32 +343,16 @@ impl Context<'_, '_> {
             ExpressionKind::Place(place) => {
                 self.retain_place(Key::Expression(id), self.base(place)?)
             }
-            ExpressionKind::Index { base, action, .. } => {
-                if action == IndexAction::CopyPayload {
-                    self.read(self.world.value(base)?)?;
-                    Ok(Value::without_referent(Mode::Own))
-                } else {
-                    let Some((mut region, actor)) = self.base_value(self.world.value(base)?)?
-                    else {
-                        return Err(Failure::Integrity);
-                    };
-                    // This read proof covers the array. Descendant fields cannot refine this
-                    // prefix until evaluated index equality/disjointness is proved.
-                    region.precise = false;
-                    self.retain_place(Key::Expression(id), Some((region, actor)))
-                }
-            }
+            ExpressionKind::Index {
+                base,
+                index,
+                action,
+            } => self.index(id, base, index, action),
             ExpressionKind::Select {
                 source,
                 ref fields,
                 action: SelectionAction::Access,
-            } => {
-                let Some((mut region, actor)) = self.base_value(self.world.value(source)?)? else {
-                    return Err(Failure::Integrity);
-                };
-                region.project(fields);
-                self.retain_place(Key::Expression(id), Some((region, actor)))
-            }
+            } => self.select(id, source, fields),
             ExpressionKind::Move(place) => {
                 let (region, actor) = self.base(place)?.ok_or(Failure::Integrity)?;
                 self.write(&region, actor, Mode::Own, None)?;

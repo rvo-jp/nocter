@@ -227,8 +227,9 @@ the saved value through physical lowering. It cannot substitute the current cont
 index variable or invent a subarray type. Qualify mutations between selections, conditional
 equality/disequality, reservations with later effects, partial nested elements, loop re-execution,
 failure and zero-sized data through actual source before opening precise element-state and transfer
-admission. The bounded [selection path](../compiler/crates/nocter-checking/README.md#array-selection) uses a covering
-array footprint; it does not establish these precise element-state proofs. The concrete
+admission. Complete-value access disjointness can close separately through the
+[selection path](../compiler/crates/nocter-checking/README.md#array-selection); it does not establish
+these precise element-state proofs. The concrete
 ledger tests and path-algebra tests do not establish these source proofs.
 
 ## Executable Lifecycle and Target Admission

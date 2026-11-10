@@ -186,14 +186,20 @@ impl World {
             }
         }
         // Update demand through a retained projection also demands its existing authority.
-        // Preserve neutral ancestors until the first actual access grant, without upgrading it.
+        // Dead neutral ancestors carry no remaining identity demand. Retain the first actual
+        // authority grant, and let reparenting compress neutral intermediates without upgrading it.
         let mut pending: Vec<_> = updating.iter().copied().collect();
         while let Some(key) = pending.pop() {
             let node = self.nodes.get(&key).ok_or(INVALID)?;
             if node.kind == RetentionKind::Place
                 && let Some(parent) = node.parent
             {
-                retained.insert(parent);
+                if matches!(
+                    self.nodes.get(&parent).ok_or(INVALID)?.kind,
+                    RetentionKind::Access(_)
+                ) {
+                    retained.insert(parent);
+                }
                 if updating.insert(parent) {
                     pending.push(parent);
                 }
@@ -260,6 +266,18 @@ impl World {
         }
         None
     }
+    pub fn check_lifetime(&self, region: &Region, location: Location) -> Result<(), Violation> {
+        if self.alive(region.root) {
+            return Ok(());
+        }
+        Err(Violation {
+            location,
+            rule: AccessRule::ExpiredRoot,
+            root: region.root,
+            fields: region.fields.clone(),
+            retained: None,
+        })
+    }
     pub fn check(
         &self,
         region: &Region,
@@ -268,15 +286,7 @@ impl World {
         location: Location,
         live: &Liveness,
     ) -> Result<(), Violation> {
-        if !self.alive(region.root) {
-            return Err(Violation {
-                location,
-                rule: AccessRule::ExpiredRoot,
-                root: region.root,
-                fields: region.fields.clone(),
-                retained: None,
-            });
-        }
+        self.check_lifetime(region, location)?;
         let mut ancestors = BTreeSet::new();
         let mut cursor = actor;
         while let Some(key) = cursor {

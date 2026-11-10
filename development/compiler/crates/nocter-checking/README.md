@@ -392,8 +392,9 @@ from selected-value completeness, retaining invalidation causes without expandin
 Copy does not invalidate its source; moves invalidate only the selected region. Restoration requires
 present ancestor containers, while complete-value use requires every selected component. Fixed
 owners cannot be reinitialized. Diagnostics retain which of those requirements failed.
-`booleans` derives one expression-local normal-result fact while typing literals, negation,
-short-circuit operations and value-preserving boundaries. It neither reads storage contents nor
+`Expression.normal_value` owns one typed normal-result scalar fact. `booleans` derives its
+Boolean alternative while typing literals, negation, short-circuit operations and value-preserving
+boundaries. It neither reads storage contents nor
 inspects a callee body. Typing, capture inference and control construction consume that same
 stored fact; no consumer grows a second predicate evaluator. RHS demand also controls reachable
 breaks and normal completion: a skipped operand cannot introduce a loop exit, and a required
@@ -401,6 +402,12 @@ interrupted operand cannot manufacture a value. Known results retain the complet
 evaluation and its effects. These are proofs under the [Boolean contract](../../../spec/language/booleans.md),
 not constant replacement of calls or permission to skip name/data checks in dead branches. A dead break cannot create a normal loop exit or a missing-result
 obligation; a reachable break still can. Selected terminating branches have no continuing value.
+`integers` derives the integer alternative from established literals, value-preserving boundaries
+and the common result of every reachable normal conditional branch. Named constant data arrives
+through the ordinary required-value authority. Unknown storage/call results remain unknown; no
+arithmetic evaluator, lexical-value read or callee inspection is added. A known numeric result
+cannot turn a typed name into a contextual literal or suppress index evaluation and its effects.
+
 Edit replacements keep their outside place valid. Cleanup conditions are not permission to read
 missing data or skip required destruction. Unreachable source retains structural checking without
 invented runtime uses. Source projection reports already selected identities/locations.
@@ -408,15 +415,17 @@ invented runtime uses. Source projection reports already selected identities/loc
 `RetentionKind::Place` keeps a selected place's identity without activating a read or update grant.
 Read/edit alias boundaries activate their declared access; call inputs retain reservations until
 bundle commit. Projection liveness propagates update demand to the existing base authority, and
-world trimming retains the necessary neutral ancestors until an actual access grant. A real read
-grant stops update delegation. No consumer upgrades a read alias, infers writable authority from
-Copy, or maintains a second place/permission registry. Retained-place invalidation diagnostics name
+world trimming compresses dead neutral intermediates while retaining the first actual authority
+grant. Address-only identification does not read the whole containing payload; actual value supply,
+alias activation and call commit retain their read/update checks. A real read grant stops update
+delegation. No consumer upgrades a read alias, infers writable authority from Copy, or maintains a
+second place/permission registry. Retained-place invalidation diagnostics name
 the selected place separately from an active access or pending call.
 
 Access demand includes alias children and prepared uses. Referent regions pair an owning/input/
 temporary root with its resolved field path. Prefix overlap preserves exclusivity for a parent and
 its child while allowing disjoint sibling accesses. Static alias delegation concatenates paths;
-covering evaluated-array footprints follow the [selection boundary](#array-selection). Access
+evaluated-array paths follow the [selection boundary](#array-selection). Access
 checking and call reservations do not resolve field names again. An unused intermediary can release
 its own demand while its children retain read/update protection; remaining read demand does not
 force update exclusivity forever. Delegation never upgrades read or duplicates exclusivity.
@@ -883,20 +892,25 @@ and a target exit cleans the prepared replacement without publishing a write. Co
 the old selected value after target preparation. Static and evaluated targets share `Referent`;
 static owner restoration retains its ordinary initialization transition. Evaluated replacement
 requires existing complete storage and uses the same exact-address `ReplaceReferent` resource
-handoff as scoped edit aliases, without interpreting the covering conflict footprint as a concrete
+handoff as scoped edit aliases, without interpreting an abstract conflict footprint as a concrete
 ownership path.
 
-The initial initialization/access proof requires the containing array complete and conservatively
-protects its footprint, including during index evaluation. A covering marker prevents fields of a
-selected record element from being appended directly to that array prefix or creating false
-disjointness. Fields outside the containing array remain independent. This is no precise
-index-equality, element-hole or restoration proof. Element transfer and partial-state admission
-still require the [evaluated-selection
-closure](../../../design/compiler-realization.md#evaluated-array-selection-closure) over the [shared
-path relation](../nocter-model/README.md#structural-projection-relations).
+Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
+numeric results select concrete indices; unknown indices remain unknown even when their recipe
+keys or representations compare equal. The [shared structural relation](../nocter-model/README.md#structural-projection-relations)
+can prove disjoint known elements or later record/tuple/array components after an unknown index.
+It never appends element fields directly to the containing array prefix or uses byte offsets as
+logical identity. This permits independent field access for both equal and distinct runtime indices,
+including zero-byte data, without an index-name or loop-generation proof.
+
+Initialization still requires a complete containing array, and base identity stays protected during
+index evaluation. Saved addresses remain the exact execution authority; scalar result facts do not
+replace them or authorize omission of bounds checks. Element transfer and partial-state admission
+still require the [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
+Access disjointness does not prove a missing element's identity, restoration or cleanup interval.
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
-Copy snapshots, non-Copy element/field reads, covering field views, alternating member/index chains,
+Copy snapshots, non-Copy element/field reads, structural field views, alternating member/index chains,
 once-in-order index effects, parent/index-side invalidation, interrupted preparation, computed-base
 alias rejection, zero-sized bounds effects and local operand failures. Indexed edit-input tests
 qualify listed/repeated and non-Copy data, edit parameters/aliases, saved indices, read-only
@@ -906,7 +920,10 @@ indices, Copy snapshots, read-child exclusivity, read-only/computed rejection, b
 responsibility and deep update-demand propagation. Direct writes additionally qualify RHS/index
 order, compound reads after RHS effects, mixed record fields, non-Copy replacement, interrupted
 RHS/target cleanup, loop re-execution, maximum-count sparse Copy snapshots, zero/out-of-range
-bounds and read-only/overlapping target rejection. Required bounds failure reports E0325 without
+bounds and read-only/overlapping target rejection. Structural-region tests cover known disjoint
+inputs, unknown indices separated by later fields/elements, read siblings, reserved-input effects,
+conditional singleton results with effects/exits, unproved overlap, whole-parent invalidation and
+zero-byte logical identity. Required bounds failure reports E0325 without
 publishing a value. Compile-time selection also reaches the [common native
 consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 when its frozen result is scalar. The [native array consumer](../nocter-machine/README.md#private-array-execution)

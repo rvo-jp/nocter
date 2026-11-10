@@ -326,3 +326,5 @@ mod indexed_edits;
 mod indexed_aliases;
 
 mod indexed_writes;
+
+mod indexed_regions;

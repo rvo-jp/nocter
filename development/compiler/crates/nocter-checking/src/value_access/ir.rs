@@ -336,9 +336,26 @@ pub struct Expression {
     pub ty: ValueType,
     pub kind: ExpressionKind,
     /// Result shared by normal completions; this grants no omission of evaluation or its effects.
-    pub(super) normal_boolean: Option<bool>,
+    pub(super) normal_value: Option<NormalValue>,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum NormalValue {
+    Boolean(bool),
+    Integer(i128),
 }
 impl Expression {
+    pub(super) fn normal_boolean(&self) -> Option<bool> {
+        match self.normal_value {
+            Some(NormalValue::Boolean(value)) => Some(value),
+            _ => None,
+        }
+    }
+    pub(super) fn normal_integer(&self) -> Option<i128> {
+        match self.normal_value {
+            Some(NormalValue::Integer(value)) => Some(value),
+            _ => None,
+        }
+    }
     #[must_use]
     pub const fn referent(&self, id: AccessExpressionId) -> Option<Referent> {
         match self.kind {

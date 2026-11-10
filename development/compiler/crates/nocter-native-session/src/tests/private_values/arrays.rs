@@ -275,3 +275,36 @@ fn private_complete_array_cleanup_can_reach_image_lowering() {
         42,
     );
 }
+
+#[test]
+fn private_structural_array_regions_keep_disjoint_access_and_index_effects() {
+    for (name, source) in [
+        (
+            "array-disjoint-inputs",
+            "func add(edit left: i32, edit right: i32): void { left += 1\nright += 1 }\nfunc run(): i32 { var values = [20, 18]\nvar count = 0\nwhile count < 2 { add(values[0], values[1])\ncount += 1 }\nvalues[0] + values[1] }",
+        ),
+        (
+            "array-unknown-disjoint-fields",
+            "struct Row { left: i32\nright: i32 }\nfunc add(edit left: i32, edit right: i32): void { left += 1\nright += 1 }\nfunc change(edit rows: [Row; 2], i: usize, j: usize): void { add(rows[i].left, rows[j].right) }\nfunc run(): i32 { var rows = [Row { left: 20, right: 0 }, Row { left: 0, right: 20 }]\nchange(rows, 0, 1)\nrows[0].left + rows[1].right }",
+        ),
+        (
+            "array-index-effects-singleton",
+            "func work(flag: bool): i32 { var calls = 0\nvar values = [20, 20]\nedit left = values[if flag { calls += 1\n0 } else { calls += 10\n0 }]\nedit right = values[1]\nleft += 1\nright += 1\nleft + right + calls }\nfunc run(): i32 { work(false) - 10 }",
+        ),
+        (
+            "array-disjoint-saved-fields",
+            "struct Row { left: i32\nright: i32 }\nfunc run(): i32 { var rows = [Row { left: 10, right: 0 }, Row { left: 0, right: 0 }]\nvar index: usize = 0\nedit first = rows[index].left\nindex = 1\nedit second = rows[index].right\nfirst += 32\nsecond += 0\nfirst + second }",
+        ),
+        (
+            "array-disjoint-preparation-effects",
+            "func add(edit value: i32, delta: i32): void { value += delta }\nfunc next(edit value: i32): i32 { value += 1\n1 }\nfunc run(): i32 { var values = [20, 20]\nadd(values[0], next(values[1]))\nvalues[0] + values[1] }",
+        ),
+        (
+            "array-zero-byte-disjoint-inputs",
+            "func assign(edit left: void, edit right: void): i32 { left = ()\nright = ()\n42 }\nfunc run(): i32 { var values = [(), ()]\nassign(values[0], values[1]) }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}

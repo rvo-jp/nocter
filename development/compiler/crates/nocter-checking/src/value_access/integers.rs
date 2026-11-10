@@ -98,3 +98,48 @@ impl Checker<'_, '_> {
             .ok_or(Failure::InconsistentSyntax)
     }
 }
+
+impl Checker<'_, '_> {
+    /// A normal-result singleton is not permission to skip evaluation or read a variable early.
+    /// No arithmetic evaluator or callee-body inference is introduced here.
+    pub(super) fn integer_result(&self, kind: &super::ExpressionKind) -> Option<i128> {
+        use super::ExpressionKind;
+        match *kind {
+            ExpressionKind::Integer(value) => Some(value),
+            ExpressionKind::Boundary { source, .. } => {
+                self.expressions.get(source)?.normal_integer()
+            }
+            ExpressionKind::If {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                let result = |id| {
+                    let block = self.blocks.get(id)?;
+                    block
+                        .ty
+                        .may_complete()
+                        .then_some(block.result?)
+                        .and_then(|id| self.expressions.get(id)?.normal_integer())
+                };
+                match self.normal_boolean(condition) {
+                    Some(true) => result(then_block),
+                    Some(false) => result(else_block),
+                    None => {
+                        let left = self.blocks.get(then_block)?;
+                        let right = self.blocks.get(else_block)?;
+                        match (left.ty.may_complete(), right.ty.may_complete()) {
+                            (true, false) => result(then_block),
+                            (false, true) => result(else_block),
+                            (true, true) => {
+                                result(then_block).filter(|left| Some(*left) == result(else_block))
+                            }
+                            _ => None,
+                        }
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+}

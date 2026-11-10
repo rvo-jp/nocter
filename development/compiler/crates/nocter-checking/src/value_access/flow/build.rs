@@ -113,7 +113,7 @@ impl Builder<'_> {
             .expressions()
             .get(condition)
             .ok_or(INVALID)?
-            .normal_boolean
+            .normal_boolean()
         {
             Some(true) => Terminator::Jump(yes),
             Some(false) => Terminator::Jump(no),

@@ -360,13 +360,11 @@ impl Context<'_, '_> {
             let Root::Owned(local) = root.root else {
                 return Err(Failure::Integrity);
             };
-            if !root.precise {
-                return Err(Failure::Integrity);
-            }
+            let fields = root.concrete_fields().ok_or(Failure::Integrity)?;
             self.world.resources.replace(
                 self.typed.program(),
                 &Holder::Expression(value).place(),
-                &Holder::Local(local).place().project_path(&root.fields),
+                &Holder::Local(local).place().project_path(&fields),
                 &mut self.steps,
             )?;
         }

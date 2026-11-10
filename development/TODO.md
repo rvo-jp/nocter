@@ -25,9 +25,9 @@ is not execution of an owned error graph.
 Preserve homogeneous geometry, payload-free empty arrays and the existing lifecycle ownership;
 do not add N compiler owners, layout fields or generated operations.
 
-Connect general evaluated selections to one checking-owned source of retained-index facts for
-initialization, access and resource flow. The [selection path](compiler/crates/nocter-checking/README.md#array-selection)
-conservatively covers a complete containing array; the [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
+Extend the [selection path](compiler/crates/nocter-checking/README.md#array-selection) from complete-value
+access disjointness to one checking-owned source of retained-index facts for initialization and
+resource flow. The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
 index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
 Use the existing canonical address/value storage and shared structural relation, without a second
