@@ -26,7 +26,7 @@ pub use functions::{
 };
 mod namespace;
 mod publication;
-pub use publication::{HeaderPublication, HeaderStep};
+pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
 pub use data::{DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};
@@ -480,7 +480,13 @@ impl Builder {
     /// # Errors
     /// Returns callable and record header/shape violations without publishing a partial program.
     pub fn finish(self) -> Result<Program, Vec<DeclarationViolation>> {
-        self.into_publication().map(HeaderPublication::finish)
+        match self.into_publication()?.finish() {
+            Ok(program) => Ok(program),
+            Err(HeaderFailure::Rejected(violations)) => Err(violations),
+            Err(HeaderFailure::UnknownId | HeaderFailure::Inconsistent) => {
+                unreachable!("reserved header domain lost integrity")
+            }
+        }
     }
 
     /// Validate closed source definitions before publishing individual callable contracts.

@@ -227,7 +227,7 @@ entry delegates contract readiness, ordinary body preparation and required execu
 their complete contracts; unknown names remain source failures. The complete name domain forbids
 shadowing independently of readiness, and dead source retains its requirements. Record construction
 and annotation leaves, including closure input data, use that same request. This stage does not yet
-request values during source type normalization; raw reference/containment validation remains eager.
+request values during source type normalization; raw source-reference validation remains eager.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
@@ -562,8 +562,11 @@ Header requests use the query's iterative progress entry. Lowering exposes decla
 required-record identities; checking schedules them without inspecting fields or repeating
 containment/Copy analysis. Pending groups share the same active frames and memoization as bounded
 body/value callbacks. All remaining contracts, including unused records, pass through this entry
-before source-unit closure. Raw reference/shape validation remains eager and header steps still
-cannot request computed lengths.
+before source-unit closure. Header failures retain the facade's declaration-versus-checking
+classification through body and value requests; a record failure never acquires a fictitious
+callable owner. Lowering projects its owning field. Completed independent values survive failed
+header work, but final Unit closure cannot admit any invalid unused record. Raw source-reference
+validation remains eager and header steps still cannot request computed lengths.
 Constant references become validated primitive literals or immutable frozen-aggregate expressions in
 ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.

@@ -155,27 +155,30 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
         )
         .unwrap();
     builder.define_record(plain, false, []).unwrap();
-    let violations = builder.finish().unwrap_err();
+    let mut headers = builder.into_publication().unwrap();
+    let before = headers.snapshot();
+    let expected = super::super::HeaderFailure::Rejected(vec![DeclarationViolation {
+        declaration: DeclarationId::Record(b),
+        position: HeaderPosition::Field(0),
+        rule: DeclarationRule::NonCopyField,
+    }]);
+    // The invalid child cannot publish as non-Copy, or make A produce a secondary Copy failure.
+    assert_eq!(headers.publish(a), Err(expected));
+    let after = headers.snapshot();
+    assert!(after.records().is_empty());
+    assert!(after.fields().is_empty());
     assert_eq!(
-        violations,
-        vec![
-            DeclarationViolation {
-                declaration: DeclarationId::Record(a),
-                position: HeaderPosition::Field(0),
-                rule: DeclarationRule::NonCopyField
-            },
-            DeclarationViolation {
-                declaration: DeclarationId::Record(a),
-                position: HeaderPosition::Field(1),
-                rule: DeclarationRule::NonCopyField
-            },
-            DeclarationViolation {
-                declaration: DeclarationId::Record(b),
-                position: HeaderPosition::Field(0),
-                rule: DeclarationRule::NonCopyField
-            },
-        ]
+        after.types.store().type_count(),
+        before.types.store().type_count()
     );
+    assert!(after.preserves_headers(&before));
+    // An independent ordinary non-Copy record remains a valid dependency after the failure.
+    headers.publish(plain).unwrap();
+    assert!(!headers.snapshot().records().get(plain).unwrap().copyable());
+    assert!(matches!(
+        headers.finish(),
+        Err(super::super::HeaderFailure::Rejected(_))
+    ));
 }
 
 #[test]
@@ -196,20 +199,28 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
             )
             .unwrap();
     }
-    let violations = builder.finish().unwrap_err();
-    assert_eq!(violations.len(), 4);
-    for (violation, (id, through)) in
-        violations
-            .iter()
-            .zip([(a, b), (b, a), (c, a), (recursive, recursive)])
-    {
-        assert_eq!(violation.declaration, DeclarationId::Record(id));
-        assert_eq!(violation.position, HeaderPosition::Field(0));
+    let mut headers = builder.into_publication().unwrap();
+    for (request, owner, through) in [
+        (a, b, a),
+        (b, a, b),
+        (c, b, a),
+        (recursive, recursive, recursive),
+    ] {
         assert_eq!(
-            violation.rule,
-            DeclarationRule::RecursivePayload { through }
+            headers.publish(request),
+            Err(super::super::HeaderFailure::Rejected(vec![
+                DeclarationViolation {
+                    declaration: DeclarationId::Record(owner),
+                    position: HeaderPosition::Field(0),
+                    rule: DeclarationRule::RecursivePayload { through },
+                }
+            ]))
         );
+        assert!(headers.snapshot().records().is_empty());
+        assert!(headers.snapshot().fields().is_empty());
     }
+    // Final whole-unit closure still rejects unused invalid declarations.
+    assert!(headers.finish().is_err());
 }
 
 #[test]
@@ -519,4 +530,60 @@ fn callable_parameters_cannot_shadow_authored_record_names() {
             rule: DeclarationRule::ParameterShadowsRecord { declaration: a },
         }]
     );
+}
+
+#[test]
+fn rejected_copy_fields_publish_neither_tuple_types_nor_partial_schemas() {
+    use crate::value_access::{HeaderFailure, TupleData};
+    let symbols = SymbolTable::from_spellings(["Plain", "Invalid", "first", "second"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let plain = reservations.reserve_record(symbols.get("Plain").unwrap(), 0);
+    let invalid = reservations.reserve_record(symbols.get("Invalid").unwrap(), 2);
+    let mut builder = reservations.finish().unwrap();
+    builder.define_record(plain, false, []).unwrap();
+    builder
+        .define_record(
+            invalid,
+            true,
+            [
+                field(
+                    &symbols,
+                    "first",
+                    DataReference::Tuple(TupleData::new(
+                        DataReference::Record(plain),
+                        BuiltinType::Bool.into(),
+                        [],
+                    )),
+                ),
+                field(&symbols, "second", BuiltinType::Error.into()),
+            ],
+        )
+        .unwrap();
+    let mut headers = builder.into_publication().unwrap();
+    headers.publish(plain).unwrap();
+    let before = headers.snapshot();
+    let failure = HeaderFailure::Rejected(
+        (0..2)
+            .map(|position| DeclarationViolation {
+                declaration: DeclarationId::Record(invalid),
+                position: HeaderPosition::Field(position),
+                rule: DeclarationRule::NonCopyField,
+            })
+            .collect(),
+    );
+    assert_eq!(headers.advance(invalid), Err(failure));
+    assert!(matches!(
+        headers.publish(invalid),
+        Err(HeaderFailure::Rejected(_))
+    ));
+    let after = headers.snapshot();
+    assert_eq!(after.records().len(), 1);
+    assert!(after.fields().is_empty());
+    assert!(!after.header_ready(invalid));
+    assert_eq!(after.type_named("Invalid"), None);
+    assert_eq!(
+        after.types.store().type_count(),
+        before.types.store().type_count()
+    );
+    assert!(after.preserves_headers(&before));
 }

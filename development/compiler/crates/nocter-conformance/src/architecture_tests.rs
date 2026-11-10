@@ -118,6 +118,7 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
         (
             "nocter-declarations",
             &[
+                "nocter-dependency-query",
                 "nocter-language",
                 "nocter-model",
                 "nocter-toolchain-contract",

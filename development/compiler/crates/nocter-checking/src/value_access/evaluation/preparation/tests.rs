@@ -56,7 +56,7 @@ fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call
     assert_eq!(requests.active_depth(), 0);
     preparation.all(&mut requests, &ids).unwrap();
     let output = preparation.finish(requests).unwrap();
-    let headers = headers.finish();
+    let headers = headers.finish().unwrap();
     let context = headers.bind(syntax).unwrap();
     let unit = accepted::Unit::close_evaluation(&context, output).unwrap();
     assert_eq!(
@@ -83,8 +83,10 @@ fn body_value_cycles_unwind_without_publishing_pending_body_or_value_facts() {
         .resolve_code(program.symbols().get("loop_value").unwrap())
         .unwrap();
     let mut requests = Dependencies::default();
-    let Err(QueryError::Computation(Failure::Evaluation { diagnostic, .. })) =
-        preparation.body(&mut requests, helper)
+    let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
+        diagnostic,
+        ..
+    }))) = preparation.body(&mut requests, helper)
     else {
         panic!("the unfinished body/value cycle must reject")
     };
@@ -165,7 +167,7 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     ));
     assert!(preparation.context.program().records().is_empty());
     let output = preparation.finish(requests).unwrap();
-    let complete = headers.finish();
+    let complete = headers.finish().unwrap();
     let context = complete.bind(syntax).unwrap();
     assert!(context.program().headers_complete());
     assert_eq!(context.program().records().len(), 1);
@@ -219,7 +221,7 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
         "a successful body must not be checked again against the larger header view"
     );
     let evaluation = preparation.finish(requests).unwrap();
-    let headers = headers.finish();
+    let headers = headers.finish().unwrap();
     let context = headers.bind(syntax).unwrap();
     let unit = accepted::Unit::close_evaluation(&context, evaluation).unwrap();
     assert!(unit.bind(&context).is_ok());
@@ -239,4 +241,132 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
             nocter_model::BuiltinType::Bool
         ]
     );
+}
+
+#[test]
+fn deferred_invalid_records_do_not_block_independent_values_or_escape_complete_unit_validation() {
+    use nocter_declarations::value_access::{DeclarationRule, HeaderPosition};
+    for (source, name, primary, recursive) in [
+        (
+            "struct Left { next: Right }\nstruct Right { back: Left }\nconst ANSWER: i32 = 42",
+            "Left",
+            "Left",
+            true,
+        ),
+        (
+            "struct Bad { next: (i32, Bad) }\nconst ANSWER: i32 = 42",
+            "Bad",
+            "(i32, Bad)",
+            true,
+        ),
+        (
+            "copy struct Bad { payload: (i32, error) }\nconst ANSWER: i32 = 42",
+            "Bad",
+            "(i32, error)",
+            false,
+        ),
+    ] {
+        let (sources, tree) = input(source);
+        let syntax = bound(&sources, &tree);
+        let mut headers = declarations::Preparation::prepare(syntax).unwrap();
+        let mut preparation = Preparation::new(
+            headers.current(),
+            Headers::Publishing(&mut headers),
+            state::Limits::default(),
+        );
+        let program = preparation.context.program();
+        let answer = program
+            .resolve_code(program.symbols().get("ANSWER").unwrap())
+            .unwrap();
+        let invalid = program
+            .resolve_record(program.symbols().get(name).unwrap())
+            .unwrap();
+        let mut requests = Dependencies::default();
+        requests
+            .resolve(&mut preparation, Request::Value(answer))
+            .unwrap();
+        let completed = dependencies::value(&requests, answer).unwrap();
+        assert_eq!(completed.frozen, state::Value::integer(42).freeze());
+        assert!(preparation.context.program().records().is_empty());
+        let failure = preparation
+            .require_header(&mut requests, invalid.into())
+            .unwrap_err();
+        let SourceFailure::Declarations(declarations::Failure::Headers(diagnostics)) = failure
+        else {
+            panic!("the declaration's own failure must survive header scheduling")
+        };
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.violation().position, HeaderPosition::Field(0));
+        assert_eq!(
+            matches!(
+                diagnostic.violation().rule,
+                DeclarationRule::RecursivePayload { .. }
+            ),
+            recursive
+        );
+        assert_eq!(
+            syntax.text_at(diagnostic.source().primary().span().range()),
+            Some(primary)
+        );
+        assert_eq!(requests.active_depth(), 0);
+        assert!(
+            requests
+                .completed(&Request::Header(invalid.into()))
+                .is_none()
+        );
+        assert!(preparation.context.program().records().is_empty());
+        assert!(preparation.context.program().fields().is_empty());
+        assert!(
+            dependencies::value(&requests, answer).is_some(),
+            "a completed independent value remains valid"
+        );
+        drop(preparation);
+        assert!(matches!(
+            headers.finish(),
+            Err(declarations::Failure::Headers(_))
+        ));
+        assert!(matches!(
+            crate::value_access::staged::SourceUnit::prepare(syntax),
+            Err(SourceFailure::Declarations(declarations::Failure::Headers(
+                _
+            )))
+        ));
+    }
+}
+
+#[test]
+fn record_rejections_keep_field_ownership_through_body_and_value_requests() {
+    for declaration in [
+        "copy struct Bad { payload: error }",
+        "struct Bad { payload: Bad }",
+    ] {
+        let source = format!(
+            "{declaration}\nconst ANSWER: i32 = if false {{ let _ = deep()\n0 }} else {{ 42 }}\nconst func deep(): Bad {{ loop {{}} }}"
+        );
+        let (sources, tree) = input(&source);
+        let syntax = bound(&sources, &tree);
+        let Err(SourceFailure::Declarations(declarations::Failure::Headers(diagnostics))) =
+            crate::value_access::staged::SourceUnit::prepare(syntax)
+        else {
+            panic!(
+                "a record failure reached through a const body must retain declaration ownership"
+            )
+        };
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert!(matches!(
+            diagnostic.violation().declaration,
+            DeclarationId::Record(_)
+        ));
+        let expected = if declaration.starts_with("copy") {
+            "error"
+        } else {
+            "Bad"
+        };
+        assert_eq!(
+            syntax.text_at(diagnostic.source().primary().span().range()),
+            Some(expected)
+        );
+    }
 }

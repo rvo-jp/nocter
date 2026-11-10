@@ -16,6 +16,16 @@ pub struct SourceUnit {
     declarations: declarations::Query,
     unit: accepted::Unit,
 }
+impl From<accepted::Failure> for SourceFailure {
+    fn from(failure: accepted::Failure) -> Self {
+        Self::Checking(failure)
+    }
+}
+impl From<declarations::Failure> for SourceFailure {
+    fn from(failure: declarations::Failure) -> Self {
+        Self::Declarations(failure)
+    }
+}
 impl SourceUnit {
     /// Prepare ordinary bodies as their selected contracts become ready, then close the whole unit.
     /// # Errors
@@ -31,8 +41,7 @@ impl SourceUnit {
     ) -> Result<Self, SourceFailure> {
         let headers =
             declarations::Preparation::prepare(syntax).map_err(SourceFailure::Declarations)?;
-        let (declarations, evaluation) =
-            evaluation::prepare_source(headers, limits.into()).map_err(SourceFailure::Checking)?;
+        let (declarations, evaluation) = evaluation::prepare_source(headers, limits.into())?;
         let context = declarations
             .bind(syntax)
             .map_err(SourceFailure::Declarations)?;

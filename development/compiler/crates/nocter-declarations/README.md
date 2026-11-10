@@ -75,8 +75,8 @@ The value-access product owns immutable declaration facts and their type authori
 private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
 `Reservations` assigns callable/record and input/field identities; its consuming `finish` closes
-the complete name domain into a `Builder`. The builder defines and validates all source data
-references, finite record containment and explicit Copy requests before opening `HeaderPublication`.
+the complete name domain into a `Builder`. The builder defines all raw source data references and validates their names and supported domain
+before opening `HeaderPublication`.
 This single writer normalizes requested callable or record contracts and exposes immutable
 `Program` views containing only ready entries. Each contract first closes its transitive record
 dependencies. Its consuming `finish` closes every remaining callable and record, including unused
@@ -84,8 +84,8 @@ records. `Builder::finish` uses that same path.
 No definition or type resolution is available during reservation, and no new declaration can be
 reserved after name closure. Untyped construction grants no body-checking admission. A ready view
 can support typed-only checking of its established contracts, but only `headers_complete` can
-permit whole-unit closure. Raw source references and containment validation still close as one
-stratum; deferred field-type publication is not early array-length evaluation. Defining headers
+permit whole-unit closure. Raw source-reference validation still closes as one stratum;
+demand-driven payload validation is not early array-length evaluation. Defining headers
 in a different order cannot change parameter identities.
 The lowering owner reserves functions and records in canonical namespace order.
 
@@ -114,7 +114,8 @@ cannot expose an unready function witness, payload schema or Copy evidence. Reco
 reports missing record contracts through `HeaderPublication::advance`. A step publishes only the
 selected contract once every dependency is ready; a request publishes neither provisional parent
 fields nor TypeIds. The complete publication entry drives those same steps with an explicit
-worklist. There is no competing eager normalization path. Each shared child normalizes once before
+[construction dependency query](../nocter-dependency-query/README.md). There is no competing eager
+normalization or containment validator. Each shared child normalizes once before
 its parent's complete fields and local member namespace. Reserved callable and declaration
 enumeration belongs to this same authority, independently of source projection and readiness.
 
@@ -143,11 +144,16 @@ checking. Record names use the common closed namespace above. Fields have a dist
 identity domain. Record
 schemas retain declared field order, resolved TypeIds and a frozen local member namespace.
 Definition order cannot affect those identities. Record and callable names cannot collide.
-Structural validation visits nominal containment edges, including those inside tuple fields,
-from leaves to parents without recursion or payload expansion. It rejects non-finite containment
-with a field witness and rejects an explicit Copy request containing a non-Copy component.
-Ordinary records never acquire Copy implicitly.
-Only validated metadata can be published; no partial schema authority escapes a rejected build.
+Requested payload validation visits nominal containment edges, including those inside tuple
+fields, without host recursion or payload expansion. An active cycle rejects at its closing field.
+Once dependencies are ready, explicit Copy validation consumes their established evidence before
+opening any type transaction or publishing fields. Invalid Copy declarations cannot publish as
+ordinary non-Copy records to satisfy a parent. Ordinary records never acquire Copy implicitly.
+`HeaderFailure` distinguishes unknown identities, declaration-owned rejection with exact header
+positions, and construction inconsistency. A failed prerequisite leaves valid completed siblings
+available but grants no ready schema, field or newly interned structural type for the rejected
+contract. The fallible final closure still rejects unused invalid declarations. Standalone
+construction and source-driven steps consume these same rules.
 
 `aggregate` exposes one ordered component schema for records and tuples. Record components retain
 their declared field identities; tuple components retain their positions. `component` and

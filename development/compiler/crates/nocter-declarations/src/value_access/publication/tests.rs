@@ -95,7 +95,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
         headers.snapshot().types.store().type_count(),
         later.types.store().type_count()
     );
-    let complete = headers.finish();
+    let complete = headers.finish().unwrap();
     assert!(complete.headers_complete());
     assert!(complete.preserves_headers(&later));
     assert!(early.records().is_empty(), "an old view stays immutable");
@@ -116,11 +116,11 @@ fn unknown_header_steps_preserve_every_ready_contract() {
     let missing = outside.insert(());
     assert_eq!(
         headers.advance(missing),
-        Err(crate::DefinitionError::UnknownId)
+        Err(super::HeaderFailure::UnknownId)
     );
     assert_eq!(
         headers.publish(missing),
-        Err(crate::DefinitionError::UnknownId)
+        Err(super::HeaderFailure::UnknownId)
     );
     let after = headers.snapshot();
     assert!(after.headers_complete());

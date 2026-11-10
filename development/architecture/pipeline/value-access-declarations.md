@@ -20,7 +20,7 @@ The [realization plan](../../design/compiler-realization.md) owns remaining inte
 ```text
 V2CoreUnit syntax + exact source
   -> exact-current declaration preparation
-       validated source references/containment + reserved identities + one namespace/source catalog
+       resolved raw source references + reserved identities + one namespace/source catalog
        requested callable/record + transitive records -> complete immutable ready-header view
   -> dependency-scheduled ordinary typed-body preparation over ready contracts
        missing header -> declaration-owned required contracts -> iterative shared query -> retry draft
@@ -76,7 +76,8 @@ no consumer chooses between header and body stores as lookup fallbacks.
 Reservation closure freezes the complete callable/record name and input/field identity domains
 before any type normalization.
 Definition construction cannot append declarations; validation rejects incomplete or invalid source
-definitions before incremental contract publication. One tagged name table survives those
+raw definitions before incremental contract publication. Requested record payloads must establish
+finite containment and explicit Copy evidence before their schemas become ready. One tagged name table survives those
 transitions and serves each role-specific lookup. Ready views grant only established contracts;
 untyped reservations never grant body-checking admission. Complete Unit admission requires every
 callable/input and record/field slot to be defined.
@@ -99,8 +100,8 @@ products or relabel released source as future source.
 ## Contract Facts and Limits
 
 Every selected contract is closed before body checking consumes it. Source data-name references
-and finite containment validation still close together; callable contracts and transitive record
-schemas become ready as body preparation requests them. Required execution needs only the selected
+still resolve together; requested callable contracts and transitive record schemas establish finite
+containment and Copy as body preparation needs them. Required execution needs only the selected
 contracts and ordinarily accepted const closure; unrelated contracts can remain unready. Every
 header and body must close before complete Unit admission. Source type normalization still cannot
 request computed values.

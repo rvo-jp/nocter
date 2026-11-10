@@ -7,7 +7,7 @@
    with fixed arrays, enums and early structural dependencies. Extend
    [staged source preparation](compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
    through the [structural type request closure](design/compiler-realization.md#structural-type-request-closure),
-   deferring raw source-reference/containment validation over the iterative header scheduler.
+   deferring raw source-reference validation over the iterative header scheduler.
    Then connect admitted usize
    computation to required lengths through the same dependency coordinator before admitting array
    source. Extend

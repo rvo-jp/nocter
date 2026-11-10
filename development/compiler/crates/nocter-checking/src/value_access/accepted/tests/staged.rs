@@ -117,7 +117,7 @@ fn completing_callables_alone_cannot_admit_a_unit_with_unready_unused_records() 
     assert!(!early.program().headers_complete());
     assert!(TypedQuery::prepare(&early, run).is_ok());
     assert!(matches!(Unit::prepare(&early), Err(Failure::Integrity(_))));
-    let complete = headers.finish();
+    let complete = headers.finish().unwrap();
     assert!(Unit::prepare(&complete.bind(syntax).unwrap()).is_ok());
 }
 

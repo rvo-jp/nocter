@@ -1,7 +1,10 @@
 //! Incremental publication of complete contracts into one persistent header lineage.
 use super::{
-    Callable, DeclarationId, FunctionConstraint, FunctionInput, Parameter, ParameterSlot, Program,
-    Reservation, ValueDefinition, data::resolved_data, functions, records,
+    Callable, DeclarationId, DeclarationViolation, FunctionConstraint, FunctionInput, Parameter,
+    ParameterSlot, Program, Reservation, ValueDefinition, data::resolved_data, functions, records,
+};
+use nocter_dependency_query::{
+    DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
 };
 use nocter_model::{
     AccessCallableId, AccessParameterId, Arena, SparseArenaBuilder, Symbol, SymbolTable,
@@ -19,8 +22,16 @@ pub enum HeaderStep {
     Require(Box<[DeclarationId]>),
 }
 
-/// Single writer for a validated source header domain. Views contain only complete contracts.
-/// Source references and finite record containment are validated before publication starts.
+/// Failure to establish one requested declaration contract.
+#[derive(Debug, Eq, PartialEq)]
+pub enum HeaderFailure {
+    UnknownId,
+    Rejected(Vec<DeclarationViolation>),
+    Inconsistent,
+}
+
+/// Single writer for a closed source header domain. Views contain only complete contracts.
+/// Raw names are resolved first; finite containment and Copy are established on demand.
 #[derive(Debug)]
 pub struct HeaderPublication {
     reserved: Arena<AccessCallableId, Reservation>,
@@ -48,7 +59,7 @@ impl HeaderPublication {
         reserved: Arena<AccessCallableId, Reservation>,
         parameter_slots: Arena<AccessParameterId, ParameterSlot>,
         namespace: BTreeMap<Symbol, DeclarationId>,
-        records: records::Validated,
+        records: records::Resolved,
     ) -> Self {
         let mut types = TypeAuthority::new();
         let records = records::Publication::new(records, &mut types);
@@ -75,35 +86,45 @@ impl HeaderPublication {
     }
     /// Normalize one contract and its record dependencies, retaining all older ready views.
     /// # Errors
-    /// Rejects an identity outside this validated declaration domain.
+    /// Reports invalid payload/Copy contracts or an identity outside this closed domain.
     /// # Panics
-    /// Panics only if validated internal metadata or its exact type transaction loses integrity.
-    pub fn publish(&mut self, id: impl Into<DeclarationId>) -> Result<(), crate::DefinitionError> {
-        let mut pending = vec![id.into()];
-        while let Some(&id) = pending.last() {
-            match self.advance(id)? {
-                HeaderStep::Ready => {
-                    pending.pop();
-                }
-                HeaderStep::Require(dependencies) => {
-                    pending.extend(dependencies.into_vec().into_iter().rev());
-                }
-            }
+    /// Panics only if internal metadata or its exact type transaction loses integrity.
+    pub fn publish(&mut self, id: impl Into<DeclarationId>) -> Result<(), HeaderFailure> {
+        let mut requests = DependencyQuery::default();
+        match requests.resolve_steps(self, id.into()) {
+            Ok(_) => Ok(()),
+            Err(DependencyQueryError::Computation(failure)) => Err(failure),
+            Err(DependencyQueryError::Cycle(path)) => Err(self.reject_cycle(&path)),
         }
-        Ok(())
+    }
+    /// Classify an exact active record cycle at its closing field, without source lookup.
+    #[must_use]
+    pub fn reject_cycle(&self, path: &[DeclarationId]) -> HeaderFailure {
+        let records = path
+            .iter()
+            .map(|id| match id {
+                DeclarationId::Record(id) => Some(*id),
+                DeclarationId::Callable(_) => None,
+            })
+            .collect::<Option<Vec<_>>>();
+        records
+            .and_then(|path| self.records.cycle_violation(&path))
+            .map_or(HeaderFailure::Inconsistent, |violation| {
+                HeaderFailure::Rejected(vec![violation])
+            })
     }
     /// Publish exactly one contract, or report all of its currently missing record contracts.
     /// # Errors
-    /// Rejects an identity outside this closed domain without changing any ready contract.
+    /// Reports invalid Copy requests or an identity outside this domain, preserving ready contracts.
     /// # Panics
     /// Panics only if validated internal metadata loses integrity.
-    pub fn advance(
-        &mut self,
-        id: impl Into<DeclarationId>,
-    ) -> Result<HeaderStep, crate::DefinitionError> {
+    pub fn advance(&mut self, id: impl Into<DeclarationId>) -> Result<HeaderStep, HeaderFailure> {
         match id.into() {
             DeclarationId::Record(id) => {
-                let dependencies = self.records.dependencies(id)?;
+                let dependencies = self
+                    .records
+                    .dependencies(id)
+                    .map_err(|_| HeaderFailure::UnknownId)?;
                 if !dependencies.is_empty() {
                     return Ok(HeaderStep::Require(
                         dependencies
@@ -112,16 +133,15 @@ impl HeaderPublication {
                             .collect(),
                     ));
                 }
-                self.records.publish_ready(id, &mut self.types);
+                self.records
+                    .publish_ready(id, &mut self.types)
+                    .map_err(HeaderFailure::Rejected)?;
             }
             DeclarationId::Callable(id) => {
                 if self.callables.get(id).is_some() {
                     return Ok(HeaderStep::Ready);
                 }
-                let reservation = self
-                    .reserved
-                    .get(id)
-                    .ok_or(crate::DefinitionError::UnknownId)?;
+                let reservation = self.reserved.get(id).ok_or(HeaderFailure::UnknownId)?;
                 let definition = reservation
                     .definition
                     .as_ref()
@@ -221,19 +241,33 @@ impl HeaderPublication {
         }
     }
     /// Publish all remaining contracts in canonical declaration order.
-    /// # Panics
-    /// Panics only if a reserved contract cannot be published from this validated domain.
-    #[must_use]
-    pub fn finish(mut self) -> Program {
+    /// # Errors
+    /// Reports the first invalid prerequisite, without publishing its dependents.
+    pub fn finish(mut self) -> Result<Program, HeaderFailure> {
         let records: Vec<_> = self.records.ids().collect();
         for id in records {
-            self.publish(id).expect("reserved record");
+            self.publish(id)?;
         }
         let ids: Vec<_> = self.reserved.iter().map(|(id, _)| id).collect();
         for id in ids {
-            self.publish(id).expect("reserved callable");
+            self.publish(id)?;
         }
-        self.snapshot()
+        Ok(self.snapshot())
+    }
+}
+impl DependencyProgress<DeclarationId, (), HeaderFailure> for HeaderPublication {
+    fn advance(
+        &mut self,
+        _: &DependencyQuery<DeclarationId, ()>,
+        id: DeclarationId,
+    ) -> Result<DependencyStep<DeclarationId, ()>, HeaderFailure> {
+        Ok(match self.advance(id)? {
+            HeaderStep::Ready => DependencyStep::Complete(()),
+            HeaderStep::Require(dependencies) => DependencyStep::Require(dependencies),
+        })
+    }
+    fn no_progress(&mut self, _: DeclarationId) -> HeaderFailure {
+        HeaderFailure::Inconsistent
     }
 }
 

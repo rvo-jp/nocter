@@ -1911,6 +1911,7 @@ dependencies = [
 name = "nocter-declarations"
 version = "0.0.0"
 dependencies = [
+ "nocter-dependency-query",
  "nocter-language",
  "nocter-model",
  "nocter-toolchain-contract",

@@ -11,10 +11,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use headers::RecordHeader;
 use nocter_declarations::value_access::{
-    DeclarationId, HeaderPublication, HeaderStep, Program, Reservations,
+    DeclarationId, HeaderFailure, HeaderPublication, HeaderStep, Program, Reservations,
 };
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
-use nocter_model::AccessCallableId;
+use nocter_model::{AccessCallableId, NominalTypeId};
 use nocter_syntax::{
     BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxSurface, NodeId, NodeKind,
     SyntaxOrigin, SyntaxToken, project_declaration_syntax,
@@ -89,6 +89,7 @@ impl CallableSource {
 #[derive(Debug)]
 pub struct Preparation<'source> {
     headers: HeaderPublication,
+    records: BTreeMap<NominalTypeId, RecordHeader>,
     syntax: BoundSyntax<'source>,
     surface: DeclarationSyntaxSurface,
     recipes: BTreeMap<AccessCallableId, HeaderRecipe>,
@@ -183,6 +184,7 @@ impl<'source> Preparation<'source> {
         }
         Ok(Self {
             headers,
+            records: record_headers,
             syntax,
             surface: projection.into_surface(),
             recipes,
@@ -201,23 +203,23 @@ impl<'source> Preparation<'source> {
     }
     /// Publish one required declaration and its records, retaining every established contract.
     /// # Errors
-    /// Rejects a declaration outside the reserved source domain.
+    /// Reports rejected prerequisites or a declaration outside the reserved source domain.
     pub fn context(
         &mut self,
         required: impl Into<DeclarationId>,
     ) -> Result<Context<'source>, Failure> {
         self.headers
             .publish(required)
-            .map_err(|_| Failure::InconsistentSyntax)?;
+            .map_err(|failure| self.project_failure(failure))?;
         Ok(self.current())
     }
     /// Advance one requested header without scheduling its required record headers.
     /// # Errors
-    /// Rejects a declaration outside this exact reserved source domain.
+    /// Projects rejected Copy contracts, or rejects an identity outside this source domain.
     pub fn advance(&mut self, required: impl Into<DeclarationId>) -> Result<HeaderStep, Failure> {
         self.headers
             .advance(required)
-            .map_err(|_| Failure::InconsistentSyntax)
+            .map_err(|failure| self.project_failure(failure))
     }
     /// Share only the contracts already established by this construction.
     #[must_use]
@@ -228,14 +230,40 @@ impl<'source> Preparation<'source> {
             sources: self.sources.clone(),
         }
     }
-    /// Finish the complete reusable header query without re-normalizing published contracts.
+    /// Project an exact active header cycle through the declaration owner's validation rule.
     #[must_use]
-    pub fn finish(self) -> Query {
-        Query {
-            program: Arc::new(self.headers.finish()),
+    pub fn reject_cycle(&self, path: &[DeclarationId]) -> Failure {
+        self.project_failure(self.headers.reject_cycle(path))
+    }
+    fn project_failure(&self, failure: HeaderFailure) -> Failure {
+        project_failure(self.syntax, &self.sources, &self.records, failure)
+    }
+    /// Finish the complete reusable header query without re-normalizing published contracts.
+    /// # Errors
+    /// Reports invalid remaining contracts at their declaration-owned source positions.
+    pub fn finish(self) -> Result<Query, Failure> {
+        let program = self.headers.finish().map_err(|failure| {
+            project_failure(self.syntax, &self.sources, &self.records, failure)
+        })?;
+        Ok(Query {
+            program: Arc::new(program),
             surface: self.surface,
             recipes: self.recipes,
+        })
+    }
+}
+
+fn project_failure(
+    syntax: BoundSyntax<'_>,
+    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    failure: HeaderFailure,
+) -> Failure {
+    match failure {
+        HeaderFailure::Rejected(violations) => {
+            projection::project_violations(syntax.tree(), sources, records, violations)
         }
+        HeaderFailure::UnknownId | HeaderFailure::Inconsistent => Failure::InconsistentSyntax,
     }
 }
 
@@ -244,7 +272,7 @@ impl Query {
     /// # Errors
     /// Rejects a wrong goal, syntax errors, header violations, or broken syntax integrity.
     pub fn prepare(syntax: BoundSyntax<'_>) -> Result<Self, Failure> {
-        Ok(Preparation::prepare(syntax)?.finish())
+        Preparation::prepare(syntax)?.finish()
     }
     #[must_use]
     pub fn program(&self) -> &Program {

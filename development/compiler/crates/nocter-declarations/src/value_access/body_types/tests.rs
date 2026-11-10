@@ -39,7 +39,7 @@ fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
     let mut body = early.body_types(run).unwrap();
     let tuple = body.tuple(&[integer, boolean]).unwrap();
     let body = body.finish();
-    let later = headers.finish();
+    let later = headers.finish().unwrap();
     let field = later.records().get(record).unwrap().fields()[0];
     assert_eq!(
         tuple,
@@ -106,7 +106,7 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
         .unwrap();
     let body = body.finish();
     publication.publish(beta).unwrap();
-    let later = publication.finish();
+    let later = publication.finish().unwrap();
     assert!(later.headers_complete());
     assert!(later.preserves_headers(&early));
     assert!(!early.preserves_headers(&later));

@@ -4,6 +4,7 @@ use super::{
     dependencies::{self, Dependencies, Fact, Request},
     final_diagnostic, projection,
 };
+use crate::value_access::staged::SourceFailure;
 use crate::value_access::{self, ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
 use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations::{self as declarations, Context};
@@ -21,7 +22,7 @@ use std::{
 #[cfg(test)]
 mod tests;
 type Failure = accepted::Failure;
-type QueryError = DependencyQueryError<Request, Failure>;
+type QueryError = DependencyQueryError<Request, SourceFailure>;
 const INVALID: Failure =
     Failure::Integrity(value_access::flow::IntegrityError::InconsistentTypedBody);
 enum Headers<'a, 'source> {
@@ -46,14 +47,19 @@ pub(in crate::value_access) fn prepare(
         .collect();
     let mut preparation = Preparation::new(context.clone(), Headers::Closed, limits);
     let mut requests = Dependencies::default();
-    preparation.all(&mut requests, &ids)?;
+    preparation
+        .all(&mut requests, &ids)
+        .map_err(|failure| match failure {
+            SourceFailure::Checking(failure) => failure,
+            SourceFailure::Declarations(_) => INVALID,
+        })?;
     preparation.finish(requests)
 }
 
 pub(in crate::value_access) fn prepare_source(
     mut headers: declarations::Preparation<'_>,
     limits: state::Limits,
-) -> Result<(declarations::Query, Output), Failure> {
+) -> Result<(declarations::Query, Output), SourceFailure> {
     let ids: Vec<_> = headers.callable_ids().collect();
     let contracts: Vec<_> = headers.declaration_ids().collect();
     let mut preparation =
@@ -64,7 +70,7 @@ pub(in crate::value_access) fn prepare_source(
         preparation.require_header(&mut requests, declaration)?;
     }
     let output = preparation.finish(requests)?;
-    Ok((headers.finish(), output))
+    Ok((headers.finish()?, output))
 }
 impl<'a, 'source> Preparation<'a, 'source> {
     fn new(
@@ -83,7 +89,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         &mut self,
         requests: &mut Dependencies,
         ids: &[AccessCallableId],
-    ) -> Result<(), Failure> {
+    ) -> Result<(), SourceFailure> {
         for &id in ids {
             self.require_header(requests, id.into())?;
             if self
@@ -100,15 +106,15 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     .resolve(self, Request::Value(id))
                     .map_err(|failure| match failure {
                         QueryError::Computation(failure) => failure,
-                        QueryError::Cycle(_) => INVALID,
+                        QueryError::Cycle(_) => INVALID.into(),
                     })?;
                 if !matches!(&*fact, Fact::Value(_)) {
-                    return Err(INVALID);
+                    return Err(INVALID.into());
                 }
             } else {
                 self.body(requests, id).map_err(|error| match error {
                     QueryError::Computation(failure) => failure,
-                    QueryError::Cycle(_) => INVALID,
+                    QueryError::Cycle(_) => INVALID.into(),
                 })?;
             }
         }
@@ -139,12 +145,25 @@ impl<'a, 'source> Preparation<'a, 'source> {
         &mut self,
         requests: &mut Dependencies,
         declaration: DeclarationId,
-    ) -> Result<(), Failure> {
+    ) -> Result<(), SourceFailure> {
         match requests.resolve_steps(self, Request::Header(declaration)) {
             Ok(fact) if matches!(&*fact, Fact::Header) => Ok(()),
             Err(QueryError::Computation(failure)) => Err(failure),
-            // Header normalization cannot request values in this bounded construction yet.
-            _ => Err(INVALID),
+            Err(QueryError::Cycle(path)) => {
+                let headers = path
+                    .iter()
+                    .map(|request| match request {
+                        Request::Header(id) => Some(*id),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or(INVALID)?;
+                match &self.headers {
+                    Headers::Publishing(owner) => Err(owner.reject_cycle(&headers).into()),
+                    Headers::Closed => Err(INVALID.into()),
+                }
+            }
+            _ => Err(INVALID.into()),
         }
     }
     fn body(
@@ -156,14 +175,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
         if matches!(&*fact, Fact::Body(_)) {
             Ok(())
         } else {
-            Err(QueryError::Computation(INVALID))
+            Err(QueryError::Computation(INVALID.into()))
         }
     }
     fn check_body(
         &mut self,
         requests: &mut Dependencies,
         id: AccessCallableId,
-    ) -> Result<Query, Failure> {
+    ) -> Result<Query, SourceFailure> {
         self.require_header(requests, id.into())?;
         loop {
             match checker::prepare(&self.context, id, requests) {
@@ -192,7 +211,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     return Err(Failure::Body {
                         callable: id,
                         failure,
-                    });
+                    }
+                    .into());
                 }
             }
         }
@@ -203,7 +223,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         owner: AccessCallableId,
         initializer: AccessCallableId,
         origin: SyntaxOrigin,
-    ) -> Result<(), Failure> {
+    ) -> Result<(), SourceFailure> {
         if dependencies::value(requests, initializer).is_some() {
             return Ok(());
         }
@@ -215,14 +235,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
         })?;
         let error = match requests.resolve(self, Request::Value(initializer)) {
             Ok(fact) if matches!(&*fact, Fact::Value(_)) => return Ok(()),
-            Ok(_) => return Err(INVALID),
+            Ok(_) => return Err(INVALID.into()),
             Err(error) => error,
         };
         let mut failure = match error {
             QueryError::Computation(failure) => failure,
-            QueryError::Cycle(path) => self.cycle(&path, origin)?,
+            QueryError::Cycle(path) => self.cycle(&path, origin)?.into(),
         };
-        super::add_dependency_note(&mut failure, &self.context, origin).map_err(|failure| {
+        add_dependency_note(&mut failure, &self.context, origin).map_err(|failure| {
             Failure::Body {
                 callable: owner,
                 failure,
@@ -234,7 +254,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         &mut self,
         requests: &mut Dependencies,
         query: &Query,
-    ) -> Result<(), Failure> {
+    ) -> Result<(), SourceFailure> {
         // A body becomes complete only after its retained static requirements. An active
         // value/body cycle cannot hide behind an already-published typed-body fact.
         fn collect(
@@ -332,12 +352,15 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     return Err(error);
                 };
                 for origin in through.into_iter().rev() {
-                    super::add_dependency_note(&mut failure, &self.context, origin).map_err(
+                    add_dependency_note(&mut failure, &self.context, origin).map_err(
                         |failure| {
-                            QueryError::Computation(Failure::Body {
-                                callable: id,
-                                failure,
-                            })
+                            QueryError::Computation(
+                                Failure::Body {
+                                    callable: id,
+                                    failure,
+                                }
+                                .into(),
+                            )
                         },
                     )?;
                 }
@@ -345,12 +368,16 @@ impl<'a, 'source> Preparation<'a, 'source> {
             }
             // All authored direct callees participate in ordinary closure, including dead source.
             // Const-domain rejection follows ordinary safety; runtime callees are never executed.
-            let query = dependencies::body(requests, id).ok_or(QueryError::Computation(INVALID))?;
+            let query =
+                dependencies::body(requests, id).ok_or(QueryError::Computation(INVALID.into()))?;
             let bound = query.bind(&self.context).map_err(|failure| {
-                QueryError::Computation(Failure::Body {
-                    callable: id,
-                    failure,
-                })
+                QueryError::Computation(
+                    Failure::Body {
+                        callable: id,
+                        failure,
+                    }
+                    .into(),
+                )
             })?;
             for (expression_id, expression) in query.body().expressions().iter() {
                 if let ExpressionKind::Call {
@@ -362,7 +389,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     path.push(
                         bound
                             .expression_origin(expression_id)
-                            .ok_or(QueryError::Computation(INVALID))?,
+                            .ok_or(QueryError::Computation(INVALID.into()))?,
                     );
                     pending.push((target, path));
                 }
@@ -374,7 +401,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Ok((
                     id,
                     dependencies::body(requests, id)
-                        .ok_or(QueryError::Computation(INVALID))?
+                        .ok_or(QueryError::Computation(INVALID.into()))?
                         .clone(),
                 ))
             })
@@ -392,14 +419,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
             .program()
             .callables()
             .get(id)
-            .ok_or(QueryError::Computation(INVALID))?;
+            .ok_or(QueryError::Computation(INVALID.into()))?;
         if !declaration.kind().is_initializer() {
-            return Err(QueryError::Computation(INVALID));
+            return Err(QueryError::Computation(INVALID.into()));
         }
         let result_data = declaration.result();
         let queries = self.graph(requests, id)?;
         self.execute(requests, id, result_data, queries)
-            .map_err(QueryError::Computation)
+            .map_err(|failure| QueryError::Computation(failure.into()))
     }
     fn execute(
         &mut self,
@@ -462,7 +489,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         })
     }
 }
-impl DependencyComputation<Request, Fact, Failure> for Preparation<'_, '_> {
+impl DependencyComputation<Request, Fact, SourceFailure> for Preparation<'_, '_> {
     fn compute(
         &mut self,
         requests: &mut Dependencies,
@@ -470,7 +497,7 @@ impl DependencyComputation<Request, Fact, Failure> for Preparation<'_, '_> {
     ) -> Result<Fact, QueryError> {
         match request {
             // Header dependencies use the query's iterative progress entry exclusively.
-            Request::Header(_) => Err(QueryError::Computation(INVALID)),
+            Request::Header(_) => Err(QueryError::Computation(INVALID.into())),
             Request::Body(id) => self
                 .check_body(requests, id)
                 .map(|query| Fact::Body(Box::new(query)))
@@ -482,35 +509,38 @@ impl DependencyComputation<Request, Fact, Failure> for Preparation<'_, '_> {
                     let source = self
                         .context
                         .callable_source(id)
-                        .ok_or(QueryError::Computation(INVALID))?;
-                    return Err(QueryError::Computation(super::failure_at(
-                        &self.context,
-                        id,
-                        Rule::Execution(state::Rule::CallDepthLimit),
-                        SyntaxOrigin::Node(source.body()),
-                    )));
+                        .ok_or(QueryError::Computation(INVALID.into()))?;
+                    return Err(QueryError::Computation(
+                        super::failure_at(
+                            &self.context,
+                            id,
+                            Rule::Execution(state::Rule::CallDepthLimit),
+                            SyntaxOrigin::Node(source.body()),
+                        )
+                        .into(),
+                    ));
                 }
                 self.initialize(requests, id).map(Fact::Value)
             }
         }
     }
 }
-impl DependencyProgress<Request, Fact, Failure> for Preparation<'_, '_> {
+impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
     fn advance(
         &mut self,
         _: &Dependencies,
         request: Request,
-    ) -> Result<DependencyStep<Request, Fact>, Failure> {
+    ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
         let Request::Header(declaration) = request else {
-            return Err(INVALID);
+            return Err(INVALID.into());
         };
         if self.context.program().header_ready(declaration) {
             return Ok(DependencyStep::Complete(Fact::Header));
         }
         let Headers::Publishing(headers) = &mut self.headers else {
-            return Err(INVALID);
+            return Err(INVALID.into());
         };
-        match headers.advance(declaration).map_err(|_| INVALID)? {
+        match headers.advance(declaration)? {
             HeaderStep::Ready => {
                 self.context = headers.current();
                 Ok(DependencyStep::Complete(Fact::Header))
@@ -524,7 +554,18 @@ impl DependencyProgress<Request, Fact, Failure> for Preparation<'_, '_> {
             )),
         }
     }
-    fn no_progress(&mut self, _: Request) -> Failure {
-        INVALID
+    fn no_progress(&mut self, _: Request) -> SourceFailure {
+        INVALID.into()
     }
+}
+
+fn add_dependency_note(
+    failure: &mut SourceFailure,
+    context: &Context<'_>,
+    origin: SyntaxOrigin,
+) -> Result<(), BodyFailure> {
+    if let SourceFailure::Checking(failure) = failure {
+        super::add_dependency_note(failure, context, origin)?;
+    }
+    Ok(())
 }
