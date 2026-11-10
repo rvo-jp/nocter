@@ -39,9 +39,9 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   declaration roles and callable witnesses remain declaration-owned facts
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
-- logical field paths with record-field identities, tuple positions and concrete u64 array indices, concatenation and
-  prefix/overlap relations; the declaration owner validates each selection against its containing data schema, independently of memory offsets
-  or host ordinals. Concrete indices do not encode runtime selector identity or prove a dynamic relation
+- one structural path algebra over record fields, tuple positions and parameterized array indices;
+  concrete u64 paths serve declaration projection and ownership, while evaluated-index relations
+  are supplied explicitly for symbolic recipes. Paths grant no schema, bounds or access evidence
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
   and distinct future code/input/field and body-local/selected-place/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering
@@ -69,3 +69,25 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - `TypeCursor` exposes only a stable prefix boundary and relative suffix positions, leaving the
   representation of `TypeId` private.
 - Storage implementation remains private to the semantic owner.
+
+## Structural Projection Relations
+
+`ValueProjection<I>` and `ValuePath<I>` describe builtin structural selections with an index-key
+domain supplied by their owner. `ValueField` and `FieldPath` are their concrete u64 domain, used by
+declarations and the concrete resource ledger. Concrete prefix/overlap queries use the same
+relation algorithm as symbolic recipes; no parallel path classifier is maintained.
+
+`ValuePath::relation` consumes caller-established `IndexRelation` facts and reports equality,
+ancestry, disjointness or possible overlap. Unknown index equality never proves containment or
+disjointness on its own. A later distinct component can still prove separation inside homogeneous
+array elements. Different component families provide no proof when reached by the comparison;
+the declaration owner separately validates each path's shape and bounds on its selected root.
+Physical offsets, including equal offsets of zero-sized data, do not enter this relation.
+
+Recipe equality and ordering describe keys only. Even equal keys require an explicit evaluated
+index fact: a source operation can run again after mutation or a loop edge. Symbolic paths have no
+context-free prefix/overlap convenience API. Checking must establish facts in the same root,
+activation and stable-value context; this model does not create snapshots, track their extents,
+perform branch reasoning or admit runtime-selected source places. The
+[selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure)
+owns those remaining integration obligations.

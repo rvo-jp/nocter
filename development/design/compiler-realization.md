@@ -186,6 +186,47 @@ budget failures and type/value cycles as those operations become admitted. Keep 
 body/resource/storage admission separate until their combined proofs close. Header-count tests
 alone cannot establish body-local identity or scope.
 
+### Evaluated Array Selection Closure
+
+The [array selection contract](../spec/language/tuples-and-arrays.md#primitive-component-selection)
+owns source meaning; the following obligations concern its checking and execution products.
+The [shared path relation](../compiler/crates/nocter-model/README.md#structural-projection-relations)
+separates concrete indices from symbolic recipe keys. Connect it to one checking-owned source of
+evaluated-index facts, consumed by initialization, access and the existing ownership ledger.
+Unknown equality remains possible overlap. Different syntax nodes, slots or spellings must not
+become an implicit disjointness proof. Builtin array structure is required for this algebra;
+a user index projection can lend the same referent for different arguments.
+
+Freeze the base evaluation and numeric index once, in order. An existing base identifies storage
+without copying or requiring the whole array initialized; a computed base owns a temporary.
+Preserve that category through selection, calls and cleanup. Index-side effects must be reflected
+in the selected container's initialization and access checks. A normal bounds check establishes
+index < N before furnishing a place/value; interruption furnishes neither. Carry that decision
+to execution instead of re-proving it from a later scalar value.
+
+An alias, prepared transfer or missing element can need the selected index after its evaluation
+frame ends. Preserve the numeric value for that obligation, independently of the user's mutable
+index variable. Assigning the variable must not retarget an existing alias or cleanup hole.
+Keep code-site/slot identity separate from evaluated-value identity and its retained representation.
+The backing and lifetime of a saved index must close with its existing access/resource obligation,
+not a second ownership registry or repeated evaluation of the source expression.
+
+A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
+are not proof of equal values. Qualify retained indices, invalidation, joins and restoration before
+using those facts; an unproved relation cannot erase a prior hole. Repeated extraction with a
+checked progression needs a finite region/interval summary rather than unbounded generations,
+one entry per array element or an arbitrary iteration cutoff. Preserve conservative local failure
+when that proof is unavailable, without imposing a constant-index-only language rule.
+
+Project the resulting sparse remainder and its exact captured indices into cleanup. Excluding
+one checked index i from [0, N) gives [0, i) and [i + 1, N); the same bounds fact justifies the
+successor arithmetic even at the maximum usize count. Symbolic cleanup must retain that fact and
+the saved value through physical lowering. It cannot substitute the current contents of the
+index variable or invent a subarray type. Qualify mutations between selections, conditional
+equality/disequality, reservations with later effects, partial nested elements, loop re-execution,
+failure and zero-sized data through actual source before opening array admission. The concrete
+ledger tests and path-algebra tests do not establish these source proofs.
+
 ## Executable Lifecycle and Target Admission
 
 Extend the [bounded common native path](../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

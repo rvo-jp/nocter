@@ -7,9 +7,12 @@
    into array value construction/repetition, selected indexing, sparse partial
    initialization and cleanup, evaluator array data/publication, and native storage/ABI.
    Connect the [concrete array ledger](compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
-   to frozen runtime selector identities and checked equality/disjointness conditions shared by
-   initialization, access and ownership, including call reservations, joins and loops. Concrete
-   metadata indices alone must not establish dynamic disjointness or grant source admission.
+   to frozen runtime selector identities under the
+   [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure).
+   Supply the shared path relation with checked equality/disjointness conditions for
+   initialization, access and ownership, including call reservations, joins and loops. Retain
+   numeric indices independently of mutable source variables; equal recipe keys across a backedge
+   must not imply equal evaluations. Concrete metadata alone grants no dynamic source admission.
    Follow the [structural type request closure](design/compiler-realization.md#structural-type-request-closure)
    through the same ordinary checking/evaluator and declaration-owned array schemas; preserve
    source supplier guards and dynamic index identity without count expansion or a constant-index
