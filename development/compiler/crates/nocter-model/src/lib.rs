@@ -11,6 +11,7 @@ mod attachment_family;
 mod closure_sequence;
 mod constant;
 mod frozen_data;
+mod sparse_arena;
 pub use frozen_data::{FrozenData, FrozenNode, InvalidFrozenData};
 mod construction_identity;
 mod field_path;
@@ -47,6 +48,7 @@ pub use origin::{
     ParameterOrigin, ProvenanceSet, provenance_is_bounded_by,
 };
 pub use package::PackageIdentity;
+pub use sparse_arena::{SparseArena, SparseArenaBuilder, SparseInsertionError};
 pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};

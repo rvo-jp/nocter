@@ -1,86 +1,153 @@
-//! Freeze data contracts, formal witness identities and callables in one declaration authority.
+//! Incremental publication of validated callable contracts into one persistent header lineage.
 use super::{
     Callable, DeclarationId, FunctionConstraint, FunctionInput, Parameter, ParameterSlot, Program,
     Reservation, ValueDefinition, data::resolved_data, functions, records,
 };
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, Symbol, SymbolTable, TypeKind, ValueFunctionOrigin,
-    ValueInvocation,
+    AccessCallableId, AccessParameterId, Arena, SparseArenaBuilder, Symbol, SymbolTable,
+    TypeAuthority, TypeKind, ValueFunctionOrigin, ValueInvocation,
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
-pub(super) fn publish(
-    symbols: SymbolTable,
-    reserved: &Arena<AccessCallableId, Reservation>,
-    parameter_slots: &Arena<AccessParameterId, ParameterSlot>,
-    namespace: BTreeMap<Symbol, DeclarationId>,
-    records: records::Validated,
-) -> Program {
-    let (base_types, records) = records.publish();
-    let base_types = functions::publish_witnesses(
-        &base_types,
-        reserved.iter().filter_map(|(id, r)| {
-            matches!(
-                r.definition.as_ref()?.kind,
-                super::CallableKind::Function(_)
-            )
-            .then_some(id)
-        }),
-    );
-    let mut types = base_types.transaction();
-    let parameters = parameter_slots.map(|id, slot| {
-        let parameter = &reserved
-            .get(slot.owner)
-            .and_then(|reserved| reserved.definition.as_ref())
-            .expect("validated input owner")
-            .parameters[slot.position];
-        let (data, contract) = publish_value(
-            &mut types,
-            &records,
-            ValueFunctionOrigin::Parameter(id),
-            &parameter.data,
+/// Single writer for a validated source header domain. Views contain only complete contracts.
+/// Record schemas are closed together before this construction state is opened.
+#[derive(Debug)]
+pub struct HeaderPublication {
+    reserved: Arena<AccessCallableId, Reservation>,
+    parameter_slots: Arena<AccessParameterId, ParameterSlot>,
+    callables: SparseArenaBuilder<AccessCallableId, Callable>,
+    parameters: SparseArenaBuilder<AccessParameterId, Parameter>,
+    types: TypeAuthority,
+    symbols: Arc<SymbolTable>,
+    namespace: Arc<BTreeMap<Symbol, DeclarationId>>,
+    records: Arc<records::Schemas>,
+}
+impl HeaderPublication {
+    pub(super) fn new(
+        symbols: SymbolTable,
+        reserved: Arena<AccessCallableId, Reservation>,
+        parameter_slots: Arena<AccessParameterId, ParameterSlot>,
+        namespace: BTreeMap<Symbol, DeclarationId>,
+        records: records::Validated,
+    ) -> Self {
+        let (types, records) = records.publish();
+        let types = functions::publish_witnesses(
+            &types,
+            reserved.iter().filter_map(|(id, r)| {
+                matches!(
+                    r.definition.as_ref()?.kind,
+                    super::CallableKind::Function(_)
+                )
+                .then_some(id)
+            }),
         );
-        Parameter {
-            owner: slot.owner,
-            name: parameter.name,
-            position: slot.position,
-            data,
-            operation: parameter.operation,
-            contract,
+        Self {
+            callables: SparseArenaBuilder::new(reserved.len()),
+            parameters: SparseArenaBuilder::new(parameter_slots.len()),
+            reserved,
+            parameter_slots,
+            types,
+            symbols: symbols.into(),
+            namespace: namespace.into(),
+            records: records.into(),
         }
-    });
-    let callables = reserved.map(|id, reservation| {
+    }
+    /// Normalize one callable once, keeping its reserved input identities and all older views.
+    /// # Errors
+    /// Rejects an identity outside this validated declaration domain.
+    /// # Panics
+    /// Panics only if validated internal metadata or its exact type transaction loses integrity.
+    pub fn publish(&mut self, id: AccessCallableId) -> Result<(), crate::DefinitionError> {
+        if self.callables.get(id).is_some() {
+            return Ok(());
+        }
+        let reservation = self
+            .reserved
+            .get(id)
+            .ok_or(crate::DefinitionError::UnknownId)?;
         let definition = reservation
             .definition
             .as_ref()
             .expect("validated definition");
+        let mut types = self.types.transaction();
+        let parameters: Vec<_> = reservation
+            .parameters
+            .iter()
+            .map(|&id| {
+                let slot = self.parameter_slots.get(id).expect("reserved parameter");
+                let parameter = &definition.parameters[slot.position];
+                let (data, contract) = publish_value(
+                    &mut types,
+                    &self.records,
+                    ValueFunctionOrigin::Parameter(id),
+                    &parameter.data,
+                );
+                (
+                    id,
+                    Parameter {
+                        owner: slot.owner,
+                        name: parameter.name,
+                        position: slot.position,
+                        data,
+                        operation: parameter.operation,
+                        contract,
+                    },
+                )
+            })
+            .collect();
         let (result, result_contract) = publish_value(
             &mut types,
-            &records,
+            &self.records,
             ValueFunctionOrigin::Result(id),
             &definition.result_data,
         );
-        Callable {
-            name: reservation.name,
-            kind: definition.kind,
-            parameters: reservation.parameters.clone(),
-            result,
-            result_contract,
+        self.types = types
+            .commit(&self.types)
+            .expect("exact header type authority");
+        for (id, parameter) in parameters {
+            self.parameters
+                .insert(id, parameter)
+                .expect("define-once reserved input");
         }
-    });
-    let types = types
-        .commit(&base_types)
-        .expect("exact declaration lineage");
-    let header_type_count = types.store().type_count();
-    Program {
-        closures: BTreeMap::new(),
-        symbols: symbols.into(),
-        types,
-        header_type_count,
-        callables: callables.into(),
-        parameters: parameters.into(),
-        namespace: namespace.into(),
-        records: records.into(),
+        self.callables
+            .insert(
+                id,
+                Callable {
+                    name: reservation.name,
+                    kind: definition.kind,
+                    parameters: reservation.parameters.clone(),
+                    result,
+                    result_contract,
+                },
+            )
+            .expect("define-once reserved callable");
+        Ok(())
+    }
+    /// Read-only evidence for the contracts published so far, never a complete-unit certificate.
+    #[must_use]
+    pub fn snapshot(&self) -> Program {
+        Program {
+            closures: BTreeMap::new(),
+            symbols: self.symbols.clone(),
+            types: self.types.clone(),
+            header_prefix: self.types.store().clone(),
+            type_scope: super::TypeScope::Headers,
+            callables: self.callables.snapshot(),
+            parameters: self.parameters.snapshot(),
+            namespace: self.namespace.clone(),
+            records: self.records.clone(),
+        }
+    }
+    /// Publish all remaining contracts in canonical declaration order.
+    /// # Panics
+    /// Panics only if a reserved callable cannot be published from this validated domain.
+    #[must_use]
+    pub fn finish(mut self) -> Program {
+        let ids: Vec<_> = self.reserved.iter().map(|(id, _)| id).collect();
+        for id in ids {
+            self.publish(id).expect("reserved callable");
+        }
+        self.snapshot()
     }
 }
 

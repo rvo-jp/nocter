@@ -1,10 +1,10 @@
 //! Owner-scoped body type construction and canonical replay over one immutable header prefix.
-use super::Program;
+use super::{Program, TypeScope};
 use nocter_model::{
     AccessCallableId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication,
     ValueFunctionOrigin, ValueInvocation,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BodyTypeError {
@@ -171,13 +171,13 @@ impl BodyTypes {
 #[derive(Debug)]
 pub struct CanonicalBodyTypes {
     program: Program,
-    prefix: TypeCursor,
-    projections: BTreeMap<AccessCallableId, BTreeMap<TypeId, TypeId>>,
+    projections: BTreeMap<AccessCallableId, (TypeCursor, BTreeMap<TypeId, TypeId>)>,
 }
 impl CanonicalBodyTypes {
     #[must_use]
     pub fn project(&self, owner: AccessCallableId, data: TypeId) -> Option<TypeId> {
-        project_type(self.prefix, self.projections.get(&owner)?, data)
+        let (prefix, projection) = self.projections.get(&owner)?;
+        project_type(*prefix, projection, data)
     }
     #[must_use]
     pub fn finish(self) -> Program {
@@ -189,15 +189,17 @@ impl Program {
     /// # Errors
     /// Rejects an identity outside this declaration program.
     pub fn body_types(&self, owner: AccessCallableId) -> Result<BodyTypes, BodyTypeError> {
-        if self.types.store().type_count() != self.header_type_count {
+        if self.type_scope != TypeScope::Headers {
             return Err(BodyTypeError::InvalidExtension);
         }
         self.callables
             .get(owner)
             .ok_or(BodyTypeError::InvalidApplication)?;
+        let mut program = self.clone();
+        program.type_scope = TypeScope::Body(owner);
         Ok(BodyTypes {
             owner,
-            program: self.clone(),
+            program,
             applications: BTreeMap::new(),
         })
     }
@@ -208,30 +210,30 @@ impl Program {
         &self,
         bodies: BTreeMap<AccessCallableId, &Program>,
     ) -> Result<CanonicalBodyTypes, BodyTypeError> {
-        if self.types.store().type_count() != self.header_type_count {
+        if self.type_scope != TypeScope::Headers {
             return Err(BodyTypeError::InvalidExtension);
         }
-        let prefix = self.types.store();
         let mut types = self.types.transaction();
         let mut projections = BTreeMap::new();
         let mut closures = BTreeMap::new();
         for (owner, body) in bodies {
-            if !Arc::ptr_eq(&self.callables, &body.callables)
-                || !body.types.store().preserves_prefix(prefix)
+            if body.type_scope != TypeScope::Body(owner)
+                || !self.preserves_headers(body)
+                || !body.types.store().preserves_prefix(&body.header_prefix)
             {
                 return Err(BodyTypeError::ForeignDeclarations);
             }
             self.callables
                 .get(owner)
                 .ok_or(BodyTypeError::InvalidApplication)?;
+            let prefix = body.header_prefix.cursor();
             let projection = replay_types(self, body, owner, &mut types)?;
             for (&id, schema) in &body.closures {
                 if id.owner != owner {
                     return Err(BodyTypeError::InvalidExtension);
                 }
                 let project = |data| {
-                    project_type(prefix.cursor(), &projection, data)
-                        .ok_or(BodyTypeError::InvalidExtension)
+                    project_type(prefix, &projection, data).ok_or(BodyTypeError::InvalidExtension)
                 };
                 let mut schema = schema.clone();
                 schema.environment = project(schema.environment)?;
@@ -243,16 +245,16 @@ impl Program {
                     return Err(BodyTypeError::InvalidExtension);
                 }
             }
-            projections.insert(owner, projection);
+            projections.insert(owner, (prefix, projection));
         }
         let mut program = self.clone();
+        program.type_scope = TypeScope::Canonical;
         program.closures = closures;
         program.types = types
             .commit(&self.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;
         Ok(CanonicalBodyTypes {
             program,
-            prefix: prefix.cursor(),
             projections,
         })
     }
@@ -276,7 +278,7 @@ fn replay_types(
     owner: AccessCallableId,
     types: &mut nocter_model::TypeTransaction,
 ) -> Result<BTreeMap<TypeId, TypeId>, BodyTypeError> {
-    let prefix = header.types.store();
+    let prefix = &body.header_prefix;
     let mut projection = BTreeMap::new();
     for (source, kind) in body.types.store().iter_from(prefix.type_count()) {
         let valid = match kind {
@@ -334,3 +336,6 @@ fn replay_types(
     }
     Ok(projection)
 }
+
+#[cfg(test)]
+mod tests;

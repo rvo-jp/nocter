@@ -1,7 +1,6 @@
 //! Real private source through the common Machine, ARM64, image writer and native process.
 use super::{TempPackage, execute_native_status};
-use nocter_checking::value_access::accepted::Unit;
-use nocter_declaration_lowering::access_declarations;
+use nocter_checking::value_access::accepted::SourceUnit;
 use nocter_runtime_contract::RuntimeAbiIdentity;
 use nocter_target_program::value_access::{InstanceProgram, lifecycle};
 use nocter_test_support::ValueSourceFixture;
@@ -9,8 +8,7 @@ use std::sync::Arc;
 
 fn machine(source: &str) -> nocter_machine::MachineProgram {
     let fixture = ValueSourceFixture::new(source);
-    let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
-    let unit = Arc::new(Unit::prepare(&headers.bind(fixture.syntax()).unwrap()).unwrap());
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
     let root = unit
         .program()
         .resolve(unit.program().symbols().get("run").unwrap())
@@ -115,6 +113,11 @@ fn private_indirect_aggregate_inputs_and_results_execute_natively() {
 #[test]
 fn private_callbacks_and_mutable_captures_use_the_same_native_call_path() {
     for (name, source, expected) in [
+        (
+            "late-header-replay",
+            "func run(): i32 { let pair = (40, true)\nlet action = (pair;): i32 { if pair.1 { pair.0 + 2 } else { 0 } }\naction() }\nfunc z_unused(action: func(): i32): i32 { action() }",
+            42,
+        ),
         (
             "forward",
             "func increment(value: i32): i32 { value + 1 }\nfunc apply(action: func(i32): i32): i32 { action(1) }\nfunc forward(action: func(i32): i32): i32 { apply(action) }\nfunc run(): i32 { forward(increment) }",

@@ -21,6 +21,7 @@ impl Checker<'_, '_> {
         let Some(name) = self.name_token(node)? else {
             return Ok(None);
         };
+        self.require_header(name)?;
         let spelling = self.text(name)?;
         Ok(self
             .lookup(spelling)

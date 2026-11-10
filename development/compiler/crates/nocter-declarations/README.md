@@ -74,12 +74,16 @@ coordinates, or checking internals.
 The value-access product owns immutable declaration facts and their type authority for the future
 private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
-Construction has three one-way states: `Reservations` assigns callable/record and input/field identities;
-its consuming `finish` validates and closes the complete name domain into a `Builder`; that
-builder resolves and defines headers, then publishes a `Program` only after all header checks.
+`Reservations` assigns callable/record and input/field identities; its consuming `finish` closes
+the complete name domain into a `Builder`. The builder defines and validates all source data
+references and record schemas before opening `HeaderPublication`. This single writer normalizes
+individual callable contracts and exposes immutable `Program` views containing only ready entries.
+Its consuming `finish` closes all remaining callables. `Builder::finish` uses that same path.
 No definition or type resolution is available during reservation, and no new declaration can be
-reserved after name closure. Neither construction state is body-checking admission or an incomplete
-semantic program. Defining headers in a different order cannot change parameter identities.
+reserved after name closure. Untyped construction grants no body-checking admission. A ready view
+can support typed-only checking of its established contracts, but only `headers_complete` can
+permit whole-unit closure. Records and source data references still close as one stratum;
+this is not early array-length evaluation. Defining headers in a different order cannot change parameter identities.
 The lowering owner reserves functions and records in canonical namespace order.
 
 Reservation takes each callable's input count and each record's field count, assigning the entire
@@ -97,6 +101,13 @@ serves forward header references, parameter-shadowing checks and published role-
 record schemas do not maintain a second global index. Invalid cross-domain names retain only a
 temporary first-record diagnostic witness, never another lookup authority. Name failures precede
 type normalization, so an invalid namespace cannot request or invent types to diagnose itself.
+
+Callable/input tables use model-owned sparse arenas. A missing entry has no data, invocation
+contract or Copy evidence; known names can still identify its required header or forbid shadowing.
+Only a non-cloneable writer can fill a reserved slot once. Immutable views share persistent storage;
+their exact ancestry is independent of structural metadata equality. All views retain the same
+closed namespace and record schemas. Named code keys alone cannot expose an unready function
+witness through `function_data`.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
@@ -165,7 +176,7 @@ identities even with equal structural signatures. Released
 declaration validation rejects all private witness keys.
 
 `body_types` owns the narrow body-type construction capability. A selected factory call interns
-its caller/operation/callee key and all permitted views over an immutable header prefix. A
+its caller/operation/callee key and all permitted views over its immutable ready-header prefix. A
 construction-only reservation forbids selecting two callees for one operation. It is discarded
 on freeze; no dispatch search or source syntax enters the program. Branches share declaration,
 namespace and record metadata instead of cloning those authorities.
@@ -178,8 +189,13 @@ Canonical replay remaps nested tuple components and every closure-schema data sl
 type suffix in the same program; headers remain unchanged. `closures` owns their immutable
 projection, not body checking.
 
-Canonical replay validates exact declaration identity, persistent type-prefix identity and each
-suffix's body owner. It re-interns witness keys and structural tuples in semantic owner order and
+Canonical replay validates retained ready contracts, exact namespace/record identity, persistent
+header-prefix ancestry and each suffix's body owner. It records each body's own prefix boundary;
+an explicit type-scope proof retains the owning callable even when its suffix is empty. A header
+view, a body branch and a canonical merged product cannot substitute for each other's construction role.
+later header keys may occupy the same raw positions as an earlier body's suffix. The prefix is
+proof input, never an alternative semantic lookup store. Replay re-interns witness keys and
+structural tuples in semantic owner order and
 publishes exact per-body TypeId projections with one final program. Coinciding raw suffix positions from two
 bodies cannot substitute for each other. Header programs stay unchanged and reusable; an
 extended program cannot masquerade as a fresh header base. Checking rewrites all body data

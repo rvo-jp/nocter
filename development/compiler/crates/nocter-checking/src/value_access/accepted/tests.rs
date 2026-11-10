@@ -27,8 +27,9 @@ fn string(value: &Value) -> &str {
 }
 fn accepted(text: &str) -> Unit {
     let (sources, tree) = input(text);
-    let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
-    Unit::prepare(&query.bind(bound(&sources, &tree)).unwrap()).unwrap()
+    SourceUnit::prepare(bound(&sources, &tree))
+        .unwrap()
+        .into_unit()
 }
 fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {
     unit.bodies()
@@ -84,12 +85,16 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
             counts[5] += 1;
             continue;
         }
-        let query = declarations::Query::prepare(bound(&sources, &tree))
-            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
-        let context = query.bind(bound(&sources, &tree)).unwrap();
-        let result = Unit::prepare(&context);
+        let result = SourceUnit::prepare(bound(&sources, &tree)).map_err(|failure| match failure {
+            SourceFailure::Declarations(failure) => {
+                panic!("{name}: unexpected header rejection: {failure:?}")
+            }
+            SourceFailure::Checking(failure) => failure,
+        });
         if string(field(case, "expectation")) == "accept" {
-            let unit = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            let source = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            let context = source.declarations().bind(bound(&sources, &tree)).unwrap();
+            let unit = source.unit();
             assert_eq!(unit.bodies().len(), context.program().callables().len());
             assert!(unit.bind(&context).is_ok());
             counts[1] += 1;
@@ -307,3 +312,4 @@ mod statics;
 mod tuples;
 
 mod integers;
+mod staged;

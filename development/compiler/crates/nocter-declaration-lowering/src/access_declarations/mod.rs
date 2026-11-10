@@ -10,7 +10,7 @@ mod tests;
 use std::{collections::BTreeMap, sync::Arc};
 
 use headers::RecordHeader;
-use nocter_declarations::value_access::{Program, Reservations};
+use nocter_declarations::value_access::{HeaderPublication, Program, Reservations};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::AccessCallableId;
 use nocter_syntax::{
@@ -52,7 +52,7 @@ pub struct Query {
 pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
-    sources: BTreeMap<AccessCallableId, CallableSource>,
+    sources: Arc<BTreeMap<AccessCallableId, CallableSource>>,
 }
 
 #[derive(Clone, Debug)]
@@ -83,11 +83,20 @@ impl CallableSource {
     }
 }
 
-impl Query {
+/// Exact-current construction with complete record schemas and progressively published callables.
+#[derive(Debug)]
+pub struct Preparation<'source> {
+    headers: HeaderPublication,
+    syntax: BoundSyntax<'source>,
+    surface: DeclarationSyntaxSurface,
+    recipes: BTreeMap<AccessCallableId, HeaderRecipe>,
+    sources: Arc<BTreeMap<AccessCallableId, CallableSource>>,
+}
+impl<'source> Preparation<'source> {
     /// Computes header semantics for one private function unit, without checking its bodies.
     /// # Errors
     /// Rejects a wrong goal, syntax errors, header violations, or broken syntax integrity.
-    pub fn prepare(syntax: BoundSyntax<'_>) -> Result<Self, Failure> {
+    pub fn prepare(syntax: BoundSyntax<'source>) -> Result<Self, Failure> {
         validate_input(syntax)?;
         let tree = syntax.tree();
         let projection = project_declaration_syntax(syntax);
@@ -145,7 +154,7 @@ impl Query {
                 violations,
             ));
         }
-        let program = builder.finish().map_err(|violations| {
+        let headers = builder.into_publication().map_err(|violations| {
             projection::project_violations(tree, &sources, &record_headers, violations)
         })?;
         let mut recipes = BTreeMap::new();
@@ -171,12 +180,49 @@ impl Query {
             );
         }
         Ok(Self {
-            program: Arc::new(program),
+            headers,
+            syntax,
             surface: projection.into_surface(),
             recipes,
+            sources: Arc::new(sources),
         })
     }
 
+    #[must_use]
+    pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
+        self.recipes.keys().copied()
+    }
+    /// Publish one required callable and retain all contracts already established by this builder.
+    /// # Errors
+    /// Rejects a callable outside the reserved source domain.
+    pub fn context(&mut self, required: AccessCallableId) -> Result<Context<'source>, Failure> {
+        self.headers
+            .publish(required)
+            .map_err(|_| Failure::InconsistentSyntax)?;
+        Ok(Context {
+            program: Arc::new(self.headers.snapshot()),
+            syntax: self.syntax,
+            sources: self.sources.clone(),
+        })
+    }
+    /// Finish the complete reusable header query without re-normalizing published contracts.
+    #[must_use]
+    pub fn finish(self) -> Query {
+        Query {
+            program: Arc::new(self.headers.finish()),
+            surface: self.surface,
+            recipes: self.recipes,
+        }
+    }
+}
+
+impl Query {
+    /// Computes complete private headers through the same incremental publication authority.
+    /// # Errors
+    /// Rejects a wrong goal, syntax errors, header violations, or broken syntax integrity.
+    pub fn prepare(syntax: BoundSyntax<'_>) -> Result<Self, Failure> {
+        Ok(Preparation::prepare(syntax)?.finish())
+    }
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program
@@ -226,7 +272,7 @@ impl Query {
         Ok(Context {
             program: Arc::clone(&self.program),
             syntax,
-            sources,
+            sources: Arc::new(sources),
         })
     }
 }

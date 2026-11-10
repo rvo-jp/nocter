@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use nocter_model::{
     AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, CompileTimeGuarantee,
-    NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, ValueInputOperation,
+    NominalTypeId, SparseArena, Symbol, SymbolTable, TypeAuthority, TypeId, ValueInputOperation,
 };
 
 use crate::DefinitionError;
@@ -26,6 +26,7 @@ pub use functions::{
 };
 mod namespace;
 mod publication;
+pub use publication::HeaderPublication;
 mod records;
 pub use data::{DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};
@@ -180,20 +181,42 @@ impl Parameter {
     }
 }
 
+/// Construction provenance of the type suffix, independent of whether that suffix is empty.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TypeScope {
+    Headers,
+    Body(AccessCallableId),
+    Canonical,
+}
+
 /// Immutable declaration metadata; body acceptance and native execution are separate products.
 #[derive(Clone, Debug)]
 pub struct Program {
     symbols: std::sync::Arc<SymbolTable>,
     types: TypeAuthority,
-    header_type_count: usize,
-    callables: std::sync::Arc<Arena<AccessCallableId, Callable>>,
-    parameters: std::sync::Arc<Arena<AccessParameterId, Parameter>>,
+    header_prefix: nocter_model::TypeStore,
+    type_scope: TypeScope,
+    callables: SparseArena<AccessCallableId, Callable>,
+    parameters: SparseArena<AccessParameterId, Parameter>,
     namespace: std::sync::Arc<BTreeMap<Symbol, DeclarationId>>,
     records: std::sync::Arc<records::Schemas>,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
 }
 
 impl Program {
+    #[must_use]
+    pub const fn headers_complete(&self) -> bool {
+        self.callables.is_complete() && self.parameters.is_complete()
+    }
+    /// Retains every established contract and its exact type prefix from the same construction.
+    #[must_use]
+    pub fn preserves_headers(&self, older: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.namespace, &older.namespace)
+            && std::sync::Arc::ptr_eq(&self.records, &older.records)
+            && self.callables.preserves(&older.callables)
+            && self.parameters.preserves(&older.parameters)
+            && self.header_prefix.preserves_prefix(&older.header_prefix)
+    }
     #[must_use]
     pub fn symbols(&self) -> &SymbolTable {
         &self.symbols
@@ -214,11 +237,11 @@ impl Program {
         }
     }
     #[must_use]
-    pub fn callables(&self) -> &Arena<AccessCallableId, Callable> {
+    pub fn callables(&self) -> &SparseArena<AccessCallableId, Callable> {
         &self.callables
     }
     #[must_use]
-    pub fn parameters(&self) -> &Arena<AccessParameterId, Parameter> {
+    pub fn parameters(&self) -> &SparseArena<AccessParameterId, Parameter> {
         &self.parameters
     }
     #[must_use]
@@ -429,6 +452,13 @@ impl Builder {
     /// # Errors
     /// Returns callable and record header/shape violations without publishing a partial program.
     pub fn finish(self) -> Result<Program, Vec<DeclarationViolation>> {
+        self.into_publication().map(HeaderPublication::finish)
+    }
+
+    /// Validate closed source definitions before publishing individual callable contracts.
+    /// # Errors
+    /// Rejects incomplete or invalid definitions without furnishing a ready view.
+    pub fn into_publication(self) -> Result<HeaderPublication, Vec<DeclarationViolation>> {
         let reserved = self.callables.finish();
         let mut violations = Vec::new();
         let namespace = self.namespace;
@@ -468,10 +498,10 @@ impl Builder {
         if !violations.is_empty() {
             return Err(violations);
         }
-        Ok(publication::publish(
+        Ok(HeaderPublication::new(
             self.symbols,
-            &reserved,
-            &self.parameters,
+            reserved,
+            self.parameters,
             namespace,
             records,
         ))

@@ -26,13 +26,30 @@ struct Preparation<'a, 'source> {
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
     limits: state::Limits,
+    queries: BTreeMap<AccessCallableId, Query>,
 ) -> Result<Output, Failure> {
     let mut preparation = Preparation {
         context,
         budget: state::Budget::new(limits),
-        queries: BTreeMap::new(),
+        queries,
         sources: value_access::source_dependencies::SourceDependencies::default(),
     };
+    for (&id, query) in &preparation.queries {
+        if query.code() != nocter_model::ValueCode::Declaration(id) || query.bind(context).is_err()
+        {
+            return Err(INVALID);
+        }
+        if context
+            .program()
+            .callables()
+            .get(id)
+            .ok_or(INVALID)?
+            .compile_time()
+            == CompileTimeGuarantee::Evaluatable
+        {
+            preparation.sources.insert(id, query.body_bytes.clone());
+        }
+    }
     let mut values = Values::default();
     for (id, declaration) in context.program().callables().iter() {
         if declaration.kind().is_initializer() {

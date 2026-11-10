@@ -221,8 +221,18 @@ with adjacent stages.
 
 ## Bounded Future Value Binding Typing
 
+`accepted::SourceUnit` owns staged source preparation and the resulting complete Unit with its
+reusable header query. `staged` asks lowering for ready callable contexts and uses the same ordinary
+body checker. A reference to a known but unready callable returns `RequiredHeader`; preparation
+publishes that contract and retries the unpublished draft. It never guesses the signature, changes
+dispatch or reparses source. The complete name domain still forbids shadowing independently of
+readiness, and dead source retains its header requirements. Successful body queries are retained
+without rechecking. Missing constant values continue through the required-value coordinator below.
+This stage does not yet request values during source type normalization or close records on demand.
+
 The private-function goal has one typed-body query over shared immutable declaration facts and
-an owner-scoped body-type extension. `types` canonically replays those extensions and projects all
+an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
+only exact later extensions of that construction. `types` canonically replays those extensions and projects all
 data-bearing body slots before control construction. Every accepted body shares the Unit's final
 program/type authority. Its separate header handle proves source reuse; it is never a type-lookup
 fallback. The common data projection also serves result closure, without parallel slot walkers.
@@ -300,8 +310,8 @@ value. Conditional typing checks both known shapes but selects a normally produc
 identity when the other cannot produce a value. Possible completion is not a termination guarantee.
 
 Data annotations do not select local binding operations. Body-local arenas have no source
-coordinates, syntax IDs, names or symbols. Successful queries own exact authority/body bytes and
-locator recipes. Rebinding requires the same immutable header authority and exact own body; a result-closed
+coordinates, syntax IDs, names or symbols. Successful queries own exact authority lineage/body bytes and
+locator recipes. Rebinding requires preserved header contracts and an exact own body; a result-closed
 query also verifies the producer-body evidence supporting its result identities. It constructs
 current projection without retyping. This product cannot convert to released CheckedProgram or native
 products.
@@ -484,7 +494,7 @@ transitions alone cannot replace the combined source proofs or establish executa
 The whole-unit constructor validates every definition, including unused/recursive callees, and
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
 same shared declaration facts, canonical type authority, closed result evidence and all body/flow
-reports. Binding
+reports. It rejects an incomplete ready-header view before evaluation or acceptance. Binding
 validates every original body before exposing current projections. An equal but separately rebuilt program or changed sibling
 cannot substitute for that authority. The sole body catalog exposes exact semantic-ID lookup for
 the target owner's private instance consumer. That consumer receives only the complete Unit,
@@ -547,6 +557,13 @@ before conditional completion, reachable breaks, capture invocation inference or
 All authored source remains structurally checked, including unevaluated branches. Selected const
 callees are prepared through all authored call edges; callable-only recursion remains a graph,
 while a constant reference requests a value and exposes an active declaration cycle.
+
+Staged source preparation can seed this coordinator with successful queries from earlier header
+views. Each seed must bind to the complete current context before use; the coordinator retains its
+original typed program until canonical replay. Seeded const bodies contribute the same exact-source
+dependencies as newly checked bodies. Static requirements are still resolved from cached queries,
+so reuse cannot hide a value cycle or a changed supplying body. All headers close before this
+required-value execution phase; header-dependent evaluation remains a separate integration gate.
 
 The same `accepted::check_queries` routine canonically replays and ordinarily validates a selected
 const closure before any execution, and later closes the complete Unit. Each temporary closure

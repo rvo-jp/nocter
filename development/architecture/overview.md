@@ -64,7 +64,7 @@ a shared source-neutral flow graph supplies projected initialization and alterna
 referent/permission reports with permission-demand liveness and logical ownership/cleanup
 transitions. A closed private-unit constructor checks all definitions and the exact admitted
 payload contracts before publishing front-end acceptance. Body application types replay over the
-exact header prefix into one canonical accepted-unit type authority. The target owner then closes an explicit
+retained ready-header prefixes into one canonical accepted-unit type authority. The target owner then closes an explicit
 root into a private instance program by substituting checked witness edges and data obligations;
 this remains separate from released target admission. The same target owner
 projects checked resource conditions and operation phases into concrete private lifecycle schedules,

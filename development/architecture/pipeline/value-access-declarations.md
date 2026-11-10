@@ -19,10 +19,14 @@ The [realization plan](../../design/compiler-realization.md) owns remaining inte
 
 ```text
 V2CoreUnit syntax + exact source
-  -> reusable access-declaration query
-       immutable semantic program + neutral header surface + projection recipe
-  -> exact-current context
-       the same semantic program + current source/header/body binding
+  -> exact-current declaration preparation
+       closed source data/record schemas + reserved identities + one namespace/source catalog
+       requested callable -> complete immutable ready-header view
+  -> ordinary typed-body preparation over ready contracts
+       missing header -> same declaration preparation -> retry unpublished draft
+       successful query retains its own header-prefix boundary
+  -> complete reusable access-declaration query + exact-current context
+       all callable contracts + neutral header surface + projection recipe
   -> dependency-scheduled ordinary typed-body preparation
        missing constant -> same ordinary checking of selected const closure -> closed execution
        completed frozen values feed typing; immutable static views retain global place identity
@@ -66,13 +70,17 @@ annotations constrain these witnesses rather than introducing erased runtime dat
 checking freezes the selected witness/view. Header freeze interns every named invocation view and
 all permitted formal/result-family views in the header TypeAuthority. Body checking opens a narrow
 application-type branch over that prefix; canonical replay validates lineage and owner domains
-before all bodies share one final authority. Declaration metadata and source reuse remain shared;
+before all bodies share one final authority. Earlier body suffixes can share raw positions with
+later header keys; replay uses each body's own prefix rather than a final global cutoff.
+Declaration metadata and source reuse remain shared;
 no consumer chooses between header and body stores as lookup fallbacks.
 Reservation closure freezes the complete callable/record name and input/field identity domains
 before any type normalization.
-Definition construction cannot append declarations; final publication rejects incomplete or invalid
-headers. One tagged name table survives those transitions and serves each role-specific lookup.
-Neither construction state is body-checking admission.
+Definition construction cannot append declarations; validation rejects incomplete or invalid source
+definitions before incremental callable publication. One tagged name table survives those
+transitions and serves each role-specific lookup. Ready views grant only established contracts;
+untyped reservations never grant body-checking admission. Complete Unit admission requires every
+callable/input slot to be defined.
 Admitted built-in data, finite nongeneric records and structural tuple schemas share the parsed
 callable/body boundary. Data-name resolution belongs to that declaration namespace; lowering holds
 no parallel type table. Declaration-owned component projection validates each selected nominal field
@@ -82,15 +90,19 @@ No borrowed wrapper or released storable-type heuristic supplies a missing futur
 
 `nocter-declaration-lowering` owns canonical header collection, normalization and diagnostic
 projection. It reserves functions and records in namespace order and maps resolved identities to neutral
-syntax locators. Its reusable query contains no source identity, syntax ID, range, or body text.
+syntax locators. Its exact-current preparation supplies immutable ready callable contexts while
+checking retains successful bodies. The complete reusable query contains no source identity, syntax ID, range, or body text.
 Binding checks the complete header surface before resolving locators to current syntax. The
 current context has no public parts constructor; a caller cannot pair unrelated program/syntax
 products or relabel released source as future source.
 
 ## Contract Facts and Limits
 
-All headers are resolved before body semantics. Body contents, source coordinates, declaration
-traversal order, and later Copy specialization cannot change a declared input operation. Definition
+Every selected contract is closed before body checking consumes it. Source data-name references
+and record schemas still close together; callable contracts can become ready as body preparation
+requests them. All headers must close before the required-value executor and complete Unit admission.
+Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
+change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a
 source-surface cache entry but must preserve canonical semantic identities when recomputed.
 

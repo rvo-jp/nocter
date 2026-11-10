@@ -2063,7 +2063,6 @@ dependencies = [
  "nocter-checking",
  "nocter-compile-input",
  "nocter-compiler-computation",
- "nocter-declaration-lowering",
  "nocter-discovery",
  "nocter-filesystem",
  "nocter-language",

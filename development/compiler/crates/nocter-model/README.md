@@ -14,6 +14,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 ## Internal Responsibilities
 
 - dense semantic ID domains and arenas
+- define-once sparse arenas over reserved domains, with persistent immutable views and exact
+  single-writer ancestry; absent slots contain no provisional semantic value
 - source-independent compile-time expression identities
 - `ValueStatic` place keys linked to initializer declarations; the declaration authority validates
   the role before granting a global place, independently of code/function use

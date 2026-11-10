@@ -245,6 +245,7 @@ impl Checker<'_, '_> {
         Ty::new(selected.data, self.local_ty(selected.local).mode())
     }
     fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessLocalId>, Failure> {
+        self.require_header(token)?;
         let spelling = self.text(token)?;
         if let Some(local) = self.lookup(spelling) {
             return Ok(Some(local));

@@ -1,4 +1,5 @@
 //! Closed front-end acceptance of every definition in one private first-fragment unit.
+pub use super::staged::{SourceFailure, SourceUnit};
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -72,7 +73,23 @@ impl Unit {
         context: &DeclarationContext<'_>,
         limits: impl Into<nocter_constant_evaluation::state::Limits>,
     ) -> Result<Self, Failure> {
-        let evaluation = super::evaluation::prepare(context, limits.into())?;
+        if !context.program().headers_complete() {
+            return Err(Failure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
+            ));
+        }
+        let evaluation = super::evaluation::prepare(context, limits.into(), BTreeMap::new())?;
+        Self::close_evaluation(context, evaluation)
+    }
+    pub(super) fn close_evaluation(
+        context: &DeclarationContext<'_>,
+        evaluation: super::evaluation::Output,
+    ) -> Result<Self, Failure> {
+        if !context.program().headers_complete() {
+            return Err(Failure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
+            ));
+        }
         let mut queries = evaluation.queries;
         if !evaluation.values.is_empty() {
             for query in queries.values_mut() {
@@ -164,7 +181,9 @@ impl Unit {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, BodyFailure> {
-        if !Arc::ptr_eq(&self.header, &context.program_handle()) {
+        if !context.program().headers_complete()
+            || !context.program().preserves_headers(&self.header)
+        {
             return Err(BodyFailure::ChangedAuthority);
         }
         let verified = self.result_evidence.verify(context)?;

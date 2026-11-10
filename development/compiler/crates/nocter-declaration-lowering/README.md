@@ -99,7 +99,7 @@ declaration namespace independently of missing/unsupported data; a name conflict
 the current declaration with its related declaration even when both signatures have invalid types.
 The resulting definition builder resolves
 data types, input operations, namespaces, authored const capability and value-result constraints
-before examining body semantics.
+without examining body semantics.
 `headers` extracts syntax-only header evidence for functions and explicitly typed required constant/static initializers.
 Initializer expressions use the syntax owner's existing body-surface exclusion and current-body
 locator mechanism, so initializer-only edits rebind headers without retaining stale values. `type_syntax::value_type_syntax` projects one
@@ -130,9 +130,15 @@ syntax remains here; there is no public parts constructor or conversion to the l
 program. The [cross-stage boundary](../../../architecture/pipeline/value-access-declarations.md)
 owns the handoff to typed-only body checking and the still-required flow/safety validation.
 
-The current access-declaration context supplies the exact immutable header program to checking.
-Body queries retain that handle for source reuse and open declaration-owned application-type
-branches over its prefix. Unit construction canonically replays those branches into one final
-semantic authority; lowering does not inspect or cache their contents. Rebinding must still prove
-the same original header authority. Structurally equal declarations rebuilt by a different query
-cannot substitute for it. Source projection remains outside semantic type lookup.
+`Preparation` owns one exact-current syntax pairing and the declaration owner's incremental
+header publication. Its contexts share the source catalog and expose complete callable contracts
+as requested, without re-reading or checking a body. `finish` yields the complete reusable `Query`;
+the eager query entry delegates to that same construction. Record schemas and source data-name
+normalization still close before these callable views, so this does not admit array-length calls.
+
+Body queries retain their origin header view and open declaration-owned type branches over that
+prefix. A later context can bind existing evidence only if its header view preserves the earlier
+contracts and type prefix from that same construction. Unit construction canonically replays the
+body suffixes into one final authority; lowering does not inspect their contents. Structurally
+equal declarations rebuilt by another query cannot substitute for the original lineage. Source
+projection remains outside semantic type lookup.

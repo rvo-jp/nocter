@@ -472,6 +472,23 @@ impl<'a, 's> Checker<'a, 's> {
             Vec::new(),
         )
     }
+    pub fn require_header(&self, token: SyntaxToken) -> Result<(), Failure> {
+        let spelling = self.text(token)?;
+        if self.lookup(spelling).is_none()
+            && let Some(callable) = self
+                .program()
+                .symbols()
+                .get(spelling)
+                .and_then(|symbol| self.program().resolve_code(symbol))
+            && self.program().callables().get(callable).is_none()
+        {
+            return Err(Failure::RequiredHeader {
+                callable,
+                origin: SyntaxOrigin::Token(token),
+            });
+        }
+        Ok(())
+    }
     pub fn lookup(&self, name: &str) -> Option<AccessLocalId> {
         self.scopes
             .iter()

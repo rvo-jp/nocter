@@ -18,6 +18,7 @@ mod ir;
 mod results;
 mod selection;
 mod source_dependencies;
+mod staged;
 mod statements;
 mod supply;
 #[cfg(test)]
@@ -158,6 +159,11 @@ impl BodyDiagnostic {
 #[derive(Debug)]
 pub enum Failure {
     UnknownCallable,
+    /// The unpublished draft requires a known callable's closed header, not an inferred signature.
+    RequiredHeader {
+        callable: AccessCallableId,
+        origin: nocter_syntax::SyntaxOrigin,
+    },
     /// The unpublished body draft needs a completed declaration value before typing continues.
     RequiredConstant {
         initializer: AccessCallableId,
@@ -248,7 +254,7 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        if !Arc::ptr_eq(&self.header, &context.program_handle()) {
+        if !context.program().preserves_headers(&self.header) {
             return Err(Failure::ChangedAuthority);
         }
         if let Some(source) = &self.evaluation_source {
@@ -275,7 +281,7 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        if !Arc::ptr_eq(&self.header, &context.program_handle()) {
+        if !context.program().preserves_headers(&self.header) {
             return Err(Failure::ChangedAuthority);
         }
         let source = context

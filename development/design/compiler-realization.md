@@ -101,11 +101,14 @@ intern the resulting array identity in the same type authority. Publication stil
 declaration and every definition to close.
 
 Use the already-reserved input/field identities when publishing a ready contract; normalization
-order cannot allocate new slots or renumber a formal witness. The current declaration publisher
-still closes all typed headers together. Early requests therefore still need closed ready-contract
-views and canonical type replay over their exact authority lineage; a reservation by itself grants
-no permission to type-check against an unfinished signature. Source admission must exercise the
-combined request path rather than treating construction-only slot tests as array conformance.
+order cannot allocate new slots or renumber a formal witness. The current
+[staged source path](../compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
+can retain bodies over earlier ready callable views and replay their type suffixes after later
+contracts close. Source data references and record schemas still require a complete first stratum;
+required values execute only after all headers close. Extend that boundary with deferred source
+type normalization, record closure and header-dependent required-value requests through the one
+dependency protocol. A reservation alone cannot type-check an unfinished signature. Qualify actual
+array source through the combined path rather than treating ready-view/slot tests as array conformance.
 
 Keep type/value cycles distinct from callable recursion. A request that needs its own unfinished
 normalized type or value is a dependency error, including an authored requirement in dead source.
