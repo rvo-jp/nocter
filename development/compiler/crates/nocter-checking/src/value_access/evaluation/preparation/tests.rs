@@ -2,6 +2,68 @@
 use super::*;
 use crate::value_access::tests::{bound, input};
 use nocter_declarations::value_access::PayloadSchema;
+use std::fmt::Write as _;
+
+#[test]
+fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call_depth_charges() {
+    const DEPTH: usize = 4096;
+    let mut source = String::from("struct R0 {}\n");
+    for level in 1..=DEPTH {
+        writeln!(
+            source,
+            "struct R{level} {{ left: R{}\nright: R{} }}",
+            level - 1,
+            level - 1
+        )
+        .unwrap();
+    }
+    writeln!(source, "const ANSWER: i32 = if false {{ let _ = deep()\n0 }} else {{ 42 }}\nconst FLAG: bool = true\nconst func deep(): R{DEPTH} {{ let _ = FLAG\nloop {{}} }}\nfunc run(): i32 {{ ANSWER }}").unwrap();
+    let (sources, tree) = input(&source);
+    let syntax = bound(&sources, &tree);
+    let mut headers = declarations::Preparation::prepare(syntax).unwrap();
+    let ids: Vec<_> = headers.callable_ids().collect();
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(256).unwrap(),
+        std::num::NonZeroU32::new(2).unwrap(),
+    );
+    let mut preparation = Preparation::new(
+        headers.current(),
+        Headers::Publishing(&mut headers),
+        limits.into(),
+    );
+    let program = preparation.context.program();
+    let answer = program
+        .resolve_code(program.symbols().get("ANSWER").unwrap())
+        .unwrap();
+    let mut requests = Dependencies::default();
+    requests
+        .resolve(&mut preparation, Request::Value(answer))
+        .unwrap();
+    assert_eq!(
+        dependencies::value(&requests, answer).unwrap().frozen,
+        state::Value::integer(42).freeze()
+    );
+    assert_eq!(preparation.context.program().records().len(), DEPTH + 1);
+    for (id, _) in preparation.context.program().records().iter() {
+        assert!(
+            matches!(
+                requests.completed(&Request::Header(id.into())),
+                Some(Fact::Header)
+            ),
+            "each transitive record must close through the shared query"
+        );
+    }
+    assert_eq!(requests.active_depth(), 0);
+    preparation.all(&mut requests, &ids).unwrap();
+    let output = preparation.finish(requests).unwrap();
+    let headers = headers.finish();
+    let context = headers.bind(syntax).unwrap();
+    let unit = accepted::Unit::close_evaluation(&context, output).unwrap();
+    assert_eq!(
+        unit.constant_value(answer),
+        Some(&state::Value::integer(42).freeze())
+    );
+}
 
 #[test]
 fn body_value_cycles_unwind_without_publishing_pending_body_or_value_facts() {

@@ -111,8 +111,12 @@ Only a non-cloneable writer can fill a reserved slot once. Immutable views share
 their exact ancestry is independent of structural metadata equality. All views retain the same
 closed namespace and preserve every established contract. Named code or nominal leaf keys alone
 cannot expose an unready function witness, payload schema or Copy evidence. Record publication
-uses iterative postorder over validated containment; it normalizes each shared child once before
-publishing a parent's complete fields and local member namespace.
+reports missing record contracts through `HeaderPublication::advance`. A step publishes only the
+selected contract once every dependency is ready; a request publishes neither provisional parent
+fields nor TypeIds. The complete publication entry drives those same steps with an explicit
+worklist. There is no competing eager normalization path. Each shared child normalizes once before
+its parent's complete fields and local member namespace. Reserved callable and declaration
+enumeration belongs to this same authority, independently of source projection and readiness.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable headers admit `bool`, `i32`, `usize`, `void`, opaque move-only

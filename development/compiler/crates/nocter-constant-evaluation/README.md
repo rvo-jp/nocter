@@ -54,18 +54,30 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   recursively frozen tuple/array statics; adapters cannot flatten aggregate structure themselves.
 - Constant expressions and checked callable plans delegate arithmetic, comparison, conversion, and
   target floating behavior to one scalar operation implementation.
-- One dependency query owns absent, active, and completed key states. It memoizes shared
-  dependencies, reports exact active cycles, and removes failed active branches before returning.
-- Its read-only active-key path lets consumers classify their own request roles for a shared
-  execution-depth budget without retaining a parallel stack; the query does not interpret those roles.
-- Each completed query value is allocated once and shared across every dependent request. The
-  query has no `Clone` implementation, so a semantic construction cannot fork a second memoization
-  authority or copy a large frozen aggregate on each dependency edge.
 - Expression-tree constant plans freeze reference edges once during planning. Evaluation requests those edges
   through the query and does not construct a separate dependency-order traversal.
 - The syntax-owned expression planner is an early structural service only. Ordinary constant and
   static initializers reach execution through checked initializer plans, so adding calls does not
   expand the syntax planner into a second body checker.
+
+## Dependency Queries
+
+One `DependencyQuery` owns absent, active and completed states and the exact ordered active frames.
+`resolve` supports re-entrant computations. `resolve_steps` instead advances drafts through
+`DependencyProgress`, scheduling each returned dependency group in order with explicit frames.
+Both entries share memoization and cycle detection, including when iterative work runs inside a
+re-entrant computation. Deep iterative dependencies do not consume the host call stack.
+
+A draft returns a complete value or a group containing at least one unfinished key. Completed
+dependencies in a group are skipped. Empty or wholly completed groups invoke the consumer's
+`no_progress` failure, preventing an invalid draft from spinning. The query alone constructs
+active-cycle paths; consumers classify their own authored and integrity failures. Failure unwinds
+only the invocation's unfinished frames, retaining completed dependencies and outer active work.
+
+The read-only active-key path lets consumers classify request roles for an execution-depth budget
+without another stack; the query does not interpret those roles. Each completed value is allocated
+once and shared across requests. The query has no `Clone` implementation, so a construction cannot
+fork a second memoization authority or copy a large frozen aggregate on each edge.
 
 ## Stateful Value Plans
 

@@ -23,7 +23,7 @@ V2CoreUnit syntax + exact source
        validated source references/containment + reserved identities + one namespace/source catalog
        requested callable/record + transitive records -> complete immutable ready-header view
   -> dependency-scheduled ordinary typed-body preparation over ready contracts
-       missing header -> same declaration preparation -> retry unpublished draft
+       missing header -> declaration-owned required contracts -> iterative shared query -> retry draft
        missing constant -> ordinary checking of selected const closure -> closed execution
        unrelated headers can remain unready during required execution
        frozen values feed typing; immutable static views retain global place identity

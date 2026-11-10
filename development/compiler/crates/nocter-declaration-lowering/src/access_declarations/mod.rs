@@ -10,7 +10,9 @@ mod tests;
 use std::{collections::BTreeMap, sync::Arc};
 
 use headers::RecordHeader;
-use nocter_declarations::value_access::{DeclarationId, HeaderPublication, Program, Reservations};
+use nocter_declarations::value_access::{
+    DeclarationId, HeaderPublication, HeaderStep, Program, Reservations,
+};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::AccessCallableId;
 use nocter_syntax::{
@@ -190,7 +192,12 @@ impl<'source> Preparation<'source> {
 
     #[must_use]
     pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
-        self.recipes.keys().copied()
+        self.headers.callable_ids()
+    }
+    /// All reserved contracts, including unused records, in canonical namespace order.
+    #[must_use]
+    pub fn declaration_ids(&self) -> impl ExactSizeIterator<Item = DeclarationId> + '_ {
+        self.headers.declaration_ids()
     }
     /// Publish one required declaration and its records, retaining every established contract.
     /// # Errors
@@ -203,6 +210,14 @@ impl<'source> Preparation<'source> {
             .publish(required)
             .map_err(|_| Failure::InconsistentSyntax)?;
         Ok(self.current())
+    }
+    /// Advance one requested header without scheduling its required record headers.
+    /// # Errors
+    /// Rejects a declaration outside this exact reserved source domain.
+    pub fn advance(&mut self, required: impl Into<DeclarationId>) -> Result<HeaderStep, Failure> {
+        self.headers
+            .advance(required)
+            .map_err(|_| Failure::InconsistentSyntax)
     }
     /// Share only the contracts already established by this construction.
     #[must_use]

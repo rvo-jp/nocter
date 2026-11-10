@@ -12,6 +12,13 @@ use std::{collections::BTreeMap, sync::Arc};
 #[cfg(test)]
 mod tests;
 
+/// One atomic header publication step; required records grant no provisional contract.
+#[derive(Debug, Eq, PartialEq)]
+pub enum HeaderStep {
+    Ready,
+    Require(Box<[DeclarationId]>),
+}
+
 /// Single writer for a validated source header domain. Views contain only complete contracts.
 /// Source references and finite record containment are validated before publication starts.
 #[derive(Debug)]
@@ -26,6 +33,16 @@ pub struct HeaderPublication {
     records: records::Publication,
 }
 impl HeaderPublication {
+    /// All reserved code identities; missing contracts grant no body-checking admission.
+    #[must_use]
+    pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
+        self.reserved.iter().map(|(id, _)| id)
+    }
+    /// The closed declaration domain, independently of publication readiness.
+    #[must_use]
+    pub fn declaration_ids(&self) -> impl ExactSizeIterator<Item = DeclarationId> + '_ {
+        self.namespace.values().copied()
+    }
     pub(super) fn new(
         symbols: SymbolTable,
         reserved: Arena<AccessCallableId, Reservation>,
@@ -62,36 +79,79 @@ impl HeaderPublication {
     /// # Panics
     /// Panics only if validated internal metadata or its exact type transaction loses integrity.
     pub fn publish(&mut self, id: impl Into<DeclarationId>) -> Result<(), crate::DefinitionError> {
-        match id.into() {
-            DeclarationId::Record(id) => self.records.publish(id, &mut self.types),
-            DeclarationId::Callable(id) => self.publish_callable(id),
+        let mut pending = vec![id.into()];
+        while let Some(&id) = pending.last() {
+            match self.advance(id)? {
+                HeaderStep::Ready => {
+                    pending.pop();
+                }
+                HeaderStep::Require(dependencies) => {
+                    pending.extend(dependencies.into_vec().into_iter().rev());
+                }
+            }
         }
+        Ok(())
     }
-    fn publish_callable(&mut self, id: AccessCallableId) -> Result<(), crate::DefinitionError> {
-        if self.callables.get(id).is_some() {
-            return Ok(());
+    /// Publish exactly one contract, or report all of its currently missing record contracts.
+    /// # Errors
+    /// Rejects an identity outside this closed domain without changing any ready contract.
+    /// # Panics
+    /// Panics only if validated internal metadata loses integrity.
+    pub fn advance(
+        &mut self,
+        id: impl Into<DeclarationId>,
+    ) -> Result<HeaderStep, crate::DefinitionError> {
+        match id.into() {
+            DeclarationId::Record(id) => {
+                let dependencies = self.records.dependencies(id)?;
+                if !dependencies.is_empty() {
+                    return Ok(HeaderStep::Require(
+                        dependencies
+                            .into_iter()
+                            .map(DeclarationId::Record)
+                            .collect(),
+                    ));
+                }
+                self.records.publish_ready(id, &mut self.types);
+            }
+            DeclarationId::Callable(id) => {
+                if self.callables.get(id).is_some() {
+                    return Ok(HeaderStep::Ready);
+                }
+                let reservation = self
+                    .reserved
+                    .get(id)
+                    .ok_or(crate::DefinitionError::UnknownId)?;
+                let definition = reservation
+                    .definition
+                    .as_ref()
+                    .expect("validated definition");
+                let mut records = Vec::new();
+                let mut require_record = |data: &super::DataReference| {
+                    if let super::DataReference::Record(id) = data
+                        && self.records.get(*id).is_none()
+                    {
+                        records.push(DeclarationId::Record(*id));
+                    }
+                };
+                for parameter in &definition.parameters {
+                    parameter.data.visit_data(&mut require_record);
+                }
+                definition.result_data.visit_data(require_record);
+                if !records.is_empty() {
+                    return Ok(HeaderStep::Require(records.into()));
+                }
+                self.publish_callable(id);
+            }
         }
-        let reservation = self
-            .reserved
-            .get(id)
-            .ok_or(crate::DefinitionError::UnknownId)?;
+        Ok(HeaderStep::Ready)
+    }
+    fn publish_callable(&mut self, id: AccessCallableId) {
+        let reservation = self.reserved.get(id).expect("reserved callable");
         let definition = reservation
             .definition
             .as_ref()
             .expect("validated definition");
-        let mut records = Vec::new();
-        let mut require_record = |data: &super::DataReference| {
-            if let super::DataReference::Record(id) = data {
-                records.push(*id);
-            }
-        };
-        for parameter in &definition.parameters {
-            parameter.data.visit_data(&mut require_record);
-        }
-        definition.result_data.visit_data(require_record);
-        for record in records {
-            self.records.publish(record, &mut self.types)?;
-        }
         let mut types = self.types.transaction();
         let parameters: Vec<_> = reservation
             .parameters
@@ -144,7 +204,6 @@ impl HeaderPublication {
                 },
             )
             .expect("define-once reserved callable");
-        Ok(())
     }
     /// Read-only evidence for the contracts published so far, never a complete-unit certificate.
     #[must_use]

@@ -52,7 +52,10 @@ pub use program::{
     CompileTimePlanTable, InvalidCompileTimePlanRule, InvalidCompileTimePlanTable,
     MissingCompileTimePlan,
 };
-pub use query::{DependencyComputation, DependencyQuery, DependencyQueryError};
+pub use query::{
+    DependencyComputation, DependencyProgress, DependencyQuery, DependencyQueryError,
+    DependencyStep,
+};
 pub use value::CompileTimeValue;
 
 /// Public constant-expression diagnostic family shared by header and body semantic adapters.

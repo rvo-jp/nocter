@@ -557,6 +557,12 @@ missing constant requests its value only after selecting its declaration identit
 draft stops at either request and retries through the same checker after its dependency is ready.
 Successful typed bodies become completed facts in that same query. No provisional value, syntax
 dependency scanner, second source interpreter or completed-body retyping supplies a fact.
+Header requests use the query's iterative progress entry. Lowering exposes declaration-owned
+required-record identities; checking schedules them without inspecting fields or repeating
+containment/Copy analysis. Pending groups share the same active frames and memoization as bounded
+body/value callbacks. All remaining contracts, including unused records, pass through this entry
+before source-unit closure. Raw reference/shape validation remains eager and header steps still
+cannot request computed lengths.
 Constant references become validated primitive literals or immutable frozen-aggregate expressions in
 ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.

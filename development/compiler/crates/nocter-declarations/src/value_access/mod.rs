@@ -26,7 +26,7 @@ pub use functions::{
 };
 mod namespace;
 mod publication;
-pub use publication::HeaderPublication;
+pub use publication::{HeaderPublication, HeaderStep};
 mod records;
 pub use data::{DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};

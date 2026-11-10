@@ -136,6 +136,10 @@ as requested, without re-reading or checking a body. `finish` yields the complet
 the eager query entry delegates to that same construction. Required contracts close transitive
 record payloads before exposing their field TypeIds. Raw source data-name resolution and finite
 containment validation still close before these views, so this does not admit array-length calls.
+`advance` exposes the declaration owner's next complete-or-required step without traversing record
+fields or inventing a dependency graph here. Reserved identity enumeration also delegates to that
+owner rather than deriving semantic membership from source recipes. Checking can schedule these
+steps iteratively through its common query, including unused records at final closure.
 `current` shares the already established view without publishing another contract. Cloning a
 context shares that exact immutable program and source pairing; it cannot extend readiness.
 

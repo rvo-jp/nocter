@@ -5,9 +5,11 @@ use super::{
     final_diagnostic, projection,
 };
 use crate::value_access::{self, ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
-use nocter_constant_evaluation::{DependencyComputation, DependencyQueryError, state};
+use nocter_constant_evaluation::{
+    DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep, state,
+};
 use nocter_declaration_lowering::access_declarations::{self as declarations, Context};
-use nocter_declarations::value_access::DeclarationId;
+use nocter_declarations::value_access::{DeclarationId, HeaderStep};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCallableId, CompileTimeGuarantee, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
@@ -52,10 +54,14 @@ pub(in crate::value_access) fn prepare_source(
     limits: state::Limits,
 ) -> Result<(declarations::Query, Output), Failure> {
     let ids: Vec<_> = headers.callable_ids().collect();
+    let contracts: Vec<_> = headers.declaration_ids().collect();
     let mut preparation =
         Preparation::new(headers.current(), Headers::Publishing(&mut headers), limits);
     let mut requests = Dependencies::default();
     preparation.all(&mut requests, &ids)?;
+    for declaration in contracts {
+        preparation.require_header(&mut requests, declaration)?;
+    }
     let output = preparation.finish(requests)?;
     Ok((headers.finish(), output))
 }
@@ -133,21 +139,12 @@ impl<'a, 'source> Preparation<'a, 'source> {
         requests: &mut Dependencies,
         declaration: DeclarationId,
     ) -> Result<(), Failure> {
-        match requests.resolve(self, Request::Header(declaration)) {
+        match requests.resolve_steps(self, Request::Header(declaration)) {
             Ok(fact) if matches!(&*fact, Fact::Header) => Ok(()),
             Err(QueryError::Computation(failure)) => Err(failure),
             // Header normalization cannot request values in this bounded construction yet.
             _ => Err(INVALID),
         }
-    }
-    fn publish_header(&mut self, declaration: DeclarationId) -> Result<(), Failure> {
-        if !self.context.program().header_ready(declaration) {
-            let Headers::Publishing(headers) = &mut self.headers else {
-                return Err(INVALID);
-            };
-            self.context = headers.context(declaration).map_err(|_| INVALID)?;
-        }
-        Ok(())
     }
     fn body(
         &mut self,
@@ -471,10 +468,8 @@ impl DependencyComputation<Request, Fact, Failure> for Preparation<'_, '_> {
         request: Request,
     ) -> Result<Fact, QueryError> {
         match request {
-            Request::Header(declaration) => self
-                .publish_header(declaration)
-                .map(|()| Fact::Header)
-                .map_err(QueryError::Computation),
+            // Header dependencies use the query's iterative progress entry exclusively.
+            Request::Header(_) => Err(QueryError::Computation(INVALID)),
             Request::Body(id) => self
                 .check_body(requests, id)
                 .map(|query| Fact::Body(Box::new(query)))
@@ -497,5 +492,38 @@ impl DependencyComputation<Request, Fact, Failure> for Preparation<'_, '_> {
                 self.initialize(requests, id).map(Fact::Value)
             }
         }
+    }
+}
+impl DependencyProgress<Request, Fact, Failure> for Preparation<'_, '_> {
+    fn advance(
+        &mut self,
+        _: &Dependencies,
+        request: Request,
+    ) -> Result<DependencyStep<Request, Fact>, Failure> {
+        let Request::Header(declaration) = request else {
+            return Err(INVALID);
+        };
+        if self.context.program().header_ready(declaration) {
+            return Ok(DependencyStep::Complete(Fact::Header));
+        }
+        let Headers::Publishing(headers) = &mut self.headers else {
+            return Err(INVALID);
+        };
+        match headers.advance(declaration).map_err(|_| INVALID)? {
+            HeaderStep::Ready => {
+                self.context = headers.current();
+                Ok(DependencyStep::Complete(Fact::Header))
+            }
+            HeaderStep::Require(dependencies) => Ok(DependencyStep::Require(
+                dependencies
+                    .into_vec()
+                    .into_iter()
+                    .map(Request::Header)
+                    .collect(),
+            )),
+        }
+    }
+    fn no_progress(&mut self, _: Request) -> Failure {
+        INVALID
     }
 }

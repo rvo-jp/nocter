@@ -20,6 +20,31 @@ pub trait DependencyComputation<K, V, E> {
     ) -> Result<V, DependencyQueryError<K, E>>;
 }
 
+/// A completed value or the next authored-order group of dependencies needed by a draft.
+#[derive(Debug)]
+pub enum DependencyStep<K, V> {
+    Complete(V),
+    Require(Box<[K]>),
+}
+
+/// Advances unpublished work using completed values, without recursively resolving children.
+pub trait DependencyProgress<K, V, E> {
+    /// A required group must contain an unfinished key. Completed dependencies may occur in the
+    /// group and are skipped. A successful draft must return `Complete` after its needs close.
+    /// # Errors
+    /// Returns the consumer's authored or integrity failure; only the query constructs cycles.
+    fn advance(&mut self, query: &DependencyQuery<K, V>, key: K)
+    -> Result<DependencyStep<K, V>, E>;
+    /// Classify a draft that requests no unfinished dependency and therefore cannot progress.
+    fn no_progress(&mut self, key: K) -> E;
+}
+
+#[derive(Debug)]
+struct Active<K> {
+    key: K,
+    pending: std::vec::IntoIter<K>,
+}
+
 #[derive(Debug)]
 enum QueryState<V> {
     Active,
@@ -33,7 +58,7 @@ enum QueryState<V> {
 #[derive(Debug)]
 pub struct DependencyQuery<K, V> {
     states: HashMap<K, QueryState<V>>,
-    stack: Vec<K>,
+    stack: Vec<Active<K>>,
 }
 
 impl<K, V> Default for DependencyQuery<K, V> {
@@ -65,30 +90,96 @@ where
         computation: &mut impl DependencyComputation<K, V, E>,
         key: K,
     ) -> Result<Arc<V>, DependencyQueryError<K, E>> {
+        if let Some(value) = self.begin(key.clone())? {
+            return Ok(value);
+        }
+        let result = computation.compute(self, key.clone());
+        self.finish(key, result)
+    }
+
+    /// Resolve a dependency closure with query-owned frames instead of host recursion.
+    /// Shares all states and the active path with `resolve`, including when called from it.
+    /// # Errors
+    /// Returns an exact cycle, an authored failure or the consumer's no-progress failure. Unwinds
+    /// only this invocation's unfinished frames; completed values and outer active work survive.
+    /// # Panics
+    /// Panics only if this query's private frame/state invariants lose integrity.
+    pub fn resolve_steps<E>(
+        &mut self,
+        computation: &mut impl DependencyProgress<K, V, E>,
+        key: K,
+    ) -> Result<Arc<V>, DependencyQueryError<K, E>> {
+        let outer_depth = self.stack.len();
+        if let Some(value) = self.begin(key)? {
+            return Ok(value);
+        }
+        loop {
+            let frame = self.stack.last_mut().expect("active step frame");
+            if let Some(child) = frame.pending.next() {
+                if let Err(error) = self.begin(child) {
+                    self.unwind(outer_depth);
+                    return Err(error);
+                }
+                continue;
+            }
+            let key = frame.key.clone();
+            match computation.advance(self, key.clone()) {
+                Ok(DependencyStep::Complete(value)) => {
+                    let value = self.finish(key, Ok(value))?;
+                    if self.stack.len() == outer_depth {
+                        return Ok(value);
+                    }
+                }
+                Ok(DependencyStep::Require(dependencies)) => {
+                    if !dependencies.iter().any(|key| self.completed(key).is_none()) {
+                        let error = DependencyQueryError::Computation(computation.no_progress(key));
+                        self.unwind(outer_depth);
+                        return Err(error);
+                    }
+                    self.stack.last_mut().expect("current step frame").pending =
+                        dependencies.into_vec().into_iter();
+                }
+                Err(error) => {
+                    self.unwind(outer_depth);
+                    return Err(DependencyQueryError::Computation(error));
+                }
+            }
+        }
+    }
+
+    fn begin<E>(&mut self, key: K) -> Result<Option<Arc<V>>, DependencyQueryError<K, E>> {
         match self.states.get(&key) {
-            Some(QueryState::Complete(value)) => return Ok(Arc::clone(value)),
+            Some(QueryState::Complete(value)) => return Ok(Some(Arc::clone(value))),
             Some(QueryState::Active) => {
                 let start = self
                     .stack
                     .iter()
-                    .position(|active| active == &key)
-                    .expect("active dependency key must occur on the query stack");
-                let mut cycle = self.stack[start..].to_vec();
+                    .position(|frame| frame.key == key)
+                    .expect("active key must occur on the query path");
+                let mut cycle: Vec<_> = self.stack[start..]
+                    .iter()
+                    .map(|frame| frame.key.clone())
+                    .collect();
                 cycle.push(key);
                 return Err(DependencyQueryError::Cycle(cycle.into_boxed_slice()));
             }
             None => {}
         }
-
         self.states.insert(key.clone(), QueryState::Active);
-        self.stack.push(key.clone());
-        let result = computation.compute(self, key.clone());
-        let popped = self
-            .stack
-            .pop()
-            .expect("dependency computation must retain its query stack entry");
+        self.stack.push(Active {
+            key,
+            pending: Vec::new().into_iter(),
+        });
+        Ok(None)
+    }
+    fn finish<E>(
+        &mut self,
+        key: K,
+        result: Result<V, DependencyQueryError<K, E>>,
+    ) -> Result<Arc<V>, DependencyQueryError<K, E>> {
+        let popped = self.stack.pop().expect("retain current dependency frame");
         assert!(
-            popped == key,
+            popped.key == key,
             "dependency computation changed query stack order"
         );
         match result {
@@ -102,6 +193,12 @@ where
                 self.states.remove(&key);
                 Err(error)
             }
+        }
+    }
+    fn unwind(&mut self, outer_depth: usize) {
+        while self.stack.len() > outer_depth {
+            let frame = self.stack.pop().expect("unfinished dependency frame");
+            self.states.remove(&frame.key);
         }
     }
 
@@ -131,12 +228,12 @@ where
     /// budgets can count their own keys without maintaining a second dependency stack.
     #[must_use]
     pub fn active_keys(&self) -> impl DoubleEndedIterator<Item = &K> + ExactSizeIterator {
-        self.stack.iter()
+        self.stack.iter().map(|frame| &frame.key)
     }
 
     /// Consumes the authority and returns exactly its completed immutable values.
     ///
-    /// Active states cannot survive an externally observable `resolve` call, and failed branches
+    /// Active states cannot survive an externally observable resolution call, and failed branches
     /// are removed before it returns. Consuming the query therefore freezes one complete result
     /// set without cloning either the query state or its values.
     #[must_use]
@@ -165,133 +262,4 @@ impl<K, E> DependencyQueryError<K, E> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
-
-    use super::{DependencyComputation, DependencyQuery, DependencyQueryError};
-
-    struct Graph {
-        edges: HashMap<u8, Vec<u8>>,
-        visits: HashMap<u8, usize>,
-        reject: Option<u8>,
-    }
-
-    impl DependencyComputation<u8, u64, u8> for Graph {
-        fn compute(
-            &mut self,
-            query: &mut DependencyQuery<u8, u64>,
-            key: u8,
-        ) -> Result<u64, DependencyQueryError<u8, u8>> {
-            *self.visits.entry(key).or_default() += 1;
-            if self.reject == Some(key) {
-                return Err(DependencyQueryError::computation(key));
-            }
-            let dependencies = self.edges.get(&key).cloned().unwrap_or_default();
-            let mut value = u64::from(key);
-            for dependency in dependencies {
-                value += *query.resolve(self, dependency)?;
-            }
-            Ok(value)
-        }
-    }
-
-    fn graph(edges: &[(u8, &[u8])]) -> Graph {
-        Graph {
-            edges: edges
-                .iter()
-                .map(|(key, dependencies)| (*key, dependencies.to_vec()))
-                .collect(),
-            visits: HashMap::new(),
-            reject: None,
-        }
-    }
-
-    #[test]
-    fn diamond_dependency_is_computed_once() {
-        let mut computation = graph(&[(0, &[1, 2]), (1, &[3]), (2, &[3])]);
-        let mut query = DependencyQuery::default();
-
-        assert_eq!(query.resolve(&mut computation, 0).as_deref(), Ok(&9));
-        assert_eq!(computation.visits.get(&3), Some(&1));
-        assert_eq!(query.complete_len(), 4);
-    }
-
-    #[test]
-    fn cycle_contains_the_exact_active_path_and_publishes_nothing() {
-        let mut computation = graph(&[(0, &[1]), (1, &[2]), (2, &[1])]);
-        let mut query = DependencyQuery::default();
-
-        assert_eq!(
-            query.resolve(&mut computation, 0),
-            Err(DependencyQueryError::Cycle(Box::new([1, 2, 1])))
-        );
-        assert_eq!(query.complete_len(), 0);
-        assert!(query.completed(&0).is_none());
-    }
-
-    #[test]
-    fn failed_branch_can_be_recomputed_after_its_cause_changes() {
-        let mut computation = graph(&[(0, &[1])]);
-        computation.reject = Some(1);
-        let mut query = DependencyQuery::default();
-
-        assert_eq!(
-            query.resolve(&mut computation, 0),
-            Err(DependencyQueryError::Computation(1))
-        );
-        assert_eq!(query.complete_len(), 0);
-        assert_eq!(query.active_depth(), 0);
-
-        computation.reject = None;
-        assert_eq!(query.resolve(&mut computation, 0).as_deref(), Ok(&1));
-    }
-
-    #[test]
-    fn repeated_resolution_shares_one_completed_value() {
-        let mut computation = graph(&[]);
-        let mut query = DependencyQuery::default();
-
-        let first = query.resolve(&mut computation, 7).unwrap();
-        let second = query.resolve(&mut computation, 7).unwrap();
-
-        assert!(Arc::ptr_eq(&first, &second));
-        assert_eq!(computation.visits.get(&7), Some(&1));
-    }
-
-    #[test]
-    fn consuming_a_query_freezes_only_completed_values() {
-        let mut computation = graph(&[(0, &[1])]);
-        let mut query = DependencyQuery::default();
-        query.resolve(&mut computation, 0).unwrap();
-
-        let completed = query.into_completed();
-
-        assert_eq!(completed.get(&0).map(AsRef::as_ref), Some(&1));
-        assert_eq!(completed.get(&1).map(AsRef::as_ref), Some(&1));
-    }
-
-    #[test]
-    fn active_keys_share_the_exact_query_path_and_disappear_on_completion() {
-        struct Paths(Vec<Vec<u8>>);
-        impl DependencyComputation<u8, (), ()> for Paths {
-            fn compute(
-                &mut self,
-                query: &mut DependencyQuery<u8, ()>,
-                key: u8,
-            ) -> Result<(), DependencyQueryError<u8, ()>> {
-                self.0.push(query.active_keys().copied().collect());
-                if key > 0 {
-                    query.resolve(self, key - 1)?;
-                }
-                Ok(())
-            }
-        }
-        let mut paths = Paths(Vec::new());
-        let mut query = DependencyQuery::default();
-        query.resolve(&mut paths, 2).unwrap();
-        assert_eq!(paths.0, [vec![2], vec![2, 1], vec![2, 1, 0]]);
-        assert_eq!(query.active_keys().len(), 0);
-        assert_eq!(query.complete_len(), 3);
-    }
-}
+mod tests;

@@ -134,13 +134,12 @@ text or a separate expression checker to evaluate it. Code identity and source-r
 must cover expressions in record fields as well as callable headers. The current callable-only
 source-owner projection cannot represent a record-owned length by relabeling it as a function.
 
-Preserve deep-schema preparation without host recursion. The current query callback API is
-re-entrant, while record containment and publication use explicit worklists. Moving each record
-edge into a recursive query call would lose that property. Header dependency scheduling needs
-query-owned iterative progress over the same active/completed state authority, with suspended work
-and exact dependency causes. It must detect cycles, retain valid completed dependencies on failure,
-and reject a request that cannot make progress. Do not replace this proof with a source depth or
-array-length ceiling, or charge header traversal as source execution-call depth.
+Keep deferred header normalization on the
+[query-owned iterative progress path](../compiler/crates/nocter-constant-evaluation/README.md#dependency-queries).
+Introducing raw type/value dependencies must preserve deep-schema preparation without host
+recursion, exact dependency causes and the shared active/completed authority. Do not replace this
+proof with a source depth or array-length ceiling, or charge header traversal as source
+execution-call depth.
 
 Separate nominal name identity from payload-schema dependencies. In particular, the
 [array containment contract](../spec/language/tuples-and-arrays.md#scope-and-identity) requires
