@@ -151,6 +151,21 @@ Finite containment, structural Copy and ready-schema publication must consume on
 dependency model and policy; separate eager and deferred validators cannot maintain competing
 containment or Copy rules.
 
+Deferred admission must preserve three distinct states: a known contract still needing work, a
+rejected definition, and an unknown declaration. Loading another recipe is construction work,
+not a reason to report an unknown source type or invent a valid default. An invalid explicit Copy
+definition cannot be published as an ordinary non-Copy record to let its parents proceed. Close
+validation before ready-schema publication through the same rules for standalone construction
+and source-driven requests.
+
+Header rejection can arise while a body or required value is being prepared. Carry the tagged
+declaration identity and responsible header position through that request failure. Record-owned
+failures cannot be forced into the current callable-only checking failure shape by inventing a
+callable owner. The source facade must preserve declaration versus checking failure and project
+the record/field cause through its owning source recipe. Qualify early scalar evaluation followed
+by rejection of an unused invalid record, requested containment cycles and failed Copy requests;
+none may expose a complete Unit or a provisional rejected schema.
+
 Qualify the boundary with computed lengths in fields and function signatures, forward helpers,
 dead authored dependencies, zero/positive containment, type/value cycles and supplying-body edits.
 Then qualify local annotations, construction/repetition, selected indexing, partial initialization,
