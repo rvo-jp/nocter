@@ -2,8 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::{
-    AccessFieldId, Arena, ArenaBuilder, GenericApplication, NominalTypeId, Symbol, SymbolTable,
-    TypeAuthority, TypeId, TypeKind,
+    AccessFieldId, Arena, ArenaBuilder, NominalTypeId, SparseArena, Symbol, SymbolTable, TypeId,
 };
 
 use super::data::builtin_copyable;
@@ -11,6 +10,9 @@ use super::{
     DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, supported,
 };
 use crate::DefinitionError;
+
+mod publication;
+pub(super) use publication::Publication;
 
 #[cfg(test)]
 mod tests;
@@ -84,8 +86,8 @@ impl Field {
 
 #[derive(Clone, Debug)]
 pub(super) struct Schemas {
-    pub records: Arena<NominalTypeId, Record>,
-    pub fields: Arena<AccessFieldId, Field>,
+    pub records: SparseArena<NominalTypeId, Record>,
+    pub fields: SparseArena<AccessFieldId, Field>,
 }
 
 #[derive(Debug)]
@@ -215,6 +217,7 @@ impl Builder {
 }
 
 /// Construction-only capability: every record has a finite shape and valid explicit Copy policy.
+#[derive(Debug)]
 pub(super) struct Validated {
     reserved: Arena<NominalTypeId, Reservation>,
     fields: Arena<AccessFieldId, FieldSlot>,
@@ -224,59 +227,6 @@ pub(super) struct Validated {
 impl Validated {
     pub fn contains(&self, id: NominalTypeId) -> bool {
         self.reserved.get(id).is_some()
-    }
-
-    pub fn publish(self) -> (TypeAuthority, Schemas) {
-        let base = TypeAuthority::new();
-        let mut types = base.transaction();
-        let data: BTreeMap<_, _> = self
-            .reserved
-            .iter()
-            .map(|(id, _)| {
-                let data = types
-                    .intern(TypeKind::Nominal {
-                        definition: id,
-                        arguments: GenericApplication::default(),
-                    })
-                    .expect("a closed nominal key has no referenced type identities");
-                (id, data)
-            })
-            .collect();
-        let fields = self.fields.map(|_, slot| {
-            let field = &self
-                .reserved
-                .get(slot.owner)
-                .and_then(|reserved| reserved.definition.as_ref())
-                .expect("validated field owner")
-                .fields[slot.position];
-            Field {
-                owner: slot.owner,
-                name: field.name,
-                position: slot.position,
-                data: super::data::resolved_data(&mut types, |record| data[&record], &field.data),
-            }
-        });
-        let records = self.reserved.map(|id, reservation| {
-            let field_namespace = reservation
-                .fields
-                .iter()
-                .map(|&id| (fields.get(id).expect("reserved field").name, id))
-                .collect();
-            Record {
-                name: reservation.name,
-                data: data[&id],
-                copyable: self.copyable[&id],
-                fields: reservation.fields.clone(),
-                field_namespace,
-            }
-        });
-        let schemas = Schemas { records, fields };
-        (
-            types
-                .commit(&base)
-                .expect("exact declaration type authority"),
-            schemas,
-        )
     }
 }
 

@@ -93,6 +93,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let owner = self.direct(node, NodeKind::ReferenceExpression)?;
         let name = self.token(owner)?;
+        self.require_header(name)?;
         let Some(data) = self.program().type_named(self.text(name)?) else {
             return self.reject(Rule::UnknownType, name);
         };

@@ -26,6 +26,7 @@ impl Annotation {
 }
 impl Checker<'_, '_> {
     fn annotation_data_token(&self, token: SyntaxToken) -> Result<TypeId, Failure> {
+        self.require_header(token)?;
         self.program()
             .type_named(self.text(token)?)
             .map_or_else(|| self.reject(Rule::UnknownType, token), Ok)

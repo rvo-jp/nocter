@@ -1,4 +1,4 @@
-//! Incremental publication of validated callable contracts into one persistent header lineage.
+//! Incremental publication of complete contracts into one persistent header lineage.
 use super::{
     Callable, DeclarationId, FunctionConstraint, FunctionInput, Parameter, ParameterSlot, Program,
     Reservation, ValueDefinition, data::resolved_data, functions, records,
@@ -9,8 +9,11 @@ use nocter_model::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 
+#[cfg(test)]
+mod tests;
+
 /// Single writer for a validated source header domain. Views contain only complete contracts.
-/// Record schemas are closed together before this construction state is opened.
+/// Source references and finite record containment are validated before publication starts.
 #[derive(Debug)]
 pub struct HeaderPublication {
     reserved: Arena<AccessCallableId, Reservation>,
@@ -20,7 +23,7 @@ pub struct HeaderPublication {
     types: TypeAuthority,
     symbols: Arc<SymbolTable>,
     namespace: Arc<BTreeMap<Symbol, DeclarationId>>,
-    records: Arc<records::Schemas>,
+    records: records::Publication,
 }
 impl HeaderPublication {
     pub(super) fn new(
@@ -30,7 +33,8 @@ impl HeaderPublication {
         namespace: BTreeMap<Symbol, DeclarationId>,
         records: records::Validated,
     ) -> Self {
-        let (types, records) = records.publish();
+        let mut types = TypeAuthority::new();
+        let records = records::Publication::new(records, &mut types);
         let types = functions::publish_witnesses(
             &types,
             reserved.iter().filter_map(|(id, r)| {
@@ -49,15 +53,21 @@ impl HeaderPublication {
             types,
             symbols: symbols.into(),
             namespace: namespace.into(),
-            records: records.into(),
+            records,
         }
     }
-    /// Normalize one callable once, keeping its reserved input identities and all older views.
+    /// Normalize one contract and its record dependencies, retaining all older ready views.
     /// # Errors
     /// Rejects an identity outside this validated declaration domain.
     /// # Panics
     /// Panics only if validated internal metadata or its exact type transaction loses integrity.
-    pub fn publish(&mut self, id: AccessCallableId) -> Result<(), crate::DefinitionError> {
+    pub fn publish(&mut self, id: impl Into<DeclarationId>) -> Result<(), crate::DefinitionError> {
+        match id.into() {
+            DeclarationId::Record(id) => self.records.publish(id, &mut self.types),
+            DeclarationId::Callable(id) => self.publish_callable(id),
+        }
+    }
+    fn publish_callable(&mut self, id: AccessCallableId) -> Result<(), crate::DefinitionError> {
         if self.callables.get(id).is_some() {
             return Ok(());
         }
@@ -69,6 +79,19 @@ impl HeaderPublication {
             .definition
             .as_ref()
             .expect("validated definition");
+        let mut records = Vec::new();
+        let mut require_record = |data: &super::DataReference| {
+            if let super::DataReference::Record(id) = data {
+                records.push(*id);
+            }
+        };
+        for parameter in &definition.parameters {
+            parameter.data.visit_data(&mut require_record);
+        }
+        definition.result_data.visit_data(require_record);
+        for record in records {
+            self.records.publish(record, &mut self.types)?;
+        }
         let mut types = self.types.transaction();
         let parameters: Vec<_> = reservation
             .parameters
@@ -135,14 +158,18 @@ impl HeaderPublication {
             callables: self.callables.snapshot(),
             parameters: self.parameters.snapshot(),
             namespace: self.namespace.clone(),
-            records: self.records.clone(),
+            records: self.records.snapshot(),
         }
     }
     /// Publish all remaining contracts in canonical declaration order.
     /// # Panics
-    /// Panics only if a reserved callable cannot be published from this validated domain.
+    /// Panics only if a reserved contract cannot be published from this validated domain.
     #[must_use]
     pub fn finish(mut self) -> Program {
+        let records: Vec<_> = self.records.ids().collect();
+        for id in records {
+            self.publish(id).expect("reserved record");
+        }
         let ids: Vec<_> = self.reserved.iter().map(|(id, _)| id).collect();
         for id in ids {
             self.publish(id).expect("reserved callable");
@@ -153,7 +180,7 @@ impl HeaderPublication {
 
 fn publish_value(
     types: &mut nocter_model::TypeTransaction,
-    records: &records::Schemas,
+    records: &records::Publication,
     origin: ValueFunctionOrigin,
     definition: &ValueDefinition,
 ) -> (nocter_model::TypeId, Option<FunctionConstraint>) {
@@ -162,7 +189,7 @@ fn publish_value(
             return (
                 resolved_data(
                     types,
-                    |id| records.records.get(id).expect("validated record").data(),
+                    |id| records.get(id).expect("ready record").data(),
                     data,
                 ),
                 None,
@@ -178,7 +205,7 @@ fn publish_value(
             .map(|(operation, data)| FunctionInput {
                 data: resolved_data(
                     types,
-                    |id| records.records.get(id).expect("validated record").data(),
+                    |id| records.get(id).expect("ready record").data(),
                     data,
                 ),
                 operation: *operation,
@@ -186,7 +213,7 @@ fn publish_value(
             .collect(),
         result: resolved_data(
             types,
-            |id| records.records.get(id).expect("validated record").data(),
+            |id| records.get(id).expect("ready record").data(),
             &definition.result,
         ),
     };

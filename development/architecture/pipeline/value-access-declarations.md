@@ -20,13 +20,13 @@ The [realization plan](../../design/compiler-realization.md) owns remaining inte
 ```text
 V2CoreUnit syntax + exact source
   -> exact-current declaration preparation
-       closed source data/record schemas + reserved identities + one namespace/source catalog
-       requested callable -> complete immutable ready-header view
+       validated source references/containment + reserved identities + one namespace/source catalog
+       requested callable/record + transitive records -> complete immutable ready-header view
   -> ordinary typed-body preparation over ready contracts
        missing header -> same declaration preparation -> retry unpublished draft
        successful query retains its own header-prefix boundary
   -> complete reusable access-declaration query + exact-current context
-       all callable contracts + neutral header surface + projection recipe
+       all callable/record contracts + neutral header surface + projection recipe
   -> dependency-scheduled ordinary typed-body preparation
        missing constant -> same ordinary checking of selected const closure -> closed execution
        completed frozen values feed typing; immutable static views retain global place identity
@@ -77,10 +77,10 @@ no consumer chooses between header and body stores as lookup fallbacks.
 Reservation closure freezes the complete callable/record name and input/field identity domains
 before any type normalization.
 Definition construction cannot append declarations; validation rejects incomplete or invalid source
-definitions before incremental callable publication. One tagged name table survives those
+definitions before incremental contract publication. One tagged name table survives those
 transitions and serves each role-specific lookup. Ready views grant only established contracts;
 untyped reservations never grant body-checking admission. Complete Unit admission requires every
-callable/input slot to be defined.
+callable/input and record/field slot to be defined.
 Admitted built-in data, finite nongeneric records and structural tuple schemas share the parsed
 callable/body boundary. Data-name resolution belongs to that declaration namespace; lowering holds
 no parallel type table. Declaration-owned component projection validates each selected nominal field
@@ -90,7 +90,7 @@ No borrowed wrapper or released storable-type heuristic supplies a missing futur
 
 `nocter-declaration-lowering` owns canonical header collection, normalization and diagnostic
 projection. It reserves functions and records in namespace order and maps resolved identities to neutral
-syntax locators. Its exact-current preparation supplies immutable ready callable contexts while
+syntax locators. Its exact-current preparation supplies immutable ready declaration contexts while
 checking retains successful bodies. The complete reusable query contains no source identity, syntax ID, range, or body text.
 Binding checks the complete header surface before resolving locators to current syntax. The
 current context has no public parts constructor; a caller cannot pair unrelated program/syntax
@@ -99,8 +99,9 @@ products or relabel released source as future source.
 ## Contract Facts and Limits
 
 Every selected contract is closed before body checking consumes it. Source data-name references
-and record schemas still close together; callable contracts can become ready as body preparation
-requests them. All headers must close before the required-value executor and complete Unit admission.
+and finite containment validation still close together; callable contracts and transitive record
+schemas become ready as body preparation requests them. All headers must close before the
+required-value executor and complete Unit admission.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a

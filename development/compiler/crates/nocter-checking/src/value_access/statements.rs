@@ -183,16 +183,7 @@ impl Checker<'_, '_> {
             return Ok((Statement::Discard(value), self.ty(value).may_complete()));
         }
         let spelling = self.text(name)?.to_owned();
-        if self.lookup(&spelling).is_some()
-            || self.program().type_named(&spelling).is_some()
-            || BuiltinType::from_spelling(&spelling).is_some()
-            || self
-                .program()
-                .symbols()
-                .get(&spelling)
-                .and_then(|symbol| self.program().resolve_code(symbol))
-                .is_some()
-        {
+        if self.shadows_name(&spelling) {
             return self.reject(Rule::ShadowedName, name);
         }
         let mode = kind.access_mode();

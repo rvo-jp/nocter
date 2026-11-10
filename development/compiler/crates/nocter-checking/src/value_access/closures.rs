@@ -172,14 +172,7 @@ impl Checker<'_, '_> {
         for parameter in self.children(parameters) {
             let token = self.token(parameter)?;
             let name = self.text(token)?.to_owned();
-            if self.lookup(&name).is_some()
-                || self.program().type_named(&name).is_some()
-                || self
-                    .program()
-                    .symbols()
-                    .get(&name)
-                    .is_some_and(|s| self.program().resolve_code(s).is_some())
-            {
+            if self.shadows_name(&name) {
                 return self.reject(Rule::ShadowedName, token);
             }
             let Some(ty) = self.direct(parameter, NodeKind::Type).ok() else {

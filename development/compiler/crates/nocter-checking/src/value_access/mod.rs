@@ -159,9 +159,9 @@ impl BodyDiagnostic {
 #[derive(Debug)]
 pub enum Failure {
     UnknownCallable,
-    /// The unpublished draft requires a known callable's closed header, not an inferred signature.
+    /// The unpublished draft requires a known declaration's complete contract.
     RequiredHeader {
-        callable: AccessCallableId,
+        declaration: nocter_declarations::value_access::DeclarationId,
         origin: nocter_syntax::SyntaxOrigin,
     },
     /// The unpublished body draft needs a completed declaration value before typing continues.

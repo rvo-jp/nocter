@@ -10,7 +10,7 @@ mod tests;
 use std::{collections::BTreeMap, sync::Arc};
 
 use headers::RecordHeader;
-use nocter_declarations::value_access::{HeaderPublication, Program, Reservations};
+use nocter_declarations::value_access::{DeclarationId, HeaderPublication, Program, Reservations};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::AccessCallableId;
 use nocter_syntax::{
@@ -83,7 +83,7 @@ impl CallableSource {
     }
 }
 
-/// Exact-current construction with complete record schemas and progressively published callables.
+/// Exact-current construction with progressively published callable and record contracts.
 #[derive(Debug)]
 pub struct Preparation<'source> {
     headers: HeaderPublication,
@@ -192,10 +192,13 @@ impl<'source> Preparation<'source> {
     pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
         self.recipes.keys().copied()
     }
-    /// Publish one required callable and retain all contracts already established by this builder.
+    /// Publish one required declaration and its records, retaining every established contract.
     /// # Errors
-    /// Rejects a callable outside the reserved source domain.
-    pub fn context(&mut self, required: AccessCallableId) -> Result<Context<'source>, Failure> {
+    /// Rejects a declaration outside the reserved source domain.
+    pub fn context(
+        &mut self,
+        required: impl Into<DeclarationId>,
+    ) -> Result<Context<'source>, Failure> {
         self.headers
             .publish(required)
             .map_err(|_| Failure::InconsistentSyntax)?;

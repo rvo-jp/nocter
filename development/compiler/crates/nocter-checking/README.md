@@ -222,13 +222,15 @@ with adjacent stages.
 ## Bounded Future Value Binding Typing
 
 `accepted::SourceUnit` owns staged source preparation and the resulting complete Unit with its
-reusable header query. `staged` asks lowering for ready callable contexts and uses the same ordinary
-body checker. A reference to a known but unready callable returns `RequiredHeader`; preparation
+reusable header query. `staged` asks lowering for ready declaration contexts and uses the same ordinary
+body checker. A reference to a known but unready callable or record returns `RequiredHeader`; preparation
 publishes that contract and retries the unpublished draft. It never guesses the signature, changes
 dispatch or reparses source. The complete name domain still forbids shadowing independently of
 readiness, and dead source retains its header requirements. Successful body queries are retained
 without rechecking. Missing constant values continue through the required-value coordinator below.
-This stage does not yet request values during source type normalization or close records on demand.
+Record construction and named annotation leaves, including closure input data, use that same
+request. A ready record includes its transitive payload schemas. This stage does not yet request
+values during source type normalization; raw reference/containment validation remains eager.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts

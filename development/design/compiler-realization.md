@@ -103,10 +103,11 @@ declaration and every definition to close.
 Use the already-reserved input/field identities when publishing a ready contract; normalization
 order cannot allocate new slots or renumber a formal witness. The current
 [staged source path](../compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
-can retain bodies over earlier ready callable views and replay their type suffixes after later
-contracts close. Source data references and record schemas still require a complete first stratum;
-required values execute only after all headers close. Extend that boundary with deferred source
-type normalization, record closure and header-dependent required-value requests through the one
+can retain bodies over earlier ready declaration views and replay their type suffixes after later
+contracts close. Requested contracts publish transitive record schemas on demand, while raw source
+data references and containment validation still require a complete first stratum; required values
+execute only after all headers close. Extend that boundary with deferred source reference/shape
+normalization and header-dependent required-value requests through the one
 dependency protocol. A reservation alone cannot type-check an unfinished signature. Qualify actual
 array source through the combined path rather than treating ready-view/slot tests as array conformance.
 

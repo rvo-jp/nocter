@@ -37,6 +37,16 @@ pub enum DeclarationId {
     Callable(AccessCallableId),
     Record(NominalTypeId),
 }
+impl From<AccessCallableId> for DeclarationId {
+    fn from(id: AccessCallableId) -> Self {
+        Self::Callable(id)
+    }
+}
+impl From<NominalTypeId> for DeclarationId {
+    fn from(id: NominalTypeId) -> Self {
+        Self::Record(id)
+    }
+}
 
 #[cfg(test)]
 mod tests;
@@ -199,20 +209,24 @@ pub struct Program {
     callables: SparseArena<AccessCallableId, Callable>,
     parameters: SparseArena<AccessParameterId, Parameter>,
     namespace: std::sync::Arc<BTreeMap<Symbol, DeclarationId>>,
-    records: std::sync::Arc<records::Schemas>,
+    records: records::Schemas,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
 }
 
 impl Program {
     #[must_use]
     pub const fn headers_complete(&self) -> bool {
-        self.callables.is_complete() && self.parameters.is_complete()
+        self.callables.is_complete()
+            && self.parameters.is_complete()
+            && self.records.records.is_complete()
+            && self.records.fields.is_complete()
     }
     /// Retains every established contract and its exact type prefix from the same construction.
     #[must_use]
     pub fn preserves_headers(&self, older: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.namespace, &older.namespace)
-            && std::sync::Arc::ptr_eq(&self.records, &older.records)
+            && self.records.records.preserves(&older.records.records)
+            && self.records.fields.preserves(&older.records.fields)
             && self.callables.preserves(&older.callables)
             && self.parameters.preserves(&older.parameters)
             && self.header_prefix.preserves_prefix(&older.header_prefix)
@@ -222,12 +236,17 @@ impl Program {
         &self.symbols
     }
     #[must_use]
-    pub fn records(&self) -> &Arena<NominalTypeId, Record> {
+    pub fn records(&self) -> &SparseArena<NominalTypeId, Record> {
         &self.records.records
     }
     #[must_use]
-    pub fn fields(&self) -> &Arena<nocter_model::AccessFieldId, Field> {
+    pub fn fields(&self) -> &SparseArena<nocter_model::AccessFieldId, Field> {
         &self.records.fields
+    }
+    /// Closed name identity, independently of whether its typed contract is ready.
+    #[must_use]
+    pub fn declaration(&self, name: Symbol) -> Option<DeclarationId> {
+        self.namespace.get(&name).copied()
     }
     #[must_use]
     pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {

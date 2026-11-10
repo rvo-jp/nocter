@@ -3,6 +3,61 @@ use super::super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
+    let symbols = SymbolTable::from_spellings(["Late", "value", "run"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Late").unwrap(), 1);
+    let run = reservations.reserve(symbols.get("run").unwrap(), 0);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define_record(
+            record,
+            false,
+            [FieldDefinition {
+                name: symbols.get("value").unwrap(),
+                data: DataReference::Tuple(TupleData::new(
+                    BuiltinType::Bool.into(),
+                    BuiltinType::Bool.into(),
+                    [],
+                )),
+            }],
+        )
+        .unwrap();
+    builder
+        .define(
+            run,
+            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    let mut headers = builder.into_publication().unwrap();
+    headers.publish(run).unwrap();
+    let early = headers.snapshot();
+    let integer = early.data_type(BuiltinType::I32).unwrap();
+    let boolean = early.data_type(BuiltinType::Bool).unwrap();
+    let mut body = early.body_types(run).unwrap();
+    let tuple = body.tuple(&[integer, boolean]).unwrap();
+    let body = body.finish();
+    let later = headers.finish();
+    let field = later.records().get(record).unwrap().fields()[0];
+    assert_eq!(
+        tuple,
+        later.fields().get(field).unwrap().data(),
+        "the collision must be exercised"
+    );
+    assert_ne!(body.data_schema(tuple), later.data_schema(tuple));
+    let canonical = later
+        .canonical_body_types(BTreeMap::from([(run, &body)]))
+        .unwrap();
+    let projected = canonical.project(run, tuple).unwrap();
+    assert_ne!(projected, tuple);
+    let canonical = canonical.finish();
+    assert_eq!(canonical.data_schema(projected), body.data_schema(tuple));
+    assert_eq!(canonical.fields().get(field).unwrap().data(), tuple);
+}
+
+#[test]
 fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
     let symbols = SymbolTable::from_spellings(["alpha", "beta", "action"]);
     let mut reservations = Reservations::new(symbols.clone());

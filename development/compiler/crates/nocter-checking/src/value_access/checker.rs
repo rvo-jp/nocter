@@ -473,17 +473,21 @@ impl<'a, 's> Checker<'a, 's> {
         )
     }
     pub fn require_header(&self, token: SyntaxToken) -> Result<(), Failure> {
+        use nocter_declarations::value_access::DeclarationId;
         let spelling = self.text(token)?;
         if self.lookup(spelling).is_none()
-            && let Some(callable) = self
+            && let Some(declaration) = self
                 .program()
                 .symbols()
                 .get(spelling)
-                .and_then(|symbol| self.program().resolve_code(symbol))
-            && self.program().callables().get(callable).is_none()
+                .and_then(|symbol| self.program().declaration(symbol))
+            && match declaration {
+                DeclarationId::Callable(id) => self.program().callables().get(id).is_none(),
+                DeclarationId::Record(id) => self.program().records().get(id).is_none(),
+            }
         {
             return Err(Failure::RequiredHeader {
-                callable,
+                declaration,
                 origin: SyntaxOrigin::Token(token),
             });
         }
@@ -494,6 +498,15 @@ impl<'a, 's> Checker<'a, 's> {
             .iter()
             .rev()
             .find_map(|scope| scope.get(name).copied())
+    }
+    pub fn shadows_name(&self, name: &str) -> bool {
+        self.lookup(name).is_some()
+            || BuiltinType::from_spelling(name).is_some()
+            || self
+                .program()
+                .symbols()
+                .get(name)
+                .is_some_and(|symbol| self.program().declaration(symbol).is_some())
     }
     pub fn unwrap(&self, mut node: NodeId) -> Result<NodeId, Failure> {
         while matches!(

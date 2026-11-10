@@ -1,6 +1,6 @@
 //! One closed component projection for nominal records and structural tuples.
 use super::{Field, Record};
-use nocter_model::{AccessFieldId, Arena, TypeId, ValueField};
+use nocter_model::{AccessFieldId, SparseArena, TypeId, ValueField};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Component {
@@ -13,13 +13,13 @@ pub struct Component {
 pub struct AggregateSchema<'a>(Shape<'a>);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Shape<'a> {
-    Record(&'a Record, &'a Arena<AccessFieldId, Field>),
+    Record(&'a Record, &'a SparseArena<AccessFieldId, Field>),
     Tuple(&'a [TypeId]),
 }
 impl<'a> AggregateSchema<'a> {
     pub(super) const fn record(
         record: &'a Record,
-        fields: &'a Arena<AccessFieldId, Field>,
+        fields: &'a SparseArena<AccessFieldId, Field>,
     ) -> Self {
         Self(Shape::Record(record, fields))
     }

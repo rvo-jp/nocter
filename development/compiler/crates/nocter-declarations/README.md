@@ -76,14 +76,17 @@ private core goal. Header facts are shared by immutable body type branches and c
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
 `Reservations` assigns callable/record and input/field identities; its consuming `finish` closes
 the complete name domain into a `Builder`. The builder defines and validates all source data
-references and record schemas before opening `HeaderPublication`. This single writer normalizes
-individual callable contracts and exposes immutable `Program` views containing only ready entries.
-Its consuming `finish` closes all remaining callables. `Builder::finish` uses that same path.
+references, finite record containment and explicit Copy requests before opening `HeaderPublication`.
+This single writer normalizes requested callable or record contracts and exposes immutable
+`Program` views containing only ready entries. Each contract first closes its transitive record
+dependencies. Its consuming `finish` closes every remaining callable and record, including unused
+records. `Builder::finish` uses that same path.
 No definition or type resolution is available during reservation, and no new declaration can be
 reserved after name closure. Untyped construction grants no body-checking admission. A ready view
 can support typed-only checking of its established contracts, but only `headers_complete` can
-permit whole-unit closure. Records and source data references still close as one stratum;
-this is not early array-length evaluation. Defining headers in a different order cannot change parameter identities.
+permit whole-unit closure. Raw source references and containment validation still close as one
+stratum; deferred field-type publication is not early array-length evaluation. Defining headers
+in a different order cannot change parameter identities.
 The lowering owner reserves functions and records in canonical namespace order.
 
 Reservation takes each callable's input count and each record's field count, assigning the entire
@@ -102,12 +105,14 @@ record schemas do not maintain a second global index. Invalid cross-domain names
 temporary first-record diagnostic witness, never another lookup authority. Name failures precede
 type normalization, so an invalid namespace cannot request or invent types to diagnose itself.
 
-Callable/input tables use model-owned sparse arenas. A missing entry has no data, invocation
+Callable/input and record/field tables use model-owned sparse arenas. A missing entry has no data, invocation
 contract or Copy evidence; known names can still identify its required header or forbid shadowing.
 Only a non-cloneable writer can fill a reserved slot once. Immutable views share persistent storage;
 their exact ancestry is independent of structural metadata equality. All views retain the same
-closed namespace and record schemas. Named code keys alone cannot expose an unready function
-witness through `function_data`.
+closed namespace and preserve every established contract. Named code or nominal leaf keys alone
+cannot expose an unready function witness, payload schema or Copy evidence. Record publication
+uses iterative postorder over validated containment; it normalizes each shared child once before
+publishing a parent's complete fields and local member namespace.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
@@ -189,7 +194,7 @@ Canonical replay remaps nested tuple components and every closure-schema data sl
 type suffix in the same program; headers remain unchanged. `closures` owns their immutable
 projection, not body checking.
 
-Canonical replay validates retained ready contracts, exact namespace/record identity, persistent
+Canonical replay validates retained ready contracts, exact namespace and sparse-table lineage, persistent
 header-prefix ancestry and each suffix's body owner. It records each body's own prefix boundary;
 an explicit type-scope proof retains the owning callable even when its suffix is empty. A header
 view, a body branch and a canonical merged product cannot substitute for each other's construction role.

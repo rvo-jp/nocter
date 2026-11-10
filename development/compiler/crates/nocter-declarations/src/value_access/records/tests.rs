@@ -433,7 +433,15 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
             )
             .unwrap();
     }
-    let program = builder.finish().unwrap();
+    let mut headers = builder.into_publication().unwrap();
+    let early = headers.snapshot();
+    assert!(early.records().is_empty());
+    assert!(early.fields().is_empty());
+    assert!(!early.headers_complete());
+    headers.publish(*ids.last().unwrap()).unwrap();
+    let program = headers.snapshot();
+    assert!(program.headers_complete());
+    assert!(program.preserves_headers(&early));
     assert_eq!(program.records().len(), COUNT);
     assert_eq!(program.fields().len(), 2 * (COUNT - 1));
     for &id in &ids {

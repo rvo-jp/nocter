@@ -1,4 +1,4 @@
-//! One ordinary body preparation path over progressively closed callable headers.
+//! One ordinary body preparation path over progressively closed declaration contracts.
 use super::{Failure as BodyFailure, accepted, checker, evaluation};
 use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations as declarations;
@@ -42,9 +42,9 @@ impl SourceUnit {
                         queries.insert(id, query);
                         break;
                     }
-                    Err(BodyFailure::RequiredHeader { callable, .. }) => {
+                    Err(BodyFailure::RequiredHeader { declaration, .. }) => {
                         context = headers
-                            .context(callable)
+                            .context(declaration)
                             .map_err(SourceFailure::Declarations)?;
                     }
                     // Values still use the existing shared dependency/evaluator authority below.

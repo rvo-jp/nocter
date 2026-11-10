@@ -119,6 +119,11 @@ fn private_callbacks_and_mutable_captures_use_the_same_native_call_path() {
             42,
         ),
         (
+            "late-record-replay",
+            "struct Late { pair: (bool, bool) }\nfunc run(): i32 { let pair = (40, true)\nlet action = (pair;): i32 { if pair.1 { pair.0 + 2 } else { 0 } }\naction() }\nfunc z_unused(): i32 { let data: Late = Late { pair: (true, false) }\nif data.pair.0 { 1 } else { 0 } }",
+            42,
+        ),
+        (
             "forward",
             "func increment(value: i32): i32 { value + 1 }\nfunc apply(action: func(i32): i32): i32 { action(1) }\nfunc forward(action: func(i32): i32): i32 { apply(action) }\nfunc run(): i32 { forward(increment) }",
             2,

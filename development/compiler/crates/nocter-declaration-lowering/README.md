@@ -131,10 +131,11 @@ program. The [cross-stage boundary](../../../architecture/pipeline/value-access-
 owns the handoff to typed-only body checking and the still-required flow/safety validation.
 
 `Preparation` owns one exact-current syntax pairing and the declaration owner's incremental
-header publication. Its contexts share the source catalog and expose complete callable contracts
+header publication. Its contexts share the source catalog and expose complete callable or record contracts
 as requested, without re-reading or checking a body. `finish` yields the complete reusable `Query`;
-the eager query entry delegates to that same construction. Record schemas and source data-name
-normalization still close before these callable views, so this does not admit array-length calls.
+the eager query entry delegates to that same construction. Required contracts close transitive
+record payloads before exposing their field TypeIds. Raw source data-name resolution and finite
+containment validation still close before these views, so this does not admit array-length calls.
 
 Body queries retain their origin header view and open declaration-owned type branches over that
 prefix. A later context can bind existing evidence only if its header view preserves the earlier
