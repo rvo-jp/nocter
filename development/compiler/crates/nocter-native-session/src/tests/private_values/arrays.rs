@@ -258,3 +258,20 @@ fn private_empty_arrays_have_no_element_geometry_or_payload_dependency() {
         execute_native_status(&compile(source), &package.0, name, 42);
     }
 }
+
+#[test]
+fn private_complete_array_cleanup_can_reach_image_lowering() {
+    // No source error-construction path is qualified here. Keep this evidence at image lowering;
+    // executing the divergent producer would not validate element destruction.
+    let image = compile(
+        "struct Item { reason: error }\nfunc make(): [Item; 3] { loop {} }\nfunc run(): void { let values = make() }",
+    );
+    assert!(!image.bytes().is_empty());
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile("func build(): [error; 0] { [] }\nfunc run(): i32 { let values = build()\n42 }"),
+        &package.0,
+        "empty-error-array",
+        42,
+    );
+}

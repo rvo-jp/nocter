@@ -206,3 +206,62 @@ fn empty_array_statics_keep_distinct_minimal_addressable_backing() {
     );
     assert_eq!(program.data().len(), 2);
 }
+
+#[test]
+fn complete_array_cleanup_shares_one_finite_reverse_traversal_and_element_helper() {
+    let mut counts = Vec::new();
+    for length in [3, 100_000] {
+        let program = compile(&format!(
+            "struct Item {{ reason: error }}\nfunc make(): [Item; {length}] {{ loop {{}} }}\nfunc run(): void {{ let values = make() }}"
+        ));
+        // Source make/run, process root, and one helper for array/record/error. The producer's
+        // divergence qualifies emitted cleanup structure, not execution of an owned error graph.
+        assert_eq!(program.functions().len(), 6);
+        let helper = program
+            .functions()
+            .find(|(_, function)| {
+                let body = function.body();
+                body.parameters()
+                    .first()
+                    .and_then(|&id| body.stack(id))
+                    .is_some_and(|slot| {
+                        matches!(
+                            program.layouts().get(slot.ty()).unwrap().kind(),
+                            MachineLayoutKind::FixedArray { .. }
+                        )
+                    })
+            })
+            .unwrap()
+            .1;
+        counts.push(helper.body().operations().count());
+        assert_eq!(
+            helper
+                .body()
+                .operations()
+                .filter(|(_, operation)| matches!(operation.kind(), MachineOperationKind::Call(_)))
+                .count(),
+            1
+        );
+        assert_eq!(
+            program
+                .functions()
+                .flat_map(|(_, function)| function.body().operations())
+                .filter(|(_, operation)| matches!(
+                    operation.kind(),
+                    MachineOperationKind::ReleaseError { .. }
+                ))
+                .count(),
+            1
+        );
+        assert!(helper.body().operations().any(|(_, operation)| matches!(
+            operation.kind(),
+            MachineOperationKind::Binary {
+                operation: crate::MachineBinaryOperation::Subtract,
+                check: crate::MachineArithmeticCheck::InternalInvariant,
+                ..
+            }
+        )));
+    }
+    assert_eq!(counts[0], counts[1]);
+    assert!(counts[0] < 30);
+}

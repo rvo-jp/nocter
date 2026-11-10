@@ -143,7 +143,8 @@ materialize their required bounds effect. Existing lifecycle phases retain RHS-f
 interruption cleanup, calls and independent Copy snapshots.
 
 `executable::body::repetition` loads the established seed once and emits a counted Machine CFG.
-Its counter is an ordinary SSA block parameter. One homogeneous layout proves the compiler's byte
+Its countdown counter is an ordinary SSA block parameter. Fill order has no user callback; the
+established Copy seed is loaded before traversal. One homogeneous layout proves the compiler's byte
 offset and successor arithmetic; internal traversal does not manufacture source bounds proofs.
 The runtime environment supplies canonical usize/bool roles for that control. Count one uses the
 ordinary resource assembly, and zero-byte storage requires no physical fill while preserving seed
@@ -167,6 +168,13 @@ nominal payloads terminated by empty arrays. Frozen empty arrays use ordinary ze
 handling; distinct empty statics keep separate minimal addressable backing. Empty selections still
 perform their required bounds trap, including when the selected nominal data is zero-sized.
 
-Nontrivial array cleanup and partial-array interval cleanup remain explicit implementation gates. Precise element transfer and restoration
-also require checking's separate retained-index proof. These limits do not change adopted source
+Complete-array cleanup uses that same countdown traversal, calling one selected element helper in
+reverse index order. Shared helpers are selected per concrete data schema, without an element-sized
+call catalog or a second resource ledger. Empty arrays and elements without cleanup require no
+helper. Source with a divergent error-array producer qualifies helper structure and image lowering;
+it does not establish execution of an owned error graph. Actual error construction and nontrivial
+resource-release effects still need source/native qualification.
+
+Partial-array interval cleanup remains an explicit implementation gate. Precise element transfer
+and restoration also require checking's separate retained-index proof. These limits do not change adopted source
 semantics or qualify the ordinary released CLI as v2.

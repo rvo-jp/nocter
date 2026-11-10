@@ -5,17 +5,19 @@ use crate::{
     MachineArithmeticCheck, MachineBlock, MachineBlockId, MachineBranchTarget, MachineCall,
     MachineCallAllocation, MachineCallTarget, MachineConstant, MachineDropFlag, MachineDropFlagId,
     MachineFunction, MachineFunctionExecution, MachineFunctionId, MachineFunctionKind,
-    MachineLayoutKind, MachineLinkageId, MachineOperation, MachineOperationId,
-    MachineOperationKind, MachineStackId, MachineStackObject, MachineStackPurpose,
-    MachineTerminator, MachineUnaryOperation, MachineValue, MachineValueDefinition, MachineValueId,
-    MachineValueRepresentation,
+    MachineLinkageId, MachineOperation, MachineOperationId, MachineOperationKind, MachineStackId,
+    MachineStackObject, MachineStackPurpose, MachineTerminator, MachineUnaryOperation,
+    MachineValue, MachineValueDefinition, MachineValueId, MachineValueRepresentation,
 };
 use nocter_mir::value_access as mir;
 use nocter_model::{AccessInstanceId, MirLocalId, TypeId, ValueInputOperation};
 use nocter_runtime_contract::RuntimeType;
 use std::collections::{BTreeMap, BTreeSet};
 mod arrays;
+mod destruction;
+pub(super) use destruction::build as cleanup;
 mod repetition;
+mod traversal;
 
 struct Block {
     parameters: Vec<MachineValueId>,
@@ -702,77 +704,6 @@ pub(super) fn source<'a>(
     )
 }
 
-pub(super) fn cleanup(
-    context: &Context<'_>,
-    data: TypeId,
-    owner: MachineFunctionId,
-) -> Result<MachineFunction, Failure> {
-    let mut builder = Builder::new(context, owner);
-    let target = context.layouts.target();
-    builder.stack.push(MachineStackObject::address(
-        data,
-        target,
-        MachineStackPurpose::Parameter { position: 0 },
-    ));
-    builder.parameters.push(MachineStackId::new(0));
-    let layout = context.layouts.get(data).ok_or(Failure::InvalidRoot)?;
-    match layout.kind() {
-        MachineLayoutKind::ErrorHandle => {
-            let place = builder.address(MachineAddress::new(
-                data,
-                layout.size(),
-                layout.alignment(),
-                MachineAddressRoot::Stack(MachineStackId::new(0)),
-                [MachineAddressStep::Dereference],
-            ));
-            builder.emit(MachineOperationKind::ReleaseError { place });
-        }
-        MachineLayoutKind::Struct { fields } => {
-            for field in fields.iter().rev() {
-                cleanup_field(&mut builder, field.ty(), field.offset())?;
-            }
-        }
-        MachineLayoutKind::StaticCallable {
-            environment: Some(environment),
-        } => cleanup_field(&mut builder, *environment, 0)?,
-        _ => return Err(Failure::InvalidRoot),
-    }
-    builder.terminate(MachineTerminator::Return(None))?;
-    let abi = crate::transport::address_signature(data, context.layouts).map_err(Failure::Abi)?;
-    builder.finish(MachineFunctionKind::Callable(abi), MachineBlockId::new(0))
-}
-fn cleanup_field(builder: &mut Builder<'_>, data: TypeId, offset: u64) -> Result<(), Failure> {
-    let Some(&target) = builder.context.cleanup.get(&data) else {
-        return Ok(());
-    };
-    let layout = builder
-        .context
-        .layouts
-        .get(data)
-        .ok_or(Failure::InvalidRoot)?;
-    let place = builder.address(MachineAddress::new(
-        data,
-        layout.size(),
-        layout.alignment(),
-        MachineAddressRoot::Stack(MachineStackId::new(0)),
-        [
-            MachineAddressStep::Dereference,
-            MachineAddressStep::Offset(offset),
-        ],
-    ));
-    let pointer = builder.value(
-        data,
-        true,
-        MachineOperationKind::AddressOf { source: place },
-    )?;
-    builder.emit(MachineOperationKind::Call(MachineCall::new(
-        MachineCallTarget::Direct(target),
-        [pointer],
-        MachineCallAllocation::Inherit,
-        None,
-    )));
-    Ok(())
-}
 pub(super) fn process(
     context: &Context<'_>,
     owner: MachineFunctionId,

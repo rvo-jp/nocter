@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close nontrivial array cleanup
-through the [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution).
-Preserve homogeneous geometry and finite generated loops; do not expand N
-compiler owners, layout fields or generated operations. Preserve payload-free empty-array geometry
-and do not traverse an element cleanup schema for count zero.
+Qualify actual nontrivial array cleanup effects through the
+[native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution), including
+source error construction. Respect its stated qualification boundary: emitted/image-only cleanup
+is not execution of an owned error graph.
+Preserve homogeneous geometry, payload-free empty arrays and the existing lifecycle ownership;
+do not add N compiler owners, layout fields or generated operations.
 
 Connect general evaluated selections to one checking-owned source of retained-index facts for
 initialization, access and resource flow. The [selection path](compiler/crates/nocter-checking/README.md#array-selection)
