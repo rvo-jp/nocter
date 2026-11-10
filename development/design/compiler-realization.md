@@ -130,7 +130,17 @@ request without publishing a provisional contract. Source lowering owns loading 
 recipe; declarations own validation and normalized identity; the existing checking/value
 coordinator owns ordinary body acceptance and required execution. A length expression needs its
 own semantic code identity and exact source recipe. Do not manufacture a named function, source
-text or a separate expression checker to evaluate it.
+text or a separate expression checker to evaluate it. Code identity and source-reuse ownership
+must cover expressions in record fields as well as callable headers. The current callable-only
+source-owner projection cannot represent a record-owned length by relabeling it as a function.
+
+Preserve deep-schema preparation without host recursion. The current query callback API is
+re-entrant, while record containment and publication use explicit worklists. Moving each record
+edge into a recursive query call would lose that property. Header dependency scheduling needs
+query-owned iterative progress over the same active/completed state authority, with suspended work
+and exact dependency causes. It must detect cycles, retain valid completed dependencies on failure,
+and reject a request that cannot make progress. Do not replace this proof with a source depth or
+array-length ceiling, or charge header traversal as source execution-call depth.
 
 Separate nominal name identity from payload-schema dependencies. In particular, the
 [array containment contract](../spec/language/tuples-and-arrays.md#scope-and-identity) requires

@@ -6,7 +6,9 @@
    beyond the [required frozen-data initializer boundary](compiler/crates/nocter-checking/README.md#required-private-initializers)
    with fixed arrays, enums and early structural dependencies. Extend
    [staged source preparation](compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
-   beyond eager raw source-reference/containment validation, then connect admitted usize
+   through the [structural type request closure](design/compiler-realization.md#structural-type-request-closure),
+   qualifying iterative header scheduling before deferring raw source-reference/containment
+   validation. Then connect admitted usize
    computation to required lengths through the same dependency coordinator before admitting array
    source. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
