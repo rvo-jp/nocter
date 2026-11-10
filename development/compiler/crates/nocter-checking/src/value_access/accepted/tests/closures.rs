@@ -51,7 +51,7 @@ fn update_and_extraction_select_mut_and_once_without_call_site_markers() {
     assert!(
         steps(body)
             .iter()
-            .any(|s| matches!(s, Step::ReplaceInput { .. }))
+            .any(|s| matches!(s, Step::ReplaceReferent { .. }))
     );
     let consume = accepted(
         "func run(take input: error): error {\nlet finish = (input^;): error { input^ }\nfinish^()\n}",

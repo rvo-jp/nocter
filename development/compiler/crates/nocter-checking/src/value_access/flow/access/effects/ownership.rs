@@ -1,6 +1,6 @@
 use super::super::super::{
     Operation,
-    resources::{self, Holder, Step},
+    resources::{self, Holder},
 };
 use super::super::Root;
 use super::{Context, Failure, Result};
@@ -321,27 +321,36 @@ impl Context<'_, '_> {
         target: nocter_model::AccessPlaceId,
         value: AccessExpressionId,
     ) -> Result<()> {
-        let (root, _) = self.base(target)?.ok_or(Failure::Integrity)?;
-        match root.root {
-            Root::Owned(local) => {
-                self.world.resources.replace(
-                    self.typed.program(),
-                    &Holder::Expression(value).place(),
-                    &Holder::Local(local).place().project_path(&root.fields),
-                    &mut self.steps,
-                )?;
+        let selected = self
+            .typed
+            .body()
+            .places()
+            .get(target)
+            .ok_or(Failure::Integrity)?;
+        if self.local_mode(selected.local)? == Mode::Update {
+            self.world.resources.replace_referent(
+                self.typed.program(),
+                &Holder::Expression(value).place(),
+                &Holder::Local(selected.local)
+                    .place()
+                    .project_path(&selected.fields),
+                selected.data,
+                &mut self.steps,
+            )?;
+        } else {
+            let (root, _) = self.base(target)?.ok_or(Failure::Integrity)?;
+            let Root::Owned(local) = root.root else {
+                return Err(Failure::Integrity);
+            };
+            if !root.precise {
+                return Err(Failure::Integrity);
             }
-            Root::Input(local) => {
-                let source = Holder::Expression(value).place();
-                let payload = self.world.resources.take(self.typed.program(), &source)?;
-                self.steps.push(Step::ReplaceInput {
-                    local,
-                    fields: root.fields,
-                    source,
-                    payload,
-                });
-            }
-            Root::Temporary { .. } | Root::Static(_) => return Err(Failure::Integrity),
+            self.world.resources.replace(
+                self.typed.program(),
+                &Holder::Expression(value).place(),
+                &Holder::Local(local).place().project_path(&root.fields),
+                &mut self.steps,
+            )?;
         }
 
         Ok(())

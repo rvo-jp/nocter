@@ -349,6 +349,6 @@ fn a_consuming_adapter_destroys_the_live_post_update_environment() {
     }
     assert!(
         steps(&program)
-            .any(|step| matches!(step, Step::Resource(ResourceStep::ReplaceInput { .. })))
+            .any(|step| matches!(step, Step::Resource(ResourceStep::ReplaceReferent { .. })))
     );
 }

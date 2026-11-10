@@ -71,3 +71,16 @@ fn reservation_blocks_a_later_argument_from_modifying_its_target() {
         "func change(edit input: i32): i32 { input += 1\nreturn input }\nfunc observe(input: i32,other: i32): void {}\nfunc f(): void { var value = 1\nobserve(value,change(value)) }",
     );
 }
+
+#[test]
+fn index_side_invalidation_reports_a_retained_place_rather_than_an_activated_read() {
+    let source = "func work(): i32 { var values = [42, 7]\nvalues[if true { values = [1, 2]\n0 } else { 0 }] }";
+    assert!(
+        analyze(source)
+            .iter()
+            .flat_map(|q| q.access().violations())
+            .any(|v| v
+                .retained
+                .is_some_and(|r| r.kind == super::RetentionKind::Place))
+    );
+}

@@ -123,7 +123,7 @@ fn external_record_update_retains_the_selected_field_in_its_effect() {
     let unit = accepted(&source_case("a31-edit-record-input.nct"));
     let first = record_field(&unit, "Pair", "first");
     let trace = steps(named(&unit, "replace"));
-    assert!(trace.iter().any(|step| matches!(step, Step::ReplaceInput { fields, payload, .. } if fields.fields() == [first] && payload.disposal() == Disposal::OwnedError)));
+    assert!(trace.iter().any(|step| matches!(step, Step::ReplaceReferent { destination, payload, .. } if destination.fields().fields() == [first] && payload.disposal() == Disposal::OwnedError)));
 }
 
 #[test]

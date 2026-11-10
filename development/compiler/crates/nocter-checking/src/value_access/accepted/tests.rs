@@ -224,7 +224,7 @@ fn edit_input_replacement_retains_its_initialized_outside_slot() {
     for (point, block) in q.graph().points().iter() {
         for action in 0..block.actions.len() {
             for t in q.access().resources().at(Location { point, action }) {
-                seen|=t.steps().iter().any(|step|matches!(step,Step::ReplaceInput{payload,..} if payload.disposal()==Disposal::OwnedError));
+                seen|=t.steps().iter().any(|step|matches!(step,Step::ReplaceReferent{payload,..} if payload.disposal()==Disposal::OwnedError));
             }
         }
     }
@@ -322,3 +322,5 @@ mod staged;
 mod array_repetition;
 
 mod indexed_edits;
+
+mod indexed_aliases;

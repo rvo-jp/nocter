@@ -93,11 +93,11 @@ impl From<bool> for Need {
     }
 }
 type Uses = Vec<(Carrier, Need)>;
-fn prepared_uses(
+fn prepared_use(
     typed: &TypedQuery,
     call: AccessExpressionId,
     index: usize,
-) -> Result<Vec<(Carrier, bool)>, IntegrityError> {
+) -> Result<(Carrier, bool), IntegrityError> {
     let arg = argument(typed, call, index)?;
     let carrier = match arg.action {
         ArgumentAction::ReserveRead(place)
@@ -106,17 +106,9 @@ fn prepared_uses(
         | ArgumentAction::CopyPlace(place) => referent_carrier(typed, place)?,
         _ => Carrier::Expression(arg.value),
     };
-    let mut uses = vec![(carrier, argument_updates(arg))];
-    if let ArgumentAction::ReserveUpdate(source @ Referent::Evaluated(_)) = arg.action {
-        let base = source
-            .static_base(|id| typed.body().expressions().get(id))
-            .ok_or(INVALID)?;
-        // Projection expressions hold read views. Retain the writable base authority until
-        // the update reservation takes over at preparation.
-        uses.push((Carrier::Local(root(typed, base)?), true));
-    }
-    Ok(uses)
+    Ok((carrier, argument_updates(arg)))
 }
+
 fn plan(
     typed: &TypedQuery,
     operation: &Operation,
@@ -129,7 +121,7 @@ fn plan(
         Operation::BeginEvaluation(_) | Operation::EndEvaluation(_) => {}
         Operation::Evaluate(id) => {
             definitions.push(Carrier::Expression(*id));
-            uses.extend(expression_uses(typed, *id)?);
+            uses.extend(expression_uses(typed, *id, after)?);
         }
         Operation::PrepareOperand { value, .. }
         | Operation::Condition(value)
@@ -187,7 +179,7 @@ fn plan(
             call,
             argument: index,
         } => {
-            uses.extend(prepared_uses(typed, *call, *index)?);
+            uses.push(prepared_use(typed, *call, *index)?);
             definitions.push(Carrier::Argument {
                 call: *call,
                 index: *index,
@@ -272,10 +264,12 @@ pub(super) fn analyze(
 fn expression_uses(
     typed: &TypedQuery,
     id: AccessExpressionId,
+    after: &Live,
 ) -> Result<Vec<(Carrier, bool)>, IntegrityError> {
+    let update = updating(after, Carrier::Expression(id));
     let mut uses = Vec::new();
     match typed.body().expressions().get(id).ok_or(INVALID)?.kind {
-        ExpressionKind::Place(place) => uses.push((Carrier::Local(root(typed, place)?), false)),
+        ExpressionKind::Place(place) => uses.push((Carrier::Local(root(typed, place)?), update)),
         ExpressionKind::Move(place) => {
             uses.push((Carrier::Local(root(typed, place)?), true));
         }
@@ -286,12 +280,24 @@ fn expression_uses(
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
         }
-        ExpressionKind::Index { base, index, .. } => {
-            uses.push((Carrier::Expression(base), false));
+        ExpressionKind::Index {
+            base,
+            index,
+            action,
+        } => {
+            uses.push((
+                Carrier::Expression(base),
+                update && action == crate::value_access::IndexAction::Access,
+            ));
             uses.push((Carrier::Expression(index), false));
         }
+        ExpressionKind::Select { source, action, .. } => {
+            uses.push((
+                Carrier::Expression(source),
+                update && action == crate::value_access::SelectionAction::Access,
+            ));
+        }
         ExpressionKind::Repeat { seed: source }
-        | ExpressionKind::Select { source, .. }
         | ExpressionKind::AdaptFunction { source }
         | ExpressionKind::Closure {
             capture: source, ..

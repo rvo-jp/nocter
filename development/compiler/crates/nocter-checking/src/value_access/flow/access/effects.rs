@@ -3,7 +3,7 @@ mod ownership;
 use super::super::resources::StepPlan;
 use super::super::{IntegrityError, Location, Operation};
 use super::{
-    AccessRule, Creation, Liveness, Region, Root, Violation,
+    AccessRule, Creation, Liveness, Region, RetentionKind, Root, Violation,
     liveness::Carrier,
     state::{Key, Node, Prepared, Value, World},
 };
@@ -265,14 +265,7 @@ impl Context<'_, '_> {
         {
             return Ok(());
         }
-        if mode == Mode::Update
-            && actor.is_some_and(|key| {
-                self.world
-                    .nodes
-                    .get(&key)
-                    .is_none_or(|node| node.permission != Mode::Update)
-            })
-        {
+        if mode == Mode::Update && !self.world.writable_actor(actor)? {
             return Err(Failure::Integrity);
         }
         self.world.check(region, actor, mode, self.at, self.live)?;
@@ -289,6 +282,21 @@ impl Context<'_, '_> {
         base: Option<(Region, Option<Key>)>,
         mode: Mode,
     ) -> Result<Value> {
+        self.create_node(key, base, RetentionKind::Access(mode))
+    }
+    fn retain_place(&mut self, key: Key, base: Option<(Region, Option<Key>)>) -> Result<Value> {
+        self.create_node(key, base, RetentionKind::Place)
+    }
+    fn create_node(
+        &mut self,
+        key: Key,
+        base: Option<(Region, Option<Key>)>,
+        kind: RetentionKind,
+    ) -> Result<Value> {
+        let mode = match kind {
+            RetentionKind::Place => Mode::Read,
+            RetentionKind::Access(mode) => mode,
+        };
         let Some((region, parent)) = base else {
             if mode == Mode::Update {
                 return Err(Failure::Integrity);
@@ -298,16 +306,7 @@ impl Context<'_, '_> {
         if self.world.nodes.contains_key(&key) {
             return Err(Failure::Integrity);
         }
-        if let Some(parent) = parent
-            && mode == Mode::Update
-            && self
-                .world
-                .nodes
-                .get(&parent)
-                .ok_or(Failure::Integrity)?
-                .permission
-                == Mode::Read
-        {
+        if kind == RetentionKind::Access(Mode::Update) && !self.world.writable_actor(parent)? {
             return Err(Failure::Integrity);
         }
         self.world
@@ -317,7 +316,7 @@ impl Context<'_, '_> {
             Node {
                 region,
                 parent,
-                permission: mode,
+                kind,
                 created: Creation::Action(self.at),
             },
         );
@@ -338,7 +337,7 @@ impl Context<'_, '_> {
         };
         match expression.kind {
             ExpressionKind::Place(place) => {
-                self.create(Key::Expression(id), self.base(place)?, Mode::Read)
+                self.retain_place(Key::Expression(id), self.base(place)?)
             }
             ExpressionKind::Index { base, action, .. } => {
                 if action == IndexAction::CopyPayload {
@@ -352,7 +351,7 @@ impl Context<'_, '_> {
                     // This read proof covers the array. Descendant fields cannot refine this
                     // prefix until evaluated index equality/disjointness is proved.
                     region.precise = false;
-                    self.create(Key::Expression(id), Some((region, actor)), Mode::Read)
+                    self.retain_place(Key::Expression(id), Some((region, actor)))
                 }
             }
             ExpressionKind::Select {
@@ -364,7 +363,7 @@ impl Context<'_, '_> {
                     return Err(Failure::Integrity);
                 };
                 region.project(fields);
-                self.create(Key::Expression(id), Some((region, actor)), Mode::Read)
+                self.retain_place(Key::Expression(id), Some((region, actor)))
             }
             ExpressionKind::Move(place) => {
                 let (region, actor) = self.base(place)?.ok_or(Failure::Integrity)?;
@@ -426,39 +425,6 @@ impl Context<'_, '_> {
             ExpressionKind::If { .. } | ExpressionKind::Call { .. } => Err(Failure::Integrity),
         }
     }
-    fn reservation_referent(
-        &self,
-        source: Referent,
-        mode: Mode,
-    ) -> Result<Option<(Region, Option<Key>)>> {
-        let selected = self.referent(source)?;
-        if mode != Mode::Update || matches!(source, Referent::Place(_)) {
-            return Ok(selected);
-        }
-        let base = source
-            .static_base(|id| self.typed.body().expressions().get(id))
-            .ok_or(Failure::Integrity)?;
-        let Some((authority, actor)) = self.base(base)? else {
-            return Err(Failure::Integrity);
-        };
-        let Some((region, _)) = selected else {
-            return Err(Failure::Integrity);
-        };
-        if region.root != authority.root
-            || actor.is_some_and(|key| {
-                self.world
-                    .nodes
-                    .get(&key)
-                    .is_none_or(|node| node.permission != Mode::Update)
-            })
-        {
-            return Err(Failure::Integrity);
-        }
-        // The frozen input operation has checked writable source authority. Use that base
-        // authority at commit, not an upgrade of the intermediate read projection. Liveness
-        // retains it through preparation; the reservation then owns its demand.
-        Ok(Some((region, actor)))
-    }
     fn prepare(&mut self, call: AccessExpressionId, index: usize) -> Result<()> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
@@ -480,7 +446,7 @@ impl Context<'_, '_> {
                     ArgumentAction::ReserveUpdate(_) => Mode::Update,
                     _ => Mode::Own,
                 };
-                if let Some((region, actor)) = self.reservation_referent(place, mode)? {
+                if let Some((region, actor)) = self.referent(place)? {
                     if !self.world.alive(region.root) {
                         return Err(Violation {
                             location: self.at,

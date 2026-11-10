@@ -167,10 +167,10 @@ pub enum Step {
         index: usize,
         payload: Payload,
     },
-    /// Replacement through a caller-owned U input; the old payload is initialized by contract.
-    ReplaceInput {
-        local: AccessLocalId,
-        fields: FieldPath,
+    /// Complete replacement through a scoped update alias. Its existing referent is initialized;
+    /// the enclosing owner's completeness does not change and no alias becomes an owner.
+    ReplaceReferent {
+        destination: Place,
         source: Place,
         payload: Payload,
     },
@@ -205,7 +205,7 @@ impl Step {
             | Self::DisposeArrayElements { payload, .. }
             | Self::ReleaseContainer { payload, .. }
             | Self::Invoke { payload, .. }
-            | Self::ReplaceInput { payload, .. } => *payload = map(*payload)?,
+            | Self::ReplaceReferent { payload, .. } => *payload = map(*payload)?,
         }
         Ok(step)
     }

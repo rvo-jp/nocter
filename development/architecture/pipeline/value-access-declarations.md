@@ -116,8 +116,8 @@ closed type metadata. Header evidence alone grants no value/storage admission. C
 [listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction)
 separately qualifies whole-array body/resource/evaluator handoffs. Its
 [read-selection path](../../compiler/crates/nocter-checking/README.md#array-selection) retains evaluated
-element addresses and qualifies bounded edit call inputs. Direct element edit aliases, replacement,
-transfer and native array storage remain gated.
+element addresses and qualifies bounded edit call inputs and scoped edit aliases. Direct indexed
+replacement/transfer, partial state and native array storage remain gated.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a
@@ -258,7 +258,9 @@ public language-version switch or released-program adapter.
 The same flow query now owns read/update demand liveness and the referent/permission report.
 Initialization failure is an explicit prerequisite status, not an empty access proof. Root and
 creation/use identities remain semantic; exact-current diagnostics bind through the owning typed
-query and locate the attempted operation, retained access, required use and referent declaration.
+query and locate the attempted operation, retained place/access, required use and referent declaration.
+Checking distinguishes retained place identity from active read/edit grants under its
+[shared access authority](../../compiler/crates/nocter-checking/README.md#shared-flow-access-and-resource-validation).
 
 An owned answer with no outside referent can still carry D/S, and
 non-owning access release differs from destroying a prepared owned resource. No consumer may

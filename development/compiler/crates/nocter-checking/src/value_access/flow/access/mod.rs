@@ -56,10 +56,16 @@ pub enum Creation {
     Entry(AccessLocalId),
     Action(Location),
 }
+/// Retaining a selected place protects its identity without activating a read/edit grant.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum RetentionKind {
+    Place,
+    Access(ValueAccessMode),
+}
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RetainedAccess {
     pub created: Creation,
-    pub permission: ValueAccessMode,
+    pub kind: RetentionKind,
     pub required: Option<Location>,
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

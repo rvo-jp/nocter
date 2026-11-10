@@ -301,7 +301,7 @@ checked subtraction operation as zero minus the operand. i32/usize range checks 
 numeric profile; the private source currently qualifies its 64-bit usize only. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
 required execution. [Listed array values](#array-construction) share the ordinary aggregate path;
-direct element edit aliases/replacement/transfer retain explicit implementation gates.
+direct indexed replacement/transfer retain explicit implementation gates.
 [Read selection](#array-selection) uses evaluated element addresses.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
@@ -405,15 +405,25 @@ Edit replacements keep their outside place valid. Cleanup conditions are not per
 missing data or skip required destruction. Unreachable source retains structural checking without
 invented runtime uses. Source projection reports already selected identities/locations.
 
+`RetentionKind::Place` keeps a selected place's identity without activating a read or update grant.
+Read/edit alias boundaries activate their declared access; call inputs retain reservations until
+bundle commit. Projection liveness propagates update demand to the existing base authority, and
+world trimming retains the necessary neutral ancestors until an actual access grant. A real read
+grant stops update delegation. No consumer upgrades a read alias, infers writable authority from
+Copy, or maintains a second place/permission registry. Retained-place invalidation diagnostics name
+the selected place separately from an active access or pending call.
+
 Access demand includes alias children and prepared uses. Referent regions pair an owning/input/
-temporary root with its resolved field path. Prefix overlap preserves exclusivity for a parent
-and its child while allowing disjoint sibling accesses. Alias delegation concatenates paths;
-access checking and call reservations do not resolve field names again. An unused intermediary can release its
-own demand while its children retain read/update protection; remaining read demand does not force
-update exclusivity forever. Delegation never upgrades read or duplicates exclusivity. Scope/root
-survival reads the resource ledger directly: there is no second alive-root authority. Alternative
-worlds preserve mutually exclusive branch states and converge over finite identities, relations,
-resource holders and lexical/evaluation frame shape, without a dynamic history or iteration cutoff.
+temporary root with its resolved field path. Prefix overlap preserves exclusivity for a parent and
+its child while allowing disjoint sibling accesses. Static alias delegation concatenates paths;
+covering evaluated-array footprints follow the [selection boundary](#array-selection). Access
+checking and call reservations do not resolve field names again. An unused intermediary can release
+its own demand while its children retain read/update protection; remaining read demand does not
+force update exclusivity forever. Delegation never upgrades read or duplicates exclusivity.
+Scope/root survival reads the resource ledger directly: there is no second alive-root authority.
+Alternative worlds preserve mutually exclusive branch states and converge over finite identities,
+relations, resource holders and lexical/evaluation frame shape, without a dynamic history or
+iteration cutoff.
 
 The resource ledger alone tracks initialized owner responsibility in each concrete alternative.
 Initialization's joined availability facts serve use diagnostics and fixed-point reporting; they
@@ -433,6 +443,13 @@ including the all-fields-moved case, without destroying moved fields again or ch
 deallocation policy. Integrity rejection commits no partial ownership, cleanup steps or frame registration. Local
 mutability and access permission remain prerequisites proved by body checking, not permissions
 granted by a resource place.
+
+Complete assignment through an initialized edit alias uses `State::replace_referent` and one
+`Step::ReplaceReferent` containing the alias-local identity, relative fields and replacement owner.
+Data mismatch rejects transactionally before publishing any owner/frame/step change. The alias
+retains no ownership, and the enclosing owner's initialized state stays unchanged. Evaluator and
+MIR consumers dispose/replace the exact referent through its saved address. They never reinterpret
+a conservative conflict footprint as a selected resource path or repeat index evaluation.
 
 `resources::assembly` transfers complete listed component obligations into one structural value atomically.
 Components remain ordinary expression owners in the existing evaluation frame until completion;
@@ -781,8 +798,8 @@ values are not exposed as named constants or runtime-callable bodies. Listed con
 whole-value handoffs use the [array construction path](#array-construction), and
 [read selection](#array-selection) retains evaluated element addresses. Repetition uses the same
 count authority and a compact value operation. Count completion precedes ordinary seed preparation,
-including at zero. Direct element edit aliases/replacement/transfer and native array storage retain
-explicit authored gates; precise element-state proofs remain integration work.
+including at zero. Direct indexed replacement/transfer and native array storage retain explicit
+authored gates; precise element-state proofs remain integration work.
 
 ## Array Construction
 
@@ -828,50 +845,57 @@ remain separate implementation gates.
 
 `selection::arrays` prepares primitive bracket selection through ordinary expression/value-supply
 checking. Existing array storage identifies an evaluated referent; a computed array supplies a Copy
-component as a produced value. An existing non-Copy element can therefore initialize a scoped read alias,
-while a computed component cannot. A produced Copy component may lend its own editable temporary;
-an existing element cannot silently become such a temporary. Named constants construct values,
-while immutable statics retain their existing-place identity.
+component as a produced value. An existing non-Copy element can therefore initialize a scoped read
+alias, or an edit alias with writable source authority; a computed component cannot. A produced Copy
+component may lend its own editable temporary; an existing element cannot silently become such a
+temporary. Named constants construct values, while immutable statics retain their existing-place
+identity.
 
 The index receives the ordinary expected usize boundary. Signed variables, booleans, unavailable
 names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index reads
 prepare iteratively through both source checking and graph scheduling. An existing static member
-prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead of
-copying intermediate records or arrays. Direct element edit aliases, transfer, assignment and calls
-through indexed components still check the first index's operands before an explicit unsupported-data rejection.
-Long unclosed postfix chains do not recursively prepare intervening calls. User index protocols remain unadmitted.
+prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead
+of copying intermediate records or arrays. Direct indexed transfer/assignment and calls through
+indexed components still check the first index's operands before an explicit unsupported-data
+rejection. Long unclosed postfix chains do not recursively prepare intervening calls. User index
+protocols remain unadmitted.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
 expression, including member projections from an evaluated access. Read reservations, Copy supply,
-alias binding, liveness and evaluator projection consume that operand without synthetic locals or a second owner map. A read input reserves the selected
-address; a taking Copy input snapshots its payload at preparation and holds no later read
-reservation. The graph evaluates the base and index once, in order, before publishing the
-selection. The evaluator retains the numeric address, rather than reloading the user's index
-variable; computed Copy results use the same bounds/address operation with a data destination.
+alias binding, liveness and evaluator projection consume that operand without synthetic locals or a
+second owner map. A read input reserves the selected address; a taking Copy input snapshots its
+payload at preparation and holds no later read reservation. The graph evaluates the base and index
+once, in order, before publishing the selection. The evaluator retains the numeric address, rather
+than reloading the user's index variable; computed Copy results use the same bounds/address
+operation with a data destination.
 
-Edit call inputs resolve writable authority through `Referent::static_base`, using the same declared
-binding authority as static places. This does not turn an intermediate read projection or a scoped
-read alias into edit authority. Liveness retains the writable base through projection/preparation;
-the reservation then retains that authority for commit, separately from the saved selected address.
-Later operands may read before activation but cannot invalidate a reserved array. Captured-element
-updates use the same base resolution when selecting an editing closure invocation.
+Edit inputs and scoped edit bindings resolve writable source authority through
+`Referent::static_base`, using the same declared binding authority as static places. The [shared
+access model](#shared-flow-access-and-resource-validation) separates retained projections from
+active read/edit grants. Edit inputs activate at bundle commit, while a scoped edit binding
+activates at its declaration. Later call operands may read before activation but cannot invalidate a
+reserved array. Captured-element edits use the same base resolution to select invocation mode.
 
 The initial initialization/access proof requires the containing array complete and conservatively
-protects its footprint, including during index evaluation. A covering marker prevents fields of
-a selected record element from being appended directly to that array prefix or creating false
+protects its footprint, including during index evaluation. A covering marker prevents fields of a
+selected record element from being appended directly to that array prefix or creating false
 disjointness. Fields outside the containing array remain independent. This is no precise
-index-equality, element-hole or restoration proof. Direct edit aliases, element replacement,
-transfer and partial-state admission still require the [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure)
-over the [shared path relation](../nocter-model/README.md#structural-projection-relations).
+index-equality, element-hole or restoration proof. Direct indexed replacement, transfer and
+partial-state admission still require the [evaluated-selection
+closure](../../../design/compiler-realization.md#evaluated-array-selection-closure) over the [shared
+path relation](../nocter-model/README.md#structural-projection-relations).
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
 Copy snapshots, non-Copy element/field reads, covering field views, alternating member/index chains,
-once-in-order index effects, parent/index-side invalidation, interrupted preparation, computed-base alias rejection, zero-sized bounds effects and local
-operand failures. Indexed edit-input tests qualify listed/repeated and non-Copy data, edit
-parameters/aliases, saved indices, read-only rejection, conservative overlap, preparation ordering,
-interruption and captured-environment invocation. Required bounds failure reports E0325 without
-publishing a value. Compile-time
-selection also reaches the [common native consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+once-in-order index effects, parent/index-side invalidation, interrupted preparation, computed-base
+alias rejection, zero-sized bounds effects and local operand failures. Indexed edit-input tests
+qualify listed/repeated and non-Copy data, edit parameters/aliases, saved indices, read-only
+rejection, conservative overlap, preparation ordering, interruption and captured-environment
+invocation. Scoped indexed aliases additionally qualify exact record/field replacement, saved
+indices, Copy snapshots, read-child exclusivity, read-only/computed rejection, bounded error cleanup
+responsibility and deep update-demand propagation. Required bounds failure reports E0325 without
+publishing a value. Compile-time selection also reaches the [common native
+consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 when its frozen result is scalar; this does not admit runtime array storage or array ABI.
 
 ## Concrete Array Resource Frontiers

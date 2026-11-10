@@ -1,5 +1,5 @@
 use super::super::Context;
-use super::{AccessRule, Creation, Root, Violation};
+use super::{AccessRule, Creation, RetentionKind, Root, Violation};
 use crate::value_access::{Failure, source_origin};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 
@@ -111,12 +111,20 @@ impl Context<'_, '_> {
                     Creation::Action(at) => self.origin(at)?,
                 };
                 notes.push(DiagnosticNote::new(
-                    "the retained access or reservation starts here",
+                    if retained.kind == RetentionKind::Place {
+                        "the evaluated place is retained here"
+                    } else {
+                        "the retained access or reservation starts here"
+                    },
                     source_origin(syntax, origin)?,
                 ));
                 if let Some(at) = retained.required {
                     notes.push(DiagnosticNote::new(
-                        "this operation still requires that access",
+                        if retained.kind == RetentionKind::Place {
+                            "this operation still requires that place"
+                        } else {
+                            "this operation still requires that access"
+                        },
                         source_origin(syntax, self.origin(at)?)?,
                     ));
                 }

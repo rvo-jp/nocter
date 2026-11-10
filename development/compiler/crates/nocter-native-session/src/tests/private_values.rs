@@ -190,6 +190,16 @@ fn private_loops_short_circuits_and_partial_values_execute_natively() {
             "func run(): i32 { var count = 1\nread source = count\nlet snapshot = source\nedit target = count\ntarget += 2\nsnapshot + target }",
             4,
         ),
+        (
+            "alias-replacement",
+            "func run(): i32 { var count = 0\nedit target = count\ntarget = 42\ncount }",
+            42,
+        ),
+        (
+            "alias-record-replacement",
+            "struct Pair { left: i32\nright: i32 }\nfunc run(): i32 { var pair = Pair { left: 1, right: 2 }\nedit target = pair\ntarget = Pair { left: 20, right: 22 }\npair.left + pair.right }",
+            42,
+        ),
     ] {
         let package = TempPackage::new();
         execute_native_status(&compile(source), &package.0, name, expected);
@@ -485,6 +495,13 @@ fn private_array_computation_is_frozen_before_native_instance_closure() {
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../tests/fixtures/native/value-access/array-const-repetition.nct"
+            )),
+        ),
+        (
+            "array-const-scoped-edit",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/native/value-access/array-const-scoped-edit.nct"
             )),
         ),
     ] {

@@ -1,6 +1,6 @@
 use super::super::{IntegrityError, Location};
 use super::{
-    AccessRule, Creation, Liveness, Region, RetainedAccess, Root, Violation,
+    AccessRule, Creation, Liveness, Region, RetainedAccess, RetentionKind, Root, Violation,
     liveness::{Carrier, Live},
 };
 use crate::value_access::Query as TypedQuery;
@@ -26,7 +26,7 @@ impl Value {
 pub(super) struct Node {
     pub region: Region,
     pub parent: Option<Key>,
-    pub permission: Mode,
+    pub kind: RetentionKind,
     pub created: Creation,
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -71,7 +71,7 @@ impl World {
                             }
                             .region(),
                             parent: None,
-                            permission: mode,
+                            kind: RetentionKind::Access(mode),
                             created: Creation::Entry(local),
                         },
                     );
@@ -122,6 +122,16 @@ impl World {
                     || self.resources.contains(Holder::Temporary { call, index })
             }
         }
+    }
+    pub fn writable_actor(&self, mut actor: Option<Key>) -> Result<bool, IntegrityError> {
+        while let Some(key) = actor {
+            let node = self.nodes.get(&key).ok_or(INVALID)?;
+            match node.kind {
+                RetentionKind::Place => actor = node.parent,
+                RetentionKind::Access(mode) => return Ok(mode == Mode::Update),
+            }
+        }
+        Ok(true)
     }
     pub fn trim(&mut self, live: Option<&Live>) -> Result<(), IntegrityError> {
         self.values
@@ -175,11 +185,25 @@ impl World {
                 }
             }
         }
+        // Update demand through a retained projection also demands its existing authority.
+        // Preserve neutral ancestors until the first actual access grant, without upgrading it.
+        let mut pending: Vec<_> = updating.iter().copied().collect();
+        while let Some(key) = pending.pop() {
+            let node = self.nodes.get(&key).ok_or(INVALID)?;
+            if node.kind == RetentionKind::Place
+                && let Some(parent) = node.parent
+            {
+                retained.insert(parent);
+                if updating.insert(parent) {
+                    pending.push(parent);
+                }
+            }
+        }
         let mut nodes = BTreeMap::new();
         for &key in &retained {
             let mut node = self.nodes.get(&key).ok_or(INVALID)?.clone();
-            if !updating.contains(&key) {
-                node.permission = Mode::Read;
+            if !updating.contains(&key) && matches!(node.kind, RetentionKind::Access(_)) {
+                node.kind = RetentionKind::Access(Mode::Read);
             }
             while let Some(parent) = node.parent {
                 if retained.contains(&parent) {
@@ -210,7 +234,7 @@ impl World {
                 && let Some(at) = (if self
                     .nodes
                     .get(&key)
-                    .is_some_and(|node| node.permission == Mode::Update)
+                    .is_some_and(|node| node.kind == RetentionKind::Access(Mode::Update))
                 {
                     live.required_update(location, carrier)
                 } else {
@@ -262,7 +286,7 @@ impl World {
         for (&key, node) in &self.nodes {
             if node.region.overlaps(region)
                 && !ancestors.contains(&key)
-                && (permission != Mode::Read || node.permission == Mode::Update)
+                && (permission != Mode::Read || node.kind == RetentionKind::Access(Mode::Update))
             {
                 return Err(Violation {
                     location,
@@ -275,7 +299,7 @@ impl World {
                     fields: region.fields.clone(),
                     retained: Some(RetainedAccess {
                         created: node.created,
-                        permission: node.permission,
+                        kind: node.kind,
                         required: self.witness(key, location, live),
                     }),
                 });
@@ -308,7 +332,7 @@ impl World {
                     fields: region.fields.clone(),
                     retained: Some(RetainedAccess {
                         created: Creation::Action(*at),
-                        permission: *permission,
+                        kind: RetentionKind::Access(*permission),
                         required: Some(location),
                     }),
                 });

@@ -249,7 +249,12 @@ fn invocation(
                     ExpressionKind::Boundary {
                         source,
                         action: BoundaryAction::DelegateUpdate,
-                    } if matches!(body.expressions().get(*source).map(|e| &e.kind), Some(ExpressionKind::Place(place)) if selects(*place)) =>
+                    } if body
+                        .expressions()
+                        .get(*source)
+                        .and_then(|e| e.referent(*source))
+                        .and_then(|source| source.static_base(|id| body.expressions().get(id)))
+                        .is_some_and(selects) =>
                     {
                         invocation = ValueInvocation::Edit;
                     }

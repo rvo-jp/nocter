@@ -171,6 +171,29 @@ impl State {
     ) -> Result<()> {
         self.transfer(program, source, destination, false, true, steps)
     }
+    /// Replace an initialized scoped referent without changing its enclosing owner's state.
+    /// The caller supplies the resolved alias-relative target and its checked data identity.
+    pub fn replace_referent(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        destination: &Place,
+        data: TypeId,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        let mut staged = self.clone();
+        let payload = staged.take(program, source)?;
+        if payload.data() != data {
+            return Err(INVALID);
+        }
+        *self = staged;
+        steps.push(Step::ReplaceReferent {
+            destination: destination.clone(),
+            source: source.clone(),
+            payload,
+        });
+        Ok(())
+    }
     fn transfer(
         &mut self,
         program: &Program,

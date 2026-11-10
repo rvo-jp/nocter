@@ -408,20 +408,12 @@ impl Builder<'_> {
                             destination,
                         });
                     }
-                    Step::ReplaceInput {
-                        local,
-                        fields,
+                    Step::ReplaceReferent {
+                        destination,
                         source,
                         payload,
                     } => {
-                        let mut destination =
-                            self.root(Holder::Local(*local), payload.data(), !fields.is_root())?;
-                        destination.projections = fields
-                            .fields()
-                            .iter()
-                            .copied()
-                            .map(Projection::Field)
-                            .collect();
+                        let destination = self.place(destination, payload.data())?;
                         output.push(Effect::Dispose {
                             source: destination.clone(),
                             disposal: self.disposal(*payload)?,

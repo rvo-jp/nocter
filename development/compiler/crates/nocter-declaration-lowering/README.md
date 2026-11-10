@@ -261,8 +261,8 @@ Checking owns [listed construction and whole-array handoffs](../nocter-checking/
 through its ordinary body/resource/evaluator products. This header owner grants no such value
 proof merely by normalizing a count. Checking also owns [source read selection](../nocter-checking/README.md#array-selection).
 Repetition uses that same count authority and checking's compact construction path. Checking
-qualifies bounded indexed edit inputs separately from direct edit aliases, replacement, transfer
-and native array storage, which retain implementation gates.
+qualifies bounded indexed edit inputs and scoped edit aliases separately from direct indexed
+replacement/transfer, partial state and native array storage, which retain implementation gates.
 The [common native path](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 qualifies scalar consumers of required array computation, without runtime array values or layout.
 Remaining work belongs to the

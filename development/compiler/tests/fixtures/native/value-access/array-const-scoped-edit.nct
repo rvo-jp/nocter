@@ -1,0 +1,19 @@
+const func update(edit values: [i32; 2], edit index: usize): void {
+    edit selected = values[index]
+    index = 1
+    selected = 40
+    selected += 2
+}
+
+const func calculate(): i32 {
+    var values = [10; 2]
+    var index: usize = 0
+    update(values, index)
+    values[0]
+}
+
+const ANSWER: i32 = calculate()
+
+func run(): i32 {
+    ANSWER
+}

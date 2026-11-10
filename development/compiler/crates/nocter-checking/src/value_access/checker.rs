@@ -594,9 +594,9 @@ impl<'a, 's> Checker<'a, 's> {
             }
             Mode::Update => {
                 if let Some(referent) = place {
-                    let Some(local) = referent.place() else {
-                        return self.reject(Rule::UnsupportedData, node);
-                    };
+                    let local = referent
+                        .static_base(|id| self.expressions.get(id))
+                        .ok_or(Failure::InconsistentSyntax)?;
                     if !self.writable_place(local) {
                         return self.reject_local(
                             Rule::InvalidUpdate,

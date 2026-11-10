@@ -174,17 +174,13 @@ impl Builder<'_, '_> {
             Step::Dispose { source, .. } => plan::Effect::Dispose(self.resource(source)?),
             Step::ReleaseContainer { source, .. } => plan::Effect::Release(self.resource(source)?),
             Step::Invoke { source, .. } => plan::Effect::Invoke(self.resource(source)?),
-            Step::ReplaceInput {
-                local,
-                fields,
+            Step::ReplaceReferent {
+                destination,
                 source,
                 ..
             } => plan::Effect::Replace {
                 source: self.resource(source)?,
-                destination: plan::Place {
-                    slot: self.holder(Holder::Local(*local))?,
-                    fields: self.fields(fields)?,
-                },
+                destination: self.resource(destination)?,
             },
             Step::Assemble {
                 destination,

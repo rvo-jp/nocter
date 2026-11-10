@@ -1,6 +1,6 @@
 use super::super::liveness::Carrier;
 use super::super::state::{Prepared, Value, World};
-use super::super::{AccessRule, Creation, RetainedAccess, Violation};
+use super::super::{AccessRule, Creation, RetainedAccess, RetentionKind, Violation};
 use super::{Context, Failure, Result};
 use crate::value_access::ExpressionKind;
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
@@ -74,7 +74,7 @@ impl Context<'_, '_> {
                             fields: region.fields.clone(),
                             retained: Some(RetainedAccess {
                                 created,
-                                permission: *other_mode,
+                                kind: RetentionKind::Access(*other_mode),
                                 required: Some(self.at),
                             }),
                         }

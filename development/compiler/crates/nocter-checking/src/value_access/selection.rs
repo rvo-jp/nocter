@@ -237,20 +237,21 @@ impl Checker<'_, '_> {
             },
         )
     }
-    pub(super) fn read_alias_value(
+    pub(super) fn alias_value(
         &mut self,
         node: NodeId,
+        rule: Rule,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
         if self.first_array_index(node)?.is_some() {
             let value = self.expression(node, None, reachable)?;
             if self.expression_referent(value).is_none() {
-                return self.reject(Rule::TypeMismatch, node);
+                return self.reject(rule, node);
             }
             return Ok(value);
         }
-        self.place_value(node, Rule::TypeMismatch)
+        self.place_value(node, rule)
     }
     pub fn place_value(&mut self, node: NodeId, rule: Rule) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
