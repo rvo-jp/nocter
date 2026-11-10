@@ -18,12 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect evaluated selections to one checking-owned source of retained-index facts for
-initialization, access and resource flow. The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
-is an execution consumer, not proof of source safety. Preserve the evaluated numeric index through
-reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
+Connect general evaluated selections to one checking-owned source of retained-index facts for
+initialization, access and resource flow. The [read-selection path](compiler/crates/nocter-checking/README.md#array-selection)
+conservatively covers a complete containing array; the [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
+is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
+index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
 Use the existing canonical address/value storage and shared structural relation, without a second
-ownership registry. Source element-selection admission remains gated until the
+ownership registry. Source element mutation/transfer admission remains gated until the
 [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
 closes joins, loops and cleanup alongside the ordinary whole-value construction path. Compact repetition and
 native storage remain separate consumers to close before product admission.

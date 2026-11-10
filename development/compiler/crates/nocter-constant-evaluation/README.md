@@ -139,6 +139,8 @@ array into void. It is listed storage, not a compact repetition implementation; 
 length descriptor nor shared seed handles authorize count expansion outside the storage budget.
 
 `Operation::Index` requires an array base, a usize index and an alias result of the element type.
+`Operation::IndexCopy` instead snapshots the selected payload into a data result; its producer
+owns the Copy proof. Both use the same numeric address/bounds implementation.
 Execution resolves the canonical base, reads the evaluated index once, checks it against the
 schema length, then appends the numeric index to the existing metered address path. It never
 retains the mutable index slot as the address recipe or reads the whole array to form an address.
@@ -149,7 +151,9 @@ frames release their storage through the same executor recovery as arithmetic/bu
 
 Closed-plan tests qualify listed construction/publication, array fields, independent snapshots,
 selected edits, backedge re-execution, cross-frame addresses, exact bounds and failed-budget
-cleanup. Checking separately qualifies [source listed construction and whole-value handoffs](../nocter-checking/README.md#array-construction-drafts).
+cleanup and indexed Copy snapshots with distinct data/alias result roles. Checking separately
+qualifies [source listed construction and whole-value handoffs](../nocter-checking/README.md#array-construction-drafts)
+and [source read selection](../nocter-checking/README.md#array-selection).
 This domain alone proves neither source element conflict/initialization safety, dynamic resource-hole cleanup, compact
 repetition nor native array storage. The remaining integration follows the
 [evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure).

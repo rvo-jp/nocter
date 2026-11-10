@@ -114,8 +114,9 @@ header and body must close before complete Unit admission. Source header normali
 computed lengths through that same coordinator, retaining selected supplier guards with its
 closed type metadata. Header evidence alone grants no value/storage admission. Checking's
 [listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction-drafts)
-separately qualifies whole-array body/resource/evaluator handoffs; element selection and native
-array storage remain gated.
+separately qualifies whole-array body/resource/evaluator handoffs. Its
+[read-selection path](../../compiler/crates/nocter-checking/README.md#array-selection) retains evaluated
+element addresses; element mutation/transfer and native array storage remain gated.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a
@@ -546,8 +547,11 @@ execute the images on ARM64 macOS. They cover scalar computation, scoped channel
 static callbacks and owned captures, indirect aggregate transport, zero-byte data, register/stack
 argument crossing and required arithmetic traps. Closed record/tuple constants reach native code as
 serialized immutable data through the model-owned frozen literal product. Their uses receive
-independent values; initialization thunks do not become runtime instances. Immutable statics retain
-one place identity across bodies, with separate address bindings rather
+independent values; initialization thunks do not become runtime instances. Required source array
+construction, indexed reads and loop computation can freeze a scalar answer before native instance
+closure. A native fixture executes that answer as status 42; it establishes compile-time array
+computation with a scalar consumer, without runtime array layout or array-parameter ABI.
+Immutable statics retain one place identity across bodies, with separate address bindings rather
 than callable inputs or local owners. Their frozen data uses the same physical serializer without
 runtime initialization. Machine owns layout, byte encoding and serialization limits, while checking owns final-data eligibility. Helper-generation tests qualify shared error/record
 destruction structure; source-level runtime error construction and nontrivial destruction through

@@ -469,3 +469,13 @@ fn private_computed_array_headers_reach_native_without_runtime_array_values() {
         execute_native_status(&compile(source), &package.0, name, 42);
     }
 }
+
+#[test]
+fn private_array_computation_is_frozen_before_native_instance_closure() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/array-const-selection.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "array-const-selection", 42);
+}

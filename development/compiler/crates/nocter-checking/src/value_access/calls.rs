@@ -103,7 +103,7 @@ impl Checker<'_, '_> {
             (_, nocter_model::FrozenNode::Aggregate(_))
                 if matches!(
                     self.program().data_schema(data),
-                    Some(PayloadSchema::Aggregate(_))
+                    Some(PayloadSchema::Aggregate(_) | PayloadSchema::Array(_))
                 ) =>
             {
                 ExpressionKind::Constant(value.clone())
@@ -148,6 +148,9 @@ impl Checker<'_, '_> {
         let [callee, suffix] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
+        if self.first_array_index(*callee)?.is_some() {
+            return self.reject_array_selection(*callee, reachable);
+        }
         let selected = self.callee(*callee, reachable)?;
         let contract = self
             .program()

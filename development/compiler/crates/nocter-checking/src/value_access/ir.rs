@@ -114,22 +114,49 @@ pub enum SelectionAction {
     MovePayload,
 }
 
+/// One existing logical referent. Evaluated accesses retain a selected address, not a recipe to
+/// reload the user's index. This identity belongs to the owning typed body.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Referent {
+    Place(AccessPlaceId),
+    Evaluated(AccessExpressionId),
+}
+impl Referent {
+    #[must_use]
+    pub const fn place(self) -> Option<AccessPlaceId> {
+        match self {
+            Self::Place(place) => Some(place),
+            Self::Evaluated(_) => None,
+        }
+    }
+}
+impl From<AccessPlaceId> for Referent {
+    fn from(place: AccessPlaceId) -> Self {
+        Self::Place(place)
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IndexAction {
+    Access,
+    CopyPayload,
+}
+
 /// Preparation of a selected direct call, before its atomic invocation commit.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ArgumentAction {
-    ReserveRead(AccessPlaceId),
-    ReserveUpdate(AccessPlaceId),
+    ReserveRead(Referent),
+    ReserveUpdate(Referent),
     ReserveTransfer {
-        place: AccessPlaceId,
+        place: Referent,
         /// Selected adapter operations delayed until commit, in materialization order.
         adapters: Vec<AccessExpressionId>,
     },
     /// Lend read/update access to a produced value; its caller retains cleanup responsibility.
     AccessOwnedValue,
     /// Snapshot a selected place at this input preparation, without a retained access.
-    CopyPlace(AccessPlaceId),
+    CopyPlace(Referent),
     /// Intermediate direct supply; cannot enter initialization or accepted products.
-    PendingValue(AccessPlaceId),
+    PendingValue(Referent),
     /// Closed structural supply that cannot reach argument preparation.
     Unproduced,
     TakeValue,
@@ -227,6 +254,11 @@ pub enum ExpressionKind {
         fields: FieldPath,
         action: SelectionAction,
     },
+    Index {
+        base: AccessExpressionId,
+        index: AccessExpressionId,
+        action: IndexAction,
+    },
     Place(AccessPlaceId),
     Move(AccessPlaceId),
     Boundary {
@@ -260,6 +292,19 @@ pub struct Expression {
     pub kind: ExpressionKind,
     /// Result shared by normal completions; this grants no omission of evaluation or its effects.
     pub(super) normal_boolean: Option<bool>,
+}
+impl Expression {
+    #[must_use]
+    pub const fn referent(&self, id: AccessExpressionId) -> Option<Referent> {
+        match self.kind {
+            ExpressionKind::Place(place) => Some(Referent::Place(place)),
+            ExpressionKind::Index {
+                action: IndexAction::Access,
+                ..
+            } => Some(Referent::Evaluated(id)),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -344,6 +389,18 @@ pub struct TypedBody {
 }
 
 impl TypedBody {
+    #[must_use]
+    pub fn referent_data(&self, referent: Referent) -> Option<TypeId> {
+        match referent {
+            Referent::Place(place) => Some(self.places.get(place)?.data),
+            Referent::Evaluated(id) => {
+                let expression = self.expressions.get(id)?;
+                (expression.referent(id) == Some(referent))
+                    .then_some(expression.ty.access()?.data())
+            }
+        }
+    }
+
     /// Body-local address views, independent of callable input channels and source spelling.
     pub fn static_views(
         &self,

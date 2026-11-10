@@ -160,6 +160,42 @@ fn saved_addresses_survive_index_mutation_and_edit_distinct_elements() {
 }
 
 #[test]
+fn indexed_copy_is_a_snapshot_with_a_data_result_instead_of_an_alias() {
+    let mut plan = script(
+        &[11, 22],
+        vec![
+            integer(1, 0),
+            Operation::IndexCopy {
+                destination: 5,
+                base: Place::root(0),
+                index: Place::root(1),
+            },
+            index(2),
+            integer(1, 1),
+            integer(3, 77),
+            copy(2, 3),
+            add(4, 5, 2),
+        ],
+    );
+    let mut slots = plan.slots.to_vec();
+    slots[3].storage = Storage::Auxiliary;
+    plan.slots = slots.clone().into();
+    assert_eq!(execute(plan.clone(), types(2)), Value::integer(88));
+
+    slots[5].storage = Storage::Alias;
+    plan.slots = slots.into();
+    let (code, _) = code_ids();
+    assert!(matches!(
+        Program::new(
+            types(2),
+            BTreeMap::from([(code.into(), plan)]),
+            BTreeMap::new(),
+        ),
+        Err(Rule::InvalidPlan)
+    ));
+}
+
+#[test]
 fn selected_nested_storage_keeps_independent_array_snapshots() {
     let mut plan = script(
         &[11, 22],

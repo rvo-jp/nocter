@@ -29,16 +29,23 @@ pub enum Root {
 pub(super) struct Region {
     pub root: Root,
     pub fields: FieldPath,
+    pub precise: bool,
 }
 impl Root {
     fn region(self) -> Region {
         Region {
             root: self,
             fields: FieldPath::default(),
+            precise: true,
         }
     }
 }
 impl Region {
+    fn project(&mut self, fields: &FieldPath) {
+        if self.precise {
+            self.fields = self.fields.concat(fields);
+        }
+    }
     fn overlaps(&self, other: &Self) -> bool {
         self.root == other.root && self.fields.overlaps(&other.fields)
     }

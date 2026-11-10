@@ -217,7 +217,19 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             destination,
             base,
             index,
-        } => index_operation(program, plan, *destination, base, index),
+        }
+        | Operation::IndexCopy {
+            destination,
+            base,
+            index,
+        } => index_operation(
+            program,
+            plan,
+            *destination,
+            base,
+            index,
+            matches!(op, Operation::Index { .. }),
+        ),
         Operation::Copy {
             destination,
             source,
@@ -307,12 +319,13 @@ fn index_operation(
     destination: usize,
     base: &Place,
     index: &Place,
+    alias: bool,
 ) -> Result<()> {
     let Some(Type::Array { element, .. }) = program.types.get(place(program, plan, base)?) else {
         return Err(INVALID);
     };
     let result = plan.slots.get(destination).ok_or(INVALID)?;
-    if result.storage != Storage::Alias
+    if (result.storage == Storage::Alias) != alias
         || result.data != *element
         || program.types.get(place(program, plan, index)?) != Some(&Type::Usize)
     {

@@ -1,5 +1,7 @@
 use super::super::{Graph, Initialization, IntegrityError, Location, Operation};
-use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery};
+use crate::value_access::{
+    ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, Referent,
+};
 use nocter_model::{AccessExpressionId, AccessFlowPointId, AccessLocalId, ValueAccessMode as Mode};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -101,7 +103,7 @@ fn prepared_use(
         ArgumentAction::ReserveRead(place)
         | ArgumentAction::ReserveUpdate(place)
         | ArgumentAction::ReserveTransfer { place, .. }
-        | ArgumentAction::CopyPlace(place) => Carrier::Local(root(typed, place)?),
+        | ArgumentAction::CopyPlace(place) => referent_carrier(typed, place)?,
         _ => Carrier::Expression(arg.value),
     };
     Ok((carrier, argument_updates(arg)))
@@ -275,6 +277,10 @@ fn expression_uses(
             };
             uses.push((carrier, action == BoundaryAction::DelegateUpdate));
         }
+        ExpressionKind::Index { base, index, .. } => {
+            uses.push((Carrier::Expression(base), false));
+            uses.push((Carrier::Expression(index), false));
+        }
         ExpressionKind::Select { source, .. }
         | ExpressionKind::AdaptFunction { source }
         | ExpressionKind::Closure {
@@ -301,6 +307,15 @@ fn expression_uses(
     Ok(uses)
 }
 
+fn referent_carrier(typed: &TypedQuery, referent: Referent) -> Result<Carrier, IntegrityError> {
+    match referent {
+        Referent::Place(place) => Ok(Carrier::Local(root(typed, place)?)),
+        Referent::Evaluated(id) if typed.body().referent_data(referent).is_some() => {
+            Ok(Carrier::Expression(id))
+        }
+        Referent::Evaluated(_) => Err(INVALID),
+    }
+}
 fn root(
     typed: &TypedQuery,
     place: nocter_model::AccessPlaceId,

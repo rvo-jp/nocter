@@ -1,5 +1,5 @@
 use super::{Graph, IntegrityError, Operation};
-use crate::value_access::{ArgumentAction, ExpressionKind, Query as TypedQuery};
+use crate::value_access::{ArgumentAction, ExpressionKind, Query as TypedQuery, Referent};
 use nocter_model::{AccessFlowPointId, AccessLocalId, AccessPlaceId, FieldPath, ValueAccessMode};
 mod state;
 use state::Storage;
@@ -211,6 +211,21 @@ fn require_place(
         violations,
     )
 }
+fn require_referent(
+    typed: &TypedQuery,
+    state: &State,
+    referent: Referent,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    match referent {
+        Referent::Place(place) => require_place(typed, state, place, at, violations),
+        // The graph evaluated and bounds-checked this access before publishing it. It owns no
+        // independent slot; access/reservation analysis protects its root after preparation.
+        Referent::Evaluated(_) if typed.body().referent_data(referent).is_some() => Ok(()),
+        Referent::Evaluated(_) => Err(INVALID),
+    }
+}
 fn remove(
     state: &mut State,
     local: AccessLocalId,
@@ -309,7 +324,7 @@ fn transfer(
                     | ArgumentAction::ReserveUpdate(place)
                     | ArgumentAction::ReserveTransfer { place, .. }
                     | ArgumentAction::CopyPlace(place) => {
-                        require_place(typed, state, place, location, violations)?;
+                        require_referent(typed, state, place, location, violations)?;
                     }
                     ArgumentAction::AccessOwnedValue | ArgumentAction::TakeValue => {}
                     ArgumentAction::PendingValue(_)
@@ -327,12 +342,12 @@ fn transfer(
                     | ArgumentAction::ReserveUpdate(place)
                     | ArgumentAction::ReserveTransfer { place, .. } = argument.action
                     {
-                        require_place(typed, state, place, location, violations)?;
+                        require_referent(typed, state, place, location, violations)?;
                     }
                 }
                 for argument in arguments(typed, *call)? {
                     if let ArgumentAction::ReserveTransfer { place, .. } = argument.action {
-                        remove_place(typed, state, place, location)?;
+                        remove_place(typed, state, place.place().ok_or(INVALID)?, location)?;
                     }
                 }
             }
@@ -414,7 +429,7 @@ fn evaluate(
         }
         | ExpressionKind::Call { .. }
         | ExpressionKind::If { .. } => return Err(INVALID),
-        ExpressionKind::Boundary { source, .. } => {
+        ExpressionKind::Index { base: source, .. } | ExpressionKind::Boundary { source, .. } => {
             if let ExpressionKind::Place(place) =
                 typed.body().expressions().get(*source).ok_or(INVALID)?.kind
             {

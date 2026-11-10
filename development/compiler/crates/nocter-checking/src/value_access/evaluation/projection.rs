@@ -1,6 +1,7 @@
 //! Project one already checked graph and its resource alternatives; no source/ownership decisions.
 use super::super::{
-    ArgumentAction, Binary, BoundaryAction, ExpressionKind, SelectionAction, Statement, flow,
+    ArgumentAction, Binary, BoundaryAction, ExpressionKind, IndexAction, Referent, SelectionAction,
+    Statement, flow,
 };
 use flow::resources::{Holder, Step};
 use nocter_constant_evaluation::{
@@ -110,6 +111,17 @@ impl Builder<'_, '_> {
             .iter()
             .map(|id| self.component_position(*id))
             .collect()
+    }
+    fn referent(&mut self, source: Referent) -> Result<plan::Place> {
+        match source {
+            Referent::Place(place) => self.selected(place),
+            Referent::Evaluated(id)
+                if self.query.typed().body().referent_data(source).is_some() =>
+            {
+                self.value(id)
+            }
+            Referent::Evaluated(_) => Err(INVALID),
+        }
     }
     fn resource(&mut self, place: &flow::resources::Place) -> Result<plan::Place> {
         Ok(plan::Place {
@@ -298,7 +310,7 @@ impl Builder<'_, '_> {
         Ok(
             if let ArgumentAction::CopyPlace(place) = arguments.get(index).ok_or(INVALID)?.action {
                 plan::Operation::Copy {
-                    source: self.selected(place)?,
+                    source: self.referent(place)?,
                     destination: plan::Place::root(self.holder(Holder::Prepared { call, index })?),
                 }
             } else {
@@ -328,12 +340,12 @@ impl Builder<'_, '_> {
         for (index, argument) in arguments.iter().enumerate() {
             let place = match &argument.action {
                 ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
-                    self.selected(*place)?
+                    self.referent(*place)?
                 }
                 ArgumentAction::ReserveTransfer { place, adapters }
                     if adapters.is_empty() && argument.operation == ValueInputOperation::Take =>
                 {
-                    self.selected(*place)?
+                    self.referent(*place)?
                 }
                 ArgumentAction::ReserveTransfer { adapters, .. } if !adapters.is_empty() => {
                     return Err(INVALID);
@@ -391,6 +403,11 @@ impl Builder<'_, '_> {
                 destination,
                 value: plan::Value::unit(),
             },
+            ExpressionKind::Index {
+                base,
+                index,
+                action,
+            } => self.index_operation(destination, base, index, action)?,
             ExpressionKind::Place(place) => plan::Operation::Alias {
                 destination,
                 source: self.selected(place)?,
@@ -452,6 +469,28 @@ impl Builder<'_, '_> {
                 self.aux(Key::Operand(id, 1), right)?,
             )?,
             _ => return Err(INVALID),
+        })
+    }
+    fn index_operation(
+        &mut self,
+        destination: usize,
+        base: AccessExpressionId,
+        index: AccessExpressionId,
+        action: IndexAction,
+    ) -> Result<plan::Operation> {
+        let base = self.value(base)?;
+        let index = self.value(index)?;
+        Ok(match action {
+            IndexAction::Access => plan::Operation::Index {
+                destination,
+                base,
+                index,
+            },
+            IndexAction::CopyPayload => plan::Operation::IndexCopy {
+                destination,
+                base,
+                index,
+            },
         })
     }
     fn static_views(&self) -> Box<[(usize, nocter_model::ValueStatic)]> {

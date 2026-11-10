@@ -301,7 +301,8 @@ checked subtraction operation as zero minus the operand. i32/usize range checks 
 numeric profile; the private source currently qualifies its 64-bit usize only. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
 required execution. [Listed array values](#array-construction-drafts) share the ordinary aggregate path;
-repetition and bracket selection retain explicit implementation gates.
+repetition and element mutation/transfer retain explicit implementation gates.
+[Read selection](#array-selection) uses evaluated element addresses.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
 construction, operators and compatible branches retain known data on interruption. Type inference
@@ -777,8 +778,9 @@ supplier changes, dead authored calls and mixed body/value cycles. Successful co
 does not by itself qualify a value operation. Complete Unit publication still requires every
 declared body and required value; partially completed count facts cannot publish a Unit. Count
 values are not exposed as named constants or runtime-callable bodies. Listed construction and
-whole-value handoffs use the [array construction path](#array-construction-drafts). Repetition and
-bracket selection retain explicit authored rejection gates. Count completion precedes ordinary
+whole-value handoffs use the [array construction path](#array-construction-drafts), and
+[read selection](#array-selection) retains evaluated element addresses. Repetition and element
+mutation/transfer retain explicit authored rejection gates. Count completion precedes ordinary
 seed preparation, including at zero. Dynamic element proofs, compact repetition and native array
 storage remain integration work.
 
@@ -811,29 +813,47 @@ the same evaluator shape/value/publication path, including arrays constructed in
 length bodies. Source tests cover nested/empty/zero-sized data, non-Copy records, independent
 snapshots, editing calls and reverse cleanup of interrupted component prefixes.
 
-This closes listed construction and whole-value handoffs in the private Unit, without claiming
-compact repetition, element selection, partial element initialization or native storage. The
-[selection draft](#array-selection-drafts) still rejects every unclosed source index operation.
+This closes listed construction and whole-value handoffs in the private Unit. Element reads use
+the [selection path](#array-selection); compact repetition, partial element initialization and
+native storage remain separate implementation gates.
 
-## Array Selection Drafts
+## Array Selection
 
-`selection::arrays` checks primitive bracket operands through the shared member resolver and
-ordinary expression checker before rejecting the unclosed selection product. An existing base
-identifies its resolved place and array data without emitting a complete-array read. A computed
-base uses ordinary value preparation. The index then receives an expected usize value boundary;
-signed variables, booleans, unavailable names and out-of-range literal magnitudes retain their
-ordinary local diagnostics. Value, alias, transfer and assignment syntax use this same draft path.
-User index protocols remain outside the bounded source goal.
-Unclosed postfix chains stop at their first index operation; an iterative walk through member,
-call, grouping and transfer wrappers avoids recursive preparation of nested index drafts.
+`selection::arrays` prepares primitive bracket selection through ordinary expression/value-supply
+checking. Existing array storage lends a read referent; a computed array supplies a Copy component
+as a produced value. An existing non-Copy element can therefore initialize a scoped read alias,
+while a computed component cannot. A produced Copy component may lend its own editable temporary;
+an existing element cannot silently become such a temporary. Named constants construct values,
+while immutable statics retain their existing-place identity.
 
-The draft publishes no element place/value, bounds result or saved-index carrier. Its successful
-operand typing still ends in an explicit unsupported-data rejection. Runtime-selected source
-access therefore remains unadmitted. Close the
-[evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure)
-over the [shared path relation](../nocter-model/README.md#structural-projection-relations) before
-initialization, access or ownership consumes symbolic selections. Algebraic path equality cannot
-replace that source proof.
+The index receives the ordinary expected usize boundary. Signed variables, booleans, unavailable
+names and out-of-range literal magnitudes keep their local diagnostics. Joint index chains prepare
+iteratively. Element edit/transfer, assignment and mixed index/member/call composition still check
+the first index's operands before an explicit unsupported-data rejection; long unclosed postfix
+chains do not recursively prepare intervening calls. User index protocols remain unadmitted.
+
+`Referent` is one typed-body operand for either a static selected place or an evaluated access
+expression. Read reservations, Copy supply, alias binding, liveness and evaluator projection consume
+that operand without synthetic locals or a second owner map. A read input reserves the selected
+address; a taking Copy input snapshots its payload at preparation and holds no later read
+reservation. The graph evaluates the base and index once, in order, before publishing the
+selection. The evaluator retains the numeric address, rather than reloading the user's index
+variable; computed Copy results use the same bounds/address operation with a data destination.
+
+The initial initialization/access proof requires the containing array complete and conservatively
+protects its footprint, including during index evaluation. A covering marker prevents fields of
+a selected record element from being appended directly to that array prefix or creating false
+disjointness. Fields outside the containing array remain independent. This is no precise
+index-equality, element-hole or restoration proof. Element editing/transfer and partial-state
+admission still require the [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure)
+over the [shared path relation](../nocter-model/README.md#structural-projection-relations).
+
+Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
+Copy snapshots, non-Copy element reads, covering field views, parent/index-side invalidation,
+interrupted preparation, computed-base alias rejection, zero-sized bounds effects and local
+operand failures. Required bounds failure reports E0325 without publishing a value. Compile-time
+selection also reaches the [common native consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+when its frozen result is scalar; this does not admit runtime array storage or array ABI.
 
 ## Concrete Array Resource Frontiers
 
@@ -857,10 +877,10 @@ Ledger qualification covers listed component assembly, maximum u64 cardinality, 
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.
 These tests start with declaration-backed logical owners. Source construction has its separate
 [ordinary-source qualification](#array-construction-drafts); the concrete ledger does not qualify
-source element initialization/access/conflict analysis or a runtime-selected index. Distinct dynamic
+precise source element initialization/access/conflict analysis or a runtime-selected hole. Distinct dynamic
 index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
 checked equality/disjointness conditions must close across reservations, joins and loops before
-source element-selection admission. The evaluator projector and private MIR explicitly reject array interval
+source element mutation/transfer admission. The evaluator projector and private MIR explicitly reject array interval
 cleanup until their value/storage realization is implemented.
 
 ## Frozen Body Input Channels

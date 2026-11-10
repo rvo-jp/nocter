@@ -1,11 +1,11 @@
 //! One unmarked snapshot decision, closed before initialization; explicit transfers are frozen earlier.
 use super::{
     Failure, Query, Rule,
-    ir::{ArgumentAction, BoundaryAction, Expression, ExpressionKind},
+    ir::{ArgumentAction, BoundaryAction, Expression, ExpressionKind, Referent},
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
-use nocter_model::{AccessExpressionId, AccessPlaceId, TypeId};
+use nocter_model::{AccessExpressionId, TypeId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum PlaceSupply {
@@ -41,15 +41,12 @@ pub(super) fn resolve(
             source,
             action: action @ BoundaryAction::PendingValue,
         } => {
-            let ExpressionKind::Place(place) = query
+            let place = query
                 .body
                 .expressions
                 .get(*source)
-                .ok_or(Failure::InconsistentSyntax)?
-                .kind
-            else {
-                return Err(Failure::InconsistentSyntax);
-            };
+                .and_then(|expression| expression.referent(*source))
+                .ok_or(Failure::InconsistentSyntax)?;
             if unproduced(query, place)? {
                 *action = BoundaryAction::Unproduced;
                 return Ok(());
@@ -80,13 +77,11 @@ pub(super) fn resolve(
     Ok(())
 }
 
-fn unproduced(query: &Query, place: AccessPlaceId) -> Result<bool, Failure> {
+fn unproduced(query: &Query, place: Referent) -> Result<bool, Failure> {
     let data = query
         .body
-        .places
-        .get(place)
-        .ok_or(Failure::InconsistentSyntax)?
-        .data;
+        .referent_data(place)
+        .ok_or(Failure::InconsistentSyntax)?;
     Ok(query
         .result_evidence
         .as_ref()
@@ -97,14 +92,13 @@ fn resolved(
     context: &DeclarationContext<'_>,
     query: &Query,
     origin: AccessExpressionId,
-    place: AccessPlaceId,
+    place: Referent,
 ) -> Result<PlaceSupply, Failure> {
-    let place = query
+    let data = query
         .body
-        .places
-        .get(place)
+        .referent_data(place)
         .ok_or(Failure::InconsistentSyntax)?;
-    match select(query.program(), place.data)? {
+    match select(query.program(), data)? {
         PlaceSupply::Pending => Err(Failure::InconsistentSyntax),
         PlaceSupply::MissingCopy => Err(super::diagnostics::query_rejection(
             context,

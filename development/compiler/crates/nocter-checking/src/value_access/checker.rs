@@ -584,7 +584,7 @@ impl<'a, 's> Checker<'a, 's> {
             )?;
             actual = expected;
         }
-        let place = self.place_expression(source);
+        let place = self.expression_referent(source);
         let action = match expected.mode() {
             Mode::Read => {
                 if place.is_none() {
@@ -593,7 +593,10 @@ impl<'a, 's> Checker<'a, 's> {
                 BoundaryAction::ReadPlace
             }
             Mode::Update => {
-                if let Some(local) = place {
+                if let Some(referent) = place {
+                    let Some(local) = referent.place() else {
+                        return self.reject(Rule::UnsupportedData, node);
+                    };
                     if !self.writable_place(local) {
                         return self.reject_local(
                             Rule::InvalidUpdate,
@@ -613,11 +616,14 @@ impl<'a, 's> Checker<'a, 's> {
                         PlaceSupply::Pending => BoundaryAction::PendingValue,
                         PlaceSupply::Copy => BoundaryAction::CopyPayload,
                         PlaceSupply::MissingCopy => {
-                            return self.reject_local(
-                                Rule::MissingTransfer,
-                                node,
-                                self.selected_place(local).local,
-                            );
+                            if let Some(place) = local.place() {
+                                return self.reject_local(
+                                    Rule::MissingTransfer,
+                                    node,
+                                    self.selected_place(place).local,
+                                );
+                            }
+                            return self.reject(Rule::MissingTransfer, node);
                         }
                     }
                 } else if actual.mode() == Mode::Own {

@@ -269,10 +269,14 @@ fn invocation(
                         .ok_or(Failure::InconsistentSyntax)?
                         .action
                     {
-                        ArgumentAction::ReserveTransfer { place, .. } if selects(place) => {
+                        ArgumentAction::ReserveTransfer { place, .. }
+                            if place.place().is_some_and(selects) =>
+                        {
                             return Ok(ValueInvocation::Take);
                         }
-                        ArgumentAction::ReserveUpdate(place) if selects(place) => {
+                        ArgumentAction::ReserveUpdate(place)
+                            if place.place().is_some_and(selects) =>
+                        {
                             invocation = ValueInvocation::Edit;
                         }
                         _ => {}

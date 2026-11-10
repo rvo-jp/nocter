@@ -398,10 +398,8 @@ fn repetition_counts_execute_before_the_separate_construction_gate() {
 }
 
 #[test]
-fn array_selection_remains_an_explicit_source_gate() {
+fn element_writes_transfers_and_unclosed_compositions_remain_gated() {
     for operation in [
-        "let value = items[0]",
-        "read value = items[0]",
         "edit value = items[0]",
         "let value = items[0]^",
         "items[0] = 1",

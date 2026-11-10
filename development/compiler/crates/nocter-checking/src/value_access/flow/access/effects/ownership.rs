@@ -202,25 +202,7 @@ impl Context<'_, '_> {
                 ref fields,
                 action,
             } => {
-                let selected = Holder::Expression(source).place().project_path(fields);
-                if action == SelectionAction::MovePayload {
-                    self.world.resources.move_to(
-                        self.typed.program(),
-                        &selected,
-                        &Holder::Expression(id).place(),
-                        false,
-                        &mut self.steps,
-                    )?;
-                } else {
-                    if !self
-                        .world
-                        .resources
-                        .initialized(self.typed.program(), &selected)?
-                    {
-                        return Err(Failure::Integrity);
-                    }
-                    self.construct(id)?;
-                }
+                self.select_ownership(id, source, fields, action)?;
             }
             ExpressionKind::Move(place) => self.world.resources.move_to(
                 self.typed.program(),
@@ -246,19 +228,56 @@ impl Context<'_, '_> {
                 self.dispose_expression(source)?;
                 self.construct(id)?;
             }
-            ExpressionKind::Place(_) | ExpressionKind::Boundary { .. } => {}
-            ExpressionKind::Function(_)
+            ExpressionKind::Index {
+                action: crate::value_access::IndexAction::CopyPayload,
+                ..
+            }
+            | ExpressionKind::Function(_)
             | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }
             | ExpressionKind::Binary { .. } => self.construct(id)?,
+            ExpressionKind::Index {
+                action: crate::value_access::IndexAction::Access,
+                ..
+            }
+            | ExpressionKind::Place(_)
+            | ExpressionKind::Boundary { .. } => {}
             ExpressionKind::If { .. } | ExpressionKind::Call { .. } => {
                 return Err(Failure::Integrity);
             }
         }
 
+        Ok(())
+    }
+    fn select_ownership(
+        &mut self,
+        id: AccessExpressionId,
+        source: AccessExpressionId,
+        fields: &nocter_model::FieldPath,
+        action: SelectionAction,
+    ) -> Result<()> {
+        let selected = Holder::Expression(source).place().project_path(fields);
+        if action == SelectionAction::MovePayload {
+            self.world.resources.move_to(
+                self.typed.program(),
+                &selected,
+                &Holder::Expression(id).place(),
+                false,
+                &mut self.steps,
+            )?;
+        } else {
+            if !self
+                .world
+                .resources
+                .initialized(self.typed.program(), &selected)?
+            {
+                return Err(Failure::Integrity);
+            }
+            self.construct(id)?;
+        }
         Ok(())
     }
     fn assign_ownership(
@@ -348,7 +367,7 @@ impl Context<'_, '_> {
                 ref adapters,
             } = argument.action
             {
-                let mut source = self.resource_place(place)?;
+                let mut source = self.resource_place(place.place().ok_or(Failure::Integrity)?)?;
                 for &adapter in adapters {
                     let payload = resources::expression_payload(self.typed, adapter)?;
                     // Replay the selected operation, never infer an adapter from type inequality.

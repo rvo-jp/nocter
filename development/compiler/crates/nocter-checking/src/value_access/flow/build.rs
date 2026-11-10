@@ -424,6 +424,7 @@ impl Builder<'_> {
                     self.expression(*source, entry)?
                 }
             }
+            ExpressionKind::Index { .. } => return self.index_chain(id, entry),
             ExpressionKind::Unary { operand, .. } => self.operand(id, 0, *operand, entry)?,
             ExpressionKind::Binary { left, right, .. } => {
                 let Some(point) = self.operand(id, 0, *left, entry)? else {
@@ -443,6 +444,28 @@ impl Builder<'_> {
             self.action(point, origin, Operation::Evaluate(id))?;
         }
         Ok(end)
+    }
+    fn index_chain(
+        &mut self,
+        mut id: AccessExpressionId,
+        entry: AccessFlowPointId,
+    ) -> Result<Option<AccessFlowPointId>> {
+        let mut chain = Vec::new();
+        while let ExpressionKind::Index { base, index, .. } =
+            self.body.expressions().get(id).ok_or(INVALID)?.kind
+        {
+            chain.push((id, index));
+            id = base;
+        }
+        let mut point = self.expression(id, entry)?;
+        for (id, index) in chain.into_iter().rev() {
+            let Some(current) = point else { break };
+            point = self.expression(index, current)?;
+            if let Some(current) = point {
+                self.action(current, Origin::Expression(id), Operation::Evaluate(id))?;
+            }
+        }
+        Ok(point)
     }
     fn operand(
         &mut self,
@@ -495,15 +518,16 @@ impl Builder<'_> {
             let Some(point) = current else {
                 break;
             };
-            current = if matches!(
-                argument.action,
-                ArgumentAction::ReserveRead(_)
-                    | ArgumentAction::ReserveUpdate(_)
-                    | ArgumentAction::ReserveTransfer { .. }
-                    | ArgumentAction::CopyPlace(_)
-                    | ArgumentAction::PendingValue(_)
-                    | ArgumentAction::Unproduced
-            ) {
+            let static_source = match argument.action {
+                ArgumentAction::ReserveRead(source)
+                | ArgumentAction::ReserveUpdate(source)
+                | ArgumentAction::ReserveTransfer { place: source, .. }
+                | ArgumentAction::CopyPlace(source)
+                | ArgumentAction::PendingValue(source) => source.place().is_some(),
+                ArgumentAction::Unproduced => true,
+                _ => false,
+            };
+            current = if static_source {
                 Some(point)
             } else {
                 self.expression(argument.value, point)?

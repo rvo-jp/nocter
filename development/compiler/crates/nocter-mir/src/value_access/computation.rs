@@ -8,10 +8,10 @@ use crate::{
 };
 use nocter_checking::value_access::flow::resources::Holder;
 use nocter_checking::value_access::{
-    ArgumentAction, BoundaryAction, ExpressionKind, SelectionAction, Statement, flow,
+    ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement, flow,
 };
 use nocter_model::{AccessExpressionId, ValueAccessMode};
-use nocter_target_program::value_access::Environment;
+use nocter_target_program::value_access::{Environment, storage};
 
 impl Builder<'_> {
     fn value(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
@@ -26,6 +26,25 @@ impl Builder<'_> {
             self.selected(place, self.expression(id)?)
         } else {
             self.root(Holder::Expression(id), self.expression(id)?, false)
+        }
+    }
+    pub(super) fn referent(
+        &mut self,
+        source: Referent,
+        data: nocter_model::TypeId,
+    ) -> Result<Place, Failure> {
+        match source {
+            Referent::Place(place) => self.selected(place, data),
+            Referent::Evaluated(id)
+                if self.checked.typed().body().referent_data(source).is_some() =>
+            {
+                let place = self.value(id)?;
+                if place.data != data {
+                    return Err(self.invalid());
+                }
+                Ok(place)
+            }
+            Referent::Evaluated(_) => Err(self.invalid()),
         }
     }
     fn result(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
@@ -88,6 +107,13 @@ impl Builder<'_> {
                 destination,
                 value: Constant::Zero,
             },
+            ExpressionKind::Index { base, .. } => {
+                // Runtime array geometry is gated by the storage owner before MIR. Keep an
+                // explicit unsupported-shape failure if this operation reaches lowering.
+                return Err(Failure::Storage(storage::Failure::UnsupportedArray(
+                    self.expression(base)?,
+                )));
+            }
             ExpressionKind::Place(place) => {
                 let source = self.selected(place, destination.data)?;
                 Self::alias(source, destination.slot)
@@ -209,7 +235,7 @@ impl Builder<'_> {
         match argument.action {
             ArgumentAction::CopyPlace(place) => {
                 let data = self.expression(argument.value)?;
-                let source = self.selected(place, data)?;
+                let source = self.referent(place, data)?;
                 let destination = self.root(Holder::Prepared { call, index }, data, false)?;
                 Ok(Some(Operation::Copy {
                     source,

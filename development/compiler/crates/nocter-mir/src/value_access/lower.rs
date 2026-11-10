@@ -447,7 +447,7 @@ impl Builder<'_> {
             }
             let source = match argument.action {
                 ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
-                    self.selected(place, destination.data)?
+                    self.referent(place, destination.data)?
                 }
                 ArgumentAction::ReserveTransfer { .. } | ArgumentAction::AccessOwnedValue => {
                     self.root(Holder::Temporary { call, index }, destination.data, false)?

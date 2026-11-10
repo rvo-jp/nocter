@@ -141,6 +141,12 @@ pub enum Operation {
         base: Place,
         index: Place,
     },
+    /// Snapshot a selected Copy component; the producer has already established Copy evidence.
+    IndexCopy {
+        destination: usize,
+        base: Place,
+        index: Place,
+    },
     Copy {
         destination: Place,
         source: Place,

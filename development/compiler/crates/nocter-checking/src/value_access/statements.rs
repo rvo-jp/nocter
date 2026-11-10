@@ -194,15 +194,10 @@ impl Checker<'_, '_> {
             kind,
             ValueBindingKind::ReadAlias | ValueBindingKind::EditAlias
         );
-        let mut value = if alias {
-            self.place_value(
-                expression,
-                if kind == ValueBindingKind::EditAlias {
-                    Rule::InvalidUpdate
-                } else {
-                    Rule::TypeMismatch
-                },
-            )?
+        let mut value = if kind == ValueBindingKind::ReadAlias {
+            self.read_alias_value(expression, reachable)?
+        } else if kind == ValueBindingKind::EditAlias {
+            self.place_value(expression, Rule::InvalidUpdate)?
         } else {
             self.expression(
                 expression,

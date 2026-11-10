@@ -68,6 +68,7 @@ fn operation_rule(
         | ExpressionKind::Unit
         | ExpressionKind::Aggregate { .. }
         | ExpressionKind::Select { .. }
+        | ExpressionKind::Index { .. }
         | ExpressionKind::Place(_)
         | ExpressionKind::Move(_)
         | ExpressionKind::Boundary { .. }

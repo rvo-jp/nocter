@@ -7,7 +7,9 @@ use super::{
     liveness::Carrier,
     state::{Key, Node, Prepared, Value, World},
 };
-use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery};
+use crate::value_access::{
+    ArgumentAction, BoundaryAction, ExpressionKind, IndexAction, Query as TypedQuery, Referent,
+};
 use nocter_model::{AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode};
 
 pub(super) enum Failure {
@@ -192,7 +194,7 @@ impl Context<'_, '_> {
             .get(place)
             .ok_or(Failure::Integrity)?;
         Ok(self.base_local(selected.local)?.map(|(mut region, actor)| {
-            region.fields = region.fields.concat(&selected.fields);
+            region.project(&selected.fields);
             (region, actor)
         }))
     }
@@ -212,6 +214,15 @@ impl Context<'_, '_> {
         Ok(super::super::resources::Holder::Local(selected.local)
             .place()
             .project_path(&selected.fields))
+    }
+    fn referent(&self, source: Referent) -> Result<Option<(Region, Option<Key>)>> {
+        match source {
+            Referent::Place(place) => self.base(place),
+            Referent::Evaluated(id) if self.typed.body().referent_data(source).is_some() => {
+                self.base_value(self.world.value(id)?)
+            }
+            Referent::Evaluated(_) => Err(Failure::Integrity),
+        }
     }
     fn base_value(&self, value: Value) -> Result<Option<(Region, Option<Key>)>> {
         value
@@ -328,32 +339,43 @@ impl Context<'_, '_> {
             ExpressionKind::Place(place) => {
                 self.create(Key::Expression(id), self.base(place)?, Mode::Read)
             }
+            ExpressionKind::Index { base, action, .. } => {
+                if action == IndexAction::CopyPayload {
+                    self.read(self.world.value(base)?)?;
+                    Ok(Value::without_referent(Mode::Own))
+                } else {
+                    let Some((mut region, actor)) = self.base_value(self.world.value(base)?)?
+                    else {
+                        return Err(Failure::Integrity);
+                    };
+                    // This read proof covers the array. Descendant fields cannot refine this
+                    // prefix until evaluated index equality/disjointness is proved.
+                    region.precise = false;
+                    self.create(Key::Expression(id), Some((region, actor)), Mode::Read)
+                }
+            }
             ExpressionKind::Move(place) => {
                 let (region, actor) = self.base(place)?.ok_or(Failure::Integrity)?;
                 self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }
             ExpressionKind::Boundary { source, action } => {
-                let place = match self
+                let place = self
                     .typed
                     .body()
                     .expressions()
                     .get(source)
                     .ok_or(Failure::Integrity)?
-                    .kind
-                {
-                    ExpressionKind::Place(place) => Some(place),
-                    _ => None,
-                };
+                    .referent(source);
                 match action {
                     BoundaryAction::ReadPlace | BoundaryAction::DelegateUpdate => self.create(
                         Key::Expression(id),
-                        self.base(place.ok_or(Failure::Integrity)?)?,
+                        self.referent(place.ok_or(Failure::Integrity)?)?,
                         ty.mode(),
                     ),
                     BoundaryAction::CopyPayload => {
                         if let Some(place) = place {
-                            if let Some((region, actor)) = self.base(place)? {
+                            if let Some((region, actor)) = self.referent(place)? {
                                 self.world
                                     .check(&region, actor, Mode::Read, self.at, self.live)?;
                             }
@@ -409,7 +431,7 @@ impl Context<'_, '_> {
                     ArgumentAction::ReserveUpdate(_) => Mode::Update,
                     _ => Mode::Own,
                 };
-                if let Some((region, actor)) = self.base(place)? {
+                if let Some((region, actor)) = self.referent(place)? {
                     if !self.world.alive(region.root) {
                         return Err(Violation {
                             location: self.at,
@@ -431,7 +453,7 @@ impl Context<'_, '_> {
                 }
             }
             ArgumentAction::CopyPlace(place) => {
-                if let Some((region, actor)) = self.base(place)? {
+                if let Some((region, actor)) = self.referent(place)? {
                     self.world
                         .check(&region, actor, Mode::Read, self.at, self.live)?;
                 }

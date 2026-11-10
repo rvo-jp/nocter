@@ -259,7 +259,9 @@ catalog and rebuilt during rebinding; it is not another semantic namespace.
 
 Checking owns [listed construction and whole-array handoffs](../nocter-checking/README.md#array-construction-drafts)
 through its ordinary body/resource/evaluator products. This header owner grants no such value
-proof merely by normalizing a count. Repetition, source element selection and native array storage
-retain their separate implementation gates. Native qualification covers scalar code with computed/unused array headers, not array
-values or layout. Remaining work belongs to the
+proof merely by normalizing a count. Checking also owns [source read selection](../nocter-checking/README.md#array-selection).
+Repetition, element mutation/transfer and native array storage retain separate implementation gates.
+The [common native path](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+qualifies scalar consumers of required array computation, without runtime array values or layout.
+Remaining work belongs to the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

@@ -81,16 +81,22 @@ impl Checker<'_, '_> {
         let mode = expected.operation.access_mode();
         let action = if let Some(actual) = self.ty(value).normal() {
             if let Some((place, adapters)) = self.deferred_transfer(value) {
-                ArgumentAction::ReserveTransfer { place, adapters }
-            } else if let Some(place) = self.place_expression(value) {
+                ArgumentAction::ReserveTransfer {
+                    place: place.into(),
+                    adapters,
+                }
+            } else if let Some(place) = self.expression_referent(value) {
                 match mode {
                     Mode::Read => ArgumentAction::ReserveRead(place),
                     Mode::Update => {
-                        if !self.writable_place(place) {
+                        let Some(selected) = place.place() else {
+                            return self.reject(Rule::UnsupportedData, syntax);
+                        };
+                        if !self.writable_place(selected) {
                             return self.reject_local(
                                 Rule::InvalidUpdate,
                                 syntax,
-                                self.selected_place(place).local,
+                                self.selected_place(selected).local,
                             );
                         }
                         ArgumentAction::ReserveUpdate(place)

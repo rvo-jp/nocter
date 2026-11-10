@@ -1,6 +1,6 @@
 use super::{
     Action, Budget, Data, Effect, Input, Operation, Place, Plan, Program, Site, Terminator, Value,
-    memory::{Cell, Frame, Memory},
+    memory::{Address, Cell, Frame, Memory},
 };
 use crate::{ConstantScalarType, scalar};
 use nocter_model::{ConstantValue, ValueCodeRoot, ValueInputOperation};
@@ -240,21 +240,26 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 source,
             } => {
                 let address = self.memory.address(frame, source)?;
-                self.memory.frames[frame].set(
-                    &self.memory.storage,
-                    *destination,
-                    Cell::Alias(address),
-                )?;
-                return Ok(());
+                return self.bind_alias(frame, *destination, address);
             }
             Operation::Index {
                 destination,
                 base,
                 index,
-            } => {
-                return self.index(frame, *destination, base, index);
             }
-
+            | Operation::IndexCopy {
+                destination,
+                base,
+                index,
+            } => {
+                let address = self.index_address(frame, base, index)?;
+                return if matches!(op, Operation::Index { .. }) {
+                    self.bind_alias(frame, *destination, address)
+                } else {
+                    let value = self.memory.read(&address)?;
+                    self.write(frame, &Place::root(*destination), value)
+                };
+            }
             Operation::Copy {
                 destination,
                 source,
@@ -321,13 +326,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         };
         self.write(frame, &Place::root(destination), value)
     }
-    fn index(
-        &mut self,
-        frame: usize,
-        destination: usize,
-        base: &Place,
-        index: &Place,
-    ) -> Result<()> {
+    fn bind_alias(&mut self, frame: usize, destination: usize, address: Address) -> Result<()> {
+        self.memory.frames[frame].set(&self.memory.storage, destination, Cell::Alias(address))
+    }
+    fn index_address(&self, frame: usize, base: &Place, index: &Place) -> Result<Address> {
         // Resolve the base before reading the index. Do not read the complete array:
         // the checked plan can select initialized components of an incomplete owner.
         let mut address = self.memory.address(frame, base)?;
@@ -347,8 +349,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         // Host representation capacity is a storage limit, never a language bound.
         let index = usize::try_from(index).map_err(|_| Rule::StorageLimit)?;
         address.fields = address.fields.extended(&self.memory.storage, &[index])?;
-        self.memory.frames[frame].set(&self.memory.storage, destination, Cell::Alias(address))?;
-        Ok(())
+        Ok(address)
     }
     fn inputs(&self, frame: usize, inputs: &[Input], taken: &[Option<Value>]) -> Result<Vec<Cell>> {
         inputs

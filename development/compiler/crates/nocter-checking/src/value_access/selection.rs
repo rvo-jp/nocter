@@ -215,6 +215,24 @@ impl Checker<'_, '_> {
             },
         )
     }
+    pub(super) fn read_alias_value(
+        &mut self,
+        node: NodeId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let node = self.unwrap(node)?;
+        if self.kind(node)? == NodeKind::PostfixExpression
+            && let Some(&suffix) = self.children(node).last()
+            && self.kind(suffix)? == NodeKind::IndexSuffix
+        {
+            let value = self.expression(node, None, reachable)?;
+            if self.expression_referent(value).is_none() {
+                return self.reject(Rule::TypeMismatch, node);
+            }
+            return Ok(value);
+        }
+        self.place_value(node, Rule::TypeMismatch)
+    }
     pub fn place_value(&mut self, node: NodeId, rule: Rule) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
         let place = self.place(node, rule)?;
@@ -312,11 +330,8 @@ impl Checker<'_, '_> {
         }
         self.reject(Rule::UnknownName, token)
     }
-    pub fn place_expression(&self, expr: AccessExpressionId) -> Option<AccessPlaceId> {
-        match self.expressions.get(expr)?.kind {
-            ExpressionKind::Place(place) => Some(place),
-            _ => None,
-        }
+    pub fn expression_referent(&self, expr: AccessExpressionId) -> Option<super::Referent> {
+        self.expressions.get(expr)?.referent(expr)
     }
 
     pub fn writable_place(&self, place: AccessPlaceId) -> bool {
