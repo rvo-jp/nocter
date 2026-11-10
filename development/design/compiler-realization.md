@@ -135,6 +135,37 @@ erase state transitions. Unsupported operations, arithmetic errors, dependency c
 and final serialization retain distinct source causes. The existing native header cases prove
 that unused/computed array types coexist with scalar execution, not array value or ABI support.
 
+### Body-Owned Required Expressions
+
+Local type lengths and repetition counts need a body-owned expression-code domain before source
+admission. Do not append these roots to the closed header reservation arena: adding an expression
+in one body would otherwise renumber sibling expressions or invalidate an unrelated header query.
+Pair each expression key with its actual root through its enclosing body's source authority.
+An edit may invalidate that body and its expressions, while preserving header slots and unrelated
+body identities. The full body guard, plus the selected supplier graph, must certify reuse;
+matching the count expression's bytes alone cannot certify its lexical environment.
+
+Keep required-expression execution distinct from callable origin and source ownership. A local
+count has an expected usize result but no named-function witness, implicit formal inputs or
+return target in the enclosing callable. Its enclosing declaration still owns diagnostic source
+and reuse evidence. Ordinary lexical name validation must be preserved; a second global-only
+lookup for count syntax would miss local shadowing and unavailable bindings. Lexical values need
+their actual compile-time evidence. An unavailable runtime input cannot silently become an
+expression-code argument, evaluator capture or runtime-sized type.
+
+Carry the complete expression-code identity through header/body/value requests, unpublished body
+type branches, selected applications/closures, evaluator plans and failure projection. Sharing a
+source owner cannot make two expression bodies share a type suffix or application key. Reuse the
+[body structural type authority](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
+and its canonical array/tuple replay; neither a second type store nor a literal-only evaluator is
+needed. Completed required values remain immutable facts in the common dependency query, with
+their ordinary work/storage charges and transitive source requirements.
+
+Qualify the source connection with local annotations and repetition, independent sibling-body
+edits, a supplier-body change, nested structural data, dead authored requirements, actual runtime
+inputs and type/value cycles. Keep array body/resource/storage admission separate until their
+combined proofs close. Header-count tests alone cannot establish body-local identity or scope.
+
 ## Executable Lifecycle and Target Admission
 
 Extend the [bounded common native path](../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

@@ -2,7 +2,9 @@
 
 ## Immediate Work
 
-1. Extend [computed source array headers](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+1. Establish the [body-owned required-expression domain](design/compiler-realization.md#body-owned-required-expressions)
+   without renumbering header slots or conflating lexical scope and callable identity.
+   Extend [computed source array headers](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
    into local annotations, value construction/repetition, selected indexing, sparse partial
    initialization and cleanup, evaluator array data/publication, and native storage/ABI.
    Follow the [structural type request closure](design/compiler-realization.md#structural-type-request-closure)

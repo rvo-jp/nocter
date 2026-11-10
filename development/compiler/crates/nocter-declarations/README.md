@@ -208,7 +208,7 @@ or inferring access permissions. A tuple position cannot select a nominal field 
 An empty path preserves its validated data type; a scalar projection or a field from another owner
 is rejected.
 
-`data_schema` exposes builtin, aggregate or named/formal/result/application witness schemas from
+`data_schema` exposes builtin, aggregate, fixed-array and named/formal/result/application witness schemas from
 the supplied program's sole type authority. It never falls back to a different header/body store.
 `data_copyable` consumes that validated shape with iterative memoized structural traversal;
 `data_kind` deliberately remains a builtin-only projection. These APIs do not publish arbitrary
@@ -243,10 +243,15 @@ on freeze; no dispatch search or source syntax enters the program. Branches shar
 namespace and record metadata instead of cloning those authorities.
 That branch also publishes closed single-value closure environment schemas under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
-schema components. The environment is ordinary closed builtin/record/tuple data; Copy follows that
+schema components. The environment is ordinary closed builtin/record/tuple/array data; Copy follows that
 schema, independently of invocation. All permitted views belong to the same body-owned key.
-Inferred tuples use that same body construction authority, including within a capture body.
-Canonical replay remaps nested tuple components and every closure-schema data slot with the body
+Tuples and closed fixed-array descriptors use that same body construction authority, including
+within a capture body. Its array constructor takes an established element TypeId and closed
+u64 count; it neither evaluates a count nor expands elements. Empty arrays still require valid
+element data. Ordinary structural data excludes callable witness elements in this bounded model.
+Equal header/body array shapes intern as one type. This metadata capability does not admit
+array expressions, resource operations, evaluator array values or native storage.
+Canonical replay remaps nested tuple/array components and every closure-schema data slot with the body
 type suffix in the same program; headers remain unchanged. `closures` owns their immutable
 projection, not body checking.
 
@@ -254,9 +259,9 @@ Canonical replay validates retained ready contracts, exact namespace and sparse-
 header-prefix ancestry and each suffix's body owner. It records each body's own prefix boundary;
 an explicit type-scope proof retains the owning callable even when its suffix is empty. A header
 view, a body branch and a canonical merged product cannot substitute for each other's construction role.
-later header keys may occupy the same raw positions as an earlier body's suffix. The prefix is
+Later header keys may occupy the same raw positions as an earlier body's suffix. The prefix is
 proof input, never an alternative semantic lookup store. Replay re-interns witness keys and
-structural tuples in semantic owner order and
+structural tuples/arrays in semantic owner order and
 publishes exact per-body TypeId projections with one final program. Coinciding raw suffix positions from two
 bodies cannot substitute for each other. Header programs stay unchanged and reusable; an
 extended program cannot masquerade as a fresh header base. Checking rewrites all body data

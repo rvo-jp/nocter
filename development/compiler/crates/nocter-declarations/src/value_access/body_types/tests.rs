@@ -2,6 +2,8 @@
 use super::super::*;
 use nocter_model::ValueInvocation;
 
+mod arrays;
+
 #[test]
 fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
     let symbols = SymbolTable::from_spellings(["Late", "value", "run"]);

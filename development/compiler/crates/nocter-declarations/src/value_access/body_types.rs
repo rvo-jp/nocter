@@ -32,12 +32,10 @@ impl BodyTypes {
         let [first, second, remaining @ ..] = fields else {
             return Err(BodyTypeError::InvalidExtension);
         };
-        if fields.iter().any(|&data| {
-            !matches!(
-                self.program.data_schema(data),
-                Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Aggregate(_))
-            )
-        }) {
+        if fields
+            .iter()
+            .any(|&data| !ordinary_data(&self.program, data))
+        {
             return Err(BodyTypeError::InvalidExtension);
         }
         let mut types = self.program.types.transaction();
@@ -53,21 +51,35 @@ impl BodyTypes {
             .map_err(|_| BodyTypeError::InvalidExtension)?;
         Ok(data)
     }
+    /// Intern a homogeneous fixed-array descriptor without expanding its cardinality.
+    /// # Errors
+    /// Rejects an element outside this authority's closed ordinary data domain.
+    pub fn array(&mut self, element: TypeId, length: u64) -> Result<TypeId, BodyTypeError> {
+        if !ordinary_data(&self.program, element) {
+            return Err(BodyTypeError::InvalidExtension);
+        }
+        let mut types = self.program.types.transaction();
+        let data = types
+            .intern(TypeKind::FixedArray {
+                element,
+                length: length.into(),
+            })
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        self.program.types = types
+            .commit(&self.program.types)
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        Ok(data)
+    }
     /// Publish one closed owned environment; it has no inferred external R/D/S.
     /// # Errors
-    /// Rejects a foreign/duplicate code identity or data outside the closed header domain.
+    /// Rejects a foreign/duplicate code identity or data outside the closed ordinary data domain.
     pub fn closure(
         &mut self,
         id: nocter_model::ValueClosure,
         environment: TypeId,
         contract: super::FunctionConstraint,
     ) -> Result<TypeId, BodyTypeError> {
-        let ordinary = |data| {
-            matches!(
-                self.program.data_schema(data),
-                Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Aggregate(_))
-            )
-        };
+        let ordinary = |data| ordinary_data(&self.program, data);
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
             || !ordinary(environment)
@@ -203,7 +215,7 @@ impl Program {
             applications: BTreeMap::new(),
         })
     }
-    /// Replay body-owned witness keys and tuple shapes in semantic owner order into a single final authority.
+    /// Replay body-owned witnesses and structural shapes into one final authority in owner order.
     /// # Errors
     /// Rejects foreign headers, an unrelated type prefix or a suffix outside its body's domain.
     pub fn canonical_body_types(
@@ -272,6 +284,17 @@ fn project_type(
     }
 }
 
+fn ordinary_data(program: &Program, data: TypeId) -> bool {
+    matches!(
+        program.data_schema(data),
+        Some(
+            super::PayloadSchema::Builtin(_)
+                | super::PayloadSchema::Aggregate(_)
+                | super::PayloadSchema::Array(_)
+        )
+    )
+}
+
 fn replay_types(
     header: &Program,
     body: &Program,
@@ -302,32 +325,32 @@ fn replay_types(
                         .and_then(super::Code::result_contract)
                         .is_some_and(|contract| contract.invocation.can_supply(*invocation))
             }
-            TypeKind::Tuple(fields) => fields.iter().all(|data| {
-                matches!(
-                    body.data_schema(data),
-                    Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Aggregate(_))
-                )
-            }),
+            TypeKind::Tuple(fields) => fields.iter().all(|data| ordinary_data(body, data)),
+            TypeKind::FixedArray { element, length } => {
+                length.closed_value().is_some() && ordinary_data(body, *element)
+            }
             _ => false,
         };
         if !valid {
             return Err(BodyTypeError::InvalidApplication);
         }
-        let kind = if let TypeKind::Tuple(fields) = kind {
-            let fields = fields
-                .iter()
-                .map(|data| {
-                    project_type(prefix.cursor(), &projection, data)
-                        .ok_or(BodyTypeError::InvalidExtension)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            TypeKind::Tuple(nocter_model::TupleElements::new(
-                fields[0],
-                fields[1],
-                fields[2..].iter().copied(),
-            ))
-        } else {
-            kind.clone()
+        let project = |data| {
+            project_type(prefix.cursor(), &projection, data).ok_or(BodyTypeError::InvalidExtension)
+        };
+        let kind = match kind {
+            TypeKind::Tuple(fields) => {
+                let fields = fields.iter().map(project).collect::<Result<Vec<_>, _>>()?;
+                TypeKind::Tuple(nocter_model::TupleElements::new(
+                    fields[0],
+                    fields[1],
+                    fields[2..].iter().copied(),
+                ))
+            }
+            TypeKind::FixedArray { element, length } => TypeKind::FixedArray {
+                element: project(*element)?,
+                length: *length,
+            },
+            _ => kind.clone(),
         };
         let target = types
             .intern(kind)
