@@ -30,6 +30,11 @@ dependencies in a group are skipped. Empty or wholly completed groups invoke the
 `no_progress` failure, preventing an invalid draft from spinning. The query alone constructs
 active-cycle paths; consumers classify their own authored and integrity failures. Failure unwinds
 only the invocation's unfinished frames, retaining completed dependencies and outer active work.
+`dependency_failed` projects each failed child at the parent boundary as those frames unwind,
+including the edge that closes a cycle. The default preserves the exact error. Domain consumers
+may attach authored causes or classify that cycle without maintaining their own stack; the query
+still owns detection, frame removal and successful dependency evidence. A failure of the requested
+root has no parent callback inside that invocation.
 
 The read-only active-key path lets consumers classify request roles for an execution-depth budget
 without another stack; the query does not interpret those roles. Each completed value is allocated

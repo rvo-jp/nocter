@@ -53,6 +53,17 @@ pub trait DependencyProgress<K, V, E> {
     }
     /// Classify a draft that requests no unfinished dependency and therefore cannot progress.
     fn no_progress(&mut self, key: K) -> E;
+    /// Project a failed child at its parent's dependency boundary while iterative frames unwind.
+    /// The query alone owns the path and cycle detection; consumers may add domain causes without
+    /// retaining a second request stack. Successful siblings and outer invocations remain intact.
+    fn dependency_failed(
+        &mut self,
+        _parent: K,
+        _child: K,
+        failure: DependencyQueryError<K, E>,
+    ) -> DependencyQueryError<K, E> {
+        failure
+    }
 }
 
 #[derive(Debug)]
@@ -144,9 +155,8 @@ where
         loop {
             let frame = self.stack.last_mut().expect("active step frame");
             if let Some(child) = frame.pending.next() {
-                if let Err(error) = self.begin(child) {
-                    self.unwind(outer_depth);
-                    return Err(error);
+                if let Err(error) = self.begin(child.clone()) {
+                    return Err(self.fail_steps(computation, outer_depth, child, error));
                 }
                 continue;
             }
@@ -155,23 +165,22 @@ where
                 Ok(DependencyStep::Complete(value)) => Ok(value),
                 Ok(DependencyStep::Compute) => computation.compute_current(self, key.clone()),
                 Ok(DependencyStep::Require(dependencies)) => {
-                    if !dependencies.iter().any(|key| self.completed(key).is_none()) {
-                        let error = DependencyQueryError::Computation(computation.no_progress(key));
-                        self.unwind(outer_depth);
-                        return Err(error);
+                    if dependencies.iter().any(|key| self.completed(key).is_none()) {
+                        self.stack.last_mut().expect("current step frame").pending =
+                            dependencies.into_vec().into_iter();
+                        continue;
                     }
-                    self.stack.last_mut().expect("current step frame").pending =
-                        dependencies.into_vec().into_iter();
-                    continue;
+                    Err(DependencyQueryError::Computation(
+                        computation.no_progress(key.clone()),
+                    ))
                 }
                 Err(error) => Err(DependencyQueryError::Computation(error)),
             };
-            match self.finish(key, result) {
+            match self.finish(key.clone(), result) {
                 Ok(value) if self.stack.len() == outer_depth => return Ok(value),
                 Ok(_) => {}
                 Err(error) => {
-                    self.unwind(outer_depth);
-                    return Err(error);
+                    return Err(self.fail_steps(computation, outer_depth, key, error));
                 }
             }
         }
@@ -235,11 +244,20 @@ where
             }
         }
     }
-    fn unwind(&mut self, outer_depth: usize) {
+    fn fail_steps<E>(
+        &mut self,
+        computation: &mut impl DependencyProgress<K, V, E>,
+        outer_depth: usize,
+        mut child: K,
+        mut failure: DependencyQueryError<K, E>,
+    ) -> DependencyQueryError<K, E> {
         while self.stack.len() > outer_depth {
             let frame = self.stack.pop().expect("unfinished dependency frame");
             self.states.remove(&frame.key);
+            failure = computation.dependency_failed(frame.key.clone(), child, failure);
+            child = frame.key;
         }
+        failure
     }
 
     fn depend_on(&self, index: usize) {

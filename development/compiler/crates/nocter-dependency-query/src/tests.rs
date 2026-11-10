@@ -281,6 +281,81 @@ fn iterative_requests_of_only_completed_keys_report_no_progress() {
 }
 
 #[test]
+fn failed_dependencies_project_each_unwound_boundary_without_losing_siblings() {
+    struct Caused {
+        steps: Steps,
+        boundaries: Vec<(usize, usize)>,
+    }
+    impl DependencyProgress<usize, usize, usize> for Caused {
+        fn advance(
+            &mut self,
+            query: &DependencyQuery<usize, usize>,
+            key: usize,
+        ) -> Result<DependencyStep<usize, usize>, usize> {
+            self.steps.advance(query, key)
+        }
+        fn no_progress(&mut self, key: usize) -> usize {
+            key
+        }
+        fn dependency_failed(
+            &mut self,
+            parent: usize,
+            child: usize,
+            failure: DependencyQueryError<usize, usize>,
+        ) -> DependencyQueryError<usize, usize> {
+            self.boundaries.push((parent, child));
+            DependencyQueryError::Computation(match failure {
+                DependencyQueryError::Cycle(path) => {
+                    assert_eq!(&*path, &[1, 2, 1]);
+                    100
+                }
+                DependencyQueryError::Computation(cause) => cause + 10,
+            })
+        }
+    }
+    for cycle in [false, true] {
+        let mut steps = Steps::new([
+            (0, vec![9, 1]),
+            (1, vec![2]),
+            (2, if cycle { vec![1] } else { vec![] }),
+        ]);
+        if !cycle {
+            steps.reject = Some(2);
+        }
+        let mut caused = Caused {
+            steps,
+            boundaries: Vec::new(),
+        };
+        let mut query = DependencyQuery::default();
+        assert_eq!(
+            query.resolve_steps(&mut caused, 0),
+            Err(DependencyQueryError::Computation(if cycle {
+                120
+            } else {
+                22
+            }))
+        );
+        assert_eq!(
+            caused.boundaries,
+            if cycle {
+                vec![(2, 1), (1, 2), (0, 1)]
+            } else {
+                vec![(1, 2), (0, 1)]
+            }
+        );
+        assert_eq!(query.active_depth(), 0);
+        assert_eq!(query.complete_len(), 1);
+        assert_eq!(query.completed(&9), Some(&1));
+        caused.steps.reject = None;
+        caused.steps.edges.insert(2, vec![]);
+        caused.boundaries.clear();
+        assert_eq!(*query.resolve_steps(&mut caused, 0).unwrap(), 4);
+        assert!(caused.boundaries.is_empty());
+        assert_eq!(caused.steps.completions[&9], 1);
+    }
+}
+
+#[test]
 fn iterative_requests_share_outer_recursive_frames_and_preserve_them_on_failure() {
     struct Outer(Steps);
     impl DependencyComputation<usize, usize, usize> for Outer {
