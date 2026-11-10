@@ -78,21 +78,22 @@ fn untyped_slot_reservations_do_not_publish_incomplete_declarations() {
     let builder = reservations.finish().unwrap();
     assert_eq!(builder.field_ids(record).unwrap().len(), 3);
     assert_eq!(builder.parameter_ids(run).unwrap().len(), 2);
-    assert_eq!(
-        builder.finish().unwrap_err(),
-        [
-            DeclarationViolation {
-                declaration: DeclarationId::Callable(run),
+    let mut headers = builder.into_publication();
+    for id in [DeclarationId::Callable(run), DeclarationId::Record(record)] {
+        assert_eq!(headers.is_defined(id), Some(false));
+        assert_eq!(
+            headers.publish(id),
+            Err(HeaderFailure::Rejected(vec![DeclarationViolation {
+                declaration: id,
                 position: HeaderPosition::Name,
-                rule: DeclarationRule::MissingDefinition
-            },
-            DeclarationViolation {
-                declaration: DeclarationId::Record(record),
-                position: HeaderPosition::Name,
-                rule: DeclarationRule::MissingDefinition
-            },
-        ]
-    );
+                rule: DeclarationRule::MissingDefinition,
+            }]))
+        );
+        assert!(!headers.snapshot().header_ready(id));
+    }
+    assert!(headers.snapshot().fields().is_empty());
+    assert!(headers.snapshot().parameters().is_empty());
+    assert!(headers.finish().is_err());
 }
 
 #[test]

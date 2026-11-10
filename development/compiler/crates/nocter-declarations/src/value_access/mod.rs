@@ -3,7 +3,7 @@
 //! This product cannot be converted to a released borrow-based declaration program. Its
 //! source boundary admits closed data and named/formal function witnesses. It does not flatten the
 //! complete future aggregate/callable/outcome grammar into released borrow-based types.
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use nocter_model::{
     AccessCallableId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, CompileTimeGuarantee,
@@ -383,25 +383,25 @@ impl Reservations {
             return Err(violations);
         }
         Ok(Builder {
-            symbols: self.symbols,
+            symbols: self.symbols.into(),
             callables: self.callables,
             parameters: self.parameters.finish(),
             records: self.records,
-            namespace,
+            namespace: namespace.into(),
         })
     }
 }
 
-/// Define closed reserved headers in any order. Validation opens the sole publication writer;
-/// `finish` closes the complete program through that same path.
+/// Define raw reserved headers in any order, without granting typed readiness.
+/// `finish` validates and closes the complete program through the sole publication writer.
 /// There is no operation for appending another declaration after reservation closure.
 #[derive(Debug)]
 pub struct Builder {
-    symbols: SymbolTable,
+    symbols: Arc<SymbolTable>,
     callables: ArenaBuilder<AccessCallableId, Reservation>,
     parameters: Arena<AccessParameterId, ParameterSlot>,
     records: records::Builder,
-    namespace: BTreeMap<Symbol, DeclarationId>,
+    namespace: Arc<BTreeMap<Symbol, DeclarationId>>,
 }
 
 impl Builder {
@@ -480,7 +480,7 @@ impl Builder {
     /// # Errors
     /// Returns callable and record header/shape violations without publishing a partial program.
     pub fn finish(self) -> Result<Program, Vec<DeclarationViolation>> {
-        match self.into_publication()?.finish() {
+        match self.into_publication().finish() {
             Ok(program) => Ok(program),
             Err(HeaderFailure::Rejected(violations)) => Err(violations),
             Err(HeaderFailure::UnknownId | HeaderFailure::Inconsistent) => {
@@ -489,56 +489,11 @@ impl Builder {
         }
     }
 
-    /// Validate closed source definitions before publishing individual callable contracts.
-    /// # Errors
-    /// Rejects incomplete or invalid definitions without furnishing a ready view.
-    pub fn into_publication(self) -> Result<HeaderPublication, Vec<DeclarationViolation>> {
-        let reserved = self.callables.finish();
-        let mut violations = Vec::new();
-        let namespace = self.namespace;
-        for (id, reservation) in reserved.iter() {
-            validate_definition(&self.symbols, &namespace, id, reservation, &mut violations);
-        }
-        let records = match self.records.validate(&self.symbols) {
-            Ok(records) => records,
-            Err(errors) => {
-                violations.extend(errors);
-                return Err(violations);
-            }
-        };
-        for (id, reservation) in reserved.iter() {
-            if let Some(definition) = &reservation.definition {
-                let mut validate = |position, data: &DataReference| {
-                    if let DataReference::Record(record) = data
-                        && !records.contains(*record)
-                    {
-                        violations.push(DeclarationViolation {
-                            declaration: DeclarationId::Callable(id),
-                            position,
-                            rule: DeclarationRule::UnknownRecordType { record: *record },
-                        });
-                    }
-                };
-                for (position, parameter) in definition.parameters.iter().enumerate() {
-                    parameter
-                        .data
-                        .visit_data(|data| validate(HeaderPosition::Parameter(position), data));
-                }
-                definition
-                    .result_data
-                    .visit_data(|data| validate(HeaderPosition::Result, data));
-            }
-        }
-        if !violations.is_empty() {
-            return Err(violations);
-        }
-        Ok(HeaderPublication::new(
-            self.symbols,
-            reserved,
-            self.parameters,
-            namespace,
-            records,
-        ))
+    /// Open the sole publication writer over this closed domain. Definitions may still be absent.
+    /// No new declaration can be reserved; each requested contract validates before publication.
+    #[must_use]
+    pub fn into_publication(self) -> HeaderPublication {
+        HeaderPublication::new(self)
     }
 }
 
@@ -547,6 +502,7 @@ fn validate_definition(
     namespace: &BTreeMap<Symbol, DeclarationId>,
     id: AccessCallableId,
     reservation: &Reservation,
+    records: &records::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     let Some(definition) = &reservation.definition else {
@@ -600,27 +556,45 @@ fn validate_definition(
             });
         }
         parameter.data.visit_data(|data| {
-            validate_data(id, HeaderPosition::Parameter(position), data, violations);
+            validate_data(
+                id,
+                HeaderPosition::Parameter(position),
+                data,
+                records,
+                violations,
+            );
         });
     }
     definition
         .result_data
-        .visit_data(|data| validate_data(id, HeaderPosition::Result, data, violations));
+        .visit_data(|data| validate_data(id, HeaderPosition::Result, data, records, violations));
 }
 
 fn validate_data(
     callable: AccessCallableId,
     position: HeaderPosition,
     data: &DataReference,
+    records: &records::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
-    if let DataReference::Builtin(data) = data
-        && !supported(*data)
-    {
+    if let Some(rule) = data_rule(data, records) {
         violations.push(DeclarationViolation {
             declaration: DeclarationId::Callable(callable),
             position,
-            rule: DeclarationRule::UnsupportedDataType { data: *data },
+            rule,
         });
+    }
+}
+
+/// One raw-leaf validity policy for callable slots and record fields, independent of readiness.
+fn data_rule(data: &DataReference, records: &records::Builder) -> Option<DeclarationRule> {
+    match data {
+        DataReference::Builtin(data) if !supported(*data) => {
+            Some(DeclarationRule::UnsupportedDataType { data: *data })
+        }
+        DataReference::Record(record) if !records.contains(*record) => {
+            Some(DeclarationRule::UnknownRecordType { record: *record })
+        }
+        _ => None,
     }
 }

@@ -1,16 +1,17 @@
 //! Incremental publication of complete contracts into one persistent header lineage.
 use super::{
-    Callable, DeclarationId, DeclarationViolation, FunctionConstraint, FunctionInput, Parameter,
-    ParameterSlot, Program, Reservation, ValueDefinition, data::resolved_data, functions, records,
+    Builder, Callable, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
+    FunctionConstraint, FunctionInput, Parameter, ParameterDefinition, Program, ValueDefinition,
+    data::resolved_data, functions, records, validate_definition,
 };
 use nocter_dependency_query::{
     DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
 };
 use nocter_model::{
-    AccessCallableId, AccessParameterId, Arena, SparseArenaBuilder, Symbol, SymbolTable,
-    TypeAuthority, TypeKind, ValueFunctionOrigin, ValueInvocation,
+    AccessCallableId, AccessParameterId, NominalTypeId, SparseArenaBuilder, Symbol, TypeAuthority,
+    TypeKind, ValueFunctionOrigin, ValueInvocation,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 #[cfg(test)]
 mod tests;
@@ -31,58 +32,80 @@ pub enum HeaderFailure {
 }
 
 /// Single writer for a closed source header domain. Views contain only complete contracts.
-/// Raw names are resolved first; finite containment and Copy are established on demand.
+/// Names and slots are fixed; definition loading, validation and normalization may be deferred.
 #[derive(Debug)]
 pub struct HeaderPublication {
-    reserved: Arena<AccessCallableId, Reservation>,
-    parameter_slots: Arena<AccessParameterId, ParameterSlot>,
+    definitions: Builder,
     callables: SparseArenaBuilder<AccessCallableId, Callable>,
     parameters: SparseArenaBuilder<AccessParameterId, Parameter>,
     types: TypeAuthority,
-    symbols: Arc<SymbolTable>,
-    namespace: Arc<BTreeMap<Symbol, DeclarationId>>,
     records: records::Publication,
 }
 impl HeaderPublication {
     /// All reserved code identities; missing contracts grant no body-checking admission.
     #[must_use]
     pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
-        self.reserved.iter().map(|(id, _)| id)
+        self.definitions.callables.iter().map(|(id, _)| id)
     }
     /// The closed declaration domain, independently of publication readiness.
     #[must_use]
     pub fn declaration_ids(&self) -> impl ExactSizeIterator<Item = DeclarationId> + '_ {
-        self.namespace.values().copied()
+        self.definitions.namespace.values().copied()
     }
-    pub(super) fn new(
-        symbols: SymbolTable,
-        reserved: Arena<AccessCallableId, Reservation>,
-        parameter_slots: Arena<AccessParameterId, ParameterSlot>,
-        namespace: BTreeMap<Symbol, DeclarationId>,
-        records: records::Resolved,
-    ) -> Self {
+    pub(super) fn new(definitions: Builder) -> Self {
         let mut types = TypeAuthority::new();
-        let records = records::Publication::new(records, &mut types);
-        let types = functions::publish_witnesses(
-            &types,
-            reserved.iter().filter_map(|(id, r)| {
-                matches!(
-                    r.definition.as_ref()?.kind,
-                    super::CallableKind::Function(_)
-                )
-                .then_some(id)
-            }),
-        );
+        let records = records::Publication::new(&definitions.records, &mut types);
         Self {
-            callables: SparseArenaBuilder::new(reserved.len()),
-            parameters: SparseArenaBuilder::new(parameter_slots.len()),
-            reserved,
-            parameter_slots,
+            callables: SparseArenaBuilder::new(definitions.callables.len()),
+            parameters: SparseArenaBuilder::new(definitions.parameters.len()),
+            definitions,
             types,
-            symbols: symbols.into(),
-            namespace: namespace.into(),
             records,
         }
+    }
+    /// Whether this reserved definition has been loaded; no typed readiness is implied.
+    #[must_use]
+    pub fn is_defined(&self, id: impl Into<DeclarationId>) -> Option<bool> {
+        match id.into() {
+            DeclarationId::Callable(id) => {
+                Some(self.definitions.callables.get(id)?.definition.is_some())
+            }
+            DeclarationId::Record(id) => self.definitions.records.is_defined(id),
+        }
+    }
+    /// The fixed symbol domain used by raw definitions and every ready view.
+    #[must_use]
+    pub fn symbols(&self) -> &nocter_model::SymbolTable {
+        &self.definitions.symbols
+    }
+    /// Resolve a raw header leaf through the same closed namespace as complete construction.
+    /// # Errors
+    /// Reports unknown data names without publishing an incomplete schema.
+    pub fn resolve_data(&self, name: Symbol) -> Result<super::DataReference, DeclarationRule> {
+        self.definitions.resolve_data(name)
+    }
+    /// Load one define-once raw callable, preserving all reserved slots and ready views.
+    /// # Errors
+    /// Rejects unknown IDs, mismatched arity or a second definition without replacement.
+    pub fn define(
+        &mut self,
+        id: AccessCallableId,
+        kind: super::CallableKind,
+        parameters: impl Into<Box<[ParameterDefinition]>>,
+        result: impl Into<ValueDefinition>,
+    ) -> Result<(), crate::DefinitionError> {
+        self.definitions.define(id, kind, parameters, result)
+    }
+    /// Load one define-once raw record into the fixed field domain.
+    /// # Errors
+    /// Rejects unknown IDs, mismatched arity or a second definition without replacement.
+    pub fn define_record(
+        &mut self,
+        id: NominalTypeId,
+        copy: bool,
+        fields: impl Into<Box<[FieldDefinition]>>,
+    ) -> Result<(), crate::DefinitionError> {
+        self.definitions.define_record(id, copy, fields)
     }
     /// Normalize one contract and its record dependencies, retaining all older ready views.
     /// # Errors
@@ -108,23 +131,26 @@ impl HeaderPublication {
             })
             .collect::<Option<Vec<_>>>();
         records
-            .and_then(|path| self.records.cycle_violation(&path))
+            .and_then(|path| self.definitions.records.cycle_violation(&path))
             .map_or(HeaderFailure::Inconsistent, |violation| {
                 HeaderFailure::Rejected(vec![violation])
             })
     }
     /// Publish exactly one contract, or report all of its currently missing record contracts.
     /// # Errors
-    /// Reports invalid Copy requests or an identity outside this domain, preserving ready contracts.
+    /// Reports missing/invalid definitions or unknown IDs while preserving established contracts.
     /// # Panics
     /// Panics only if validated internal metadata loses integrity.
     pub fn advance(&mut self, id: impl Into<DeclarationId>) -> Result<HeaderStep, HeaderFailure> {
         match id.into() {
             DeclarationId::Record(id) => {
-                let dependencies = self
+                if self.records.get(id).is_some() {
+                    return Ok(HeaderStep::Ready);
+                }
+                self.definitions
                     .records
-                    .dependencies(id)
-                    .map_err(|_| HeaderFailure::UnknownId)?;
+                    .validate(id, &self.definitions.symbols)?;
+                let dependencies = self.records.dependencies(&self.definitions.records, id);
                 if !dependencies.is_empty() {
                     return Ok(HeaderStep::Require(
                         dependencies
@@ -134,14 +160,30 @@ impl HeaderPublication {
                     ));
                 }
                 self.records
-                    .publish_ready(id, &mut self.types)
+                    .publish_ready(&self.definitions.records, id, &mut self.types)
                     .map_err(HeaderFailure::Rejected)?;
             }
             DeclarationId::Callable(id) => {
                 if self.callables.get(id).is_some() {
                     return Ok(HeaderStep::Ready);
                 }
-                let reservation = self.reserved.get(id).ok_or(HeaderFailure::UnknownId)?;
+                let reservation = self
+                    .definitions
+                    .callables
+                    .get(id)
+                    .ok_or(HeaderFailure::UnknownId)?;
+                let mut violations = Vec::new();
+                validate_definition(
+                    &self.definitions.symbols,
+                    &self.definitions.namespace,
+                    id,
+                    reservation,
+                    &self.definitions.records,
+                    &mut violations,
+                );
+                if !violations.is_empty() {
+                    return Err(HeaderFailure::Rejected(violations));
+                }
                 let definition = reservation
                     .definition
                     .as_ref()
@@ -167,17 +209,28 @@ impl HeaderPublication {
         Ok(HeaderStep::Ready)
     }
     fn publish_callable(&mut self, id: AccessCallableId) {
-        let reservation = self.reserved.get(id).expect("reserved callable");
+        let reservation = self
+            .definitions
+            .callables
+            .get(id)
+            .expect("reserved callable");
         let definition = reservation
             .definition
             .as_ref()
             .expect("validated definition");
+        if matches!(definition.kind, super::CallableKind::Function(_)) {
+            self.types = functions::publish_witnesses(&self.types, std::iter::once(id));
+        }
         let mut types = self.types.transaction();
         let parameters: Vec<_> = reservation
             .parameters
             .iter()
             .map(|&id| {
-                let slot = self.parameter_slots.get(id).expect("reserved parameter");
+                let slot = self
+                    .definitions
+                    .parameters
+                    .get(id)
+                    .expect("reserved parameter");
                 let parameter = &definition.parameters[slot.position];
                 let (data, contract) = publish_value(
                     &mut types,
@@ -230,13 +283,13 @@ impl HeaderPublication {
     pub fn snapshot(&self) -> Program {
         Program {
             closures: BTreeMap::new(),
-            symbols: self.symbols.clone(),
+            symbols: self.definitions.symbols.clone(),
             types: self.types.clone(),
             header_prefix: self.types.store().clone(),
             type_scope: super::TypeScope::Headers,
             callables: self.callables.snapshot(),
             parameters: self.parameters.snapshot(),
-            namespace: self.namespace.clone(),
+            namespace: self.definitions.namespace.clone(),
             records: self.records.snapshot(),
         }
     }
@@ -244,11 +297,16 @@ impl HeaderPublication {
     /// # Errors
     /// Reports the first invalid prerequisite, without publishing its dependents.
     pub fn finish(mut self) -> Result<Program, HeaderFailure> {
-        let records: Vec<_> = self.records.ids().collect();
+        let records: Vec<_> = self.definitions.records.names().map(|(id, _)| id).collect();
         for id in records {
             self.publish(id)?;
         }
-        let ids: Vec<_> = self.reserved.iter().map(|(id, _)| id).collect();
+        let ids: Vec<_> = self
+            .definitions
+            .callables
+            .iter()
+            .map(|(id, _)| id)
+            .collect();
         for id in ids {
             self.publish(id)?;
         }

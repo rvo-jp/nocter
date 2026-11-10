@@ -2,11 +2,11 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    AccessFieldId, Arena, ArenaBuilder, NominalTypeId, SparseArena, Symbol, SymbolTable, TypeId,
+    AccessFieldId, ArenaBuilder, NominalTypeId, SparseArena, Symbol, SymbolTable, TypeId,
 };
 
 use super::{
-    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, supported,
+    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, data_rule,
 };
 use crate::DefinitionError;
 
@@ -162,21 +162,30 @@ impl Builder {
         Ok(())
     }
 
-    pub fn validate(self, symbols: &SymbolTable) -> Result<Resolved, Vec<DeclarationViolation>> {
-        let reserved = self.reservations.finish();
+    pub fn is_defined(&self, id: NominalTypeId) -> Option<bool> {
+        Some(self.reservations.get(id)?.definition.is_some())
+    }
+    pub fn contains(&self, id: NominalTypeId) -> bool {
+        self.reservations.get(id).is_some()
+    }
+    pub fn validate(
+        &self,
+        id: NominalTypeId,
+        symbols: &SymbolTable,
+    ) -> Result<(), super::HeaderFailure> {
+        let reservation = self
+            .reservations
+            .get(id)
+            .ok_or(super::HeaderFailure::UnknownId)?;
         let mut violations = Vec::new();
-        for (id, reservation) in reserved.iter() {
-            let mut report = |position, rule| {
-                violations.push(DeclarationViolation {
-                    declaration: DeclarationId::Record(id),
-                    position,
-                    rule,
-                });
-            };
-            let Some(definition) = &reservation.definition else {
-                report(HeaderPosition::Name, DeclarationRule::MissingDefinition);
-                continue;
-            };
+        let mut report = |position, rule| {
+            violations.push(DeclarationViolation {
+                declaration: DeclarationId::Record(id),
+                position,
+                rule,
+            });
+        };
+        if let Some(definition) = &reservation.definition {
             let mut seen = BTreeMap::new();
             for (index, field) in definition.fields.iter().enumerate() {
                 let position = HeaderPosition::Field(index);
@@ -187,38 +196,49 @@ impl Builder {
                 } else {
                     seen.insert(field.name, index);
                 }
-                field.data.visit_leaves(|data| match data {
-                    DataReference::Builtin(data) if !supported(*data) => report(
-                        position,
-                        DeclarationRule::UnsupportedDataType { data: *data },
-                    ),
-                    DataReference::Record(record) if reserved.get(*record).is_none() => report(
-                        position,
-                        DeclarationRule::UnknownRecordType { record: *record },
-                    ),
-                    _ => {}
+                field.data.visit_leaves(|data| {
+                    if let Some(rule) = data_rule(data, self) {
+                        report(position, rule);
+                    }
                 });
             }
+        } else {
+            report(HeaderPosition::Name, DeclarationRule::MissingDefinition);
         }
-        if !violations.is_empty() {
-            return Err(violations);
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(super::HeaderFailure::Rejected(violations))
         }
-        Ok(Resolved {
-            reserved,
-            fields: self.fields.finish(),
-        })
     }
-}
-
-/// Closed raw definitions with resolved names; payload and Copy evidence is established on demand.
-#[derive(Debug)]
-pub(super) struct Resolved {
-    reserved: Arena<NominalTypeId, Reservation>,
-    fields: Arena<AccessFieldId, FieldSlot>,
-}
-
-impl Resolved {
-    pub fn contains(&self, id: NominalTypeId) -> bool {
-        self.reserved.get(id).is_some()
+    pub fn cycle_violation(&self, path: &[NominalTypeId]) -> Option<DeclarationViolation> {
+        if path.len() < 2 || path.first() != path.last() {
+            return None;
+        }
+        let field_to = |parent, child| {
+            self.reservations
+                .get(parent)?
+                .definition
+                .as_ref()?
+                .fields
+                .iter()
+                .position(|field| {
+                    let mut found = false;
+                    field.data.visit_leaves(|data| {
+                        found |= matches!(data, DataReference::Record(id) if *id == child);
+                    });
+                    found
+                })
+        };
+        let mut closing = None;
+        for edge in path.windows(2) {
+            closing = Some((edge[0], field_to(edge[0], edge[1])?, edge[1]));
+        }
+        let (owner, position, through) = closing?;
+        Some(DeclarationViolation {
+            declaration: DeclarationId::Record(owner),
+            position: HeaderPosition::Field(position),
+            rule: DeclarationRule::RecursivePayload { through },
+        })
     }
 }

@@ -105,13 +105,11 @@ Use the already-reserved input/field identities when publishing a ready contract
 order cannot allocate new slots or renumber a formal witness. The current
 [staged source path](../compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
 can retain bodies over earlier ready declaration views and replay their type suffixes after later
-contracts close. Requested contracts publish transitive record schemas on demand, while raw source
-data references still require a complete first stratum. The same
-readiness/value coordinator executes selected const closures while unrelated headers remain
-unready. Extend that boundary with deferred source-reference
-normalization and header-dependent required-value requests through the one
-dependency protocol. A reservation alone cannot type-check an unfinished signature. Qualify actual
-array source through the combined path rather than treating ready-view/slot tests as array conformance.
+contracts close. Requested contracts load their raw source type recipes and publish transitive
+record schemas on demand. The same readiness/value coordinator executes selected const closures
+while unrelated raw definitions and contracts remain unready. Extend that boundary with
+header-dependent required-value requests through the one dependency protocol. A reservation alone
+cannot type-check an unfinished signature. Qualify actual array source through the combined path rather than treating ready-view/slot tests as array conformance.
 
 Keep type/value cycles distinct from callable recursion. A request that needs its own unfinished
 normalized type or value is a dependency error, including an authored requirement in dead source.
@@ -123,11 +121,11 @@ not reservation closure alone, is the remaining gate for array type lengths.
 
 ### Structural Type Request Closure
 
-This is the remaining construction design, not implemented array admission. Retain source type
-recipes until their selected declaration is requested rather than eagerly resolving every header.
-The closed name/input/field domain stays fixed. Normalization can then return a typed dependency
-request without publishing a provisional contract. Source lowering owns loading the requested
-recipe; declarations own validation and normalized identity; the existing checking/value
+This is the remaining construction design, not implemented array admission. Extend the existing
+[on-demand recipe loading](../compiler/crates/nocter-declaration-lowering/README.md#future-private-access-declarations)
+with computed type dependencies while keeping the closed name/input/field domain fixed.
+Normalization must return a typed dependency request without publishing a provisional contract.
+Source lowering owns loading the requested recipe; declarations own validation and normalized identity; the existing checking/value
 coordinator owns ordinary body acceptance and required execution. A length expression needs its
 own semantic code identity and exact source recipe. Do not manufacture a named function, source
 text or a separate expression checker to evaluate it. Code identity and source-reuse ownership

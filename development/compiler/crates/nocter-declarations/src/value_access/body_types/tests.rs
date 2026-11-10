@@ -31,7 +31,7 @@ fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
             BuiltinType::Void,
         )
         .unwrap();
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     headers.publish(run).unwrap();
     let early = headers.snapshot();
     let integer = early.data_type(BuiltinType::I32).unwrap();
@@ -82,7 +82,7 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
             BuiltinType::Void,
         )
         .unwrap();
-    let mut publication = builder.into_publication().unwrap();
+    let mut publication = builder.into_publication();
     let empty = publication.snapshot();
     assert!(empty.callables().is_empty());
     assert_eq!(empty.resolve(symbols.get("alpha").unwrap()), None);
@@ -118,14 +118,16 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
         .unwrap()
         .finish();
     assert!(empty_canonical.body_types(alpha).is_err());
-    let parameter = later.callables().get(beta).unwrap().parameters()[0];
     assert!(matches!(
         later.canonical_body_types(BTreeMap::from([(beta, &body)])),
         Err(BodyTypeError::ForeignDeclarations)
     ));
     assert_eq!(
-        later.parameters().get(parameter).unwrap().data(),
-        tuple,
+        later.function_data(FunctionWitness {
+            origin: nocter_model::ValueFunctionOrigin::Declaration(beta),
+            invocation: ValueInvocation::Read,
+        }),
+        Some(tuple),
         "two branches can use the same raw TypeId for different kinds"
     );
     assert!(matches!(

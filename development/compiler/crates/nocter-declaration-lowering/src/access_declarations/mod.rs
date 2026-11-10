@@ -13,6 +13,9 @@ use headers::RecordHeader;
 use nocter_declarations::value_access::{
     DeclarationId, HeaderFailure, HeaderPublication, HeaderStep, Program, Reservations,
 };
+use nocter_dependency_query::{
+    DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
+};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::{AccessCallableId, NominalTypeId};
 use nocter_syntax::{
@@ -90,15 +93,16 @@ impl CallableSource {
 pub struct Preparation<'source> {
     headers: HeaderPublication,
     records: BTreeMap<NominalTypeId, RecordHeader>,
+    functions: BTreeMap<AccessCallableId, definitions::Recipe>,
     syntax: BoundSyntax<'source>,
     surface: DeclarationSyntaxSurface,
     recipes: BTreeMap<AccessCallableId, HeaderRecipe>,
     sources: Arc<BTreeMap<AccessCallableId, CallableSource>>,
 }
 impl<'source> Preparation<'source> {
-    /// Computes header semantics for one private function unit, without checking its bodies.
+    /// Closes names/slots and retains raw type recipes, without resolving types or checking bodies.
     /// # Errors
-    /// Rejects a wrong goal, syntax errors, header violations, or broken syntax integrity.
+    /// Rejects a wrong goal, syntax/header-shape errors, name conflicts or broken syntax integrity.
     pub fn prepare(syntax: BoundSyntax<'source>) -> Result<Self, Failure> {
         validate_input(syntax)?;
         let tree = syntax.tree();
@@ -139,27 +143,10 @@ impl<'source> Preparation<'source> {
                 )
             })
             .collect();
-        let mut builder = reservations.finish().map_err(|violations| {
+        let builder = reservations.finish().map_err(|violations| {
             projection::project_violations(tree, &sources, &record_headers, violations)
         })?;
-        let violations = definitions::define(
-            &mut builder,
-            syntax,
-            &symbols,
-            &function_headers,
-            &record_headers,
-        )?;
-        if !violations.is_empty() {
-            return Err(projection::project_violations(
-                tree,
-                &sources,
-                &record_headers,
-                violations,
-            ));
-        }
-        let headers = builder.into_publication().map_err(|violations| {
-            projection::project_violations(tree, &sources, &record_headers, violations)
-        })?;
+        let headers = builder.into_publication();
         let mut recipes = BTreeMap::new();
         for (&id, source) in &sources {
             let locate = |origin| projection.locate(origin).ok_or(Failure::InconsistentSyntax);
@@ -185,6 +172,10 @@ impl<'source> Preparation<'source> {
         Ok(Self {
             headers,
             records: record_headers,
+            functions: function_headers
+                .into_iter()
+                .map(|(id, header)| (id, header.into()))
+                .collect(),
             syntax,
             surface: projection.into_surface(),
             recipes,
@@ -208,18 +199,47 @@ impl<'source> Preparation<'source> {
         &mut self,
         required: impl Into<DeclarationId>,
     ) -> Result<Context<'source>, Failure> {
-        self.headers
-            .publish(required)
-            .map_err(|failure| self.project_failure(failure))?;
+        self.publish(required.into())?;
         Ok(self.current())
     }
     /// Advance one requested header without scheduling its required record headers.
     /// # Errors
-    /// Projects rejected Copy contracts, or rejects an identity outside this source domain.
+    /// Projects raw type/contract failures, or rejects an identity outside this source domain.
     pub fn advance(&mut self, required: impl Into<DeclarationId>) -> Result<HeaderStep, Failure> {
+        let required = required.into();
+        if !self
+            .headers
+            .is_defined(required)
+            .ok_or(Failure::InconsistentSyntax)?
+        {
+            let violations = definitions::define(
+                &mut self.headers,
+                self.syntax,
+                required,
+                &self.functions,
+                &self.sources,
+                &self.records,
+            )?;
+            if !violations.is_empty() {
+                return Err(projection::project_violations(
+                    self.syntax.tree(),
+                    &self.sources,
+                    &self.records,
+                    violations,
+                ));
+            }
+        }
         self.headers
             .advance(required)
             .map_err(|failure| self.project_failure(failure))
+    }
+    fn publish(&mut self, required: DeclarationId) -> Result<(), Failure> {
+        let mut requests = DependencyQuery::default();
+        match requests.resolve_steps(self, required) {
+            Ok(_) => Ok(()),
+            Err(DependencyQueryError::Computation(failure)) => Err(failure),
+            Err(DependencyQueryError::Cycle(path)) => Err(self.reject_cycle(&path)),
+        }
     }
     /// Share only the contracts already established by this construction.
     #[must_use]
@@ -241,7 +261,11 @@ impl<'source> Preparation<'source> {
     /// Finish the complete reusable header query without re-normalizing published contracts.
     /// # Errors
     /// Reports invalid remaining contracts at their declaration-owned source positions.
-    pub fn finish(self) -> Result<Query, Failure> {
+    pub fn finish(mut self) -> Result<Query, Failure> {
+        let ids: Vec<_> = self.declaration_ids().collect();
+        for id in ids {
+            self.publish(id)?;
+        }
         let program = self.headers.finish().map_err(|failure| {
             project_failure(self.syntax, &self.sources, &self.records, failure)
         })?;
@@ -250,6 +274,22 @@ impl<'source> Preparation<'source> {
             surface: self.surface,
             recipes: self.recipes,
         })
+    }
+}
+
+impl DependencyProgress<DeclarationId, (), Failure> for Preparation<'_> {
+    fn advance(
+        &mut self,
+        _: &DependencyQuery<DeclarationId, ()>,
+        id: DeclarationId,
+    ) -> Result<DependencyStep<DeclarationId, ()>, Failure> {
+        Ok(match self.advance(id)? {
+            HeaderStep::Ready => DependencyStep::Complete(()),
+            HeaderStep::Require(dependencies) => DependencyStep::Require(dependencies),
+        })
+    }
+    fn no_progress(&mut self, _: DeclarationId) -> Failure {
+        Failure::InconsistentSyntax
     }
 }
 

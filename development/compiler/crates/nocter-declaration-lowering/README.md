@@ -97,8 +97,8 @@ syntax-owned input/field counts, and consumes
 reservation closure before resolving any header type. That transition validates the complete
 declaration namespace independently of missing/unsupported data; a name conflict is projected at
 the current declaration with its related declaration even when both signatures have invalid types.
-The resulting definition builder resolves
-data types, input operations, namespaces, authored const capability and value-result constraints
+Preparation retains raw data-type and operation recipes beside the fixed names and source catalog.
+A requested header loads its define-once raw definition through the declaration owner's namespace,
 without examining body semantics.
 `headers` extracts syntax-only header evidence for functions and explicitly typed required constant/static initializers.
 Initializer expressions use the syntax owner's existing body-surface exclusion and current-body
@@ -107,8 +107,10 @@ locator mechanism, so initializer-only edits rebind headers without retaining st
 `DataTypeSyntax` preserves tuple/group shape and named leaves for both consumers; record fields
 use that same data projection. Its typed invocation and input-operation projection is the only
 decoder for these contexts; neither consumer recovers a mode from names, types or body use.
-`definitions` resolves input and result slots through one value normalization path and the
-declaration builder's single data namespace. Every callback leaf retains its owning annotation
+`definitions` resolves only the selected input/result or record recipe through one value
+normalization path and the declaration owner's single data namespace. Callable recipes retain
+kind, type syntax and input operations; parameter names and source positions remain solely in the
+shared source catalog. Every callback leaf retains its owning annotation
 as the diagnostic location for unknown/unsupported data. Forward record references, including tuple components, invalid fields,
 containment cycles and Copy eligibility therefore share the declaration authority instead of a
 lowering-owned type table. Existing built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain
@@ -133,12 +135,14 @@ owns the handoff to typed-only body checking and the still-required flow/safety 
 `Preparation` owns one exact-current syntax pairing and the declaration owner's incremental
 header publication. Its contexts share the source catalog and expose complete callable or record contracts
 as requested, without re-reading or checking a body. `finish` yields the complete reusable `Query`;
-the eager query entry delegates to that same construction. Required contracts close transitive
-record payloads, validating finite containment and Copy before exposing their field TypeIds.
-Raw source data-name resolution still closes before these views, so this does not admit
-array-length calls.
+the complete query entry drives those same steps through the construction dependency query.
+Required contracts close transitive record payloads, validating finite containment and Copy before exposing their field TypeIds.
+Raw source data names resolve as their selected recipes load; an unknown type in an unrelated
+header cannot block an independent required value. Complete closure still validates that header.
+Header steps cannot yet request array-length values.
 `advance` exposes the declaration owner's next complete-or-required step without traversing record
-fields or inventing a dependency graph here. Reserved identity enumeration also delegates to that
+fields or inventing a dependency graph here. Its define-once readiness query belongs to declarations,
+not to a parallel source-side loaded set. Reserved identity enumeration also delegates to that
 owner rather than deriving semantic membership from source recipes. Checking can schedule these
 steps iteratively through its common query, including unused records at final closure. Exact-current
 record header evidence stays with preparation so late declaration rejections project through the

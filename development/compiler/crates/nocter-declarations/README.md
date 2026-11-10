@@ -75,17 +75,20 @@ The value-access product owns immutable declaration facts and their type authori
 private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
 `Reservations` assigns callable/record and input/field identities; its consuming `finish` closes
-the complete name domain into a `Builder`. The builder defines all raw source data references and validates their names and supported domain
-before opening `HeaderPublication`.
-This single writer normalizes requested callable or record contracts and exposes immutable
-`Program` views containing only ready entries. Each contract first closes its transitive record
+the complete name domain into a `Builder`. This construction owns define-once raw definitions;
+its infallible `into_publication` transition opens `HeaderPublication` without requiring definitions
+to be loaded. The writer retains that sole raw owner and permits defining remaining headers through
+the same define-once methods. It cannot append reservations or replace an established definition.
+This single writer validates and normalizes requested callable or record contracts and exposes
+immutable `Program` views containing only ready entries. Each contract first closes its transitive record
 dependencies. Its consuming `finish` closes every remaining callable and record, including unused
 records. `Builder::finish` uses that same path.
 No definition or type resolution is available during reservation, and no new declaration can be
 reserved after name closure. Untyped construction grants no body-checking admission. A ready view
 can support typed-only checking of its established contracts, but only `headers_complete` can
-permit whole-unit closure. Raw source-reference validation still closes as one stratum;
-demand-driven payload validation is not early array-length evaluation. Defining headers
+permit whole-unit closure. `is_defined` distinguishes known unloaded definitions from unknown IDs;
+it does not grant a validated contract. Raw reference, payload and Copy validation all run on demand.
+That boundary is not early array-length evaluation. Defining headers
 in a different order cannot change parameter identities.
 The lowering owner reserves functions and records in canonical namespace order.
 
@@ -109,8 +112,9 @@ Callable/input and record/field tables use model-owned sparse arenas. A missing 
 contract or Copy evidence; known names can still identify its required header or forbid shadowing.
 Only a non-cloneable writer can fill a reserved slot once. Immutable views share persistent storage;
 their exact ancestry is independent of structural metadata equality. All views retain the same
-closed namespace and preserve every established contract. Named code or nominal leaf keys alone
-cannot expose an unready function witness, payload schema or Copy evidence. Record publication
+closed namespace and preserve every established contract. Nominal leaf keys alone cannot expose
+an unready payload schema or Copy evidence. Named invocation keys publish with their selected
+validated callable contract, not during reservation. Record publication
 reports missing record contracts through `HeaderPublication::advance`. A step publishes only the
 selected contract once every dependency is ready; a request publishes neither provisional parent
 fields nor TypeIds. The complete publication entry drives those same steps with an explicit

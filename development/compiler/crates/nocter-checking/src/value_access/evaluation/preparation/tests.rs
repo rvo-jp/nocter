@@ -337,9 +337,11 @@ fn deferred_invalid_records_do_not_block_independent_values_or_escape_complete_u
 
 #[test]
 fn record_rejections_keep_field_ownership_through_body_and_value_requests() {
-    for declaration in [
-        "copy struct Bad { payload: error }",
-        "struct Bad { payload: Bad }",
+    for (declaration, expected) in [
+        ("copy struct Bad { payload: error }", "error"),
+        ("struct Bad { payload: Bad }", "Bad"),
+        ("struct Bad { payload: Missing }", "Missing"),
+        ("struct Bad { payload: i64 }", "i64"),
     ] {
         let source = format!(
             "{declaration}\nconst ANSWER: i32 = if false {{ let _ = deep()\n0 }} else {{ 42 }}\nconst func deep(): Bad {{ loop {{}} }}"
@@ -359,14 +361,91 @@ fn record_rejections_keep_field_ownership_through_body_and_value_requests() {
             diagnostic.violation().declaration,
             DeclarationId::Record(_)
         ));
-        let expected = if declaration.starts_with("copy") {
-            "error"
-        } else {
-            "Bad"
-        };
         assert_eq!(
             syntax.text_at(diagnostic.source().primary().span().range()),
             Some(expected)
         );
+    }
+}
+
+#[test]
+fn raw_type_names_are_resolved_only_when_their_declaration_is_requested() {
+    use nocter_declarations::value_access::HeaderPosition;
+    for (source, name, position, expected) in [
+        (
+            "struct Invalid { value: Missing }\nconst ANSWER: i32 = 42",
+            "Invalid",
+            HeaderPosition::Field(0),
+            "Missing",
+        ),
+        (
+            "struct Invalid { value: i64 }\nconst ANSWER: i32 = 42",
+            "Invalid",
+            HeaderPosition::Field(0),
+            "i64",
+        ),
+        (
+            "func invalid(action: func(Missing): i32): void {}\nconst ANSWER: i32 = 42",
+            "invalid",
+            HeaderPosition::Parameter(0),
+            "func(Missing): i32",
+        ),
+        (
+            "func invalid(): Missing { loop {} }\nconst ANSWER: i32 = 42",
+            "invalid",
+            HeaderPosition::Result,
+            "Missing",
+        ),
+    ] {
+        let (sources, tree) = input(source);
+        let syntax = bound(&sources, &tree);
+        let mut headers = declarations::Preparation::prepare(syntax).unwrap();
+        let mut preparation = Preparation::new(
+            headers.current(),
+            Headers::Publishing(&mut headers),
+            state::Limits::default(),
+        );
+        let program = preparation.context.program();
+        let invalid = program
+            .declaration(program.symbols().get(name).unwrap())
+            .unwrap();
+        let answer = program
+            .resolve_code(program.symbols().get("ANSWER").unwrap())
+            .unwrap();
+        let mut requests = Dependencies::default();
+        requests
+            .resolve(&mut preparation, Request::Value(answer))
+            .unwrap();
+        assert_eq!(
+            dependencies::value(&requests, answer).unwrap().frozen,
+            state::Value::integer(42).freeze()
+        );
+        assert!(!preparation.context.program().header_ready(invalid));
+        let Err(SourceFailure::Declarations(declarations::Failure::Headers(diagnostics))) =
+            preparation.require_header(&mut requests, invalid)
+        else {
+            panic!("the selected raw type must reject at its own annotation")
+        };
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.violation().declaration, invalid);
+        assert_eq!(diagnostic.violation().position, position);
+        assert_eq!(
+            syntax.text_at(diagnostic.source().primary().span().range()),
+            Some(expected)
+        );
+        assert_eq!(requests.active_depth(), 0);
+        assert!(requests.completed(&Request::Header(invalid)).is_none());
+        drop(preparation);
+        assert!(matches!(
+            headers.finish(),
+            Err(declarations::Failure::Headers(_))
+        ));
+        assert!(matches!(
+            crate::value_access::staged::SourceUnit::prepare(syntax),
+            Err(SourceFailure::Declarations(declarations::Failure::Headers(
+                _
+            )))
+        ));
     }
 }

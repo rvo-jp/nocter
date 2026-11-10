@@ -155,7 +155,7 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
         )
         .unwrap();
     builder.define_record(plain, false, []).unwrap();
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     let before = headers.snapshot();
     let expected = super::super::HeaderFailure::Rejected(vec![DeclarationViolation {
         declaration: DeclarationId::Record(b),
@@ -199,7 +199,7 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
             )
             .unwrap();
     }
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     for (request, owner, through) in [
         (a, b, a),
         (b, a, b),
@@ -444,7 +444,7 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
             )
             .unwrap();
     }
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     let early = headers.snapshot();
     assert!(early.records().is_empty());
     assert!(early.fields().is_empty());
@@ -559,7 +559,7 @@ fn rejected_copy_fields_publish_neither_tuple_types_nor_partial_schemas() {
             ],
         )
         .unwrap();
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     headers.publish(plain).unwrap();
     let before = headers.snapshot();
     let failure = HeaderFailure::Rejected(

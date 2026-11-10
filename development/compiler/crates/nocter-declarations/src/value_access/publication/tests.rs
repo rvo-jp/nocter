@@ -2,7 +2,7 @@
 use super::*;
 use crate::value_access::{CallableKind, DataReference, FieldDefinition, Reservations, TupleData};
 use nocter_model::{
-    ArenaBuilder, BuiltinType, CompileTimeGuarantee, GenericApplication, NominalTypeId,
+    ArenaBuilder, BuiltinType, CompileTimeGuarantee, GenericApplication, NominalTypeId, SymbolTable,
 };
 
 #[test]
@@ -41,7 +41,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
             BuiltinType::Void,
         )
         .unwrap();
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     headers.publish(run).unwrap();
     let early = headers.snapshot();
     assert!(early.header_ready(run));
@@ -108,7 +108,7 @@ fn unknown_header_steps_preserve_every_ready_contract() {
     let record = reservations.reserve_record(symbols.get("Empty").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
     builder.define_record(record, false, []).unwrap();
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     assert_eq!(headers.advance(record).unwrap(), HeaderStep::Ready);
     let before = headers.snapshot();
     let mut outside = ArenaBuilder::<NominalTypeId, ()>::new();
@@ -164,7 +164,7 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
             ValueDefinition::Function(contract),
         )
         .unwrap();
-    let mut headers = builder.into_publication().unwrap();
+    let mut headers = builder.into_publication();
     headers.publish(run).unwrap();
     let program = headers.snapshot();
     assert!(program.headers_complete());
@@ -182,4 +182,83 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
         program.callables().get(run).unwrap().result_contract(),
         Some(callback)
     );
+}
+
+#[test]
+fn missing_definitions_can_be_loaded_without_changing_slots_or_established_contracts() {
+    use crate::value_access::{DeclarationRule, DeclarationViolation, HeaderPosition};
+    let symbols = SymbolTable::from_spellings(["Leaf", "Parent", "run", "value"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let leaf = reservations.reserve_record(symbols.get("Leaf").unwrap(), 1);
+    let parent = reservations.reserve_record(symbols.get("Parent").unwrap(), 1);
+    let run = reservations.reserve(symbols.get("run").unwrap(), 0);
+    let builder = reservations.finish().unwrap();
+    let leaf_fields = builder.field_ids(leaf).unwrap().to_vec();
+    let parent_fields = builder.field_ids(parent).unwrap().to_vec();
+    let mut headers = builder.into_publication();
+    headers
+        .define(
+            run,
+            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::I32,
+        )
+        .unwrap();
+    headers.publish(run).unwrap();
+    let early = headers.snapshot();
+    assert_eq!(headers.is_defined(leaf), Some(false));
+    assert_eq!(early.type_named("Leaf"), None);
+    let child_data = headers.resolve_data(symbols.get("Leaf").unwrap()).unwrap();
+    headers
+        .define_record(
+            parent,
+            true,
+            [FieldDefinition {
+                name: symbols.get("value").unwrap(),
+                data: child_data,
+            }],
+        )
+        .unwrap();
+    assert_eq!(
+        headers.publish(parent),
+        Err(HeaderFailure::Rejected(vec![DeclarationViolation {
+            declaration: leaf.into(),
+            position: HeaderPosition::Name,
+            rule: DeclarationRule::MissingDefinition,
+        }]))
+    );
+    assert!(headers.snapshot().preserves_headers(&early));
+    assert!(headers.snapshot().records().is_empty());
+    assert_eq!(
+        headers.define_record(leaf, true, []),
+        Err(crate::DefinitionError::WrongArity {
+            expected: 1,
+            actual: 0
+        })
+    );
+    assert_eq!(headers.is_defined(leaf), Some(false));
+    headers
+        .define_record(
+            leaf,
+            true,
+            [FieldDefinition {
+                name: symbols.get("value").unwrap(),
+                data: BuiltinType::Bool.into(),
+            }],
+        )
+        .unwrap();
+    headers.publish(parent).unwrap();
+    assert_eq!(
+        headers.define_record(leaf, false, []),
+        Err(crate::DefinitionError::AlreadyDefined)
+    );
+    let complete = headers.finish().unwrap();
+    assert!(complete.preserves_headers(&early));
+    assert!(complete.headers_complete());
+    assert_eq!(complete.records().get(leaf).unwrap().fields(), leaf_fields);
+    assert_eq!(
+        complete.records().get(parent).unwrap().fields(),
+        parent_fields
+    );
+    assert!(complete.records().get(parent).unwrap().copyable());
 }
