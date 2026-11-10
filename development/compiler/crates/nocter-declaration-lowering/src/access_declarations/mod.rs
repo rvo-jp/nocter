@@ -4,7 +4,7 @@ mod headers;
 mod projection;
 mod source;
 use source::RecordSource;
-pub use source::{BodySource, BodySources, HeaderSource, SourceMismatch};
+pub use source::{BodySource, BodySources, CodeSource, HeaderSource, SourceMismatch};
 mod type_syntax;
 pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]
@@ -22,8 +22,7 @@ use nocter_dependency_query::{
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{
-    BoundSyntax, DeclarationSyntaxSurface, NodeId, NodeKind, SyntaxToken,
-    project_declaration_syntax,
+    BoundSyntax, DeclarationSyntaxSurface, NodeKind, SyntaxToken, project_declaration_syntax,
 };
 
 pub use projection::HeaderDiagnostic;
@@ -51,34 +50,6 @@ pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
     sources: source::Sources,
-}
-
-#[derive(Clone, Debug)]
-pub struct CodeSource {
-    name: SyntaxToken,
-    parameters: Box<[SyntaxToken]>,
-    parameter_types: Box<[NodeId]>,
-    result: NodeId,
-    body: NodeId,
-}
-
-impl CodeSource {
-    #[must_use]
-    pub const fn name(&self) -> SyntaxToken {
-        self.name
-    }
-    #[must_use]
-    pub const fn parameters(&self) -> &[SyntaxToken] {
-        &self.parameters
-    }
-    #[must_use]
-    pub const fn result(&self) -> NodeId {
-        self.result
-    }
-    #[must_use]
-    pub const fn body(&self) -> NodeId {
-        self.body
-    }
 }
 
 /// Exact-current construction with progressively published callable and record contracts.
@@ -121,29 +92,8 @@ impl<'source> Preparation<'source> {
             .into_iter()
             .map(|h| Ok((reservations.reserve(symbol(h.name)?, h.parameters.len()), h)))
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
-        let sources: BTreeMap<_, _> = function_headers
-            .iter()
-            .map(|(&id, h)| {
-                (
-                    id,
-                    CodeSource {
-                        name: h.name,
-                        parameters: h.parameters.iter().map(|p| p.name).collect(),
-                        parameter_types: h.parameters.iter().map(|p| p.ty).collect(),
-                        result: h.result_syntax,
-                        body: h.body,
-                    },
-                )
-            })
-            .collect();
-        let record_sources: BTreeMap<_, _> = record_headers
-            .iter()
-            .map(|(&id, header)| (id, header.source.clone()))
-            .collect();
-        let sources = source::Sources {
-            codes: Arc::new(sources),
-            records: Arc::new(record_sources),
-        };
+        let sources =
+            source::Sources::reserve(&mut reservations, &function_headers, &record_headers)?;
         let builder = reservations.finish().map_err(|violations| {
             projection::project_violations(tree, &sources.codes, &sources.records, violations)
         })?;

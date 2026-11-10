@@ -92,11 +92,8 @@ fn project(
         .code_source(error.code)
         .ok_or(BodyFailure::InconsistentSyntax)?;
     let mut notes = vec![DiagnosticNote::new(
-        "this initializer requires a compile-time value",
-        source_origin(
-            context.syntax(),
-            nocter_syntax::SyntaxOrigin::Token(root.name()),
-        )?,
+        "this expression requires a compile-time value",
+        source_origin(context.syntax(), root.origin())?,
     )];
     for &site in &error.trace {
         notes.push(DiagnosticNote::new(
@@ -130,7 +127,7 @@ fn final_diagnostic(
         .ok_or(BodyFailure::InconsistentSyntax)?;
     let primary = source_origin(
         context.syntax(),
-        nocter_syntax::SyntaxOrigin::Node(source.result()),
+        nocter_syntax::SyntaxOrigin::Node(source.result_origin()),
     )?;
     let (code, message) = Rule::FinalValue.diagnostic()?;
     Ok(Diagnostic {

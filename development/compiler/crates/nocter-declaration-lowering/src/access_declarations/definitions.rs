@@ -194,7 +194,7 @@ impl Definitions<'_, '_> {
                         *self
                             .sources
                             .get(&id)
-                            .and_then(|s| s.parameters.get(index))
+                            .and_then(|s| s.parameters().get(index))
                             .ok_or(Failure::InconsistentSyntax)?,
                     )?,
                     data,

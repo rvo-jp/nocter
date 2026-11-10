@@ -590,7 +590,12 @@ publishing unfinished facts. Callable-only recursion still closes through ready 
 ordinary selected call graph. The same pass also checks ordinary and
 unused definitions. Whole-unit closure requires every header, body and required value; selected
 const-closure acceptance never grants complete Unit admission. Source type normalization cannot
-yet request these values; header-dependent lengths remain a separate integration gate.
+yet request these values; header-dependent normalization remains a separate integration gate.
+The [registered anonymous header roots](../nocter-declaration-lowering/README.md#exact-source-evidence)
+also enter this same body/value path with a declared usize result and no formal inputs or source
+return target. Selected counts can check and execute before their enclosing contract is ready;
+ordinary typing, dead authored dependencies, const eligibility and evaluation errors retain their
+real count-expression causes. Successful count execution alone grants no array schema or Unit.
 
 The same `accepted::check_queries` routine canonically replays and ordinarily validates a selected
 const closure before any execution, and later closes the complete Unit. Each temporary closure

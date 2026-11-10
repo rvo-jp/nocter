@@ -192,7 +192,20 @@ as body evidence, but its current root is an annotation node, never executable c
 before contract readiness and does not resolve its type names. Non-type positions, unknown slots
 and foreign authorities reject. Record-owned source is never relabeled as a callable body.
 
-This establishes exact source roots, not executable length code or evaluated array types.
-Pairing the declaration owner's anonymous code contracts with executable source roots and
-value-dependent header reuse remain part of the
+`source::registration` pairs every header length expression with its declaration-owned anonymous
+code ID before closing reservations. It traverses record fields, callable parameters/results and
+nested tuple/array/callback shapes in canonical owner/slot/source order. Each count has its own
+ordinary executable expression root; its enclosing declaration and header position remain in the
+semantic code role. `CodeSource` stores a named header only for authored named declarations.
+Anonymous code has no name, source parameters or authored result annotation. Its diagnostic origin
+and result cause are the real count expression, whose expected usize result belongs to declarations.
+`source::recipes` captures and rebinds both named and anonymous executable roots through the same
+neutral locator catalog. `BodySource` guards their exact bytes and ancestry without permitting
+caller-supplied code/source joins.
+
+Selected anonymous counts can use ordinary body checking, const-domain validation and required
+usize execution while their enclosing header remains unready. This is isolated expression
+execution, not array admission. Header normalization still rejects arrays; it cannot yet request
+these values or retain selected supplying-body dependencies with a normalized header query.
+That integration remains part of the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

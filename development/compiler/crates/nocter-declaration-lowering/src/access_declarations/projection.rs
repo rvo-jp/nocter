@@ -97,7 +97,7 @@ fn details(
         R::DuplicateCallable { first } => (
             DiagnosticCode::E0241,
             "duplicate value declaration name",
-            Some(sources.get(&first)?.name),
+            Some(sources.get(&first)?.name()?),
         ),
         R::DuplicateRecord { first } => (
             DiagnosticCode::E0241,
@@ -107,7 +107,7 @@ fn details(
         R::RecordShadowsCallable { declaration } => (
             DiagnosticCode::E0241,
             "record name conflicts with a value declaration",
-            Some(sources.get(&declaration)?.name),
+            Some(sources.get(&declaration)?.name()?),
         ),
         R::DuplicateParameter { first } => {
             let DeclarationId::Code(id) = violation.declaration else {
@@ -116,7 +116,7 @@ fn details(
             (
                 DiagnosticCode::E0341,
                 "duplicate parameter name",
-                Some(*sources.get(&id)?.parameters.get(first)?),
+                Some(*sources.get(&id)?.parameters().get(first)?),
             )
         }
         R::DuplicateField { first } => {
@@ -132,7 +132,7 @@ fn details(
         R::ParameterShadowsCallable { declaration } => (
             DiagnosticCode::E0341,
             "parameter shadows an authored value declaration",
-            Some(sources.get(&declaration)?.name),
+            Some(sources.get(&declaration)?.name()?),
         ),
         R::ParameterShadowsRecord { declaration } => (
             DiagnosticCode::E0341,

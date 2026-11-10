@@ -442,3 +442,195 @@ fn raw_type_names_are_resolved_only_when_their_declaration_is_requested() {
         ));
     }
 }
+
+#[test]
+fn anonymous_header_lengths_use_ordinary_usize_checking_and_execution_before_parent_readiness() {
+    use nocter_declarations::value_access::{CodeKind, DeclarationId, HeaderPosition};
+    for (source, position) in [
+        (
+            "struct Data { values: [i32; size(20) + size(22)] }\nconst func size(value: usize): usize { value }",
+            HeaderPosition::Field(0),
+        ),
+        (
+            "func f(values: [i32; size(20) + size(22)]): void {}\nconst func size(value: usize): usize { value }",
+            HeaderPosition::Parameter(0),
+        ),
+        (
+            "func f(): [i32; if true { size(40) + 2 } else { 0 }] {}\nconst func size(value: usize): usize { value }",
+            HeaderPosition::Result,
+        ),
+    ] {
+        let (sources, tree) = input(source);
+        let syntax = bound(&sources, &tree);
+        let mut headers = declarations::Preparation::prepare(syntax).unwrap();
+        let early = headers.current();
+        let expression = headers
+            .code_ids()
+            .find(|&id| {
+                matches!(
+                    early.code_source(id).unwrap().origin(),
+                    SyntaxOrigin::Node(_)
+                )
+            })
+            .unwrap();
+        let parent_name = if source.starts_with("struct") {
+            "Data"
+        } else {
+            "f"
+        };
+        let parent: DeclarationId = early
+            .program()
+            .declaration(early.program().symbols().get(parent_name).unwrap())
+            .unwrap();
+        let mut preparation = Preparation::new(
+            early,
+            Headers::Publishing(&mut headers),
+            state::Limits::default(),
+        );
+        let mut requests = Dependencies::default();
+        requests
+            .resolve_steps(&mut preparation, Request::Value(expression))
+            .unwrap();
+        assert_eq!(
+            dependencies::value(&requests, expression).unwrap().frozen,
+            state::Value::integer(42).freeze()
+        );
+        let program = preparation.context.program();
+        let code = program.codes().get(expression).unwrap();
+        assert_eq!(code.name(), None);
+        assert_eq!(
+            code.kind(),
+            CodeKind::TypeExpression(nocter_declarations::value_access::TypeExpressionSource {
+                declaration: parent,
+                position
+            })
+        );
+        assert!(!program.header_ready(parent));
+        assert!(!program.headers_complete());
+        assert!(matches!(
+            requests.completed(&Request::Body(expression)),
+            Some(Fact::Body(_))
+        ));
+        assert_eq!(requests.active_depth(), 0);
+        // Executing a length does not publish an array schema or excuse its parent's missing contract.
+        assert!(matches!(
+            preparation.require_header(&mut requests, parent),
+            Err(SourceFailure::Declarations(declarations::Failure::Headers(
+                _
+            )))
+        ));
+    }
+}
+
+#[test]
+fn anonymous_header_lengths_preserve_ordinary_typing_and_dead_authored_const_failures() {
+    for (length, helper, expected) in [
+        ("true", "", Some(crate::value_access::Rule::TypeMismatch)),
+        (
+            "if true { return 42 } else { 0 }",
+            "",
+            Some(crate::value_access::Rule::InvalidReturn),
+        ),
+        (
+            "if false { runtime() } else { 42 }",
+            "\nfunc runtime(): usize { 0 }",
+            None,
+        ),
+        (
+            "if false { missing } else { 42 }",
+            "",
+            Some(crate::value_access::Rule::UnknownName),
+        ),
+    ] {
+        let source = format!("struct Data {{ values: [i32; {length}] }}{helper}");
+        let (sources, tree) = input(&source);
+        let mut headers = declarations::Preparation::prepare(bound(&sources, &tree)).unwrap();
+        let early = headers.current();
+        let expression = headers
+            .code_ids()
+            .find(|&id| {
+                matches!(
+                    early.code_source(id).unwrap().origin(),
+                    SyntaxOrigin::Node(_)
+                )
+            })
+            .unwrap();
+        let mut preparation = Preparation::new(
+            early,
+            Headers::Publishing(&mut headers),
+            state::Limits::default(),
+        );
+        let mut requests = Dependencies::default();
+        let Err(QueryError::Computation(SourceFailure::Checking(failure))) =
+            requests.resolve_steps(&mut preparation, Request::Value(expression))
+        else {
+            panic!("ordinary source rejection: {source}");
+        };
+        match (failure, expected) {
+            (
+                Failure::Body {
+                    failure: super::super::BodyFailure::Rejected(diagnostic),
+                    ..
+                },
+                Some(expected),
+            ) => assert_eq!(diagnostic.rule(), expected),
+            (Failure::Const { diagnostic, .. }, None) => assert!(matches!(
+                diagnostic.rule(),
+                crate::value_access::constant::Rule::RuntimeCall(_)
+            )),
+            other => panic!("the exact ordinary rejection: {other:?}"),
+        }
+        assert!(requests.completed(&Request::Value(expression)).is_none());
+        assert_eq!(requests.active_depth(), 0);
+    }
+}
+
+#[test]
+fn failed_anonymous_length_execution_reports_its_real_expression_root() {
+    let source = "struct Data { values: [i32; 1 / 0] }";
+    let (sources, tree) = input(source);
+    let syntax = bound(&sources, &tree);
+    let mut headers = declarations::Preparation::prepare(syntax).unwrap();
+    let early = headers.current();
+    let expression = headers
+        .code_ids()
+        .find(|&id| {
+            matches!(
+                early.code_source(id).unwrap().origin(),
+                SyntaxOrigin::Node(_)
+            )
+        })
+        .unwrap();
+    let mut preparation = Preparation::new(
+        early,
+        Headers::Publishing(&mut headers),
+        state::Limits::default(),
+    );
+    let mut requests = Dependencies::default();
+    let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
+        callable,
+        diagnostic,
+    }))) = requests.resolve_steps(&mut preparation, Request::Value(expression))
+    else {
+        panic!("invalid required arithmetic");
+    };
+    assert_eq!(callable, expression);
+    assert_eq!(
+        diagnostic.rule(),
+        super::super::Rule::Execution(state::Rule::ArithmeticFailure)
+    );
+    assert_eq!(diagnostic.source().code(), "E0325");
+    assert_eq!(
+        syntax.text_at(diagnostic.source().primary().span().range()),
+        Some("1 / 0")
+    );
+    assert!(
+        diagnostic
+            .source()
+            .notes()
+            .iter()
+            .any(|note| syntax.text_at(note.origin().span().range()) == Some("1 / 0"))
+    );
+    assert!(requests.completed(&Request::Value(expression)).is_none());
+    assert_eq!(requests.active_depth(), 0);
+}

@@ -397,3 +397,82 @@ fn unready_array_header_roots_preserve_the_exact_ordinary_length_expression() {
         assert!(!context.program().header_ready(owner));
     }
 }
+
+#[test]
+fn nested_header_lengths_have_distinct_code_roots_and_neutral_source_recipes() {
+    use nocter_declarations::value_access::{CodeKind, HeaderPosition};
+    let source = "struct Data { values: ([i32; inner()], [bool; outer()]) }\nfunc f(action: func(edit [i32; p()]): [void; q()]): [bool; r()] { missing }";
+    let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
+    let syntax = bound(&sources, &tree);
+    let mut preparation = Preparation::prepare(syntax).unwrap();
+    let early = preparation.current();
+    let expressions = preparation
+        .code_ids()
+        .filter(|&id| {
+            matches!(
+                early.code_source(id).unwrap().origin(),
+                nocter_syntax::SyntaxOrigin::Node(_)
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expressions.len(), 5);
+    assert_eq!(preparation.declaration_ids().count(), 2);
+    let expected = [
+        ("inner()", "Data", HeaderPosition::Field(0)),
+        ("outer()", "Data", HeaderPosition::Field(0)),
+        ("p()", "f", HeaderPosition::Parameter(0)),
+        ("q()", "f", HeaderPosition::Parameter(0)),
+        ("r()", "f", HeaderPosition::Result),
+    ];
+    for (&id, &(text, owner, position)) in expressions.iter().zip(&expected) {
+        let context = preparation.context(id).unwrap();
+        let code = context.program().codes().get(id).unwrap();
+        let CodeKind::TypeExpression(site) = code.kind() else {
+            panic!("anonymous code");
+        };
+        assert_eq!(code.name(), None);
+        assert_eq!(
+            site.declaration,
+            context
+                .program()
+                .declaration(context.program().symbols().get(owner).unwrap())
+                .unwrap()
+        );
+        assert_eq!(site.position, position);
+        assert!(!context.program().header_ready(site.declaration));
+        let source = context.code_source(id).unwrap();
+        assert!(source.parameters().is_empty());
+        assert_eq!(
+            source.origin(),
+            nocter_syntax::SyntaxOrigin::Node(source.body())
+        );
+        assert_eq!(source.result_origin(), source.body());
+        assert_eq!(
+            syntax.text_at(tree.node(source.body()).unwrap().range()),
+            Some(text)
+        );
+        let guard = context.body_source(id).unwrap();
+        assert_eq!(guard.owner(), id);
+        assert_eq!(guard.bind(&context).unwrap().body(), source.body());
+    }
+    let moved = source.replace("{ missing }", "{\n other\n}");
+    let (next_sources, next_tree) = input(&moved, ParseGoal::V2CoreUnit);
+    let next = bound(&next_sources, &next_tree);
+    let projection = project_declaration_syntax(next);
+    assert_eq!(projection.surface(), &preparation.surface);
+    let rebound = preparation.source_recipes.bind(&projection).unwrap();
+    for (&id, &(text, _, _)) in expressions.iter().zip(&expected) {
+        let source = rebound.codes.get(&id).unwrap();
+        assert_eq!(
+            next.text_at(next_tree.node(source.body()).unwrap().range()),
+            Some(text)
+        );
+        assert_eq!(source.name(), None);
+    }
+    let changed = source.replace("inner()", "other()");
+    let (changed_sources, changed_tree) = input(&changed, ParseGoal::V2CoreUnit);
+    assert_ne!(
+        project_declaration_syntax(bound(&changed_sources, &changed_tree)).surface(),
+        &preparation.surface
+    );
+}

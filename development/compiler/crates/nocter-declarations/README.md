@@ -153,7 +153,8 @@ published. `code_ids` includes these roots although named `declaration_ids` does
 closure still requires every code slot. A selected anonymous contract can publish before its
 owning authored header is ready, without making that parent ready. Presentation derives a label
 from the real owning declaration, including an unready owner, rather than interning a synthetic
-name. Source registration, exact executable-root pairing and value-dependent header normalization
+name. The [source owner](../nocter-declaration-lowering/README.md#exact-source-evidence) pairs these
+contracts with exact executable roots. Array normalization and value-dependent header reuse
 remain with the [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).
 
 The same program publishes closed nominal record metadata used by parsed callable and body

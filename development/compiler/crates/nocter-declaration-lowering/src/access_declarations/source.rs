@@ -1,11 +1,12 @@
 //! Exact source evidence shared by declaration and checking consumers, without evaluation.
-use super::{CodeSource, Context};
+use super::Context;
 use nocter_declarations::value_access::{DeclarationId, HeaderPosition, Program};
 use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 use std::{collections::BTreeMap, sync::Arc};
 
 mod recipes;
+mod registration;
 pub(super) use recipes::Recipes;
 
 #[derive(Clone, Debug)]
@@ -31,6 +32,50 @@ pub(super) struct FieldSource {
 pub(super) struct RecordSource {
     pub name: SyntaxToken,
     pub fields: Box<[FieldSource]>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CodeSource {
+    header: Option<CodeHeaderSource>,
+    body: NodeId,
+}
+#[derive(Clone, Debug)]
+struct CodeHeaderSource {
+    name: SyntaxToken,
+    parameters: Box<[SyntaxToken]>,
+    parameter_types: Box<[NodeId]>,
+    result: NodeId,
+}
+impl CodeSource {
+    pub(super) fn name(&self) -> Option<SyntaxToken> {
+        self.header.as_ref().map(|header| header.name)
+    }
+    /// The authored declaration name or the exact anonymous expression root.
+    #[must_use]
+    pub fn origin(&self) -> SyntaxOrigin {
+        match &self.header {
+            Some(header) => SyntaxOrigin::Token(header.name),
+            None => SyntaxOrigin::Node(self.body),
+        }
+    }
+    #[must_use]
+    pub fn parameters(&self) -> &[SyntaxToken] {
+        self.header
+            .as_ref()
+            .map_or(&[], |header| &header.parameters)
+    }
+    /// The result annotation, or the expression requiring a usize result for anonymous code.
+    #[must_use]
+    pub fn result_origin(&self) -> NodeId {
+        match &self.header {
+            Some(header) => header.result,
+            None => self.body,
+        }
+    }
+    #[must_use]
+    pub const fn body(&self) -> NodeId {
+        self.body
+    }
 }
 
 /// Exact bytes and header lineage, never a source lookup or semantic authority of their own.
@@ -216,7 +261,7 @@ pub(super) fn header_origin(
 ) -> Option<SyntaxOrigin> {
     Some(match declaration {
         DeclarationId::Code(id) => {
-            let s = sources.get(&id)?;
+            let s = sources.get(&id)?.header.as_ref()?;
             match position {
                 HeaderPosition::Name => SyntaxOrigin::Token(s.name),
                 HeaderPosition::Parameter(i) if typed => {

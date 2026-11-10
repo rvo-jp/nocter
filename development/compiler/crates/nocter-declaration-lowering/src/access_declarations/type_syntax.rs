@@ -27,6 +27,20 @@ pub enum DataTypeSyntax {
     },
 }
 impl DataTypeSyntax {
+    pub(super) fn length_expressions(&self, lengths: &mut Vec<NodeId>) {
+        match self {
+            Self::Named(_) => {}
+            Self::Tuple(fields) => {
+                for field in fields {
+                    field.length_expressions(lengths);
+                }
+            }
+            Self::Array { element, length } => {
+                element.length_expressions(lengths);
+                lengths.push(*length);
+            }
+        }
+    }
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
             Self::Named(token) => vec![*token],
@@ -36,6 +50,17 @@ impl DataTypeSyntax {
     }
 }
 impl ValueTypeSyntax {
+    pub(super) fn length_expressions(&self, lengths: &mut Vec<NodeId>) {
+        match self {
+            Self::Data(data) => data.length_expressions(lengths),
+            Self::Function(contract) => {
+                for (_, input) in &contract.inputs {
+                    input.length_expressions(lengths);
+                }
+                contract.result.length_expressions(lengths);
+            }
+        }
+    }
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
             Self::Data(data) => data.tokens(),

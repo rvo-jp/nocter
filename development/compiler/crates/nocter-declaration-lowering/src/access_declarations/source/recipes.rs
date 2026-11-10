@@ -1,5 +1,5 @@
-//! Source-neutral capture/rebinding of named bodies and declaration header slots.
-use super::{CodeSource, FieldSource, RecordSource, Sources};
+//! Source-neutral capture/rebinding of executable roots and declaration header slots.
+use super::{CodeHeaderSource, CodeSource, FieldSource, RecordSource, Sources};
 use crate::access_declarations::Failure;
 use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin};
@@ -7,12 +7,16 @@ use std::{collections::BTreeMap, sync::Arc};
 
 /// Source-neutral recipe. Its locators have meaning only with an equal declaration surface.
 #[derive(Clone, Debug)]
-struct CallableRecipe {
+struct CodeRecipe {
+    header: Option<CodeHeaderRecipe>,
+    body: DeclarationSyntaxLocator,
+}
+#[derive(Clone, Debug)]
+struct CodeHeaderRecipe {
     name: DeclarationSyntaxLocator,
     parameters: Box<[DeclarationSyntaxLocator]>,
     parameter_types: Box<[DeclarationSyntaxLocator]>,
     result: DeclarationSyntaxLocator,
-    body: DeclarationSyntaxLocator,
 }
 
 /// Source-only record recipe; raw type normalization remains separate from rebinding.
@@ -24,7 +28,7 @@ struct RecordRecipe {
 
 #[derive(Clone, Debug)]
 pub(in crate::access_declarations) struct Recipes {
-    codes: BTreeMap<AccessCodeId, CallableRecipe>,
+    codes: BTreeMap<AccessCodeId, CodeRecipe>,
     records: BTreeMap<NominalTypeId, RecordRecipe>,
 }
 impl Recipes {
@@ -37,19 +41,27 @@ impl Recipes {
         for (&id, source) in sources.codes.iter() {
             recipes.insert(
                 id,
-                CallableRecipe {
-                    name: locate(SyntaxOrigin::Token(source.name))?,
-                    parameters: source
-                        .parameters
-                        .iter()
-                        .map(|&name| locate(SyntaxOrigin::Token(name)))
-                        .collect::<Result<_, _>>()?,
-                    parameter_types: source
-                        .parameter_types
-                        .iter()
-                        .map(|&ty| locate(SyntaxOrigin::Node(ty)))
-                        .collect::<Result<_, _>>()?,
-                    result: locate(SyntaxOrigin::Node(source.result))?,
+                CodeRecipe {
+                    header: source
+                        .header
+                        .as_ref()
+                        .map(|header| {
+                            Ok::<_, Failure>(CodeHeaderRecipe {
+                                name: locate(SyntaxOrigin::Token(header.name))?,
+                                parameters: header
+                                    .parameters
+                                    .iter()
+                                    .map(|&name| locate(SyntaxOrigin::Token(name)))
+                                    .collect::<Result<_, _>>()?,
+                                parameter_types: header
+                                    .parameter_types
+                                    .iter()
+                                    .map(|&ty| locate(SyntaxOrigin::Node(ty)))
+                                    .collect::<Result<_, _>>()?,
+                                result: locate(SyntaxOrigin::Node(header.result))?,
+                            })
+                        })
+                        .transpose()?,
                     body: locate(SyntaxOrigin::Node(source.body))?,
                 },
             );
@@ -97,18 +109,26 @@ impl Recipes {
                 Ok((
                     id,
                     CodeSource {
-                        name: token(recipe.name)?,
-                        parameters: recipe
-                            .parameters
-                            .iter()
-                            .map(|&locator| token(locator))
-                            .collect::<Result<_, _>>()?,
-                        parameter_types: recipe
-                            .parameter_types
-                            .iter()
-                            .map(|&locator| node(locator))
-                            .collect::<Result<_, _>>()?,
-                        result: node(recipe.result)?,
+                        header: recipe
+                            .header
+                            .as_ref()
+                            .map(|header| {
+                                Ok::<_, Failure>(CodeHeaderSource {
+                                    name: token(header.name)?,
+                                    parameters: header
+                                        .parameters
+                                        .iter()
+                                        .map(|&locator| token(locator))
+                                        .collect::<Result<_, _>>()?,
+                                    parameter_types: header
+                                        .parameter_types
+                                        .iter()
+                                        .map(|&locator| node(locator))
+                                        .collect::<Result<_, _>>()?,
+                                    result: node(header.result)?,
+                                })
+                            })
+                            .transpose()?,
                         body: node(recipe.body)?,
                     },
                 ))

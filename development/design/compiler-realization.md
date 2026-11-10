@@ -131,15 +131,15 @@ Normalization must return a typed dependency request without publishing a provis
 Source lowering owns loading the requested recipe; declarations own validation and normalized identity; the existing checking/value
 coordinator owns ordinary body acceptance and required execution. The declaration authority now reserves anonymous
 [expression-code contracts](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
-Source preparation must pair each such identity with its exact executable source recipe within
-the existing type-annotation roots, including record fields as well as callable headers. Do not
-manufacture a named function, source text or a separate expression checker to evaluate it.
-The private parser and shared type projection now preserve fixed-array element/length syntax,
-including blocks within ordinary count expressions. Requested array headers and local annotations
-still reject explicitly without publishing a schema. The current source catalog still registers
-only named executable roots. Relabeling a record header as a
-function body cannot establish executable source evidence. A type-annotation source root alone
-grants no executable code or result contract.
+[Source registration](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+pairs them with their exact executable roots within record-field and callable type annotations.
+The parser and shared type projection preserve fixed-array element/length syntax, including
+blocks within ordinary count expressions. Selected counts can check and execute through the
+ordinary usize path before their enclosing header is ready. Requested array headers and local
+annotations still reject explicitly without publishing a schema. Connect those established
+expression values to deferred header normalization; do not manufacture a named function, source
+text or a separate expression checker. An enclosing type-annotation root alone cannot grant
+executable code or a result contract.
 
 Keep executable code identity, a selected named callable contract and the source-reuse owner as
 separate roles. Carry that separation through body-type branches, call-application/closure keys,

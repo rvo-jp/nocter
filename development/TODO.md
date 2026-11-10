@@ -8,9 +8,9 @@
    [staged source preparation](compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
    through the [structural type request closure](design/compiler-realization.md#structural-type-request-closure),
    connecting admitted usize computation to required lengths through the same dependency
-   coordinator. Pair semantic expression-code identities with the exact type-annotation source roots,
-   including record fields, and retain supplying-body dependencies for header invalidation before
-   admitting array source. Extend
+   coordinator. Connect the [registered header-expression code roots](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+   and their selected ordinary usize execution to deferred header normalization. Retain
+   supplying-body dependencies for header invalidation before admitting array source. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,
