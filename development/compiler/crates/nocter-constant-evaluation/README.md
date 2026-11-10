@@ -103,10 +103,46 @@ are resolved before a plan executes. Callable recursion remains ordinary graph e
 executions. Actions, resource effects and control transitions consume it without resetting for a
 callee. The dependency query exposes its own active depth, rather than asking checking to maintain
 a second stack count; the executor combines suspended depth with invocation frames. Arithmetic,
-operation-budget and call-depth failures retain code/action identities and the call path. A failed
+work, live-storage and call-depth failures retain code/action identities and the call path. A failed
 execution clears its frames and cannot return a partly initialized value. No ordinary call or
 initializer cache is maintained by this executor.
 The executor does not prove source access safety, choose another operation, perform final source
 publication or serialize a runtime object. Checking's
 [initializer boundary](../nocter-checking/README.md#required-private-initializers) owns source
 admission, exact-generation reuse and the currently supported final-value scope.
+
+### Live Working Storage
+
+`state::Limits` adds a deterministic storage limit without giving the expression-tree executor an
+unenforced setting. `state::Budget` owns the one work counter and one shared storage meter. An
+outer request restarts work only. All nested executors, suspended dependency requests and cached
+completed values retain the same meter; neither opening an executor nor memoizing a result can
+reset its storage charge.
+
+The metric counts logical live storage units, not target bytes or process RSS. Each data node,
+field/path/staging array charges one header plus its element count. Each dynamic frame, cell,
+ownership entry, sparse hole or literal-import traversal entry charges two metadata units. Empty
+canonical root paths need no allocation. Frame slots reference immutable plan schemas. Sharing
+handles, paths or immutable data does not duplicate their allocation charge. Reservations precede
+allocation; checked arithmetic rejects oversized reservations. Leases release charges automatically
+on overwrite, last-reference drop or failed execution. Cells that still physically retain retired
+data continue to count until overwritten or their frame ends.
+
+`Value` is an immutable sharing handle. Plan literals are imported into the active meter with one
+node per literal DAG identity, including when their data came from another budget. A write to
+shared data reserves its new node and field references before shallow cloning; descendants stay
+shared until their own path is updated. Thus scalar snapshots and independent record values keep
+their semantics while sharing physical data. Returned handles keep their lease after frame
+teardown or publication. This is evaluator storage identity, not source nominal identity or a
+source comparison capability.
+
+`Program::new` validates every literal shape and each operation/call's type edges. Execution
+preserves that closed typing invariant through typed writes and canonical alias bindings; it does
+not rewalk an entire value DAG on every call and return. Runtime checks still reject uninitialized
+cells, wrong cell roles, invalid addresses and invalid ownership transitions. Alias creation resolves
+to a non-alias root immediately, so no alias chain or cycle can enter a frame.
+
+Deep value destruction uses an iterative worklist, including on exhausted-budget cleanup. Its
+scratch is bounded by edges already retained in the value graph and cannot admit new evaluated
+data. Host allocator overhead/capacity, immutable source/plans, ordinary checking, query bookkeeping
+and diagnostic rendering are outside this working-storage metric.

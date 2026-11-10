@@ -2,8 +2,7 @@
 use super::{Output, Rule, Value, final_diagnostic, projection};
 use crate::value_access::{self, ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
 use nocter_constant_evaluation::{
-    CompileTimeEvaluationLimits, DependencyComputation, DependencyQuery, DependencyQueryError,
-    state,
+    DependencyComputation, DependencyQuery, DependencyQueryError, state,
 };
 use nocter_declaration_lowering::access_declarations::Context;
 use nocter_declarations::value_access::CallableKind;
@@ -27,7 +26,7 @@ struct Preparation<'a, 'source> {
 }
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
-    limits: CompileTimeEvaluationLimits,
+    limits: state::Limits,
 ) -> Result<Output, Failure> {
     let mut preparation = Preparation {
         context,
@@ -38,7 +37,7 @@ pub(in crate::value_access) fn prepare(
     let mut values = Values::default();
     for (id, declaration) in context.program().callables().iter() {
         if declaration.kind() == CallableKind::ConstantInitializer {
-            preparation.budget = state::Budget::new(limits);
+            preparation.budget.restart_work();
             values
                 .resolve(&mut preparation, id)
                 .map_err(|failure| match failure {
@@ -250,15 +249,15 @@ impl Preparation<'_, '_> {
         if !matches!(
             (
                 self.context.program().data_kind(declaration.result()),
-                value.as_ref()
+                value.data()
             ),
-            (Some(BuiltinType::I32), Value::I32(_))
-                | (Some(BuiltinType::Bool), Value::Bool(_))
-                | (Some(BuiltinType::Void), Value::Unit)
+            (Some(BuiltinType::I32), state::Data::I32(_))
+                | (Some(BuiltinType::Bool), state::Data::Bool(_))
+                | (Some(BuiltinType::Void), state::Data::Unit)
         ) {
             return Err(INVALID);
         }
-        Ok(Arc::unwrap_or_clone(value))
+        Ok(value)
     }
 }
 impl DependencyComputation<AccessCallableId, Value, Failure> for Preparation<'_, '_> {

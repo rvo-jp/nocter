@@ -14,19 +14,19 @@ fn answer(source: &str) -> Constant {
 fn unit_comparisons_use_the_selected_fixed_result_in_required_evaluation() {
     assert_eq!(
         answer("const ANSWER: bool = () == ()"),
-        Constant::Bool(true)
+        Constant::boolean(true)
     );
     assert_eq!(
         answer("const ANSWER: bool = () != ()"),
-        Constant::Bool(false)
+        Constant::boolean(false)
     );
     let source = "const func first(edit count: i32): void { count = count * 10 + 1 }\nconst func second(edit count: i32): void { count = count * 10 + 2 }\nconst func calculate(): i32 { var count = 0\nif first(count) == second(count) { count } else { 0 } }\nconst ANSWER: i32 = calculate()";
-    assert_eq!(answer(source), Constant::I32(12));
+    assert_eq!(answer(source), Constant::integer(12));
     assert_eq!(
         answer(
             "const func calculate(): i32 { let value = 42\nif () != () { drop value }\nvalue }\nconst ANSWER: i32 = calculate()"
         ),
-        Constant::I32(42)
+        Constant::integer(42)
     );
 }
 #[test]
@@ -51,7 +51,7 @@ fn unit_comparisons_cannot_erase_operand_failure_or_control_interruption() {
         answer(
             "const func calculate(): i32 { let _ = (if true { return 42 } else { () }) == () }\nconst ANSWER: i32 = calculate()"
         ),
-        Constant::I32(42)
+        Constant::integer(42)
     );
 }
 

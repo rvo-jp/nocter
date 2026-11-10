@@ -27,33 +27,33 @@ fn literals_forward_dependencies_and_runtime_references_publish_values() {
             "const ANSWER: i32 = BASE + 2\nconst BASE: i32 = 40\nfunc run(): i32 { ANSWER }",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
     assert_eq!(
         answer(
             "const ANSWER: bool = true || false\nconst NOTHING: void = ()",
             "ANSWER"
         ),
-        Value::Bool(true)
+        Value::boolean(true)
     );
-    assert_eq!(answer("const NOTHING: void = ()", "NOTHING"), Value::Unit);
+    assert_eq!(answer("const NOTHING: void = ()", "NOTHING"), Value::unit());
 }
 #[test]
 fn editing_calls_preserve_distinct_storage_and_do_not_cache_unit_results() {
     let source = "const func increment(edit value: i32): void { value += 1 }\nconst func calculate(): i32 {\nvar first = 20\nvar second = 20\nincrement(first)\nincrement(second)\nfirst + second\n}\nconst ANSWER: i32 = calculate()";
-    assert_eq!(answer(source, "ANSWER"), Value::I32(42));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
 }
 #[test]
 fn stateful_records_moves_aliases_loops_and_copy_snapshots_use_checked_order() {
     let source = "struct Pair {\nleft: i32\nright: i32\n}\nconst func increment(edit value: i32): i32 { value += 1\nvalue }\nconst func select(take pair: Pair): i32 { pair.left^ }\nconst func calculate(): i32 {\nvar pair = Pair { left: 0, right: 2 }\nedit target = pair.left\nwhile target < 20 { let _ = increment(target) }\nlet snapshot = target + increment(target)\nlet selected = select(pair^)\nsnapshot + selected - 20\n}\nconst ANSWER: i32 = calculate()";
-    assert_eq!(answer(source, "ANSWER"), Value::I32(42));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
 }
 #[test]
 fn recursive_calls_and_short_circuits_execute_only_selected_paths() {
     let source = "const func total(value: i32): i32 { if value == 0 { 0 } else { value + total(value - 1) } }\nconst func invalid(): bool { let _ = 1 / 0\ntrue }\nconst ANSWER: i32 = total(9)\nconst SAFE: bool = true || invalid()";
-    assert_eq!(answer(source, "ANSWER"), Value::I32(45));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(45));
 }
-fn failure(source: &str, limits: CompileTimeEvaluationLimits) -> Rule {
+fn failure(source: &str, limits: impl Into<nocter_constant_evaluation::state::Limits>) -> Rule {
     let (sources, tree) = input(source);
     let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
     let result = Unit::prepare_with_limits(&query.bind(bound(&sources, &tree)).unwrap(), limits);
@@ -115,14 +115,14 @@ fn taking_copy_inputs_and_lending_retired_sources_preserve_supply_choices() {
             "const func update(take value: i32): i32 { value += 1\nvalue }\nconst func run(): i32 { let value = 20\nlet next = update(value)\nvalue + next + 1 }\nconst ANSWER: i32 = run()",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
     assert_eq!(
         answer(
             "const func inspect(value: i32): i32 { value }\nconst func run(): i32 { let value = 40\ninspect(value^) + 2 }\nconst ANSWER: i32 = run()",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
 }
 
@@ -133,14 +133,14 @@ fn edit_input_replacement_and_alternative_partial_cleanup_follow_the_ledger() {
             "struct Pair { left: i32\nright: i32 }\nconst func replace(edit pair: Pair): void { pair = Pair { left: 20, right: 22 } }\nconst func run(): i32 { var pair = Pair { left: 1, right: 2 }\nreplace(pair)\npair.left + pair.right }\nconst ANSWER: i32 = run()",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
     assert_eq!(
         answer(
             "struct Pair { left: i32\nright: i32 }\nconst func run(flag: bool): i32 { let pair = Pair { left: 1, right: 42 }\nif flag { let moved = pair.left^ }\npair.right }\nconst ANSWER: i32 = run(true) + run(false)",
             "ANSWER"
         ),
-        Value::I32(84)
+        Value::integer(84)
     );
 }
 
@@ -151,14 +151,14 @@ fn empty_records_and_interrupted_argument_preparation_keep_real_owner_presence()
             "struct Empty {}\nconst func inspect(take value: Empty): i32 { 42 }\nconst ANSWER: i32 = inspect(Empty {})",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
     assert_eq!(
         answer(
             "const func add(left: i32, right: i32): i32 { left + right }\nconst func run(): i32 { add(1, if true { return 42 } else { 2 }) }\nconst ANSWER: i32 = run()",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
 }
 
@@ -212,8 +212,8 @@ fn initializer_rebinding_reuses_headers_but_recomputes_values_and_rejects_stale_
         .program()
         .resolve_constant(current.program().symbols().get("ANSWER").unwrap())
         .unwrap();
-    assert_eq!(old.constant_value(id), Some(&Value::I32(2)));
-    assert_eq!(current.constant_value(id), Some(&Value::I32(42)));
+    assert_eq!(old.constant_value(id), Some(&Value::integer(2)));
+    assert_eq!(current.constant_value(id), Some(&Value::integer(42)));
 }
 
 #[test]
@@ -283,7 +283,7 @@ fn folded_runtime_bodies_reject_rebinding_after_a_const_callee_changes() {
 fn remainder_has_its_own_result_domain_and_division_keeps_its_range_requirement() {
     assert_eq!(
         answer("const ANSWER: i32 = -2147483648 % -1", "ANSWER"),
-        Value::I32(0)
+        Value::integer(0)
     );
     for expression in ["-2147483648 / -1", "42 % 0"] {
         assert_eq!(
@@ -315,14 +315,14 @@ fn authored_dependency_cycles_are_rejected_in_unevaluated_branches_and_const_cal
             "const func first(value: i32): i32 { if value == 0 { 42 } else { second(value - 1) } }\nconst func second(value: i32): i32 { first(value) }\nconst ANSWER: i32 = first(3)",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
     assert_eq!(
         answer(
             "const ANSWER: i32 = if false { 1 / 0 } else { 42 }",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
 }
 
@@ -387,7 +387,7 @@ fn compiler_initialization_thunks_do_not_introduce_source_return_targets() {
             "const func choose(): i32 { if true { return 42 } else { 2 } }\nconst ANSWER: i32 = choose()",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
 }
 
@@ -417,7 +417,7 @@ fn required_values_select_control_before_initialization_and_access_admission() {
             "const FLAG: bool = false\nconst func run(): i32 { let value = 42\nif FLAG { drop value }\nvalue }\nconst ANSWER: i32 = run()",
             "ANSWER"
         ),
-        Value::I32(42)
+        Value::integer(42)
     );
     let (sources, tree) = input(
         "const FLAG: bool = true\nfunc run(): i32 { let value = 42\nif FLAG { drop value }\nvalue }",
@@ -537,4 +537,85 @@ fn unevaluated_callee_dependency_cycles_keep_the_authored_call_path() {
             .text_at(note.origin().span().range())
             == Some("helper()")
     }));
+}
+
+fn storage_limits(units: u64) -> nocter_constant_evaluation::state::Limits {
+    nocter_constant_evaluation::state::Limits::new(
+        CompileTimeEvaluationLimits::default(),
+        NonZeroU64::new(units).unwrap(),
+    )
+}
+#[test]
+fn storage_exhaustion_is_a_local_required_evaluation_diagnostic() {
+    for units in [1, 4] {
+        let (sources, tree) = input("const BAD: i32 = 42");
+        let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        let Err(Failure::Evaluation { diagnostic, .. }) = Unit::prepare_with_limits(
+            &headers.bind(bound(&sources, &tree)).unwrap(),
+            storage_limits(units),
+        ) else {
+            panic!("storage exhaustion must reject required evaluation");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            Rule::Execution(ExecutionRule::StorageLimit)
+        );
+        assert_eq!(diagnostic.source().code(), "E0322");
+        assert!(diagnostic.source().message().contains("live-storage"));
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some("42")
+        );
+    }
+}
+#[test]
+fn bounded_loop_storage_is_reused_instead_of_accumulating_allocation_history() {
+    let text = "const func count(): i32 { var value = 0\nwhile value < 1000 { value += 1 }\nvalue }\nconst ANSWER: i32 = count()";
+    let (sources, tree) = input(text);
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let unit = Unit::prepare_with_limits(
+        &headers.bind(bound(&sources, &tree)).unwrap(),
+        storage_limits(128),
+    )
+    .unwrap();
+    let id = unit
+        .program()
+        .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(unit.constant_value(id), Some(&Value::integer(1000)));
+}
+#[test]
+fn completed_dependencies_and_outer_requests_retain_their_storage_charges() {
+    let mut source = String::new();
+    for index in 0..128 {
+        writeln!(source, "const C{index}: i32 = {index}").unwrap();
+    }
+    assert_eq!(
+        failure(&source, storage_limits(64)),
+        Rule::Execution(ExecutionRule::StorageLimit)
+    );
+    let mut source = String::from("const ANSWER: i32 = C0\n");
+    for index in 0..127 {
+        writeln!(source, "const C{index}: i32 = C{}", index + 1).unwrap();
+    }
+    source.push_str("const C127: i32 = 42");
+    assert_eq!(
+        failure(&source, storage_limits(64)),
+        Rule::Execution(ExecutionRule::StorageLimit)
+    );
+}
+#[test]
+fn ordinary_source_validation_precedes_evaluator_storage_allocation() {
+    let (sources, tree) = input("const BAD: i32 = true");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(matches!(
+        Unit::prepare_with_limits(
+            &headers.bind(bound(&sources, &tree)).unwrap(),
+            storage_limits(1)
+        ),
+        Err(Failure::Body { .. })
+    ));
 }

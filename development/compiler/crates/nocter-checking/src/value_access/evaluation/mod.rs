@@ -25,6 +25,10 @@ impl Rule {
                 DiagnosticCode::E0322,
                 "required constant evaluation exhausted its operation budget",
             ),
+            Self::Execution(state::Rule::StorageLimit) => (
+                DiagnosticCode::E0322,
+                "required constant evaluation exhausted its live-storage budget",
+            ),
             Self::Execution(state::Rule::CallDepthLimit) => (
                 DiagnosticCode::E0322,
                 "required constant evaluation exhausted its call-depth budget",

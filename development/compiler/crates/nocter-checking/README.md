@@ -549,12 +549,15 @@ protected returns and cleanup come from ordinary checking. The projector cannot 
 infer a move or select another target. The executor receives literals, not unresolved declaration
 references, and cannot request body checking. One work budget spans dependency preparation and
 nested executions; the dependency query's active stack and execution frames share the depth
-limit. Cycles, arithmetic failure, work/depth exhaustion and unsupported final publication retain
+limit. A shared live-storage meter also covers nested execution and retained completed values;
+outer requests restart work without resetting storage. Its accounting contract belongs to the
+[evaluator](../nocter-constant-evaluation/README.md#live-working-storage). Cycles, arithmetic failure,
+work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
 Final publication currently admits bool, i32 and unit values. Finite records participate as owned
 or scoped evaluator temporaries, including replacement and partial cleanup, but record constants,
-statics, arrays/tuples, explicit compiler-memory budgets, generic conditions and early structural
+statics, arrays/tuples, generic conditions and early structural
 type dependencies still require integration. General outcome/callback/resource evaluation is not
 admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
 resumable checking and reusable closed const plans remain compilation-cost improvements, not

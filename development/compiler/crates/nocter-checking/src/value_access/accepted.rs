@@ -70,9 +70,9 @@ impl Unit {
     /// Rejects an invalid body, unsupported domain, failed required evaluation or compiler integrity.
     pub fn prepare_with_limits(
         context: &DeclarationContext<'_>,
-        limits: nocter_constant_evaluation::CompileTimeEvaluationLimits,
+        limits: impl Into<nocter_constant_evaluation::state::Limits>,
     ) -> Result<Self, Failure> {
-        let evaluation = super::evaluation::prepare(context, limits)?;
+        let evaluation = super::evaluation::prepare(context, limits.into())?;
         let mut queries = evaluation.queries;
         if !evaluation.values.is_empty() {
             for query in queries.values_mut() {

@@ -328,6 +328,17 @@ header data.
 Use deterministic work, memory and call-depth budgets. Required evaluation that exhausts one
 reports the exhausted resource and dependency/call location; it cannot fall back to runtime
 initialization or a guessed value. Budget exhaustion does not prove semantic nontermination.
+
+The evaluator's memory budget measures logical live working storage, independently of target
+layout or host allocator bytes. Shared immutable value data counts once; copying a path for an
+update charges the new data before allocation. Frames, scoped address paths, sparse ownership
+state and evaluator staging storage also count. Releasing the last reference refunds its charge.
+Completed dependency values retain their charges across outer requests; restarting a work budget
+cannot forget their storage. A small bounded working set can therefore run for many steps without
+exhausting memory merely because it allocated repeatedly. This evaluator bound is not a bound on
+compiler process memory: source, immutable plans, ordinary checking, dependency-query bookkeeping
+and diagnostic rendering have separate responsibilities.
+
 Unknown runtime inputs, unsupported symbolic terms, forbidden effects, final-value escape,
 arithmetic failure and dependency cycles need distinct explanations at the local cause. Normal
 optimization may abandon optional folding without changing source validity; required CTFE cannot.

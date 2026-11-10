@@ -3,13 +3,13 @@ use super::*;
 use crate::CompileTimeEvaluationLimits;
 use nocter_model::ArenaBuilder;
 use std::num::{NonZeroU32, NonZeroU64};
-fn literal() -> Plan {
+pub(super) fn literal() -> Plan {
     let mut points = ArenaBuilder::new();
     let entry = points.insert(Point {
         actions: vec![Action {
             operation: Operation::Literal {
                 destination: 0,
-                value: Value::I32(42),
+                value: Value::integer(42),
             },
             alternatives: vec![Alternative {
                 owned: BTreeMap::new(),
@@ -44,7 +44,7 @@ fn literal() -> Plan {
         points: points.finish(),
     }
 }
-fn code_ids() -> (AccessCallableId, AccessCallableId) {
+pub(super) fn code_ids() -> (AccessCallableId, AccessCallableId) {
     let mut ids = ArenaBuilder::new();
     (ids.insert(()), ids.insert(()))
 }
@@ -73,7 +73,7 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
         let mut point = point.clone();
         point.actions[0].operation = Operation::Literal {
             destination: 0,
-            value: Value::Bool(true),
+            value: Value::boolean(true),
         };
         point
     });
@@ -135,8 +135,8 @@ fn exhausted_work_is_not_replenished_by_another_closed_request() {
     let mut fresh_budget = Budget::new(limits);
     let mut executor = Executor::new(&program, &mut fresh_budget, 0);
     assert_eq!(
-        executor.evaluate_initializer(good).unwrap().as_ref(),
-        &Value::I32(42)
+        executor.evaluate_initializer(good).unwrap(),
+        Value::integer(42)
     );
 }
 
@@ -148,7 +148,7 @@ fn arithmetic_failure_releases_its_frame_before_reusing_the_executor() {
         let mut point = point.clone();
         point.actions[0].operation = Operation::Literal {
             destination: 0,
-            value: Value::I32(i32::MIN),
+            value: Value::integer(i32::MIN),
         };
         let mut actions = point.actions.into_vec();
         let after = vec![
@@ -191,8 +191,8 @@ fn arithmetic_failure_releases_its_frame_before_reusing_the_executor() {
             Rule::ArithmeticFailure
         );
         assert_eq!(
-            executor.evaluate_initializer(good).unwrap().as_ref(),
-            &Value::I32(42)
+            executor.evaluate_initializer(good).unwrap(),
+            Value::integer(42)
         );
     }
 }
@@ -228,4 +228,46 @@ fn sparse_guards_have_one_sorted_prefix_free_form_before_phase_matching() {
             Err(Rule::InvalidPlan)
         ));
     }
+}
+
+#[test]
+fn unread_scoped_inputs_still_require_initialized_caller_data() {
+    let (root, function) = code_ids();
+    let mut target = literal();
+    target.initializer = false;
+    let mut slots = target.slots.to_vec();
+    slots.push(Slot {
+        data: 0,
+        storage: Storage::Alias,
+    });
+    target.slots = slots.into();
+    target.inputs = vec![(2, nocter_model::ValueInputOperation::Read)].into();
+    let mut source = literal();
+    source.points = source.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Call {
+            destination: 0,
+            target: function,
+            inputs: vec![Input {
+                place: Place::root(0),
+                operation: nocter_model::ValueInputOperation::Read,
+            }]
+            .into(),
+        };
+        point
+    });
+    let program = Program::new(
+        [Type::I32],
+        BTreeMap::from([(root, source), (function, target)]),
+    )
+    .unwrap();
+    let mut budget = Budget::new(CompileTimeEvaluationLimits::default());
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap_err()
+            .rule,
+        Rule::InvalidPlan
+    );
+    assert_eq!(budget.storage_used(), 0);
 }

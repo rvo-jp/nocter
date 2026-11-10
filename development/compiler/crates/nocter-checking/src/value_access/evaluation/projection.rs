@@ -253,7 +253,7 @@ impl Builder<'_, '_> {
             },
             flow::Operation::BooleanConstant { result, value } => plan::Operation::Literal {
                 destination: self.holder(Holder::Expression(result))?,
-                value: plan::Value::Bool(value),
+                value: plan::Value::boolean(value),
             },
             flow::Operation::BooleanAnswer { source, result } => plan::Operation::Copy {
                 source: self.value(source)?,
@@ -421,15 +421,15 @@ impl Builder<'_, '_> {
         Ok(match kind {
             ExpressionKind::Integer(v) => plan::Operation::Literal {
                 destination,
-                value: plan::Value::I32(v),
+                value: plan::Value::integer(v),
             },
             ExpressionKind::Boolean(v) => plan::Operation::Literal {
                 destination,
-                value: plan::Value::Bool(v),
+                value: plan::Value::boolean(v),
             },
             ExpressionKind::Unit => plan::Operation::Literal {
                 destination,
-                value: plan::Value::Unit,
+                value: plan::Value::unit(),
             },
             ExpressionKind::Place(place) => plan::Operation::Alias {
                 destination,
@@ -603,7 +603,7 @@ fn binary(
         }
         return Ok(plan::Operation::Literal {
             destination: destination.slot,
-            value: plan::Value::Bool(value),
+            value: plan::Value::boolean(value),
         });
     }
     let comparison = match operation {

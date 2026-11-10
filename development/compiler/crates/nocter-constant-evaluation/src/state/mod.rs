@@ -1,10 +1,14 @@
 //! Closed stateful plans for value-access code. Source, dispatch and ownership selection are inputs.
+mod budget;
 mod execution;
 mod memory;
 mod validation;
-pub use execution::{Budget, Error, Executor, Rule};
+mod value;
+pub use budget::{Budget, Limits};
+pub use execution::{Error, Executor, Rule};
 use nocter_model::{AccessCallableId, AccessFlowPointId, Arena};
 use std::{collections::BTreeMap, sync::Arc};
+pub use value::{Data, Value};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
@@ -24,13 +28,6 @@ impl Type {
             _ => None,
         }
     }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Value {
-    Unit,
-    Bool(bool),
-    I32(i32),
-    Record(Box<[Arc<Self>]>),
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Storage {
@@ -186,3 +183,6 @@ impl Program {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod storage_tests;

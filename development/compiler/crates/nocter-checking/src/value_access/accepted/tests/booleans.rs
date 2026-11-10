@@ -64,12 +64,12 @@ fn required_rhs_interruption_has_no_invented_normal_value() {
 #[test]
 fn known_results_keep_left_calls_and_skip_only_the_selected_rhs() {
     let source = "const func touch(edit count: i32): bool { count += 1\nfalse }\nconst func calculate(): i32 { var count = 40\nif touch(count) || true { count += 1 }\nlet _ = !true && touch(count)\ncount }\nconst ANSWER: i32 = calculate()";
-    assert_eq!(constant(source), Constant::I32(42));
+    assert_eq!(constant(source), Constant::integer(42));
     assert_eq!(
         constant(
             "const func calculate(flag: bool): i32 { var value = 42\nif flag && (if true { return 42 } else { false }) { value = 0 }\nvalue }\nconst ANSWER: i32 = calculate(false) + calculate(true)"
         ),
-        Constant::I32(84)
+        Constant::integer(84)
     );
 }
 #[test]

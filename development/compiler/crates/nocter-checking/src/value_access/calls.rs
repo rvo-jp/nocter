@@ -66,18 +66,18 @@ impl Checker<'_, '_> {
                 initializer: target,
                 origin: nocter_syntax::SyntaxOrigin::Node(node),
             })?;
-            let kind = match (self.program().data_kind(data), value) {
+            let kind = match (self.program().data_kind(data), value.data()) {
                 (
                     Some(nocter_model::BuiltinType::I32),
-                    nocter_constant_evaluation::state::Value::I32(value),
+                    nocter_constant_evaluation::state::Data::I32(value),
                 ) => ExpressionKind::Integer(*value),
                 (
                     Some(nocter_model::BuiltinType::Bool),
-                    nocter_constant_evaluation::state::Value::Bool(value),
+                    nocter_constant_evaluation::state::Data::Bool(value),
                 ) => ExpressionKind::Boolean(*value),
                 (
                     Some(nocter_model::BuiltinType::Void),
-                    nocter_constant_evaluation::state::Value::Unit,
+                    nocter_constant_evaluation::state::Data::Unit,
                 ) => ExpressionKind::Unit,
                 _ => return Err(Failure::InconsistentSyntax),
             };

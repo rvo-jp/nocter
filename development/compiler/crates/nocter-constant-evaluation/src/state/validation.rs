@@ -1,6 +1,5 @@
-use super::{Effect, Operation, Place, Program, Rule, Storage, Terminator, Type, Value};
+use super::{Data, Effect, Operation, Place, Program, Rule, Storage, Terminator, Type, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
 type Result<T> = std::result::Result<T, Rule>;
 const INVALID: Rule = Rule::InvalidPlan;
 pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Result<usize> {
@@ -13,18 +12,18 @@ pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Res
     }
     Ok(data)
 }
-pub(super) fn value(program: &Program, data: usize, value: &Arc<Value>) -> bool {
+pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
     let mut pending = vec![(data, value.clone())];
     let mut seen = BTreeSet::new();
     while let Some((data, value)) = pending.pop() {
-        if !seen.insert((data, Arc::as_ptr(&value))) {
+        if !seen.insert((data, value.identity())) {
             continue;
         }
-        match (program.types.get(data), value.as_ref()) {
-            (Some(Type::Unit), Value::Unit)
-            | (Some(Type::Bool), Value::Bool(_))
-            | (Some(Type::I32), Value::I32(_)) => {}
-            (Some(Type::Record(fields)), Value::Record(values)) if fields.len() == values.len() => {
+        match (program.types.get(data), value.data()) {
+            (Some(Type::Unit), Data::Unit)
+            | (Some(Type::Bool), Data::Bool(_))
+            | (Some(Type::I32), Data::I32(_)) => {}
+            (Some(Type::Record(fields)), Data::Record(values)) if fields.len() == values.len() => {
                 pending.extend(fields.iter().copied().zip(values.iter().cloned()));
             }
             _ => return false,
@@ -160,7 +159,7 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             destination,
             value: v,
         } => {
-            if value(program, slot(*destination)?.data, &Arc::new(v.clone())) {
+            if value(program, slot(*destination)?.data, v) {
                 Ok(())
             } else {
                 Err(INVALID)
