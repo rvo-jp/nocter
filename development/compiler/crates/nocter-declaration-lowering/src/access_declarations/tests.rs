@@ -2,7 +2,7 @@ use super::*;
 use nocter_model::{BuiltinType, ValueInputOperation};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
-fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
+pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();
     let id = sources
         .add_bytes(SourceName::new("unit.nct"), text.as_bytes())
@@ -10,7 +10,7 @@ fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let tree = parse(sources.get(id).unwrap(), goal);
     (sources, tree)
 }
-fn bound<'a>(sources: &'a SourceMap, tree: &'a SyntaxTree) -> BoundSyntax<'a> {
+pub(super) fn bound<'a>(sources: &'a SourceMap, tree: &'a SyntaxTree) -> BoundSyntax<'a> {
     BoundSyntax::new(sources.get(tree.source()).unwrap(), tree).unwrap()
 }
 #[test]

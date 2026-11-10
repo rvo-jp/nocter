@@ -17,7 +17,6 @@ mod inputs;
 mod ir;
 mod results;
 mod selection;
-mod source_dependencies;
 mod staged;
 mod statements;
 mod supply;
@@ -30,7 +29,9 @@ pub use ir::{
     Expression, ExpressionKind, FieldValue, Local, LocalOrigin, Place, SelectionAction, Statement,
     TypedBody, Unary, ValueType, WitnessBinding,
 };
-use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
+use nocter_declaration_lowering::access_declarations::{
+    BodySource, BodySourceFailure, BodySources, Context as DeclarationContext,
+};
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
@@ -189,24 +190,34 @@ struct Origins {
     blocks: BTreeMap<AccessBlockId, Site>,
 }
 
+impl From<BodySourceFailure> for Failure {
+    fn from(failure: BodySourceFailure) -> Self {
+        match failure {
+            BodySourceFailure::UnknownBody => Self::UnknownCallable,
+            BodySourceFailure::ChangedAuthority => Self::ChangedAuthority,
+            BodySourceFailure::ChangedBody => Self::ChangedBody,
+            BodySourceFailure::InconsistentSyntax => Self::InconsistentSyntax,
+        }
+    }
+}
+
 /// Reusable type/call selection evidence tied to its own callable and declaration authority.
 #[derive(Clone, Debug)]
 pub struct Query {
     closures: BTreeMap<nocter_model::ValueClosure, flow::Control>,
     program: Arc<Program>,
-    header: Arc<Program>,
+    source: BodySource,
     code: nocter_model::ValueCode,
-    body_bytes: Arc<[u8]>,
     result_data: nocter_model::TypeId,
     results_closed: bool,
     result_evidence: Option<Arc<results::Evidence>>,
-    evaluation_source: Option<Arc<source_dependencies::SourceDependencies>>,
+    evaluation_source: Option<Arc<BodySources>>,
     equalities: Vec<results::Equality>,
     body: TypedBody,
     origins: Origins,
 }
 impl Query {
-    fn freeze_constant_sources(&mut self, source: &Arc<source_dependencies::SourceDependencies>) {
+    fn freeze_constant_sources(&mut self, source: &Arc<BodySources>) {
         self.evaluation_source = Some(source.clone());
         for nested in self.closures.values_mut() {
             Arc::make_mut(&mut nested.typed).freeze_constant_sources(source);
@@ -236,7 +247,7 @@ impl Query {
     }
     #[must_use]
     pub const fn source_owner(&self) -> AccessCallableId {
-        self.code.source_owner()
+        self.source.owner()
     }
     #[must_use]
     pub const fn body(&self) -> &TypedBody {
@@ -254,9 +265,6 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        if !context.program().preserves_headers(&self.header) {
-            return Err(Failure::ChangedAuthority);
-        }
         if let Some(source) = &self.evaluation_source {
             source.verify(context)?;
         }
@@ -281,26 +289,8 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        if !context.program().preserves_headers(&self.header) {
-            return Err(Failure::ChangedAuthority);
-        }
-        let source = context
-            .callable_source(self.source_owner())
-            .ok_or(Failure::UnknownCallable)?;
+        let source = self.source.bind(context)?;
         let syntax = context.syntax();
-        let range = syntax
-            .tree()
-            .node(source.body())
-            .ok_or(Failure::InconsistentSyntax)?
-            .range();
-        if syntax
-            .text_at(range)
-            .ok_or(Failure::InconsistentSyntax)?
-            .as_bytes()
-            != self.body_bytes.as_ref()
-        {
-            return Err(Failure::ChangedBody);
-        }
         let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
             .ok_or(Failure::InconsistentSyntax)?;
         let resolve = |site| {

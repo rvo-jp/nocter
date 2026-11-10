@@ -55,7 +55,7 @@ impl Checker<'_, '_> {
             result,
             self.types.clone(),
             self.projection.clone(),
-            self.body_bytes.clone(),
+            self.source.clone(),
             nocter_model::ValueCode::Closure(closure),
             self.values,
         );

@@ -30,7 +30,7 @@ pub(super) struct Checker<'a, 's> {
     pub inputs: Vec<super::BodyInput>,
     pub context: &'a DeclarationContext<'s>,
     pub values: &'a dyn super::evaluation::Values,
-    pub body_bytes: Arc<[u8]>,
+    pub source: nocter_declaration_lowering::access_declarations::BodySource,
     pub result: TypeId,
     pub types: nocter_declarations::value_access::BodyTypes,
     pub pending_results: bool,
@@ -66,16 +66,7 @@ pub(super) fn prepare(
     let syntax = context.syntax();
     let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
         .ok_or(Failure::InconsistentSyntax)?;
-    let range = syntax
-        .tree()
-        .node(source.body())
-        .ok_or(Failure::InconsistentSyntax)?
-        .range();
-    let body_bytes = syntax
-        .text_at(range)
-        .ok_or(Failure::InconsistentSyntax)?
-        .as_bytes()
-        .into();
+    let body_source = context.body_source(callable)?;
     let mut checker = Checker::new(
         context,
         declaration.result(),
@@ -84,7 +75,7 @@ pub(super) fn prepare(
             .body_types(callable)
             .map_err(|_| Failure::InconsistentSyntax)?,
         Arc::new(projection),
-        body_bytes,
+        body_source,
         nocter_model::ValueCode::Declaration(callable),
         values,
     );
@@ -133,7 +124,7 @@ impl<'a, 's> Checker<'a, 's> {
         result: TypeId,
         types: nocter_declarations::value_access::BodyTypes,
         projection: Arc<BodySyntaxProjection>,
-        body_bytes: Arc<[u8]>,
+        source: nocter_declaration_lowering::access_declarations::BodySource,
         code: nocter_model::ValueCode,
         values: &'a dyn super::evaluation::Values,
     ) -> Self {
@@ -144,7 +135,7 @@ impl<'a, 's> Checker<'a, 's> {
             result,
             types,
             projection,
-            body_bytes,
+            source,
             code,
             environment: None,
             inputs: Vec::new(),
@@ -169,8 +160,7 @@ impl<'a, 's> Checker<'a, 's> {
         Query {
             code: self.code,
             program: Arc::new(self.types.finish()),
-            header: self.context.program_handle(),
-            body_bytes: self.body_bytes,
+            source: self.source,
             result_data: self.result,
             results_closed: !self.pending_results,
             result_evidence: None,

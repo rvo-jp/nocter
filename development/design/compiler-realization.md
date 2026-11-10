@@ -114,9 +114,11 @@ cannot type-check an unfinished signature. Qualify actual array source through t
 Keep type/value cycles distinct from callable recursion. A request that needs its own unfinished
 normalized type or value is a dependency error, including an authored requirement in dead source.
 Callable-only recursion instead closes one checked graph and remains subject to execution budgets.
-Body bytes used by a header value must participate in header reuse invalidation; the current
-body-independent header-surface equality cannot certify an evaluated length after a supplying const
-body changes. Preserve exact source recipes and causal edges across those requests. This integration,
+Body evidence used by a header value must participate in header reuse invalidation. Extend the
+[shared source evidence](../compiler/crates/nocter-declaration-lowering/README.md#exact-body-source-evidence)
+to the header-expression roots and retain the selected supplying-body dependencies with the
+normalized header query. Body-independent header-surface equality cannot certify an evaluated
+length after a supplying const body changes. Preserve exact source recipes and causal edges across those requests. This integration,
 not reservation closure alone, is the remaining gate for array type lengths.
 
 ### Structural Type Request Closure

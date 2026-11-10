@@ -33,7 +33,7 @@ struct Preparation<'a, 'source> {
     context: Context<'source>,
     headers: Headers<'a, 'source>,
     budget: state::Budget,
-    sources: value_access::source_dependencies::SourceDependencies,
+    sources: declarations::BodySources,
 }
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
@@ -82,7 +82,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             context,
             headers,
             budget: state::Budget::new(limits),
-            sources: value_access::source_dependencies::SourceDependencies::default(),
+            sources: declarations::BodySources::default(),
         }
     }
     fn all(
@@ -196,7 +196,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                         .compile_time()
                         == CompileTimeGuarantee::Evaluatable
                     {
-                        self.sources.insert(id, query.body_bytes.clone());
+                        self.sources.insert(&query.source).map_err(|_| INVALID)?;
                     }
                     return Ok(query);
                 }

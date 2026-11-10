@@ -93,7 +93,10 @@ projection. It reserves functions and records in namespace order and maps resolv
 syntax locators. Its exact-current preparation supplies immutable ready declaration contexts while
 checking's common readiness/value coordinator retains successful bodies and executes selected const
 closures. The complete reusable query contains no source identity, syntax ID, range, or body text.
-Binding checks the complete header surface before resolving locators to current syntax. The
+Binding checks the complete header surface before resolving locators to current syntax.
+The same lowering owner captures exact body-source evidence, including its original header view.
+Checking retains that paired evidence for its own body, required values and callable-result
+producers; it cannot assemble source owners and byte snapshots independently. The
 current context has no public parts constructor; a caller cannot pair unrelated program/syntax
 products or relabel released source as future source.
 

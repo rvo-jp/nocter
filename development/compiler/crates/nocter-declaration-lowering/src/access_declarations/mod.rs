@@ -2,6 +2,8 @@
 mod definitions;
 mod headers;
 mod projection;
+mod source;
+pub use source::{BodySource, BodySourceFailure, BodySources};
 mod type_syntax;
 pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]

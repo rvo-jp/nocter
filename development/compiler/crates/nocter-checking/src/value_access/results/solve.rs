@@ -32,7 +32,10 @@ pub(super) fn solve(
             .result_contract()
             .is_some()
         {
-            evidence.bodies.insert(id, control.typed.body_bytes.clone());
+            evidence
+                .bodies
+                .insert(&control.typed.source)
+                .map_err(|_| INVALID)?;
             equations.insert(
                 Origin::Result(id),
                 Relation::Union(report.returned.into_iter().map(|(w, _)| w).collect()),

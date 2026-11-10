@@ -8,8 +8,8 @@
    [staged source preparation](compiler/crates/nocter-checking/README.md#bounded-future-value-binding-typing)
    through the [structural type request closure](design/compiler-realization.md#structural-type-request-closure),
    connecting admitted usize computation to required lengths through the same dependency
-   coordinator. Close semantic code/source ownership for header expressions, including record fields,
-   and body-dependent header invalidation before admitting array source. Extend
+   coordinator. Close semantic code identity and extend shared source evidence to header expressions,
+   including record fields, with body-dependent header invalidation before admitting array source. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,

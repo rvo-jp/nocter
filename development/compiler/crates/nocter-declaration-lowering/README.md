@@ -159,3 +159,25 @@ contracts and type prefix from that same construction. Unit construction canonic
 body suffixes into one final authority; lowering does not inspect their contents. Structurally
 equal declarations rebuilt by another query cannot substitute for the original lineage. Source
 projection remains outside semantic type lookup.
+
+
+## Exact Body Source Evidence
+
+`access_declarations::source` owns exact body-source evidence shared by declaration and checking
+consumers. Only a current declaration `Context` captures `BodySource`, pairing the selected code's
+source owner, original immutable header view and exact body bytes. No consumer can provide an
+owner and unrelated bytes independently. The evidence contains no current source identity, node,
+span or locator and grants neither contract readiness nor semantic body acceptance.
+
+Binding validates exact header ancestry, then compares the selected body and returns its current
+source metadata. Relocated source and unrelated body edits remain reusable; changed guarded bytes
+or an equal but independently rebuilt declaration authority reject. Closures can share their
+containing body's evidence while retaining separate executable code identities.
+
+`BodySources` collects these already-paired dependencies. Adding conflicting bytes or an
+incomparable authority fails without replacing earlier evidence. Compatible duplicate owners
+retain the strongest header prefix, independently of insertion order; adding an older guard
+cannot weaken reuse requirements. Required evaluation and callable-result evidence consume this
+same source mechanism. Source comparison never performs name lookup, checking or evaluation.
+Header-expression code identity and source ownership remain part of the
+[structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

@@ -25,7 +25,7 @@ pub(super) struct Equality {
 pub(super) struct Evidence {
     producers: BTreeMap<AccessCallableId, FunctionWitness>,
     applications: BTreeMap<ValueApplication, ApplicationEvidence>,
-    bodies: super::source_dependencies::SourceDependencies,
+    bodies: nocter_declaration_lowering::access_declarations::BodySources,
 }
 #[derive(Clone, Copy, Debug)]
 enum ApplicationEvidence {

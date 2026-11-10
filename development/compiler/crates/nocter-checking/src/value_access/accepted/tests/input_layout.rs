@@ -76,3 +76,11 @@ fn a_coherent_slot_edit_cannot_replace_the_inferred_environment_contract() {
     });
     rejects(typed);
 }
+
+#[test]
+fn equal_input_layout_cannot_relabel_a_body_as_another_code_owner() {
+    let unit = accepted("func first(): i32 { 1 }\nfunc second(): i32 { 2 }");
+    let mut typed = named(&unit, "first").typed().clone();
+    typed.code = named(&unit, "second").typed().code();
+    rejects(typed);
+}

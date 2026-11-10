@@ -5,6 +5,9 @@ use std::collections::BTreeSet;
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 
 pub(super) fn layout(query: &Query) -> Result<(), IntegrityError> {
+    if query.code().source_owner() != query.source_owner() {
+        return Err(INVALID);
+    }
     let body = query.body();
     let inputs = body.inputs();
     let mut seen = BTreeSet::new();
