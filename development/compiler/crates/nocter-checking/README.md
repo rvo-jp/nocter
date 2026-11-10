@@ -527,7 +527,8 @@ body checker requests a missing constant only after selecting its declaration id
 unpublished draft stops at that request; preparation resolves the dependency and retries that
 draft through the same checker. Successful typed bodies are cached once. No provisional value,
 syntax dependency scanner, second source interpreter or completed-body retyping supplies a fact.
-Constant references become their validated primitive literals in ordinary expression checking,
+Constant references become validated primitive literals or immutable frozen-record expressions in
+ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.
 All authored source remains structurally checked, including unevaluated branches. Selected const
 callees are prepared through all authored call edges; callable-only recursion remains a graph,
@@ -535,8 +536,8 @@ while a constant reference requests a value and exposes an active declaration cy
 
 The same `accepted::check_queries` routine canonically replays and ordinarily validates a selected
 const closure before any execution, and later closes the complete Unit. Each temporary closure
-has one shared type authority. Only validated intrinsic scalar/unit values cross from required
-execution into further body preparation; temporary store-relative types or access evidence do not
+has one shared type authority. Only validated frozen data crosses from required execution into
+further body preparation; temporary store-relative types or access evidence do not
 become the Unit's final authority. Final canonical replay still pairs every accepted body with
 that one authority. Definition-time operation checks remain independent of selected execution;
 cleanup-domain checks additionally consume actual ordinary resource obligations. All required
@@ -555,10 +556,15 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication currently admits bool, i32 and unit values. Finite records participate as owned
-or scoped evaluator temporaries, including replacement and partial cleanup, but record constants,
-statics, arrays/tuples, generic conditions and early structural
-type dependencies still require integration. General outcome/callback/resource evaluation is not
+Final publication admits bool, i32, unit and finite closed records of those leaves. Publication
+uses an explicit final-data policy over the shared schema traversal, independently of temporary
+execution support and Copy. The admitted record schema has no user destructors or retained
+resources. Each constant reference creates a fresh ordinary value without granting its type Copy.
+Constant names remain non-addressable. Constant member selection resolves fields through the
+ordinary field authority, then selects established frozen components; scalar selections become
+ordinary literals before control facts and flow admission. No runtime initializer call results.
+Statics, arrays/tuples, enums, generic conditions and early structural type dependencies still
+require integration. General outcome/callback/resource evaluation is not
 admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
 resumable checking and reusable closed const plans remain compilation-cost improvements, not
 permission to cache mutable call results or change source validity.
@@ -579,7 +585,11 @@ constant facts also reach loop completion and closure invocation inference, whil
 retains name, type and const-operation obligations. Required evaluation is separate from optional
 runtime optimization; runtime calls to const functions still execute their ordinary bodies.
 
-The completed query is consumed into the Unit's sole frozen constant table. Bodies and captures
+Each completed dependency retains its evaluator value lease alongside one derived model-owned
+frozen artifact until all required evaluation and body preparation finish. Query publication
+consumes those entries into the Unit's sole frozen constant table and drops evaluator state.
+Bodies share the immutable artifact graph; no public product retains a temporary type authority.
+The completed query is consumed rather than cloned. Bodies and captures
 share an exact-source guard over const initializer/callee definitions. Header reuse cannot reuse
 values or resulting control/access evidence after a supplying body changes, including through a
 standalone typed/flow source binding. `source_dependencies` owns that verification mechanism for

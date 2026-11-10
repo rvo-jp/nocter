@@ -311,3 +311,27 @@ fn malformed_computation_control_and_call_contracts_cannot_freeze() {
     }]);
     assert!(validate::program(&bad_flag).is_err());
 }
+
+#[test]
+fn frozen_record_literals_retain_schema_and_reject_mismatched_payloads() {
+    let mut program = lower(
+        "struct Pair { left: i32 }\nconst DATA: Pair = Pair { left: 42 }\nfunc run(): i32 { let data = DATA\ndata.left }",
+    );
+    assert_eq!(program.bodies.len(), 1);
+    let body = program.bodies.get_mut(&program.root).unwrap();
+    let value = body
+        .actions
+        .values_mut()
+        .flat_map(|action| &mut action.operations)
+        .find_map(|operation| {
+            if let Operation::Frozen { value, .. } = operation {
+                Some(value)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert!(matches!(value.node(), nocter_model::FrozenNode::Record(_)));
+    *value = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Unit]).unwrap();
+    assert!(validate::program(&program).is_err());
+}

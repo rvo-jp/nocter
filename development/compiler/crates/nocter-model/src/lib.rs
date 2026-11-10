@@ -10,6 +10,8 @@ mod arena;
 mod attachment_family;
 mod closure_sequence;
 mod constant;
+mod frozen_data;
+pub use frozen_data::{FrozenData, FrozenNode, InvalidFrozenData};
 mod construction_identity;
 mod field_path;
 mod id;

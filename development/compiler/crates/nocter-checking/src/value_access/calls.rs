@@ -66,24 +66,42 @@ impl Checker<'_, '_> {
                 initializer: target,
                 origin: nocter_syntax::SyntaxOrigin::Node(node),
             })?;
-            let kind = match (self.program().data_kind(data), value.data()) {
-                (
-                    Some(nocter_model::BuiltinType::I32),
-                    nocter_constant_evaluation::state::Data::I32(value),
-                ) => ExpressionKind::Integer(*value),
-                (
-                    Some(nocter_model::BuiltinType::Bool),
-                    nocter_constant_evaluation::state::Data::Bool(value),
-                ) => ExpressionKind::Boolean(*value),
-                (
-                    Some(nocter_model::BuiltinType::Void),
-                    nocter_constant_evaluation::state::Data::Unit,
-                ) => ExpressionKind::Unit,
-                _ => return Err(Failure::InconsistentSyntax),
-            };
-            return self.emit(node, value_type(data, Mode::Own), kind);
+            let value = value.clone();
+            return self.constant_value(node, data, &value);
         }
         self.place_value(node, Rule::TypeMismatch)
+    }
+    pub(super) fn constant_value(
+        &mut self,
+        node: NodeId,
+        data: nocter_model::TypeId,
+        value: &nocter_model::FrozenData,
+    ) -> Result<AccessExpressionId, Failure> {
+        let kind = match (self.program().data_kind(data), value.node()) {
+            (
+                Some(nocter_model::BuiltinType::I32),
+                nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(value)),
+            ) => ExpressionKind::Integer(
+                i32::try_from(*value).map_err(|_| Failure::InconsistentSyntax)?,
+            ),
+            (
+                Some(nocter_model::BuiltinType::Bool),
+                nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Bool(value)),
+            ) => ExpressionKind::Boolean(*value),
+            (Some(nocter_model::BuiltinType::Void), nocter_model::FrozenNode::Unit) => {
+                ExpressionKind::Unit
+            }
+            (_, nocter_model::FrozenNode::Record(_))
+                if matches!(
+                    self.program().data_schema(data),
+                    Some(PayloadSchema::Record(_))
+                ) =>
+            {
+                ExpressionKind::Constant(value.clone())
+            }
+            _ => return Err(Failure::InconsistentSyntax),
+        };
+        self.emit(node, value_type(data, Mode::Own), kind)
     }
     fn callee(&mut self, node: NodeId, reachable: bool) -> Result<Callee, Failure> {
         if let Some(target) = self.declared_function(node)? {

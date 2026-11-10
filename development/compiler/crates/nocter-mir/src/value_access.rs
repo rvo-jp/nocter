@@ -121,6 +121,10 @@ pub struct Call {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
+    Frozen {
+        destination: Place,
+        value: nocter_model::FrozenData,
+    },
     Constant {
         destination: Place,
         value: Constant,

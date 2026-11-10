@@ -239,3 +239,14 @@ fn excessive_suspended_depth_rejects_without_overflow_or_allocating_a_frame() {
     );
     assert_eq!(budget.storage_used(), 0);
 }
+
+#[test]
+fn publication_roundtrip_preserves_deep_shared_data_without_expanding_a_tree() {
+    let mut value = Value::integer(42);
+    for _ in 0..10_000 {
+        value = Value::record(vec![value.clone(), value]);
+    }
+    let frozen = value.freeze();
+    assert_eq!(frozen.nodes().len(), 10_001);
+    assert_eq!(Value::from_frozen(&frozen).unwrap(), value);
+}

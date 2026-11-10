@@ -146,3 +146,12 @@ Deep value destruction uses an iterative worklist, including on exhausted-budget
 scratch is bounded by edges already retained in the value graph and cannot admit new evaluated
 data. Host allocator overhead/capacity, immutable source/plans, ordinary checking, query bookkeeping
 and diagnostic rendering are outside this working-storage metric.
+
+### Frozen Publication
+
+`state::Value::freeze` converts a completed value to the model-owned `FrozenData` DAG once per
+required declaration. Identity-memoized postorder preserves sharing and never recursively expands
+records. The artifact has no evaluator leases, scoped addresses, type-store IDs or source identity.
+`from_frozen` reconstructs immutable plan literals from those established nodes without evaluating source;
+closed plan construction validates the literal against its selected type. These are publication
+and plan-construction transforms, not another evaluator or a source Copy capability.

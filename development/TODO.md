@@ -3,8 +3,8 @@
 ## Immediate Work
 
 1. Qualify [const source and conditional eligibility](design/compiler-realization.md#conditional-const-admission)
-   beyond the [required scalar/unit initializer boundary](compiler/crates/nocter-checking/README.md#required-private-initializers)
-   with aggregate final publication, immutable statics and early structural dependencies. Extend
+   beyond the [required frozen-data initializer boundary](compiler/crates/nocter-checking/README.md#required-private-initializers)
+   with remaining aggregate forms, immutable statics and early structural dependencies. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,

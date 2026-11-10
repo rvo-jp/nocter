@@ -209,6 +209,7 @@ pub enum ExpressionKind {
     AdaptFunction {
         source: AccessExpressionId,
     },
+    Constant(nocter_model::FrozenData),
     Integer(i32),
     Boolean(bool),
     Unit,

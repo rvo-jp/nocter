@@ -8,7 +8,7 @@ fn constant(source: &str) -> Constant {
         .program()
         .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
         .unwrap();
-    unit.constant_value(id).unwrap().clone()
+    Constant::from_frozen(unit.constant_value(id).unwrap()).unwrap()
 }
 #[test]
 fn boolean_result_proofs_select_access_paths_without_reading_place_contents() {

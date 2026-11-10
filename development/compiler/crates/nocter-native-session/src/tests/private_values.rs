@@ -7,7 +7,7 @@ use nocter_target_program::value_access::{InstanceProgram, lifecycle};
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
 
-fn compile(source: &str) -> crate::NativeImage {
+fn machine(source: &str) -> nocter_machine::MachineProgram {
     let fixture = ValueSourceFixture::new(source);
     let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
     let unit = Arc::new(Unit::prepare(&headers.bind(fixture.syntax()).unwrap()).unwrap());
@@ -20,7 +20,10 @@ fn compile(source: &str) -> crate::NativeImage {
     let mir =
         nocter_mir::value_access::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1)
             .unwrap();
-    let machine = nocter_machine::value_access::lower(&mir).unwrap();
+    nocter_machine::value_access::lower(&mir).unwrap()
+}
+fn compile(source: &str) -> crate::NativeImage {
+    let machine = machine(source);
     let arm = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
     crate::NativeImage::from_macho(nocter_macho::MachOImage::build(&arm).unwrap())
 }
@@ -234,5 +237,41 @@ fn private_required_arithmetic_checks_reach_native_traps() {
             Some(5),
             "native image ended with {status:?}"
         );
+    }
+}
+
+#[test]
+fn private_record_constants_are_serialized_and_each_use_receives_an_independent_value() {
+    let source = "struct Data { flag: bool\nvalue: i32\nunit: void }\nconst func initialize(): Data { var value = 40\nvalue += 2\nData { value: value, unit: (), flag: true } }\nconst DATA: Data = initialize()\nfunc run(): i32 { var first = DATA\nlet second = DATA\nfirst.value = 0\nif second.flag { first.value + second.value } else { 1 } }";
+    let program = machine(source);
+    assert_eq!(program.data().len(), 1);
+    let (_, data) = program.data().iter().next().unwrap();
+    assert_eq!(data.bytes(), &[1, 0, 0, 0, 42, 0, 0, 0]);
+    assert_eq!(data.alignment(), 4);
+    assert!(data.relocations().is_empty());
+    // Only the ordinary entry and process wrapper exist: the initializer is compile-time only.
+    assert_eq!(program.functions().len(), 2);
+    let arm = nocter_arm64::Arm64Program::lower_machine(&program).unwrap();
+    let image = crate::NativeImage::from_macho(nocter_macho::MachOImage::build(&arm).unwrap());
+    let package = TempPackage::new();
+    execute_native_status(&image, &package.0, "record-constant", 42);
+    for (name, source, expected) in [
+        (
+            "wide-constant",
+            "struct Wide { a: i32\nb: i32\nc: i32\nd: i32\ne: i32 }\nconst DATA: Wide = Wide { a: 1, b: 2, c: 3, d: 4, e: 42 }\nfunc forward(take value: Wide): Wide { value^ }\nfunc run(): i32 { let value = forward(DATA)\nvalue.e }",
+            42,
+        ),
+        (
+            "empty-constant",
+            "struct Empty {}\nconst DATA: Empty = Empty {}\nfunc inspect(value: Empty): i32 { 42 }\nfunc run(): i32 { inspect(DATA) }",
+            42,
+        ),
+        (
+            "nested-constant",
+            "struct Inner { value: i32 }\nstruct Outer { value: Inner\nflag: bool }\nconst DATA: Outer = Outer { value: Inner { value: -42 }, flag: true }\nfunc run(): i32 { let value = DATA.value\n-value.value }",
+            42,
+        ),
+    ] {
+        execute_native_status(&compile(source), &package.0, name, expected);
     }
 }

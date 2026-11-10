@@ -136,8 +136,9 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let (root, members) = self.selection(node)?;
-        if let Some(name) = self.name_token(root)? {
-            let local = self.place_name(name, Rule::TypeMismatch)?;
+        if let Some(name) = self.name_token(root)?
+            && let Some(local) = self.lookup(self.text(name)?)
+        {
             let place = self.local_selection(local, &members)?;
             return self.emit_place(node, place);
         }
@@ -149,6 +150,39 @@ impl Checker<'_, '_> {
             return Err(Failure::InconsistentSyntax);
         }
         let (fields, data) = self.fields(access.data(), &members)?;
+        if let ExpressionKind::Constant(mut value) = self
+            .expressions
+            .get(source)
+            .ok_or(Failure::InconsistentSyntax)?
+            .kind
+            .clone()
+        {
+            let mut container = access.data();
+            for &field in fields.fields() {
+                let Some(PayloadSchema::Record(schema)) = self.program().data_schema(container)
+                else {
+                    return Err(Failure::InconsistentSyntax);
+                };
+                let index = schema
+                    .fields()
+                    .iter()
+                    .position(|&candidate| candidate == field)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                let nocter_model::FrozenNode::Record(children) = value.node() else {
+                    return Err(Failure::InconsistentSyntax);
+                };
+                value = value
+                    .at(*children.get(index).ok_or(Failure::InconsistentSyntax)?)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                container = self
+                    .program()
+                    .fields()
+                    .get(field)
+                    .ok_or(Failure::InconsistentSyntax)?
+                    .data();
+            }
+            return self.constant_value(node, data, &value);
+        }
         let action = if self.copyable(data) {
             SelectionAction::CopyPayload
         } else {

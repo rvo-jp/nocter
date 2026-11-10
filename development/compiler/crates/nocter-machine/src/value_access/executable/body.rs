@@ -285,8 +285,42 @@ impl<'a> Builder<'a> {
         }
         Ok(())
     }
+    fn frozen(
+        &mut self,
+        destination: &mir::Place,
+        value: &nocter_model::FrozenData,
+    ) -> Result<(), Failure> {
+        let layout = self
+            .context
+            .layouts
+            .get(destination.data)
+            .ok_or_else(Self::invalid)?;
+        if layout.size() == 0 {
+            return Ok(());
+        }
+        let data = self
+            .context
+            .data
+            .get(destination.data, value)
+            .ok_or_else(Self::invalid)?;
+        let source = self.address(MachineAddress::new(
+            destination.data,
+            layout.size(),
+            layout.alignment(),
+            MachineAddressRoot::Data(data),
+            [],
+        ));
+        let value = self.value(
+            destination.data,
+            false,
+            MachineOperationKind::Load { source },
+        )?;
+        self.store(destination, value)?;
+        Ok(())
+    }
     fn operation(&mut self, operation: &mir::Operation) -> Result<(), Failure> {
         match operation {
+            mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
             mir::Operation::Constant { destination, value } => {
                 let value = match value {
                     mir::Constant::Integer(value) => MachineConstant::Integer(i128::from(*value)),

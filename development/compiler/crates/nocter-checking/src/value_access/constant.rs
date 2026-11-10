@@ -48,7 +48,12 @@ const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBod
 
 /// The declaration owner already proves finite record schemas. Memoize by type identity rather
 /// than expanding repeated fields into a tree; this is domain support, not a Copy/resource rule.
+enum Domain {
+    Execution,
+    Publication,
+}
 struct DataDomain<'a> {
+    purpose: Domain,
     program: &'a Program,
     supported: BTreeMap<TypeId, bool>,
 }
@@ -63,9 +68,17 @@ impl DataDomain<'_> {
                 continue;
             }
             let supported = match self.program.data_schema(data).ok_or(INVALID)? {
-                PayloadSchema::Builtin(builtin) => {
-                    nocter_constant_evaluation::state::Type::builtin(builtin).is_some()
-                }
+                PayloadSchema::Builtin(builtin) => match self.purpose {
+                    Domain::Execution => {
+                        nocter_constant_evaluation::state::Type::builtin(builtin).is_some()
+                    }
+                    Domain::Publication => matches!(
+                        builtin,
+                        nocter_model::BuiltinType::Bool
+                            | nocter_model::BuiltinType::I32
+                            | nocter_model::BuiltinType::Void
+                    ),
+                },
                 PayloadSchema::Function(_) => false,
                 PayloadSchema::Record(record) => {
                     let children = record
@@ -112,7 +125,8 @@ fn operation_rule(
         ExpressionKind::Function(_)
         | ExpressionKind::Closure { .. }
         | ExpressionKind::AdaptFunction { .. } => Some(Rule::FunctionValue),
-        ExpressionKind::Integer(_)
+        ExpressionKind::Constant(_)
+        | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
         | ExpressionKind::Record { .. }
@@ -129,6 +143,7 @@ fn operation_rule(
 pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::IntegrityError> {
     let program = query.typed().program();
     let mut domain = DataDomain {
+        purpose: Domain::Execution,
         program,
         supported: BTreeMap::new(),
     };
@@ -240,4 +255,18 @@ impl Violation {
             ),
         })
     }
+}
+
+/// The admitted finite record schema has no user destructor or retained-resource variants.
+/// Final admission is independent of Copy; broader schemas require their own final-data proof.
+pub(super) fn supports_final(
+    program: &Program,
+    data: TypeId,
+) -> Result<bool, flow::IntegrityError> {
+    DataDomain {
+        purpose: Domain::Publication,
+        program,
+        supported: BTreeMap::new(),
+    }
+    .supports(data)
 }

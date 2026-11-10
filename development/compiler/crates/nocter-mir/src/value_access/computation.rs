@@ -75,6 +75,7 @@ impl Builder<'_> {
             .clone();
         let destination = self.result(id)?;
         let operation = match kind {
+            ExpressionKind::Constant(value) => Operation::Frozen { destination, value },
             ExpressionKind::Integer(value) => Operation::Constant {
                 destination,
                 value: Constant::Integer(value),

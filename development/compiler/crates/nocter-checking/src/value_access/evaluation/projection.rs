@@ -419,6 +419,10 @@ impl Builder<'_, '_> {
             .clone();
         let destination = self.holder(Holder::Expression(id))?;
         Ok(match kind {
+            ExpressionKind::Constant(ref value) => plan::Operation::Literal {
+                destination,
+                value: plan::Value::from_frozen(value).ok_or(INVALID)?,
+            },
             ExpressionKind::Integer(v) => plan::Operation::Literal {
                 destination,
                 value: plan::Value::integer(v),

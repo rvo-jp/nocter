@@ -1,5 +1,5 @@
 //! One value query coordinates unpublished ordinary body drafts and executable const closures.
-use super::{Output, Rule, Value, final_diagnostic, projection};
+use super::{Completed, Output, Rule, final_diagnostic, projection};
 use crate::value_access::{self, ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
 use nocter_constant_evaluation::{
     DependencyComputation, DependencyQuery, DependencyQueryError, state,
@@ -7,14 +7,14 @@ use nocter_constant_evaluation::{
 use nocter_declaration_lowering::access_declarations::Context;
 use nocter_declarations::value_access::CallableKind;
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{AccessCallableId, BuiltinType, CompileTimeGuarantee, ValueFunctionOrigin};
+use nocter_model::{AccessCallableId, CompileTimeGuarantee, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 type Failure = accepted::Failure;
-type Values = DependencyQuery<AccessCallableId, Value>;
+type Values = DependencyQuery<AccessCallableId, Completed>;
 type QueryError = DependencyQueryError<AccessCallableId, Failure>;
 const INVALID: Failure =
     Failure::Integrity(value_access::flow::IntegrityError::InconsistentTypedBody);
@@ -52,7 +52,11 @@ pub(in crate::value_access) fn prepare(
     }
     Ok(Output {
         queries: preparation.queries,
-        values: values.into_completed().into_iter().collect(),
+        values: values
+            .into_completed()
+            .into_iter()
+            .map(|(id, value)| (id, Arc::new(value.frozen.clone())))
+            .collect(),
         dependencies: Arc::new(preparation.sources),
     })
 }
@@ -196,19 +200,22 @@ impl Preparation<'_, '_> {
             .map(|id| Ok((id, self.queries.get(&id).ok_or(INVALID)?.clone())))
             .collect()
     }
-    fn initialize(&mut self, values: &mut Values, id: AccessCallableId) -> Result<Value, Failure> {
+    fn initialize(
+        &mut self,
+        values: &mut Values,
+        id: AccessCallableId,
+    ) -> Result<Completed, Failure> {
         let declaration = self.context.program().callables().get(id).ok_or(INVALID)?;
         if declaration.kind() != CallableKind::ConstantInitializer {
             return Err(INVALID);
         }
         let queries = self.graph(values, id)?;
         // This is the ordinary acceptance routine over the selected const closure, not another
-        // source checker or evaluator. Only intrinsic scalar values cross into final Unit typing.
+        // source checker or evaluator. Only established frozen data crosses into final Unit typing.
         let checked = accepted::check_queries(self.context, queries)?;
-        if !matches!(
-            self.context.program().data_kind(declaration.result()),
-            Some(BuiltinType::I32 | BuiltinType::Bool | BuiltinType::Void)
-        ) {
+        if !super::super::constant::supports_final(&checked.program, declaration.result())
+            .map_err(Failure::Integrity)?
+        {
             let diagnostic =
                 final_diagnostic(self.context, id).map_err(|failure| Failure::Body {
                     callable: id,
@@ -246,22 +253,18 @@ impl Preparation<'_, '_> {
                     });
                 }
             };
-        if !matches!(
-            (
-                self.context.program().data_kind(declaration.result()),
-                value.data()
-            ),
-            (Some(BuiltinType::I32), state::Data::I32(_))
-                | (Some(BuiltinType::Bool), state::Data::Bool(_))
-                | (Some(BuiltinType::Void), state::Data::Unit)
-        ) {
-            return Err(INVALID);
-        }
-        Ok(value)
+        Ok(Completed {
+            frozen: value.freeze(),
+            _execution: value,
+        })
     }
 }
-impl DependencyComputation<AccessCallableId, Value, Failure> for Preparation<'_, '_> {
-    fn compute(&mut self, values: &mut Values, id: AccessCallableId) -> Result<Value, QueryError> {
+impl DependencyComputation<AccessCallableId, Completed, Failure> for Preparation<'_, '_> {
+    fn compute(
+        &mut self,
+        values: &mut Values,
+        id: AccessCallableId,
+    ) -> Result<Completed, QueryError> {
         if values.active_depth() > self.budget.limits().call_depth().get() as usize {
             let source = self
                 .context

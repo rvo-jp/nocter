@@ -37,6 +37,13 @@ pub struct MachineData {
 }
 
 impl MachineData {
+    pub(crate) fn literal(bytes: Box<[u8]>, alignment: u64) -> Self {
+        Self {
+            bytes,
+            alignment,
+            relocations: Box::new([]),
+        }
+    }
     #[must_use]
     pub const fn bytes(&self) -> &[u8] {
         &self.bytes
@@ -63,9 +70,9 @@ pub struct MachineDataTable {
 }
 
 impl MachineDataTable {
-    pub(crate) fn empty() -> Self {
+    pub(crate) fn from_values(values: Vec<MachineData>) -> Self {
         Self {
-            entries: MachineTable::from_values(Vec::new()),
+            entries: MachineTable::from_values(values),
         }
     }
     #[must_use]
@@ -484,17 +491,8 @@ fn write_integer(
     target: MachineTarget,
     owner: ExecutableStaticId,
 ) -> Result<(), MachineProgramError> {
-    let encoded = match target.endianness() {
-        MachineEndianness::Little => value.to_le_bytes(),
-        MachineEndianness::Big => value.to_be_bytes(),
-    };
-    let size = usize::try_from(size).map_err(|_| MachineProgramError::InvalidStaticData(owner))?;
-    let slice = match target.endianness() {
-        MachineEndianness::Little => encoded.get(..size),
-        MachineEndianness::Big => encoded.get(encoded.len().saturating_sub(size)..),
-    }
-    .ok_or(MachineProgramError::InvalidStaticData(owner))?;
-    write_bytes(bytes, offset, slice, owner)
+    write_integer_bytes(bytes, offset, value, size, target)
+        .ok_or(MachineProgramError::InvalidStaticData(owner))
 }
 
 fn write_bytes(
@@ -513,4 +511,28 @@ fn write_bytes(
         .ok_or(MachineProgramError::InvalidStaticData(owner))?
         .copy_from_slice(value);
     Ok(())
+}
+
+/// Shared integer encoding for released statics and closed private literal data.
+pub(crate) fn write_integer_bytes(
+    bytes: &mut [u8],
+    offset: u64,
+    value: u128,
+    size: u64,
+    target: MachineTarget,
+) -> Option<()> {
+    let encoded = match target.endianness() {
+        MachineEndianness::Little => value.to_le_bytes(),
+        MachineEndianness::Big => value.to_be_bytes(),
+    };
+    let size = usize::try_from(size).ok()?;
+    let source = match target.endianness() {
+        MachineEndianness::Little => encoded.get(..size),
+        MachineEndianness::Big => encoded.get(encoded.len().checked_sub(size)?..),
+    }?;
+    let start = usize::try_from(offset).ok()?;
+    bytes
+        .get_mut(start..start.checked_add(size)?)?
+        .copy_from_slice(source);
+    Some(())
 }

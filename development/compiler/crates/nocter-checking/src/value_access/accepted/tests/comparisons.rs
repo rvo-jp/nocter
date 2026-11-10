@@ -8,7 +8,7 @@ fn answer(source: &str) -> Constant {
         .program()
         .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
         .unwrap();
-    unit.constant_value(id).unwrap().clone()
+    Constant::from_frozen(unit.constant_value(id).unwrap()).unwrap()
 }
 #[test]
 fn unit_comparisons_use_the_selected_fixed_result_in_required_evaluation() {

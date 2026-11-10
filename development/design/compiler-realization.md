@@ -77,7 +77,7 @@ names do not authorize hidden effects, root stability or target primitives.
 
 The [const contract](../spec/language/constant-evaluation.md) owns eligibility and publication.
 Extend the [required initializer boundary](../compiler/crates/nocter-checking/README.md#required-private-initializers)
-with aggregate final publication, immutable statics and early structural dependencies. As ordinary
+with remaining aggregate forms, immutable statics and early structural dependencies. As ordinary
 generic/witness schemas are admitted, qualify condition derivation, per-conformance witness facts,
 exact-generation exports and substitution over that same authority. Preserve runtime-valid
 instances whose const condition is false; distinguish those from definition-time known forbidden operations and missing ordinary capabilities.
@@ -94,8 +94,8 @@ The evaluator must preserve edit-input writes, aliases, partial state and once-o
 Compare repeated calls with equal scalar input values but different mutable places, selected enum
 payloads, zero-count repetition and temporary escape. Result-only memoization must not erase
 state transitions. Eligibility, arithmetic failure, evaluator budgets and final serialization need
-distinct source causes. Existing private scalar execution does not establish conditional generic
-eligibility or aggregate/static publication.
+distinct source causes. The current [initializer boundary](../compiler/crates/nocter-checking/README.md#required-private-initializers)
+does not establish conditional generic eligibility or publication of unadmitted aggregate/static forms.
 
 ## Executable Lifecycle and Target Admission
 

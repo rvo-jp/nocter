@@ -102,3 +102,19 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 
 The cross-stage boundary is documented in
 [Machine Program and Native Target Design](../../../architecture/pipeline/machine-program.md).
+
+## Private Frozen Data
+
+The private body consumer serializes MIR's established frozen literal DAGs into the common
+`MachineDataTable`. Exact runtime field identities feed the common stored-layout authority; scalar
+encoding shares the released static encoder's byte-order operation. Declaration-order fields,
+padding, signed bytes and zero-size components follow those layouts. No source initializer or
+constant evaluation runs here. A literal use loads immutable backing into its own ordinary value
+storage, preserving independent mutation without a source Copy requirement.
+
+The private catalog shares equal type/graph keys in deterministic body/action order. It bounds
+total serialized bytes before allocation and reports `ExecutableFailure::DataLimit`, including
+allocation refusal. The current byte budget is owned by its constructor. Zero-size subgraphs are
+skipped instead of expanding exponentially shared empty records. Frozen graph sharing does not
+justify overflowing a physical layout or allocating unbounded serialized output. This private
+bound does not change the released static catalog or claim a compiler-process memory limit.

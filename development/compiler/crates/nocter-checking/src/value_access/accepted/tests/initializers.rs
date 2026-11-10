@@ -3,7 +3,7 @@ use super::*;
 use crate::value_access::evaluation::Rule;
 use nocter_constant_evaluation::{
     CompileTimeEvaluationLimits,
-    state::{Rule as ExecutionRule, Value},
+    state::{Data as ValueData, Rule as ExecutionRule, Value},
 };
 use std::fmt::Write as _;
 use std::num::{NonZeroU32, NonZeroU64};
@@ -18,7 +18,7 @@ fn answer(source: &str, name: &str) -> Value {
             .resolve(unit.program().symbols().get(name).unwrap())
             .is_none()
     );
-    unit.constant_value(id).unwrap().clone()
+    Value::from_frozen(unit.constant_value(id).unwrap()).unwrap()
 }
 #[test]
 fn literals_forward_dependencies_and_runtime_references_publish_values() {
@@ -101,7 +101,7 @@ fn required_failures_are_not_runtime_fallbacks_or_domain_failures() {
     );
     assert_eq!(
         failure(
-            "struct Pair { left: i32 }\nconst BAD: Pair = Pair { left: 1 }",
+            "const BAD: error = if true { loop {} } else { loop {} }",
             CompileTimeEvaluationLimits::default()
         ),
         Rule::FinalValue
@@ -212,8 +212,11 @@ fn initializer_rebinding_reuses_headers_but_recomputes_values_and_rejects_stale_
         .program()
         .resolve_constant(current.program().symbols().get("ANSWER").unwrap())
         .unwrap();
-    assert_eq!(old.constant_value(id), Some(&Value::integer(2)));
-    assert_eq!(current.constant_value(id), Some(&Value::integer(42)));
+    assert_eq!(old.constant_value(id), Some(&Value::integer(2).freeze()));
+    assert_eq!(
+        current.constant_value(id),
+        Some(&Value::integer(42).freeze())
+    );
 }
 
 #[test]
@@ -585,7 +588,10 @@ fn bounded_loop_storage_is_reused_instead_of_accumulating_allocation_history() {
         .program()
         .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
         .unwrap();
-    assert_eq!(unit.constant_value(id), Some(&Value::integer(1000)));
+    assert_eq!(
+        unit.constant_value(id),
+        Some(&Value::integer(1000).freeze())
+    );
 }
 #[test]
 fn completed_dependencies_and_outer_requests_retain_their_storage_charges() {
@@ -618,4 +624,78 @@ fn ordinary_source_validation_precedes_evaluator_storage_allocation() {
         ),
         Err(Failure::Body { .. })
     ));
+}
+
+#[test]
+fn record_constants_are_fresh_noncopy_values_with_nested_unit_fields() {
+    let source = "struct Empty {}\nstruct Pair { left: i32\nright: i32\nempty: Empty\nunit: void }\nconst func make(): Pair { var value = Pair { right: 2, left: 40, empty: Empty {}, unit: () }\nvalue.left += 1\nvalue^ }\nconst ORIGINAL: Pair = make()\nconst SECOND: Pair = ORIGINAL\nconst func calculate(): i32 { var first = SECOND\nlet next = ORIGINAL\nfirst.left = 1\nfirst.left + next.left }\nconst ANSWER: i32 = calculate()";
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let ValueData::Record(fields) = answer(source, "SECOND").data().clone() else {
+        panic!("record");
+    };
+    assert_eq!(fields[0], Value::integer(41));
+    assert_eq!(fields[1], Value::integer(2));
+    assert_eq!(fields[2], Value::record(Vec::new()));
+    assert_eq!(fields[3], Value::unit());
+}
+#[test]
+fn record_constant_names_are_not_places_and_do_not_grant_copy_to_bindings() {
+    for body in [
+        "read value = DATA",
+        "edit value = DATA",
+        "let value = DATA^",
+        "drop DATA",
+        "DATA.left = 1",
+        "let first = DATA\nlet second = first",
+    ] {
+        let source = format!(
+            "struct Pair {{ left: i32 }}\nconst DATA: Pair = Pair {{ left: 42 }}\nfunc run(): void {{ {body} }}"
+        );
+        let (sources, tree) = input(&source);
+        let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        assert!(
+            matches!(
+                Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap()),
+                Err(Failure::Body { .. })
+            ),
+            "{source}"
+        );
+    }
+}
+#[test]
+fn record_constant_dependencies_keep_cycles_and_source_invalidation() {
+    assert_eq!(
+        failure(
+            "struct Pair { left: i32 }\nconst A: Pair = B\nconst B: Pair = A",
+            CompileTimeEvaluationLimits::default()
+        ),
+        Rule::DependencyCycle
+    );
+    let original = "struct Pair { left: i32 }\nconst DATA: Pair = Pair { left: 1 }\nfunc run(): i32 { DATA.left }";
+    let (sources, tree) = input(original);
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let unit = Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap()).unwrap();
+    let (changed, parsed) = input(&original.replace("left: 1", "left: 42"));
+    let context = headers.bind(bound(&changed, &parsed)).unwrap();
+    assert!(named(&unit, "run").bind(&context).is_err());
+    let current = Unit::prepare(&context).unwrap();
+    let id = current
+        .program()
+        .resolve_constant(current.program().symbols().get("DATA").unwrap())
+        .unwrap();
+    assert_ne!(unit.constant_value(id), current.constant_value(id));
+}
+
+#[test]
+fn record_constant_scalar_projections_supply_control_facts_before_flow() {
+    accepted(
+        "struct Options { flag: bool }\nconst OPTIONS: Options = Options { flag: false }\nfunc run(): i32 { let value = 42\nif OPTIONS.flag { drop value }\nvalue }",
+    );
+    assert_eq!(
+        answer(
+            "struct Inner { value: i32 }\nstruct Outer { inner: Inner }\nconst DATA: Outer = Outer { inner: Inner { value: 42 } }\nconst ANSWER: i32 = DATA.inner.value",
+            "ANSWER"
+        ),
+        Value::integer(42)
+    );
 }

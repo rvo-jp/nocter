@@ -108,3 +108,54 @@ fn record_cleanup_helpers_share_schemas_instead_of_expanding_nested_field_paths(
         1
     );
 }
+
+fn shared_constant(depth: usize, empty: bool) -> String {
+    use std::fmt::Write as _;
+    let mut source = if empty {
+        "copy struct S0 {}\n".to_owned()
+    } else {
+        "copy struct S0 { value: i32 }\n".to_owned()
+    };
+    for index in 1..=depth {
+        writeln!(
+            source,
+            "copy struct S{index} {{ left: S{}\nright: S{} }}",
+            index - 1,
+            index - 1
+        )
+        .unwrap();
+    }
+    writeln!(source, "const func build(): S{depth} {{").unwrap();
+    source.push_str(if empty {
+        "let v0 = S0 {}\n"
+    } else {
+        "let v0 = S0 { value: 1 }\n"
+    });
+    for index in 1..=depth {
+        writeln!(
+            source,
+            "let v{index} = S{index} {{ left: v{}, right: v{} }}",
+            index - 1,
+            index - 1
+        )
+        .unwrap();
+    }
+    writeln!(
+        source,
+        "v{depth}\n}}\nconst DATA: S{depth} = build()\nfunc run(): i32 {{ let data = DATA\n42 }}"
+    )
+    .unwrap();
+    source
+}
+#[test]
+fn shared_constant_output_is_bounded_before_expanding_physical_data() {
+    assert!(matches!(
+        lower(&shared_constant(23, false)),
+        Err(crate::value_access::ExecutableFailure::DataLimit(_))
+    ));
+}
+#[test]
+fn exponentially_shared_zero_size_data_needs_no_expanded_serialization_or_storage() {
+    let program = compile(&shared_constant(64, true));
+    assert!(program.data().is_empty());
+}

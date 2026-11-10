@@ -1,5 +1,6 @@
 //! Private MIR enters the ordinary Machine program, body optimizer and native consumers.
 mod body;
+mod data;
 use super::ExecutableFailure as Failure;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
@@ -14,6 +15,7 @@ use std::collections::BTreeMap;
 struct Context<'a> {
     program: &'a mir::Program,
     layouts: &'a MachineLayoutPlan,
+    data: &'a data::Data,
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
     cleanup: BTreeMap<TypeId, MachineFunctionId>,
@@ -63,7 +65,9 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
             ))
         })
         .collect::<Result<_, Failure>>()?;
+    let data = data::Data::build(program, &layouts)?;
     let context = Context {
+        data: &data,
         program,
         layouts: &layouts,
         functions,
@@ -94,7 +98,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         layouts: layouts.finish(),
         runtime_call_abis: crate::transport::MachineRuntimeCallAbiTable::empty(),
         imports: crate::import::MachineImportTable::empty(),
-        data: crate::MachineDataTable::empty(),
+        data: data.finish(),
         contexts,
         functions,
         root: crate::MachineProgramRoot::Process {

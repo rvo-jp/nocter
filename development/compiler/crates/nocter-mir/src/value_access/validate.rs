@@ -133,6 +133,10 @@ impl Context<'_> {
         let integer = RuntimePrimitive::Signed(32);
         let boolean = RuntimePrimitive::Bool;
         match operation {
+            Operation::Frozen { destination, value } => {
+                self.place(destination)?;
+                self.frozen(destination.data, value)
+            }
             Operation::Constant { destination, value } => {
                 self.place(destination)?;
                 self.require(match value {
@@ -361,4 +365,49 @@ fn validate_control(context: &Context<'_>) -> Result<(), Failure> {
         }
     }
     Ok(())
+}
+
+impl Context<'_> {
+    fn frozen(
+        &self,
+        data: nocter_model::TypeId,
+        value: &nocter_model::FrozenData,
+    ) -> Result<(), Failure> {
+        use nocter_model::{ConstantValue, FrozenNode};
+        let mut pending = vec![(data, value.root())];
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some((data, node)) = pending.pop() {
+            if !seen.insert((data, node)) {
+                continue;
+            }
+            match (&value.nodes()[node], self.program.runtime.types().get(data)) {
+                (FrozenNode::Unit, Some(RuntimeType::Unit))
+                | (
+                    FrozenNode::Scalar(ConstantValue::Bool(_)),
+                    Some(RuntimeType::Primitive(RuntimePrimitive::Bool)),
+                ) => {}
+                (
+                    FrozenNode::Scalar(ConstantValue::Integer(value)),
+                    Some(RuntimeType::Primitive(RuntimePrimitive::Signed(32))),
+                ) if i32::try_from(*value).is_ok() => {}
+                (FrozenNode::Record(values), Some(RuntimeType::Aggregate)) => {
+                    let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueRecord {
+                        fields,
+                    }) = self.program.runtime.type_representations().get(data)
+                    else {
+                        return Err(self.invalid());
+                    };
+                    self.require(fields.len() == values.len())?;
+                    pending.extend(
+                        fields
+                            .iter()
+                            .zip(values)
+                            .map(|(field, &node)| (field.ty(), node)),
+                    );
+                }
+                _ => return Err(self.invalid()),
+            }
+        }
+        Ok(())
+    }
 }

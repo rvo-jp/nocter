@@ -220,3 +220,60 @@ impl Storage {
             .ok_or(Rule::InvalidPlan)
     }
 }
+
+impl Value {
+    /// Freeze one result into a finite publication DAG, preserving shared components.
+    /// # Panics
+    /// Panics if an internal value violates the postorder construction invariant.
+    #[must_use]
+    pub fn freeze(&self) -> nocter_model::FrozenData {
+        use nocter_model::{ConstantValue, FrozenData, FrozenNode};
+        let mut pending = vec![(self, false)];
+        let mut ids = BTreeMap::new();
+        let mut nodes = Vec::new();
+        while let Some((value, expanded)) = pending.pop() {
+            if ids.contains_key(&value.identity()) {
+                continue;
+            }
+            if !expanded && let Data::Record(fields) = value.data() {
+                pending.push((value, true));
+                pending.extend(fields.iter().rev().map(|field| (field, false)));
+                continue;
+            }
+            let node = match value.data() {
+                Data::Unit => FrozenNode::Unit,
+                Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
+                Data::I32(value) => FrozenNode::Scalar(ConstantValue::Integer(i128::from(*value))),
+                Data::Record(fields) => {
+                    FrozenNode::Record(fields.iter().map(|field| ids[&field.identity()]).collect())
+                }
+            };
+            ids.insert(value.identity(), nodes.len());
+            nodes.push(node);
+        }
+        FrozenData::new(nodes).expect("postorder frozen data")
+    }
+    /// Reconstruct immutable plan data, without executing source or expanding shared records.
+    #[must_use]
+    pub fn from_frozen(data: &nocter_model::FrozenData) -> Option<Self> {
+        use nocter_model::{ConstantValue, FrozenNode};
+        let mut values: Vec<Self> = Vec::new();
+        for node in data.nodes() {
+            values.push(match node {
+                FrozenNode::Unit => Self::unit(),
+                FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
+                FrozenNode::Scalar(ConstantValue::Integer(value)) => {
+                    Self::integer(i32::try_from(*value).ok()?)
+                }
+                FrozenNode::Record(fields) => Self::record(
+                    fields
+                        .iter()
+                        .map(|&id| values[id].clone())
+                        .collect::<Box<[_]>>(),
+                ),
+                FrozenNode::Scalar(_) => return None,
+            });
+        }
+        values.get(data.root()).cloned()
+    }
+}

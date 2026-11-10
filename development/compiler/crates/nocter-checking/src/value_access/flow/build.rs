@@ -432,6 +432,7 @@ impl Builder<'_> {
                 self.operand(id, 1, *right, point)?
             }
             ExpressionKind::Function(_)
+            | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit

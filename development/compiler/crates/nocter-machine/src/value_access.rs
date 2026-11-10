@@ -16,6 +16,7 @@ pub enum ExecutableFailure {
     Abi(crate::MachineAbiError),
     InvalidBody(AccessInstanceId),
     InvalidRoot,
+    DataLimit(nocter_model::TypeId),
     Optimization(crate::MachineOptimizationError),
     Dataflow(crate::MachineDataflowError),
     Context(crate::MachineContextError),

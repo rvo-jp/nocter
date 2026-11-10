@@ -48,7 +48,7 @@ impl DataEvidence {
 /// There is no parts constructor: bodies cannot be omitted or paired with another program.
 #[derive(Clone, Debug)]
 pub struct Unit {
-    constants: BTreeMap<AccessCallableId, Arc<nocter_constant_evaluation::state::Value>>,
+    constants: BTreeMap<AccessCallableId, Arc<nocter_model::FrozenData>>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
@@ -95,10 +95,7 @@ impl Unit {
         })
     }
     #[must_use]
-    pub fn constant_value(
-        &self,
-        id: AccessCallableId,
-    ) -> Option<&nocter_constant_evaluation::state::Value> {
+    pub fn constant_value(&self, id: AccessCallableId) -> Option<&nocter_model::FrozenData> {
         self.constants.get(&id).map(Arc::as_ref)
     }
     /// The named/captured-code or own-input witness established for a callable result in this bounded unit.

@@ -3,7 +3,12 @@ mod preparation;
 mod projection;
 use super::accepted::Failure;
 use super::{Failure as BodyFailure, flow, source_origin};
-use nocter_constant_evaluation::state::{self, Value};
+use nocter_constant_evaluation::state;
+use nocter_model::FrozenData;
+struct Completed {
+    _execution: state::Value,
+    frozen: FrozenData,
+}
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::AccessCallableId;
@@ -42,7 +47,7 @@ impl Rule {
             ),
             Self::FinalValue => (
                 DiagnosticCode::E0323,
-                "private constant publication currently admits only bool, i32 and void values",
+                "this data type is outside the private constant-publication domain",
             ),
         })
     }
@@ -132,21 +137,21 @@ fn final_diagnostic(
     })
 }
 pub(super) trait Values {
-    fn value(&self, id: AccessCallableId) -> Option<&Value>;
+    fn value(&self, id: AccessCallableId) -> Option<&FrozenData>;
 }
 impl Values for () {
-    fn value(&self, _: AccessCallableId) -> Option<&Value> {
+    fn value(&self, _: AccessCallableId) -> Option<&FrozenData> {
         None
     }
 }
-impl Values for nocter_constant_evaluation::DependencyQuery<AccessCallableId, Value> {
-    fn value(&self, id: AccessCallableId) -> Option<&Value> {
-        self.completed(&id)
+impl Values for nocter_constant_evaluation::DependencyQuery<AccessCallableId, Completed> {
+    fn value(&self, id: AccessCallableId) -> Option<&FrozenData> {
+        self.completed(&id).map(|value| &value.frozen)
     }
 }
 pub(super) struct Output {
     pub(super) queries: BTreeMap<AccessCallableId, super::Query>,
-    pub(super) values: BTreeMap<AccessCallableId, Arc<Value>>,
+    pub(super) values: BTreeMap<AccessCallableId, Arc<FrozenData>>,
     pub(super) dependencies: Arc<super::source_dependencies::SourceDependencies>,
 }
 pub(super) use preparation::prepare;

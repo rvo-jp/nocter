@@ -512,7 +512,10 @@ their full frozen input/result contracts. Native-session integration tests compi
 source through checking, instances, lifecycle, MIR and these existing native consumers, then
 execute the images on ARM64 macOS. They cover scalar computation, scoped channels, control flow,
 static callbacks and owned captures, indirect aggregate transport, zero-byte data, register/stack
-argument crossing and required arithmetic traps. Helper-generation tests qualify shared error/record
+argument crossing and required arithmetic traps. Closed record constants reach native code as
+serialized immutable data through the model-owned frozen literal product. Their uses receive
+independent values; initialization thunks do not become runtime instances. Machine owns layout,
+byte encoding and serialization limits, while checking owns final-data eligibility. Helper-generation tests qualify shared error/record
 destruction structure; source-level runtime error construction and nontrivial destruction through
 adapters are not yet native-qualified. This boundary establishes correctness evidence, not a
 performance claim or complete v2.0.0 support.

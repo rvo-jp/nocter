@@ -15,6 +15,9 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 
 - dense semantic ID domains and arenas
 - source-independent compile-time expression identities
+- immutable `FrozenData` literal DAGs for the closed value-access path, with topological component
+  edges and shared component views; source typing, evaluation, nominal identity and layout remain
+  outside this representation
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
