@@ -184,7 +184,7 @@ impl Context<'_, '_> {
                 resources::expression_payload(self.typed, id)?,
                 &mut self.steps,
             )?,
-            ExpressionKind::Record { ref fields } => {
+            ExpressionKind::Aggregate { ref fields } => {
                 let fields = fields
                     .iter()
                     .map(|field| (field.field, Holder::Expression(field.value).place()))

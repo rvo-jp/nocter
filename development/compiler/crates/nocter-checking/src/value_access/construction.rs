@@ -10,6 +10,82 @@ use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
 
 impl Checker<'_, '_> {
+    pub fn tuple_value(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let expected = expected.map(|boundary| boundary.ty().data());
+        let constraints = if let Some(data) = expected {
+            match self.program().data_schema(data) {
+                Some(PayloadSchema::Aggregate(schema)) if schema.as_record().is_none() => Some(
+                    schema
+                        .components()
+                        .map(|component| component.data)
+                        .collect::<Vec<_>>(),
+                ),
+                _ => return self.reject(Rule::TypeMismatch, node),
+            }
+        } else {
+            None
+        };
+        let entries = self.children(node);
+        if constraints
+            .as_ref()
+            .is_some_and(|fields| fields.len() != entries.len())
+        {
+            return self.reject(Rule::TypeMismatch, node);
+        }
+        let mut fields = Vec::new();
+        let mut data = Vec::new();
+        let mut continues = true;
+        for (index, entry) in entries.into_iter().enumerate() {
+            let mut value = self.expression(
+                entry,
+                constraints
+                    .as_ref()
+                    .map(|fields| Boundary::Value(fields[index])),
+                reachable && continues,
+            )?;
+            // Expected data fixes this component's shape even if it exits without a value.
+            // Inference alone cannot invent a type for an unknown result.
+            let Some(field_data) = self
+                .ty(value)
+                .access()
+                .map(nocter_model::ValueAccess::data)
+                .or_else(|| constraints.as_ref().map(|fields| fields[index]))
+            else {
+                return self.reject(Rule::UnknownResultType, entry);
+            };
+            if !matches!(
+                self.program().data_schema(field_data),
+                Some(PayloadSchema::Builtin(_) | PayloadSchema::Aggregate(_))
+            ) {
+                return self.reject(Rule::InvalidConstruction, entry);
+            }
+            if constraints.is_none() {
+                value = self.boundary(entry, value, Boundary::Value(field_data))?;
+            }
+            data.push(field_data);
+            continues &= self.ty(value).may_complete();
+            fields.push(FieldValue {
+                field: nocter_model::ValueField::Tuple(index),
+                value,
+            });
+        }
+        let data = self
+            .types
+            .tuple(&data)
+            .map_err(|_| Failure::InconsistentSyntax)?;
+        self.emit(
+            node,
+            value_type(data, Mode::Own).with_continuation(continues),
+            ExpressionKind::Aggregate {
+                fields: fields.into(),
+            },
+        )
+    }
     pub fn record_value(
         &mut self,
         node: NodeId,
@@ -20,10 +96,10 @@ impl Checker<'_, '_> {
         let Some(data) = self.program().type_named(self.text(name)?) else {
             return self.reject(Rule::UnknownType, name);
         };
-        let Some(PayloadSchema::Record(record)) = self.program().data_schema(data) else {
+        let Some(PayloadSchema::Aggregate(record)) = self.program().data_schema(data) else {
             return self.reject(Rule::InvalidConstruction, name);
         };
-        let count = record.fields().len();
+        let count = record.len();
         let initializer = self.direct(node, NodeKind::StructInitializer)?;
         let mut seen = BTreeSet::new();
         let mut fields = Vec::new();
@@ -37,10 +113,9 @@ impl Checker<'_, '_> {
             }
             let data = self
                 .program()
-                .fields()
-                .get(selected)
+                .component(data, selected)
                 .ok_or(Failure::InconsistentSyntax)?
-                .data();
+                .data;
             let expression = self.direct(field, NodeKind::Expression)?;
             let value = self.expression(
                 expression,
@@ -59,7 +134,7 @@ impl Checker<'_, '_> {
         self.emit(
             node,
             value_type(data, Mode::Own).with_continuation(continues),
-            ExpressionKind::Record {
+            ExpressionKind::Aggregate {
                 fields: fields.into_boxed_slice(),
             },
         )

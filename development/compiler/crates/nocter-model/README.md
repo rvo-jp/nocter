@@ -17,7 +17,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - source-independent compile-time expression identities
 - `ValueStatic` place keys linked to initializer declarations; the declaration authority validates
   the role before granting a global place, independently of code/function use
-- immutable `FrozenData` literal DAGs for the closed value-access path, with topological component
+- immutable `FrozenData` literal DAGs for the closed value-access path, with topological ordered aggregate-component
   edges and shared component views; source typing, evaluation, nominal identity and layout remain
   outside this representation
 - dependency-light capability-evidence identities owned by checking authorities
@@ -31,8 +31,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - named/captured body code identities, with a derived named source owner used only for source reuse
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
-- logical field paths with concatenation and prefix/overlap relations; the declaration owner validates each field
-  against its containing data schema, independently of memory offsets
+- logical field paths with record-field identities and tuple positions, concatenation and
+  prefix/overlap relations; the declaration owner validates each selection against its containing data schema, independently of memory offsets
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
   and distinct future callable/input/field and body-local/selected-place/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering

@@ -1,4 +1,5 @@
 use super::*;
+use crate::value_access::PayloadSchema;
 use crate::value_access::{Builder as ProgramBuilder, ParameterDefinition};
 use nocter_model::{CompileTimeGuarantee, ValueInputOperation};
 
@@ -74,7 +75,9 @@ fn records_share_the_program_authority_and_preserve_canonical_ids() {
     let record = a.records().get(outer).unwrap();
     assert_eq!(
         a.data_schema(record.data()),
-        Some(PayloadSchema::Record(record))
+        Some(PayloadSchema::Aggregate(
+            super::super::AggregateSchema::record(record, a.fields())
+        ))
     );
     assert_eq!(a.data_kind(record.data()), None); // A record is not flattened to a scalar.
     assert_eq!(a.data_copyable(record.data()), Some(true));
@@ -156,23 +159,17 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
             DeclarationViolation {
                 declaration: DeclarationId::Record(a),
                 position: HeaderPosition::Field(0),
-                rule: DeclarationRule::NonCopyField {
-                    data: DataReference::Record(b)
-                }
+                rule: DeclarationRule::NonCopyField
             },
             DeclarationViolation {
                 declaration: DeclarationId::Record(a),
                 position: HeaderPosition::Field(1),
-                rule: DeclarationRule::NonCopyField {
-                    data: DataReference::Record(plain)
-                }
+                rule: DeclarationRule::NonCopyField
             },
             DeclarationViolation {
                 declaration: DeclarationId::Record(b),
                 position: HeaderPosition::Field(0),
-                rule: DeclarationRule::NonCopyField {
-                    data: DataReference::Builtin(BuiltinType::Error)
-                }
+                rule: DeclarationRule::NonCopyField
             },
         ]
     );
@@ -279,7 +276,9 @@ fn duplicate_record_and_field_names_and_callable_collisions_are_rejected() {
         )
         .unwrap();
     let value = field(&symbols, "value", DataReference::Builtin(BuiltinType::I32));
-    builder.define_record(a, false, [value, value]).unwrap();
+    builder
+        .define_record(a, false, [value.clone(), value])
+        .unwrap();
     builder.define_record(duplicate, false, []).unwrap();
     builder.define_record(collision, false, []).unwrap();
     assert_eq!(
@@ -356,7 +355,7 @@ fn field_names_are_local_and_type_names_do_not_change_field_identity() {
         "A",
         DataReference::Builtin(BuiltinType::I32),
     )];
-    builder.define_record(a, true, fields).unwrap();
+    builder.define_record(a, true, fields.clone()).unwrap();
     builder.define_record(b, true, fields).unwrap();
     let program = builder.finish().unwrap();
     let a = program.records().get(a).unwrap();

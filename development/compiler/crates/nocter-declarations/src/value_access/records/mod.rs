@@ -15,18 +15,10 @@ use crate::DefinitionError;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldDefinition {
     pub name: Symbol,
     pub data: DataReference,
-}
-
-/// The exact closed shapes admitted by this declaration product, not a general type classifier.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PayloadSchema<'a> {
-    Builtin(BuiltinType),
-    Record(&'a Record),
-    Function(super::FunctionWitness),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -196,15 +188,17 @@ impl Builder {
                 } else {
                     seen.insert(field.name, index);
                 }
-                match field.data {
-                    DataReference::Builtin(data) if !supported(data) => {
-                        report(position, DeclarationRule::UnsupportedDataType { data });
-                    }
-                    DataReference::Record(record) if reserved.get(record).is_none() => {
-                        report(position, DeclarationRule::UnknownRecordType { record });
-                    }
+                field.data.visit_leaves(|data| match data {
+                    DataReference::Builtin(data) if !supported(*data) => report(
+                        position,
+                        DeclarationRule::UnsupportedDataType { data: *data },
+                    ),
+                    DataReference::Record(record) if reserved.get(*record).is_none() => report(
+                        position,
+                        DeclarationRule::UnknownRecordType { record: *record },
+                    ),
                     _ => {}
-                }
+                });
             }
         }
         if !violations.is_empty() {
@@ -269,10 +263,11 @@ impl Validated {
                         owner: id,
                         name: field.name,
                         position,
-                        data: match field.data {
-                            DataReference::Builtin(builtin) => types.builtin(builtin),
-                            DataReference::Record(record) => data[&record],
-                        },
+                        data: super::data::resolved_data(
+                            &mut types,
+                            |record| data[&record],
+                            &field.data,
+                        ),
                     });
                     field_namespace.insert(field.name, field_id);
                     field_id
@@ -316,10 +311,12 @@ fn validate_payloads(
             .expect("validated definition");
         let mut count = 0;
         for field in &definition.fields {
-            if let DataReference::Record(child) = field.data {
-                parents.entry(child).or_default().push(id);
-                count += 1;
-            }
+            field.data.visit_leaves(|data| {
+                if let DataReference::Record(child) = data {
+                    parents.entry(*child).or_default().push(id);
+                    count += 1;
+                }
+            });
         }
         remaining.insert(id, count);
         if count == 0 {
@@ -334,12 +331,16 @@ fn validate_payloads(
         let definition = records.get(id).unwrap().definition.as_ref().unwrap();
         let mut all_copy = true;
         for (position, field) in definition.fields.iter().enumerate() {
-            let copy = match field.data {
-                DataReference::Builtin(data) => {
-                    builtin_copyable(data).expect("validated builtin payload")
-                }
-                DataReference::Record(child) => copyable[&child],
-            };
+            let mut copy = true;
+            field.data.visit_leaves(|data| {
+                copy &= match data {
+                    DataReference::Builtin(data) => {
+                        builtin_copyable(*data).expect("validated builtin payload")
+                    }
+                    DataReference::Record(child) => copyable[child],
+                    DataReference::Tuple(_) => unreachable!("only leaves are visited"),
+                };
+            });
             all_copy &= copy;
             if definition.copy && !copy {
                 noncopy.insert((id, position));
@@ -363,11 +364,17 @@ fn validate_payloads(
                 .fields
                 .iter()
                 .enumerate()
-                .find_map(|(position, field)| match field.data {
-                    DataReference::Record(child) if !copyable.contains_key(&child) => {
-                        Some((position, child))
-                    }
-                    _ => None,
+                .find_map(|(position, field)| {
+                    let mut through = None;
+                    field.data.visit_leaves(|data| {
+                        if let DataReference::Record(child) = data
+                            && !copyable.contains_key(child)
+                            && through.is_none()
+                        {
+                            through = Some(*child);
+                        }
+                    });
+                    through.map(|child| (position, child))
                 })
                 .expect("an unresolved payload has an unresolved field");
             violations.push(DeclarationViolation {
@@ -376,12 +383,12 @@ fn validate_payloads(
                 rule: DeclarationRule::RecursivePayload { through },
             });
         }
-        for (position, field) in definition.fields.iter().enumerate() {
+        for position in 0..definition.fields.len() {
             if noncopy.contains(&(id, position)) {
                 violations.push(DeclarationViolation {
                     declaration: DeclarationId::Record(id),
                     position: HeaderPosition::Field(position),
-                    rule: DeclarationRule::NonCopyField { data: field.data },
+                    rule: DeclarationRule::NonCopyField,
                 });
             }
         }

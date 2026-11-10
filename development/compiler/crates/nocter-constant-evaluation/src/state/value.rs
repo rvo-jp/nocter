@@ -244,9 +244,9 @@ impl Value {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
                 Data::I32(value) => FrozenNode::Scalar(ConstantValue::Integer(i128::from(*value))),
-                Data::Record(fields) => {
-                    FrozenNode::Record(fields.iter().map(|field| ids[&field.identity()]).collect())
-                }
+                Data::Record(fields) => FrozenNode::Aggregate(
+                    fields.iter().map(|field| ids[&field.identity()]).collect(),
+                ),
             };
             ids.insert(value.identity(), nodes.len());
             nodes.push(node);
@@ -265,7 +265,7 @@ impl Value {
                 FrozenNode::Scalar(ConstantValue::Integer(value)) => {
                     Self::integer(i32::try_from(*value).ok()?)
                 }
-                FrozenNode::Record(fields) => Self::record(
+                FrozenNode::Aggregate(fields) => Self::record(
                     fields
                         .iter()
                         .map(|&id| values[id].clone())

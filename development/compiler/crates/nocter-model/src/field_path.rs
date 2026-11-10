@@ -1,18 +1,30 @@
 use crate::AccessFieldId;
 
+/// A logical aggregate component, independent of source spelling and physical offsets.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueField {
+    Record(AccessFieldId),
+    Tuple(usize),
+}
+impl From<AccessFieldId> for ValueField {
+    fn from(field: AccessFieldId) -> Self {
+        Self::Record(field)
+    }
+}
+
 /// An ordered logical field selection, interpreted only with its owning declaration authority.
 /// Names, memory offsets and permissions do not participate in projection identity.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct FieldPath(Box<[AccessFieldId]>);
+pub struct FieldPath(Box<[ValueField]>);
 
 impl FieldPath {
     #[must_use]
-    pub fn new(fields: impl Into<Box<[AccessFieldId]>>) -> Self {
-        Self(fields.into())
+    pub fn new<F: Into<ValueField>>(fields: impl IntoIterator<Item = F>) -> Self {
+        Self(fields.into_iter().map(Into::into).collect())
     }
 
     #[must_use]
-    pub const fn fields(&self) -> &[AccessFieldId] {
+    pub const fn fields(&self) -> &[ValueField] {
         &self.0
     }
 
@@ -22,9 +34,9 @@ impl FieldPath {
     }
 
     #[must_use]
-    pub fn project(&self, field: AccessFieldId) -> Self {
+    pub fn project(&self, field: impl Into<ValueField>) -> Self {
         let mut fields = self.0.to_vec();
-        fields.push(field);
+        fields.push(field.into());
         Self::new(fields)
     }
 
@@ -80,6 +92,9 @@ mod tests {
         assert!(!nested.is_root());
         assert!(root.is_prefix_of(&nested));
         assert!(!nested.is_prefix_of(&root));
-        assert_eq!(nested.fields(), [a, b]);
+        assert_eq!(
+            nested.fields(),
+            [ValueField::Record(a), ValueField::Record(b)]
+        );
     }
 }

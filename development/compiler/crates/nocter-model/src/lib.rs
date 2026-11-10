@@ -29,7 +29,7 @@ pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
-pub use field_path::FieldPath;
+pub use field_path::{FieldPath, ValueField};
 pub use id::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessFlowPointId,
     AccessInstanceId, AccessLocalId, AccessLoopId, AccessParameterId, AccessPlaceId,

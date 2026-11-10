@@ -1,15 +1,52 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
-use super::{PayloadSchema, Program, Record, records};
-use nocter_model::{
-    BuiltinType, FieldPath, NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, TypeKind,
-};
+use super::{Program, Record};
+use nocter_model::{BuiltinType, FieldPath, NominalTypeId, Symbol, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
 
-/// A construction-time type reference, resolved once before metadata is published.
+/// The exact closed shapes admitted by this declaration product, not a general type classifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PayloadSchema<'a> {
+    Builtin(BuiltinType),
+    Aggregate(super::AggregateSchema<'a>),
+    Function(super::FunctionWitness),
+}
+
+/// A construction-time type reference, resolved once before metadata is published.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataReference {
     Builtin(BuiltinType),
     Record(NominalTypeId),
+    Tuple(TupleData),
+}
+/// A structural data reference with the same minimum arity as semantic tuple types.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TupleData(Box<[DataReference]>);
+impl TupleData {
+    #[must_use]
+    pub fn new(
+        first: DataReference,
+        second: DataReference,
+        remaining: impl IntoIterator<Item = DataReference>,
+    ) -> Self {
+        let mut fields = vec![first, second];
+        fields.extend(remaining);
+        Self(fields.into())
+    }
+    #[must_use]
+    pub fn as_slice(&self) -> &[DataReference] {
+        &self.0
+    }
+}
+impl DataReference {
+    pub(super) fn visit_leaves(&self, mut visit: impl FnMut(&Self)) {
+        let mut pending = vec![self];
+        while let Some(data) = pending.pop() {
+            match data {
+                Self::Tuple(fields) => pending.extend(fields.as_slice().iter().rev()),
+                _ => visit(data),
+            }
+        }
+    }
 }
 impl From<BuiltinType> for DataReference {
     fn from(data: BuiltinType) -> Self {
@@ -35,23 +72,64 @@ impl Program {
         match data_reference(&self.symbols, &self.records.namespace, spelling)? {
             DataReference::Builtin(data) => self.data_type(data),
             DataReference::Record(id) => self.records.records.get(id).map(Record::data),
+            DataReference::Tuple(_) => None,
         }
     }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
     #[must_use]
     pub fn data_copyable(&self, data: TypeId) -> Option<bool> {
-        self.data_schema(data).and_then(|schema| match schema {
-            PayloadSchema::Builtin(data) => builtin_copyable(data),
-            PayloadSchema::Record(record) => Some(record.copyable()),
-            PayloadSchema::Function(witness) => match witness.origin {
-                nocter_model::ValueFunctionOrigin::Declaration(_) => Some(true),
-                nocter_model::ValueFunctionOrigin::Closure(id) => {
-                    self.data_copyable(self.closure(id)?.environment())
+        // Structural tuples can share child types exponentially. Visit each shape once, just as
+        // nominal Copy publication does, instead of expanding the represented payload tree.
+        let mut copyable = BTreeMap::new();
+        let mut pending = vec![(data, false)];
+        while let Some((current, expanded)) = pending.pop() {
+            if copyable.contains_key(&current) {
+                continue;
+            }
+            let children = match self.data_schema(current)? {
+                PayloadSchema::Builtin(builtin) => {
+                    copyable.insert(current, builtin_copyable(builtin)?);
+                    continue;
                 }
-                _ => Some(false),
-            },
-        })
+                PayloadSchema::Aggregate(schema) => {
+                    if let Some(record) = schema.as_record() {
+                        copyable.insert(current, record.copyable());
+                        continue;
+                    }
+                    schema
+                        .components()
+                        .map(|component| component.data)
+                        .collect::<Vec<_>>()
+                }
+                PayloadSchema::Function(witness) => match witness.origin {
+                    nocter_model::ValueFunctionOrigin::Declaration(_) => {
+                        copyable.insert(current, true);
+                        continue;
+                    }
+                    nocter_model::ValueFunctionOrigin::Closure(id) => {
+                        vec![self.closure(id)?.environment()]
+                    }
+                    _ => {
+                        copyable.insert(current, false);
+                        continue;
+                    }
+                },
+            };
+            if expanded {
+                copyable.insert(
+                    current,
+                    children
+                        .iter()
+                        .all(|child| copyable.get(child) == Some(&true)),
+                );
+            } else {
+                pending.push((current, true));
+                pending.extend(children.into_iter().rev().map(|child| (child, false)));
+            }
+        }
+        copyable.get(&data).copied()
     }
+
     /// The exact closed payload shape, without borrow types or generic eligibility fallbacks.
     #[must_use]
     pub fn data_schema(&self, data: TypeId) -> Option<PayloadSchema<'_>> {
@@ -71,28 +149,44 @@ impl Program {
             TypeKind::Nominal {
                 definition,
                 arguments,
-            } if arguments.as_slice().is_empty() => self
-                .records
-                .records
-                .get(*definition)
-                .map(PayloadSchema::Record),
+            } if arguments.as_slice().is_empty() => {
+                self.records.records.get(*definition).map(|record| {
+                    PayloadSchema::Aggregate(super::AggregateSchema::record(record, self.fields()))
+                })
+            }
+            TypeKind::Tuple(fields) => Some(PayloadSchema::Aggregate(
+                super::AggregateSchema::tuple(fields.as_slice()),
+            )),
             _ => None,
         }
     }
-    /// Validates an already selected logical path against its exact record/field owners.
+    /// Validate one semantic component against its containing aggregate.
+    #[must_use]
+    pub fn component(
+        &self,
+        data: TypeId,
+        field: nocter_model::ValueField,
+    ) -> Option<super::Component> {
+        let PayloadSchema::Aggregate(schema) = self.data_schema(data)? else {
+            return None;
+        };
+        schema.component(field)
+    }
+    /// Positional encoding of an established logical selection; this grants no projection rights.
+    #[must_use]
+    pub fn component_position(&self, field: nocter_model::ValueField) -> Option<usize> {
+        match field {
+            nocter_model::ValueField::Record(id) => Some(self.fields().get(id)?.position()),
+            nocter_model::ValueField::Tuple(position) => Some(position),
+        }
+    }
+    /// Validates an already selected logical path against its exact containing aggregate schemas.
     /// No name lookup, permission inference or physical offset participates in this projection.
     #[must_use]
     pub fn project_data(&self, mut data: TypeId, path: &FieldPath) -> Option<TypeId> {
         self.data_schema(data)?;
         for &field in path.fields() {
-            let PayloadSchema::Record(record) = self.data_schema(data)? else {
-                return None;
-            };
-            let field = self.fields().get(field)?;
-            if self.records().get(field.owner())?.data() != record.data() {
-                return None;
-            }
-            data = field.data();
+            data = self.component(data, field)?.data;
         }
         Some(data)
     }
@@ -124,16 +218,33 @@ pub(super) fn data_reference(
         .map(DataReference::Record)
 }
 pub(super) fn resolved_data(
-    types: &TypeAuthority,
-    records: &records::Schemas,
-    data: DataReference,
+    types: &mut nocter_model::TypeTransaction,
+    record: impl Fn(NominalTypeId) -> TypeId,
+    data: &DataReference,
 ) -> TypeId {
-    match data {
-        DataReference::Builtin(data) => types.store().builtin(data),
-        DataReference::Record(id) => records
-            .records
-            .get(id)
-            .expect("validated record reference")
-            .data(),
+    let mut pending = vec![(data, false)];
+    let mut resolved = Vec::new();
+    while let Some((data, expanded)) = pending.pop() {
+        let data = match data {
+            DataReference::Builtin(data) => types.builtin(*data),
+            DataReference::Record(id) => record(*id),
+            DataReference::Tuple(fields) => {
+                if !expanded {
+                    pending.push((data, true));
+                    pending.extend(fields.as_slice().iter().rev().map(|field| (field, false)));
+                    continue;
+                }
+                let fields = resolved.split_off(resolved.len() - fields.as_slice().len());
+                types
+                    .intern(TypeKind::Tuple(nocter_model::TupleElements::new(
+                        fields[0],
+                        fields[1],
+                        fields[2..].iter().copied(),
+                    )))
+                    .expect("validated closed tuple reference")
+            }
+        };
+        resolved.push(data);
     }
+    resolved.pop().expect("one complete data reference")
 }

@@ -9,23 +9,36 @@ use nocter_syntax::{
 #[derive(Clone, Debug)]
 pub struct FunctionTypeSyntax {
     pub invocation: ValueInvocation,
-    pub inputs: Box<[(ValueInputOperation, SyntaxToken)]>,
-    pub result: SyntaxToken,
+    pub inputs: Box<[(ValueInputOperation, DataTypeSyntax)]>,
+    pub result: DataTypeSyntax,
 }
 #[derive(Clone, Debug)]
 pub enum ValueTypeSyntax {
-    Data(SyntaxToken),
+    Data(DataTypeSyntax),
     Function(FunctionTypeSyntax),
+}
+#[derive(Clone, Debug)]
+pub enum DataTypeSyntax {
+    Named(SyntaxToken),
+    Tuple(Box<[DataTypeSyntax]>),
+}
+impl DataTypeSyntax {
+    pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
+        match self {
+            Self::Named(token) => vec![*token],
+            Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
+        }
+    }
 }
 impl ValueTypeSyntax {
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
-            Self::Data(token) => vec![*token],
+            Self::Data(data) => data.tokens(),
             Self::Function(contract) => contract
                 .inputs
                 .iter()
-                .map(|(_, token)| *token)
-                .chain(std::iter::once(contract.result))
+                .flat_map(|(_, data)| data.tokens())
+                .chain(contract.result.tokens())
                 .collect(),
         }
     }
@@ -35,7 +48,7 @@ impl ValueTypeSyntax {
 /// Rejects a product inconsistent with the bounded grammar.
 pub fn value_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<ValueTypeSyntax, Failure> {
     let Some(contract) = direct_node(syntax.tree(), ty, NodeKind::CallableType) else {
-        return data_token(syntax, ty).map(ValueTypeSyntax::Data);
+        return data_syntax(syntax, ty).map(ValueTypeSyntax::Data);
     };
     let token = first_direct_token(syntax.tree(), contract).ok_or(Failure::InconsistentSyntax)?;
     let invocation = match (
@@ -53,7 +66,10 @@ pub fn value_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<ValueTyp
         .map(|parameter| {
             let ty = direct_node(syntax.tree(), parameter, NodeKind::Type)
                 .ok_or(Failure::InconsistentSyntax)?;
-            Ok((input_operation(syntax, parameter)?, data_token(syntax, ty)?))
+            Ok((
+                input_operation(syntax, parameter)?,
+                data_syntax(syntax, ty)?,
+            ))
         })
         .collect::<Result<_, Failure>>()?;
     let result =
@@ -61,11 +77,35 @@ pub fn value_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<ValueTyp
     Ok(ValueTypeSyntax::Function(FunctionTypeSyntax {
         invocation,
         inputs,
-        result: data_token(syntax, result)?,
+        result: data_syntax(syntax, result)?,
     }))
 }
-pub(super) fn data_token(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<SyntaxToken, Failure> {
-    let named =
-        direct_node(syntax.tree(), ty, NodeKind::NamedType).ok_or(Failure::InconsistentSyntax)?;
-    first_direct_token(syntax.tree(), named).ok_or(Failure::InconsistentSyntax)
+pub(super) fn data_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<DataTypeSyntax, Failure> {
+    let shape = child_node_iter(syntax.tree(), ty)
+        .next()
+        .ok_or(Failure::InconsistentSyntax)?;
+    match syntax
+        .tree()
+        .node(shape)
+        .ok_or(Failure::InconsistentSyntax)?
+        .kind()
+    {
+        NodeKind::NamedType => Ok(DataTypeSyntax::Named(
+            first_direct_token(syntax.tree(), shape).ok_or(Failure::InconsistentSyntax)?,
+        )),
+        NodeKind::GroupedType => data_syntax(
+            syntax,
+            direct_node(syntax.tree(), shape, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?,
+        ),
+        NodeKind::TupleType => {
+            let fields = child_node_iter(syntax.tree(), shape)
+                .map(|field| data_syntax(syntax, field))
+                .collect::<Result<Box<[_]>, _>>()?;
+            if fields.len() < 2 {
+                return Err(Failure::InconsistentSyntax);
+            }
+            Ok(DataTypeSyntax::Tuple(fields))
+        }
+        _ => Err(Failure::InconsistentSyntax),
+    }
 }

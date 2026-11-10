@@ -80,7 +80,7 @@ impl Context<'_> {
         for projection in &place.projections {
             data = match projection {
                 Projection::Field(id) => {
-                    let Some(RuntimeTypeRepresentation::ValueRecord { fields }) =
+                    let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
                         self.program.runtime.type_representations().get(data)
                     else {
                         return Err(self.invalid());
@@ -419,8 +419,8 @@ impl Context<'_> {
                     FrozenNode::Scalar(ConstantValue::Integer(value)),
                     Some(RuntimeType::Primitive(RuntimePrimitive::Signed(32))),
                 ) if i32::try_from(*value).is_ok() => {}
-                (FrozenNode::Record(values), Some(RuntimeType::Aggregate)) => {
-                    let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueRecord {
+                (FrozenNode::Aggregate(values), Some(RuntimeType::Aggregate)) => {
+                    let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueAggregate {
                         fields,
                     }) = self.program.runtime.type_representations().get(data)
                     else {

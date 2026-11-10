@@ -68,7 +68,7 @@ It retains the exact accepted Unit and its body/type authority; no released Chec
 TargetProgram adapter exists. Roots requiring externally supplied callback witnesses reject as
 unbound. Constant/static initialization thunks reject as roots and never become runtime instances through
 constant/static references; checking has already frozen their initializers. Static place views
-retain their global identity and ordinary data projection without adding runtime code instances. Scalar/record
+retain their global identity and ordinary data projection without adding runtime code instances. Scalar/aggregate
 runtime inputs remain ordinary data rather than specialization arguments.
 This product grants no ABI, layout, executable cleanup or backend capability.
 
@@ -87,7 +87,7 @@ graph exists. Exact formal identity coverage is verified without repeating signa
 target search. One table maps source data IDs to concrete payload obligations or checked unproduced
 structural contracts in the existing program authority. Unproduced data has no payload or code
 instance. Captured payloads include their ordinary environment-data obligations even when reached
-through a formal witness. Record schemas are visited iteratively, without expanding payload trees.
+through a formal witness. Aggregate schemas are visited iteratively, without expanding payload trees.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
 
 `invocation` binds each reached call's committed prepared bundle to the checked body's frozen input
@@ -140,7 +140,7 @@ product grants no released ExecutableProgram conversion, payload layout, ABI or 
 ## Private Storage Projection
 
 `value_access::storage` projects produced concrete payload IDs into a closed RuntimeEnvironment
-for an explicitly selected runtime ABI. It emits shapes and exact value-field identities, leaving
+for an explicitly selected runtime ABI. It emits shared record/tuple aggregate shapes and exact logical component keys, leaving
 all size/alignment/member-offset computation to Machine. Unproduced contracts add no stored type.
 The same module projects each body's frozen environment/explicit input slots and concrete result
 into a RuntimeValueSignature. Data substitution uses the existing instance table; it never

@@ -334,18 +334,38 @@ impl<'a, 's> Checker<'a, 's> {
         format!("{prefix}{}", self.data_label(ty.data()))
     }
     pub fn data_label(&self, data: TypeId) -> String {
+        self.data_label_with_budget(data, &mut 128)
+    }
+    fn data_label_with_budget(&self, data: TypeId, remaining: &mut usize) -> String {
+        if *remaining == 0 {
+            return "…".into();
+        }
+        *remaining -= 1;
         match self
             .program()
             .data_schema(data)
             .expect("closed data authority")
         {
             PayloadSchema::Builtin(data) => data.spelling().to_owned(),
-            PayloadSchema::Record(record) => self
-                .program()
-                .symbols()
-                .spelling(record.name())
-                .expect("record name")
-                .to_owned(),
+            PayloadSchema::Aggregate(schema) => {
+                if let Some(record) = schema.as_record() {
+                    self.program()
+                        .symbols()
+                        .spelling(record.name())
+                        .expect("record name")
+                        .to_owned()
+                } else {
+                    let mut components = Vec::new();
+                    for component in schema.components() {
+                        if *remaining == 0 {
+                            components.push("…".into());
+                            break;
+                        }
+                        components.push(self.data_label_with_budget(component.data, remaining));
+                    }
+                    format!("({})", components.join(", "))
+                }
+            }
             PayloadSchema::Function(witness) => format!(
                 "{} witness `{}`",
                 super::annotations::invocation_label(witness.invocation),

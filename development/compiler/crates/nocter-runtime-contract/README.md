@@ -43,7 +43,7 @@ public source-level imports.
 - target-independent descriptor, monotonic-timer, and process-completion wait interests
 - target runtime capability requirements
 - closed runtime environment schemas
-- storable unit, static-code environment-only shapes, and value-model field/input identities
+- storable unit, static-code environment-only shapes, and value-model component/input identities
 
 ## Invariants
 
@@ -63,6 +63,8 @@ public source-level imports.
   supply its fields, size, or alignment. Native owners and ownership-bearing callback events keep
   distinct roles even where their current layouts happen to have equal dimensions.
 - Machine consumers cannot reach declaration or checking storage through this contract.
+- Value-model aggregates preserve record-field keys and tuple positions without equating them
+  with physical offsets. Their ordered representation does not erase source data identity.
 - Stored data shape does not encode a value-model input operation. RuntimeValueSignature retains
   the environment/explicit local channels independently; it introduces no borrow data type.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.

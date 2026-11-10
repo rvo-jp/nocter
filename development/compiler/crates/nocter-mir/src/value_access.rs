@@ -54,7 +54,7 @@ pub struct Slot {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Projection {
-    Field(nocter_model::AccessFieldId),
+    Field(nocter_model::ValueField),
     Environment,
 }
 
@@ -70,7 +70,7 @@ pub struct Place {
 pub enum Disposal {
     Trivial,
     Error,
-    Record,
+    Aggregate,
     Capture,
 }
 

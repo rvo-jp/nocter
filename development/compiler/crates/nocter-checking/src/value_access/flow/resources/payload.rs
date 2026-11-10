@@ -70,10 +70,10 @@ impl OwnedValue {
                 });
                 continue;
             }
-            if selected.disposal() != Disposal::Record {
+            if selected.disposal() != Disposal::Aggregate {
                 return Err(INVALID);
             }
-            let PayloadSchema::Record(record) =
+            let PayloadSchema::Aggregate(aggregate) =
                 program.data_schema(selected.data()).ok_or(INVALID)?
             else {
                 return Err(INVALID);
@@ -81,9 +81,9 @@ impl OwnedValue {
             // The container ends after surviving fields. Stack insertion follows declaration
             // order; field visitation is reverse declaration order.
             pending.push(Pending::Container(place.clone(), selected));
-            for &field in record.fields() {
-                let child = place.project(field);
-                let data = program.fields().get(field).ok_or(INVALID)?.data();
+            for field in aggregate.components() {
+                let child = place.project(field.field);
+                let data = field.data;
                 pending.push(Pending::Value(child, payload(program, data)?));
             }
         }

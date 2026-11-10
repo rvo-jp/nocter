@@ -1,4 +1,4 @@
-//! Owner-scoped application type construction and canonical replay over one immutable header prefix.
+//! Owner-scoped body type construction and canonical replay over one immutable header prefix.
 use super::Program;
 use nocter_model::{
     AccessCallableId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication,
@@ -13,7 +13,7 @@ pub enum BodyTypeError {
     InvalidExtension,
 }
 
-/// The sole construction capability for one body's application types, with shared header facts.
+/// The sole construction capability for one body's closed type extension, with shared header facts.
 #[derive(Clone, Debug)]
 pub struct BodyTypes {
     owner: AccessCallableId,
@@ -24,6 +24,34 @@ impl BodyTypes {
     #[must_use]
     pub const fn owner(&self) -> AccessCallableId {
         self.owner
+    }
+    /// Intern a structural tuple over admitted closed ordinary component data.
+    /// # Errors
+    /// Rejects an invalid arity or a component outside this authority's closed data domain.
+    pub fn tuple(&mut self, fields: &[TypeId]) -> Result<TypeId, BodyTypeError> {
+        let [first, second, remaining @ ..] = fields else {
+            return Err(BodyTypeError::InvalidExtension);
+        };
+        if fields.iter().any(|&data| {
+            !matches!(
+                self.program.data_schema(data),
+                Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Aggregate(_))
+            )
+        }) {
+            return Err(BodyTypeError::InvalidExtension);
+        }
+        let mut types = self.program.types.transaction();
+        let data = types
+            .intern(TypeKind::Tuple(nocter_model::TupleElements::new(
+                *first,
+                *second,
+                remaining.iter().copied(),
+            )))
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        self.program.types = types
+            .commit(&self.program.types)
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        Ok(data)
     }
     /// Publish one closed owned environment; it has no inferred external R/D/S.
     /// # Errors
@@ -37,7 +65,7 @@ impl BodyTypes {
         let ordinary = |data| {
             matches!(
                 self.program.data_schema(data),
-                Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Record(_))
+                Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Aggregate(_))
             )
         };
         if id.owner != self.owner
@@ -149,12 +177,7 @@ pub struct CanonicalBodyTypes {
 impl CanonicalBodyTypes {
     #[must_use]
     pub fn project(&self, owner: AccessCallableId, data: TypeId) -> Option<TypeId> {
-        let projection = self.projections.get(&owner)?;
-        if self.prefix.suffix_offset(data).is_none() {
-            Some(data)
-        } else {
-            projection.get(&data).copied()
-        }
+        project_type(self.prefix, self.projections.get(&owner)?, data)
     }
     #[must_use]
     pub fn finish(self) -> Program {
@@ -178,7 +201,7 @@ impl Program {
             applications: BTreeMap::new(),
         })
     }
-    /// Replay body-owned leaf keys in semantic owner order into a single final authority.
+    /// Replay body-owned witness keys and tuple shapes in semantic owner order into a single final authority.
     /// # Errors
     /// Rejects foreign headers, an unrelated type prefix or a suffix outside its body's domain.
     pub fn canonical_body_types(
@@ -201,43 +224,24 @@ impl Program {
             self.callables
                 .get(owner)
                 .ok_or(BodyTypeError::InvalidApplication)?;
-            let mut projection = BTreeMap::new();
+            let projection = replay_types(self, body, owner, &mut types)?;
             for (&id, schema) in &body.closures {
-                if id.owner != owner || closures.insert(id, schema.clone()).is_some() {
+                if id.owner != owner {
                     return Err(BodyTypeError::InvalidExtension);
                 }
-            }
-            for (source, kind) in body.types.store().iter_from(prefix.type_count()) {
-                let valid = match kind {
-                    TypeKind::ValueFunction {
-                        origin: ValueFunctionOrigin::Closure(id),
-                        invocation,
-                    } => {
-                        id.owner == owner
-                            && body
-                                .closure(*id)
-                                .is_some_and(|c| c.contract().invocation.can_supply(*invocation))
-                    }
-                    TypeKind::ValueFunction {
-                        origin: ValueFunctionOrigin::Application(application),
-                        invocation,
-                    } => {
-                        application.owner == owner
-                            && self
-                                .callables
-                                .get(application.callee)
-                                .and_then(super::Callable::result_contract)
-                                .is_some_and(|contract| contract.invocation.can_supply(*invocation))
-                    }
-                    _ => false,
+                let project = |data| {
+                    project_type(prefix.cursor(), &projection, data)
+                        .ok_or(BodyTypeError::InvalidExtension)
                 };
-                if !valid {
-                    return Err(BodyTypeError::InvalidApplication);
+                let mut schema = schema.clone();
+                schema.environment = project(schema.environment)?;
+                schema.contract.result = project(schema.contract.result)?;
+                for input in &mut schema.contract.inputs {
+                    input.data = project(input.data)?;
                 }
-                let target = types
-                    .intern(kind.clone())
-                    .map_err(|_| BodyTypeError::InvalidExtension)?;
-                projection.insert(source, target);
+                if closures.insert(id, schema).is_some() {
+                    return Err(BodyTypeError::InvalidExtension);
+                }
             }
             projections.insert(owner, projection);
         }
@@ -252,4 +256,81 @@ impl Program {
             projections,
         })
     }
+}
+
+fn project_type(
+    prefix: TypeCursor,
+    projection: &BTreeMap<TypeId, TypeId>,
+    data: TypeId,
+) -> Option<TypeId> {
+    if prefix.suffix_offset(data).is_none() {
+        Some(data)
+    } else {
+        projection.get(&data).copied()
+    }
+}
+
+fn replay_types(
+    header: &Program,
+    body: &Program,
+    owner: AccessCallableId,
+    types: &mut nocter_model::TypeTransaction,
+) -> Result<BTreeMap<TypeId, TypeId>, BodyTypeError> {
+    let prefix = header.types.store();
+    let mut projection = BTreeMap::new();
+    for (source, kind) in body.types.store().iter_from(prefix.type_count()) {
+        let valid = match kind {
+            TypeKind::ValueFunction {
+                origin: ValueFunctionOrigin::Closure(id),
+                invocation,
+            } => {
+                id.owner == owner
+                    && body
+                        .closure(*id)
+                        .is_some_and(|c| c.contract().invocation.can_supply(*invocation))
+            }
+            TypeKind::ValueFunction {
+                origin: ValueFunctionOrigin::Application(application),
+                invocation,
+            } => {
+                application.owner == owner
+                    && header
+                        .callables
+                        .get(application.callee)
+                        .and_then(super::Callable::result_contract)
+                        .is_some_and(|contract| contract.invocation.can_supply(*invocation))
+            }
+            TypeKind::Tuple(fields) => fields.iter().all(|data| {
+                matches!(
+                    body.data_schema(data),
+                    Some(super::PayloadSchema::Builtin(_) | super::PayloadSchema::Aggregate(_))
+                )
+            }),
+            _ => false,
+        };
+        if !valid {
+            return Err(BodyTypeError::InvalidApplication);
+        }
+        let kind = if let TypeKind::Tuple(fields) = kind {
+            let fields = fields
+                .iter()
+                .map(|data| {
+                    project_type(prefix.cursor(), &projection, data)
+                        .ok_or(BodyTypeError::InvalidExtension)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            TypeKind::Tuple(nocter_model::TupleElements::new(
+                fields[0],
+                fields[1],
+                fields[2..].iter().copied(),
+            ))
+        } else {
+            kind.clone()
+        };
+        let target = types
+            .intern(kind)
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        projection.insert(source, target);
+    }
+    Ok(projection)
 }

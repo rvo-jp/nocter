@@ -1,22 +1,22 @@
 use std::collections::BTreeMap;
 
-use nocter_model::{AccessFieldId, CaptureId, FieldId, ParameterId, TypeId, VariantId};
+use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, ValueField, VariantId};
 
-/// A value-model record member, preserving its own semantic identity domain.
+/// A value-model aggregate component, preserving its logical selector independently of layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeValueFieldRepresentation {
-    field: AccessFieldId,
+    field: ValueField,
     ty: TypeId,
 }
 
 impl RuntimeValueFieldRepresentation {
     #[must_use]
-    pub const fn new(field: AccessFieldId, ty: TypeId) -> Self {
+    pub const fn new(field: ValueField, ty: TypeId) -> Self {
         Self { field, ty }
     }
 
     #[must_use]
-    pub const fn field(self) -> AccessFieldId {
+    pub const fn field(self) -> ValueField {
         self.field
     }
 
@@ -126,7 +126,7 @@ impl RuntimeVariantRepresentation {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeTypeRepresentation {
-    ValueRecord {
+    ValueAggregate {
         fields: Box<[RuntimeValueFieldRepresentation]>,
     },
     Struct {

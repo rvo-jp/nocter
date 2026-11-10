@@ -331,7 +331,10 @@ fn frozen_record_literals_retain_schema_and_reject_mismatched_payloads() {
             }
         })
         .unwrap();
-    assert!(matches!(value.node(), nocter_model::FrozenNode::Record(_)));
+    assert!(matches!(
+        value.node(),
+        nocter_model::FrozenNode::Aggregate(_)
+    ));
     *value = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Unit]).unwrap();
     assert!(validate::program(&program).is_err());
 }

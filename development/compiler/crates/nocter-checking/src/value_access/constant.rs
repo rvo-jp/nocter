@@ -46,7 +46,7 @@ pub(super) struct Violation {
 }
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 
-/// The declaration owner already proves finite record schemas. Memoize by type identity rather
+/// The declaration owner already proves finite aggregate schemas. Memoize by type identity rather
 /// than expanding repeated fields into a tree; this is domain support, not a Copy/resource rule.
 enum Domain {
     Execution,
@@ -80,18 +80,11 @@ impl DataDomain<'_> {
                     ),
                 },
                 PayloadSchema::Function(_) => false,
-                PayloadSchema::Record(record) => {
-                    let children = record
-                        .fields()
-                        .iter()
-                        .map(|field| {
-                            self.program
-                                .fields()
-                                .get(*field)
-                                .map(|field| field.data())
-                                .ok_or(INVALID)
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                PayloadSchema::Aggregate(aggregate) => {
+                    let children = aggregate
+                        .components()
+                        .map(|component| component.data)
+                        .collect::<Vec<_>>();
                     if !expanded {
                         pending.push((data, true));
                         pending.extend(children.into_iter().rev().map(|child| (child, false)));
@@ -129,7 +122,7 @@ fn operation_rule(
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
-        | ExpressionKind::Record { .. }
+        | ExpressionKind::Aggregate { .. }
         | ExpressionKind::Select { .. }
         | ExpressionKind::Place(_)
         | ExpressionKind::Move(_)
@@ -257,7 +250,7 @@ impl Violation {
     }
 }
 
-/// The admitted finite record schema has no user destructor or retained-resource variants.
+/// The admitted finite aggregate schema has no user destructor or retained-resource variants.
 /// Final admission is independent of Copy; broader schemas require their own final-data proof.
 pub(super) fn supports_final(
     program: &Program,

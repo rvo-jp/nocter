@@ -265,18 +265,22 @@ share argument preparation, atomic commit, interruption and cleanup.
 Typed bodies record known Copy/materialization, explicit source transfers, scoped delegation, call input
 preparation, RHS-first replacement and structured control. Unresolved result supply stays pending
 until its exact witness closes; it does not acquire a provisional Copy operation. `construction`
-freezes record components in authored order and applies the ordinary value boundary. Its `FieldValue` plans
+freezes record/tuple components in authored order and applies the ordinary value boundary.
+Tuple components receive that boundary after inference too; a readable place cannot become an
+owned component merely because its data type is known. Its `FieldValue` plans
 contain resolved identities and no source names. Empty, nested and reordered structural values
 have no constructor-specific access operation. Ordinary block/conditional results construct values;
 no old read/update result or standalone-prefix IR path remains.
 
-`selection` owns member-chain decomposition and one declaration-backed field resolver, also used
+`selection` owns member-chain decomposition and one declaration-backed component resolver, also used
 by construction. Existing local-rooted chains become body-owned selected places containing the
-root local, field path and data TypeId. Computed-rooted chains instead become one value selection
-with the producing expression, full field path and selected Copy/Move action. Transparent grouping
+root local, logical field/tuple path and data TypeId. Computed-rooted chains instead become one value
+selection with the producing expression, full field path and selected Copy/Move action. Transparent grouping
 does not change either category. No intermediate container extraction, second field lookup path
 or implicit temporary alias is introduced. The construction-only place index is discarded on
 publication. Alias creation and mutation still require existing storage.
+Tuple diagnostic labels use a bounded rendering traversal so shared type graphs do not expand
+exponentially in an error message; this does not limit source tuple arity or depth.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
 construction, operators and compatible branches retain known data on interruption. Type inference
@@ -400,7 +404,7 @@ payload-tree expansion or second alive-owner registry is introduced.
 
 Only a complete selected value can transfer or be invoked. Replacement cleans the selected old
 initialized remainder before installing the already-evaluated value. A missing parent cannot be
-reconstructed by writing a deeper child. Cleanup keeps intact subtrees as single record operations
+reconstructed by writing a deeper child. Cleanup keeps intact subtrees as single aggregate operations
 and expands only around unavailable paths, visiting surviving regions in reverse declaration
 order. Partial containers emit an explicit ownership-end operation after surviving-field cleanup,
 including the all-fields-moved case, without destroying moved fields again or choosing a physical
@@ -408,10 +412,10 @@ deallocation policy. Integrity rejection commits no partial ownership, cleanup s
 mutability and access permission remain prerequisites proved by body checking, not permissions
 granted by a resource place.
 
-`resources::assembly` transfers complete component obligations into one record atomically.
+`resources::assembly` transfers complete component obligations into one aggregate atomically.
 Components remain ordinary expression owners in the existing evaluation frame until completion;
 interrupted construction therefore cleans them in reverse production order without an additional
-partial-constructor state or whole-record destruction. `Step::Assemble` retains resolved
+partial-constructor state or whole-aggregate destruction. `Step::Assemble` retains resolved
 field/source pairs in authored order. Once complete, cleanup consumes the declaration schema's
 field order. Integrity rejection preserves all original component owners and emits no partial step.
 
@@ -441,10 +445,10 @@ Return owner with the checking-closed result data type, including unit. Trapping
 not acquire unwind guarantees.
 
 Payload evidence consumes the declaration authority's exact bool/i32/void and opaque owned-error
-snapshot contracts, plus its closed records over those leaves and exact capture-free named-function
-witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; records
+snapshot contracts, plus its closed record/tuple compositions over those leaves and exact
+capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
-Empty external D/S for those records follows the exact component contracts, not Copy, ownership,
+Empty external D/S for those aggregates follows the exact component contracts, not Copy, ownership,
 or a missing outside R. Named-function evidence follows its exact declaration schema; a formal callback does not inherit
 Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment cleanup operation
 tied to their witness. The producer domain also admits the bounded single owned-capture schema described below;
@@ -452,7 +456,7 @@ general retained footprints and concrete executable witness specialization remai
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
 outcomes, async and regions require their own later schemas/validation.
 
-The source/body goal admits closed record headers and local/input-rooted field selections through
+The source/body goal admits closed record/tuple data and local/input-rooted component selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
 selected field cleanup, Copy versus move, restoration, partial drop, disjoint/overlapping access
 and sparse traversal of deeply shared schemas. Construction tests cover nested values, exact
@@ -493,8 +497,8 @@ headers close without executing bodies or proving termination; every definition 
 pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/unit
-operations, finite records of supported data, local values, read/edit aliases, updates, structured
-control, explicit transfer and direct const calls. Record admission is independent of Copy and
+operations, finite record/tuple compositions of supported data, local values, read/edit aliases,
+updates, structured control, explicit transfer and direct const calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. Function-value formation,
 captures, invocation through values and opaque error-data operations have no evaluator domain here.
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
@@ -528,7 +532,7 @@ body checker requests a missing constant only after selecting its declaration id
 unpublished draft stops at that request; preparation resolves the dependency and retries that
 draft through the same checker. Successful typed bodies are cached once. No provisional value,
 syntax dependency scanner, second source interpreter or completed-body retyping supplies a fact.
-Constant references become validated primitive literals or immutable frozen-record expressions in
+Constant references become validated primitive literals or immutable frozen-aggregate expressions in
 ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.
 All authored source remains structurally checked, including unevaluated branches. Selected const
@@ -557,14 +561,14 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, i32, unit and finite closed records of those leaves. Publication
-uses an explicit final-data policy over the shared schema traversal, independently of temporary
-execution support and Copy. The admitted record schema has no user destructors or retained
+Final publication admits bool, i32, unit and finite closed record/tuple compositions of those
+leaves. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
+execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.
 Constant names remain non-addressable. Constant member selection resolves fields through the
 ordinary field authority, then selects established frozen components; scalar selections become
 ordinary literals before control facts and flow admission. No runtime initializer call results.
-Arrays/tuples, enums, generic conditions and early structural type dependencies still require
+Fixed arrays, enums, generic conditions and early structural type dependencies still require
 integration. General outcome/callback/resource evaluation is not
 admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
 resumable checking and reusable closed const plans remain compilation-cost improvements, not

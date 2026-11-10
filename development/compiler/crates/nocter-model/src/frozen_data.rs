@@ -6,8 +6,8 @@ use std::sync::Arc;
 pub enum FrozenNode {
     Unit,
     Scalar(ConstantValue),
-    /// Declaration-order component indexes into the same graph, all preceding this node.
-    Record(Box<[usize]>),
+    /// Declaration/index-order component indexes into the same graph, all preceding this node.
+    Aggregate(Box<[usize]>),
 }
 /// A validated acyclic graph with a selected root. Clones and component views share its data.
 /// Contains neither evaluator memory, semantic type IDs nor source/storage identities.
@@ -23,7 +23,7 @@ impl FrozenData {
         let nodes = nodes.into();
         let root = nodes.len().checked_sub(1).ok_or(InvalidFrozenData)?;
         if nodes.iter().enumerate().any(|(id, node)| {
-            matches!(node, FrozenNode::Record(fields) if fields.iter().any(|&field| field >= id))
+            matches!(node, FrozenNode::Aggregate(fields) if fields.iter().any(|&field| field >= id))
         }) { return Err(InvalidFrozenData); }
         Ok(Self { nodes, root })
     }
@@ -58,13 +58,17 @@ mod tests {
     #[test]
     fn graph_closure_rejects_missing_forward_and_cyclic_edges() {
         assert!(FrozenData::new(Vec::new()).is_err());
-        assert!(FrozenData::new(vec![FrozenNode::Record(vec![0].into())]).is_err());
+        assert!(FrozenData::new(vec![FrozenNode::Aggregate(vec![0].into())]).is_err());
         assert!(
-            FrozenData::new(vec![FrozenNode::Record(vec![1].into()), FrozenNode::Unit]).is_err()
+            FrozenData::new(vec![
+                FrozenNode::Aggregate(vec![1].into()),
+                FrozenNode::Unit
+            ])
+            .is_err()
         );
         let graph = FrozenData::new(vec![
             FrozenNode::Unit,
-            FrozenNode::Record(vec![0, 0].into()),
+            FrozenNode::Aggregate(vec![0, 0].into()),
         ])
         .unwrap();
         let component = graph.at(0).unwrap();

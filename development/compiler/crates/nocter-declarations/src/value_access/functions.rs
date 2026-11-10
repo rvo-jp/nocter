@@ -67,14 +67,14 @@ impl From<nocter_model::BuiltinType> for ValueDefinition {
     }
 }
 impl ValueDefinition {
-    pub(super) fn visit_data(&self, mut visit: impl FnMut(DataReference)) {
+    pub(super) fn visit_data(&self, mut visit: impl FnMut(&DataReference)) {
         match self {
-            Self::Data(data) => visit(*data),
+            Self::Data(data) => data.visit_leaves(visit),
             Self::Function(contract) => {
                 for (_, data) in &contract.inputs {
-                    visit(*data);
+                    data.visit_leaves(&mut visit);
                 }
-                visit(contract.result);
+                contract.result.visit_leaves(visit);
             }
         }
     }

@@ -262,7 +262,7 @@ impl Builder<'_> {
         Ok(match payload.disposal() {
             CheckedDisposal::Trivial => Disposal::Trivial,
             CheckedDisposal::OwnedError => Disposal::Error,
-            CheckedDisposal::Record => Disposal::Record,
+            CheckedDisposal::Aggregate => Disposal::Aggregate,
             CheckedDisposal::OwnedCapture => Disposal::Capture,
             CheckedDisposal::FunctionEnvironment => return Err(self.invalid()),
         })
@@ -332,10 +332,9 @@ impl Builder<'_> {
                                 .instances
                                 .unit()
                                 .program()
-                                .fields()
-                                .get(*field)
+                                .component(payload.data(), *field)
                                 .ok_or_else(|| self.invalid())?
-                                .data();
+                                .data;
                             let source = self.place(source, self.data(data)?)?;
                             let mut selection = destination.clone();
                             selection.projections = Box::new([Projection::Field(*field)]);

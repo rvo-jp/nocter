@@ -150,7 +150,7 @@ impl Builder<'_> {
             ExpressionKind::Move(_)
             | ExpressionKind::Closure { .. }
             | ExpressionKind::AdaptFunction { .. }
-            | ExpressionKind::Record { .. }
+            | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Select {
                 action: SelectionAction::MovePayload,
                 ..

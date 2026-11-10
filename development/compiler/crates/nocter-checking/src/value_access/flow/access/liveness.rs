@@ -282,7 +282,7 @@ fn expression_uses(
         } => {
             uses.push((Carrier::Expression(source), false));
         }
-        ExpressionKind::Record { ref fields } => {
+        ExpressionKind::Aggregate { ref fields } => {
             uses.extend(
                 fields
                     .iter()

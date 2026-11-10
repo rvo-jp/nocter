@@ -30,27 +30,45 @@ impl Checker<'_, '_> {
             .type_named(self.text(token)?)
             .map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
     }
-    pub fn annotation(&self, node: NodeId) -> Result<Annotation, Failure> {
+    fn annotation_data(
+        &mut self,
+        ty: &nocter_declaration_lowering::access_declarations::DataTypeSyntax,
+    ) -> Result<TypeId, Failure> {
+        use nocter_declaration_lowering::access_declarations::DataTypeSyntax;
+        match ty {
+            DataTypeSyntax::Named(token) => self.annotation_data_token(*token),
+            DataTypeSyntax::Tuple(fields) => {
+                let fields = fields
+                    .iter()
+                    .map(|field| self.annotation_data(field))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.types
+                    .tuple(&fields)
+                    .map_err(|_| Failure::InconsistentSyntax)
+            }
+        }
+    }
+    pub fn annotation(&mut self, node: NodeId) -> Result<Annotation, Failure> {
         use nocter_declaration_lowering::access_declarations::{
             ValueTypeSyntax, value_type_syntax,
         };
         match value_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
-            ValueTypeSyntax::Data(token) => self.annotation_data_token(token).map(Annotation::Data),
+            ValueTypeSyntax::Data(data) => self.annotation_data(&data).map(Annotation::Data),
             ValueTypeSyntax::Function(contract) => {
                 let inputs = contract
                     .inputs
                     .iter()
-                    .map(|&(operation, token)| {
+                    .map(|(operation, data)| {
                         Ok(FunctionInput {
-                            data: self.annotation_data_token(token)?,
-                            operation,
+                            data: self.annotation_data(data)?,
+                            operation: *operation,
                         })
                     })
                     .collect::<Result<_, Failure>>()?;
                 Ok(Annotation::Function(FunctionConstraint {
                     invocation: contract.invocation,
                     inputs,
-                    result: self.annotation_data_token(contract.result)?,
+                    result: self.annotation_data(&contract.result)?,
                 }))
             }
         }

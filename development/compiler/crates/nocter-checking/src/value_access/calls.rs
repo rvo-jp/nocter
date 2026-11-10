@@ -91,10 +91,10 @@ impl Checker<'_, '_> {
             (Some(nocter_model::BuiltinType::Void), nocter_model::FrozenNode::Unit) => {
                 ExpressionKind::Unit
             }
-            (_, nocter_model::FrozenNode::Record(_))
+            (_, nocter_model::FrozenNode::Aggregate(_))
                 if matches!(
                     self.program().data_schema(data),
-                    Some(PayloadSchema::Record(_))
+                    Some(PayloadSchema::Aggregate(_))
                 ) =>
             {
                 ExpressionKind::Constant(value.clone())

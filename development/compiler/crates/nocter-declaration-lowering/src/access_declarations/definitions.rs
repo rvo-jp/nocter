@@ -1,12 +1,12 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    Failure, ValueTypeSyntax,
+    DataTypeSyntax, Failure, ValueTypeSyntax,
     headers::{Header, RecordHeader},
     text,
 };
 use nocter_declarations::value_access::{
     Builder, DataReference, DeclarationId, DeclarationViolation, FieldDefinition,
-    FunctionDefinition, HeaderPosition, ParameterDefinition, ValueDefinition,
+    FunctionDefinition, HeaderPosition, ParameterDefinition, TupleData, ValueDefinition,
 };
 use nocter_model::{AccessCallableId, NominalTypeId, Symbol, SymbolTable};
 use nocter_syntax::{BoundSyntax, SyntaxToken};
@@ -63,13 +63,37 @@ impl Definitions<'_, '_> {
             }
         }
     }
+    fn data_type(
+        &mut self,
+        ty: &DataTypeSyntax,
+        owner: DeclarationId,
+        position: HeaderPosition,
+    ) -> Result<Option<DataReference>, Failure> {
+        match ty {
+            DataTypeSyntax::Named(token) => self.data(*token, owner, position),
+            DataTypeSyntax::Tuple(fields) => {
+                let fields = fields
+                    .iter()
+                    .map(|field| self.data_type(field, owner, position))
+                    .collect::<Result<Option<Vec<_>>, _>>()?;
+                Ok(fields.map(|fields| {
+                    let mut fields = fields.into_iter();
+                    DataReference::Tuple(TupleData::new(
+                        fields.next().expect("tuple arity"),
+                        fields.next().expect("tuple arity"),
+                        fields,
+                    ))
+                }))
+            }
+        }
+    }
     fn record(&mut self, id: NominalTypeId, header: &RecordHeader) -> Result<(), Failure> {
         let fields = header
             .fields
             .iter()
             .enumerate()
-            .map(|(index, &(name, data, _))| {
-                let Some(data) = self.data(
+            .map(|(index, (name, data, _))| {
+                let Some(data) = self.data_type(
                     data,
                     DeclarationId::Record(id),
                     HeaderPosition::Field(index),
@@ -78,7 +102,7 @@ impl Definitions<'_, '_> {
                     return Ok(None);
                 };
                 Ok(Some(FieldDefinition {
-                    name: self.symbol(name)?,
+                    name: self.symbol(*name)?,
                     data,
                 }))
             })
@@ -97,20 +121,20 @@ impl Definitions<'_, '_> {
         position: HeaderPosition,
     ) -> Result<Option<ValueDefinition>, Failure> {
         Ok(match ty {
-            ValueTypeSyntax::Data(token) => self
-                .data(*token, owner, position)?
+            ValueTypeSyntax::Data(data) => self
+                .data_type(data, owner, position)?
                 .map(ValueDefinition::Data),
             ValueTypeSyntax::Function(contract) => {
                 let inputs = contract
                     .inputs
                     .iter()
-                    .map(|&(operation, token)| {
+                    .map(|(operation, data)| {
                         Ok(self
-                            .data(token, owner, position)?
-                            .map(|data| (operation, data)))
+                            .data_type(data, owner, position)?
+                            .map(|data| (*operation, data)))
                     })
                     .collect::<Result<Option<Vec<_>>, Failure>>()?;
-                let result = self.data(contract.result, owner, position)?;
+                let result = self.data_type(&contract.result, owner, position)?;
                 match (inputs, result) {
                     (Some(inputs), Some(result)) => {
                         Some(ValueDefinition::Function(FunctionDefinition {

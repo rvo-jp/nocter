@@ -3,7 +3,7 @@ mod definitions;
 mod headers;
 mod projection;
 mod type_syntax;
-pub use type_syntax::{FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
+pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]
 mod tests;
 
@@ -92,22 +92,24 @@ impl Query {
         let tree = syntax.tree();
         let projection = project_declaration_syntax(syntax);
         let (functions, records) = headers::collect(syntax)?;
-        let symbols = SymbolTable::from_spellings(
-            functions
-                .iter()
-                .flat_map(|h| {
-                    std::iter::once(h.name).chain(h.result_data.tokens()).chain(
-                        h.parameters
-                            .iter()
-                            .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
-                    )
-                })
-                .chain(records.iter().flat_map(|r| {
-                    std::iter::once(r.name)
-                        .chain(r.fields.iter().flat_map(|&(name, data, _)| [name, data]))
-                }))
-                .map(|token| text(syntax, token)),
-        );
+        let symbols =
+            SymbolTable::from_spellings(
+                functions
+                    .iter()
+                    .flat_map(|h| {
+                        std::iter::once(h.name).chain(h.result_data.tokens()).chain(
+                            h.parameters
+                                .iter()
+                                .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
+                        )
+                    })
+                    .chain(records.iter().flat_map(|r| {
+                        std::iter::once(r.name).chain(r.fields.iter().flat_map(
+                            |(name, data, _)| std::iter::once(*name).chain(data.tokens()),
+                        ))
+                    }))
+                    .map(|token| text(syntax, token)),
+            );
         let symbol = |token| {
             symbols
                 .get(text(syntax, token))

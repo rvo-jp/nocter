@@ -63,9 +63,10 @@ storage reference. There is no separately pairable storage companion or released
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
 access, result witnesses or dispatch. Private required constants arrive as ordinary primitive
 literals or model-owned frozen literal DAGs; this product has no unresolved declaration-reference
-operation or evaluation service. Frozen records initialize one ordinary owning result through
+operation or evaluation service. Frozen aggregates initialize one ordinary owning result through
 its existing lifecycle phases. Validation checks component shapes against the exact runtime
-schema, memoizing shared type/node pairs; it does not grant Copy or infer another constructor.
+schema, memoizing shared type/node pairs; record-field keys and tuple positions retain their
+separate meaning even at equal offsets; it does not grant Copy or infer another constructor.
 Selected unit-comparison intrinsics lower only their final computation to a Boolean constant;
 their operand operations remain in the consumed graph. A zero-byte operand is not interpreted as
 an integer comparison. `validate` checks closed representation, graph, signature,

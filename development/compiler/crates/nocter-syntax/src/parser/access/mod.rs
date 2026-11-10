@@ -1,4 +1,4 @@
-//! Recognition of the future bounded private-function grammar, using the shared lossless parser.
+//! Recognition of the future bounded private core, using the shared lossless parser.
 //! No released-language production is an acceptance fallback for this parse goal.
 mod expression;
 #[cfg(test)]
@@ -120,16 +120,51 @@ fn parameter(parser: &mut Parser<'_>) {
 
 fn type_(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    let named = parser.start();
-    if matches!(
-        parser.current_kind(),
-        TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
-    ) {
-        parser.bump();
+    let shape = parser.start();
+    if parser.eat_punctuation(Punctuation::LeftParen) {
+        if parser.enter_nesting() {
+            parser.eat_newlines();
+            type_(parser);
+            parser.eat_newlines();
+            let tuple = parser.eat_punctuation(Punctuation::Comma);
+            if tuple {
+                parser.eat_newlines();
+                type_(parser);
+                parser.eat_newlines();
+                while parser.eat_punctuation(Punctuation::Comma) {
+                    parser.eat_newlines();
+                    if parser.at_punctuation(Punctuation::RightParen) {
+                        break;
+                    }
+                    type_(parser);
+                    parser.eat_newlines();
+                }
+            }
+            parser.expect_punctuation(Punctuation::RightParen);
+            parser.leave_nesting();
+            parser.complete(
+                shape,
+                if tuple {
+                    NodeKind::TupleType
+                } else {
+                    NodeKind::GroupedType
+                },
+            );
+        } else {
+            parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+            parser.complete(shape, NodeKind::Error);
+        }
     } else {
-        parser.error_token(ExpectedSyntax::Type);
+        if matches!(
+            parser.current_kind(),
+            TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
+        ) {
+            parser.bump();
+        } else {
+            parser.error_token(ExpectedSyntax::Type);
+        }
+        parser.complete(shape, NodeKind::NamedType);
     }
-    parser.complete(named, NodeKind::NamedType);
     parser.complete(marker, NodeKind::Type);
 }
 
@@ -158,7 +193,9 @@ fn annotation_type(parser: &mut Parser<'_>) {
                     || parser.at_contextual(ContextualSpelling::Take))
                     && matches!(
                         parser.nth_kind(1),
-                        TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
+                        TokenKind::Identifier
+                            | TokenKind::Keyword(Keyword::Void)
+                            | TokenKind::Punctuation(Punctuation::LeftParen)
                     )
                 {
                     let operation = parser.start();

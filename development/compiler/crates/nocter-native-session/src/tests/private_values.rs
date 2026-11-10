@@ -321,3 +321,56 @@ fn private_immutable_statics_share_places_without_initializer_calls_or_hidden_in
         execute_native_status(&compile(source), &package.0, name, 42);
     }
 }
+
+#[test]
+fn private_structural_tuples_share_native_calls_constants_and_static_places() {
+    for (name, source) in [
+        (
+            "tuple-interrupted-component",
+            "func run(): i32 { let absent: (i32, bool) = (if true { return 42 } else { return 43 }, false) }",
+        ),
+        (
+            "tuple-callback-contract",
+            "func adjust(take pair: (i32, i32)): (i32, i32) { pair.0 += 1\npair^ }\nfunc relay(take action: func(take (i32, i32)): (i32, i32), take input: (i32, i32)): (i32, i32) { action(input^) }\nfunc run(): i32 { let pair = (20, 21)\nlet next = relay(adjust, pair^)\nnext.0 + next.1 }",
+        ),
+        (
+            "tuple-inferred-snapshot",
+            "func increment(edit value: i32): i32 { value += 1\nvalue }\nfunc run(): i32 { var value = 20\nlet pair = (value, increment(value))\npair.0 + pair.1 + 1 }",
+        ),
+        (
+            "tuple-record-composition",
+            "copy struct Wrapped { pair: (i32, (bool, i32)) }\nfunc run(): i32 { var value = Wrapped { pair: (20, (true, 22)) }\nlet snapshot = value\nvalue.pair.0 = 0\nif snapshot.pair.1.0 { snapshot.pair.0 + snapshot.pair.1.1 } else { 0 } }",
+        ),
+        (
+            "tuple-edit",
+            "func increment(edit value: i32): void { value += 1 }\nfunc run(): i32 { var pair = (20, 21)\nincrement(pair.0)\npair.0 + pair.1 }",
+        ),
+        (
+            "tuple-mixed-layout",
+            "func build(): (bool, void, i32, void) { (true, (), 42, ()) }\nfunc run(): i32 { let value = build()\nif value.0 { value.2 } else { 0 } }",
+        ),
+        (
+            "tuple-record-transfer",
+            "struct Count { value: i32 }\nfunc add(take pair: (Count, Count)): i32 { pair.0.value + pair.1.value }\nfunc run(): i32 { let pair = (Count { value: 20 }, Count { value: 22 })\nadd(pair^) }",
+        ),
+        (
+            "tuple-indirect-result",
+            "func build(): (i32, i32, i32, i32, i32, i32) { (20, 1, 2, 3, 4, 22) }\nfunc run(): i32 { let values = build()\nvalues.0 + values.5 }",
+        ),
+        (
+            "tuple-frozen-data",
+            "struct Count { value: i32 }\nconst DATA: (Count, (bool, i32)) = (Count { value: 40 }, (true, 2))\nstatic BASE: (Count, i32) = (Count { value: 40 }, 2)\nfunc run(): i32 { var own = DATA\nown.0.value = 0\nread base = BASE.0\nif DATA.1.0 { base.value + BASE.1 + own.0.value } else { 0 } }",
+        ),
+        (
+            "tuple-capture-local-types",
+            "func other(): i32 { let unrelated = (true, ())\n0 }\nfunc run(): i32 { let captured = (true, 40)\nlet action = (captured;): i32 { let nested = (captured, (1, 1))\nif nested.0.0 { nested.0.1 + nested.1.0 + nested.1.1 } else { 0 } }\naction() }",
+        ),
+        (
+            "tuple-zero-byte-channels",
+            "func assign(edit left: void, edit right: void): i32 { left = ()\nright = ()\n42 }\nfunc run(): i32 { var pair = ((), ())\nassign(pair.0, pair.1) }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}

@@ -80,10 +80,12 @@ reserves functions and records in canonical namespace order.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable headers admit `bool`, `i32`, `void`, opaque move-only
-`error`, closed nominal records, and flat callable input/result contracts. Construction-time
-`ValueDefinition` slots share data or callable normalization; `DataReference` leaves resolve to
-TypeIds before publication. They do not expose released type-store eligibility helpers or borrow
-constructors. Unit is a value in this product. Input operation is
+`error`, closed nominal records and structural tuples, and flat callable input/result contracts.
+Construction-time
+`ValueDefinition` slots share data or callable normalization. `DataReference` composes named
+leaves into minimum-two-component tuple trees; one iterative resolver interns their TypeIds in the
+same declaration transaction before publication. They do not expose released type-store eligibility
+helpers or borrow constructors. Unit is a value in this product. Input operation is
 separate from data identity and payload Copy evidence. Stored parameter records carry a data
 TypeId and Read/Edit/Take operation; callable results carry a data TypeId and, for a callable
 result, its structural constraint. The authored compile-time capability is a separate callable
@@ -102,21 +104,27 @@ same namespace rather than rebuilding a parallel name index. Fields have a disti
 identity domain. Record
 schemas retain declared field order, resolved TypeIds and a frozen local member namespace.
 Definition order cannot affect those identities. Record and callable names cannot collide.
-Structural validation visits the containment graph from leaves to parents without recursion or
-payload expansion. It rejects non-finite containment with a field witness and rejects an explicit
-Copy request containing a non-Copy component. Ordinary records never acquire Copy implicitly.
+Structural validation visits nominal containment edges, including those inside tuple fields,
+from leaves to parents without recursion or payload expansion. It rejects non-finite containment
+with a field witness and rejects an explicit Copy request containing a non-Copy component.
+Ordinary records never acquire Copy implicitly.
 Only validated metadata can be published; no partial schema authority escapes a rejected build.
 
-`project_data` validates selected field paths against the exact containing record and field
-owner, without looking up names or inferring access permissions. An empty path preserves its
-validated data type; a scalar projection or a field from another owner is rejected.
+`aggregate` exposes one ordered component schema for records and tuples. Record components retain
+their declared field identities; tuple components retain their positions. `component` and
+`project_data` validate each selection against its exact containing shape, without looking up names
+or inferring access permissions. A tuple position cannot select a nominal field or vice versa.
+An empty path preserves its validated data type; a scalar projection or a field from another owner
+is rejected.
 
-`data_schema` exposes builtin, nominal or named/formal/result/application witness schemas from
+`data_schema` exposes builtin, aggregate or named/formal/result/application witness schemas from
 the supplied program's sole type authority. It never falls back to a different header/body store.
-`data_copyable` consumes that validated shape; `data_kind` deliberately remains a builtin-only projection. These APIs do not
-publish arbitrary borrow types, generic eligibility guesses, or a second type store. Current
-nominal schemas contain only values over the four closed builtin leaves and other such records.
-They are metadata, not proof of body acceptance, partial initialization, survival, destruction or
+`data_copyable` consumes that validated shape with iterative memoized structural traversal;
+`data_kind` deliberately remains a builtin-only projection. These APIs do not publish arbitrary
+borrow types, generic eligibility guesses, or a second type store. Current
+aggregate schemas contain only values over the four closed builtin leaves, records and tuples.
+A tuple is Copy exactly when every component is; it does not make an ordinary nominal component
+Copy. These schemas are metadata, not proof of body acceptance, partial initialization, survival, destruction or
 native execution. Selected source places consume these schemas through the private body checker;
 only closed unit acceptance establishes the combined body/flow/resource proofs.
 
@@ -144,14 +152,16 @@ on freeze; no dispatch search or source syntax enters the program. Branches shar
 namespace and record metadata instead of cloning those authorities.
 That branch also publishes closed single-value closure environment schemas under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
-schema components. The environment is ordinary closed builtin/record data; Copy follows that
+schema components. The environment is ordinary closed builtin/record/tuple data; Copy follows that
 schema, independently of invocation. All permitted views belong to the same body-owned key.
-Canonical replay merges the schemas and their keys with the body type suffix in the same
-program; headers remain unchanged. `closures` owns their immutable projection, not body checking.
+Inferred tuples use that same body construction authority, including within a capture body.
+Canonical replay remaps nested tuple components and every closure-schema data slot with the body
+type suffix in the same program; headers remain unchanged. `closures` owns their immutable
+projection, not body checking.
 
 Canonical replay validates exact declaration identity, persistent type-prefix identity and each
-suffix's body owner. It re-interns the leaf keys in semantic owner order and publishes exact
-per-body TypeId projections with one final program. Coinciding raw suffix positions from two
+suffix's body owner. It re-interns witness keys and structural tuples in semantic owner order and
+publishes exact per-body TypeId projections with one final program. Coinciding raw suffix positions from two
 bodies cannot substitute for each other. Header programs stay unchanged and reusable; an
 extended program cannot masquerade as a fresh header base. Checking rewrites all body data
 slots through this projection before closing relations.

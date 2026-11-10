@@ -25,7 +25,7 @@ pub(super) fn steps(query: &flow::Query) -> Vec<Step> {
         })
         .collect()
 }
-pub(super) fn record_field(unit: &Unit, record: &str, name: &str) -> nocter_model::AccessFieldId {
+pub(super) fn record_field(unit: &Unit, record: &str, name: &str) -> nocter_model::ValueField {
     let symbols = unit.program().symbols();
     unit.program()
         .records()
@@ -37,4 +37,5 @@ pub(super) fn record_field(unit: &Unit, record: &str, name: &str) -> nocter_mode
         .unwrap()
         .resolve_field(symbols.get(name).unwrap())
         .unwrap()
+        .into()
 }

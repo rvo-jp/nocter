@@ -378,7 +378,7 @@ impl Context<'_, '_> {
             | ExpressionKind::Closure { .. }
             | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Select { .. }
-            | ExpressionKind::Record { .. }
+            | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)

@@ -1,5 +1,9 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
-use super::{Failure, ValueTypeSyntax, text, type_syntax::data_token, value_type_syntax};
+use super::{
+    Failure, ValueTypeSyntax, text,
+    type_syntax::{DataTypeSyntax, data_syntax},
+    value_type_syntax,
+};
 use nocter_declarations::value_access::CallableKind;
 use nocter_model::{CompileTimeGuarantee, ValueInputOperation};
 use nocter_syntax::{
@@ -27,7 +31,7 @@ pub(super) struct Header {
 pub(super) struct RecordHeader {
     pub name: SyntaxToken,
     pub copy: bool,
-    pub fields: Vec<(SyntaxToken, SyntaxToken, NodeId)>,
+    pub fields: Vec<(SyntaxToken, DataTypeSyntax, NodeId)>,
 }
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
@@ -102,7 +106,7 @@ pub(super) fn record(
         .map(|field| {
             let name = direct_identifier(tree, field).ok_or(Failure::InconsistentSyntax)?;
             let ty = direct_node(tree, field, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            Ok((name, data_token(syntax, ty)?, ty))
+            Ok((name, data_syntax(syntax, ty)?, ty))
         })
         .collect::<Result<_, _>>()?;
     Ok(RecordHeader { name, copy, fields })

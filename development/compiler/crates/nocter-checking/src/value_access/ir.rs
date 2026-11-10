@@ -1,7 +1,7 @@
 use nocter_model::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessLocalId,
-    AccessLoopId, AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId,
-    ValueAccess, ValueAccessMode, ValueBindingKind, ValueInputOperation,
+    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
+    AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId, ValueAccess,
+    ValueAccessMode, ValueBindingKind, ValueField, ValueInputOperation,
 };
 
 /// Known result data/access and normal completion are independent typing facts.
@@ -193,7 +193,7 @@ impl Binary {
 /// One selected component, retained in authored evaluation order, not declaration order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldValue {
-    pub field: AccessFieldId,
+    pub field: ValueField,
     pub value: AccessExpressionId,
 }
 
@@ -219,7 +219,7 @@ pub enum ExpressionKind {
     Integer(i32),
     Boolean(bool),
     Unit,
-    Record {
+    Aggregate {
         fields: Box<[FieldValue]>,
     },
     Select {

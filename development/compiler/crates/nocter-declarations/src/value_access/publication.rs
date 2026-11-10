@@ -40,7 +40,6 @@ pub(super) fn publish(
             .map(|(position, parameter)| {
                 let next = parameters.next_id();
                 let (data, contract) = publish_value(
-                    &base_types,
                     &mut types,
                     &records,
                     ValueFunctionOrigin::Parameter(next),
@@ -57,7 +56,6 @@ pub(super) fn publish(
             })
             .collect::<Box<[_]>>();
         let (result, result_contract) = publish_value(
-            &base_types,
             &mut types,
             &records,
             ValueFunctionOrigin::Result(id),
@@ -88,14 +86,22 @@ pub(super) fn publish(
 }
 
 fn publish_value(
-    base: &nocter_model::TypeAuthority,
     types: &mut nocter_model::TypeTransaction,
     records: &records::Schemas,
     origin: ValueFunctionOrigin,
     definition: &ValueDefinition,
 ) -> (nocter_model::TypeId, Option<FunctionConstraint>) {
     let definition = match definition {
-        ValueDefinition::Data(data) => return (resolved_data(base, records, *data), None),
+        ValueDefinition::Data(data) => {
+            return (
+                resolved_data(
+                    types,
+                    |id| records.records.get(id).expect("validated record").data(),
+                    data,
+                ),
+                None,
+            );
+        }
         ValueDefinition::Function(definition) => definition,
     };
     let contract = FunctionConstraint {
@@ -103,12 +109,20 @@ fn publish_value(
         inputs: definition
             .inputs
             .iter()
-            .map(|&(operation, data)| FunctionInput {
-                data: resolved_data(base, records, data),
-                operation,
+            .map(|(operation, data)| FunctionInput {
+                data: resolved_data(
+                    types,
+                    |id| records.records.get(id).expect("validated record").data(),
+                    data,
+                ),
+                operation: *operation,
             })
             .collect(),
-        result: resolved_data(base, records, definition.result),
+        result: resolved_data(
+            types,
+            |id| records.records.get(id).expect("validated record").data(),
+            &definition.result,
+        ),
     };
     let mut selected = None;
     for invocation in [

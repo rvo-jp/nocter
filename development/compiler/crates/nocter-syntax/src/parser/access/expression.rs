@@ -128,7 +128,11 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
         }
         let suffix = parser.start();
         if parser.eat_punctuation(Punctuation::Dot) {
-            parser.expect_name();
+            if parser.at(TokenKind::IntegerLiteral) {
+                parser.bump();
+            } else {
+                parser.expect_name();
+            }
             parser.complete(suffix, NodeKind::MemberSuffix);
         } else {
             parser.bump();
@@ -327,10 +331,31 @@ fn grouped(parser: &mut Parser<'_>) -> Expression {
     }
     expression(parser, newline::Boundary::Delimited);
     parser.eat_newlines();
+    let tuple = parser.eat_punctuation(Punctuation::Comma);
+    if tuple {
+        parser.eat_newlines();
+        expression(parser, newline::Boundary::Delimited);
+        parser.eat_newlines();
+        while parser.eat_punctuation(Punctuation::Comma) {
+            parser.eat_newlines();
+            if parser.at_punctuation(Punctuation::RightParen) {
+                break;
+            }
+            expression(parser, newline::Boundary::Delimited);
+            parser.eat_newlines();
+        }
+    }
     parser.expect_punctuation(Punctuation::RightParen);
     parser.leave_nesting();
     Expression {
-        completed: parser.complete(marker, NodeKind::GroupedExpression),
+        completed: parser.complete(
+            marker,
+            if tuple {
+                NodeKind::TupleExpression
+            } else {
+                NodeKind::GroupedExpression
+            },
+        ),
     }
 }
 

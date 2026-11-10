@@ -98,8 +98,8 @@ impl Data {
                     )
                     .ok_or(Failure::InvalidRoot)?;
                 }
-                FrozenNode::Record(values) => {
-                    let Some(RuntimeTypeRepresentation::ValueRecord { fields }) =
+                FrozenNode::Aggregate(values) => {
+                    let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
                         runtime.type_representations().get(ty)
                     else {
                         return Err(Failure::InvalidRoot);

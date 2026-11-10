@@ -80,6 +80,7 @@ impl Checker<'_, '_> {
             Some(Boundary::Result(result)),
             true,
         )?;
+        self.types = nested.types.clone();
         let query = nested.finish(root);
         let mut control = super::flow::Control::prepare(Arc::new(query))
             .map_err(|_| Failure::InconsistentSyntax)?;

@@ -94,9 +94,9 @@ fn partial_field_retirement_selects_the_correct_cleanup_after_each_branch() {
             .count(),
         1
     );
-    assert!(!partial.iter().any(|step| matches!(step, Step::Resource(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Record)));
+    assert!(!partial.iter().any(|step| matches!(step, Step::Resource(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Aggregate)));
     let complete = trace(&program, &[false]);
-    assert_eq!(complete.iter().filter(|step| matches!(step, Step::Resource(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Record)).count(), 1);
+    assert_eq!(complete.iter().filter(|step| matches!(step, Step::Resource(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Aggregate)).count(), 1);
     assert!(
         !complete
             .iter()

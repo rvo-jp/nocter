@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{AccessFieldId, CaptureId, FieldId, ParameterId, TypeId, VariantId};
+use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, ValueField, VariantId};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTable,
@@ -226,7 +226,7 @@ pub struct MachineLayoutStore {
 pub struct MachineLayoutPlan {
     store: MachineLayoutStore,
     fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
-    value_fields: BTreeMap<(TypeId, AccessFieldId), MachineFieldLayout>,
+    value_fields: BTreeMap<(TypeId, ValueField), MachineFieldLayout>,
     variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
     payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
     captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
@@ -366,7 +366,7 @@ impl MachineLayoutPlan {
 
     /// Resolves an exact value-model field before discarding construction correspondence.
     #[must_use]
-    pub fn value_field(&self, ty: TypeId, field: AccessFieldId) -> Option<MachineFieldLayout> {
+    pub fn value_field(&self, ty: TypeId, field: ValueField) -> Option<MachineFieldLayout> {
         self.value_fields.get(&(ty, field)).copied()
     }
 
@@ -421,7 +421,7 @@ impl std::ops::Deref for MachineLayoutPlan {
 
 enum Member {
     Published(FieldId),
-    Value(AccessFieldId),
+    Value(ValueField),
 }
 
 struct LayoutBuilder<'program> {
@@ -433,7 +433,7 @@ struct LayoutBuilder<'program> {
     classes: BTreeMap<TypeId, crate::MachineValueClass>,
     active: BTreeSet<TypeId>,
     fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
-    value_fields: BTreeMap<(TypeId, AccessFieldId), MachineFieldLayout>,
+    value_fields: BTreeMap<(TypeId, ValueField), MachineFieldLayout>,
     variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
     payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
     captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
@@ -667,7 +667,7 @@ impl LayoutBuilder<'_> {
                     .iter()
                     .map(|f| (Member::Published(f.field()), f.ty())),
             ),
-            RuntimeTypeRepresentation::ValueRecord { fields } => self.structure(
+            RuntimeTypeRepresentation::ValueAggregate { fields } => self.structure(
                 ty,
                 fields.iter().map(|f| (Member::Value(f.field()), f.ty())),
             ),

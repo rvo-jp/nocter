@@ -55,7 +55,7 @@ impl Place {
         &self.fields
     }
     #[must_use]
-    pub fn project(&self, field: nocter_model::AccessFieldId) -> Self {
+    pub fn project(&self, field: nocter_model::ValueField) -> Self {
         Self {
             holder: self.holder,
             fields: self.fields.project(field),
@@ -82,7 +82,7 @@ pub enum Disposal {
     FunctionEnvironment,
     Trivial,
     OwnedError,
-    Record,
+    Aggregate,
 }
 /// A schema-selected cleanup obligation, concrete or tied to a formal environment witness.
 /// Independence is never inferred from Copy, ownership or the absence of known captures.
@@ -100,7 +100,7 @@ impl Payload {
     pub const fn disposal(self) -> Disposal {
         self.disposal
     }
-    /// The admitted builtin leaves and their closed record compositions have empty D/S here.
+    /// The admitted builtin leaves and their closed aggregate compositions have empty D/S here.
     #[must_use]
     pub const fn has_external_dependencies(self) -> bool {
         false
@@ -125,7 +125,7 @@ pub enum Step {
     Assemble {
         destination: Holder,
         payload: Payload,
-        fields: Box<[(nocter_model::AccessFieldId, Place)]>,
+        fields: Box<[(nocter_model::ValueField, Place)]>,
     },
     Construct {
         destination: Holder,
@@ -338,7 +338,7 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
             Disposal::Trivial
         }
         PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
-        PayloadSchema::Record(_) => Disposal::Record,
+        PayloadSchema::Aggregate(_) => Disposal::Aggregate,
         PayloadSchema::Function(witness) => match witness.origin {
             nocter_model::ValueFunctionOrigin::Closure(_) => Disposal::OwnedCapture,
             nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,

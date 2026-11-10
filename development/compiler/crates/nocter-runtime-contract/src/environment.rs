@@ -86,7 +86,7 @@ fn validate_representations(
             (
                 RuntimeType::Aggregate,
                 RuntimeTypeRepresentation::Struct { .. }
-                    | RuntimeTypeRepresentation::ValueRecord { .. }
+                    | RuntimeTypeRepresentation::ValueAggregate { .. }
                     | RuntimeTypeRepresentation::Enum { .. }
             ) | (
                 RuntimeType::Closure,
@@ -110,7 +110,7 @@ fn validate_representation(
     representation: &RuntimeTypeRepresentation,
 ) -> Result<(), RuntimeEnvironmentError> {
     match representation {
-        RuntimeTypeRepresentation::ValueRecord { fields } => {
+        RuntimeTypeRepresentation::ValueAggregate { fields } => {
             let mut identities = BTreeSet::new();
             for field in fields {
                 if !identities.insert(field.field()) {
@@ -262,11 +262,11 @@ mod tests {
         let field = ids.insert(());
         for (fields, expected) in [
             (
-                vec![RuntimeValueFieldRepresentation::new(field, member)],
+                vec![RuntimeValueFieldRepresentation::new(field.into(), member)],
                 RuntimeEnvironmentError::UnknownRepresentationType { owner, member },
             ),
             (
-                vec![RuntimeValueFieldRepresentation::new(field, owner); 2],
+                vec![RuntimeValueFieldRepresentation::new(field.into(), owner); 2],
                 RuntimeEnvironmentError::DuplicateRepresentationMember(owner),
             ),
         ] {
@@ -275,7 +275,7 @@ mod tests {
             let representations = RuntimeTypeRepresentationTable::new(
                 [(
                     owner,
-                    RuntimeTypeRepresentation::ValueRecord {
+                    RuntimeTypeRepresentation::ValueAggregate {
                         fields: fields.into_boxed_slice(),
                     },
                 )]

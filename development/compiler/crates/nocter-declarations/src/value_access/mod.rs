@@ -1,4 +1,4 @@
-//! Declaration authority for the bounded future private-function language.
+//! Declaration authority for the bounded future private core.
 //!
 //! This product cannot be converted to a released borrow-based declaration program. Its
 //! source boundary admits closed data and named/formal function witnesses. It does not flatten the
@@ -16,6 +16,8 @@ mod body_types;
 mod closures;
 pub use body_types::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
 pub use closures::Closure;
+mod aggregate;
+pub use aggregate::{AggregateSchema, Component};
 mod data;
 mod functions;
 pub use functions::{
@@ -24,9 +26,9 @@ pub use functions::{
 };
 mod publication;
 mod records;
-pub use data::DataReference;
+pub use data::{DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};
-pub use records::{Field, FieldDefinition, PayloadSchema, Record};
+pub use records::{Field, FieldDefinition, Record};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationId {
@@ -69,7 +71,7 @@ pub enum DeclarationRule {
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
     RecursivePayload { through: NominalTypeId },
-    NonCopyField { data: DataReference },
+    NonCopyField,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -374,14 +376,14 @@ impl Builder {
         }
         for (id, reservation) in reserved.iter() {
             if let Some(definition) = &reservation.definition {
-                let mut validate = |position, data| {
+                let mut validate = |position, data: &DataReference| {
                     if let DataReference::Record(record) = data
-                        && !records.contains(record)
+                        && !records.contains(*record)
                     {
                         violations.push(DeclarationViolation {
                             declaration: DeclarationId::Callable(id),
                             position,
-                            rule: DeclarationRule::UnknownRecordType { record },
+                            rule: DeclarationRule::UnknownRecordType { record: *record },
                         });
                     }
                 };
@@ -501,16 +503,16 @@ fn validate_definition(
 fn validate_data(
     callable: AccessCallableId,
     position: HeaderPosition,
-    data: DataReference,
+    data: &DataReference,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     if let DataReference::Builtin(data) = data
-        && !supported(data)
+        && !supported(*data)
     {
         violations.push(DeclarationViolation {
             declaration: DeclarationId::Callable(callable),
             position,
-            rule: DeclarationRule::UnsupportedDataType { data },
+            rule: DeclarationRule::UnsupportedDataType { data: *data },
         });
     }
 }

@@ -32,18 +32,11 @@ impl Types {
             }
             let value = match program.data_schema(data).ok_or(INVALID)? {
                 PayloadSchema::Builtin(builtin) => plan::Type::builtin(builtin).ok_or(INVALID)?,
-                PayloadSchema::Record(record) => {
-                    let children = record
-                        .fields()
-                        .iter()
-                        .map(|field| {
-                            program
-                                .fields()
-                                .get(*field)
-                                .map(|field| field.data())
-                                .ok_or(INVALID)
-                        })
-                        .collect::<Result<Vec<_>>>()?;
+                PayloadSchema::Aggregate(aggregate) => {
+                    let children = aggregate
+                        .components()
+                        .map(|component| component.data)
+                        .collect::<Vec<_>>();
                     if !expanded {
                         pending.push((data, true));
                         pending.extend(children.into_iter().rev().map(|child| (child, false)));
@@ -151,7 +144,7 @@ impl Builder<'_, '_> {
         fields
             .fields()
             .iter()
-            .map(|id| Ok(self.program.fields().get(*id).ok_or(INVALID)?.position()))
+            .map(|id| self.program.component_position(*id).ok_or(INVALID))
             .collect()
     }
     fn resource(&mut self, place: &flow::resources::Place) -> Result<plan::Place> {
@@ -227,7 +220,7 @@ impl Builder<'_, '_> {
                     .iter()
                     .map(|(field, source)| {
                         Ok((
-                            self.program.fields().get(*field).ok_or(INVALID)?.position(),
+                            self.program.component_position(*field).ok_or(INVALID)?,
                             self.resource(source)?,
                         ))
                     })
@@ -458,7 +451,7 @@ impl Builder<'_, '_> {
                 ..
             }
             | ExpressionKind::Move(_)
-            | ExpressionKind::Record { .. }
+            | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Select {
                 action: SelectionAction::MovePayload,
                 ..

@@ -64,13 +64,13 @@ fn records_preserve_alignment_padding_and_zero_byte_member_identity() {
         .fields();
     let offsets: Vec<_> = fields
         .iter()
-        .map(|&field| layouts.value_field(data, field).unwrap().offset())
+        .map(|&field| layouts.value_field(data, field.into()).unwrap().offset())
         .collect();
     assert_eq!(offsets, [0, 1, 4, 8, 8, 8]);
     assert_ne!(fields[3], fields[4]);
     assert_ne!(
-        layouts.value_field(data, fields[3]).unwrap().ty(),
-        layouts.value_field(data, fields[4]).unwrap().ty()
+        layouts.value_field(data, fields[3].into()).unwrap().ty(),
+        layouts.value_field(data, fields[4].into()).unwrap().ty()
     );
     assert_eq!(
         (
@@ -92,7 +92,7 @@ fn records_preserve_alignment_padding_and_zero_byte_member_identity() {
     assert_eq!(environment.types().get(unit), Some(&RuntimeType::Unit));
     assert_eq!(layouts.get(unit).unwrap().kind(), &MachineLayoutKind::Unit);
     // A field from another record never acquires meaning just because its offset would fit.
-    assert!(layouts.value_field(empty, fields[0]).is_none());
+    assert!(layouts.value_field(empty, fields[0].into()).is_none());
 }
 
 #[test]
@@ -332,4 +332,37 @@ fn shared_record_schemas_reject_size_overflow_without_expanding_payload_trees() 
         layouts(&environment),
         Err(MachineLayoutError::LayoutOverflow(_))
     ));
+}
+
+#[test]
+fn structural_tuple_layout_uses_logical_positions_and_shared_member_padding() {
+    let instances = close(&ValueSourceFixture::new(
+        "func run(take value: (bool, void, i32, void)): i32 { value.2 }",
+    ));
+    let environment = environment(&instances);
+    let layouts = layouts(&environment).unwrap();
+    let data = storage::signature(&instances, instances.root())
+        .unwrap()
+        .explicit()[0]
+        .data;
+    let fields = (0..4)
+        .map(nocter_model::ValueField::Tuple)
+        .collect::<Vec<_>>();
+    let offsets = fields
+        .iter()
+        .map(|&field| layouts.value_field(data, field).unwrap().offset())
+        .collect::<Vec<_>>();
+    assert_eq!(offsets, [0, 1, 4, 8]);
+    assert_eq!(
+        (
+            layouts.get(data).unwrap().size(),
+            layouts.get(data).unwrap().alignment()
+        ),
+        (8, 4)
+    );
+    assert!(
+        layouts
+            .value_field(data, nocter_model::ValueField::Tuple(4))
+            .is_none()
+    );
 }

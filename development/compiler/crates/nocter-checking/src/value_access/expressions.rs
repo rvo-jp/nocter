@@ -25,6 +25,7 @@ impl Checker<'_, '_> {
             NodeKind::TransferExpression => self.transfer(node)?,
             NodeKind::ClosureExpression => self.closure(node, reachable)?,
             NodeKind::StructLiteral => self.record_value(node, reachable)?,
+            NodeKind::TupleExpression => self.tuple_value(node, expected, reachable)?,
             NodeKind::UnaryExpression => self.unary(node, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression

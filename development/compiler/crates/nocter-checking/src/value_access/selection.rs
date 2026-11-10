@@ -6,8 +6,8 @@ use super::{
 };
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{
-    AccessExpressionId, AccessFieldId, AccessLocalId, AccessPlaceId, FieldPath, TypeId,
-    ValueAccess as Ty, ValueAccessMode as Mode,
+    AccessExpressionId, AccessLocalId, AccessPlaceId, FieldPath, TypeId, ValueAccess as Ty,
+    ValueAccessMode as Mode, ValueField,
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
 
@@ -22,7 +22,14 @@ impl Checker<'_, '_> {
                 && self.kind(*suffix)? == NodeKind::MemberSuffix
             {
                 members.push(
-                    nocter_syntax::direct_identifier(self.syntax().tree(), *suffix)
+                    nocter_syntax::direct_token_iter(self.syntax().tree(), *suffix)
+                        .find(|token| {
+                            matches!(
+                                token.kind(),
+                                nocter_syntax::TokenKind::Identifier
+                                    | nocter_syntax::TokenKind::IntegerLiteral
+                            )
+                        })
                         .ok_or(Failure::InconsistentSyntax)?,
                 );
                 current = self.unwrap(*base)?;
@@ -64,16 +71,24 @@ impl Checker<'_, '_> {
             ExpressionKind::Move(place),
         )
     }
-    pub fn field(&self, data: TypeId, token: SyntaxToken) -> Result<AccessFieldId, Failure> {
+    pub fn field(&self, data: TypeId, token: SyntaxToken) -> Result<ValueField, Failure> {
         let schema = self
             .program()
             .data_schema(data)
             .ok_or(Failure::InconsistentSyntax)?;
-        let field = if let PayloadSchema::Record(record) = schema {
-            self.program()
-                .symbols()
-                .get(self.text(token)?)
-                .and_then(|name| record.resolve_field(name))
+        let field = if let PayloadSchema::Aggregate(aggregate) = schema {
+            if let Some(record) = aggregate.as_record() {
+                self.program()
+                    .symbols()
+                    .get(self.text(token)?)
+                    .and_then(|name| record.resolve_field(name))
+                    .map(ValueField::Record)
+            } else {
+                nocter_syntax::decode_integer_literal(self.text(token)?)
+                    .and_then(|index| usize::try_from(index).ok())
+                    .map(ValueField::Tuple)
+                    .filter(|&field| aggregate.component(field).is_some())
+            }
         } else {
             None
         };
@@ -101,10 +116,9 @@ impl Checker<'_, '_> {
             let field = self.field(data, token)?;
             data = self
                 .program()
-                .fields()
-                .get(field)
+                .component(data, field)
                 .ok_or(Failure::InconsistentSyntax)?
-                .data();
+                .data;
             fields.push(field);
         }
         Ok((FieldPath::new(fields), data))
@@ -159,27 +173,18 @@ impl Checker<'_, '_> {
         {
             let mut container = access.data();
             for &field in fields.fields() {
-                let Some(PayloadSchema::Record(schema)) = self.program().data_schema(container)
-                else {
-                    return Err(Failure::InconsistentSyntax);
-                };
-                let index = schema
-                    .fields()
-                    .iter()
-                    .position(|&candidate| candidate == field)
+                let component = self
+                    .program()
+                    .component(container, field)
                     .ok_or(Failure::InconsistentSyntax)?;
-                let nocter_model::FrozenNode::Record(children) = value.node() else {
+                let index = component.position;
+                let nocter_model::FrozenNode::Aggregate(children) = value.node() else {
                     return Err(Failure::InconsistentSyntax);
                 };
                 value = value
                     .at(*children.get(index).ok_or(Failure::InconsistentSyntax)?)
                     .ok_or(Failure::InconsistentSyntax)?;
-                container = self
-                    .program()
-                    .fields()
-                    .get(field)
-                    .ok_or(Failure::InconsistentSyntax)?
-                    .data();
+                container = component.data;
             }
             return self.constant_value(node, data, &value);
         }

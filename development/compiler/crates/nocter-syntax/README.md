@@ -24,7 +24,7 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - lexing and token subdivision
 - bounded future private-function and closed-record recognition through the explicit `V2CoreUnit`
   development parse goal, with a distinct root, explicit input/binding operation nodes, unit values,
-  named data types, structural record values, member suffixes and joint postfix transfer nodes.
+  named and structural tuple data types, record/tuple values, member suffixes and joint postfix transfer nodes.
   Marked value-capture entries use the same joint caret token. Structural initializers use
   comma-delimited named fields. Control-header parsing leaves the first outer brace to its body,
   while nested delimiters restore ordinary expression recognition without type lookup. Outer
@@ -33,8 +33,10 @@ package or discovery code. It does not resolve names or apply semantic rules.
   Local annotations, formal parameter headers and function results recognize bounded
   `func`/`mut`/`once` callable contracts through one annotation production, with unnamed
   data/input-operation parameters. Nested callback contracts remain outside this goal; record
-  fields remain data names. `mut` and `once` are contextual
-  only at an invocation head followed by `(`. Declaration/type/field lookup remains semantic work. Its lexical
+  fields remain ordinary data shapes. `mut` and `once` are contextual
+  only at an invocation head followed by `(`. Data annotations share recursive tuple/group recognition;
+  tuples have at least two components, while `()` is only the unit expression. Tuple member suffixes
+  retain integer tokens without interpreting their positions. Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`
 - future closure head recognition in the same private goal, using one transactional discriminator

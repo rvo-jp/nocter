@@ -76,7 +76,8 @@ targets. Positional type identities retain the producer's nominal distinctions w
 table; structurally similar records do not make call edges interchangeable.
 
 `Type::builtin` owns the admitted fixed-width primitive domain. The checker uses that same admission
-for body-domain checks. Finite record schemas compose those leaves without claiming Copy. Schema
+for body-domain checks. Ordered aggregate schemas compose those leaves without claiming Copy. Checking retains source
+record/tuple type distinctions while using that one evaluator shape. Schema
 projection and value validation memoize shared subgraphs rather than expanding trees. Boolean/i32
 arithmetic delegates to the common scalar operations without a target-dependent fallback. The
 selected integer domain preserves the distinction between checked-quotient remainder in the
@@ -89,9 +90,9 @@ operand actions. This does not authorize skipping calls, access validation or fa
 operation, and the executor performs no source-type dispatch to derive the result again.
 
 The executor keeps fresh invocation frames, canonical scoped addresses, independent scalar
-snapshots and sparse owning states. Immutable record data may share internal nodes; writes copy only
+snapshots and sparse owning states. Immutable aggregate data may share internal nodes; writes copy only
 the affected path, preserving independent value semantics and the identity of aliased places.
-Frozen before/after effects transport ownership, assemble records and perform actual sparse cleanup.
+Frozen before/after effects transport ownership, assemble aggregates and perform actual sparse cleanup.
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
 caller temporaries exist. Ordinary calls execute every time, including unit-returning editing
 calls. The executor performs only closed execution; checking owns required value requests and
@@ -131,7 +132,7 @@ data continue to count until overwritten or their frame ends.
 `Value` is an immutable sharing handle. Plan literals are imported into the active meter with one
 node per literal DAG identity, including when their data came from another budget. A write to
 shared data reserves its new node and field references before shallow cloning; descendants stay
-shared until their own path is updated. Thus scalar snapshots and independent record values keep
+shared until their own path is updated. Thus scalar snapshots and independent aggregate values keep
 their semantics while sharing physical data. Returned handles keep their lease after frame
 teardown or publication. This is evaluator storage identity, not source nominal identity or a
 source comparison capability.
@@ -151,7 +152,7 @@ and diagnostic rendering are outside this working-storage metric.
 
 `state::Value::freeze` converts a completed value to the model-owned `FrozenData` DAG once per
 required declaration. Identity-memoized postorder preserves sharing and never recursively expands
-records. The artifact has no evaluator leases, scoped addresses, type-store IDs or source identity.
+aggregates. The artifact has no evaluator leases, scoped addresses, type-store IDs or source identity.
 `from_frozen` reconstructs immutable plan literals from those established nodes without evaluating source;
 closed plan construction validates the literal against its selected type. These are publication
 and plan-construction transforms, not another evaluator or a source Copy capability.

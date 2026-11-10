@@ -69,10 +69,10 @@ application-type branch over that prefix; canonical replay validates lineage and
 before all bodies share one final authority. Declaration metadata and source reuse remain shared;
 no consumer chooses between header and body stores as lookup fallbacks.
 Its builder alone mutates reservations/definitions; freeze rejects incomplete or invalid headers.
-Admitted built-in data and finite nongeneric record schemas share the parsed callable/body
-boundary. Data-name resolution belongs to that declaration namespace; lowering holds no parallel
-type table. Declaration-owned projection validates each selected field's containing record and
-data identity. Checking consumes
+Admitted built-in data, finite nongeneric records and structural tuple schemas share the parsed
+callable/body boundary. Data-name resolution belongs to that declaration namespace; lowering holds
+no parallel type table. Declaration-owned component projection validates each selected nominal field
+or tuple position against its containing data identity. Checking consumes
 those schemas to certify concrete payload operations; it does not rebuild nominal type meaning.
 No borrowed wrapper or released storable-type heuristic supplies a missing future contract.
 
@@ -106,7 +106,7 @@ must later fail checking. Body typing consumes those identities/contracts and pe
 structural data/operation checks, and direct-call selection. It cannot recover input operations
 from body tokens, redo declaration normalization, or treat source projection as dispatch authority.
 Projected initialization and referent/permission validation share a source-neutral body-flow
-graph. Body typing freezes each selected place's local root, field identities and data TypeId;
+graph. Body typing freezes each selected place's local root, logical component keys and data TypeId;
 later passes consume the selection rather than repeating member lookup. Logical resource transitions and the exact first-fragment payload contracts share those
 alternative worlds. Only the complete private-unit constructor closes all body/callee assumptions;
 intermediate facts cannot be treated as its accepted product.
@@ -138,10 +138,10 @@ caller-owned temporary path rather than surrendering ownership to the callee. A 
 without a child read or retained source access. Copy/transfer/pending direct supply share one
 graph topology; closure cannot reorder nested evaluation or cancellation. Later validation must
 consume those plans, not repeat dispatch or infer intent from source punctuation. Structural
-record values retain the declaration-selected field and one ordinary value operation for each
+record/tuple values retain the declaration-selected component and one ordinary value operation for each
 initializer in authored order. Their component values
 remain owned evaluation temporaries until a single assembly step transfers them into the complete
-record. An interrupted initializer follows existing evaluation-frame cleanup; it cannot publish
+aggregate. An interrupted initializer follows existing evaluation-frame cleanup; it cannot publish
 a partially assembled record or introduce a constructor-only resource authority.
 
 Named function references retain code identity through ordinary Copy supply, scoped aliases and
@@ -154,7 +154,7 @@ and retain symbolic cleanup. Each selected argument can bind a callee formal to 
 formal witness; invocation through the formal retains that semantic target. All definitions are
 checked against their declared contracts, including unused/recursive bodies. The supported producer
 domain includes the bounded explicit owned-capture producer, whose complete environment is
-closed builtin/record data. Result-producing bodies establish one named, captured-code
+closed builtin/record/tuple data. Result-producing bodies establish one named, captured-code
 or own-input relation through reachable value flow; signatures alone cannot select it. Each
 selected application substitutes its actual witnesses into that relation. General dependency
 footprints require further source closure. Concrete instance closure consumes
@@ -415,8 +415,8 @@ field identities or reconstructed from names. Access operations remain separate 
 
 For the bounded private fragment, the explicitly selected runtime ABI supplies scalar and error
 handle layouts. A stored `void` value selects a zero-byte, alignment-one runtime unit, distinct
-from the published pipeline's completion-only runtime void. Records use declaration-order member
-placement with each member's alignment and final aggregate padding. Machine owns the single
+from the published pipeline's completion-only runtime void. Records and tuples use
+declaration/index-order member placement with each member's alignment and final aggregate padding. Machine owns the single
 recursive layout calculation, checked size arithmetic and member correspondence for both pipeline
 inputs. Equal offsets, including zero-byte members, do not identify logical fields.
 
@@ -512,7 +512,7 @@ their full frozen input/result contracts. Native-session integration tests compi
 source through checking, instances, lifecycle, MIR and these existing native consumers, then
 execute the images on ARM64 macOS. They cover scalar computation, scoped channels, control flow,
 static callbacks and owned captures, indirect aggregate transport, zero-byte data, register/stack
-argument crossing and required arithmetic traps. Closed record constants reach native code as
+argument crossing and required arithmetic traps. Closed record/tuple constants reach native code as
 serialized immutable data through the model-owned frozen literal product. Their uses receive
 independent values; initialization thunks do not become runtime instances. Immutable statics retain
 one place identity across bodies, with separate address bindings rather

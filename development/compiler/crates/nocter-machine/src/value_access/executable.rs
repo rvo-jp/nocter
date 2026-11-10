@@ -161,7 +161,7 @@ fn needs_cleanup(
             environment: Some(environment),
         }) => needs_cleanup(program, *environment, cache)?,
         Some(RuntimeType::Aggregate) => {
-            let Some(RuntimeTypeRepresentation::ValueRecord { fields }) =
+            let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
                 program.runtime().type_representations().get(data)
             else {
                 return Err(Failure::InvalidRoot);

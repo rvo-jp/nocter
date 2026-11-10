@@ -273,3 +273,31 @@ fn immutable_statics_use_the_initializer_surface_without_modifier_or_type_fallba
         assert!(tree(source, ParseGoal::V2CoreUnit).has_errors(), "{source}");
     }
 }
+
+#[test]
+fn structural_tuple_syntax_distinguishes_unit_groups_and_two_or_more_components() {
+    let parsed = tree(
+        "func run(input: ((i32, bool)), take sink: func(take (i32, bool)): (void, i32)): (i32, (bool, void)) { let pair = (input.0, (input.1, ()),)\npair }",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    for kind in [
+        NodeKind::TupleType,
+        NodeKind::TupleExpression,
+        NodeKind::GroupedType,
+        NodeKind::UnitExpression,
+    ] {
+        assert!(
+            parsed.nodes().any(|(_, node)| node.kind() == kind),
+            "{kind:?}"
+        );
+    }
+    super::super::snapshots::assert_token_projection(&parsed, "structural tuple");
+    for source in [
+        "func run(): void { let pair = (1,) }",
+        "func run(value: (i32,)): void {}",
+        "func run(value: ()): void {}",
+    ] {
+        assert!(tree(source, ParseGoal::V2CoreUnit).has_errors(), "{source}");
+    }
+}

@@ -407,7 +407,7 @@ impl Builder<'_> {
                 right,
             } => return self.logical(id, *left, *right, entry),
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
-            ExpressionKind::Record { fields } => self.record(entry, fields)?,
+            ExpressionKind::Aggregate { fields } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
             ExpressionKind::AdaptFunction { source } | ExpressionKind::Select { source, .. } => {
                 self.expression(*source, entry)?

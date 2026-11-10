@@ -95,17 +95,15 @@ pub fn prepare(
                 BuiltinType::Void => RuntimeType::Unit,
                 _ => return Err(invalid()),
             },
-            PayloadSchema::Record(record) => {
-                let fields = record
-                    .fields()
-                    .iter()
-                    .map(|&id| {
-                        let field = program.fields().get(id).ok_or_else(invalid)?;
-                        pending.insert(field.data());
-                        Ok(RuntimeValueFieldRepresentation::new(id, field.data()))
+            PayloadSchema::Aggregate(aggregate) => {
+                let fields = aggregate
+                    .components()
+                    .map(|component| {
+                        pending.insert(component.data);
+                        RuntimeValueFieldRepresentation::new(component.field, component.data)
                     })
-                    .collect::<Result<Box<[_]>, Failure>>()?;
-                representations.insert(data, RuntimeTypeRepresentation::ValueRecord { fields });
+                    .collect();
+                representations.insert(data, RuntimeTypeRepresentation::ValueAggregate { fields });
                 RuntimeType::Aggregate
             }
             PayloadSchema::Function(witness) => {

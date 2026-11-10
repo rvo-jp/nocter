@@ -169,7 +169,7 @@ fn conditional_partial_cleanup_has_distinct_sparse_runtime_conditions() {
         .collect::<Vec<_>>();
     missing_counts.sort_unstable();
     assert_eq!(missing_counts, [0, 1]);
-    assert!(alternatives.iter().any(|a| matches!(a.after(), [Step::Resource(ResourceStep::Dispose { payload, .. })] if payload.disposal() == Disposal::Record)));
+    assert!(alternatives.iter().any(|a| matches!(a.after(), [Step::Resource(ResourceStep::Dispose { payload, .. })] if payload.disposal() == Disposal::Aggregate)));
     assert!(alternatives.iter().any(|a| matches!(a.after(), [Step::Resource(ResourceStep::Dispose { payload, .. }), Step::Resource(ResourceStep::ReleaseContainer { .. })] if payload.disposal() == Disposal::OwnedError)));
 }
 

@@ -153,16 +153,8 @@ pub(super) fn data(
                     })
                     .ok_or(Failure::InvalidAcceptedUnit)?
             }
-            PayloadSchema::Record(record) => {
-                for field in record.fields() {
-                    pending.insert(
-                        program
-                            .fields()
-                            .get(*field)
-                            .ok_or(Failure::InvalidAcceptedUnit)?
-                            .data(),
-                    );
-                }
+            PayloadSchema::Aggregate(aggregate) => {
+                pending.extend(aggregate.components().map(|component| component.data));
                 source
             }
             PayloadSchema::Builtin(_) => source,

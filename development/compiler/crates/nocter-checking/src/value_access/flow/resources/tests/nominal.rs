@@ -1,6 +1,6 @@
 use super::*;
 use nocter_declarations::value_access::{Builder, DataReference, FieldDefinition};
-use nocter_model::{AccessFieldId, ArenaBuilder, SymbolTable};
+use nocter_model::{ArenaBuilder, SymbolTable, ValueField};
 
 struct Fixture {
     program: Program,
@@ -8,12 +8,12 @@ struct Fixture {
     leaf: TypeId,
     locals: [Holder; 6],
     expressions: [AccessExpressionId; 6],
-    head: AccessFieldId,
-    left: AccessFieldId,
-    right: AccessFieldId,
-    tail: AccessFieldId,
-    a: AccessFieldId,
-    b: AccessFieldId,
+    head: ValueField,
+    left: ValueField,
+    right: ValueField,
+    tail: ValueField,
+    a: ValueField,
+    b: ValueField,
 }
 impl Fixture {
     fn new() -> Self {
@@ -52,11 +52,20 @@ impl Fixture {
         let program = builder.finish().unwrap();
         let record = program.records().get(outer).unwrap();
         let data = record.data();
-        let [head, left, right, tail] = ["head", "left", "right", "tail"]
-            .map(|s| record.resolve_field(symbols.get(s).unwrap()).unwrap());
+        let [head, left, right, tail] = ["head", "left", "right", "tail"].map(|s| {
+            record
+                .resolve_field(symbols.get(s).unwrap())
+                .unwrap()
+                .into()
+        });
         let record = program.records().get(leaf).unwrap();
         let leaf = record.data();
-        let [a, b] = ["a", "b"].map(|s| record.resolve_field(symbols.get(s).unwrap()).unwrap());
+        let [a, b] = ["a", "b"].map(|s| {
+            record
+                .resolve_field(symbols.get(s).unwrap())
+                .unwrap()
+                .into()
+        });
         let mut locals = ArenaBuilder::<AccessLocalId, ()>::new();
         let locals = std::array::from_fn(|_| Holder::Local(locals.insert(())));
         let mut expressions = ArenaBuilder::<AccessExpressionId, ()>::new();
@@ -392,7 +401,7 @@ fn intact_records_stay_as_one_schema_cleanup_and_empty_partial_containers_drop_n
     let mut steps = Vec::new();
     state.dispose(&f.program, &f.root(), &mut steps).unwrap();
     assert!(
-        matches!(&steps[..], [Step::Dispose { source, payload }] if source == &f.root() && payload.disposal() == Disposal::Record && payload.data() == f.data)
+        matches!(&steps[..], [Step::Dispose { source, payload }] if source == &f.root() && payload.disposal() == Disposal::Aggregate && payload.data() == f.data)
     );
     let mut state = f.state();
     for (index, field) in [f.head, f.left, f.right, f.tail].into_iter().enumerate() {
@@ -504,7 +513,7 @@ fn partial_temporaries_keep_their_evaluation_frame_and_reverse_cleanup_order() {
         .unwrap();
     assert_eq!(steps.len(), 6); // tail, right, left.b, end left, head, end root
     assert!(
-        matches!(&steps[1], Step::Dispose { payload, .. } if payload.disposal() == Disposal::Record)
+        matches!(&steps[1], Step::Dispose { payload, .. } if payload.disposal() == Disposal::Aggregate)
     );
     state.end(outer).unwrap();
     assert!(state.owned.is_empty());
@@ -583,7 +592,8 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
                 .get(id)
                 .unwrap()
                 .resolve_field(symbols.get("left").unwrap())
-                .unwrap(),
+                .unwrap()
+                .into(),
         );
     }
     let mut state = State::default();
@@ -612,7 +622,7 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
             .count(),
         COUNT - 1
     );
-    assert!(steps.iter().all(|step| matches!(step, Step::Dispose { payload, .. } | Step::ReleaseContainer { payload, .. } if payload.disposal() == Disposal::Record)));
+    assert!(steps.iter().all(|step| matches!(step, Step::Dispose { payload, .. } | Step::ReleaseContainer { payload, .. } if payload.disposal() == Disposal::Aggregate)));
     assert!(state.initialized_root(moved));
 }
 

@@ -58,7 +58,7 @@ fn copy_component_preserves_the_complete_temporary_for_schema_cleanup() {
         assert_eq!(action, SelectionAction::CopyPayload);
         let trace = steps(query);
         let copied = trace.iter().position(|step| matches!(step, Step::Construct { destination, .. } if *destination == Holder::Expression(result))).unwrap();
-        let cleanup = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, payload } if place.holder() == Holder::Expression(source) && place.fields().is_root() && payload.disposal() == Disposal::Record)).unwrap();
+        let cleanup = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, payload } if place.holder() == Holder::Expression(source) && place.fields().is_root() && payload.disposal() == Disposal::Aggregate)).unwrap();
         assert!(copied < cleanup);
         assert!(!trace.iter().any(|step| matches!(step, Step::Move { source: place, .. } if place.holder() == Holder::Expression(source))));
         assert!(

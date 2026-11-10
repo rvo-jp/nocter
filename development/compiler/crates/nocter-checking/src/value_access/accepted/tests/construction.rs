@@ -33,7 +33,7 @@ fn component_mapping_keeps_authored_order_and_completed_cleanup_uses_declaration
         })
         .collect::<Vec<_>>();
     assert_eq!(cleanup, [&[third][..], &[second][..]]);
-    assert!(!trace.iter().any(|step| matches!(step, Step::Construct { payload, .. } if payload.disposal() == Disposal::Record)));
+    assert!(!trace.iter().any(|step| matches!(step, Step::Construct { payload, .. } if payload.disposal() == Disposal::Aggregate)));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn interrupted_construction_cleans_components_in_reverse_production_order_withou
         .expressions()
         .iter()
         .find_map(|(_, e)| match &e.kind {
-            ExpressionKind::Record { fields } => Some(fields),
+            ExpressionKind::Aggregate { fields } => Some(fields),
             _ => None,
         })
         .unwrap();

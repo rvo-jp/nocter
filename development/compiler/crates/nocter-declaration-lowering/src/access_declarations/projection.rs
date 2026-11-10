@@ -50,7 +50,7 @@ fn project(
         violation.rule,
         R::UnknownDataName { .. }
             | R::UnsupportedDataType { .. }
-            | R::NonCopyField { .. }
+            | R::NonCopyField
             | R::RecursivePayload { .. }
     );
     let primary = primary_source(sources, records, violation, typed)?;
@@ -182,7 +182,7 @@ fn details(
             "field leads to a non-finite by-value record payload",
             Some(records.get(&through)?.name),
         ),
-        R::NonCopyField { .. } => (
+        R::NonCopyField => (
             DiagnosticCode::E0291,
             "copy struct requires Copy evidence for every field",
             None,

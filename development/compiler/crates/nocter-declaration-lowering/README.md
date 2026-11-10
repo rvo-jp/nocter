@@ -98,11 +98,13 @@ before examining body semantics.
 `headers` extracts syntax-only header evidence for functions and explicitly typed required constant/static initializers.
 Initializer expressions use the syntax owner's existing body-surface exclusion and current-body
 locator mechanism, so initializer-only edits rebind headers without retaining stale values. `type_syntax::value_type_syntax` projects one
-`ValueTypeSyntax` for input/result headers and checking's local annotations. Its typed invocation and input-operation projection is the only
+`ValueTypeSyntax` for input/result headers and checking's local annotations. Recursive
+`DataTypeSyntax` preserves tuple/group shape and named leaves for both consumers; record fields
+use that same data projection. Its typed invocation and input-operation projection is the only
 decoder for these contexts; neither consumer recovers a mode from names, types or body use.
 `definitions` resolves input and result slots through one value normalization path and the
 declaration builder's single data namespace. Every callback leaf retains its owning annotation
-as the diagnostic location for unknown/unsupported data. Forward record references, invalid fields,
+as the diagnostic location for unknown/unsupported data. Forward record references, including tuple components, invalid fields,
 containment cycles and Copy eligibility therefore share the declaration authority instead of a
 lowering-owned type table. Existing built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain
 the first conflicting declaration; forward references cannot alter collision selection.

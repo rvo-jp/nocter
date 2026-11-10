@@ -61,7 +61,7 @@ factory-result closure bodies need code-scoped application identities, not their
 | Typed literals and explicit conversions | Shape/exact-target selection, pack/receiver preparation, explicit retirement, result origins, failure/cleanup and selected const capability |
 | Generics, interfaces and opaque results | Symbolic evidence, associated bindings, static witnesses, finite result equations and non-retyping specialization |
 | Outcomes and error information | Exact layer order, explicit failure selection, recovery cleanup, scoped projections and lost-failure diagnostics |
-| Tuples, arrays, enums and patterns | Exact schema/Copy proof, named-source supply, internal decomposition, ignored remainder and partial restoration |
+| Arrays, enums and aggregate patterns | Exact schema/Copy proof, named-source supply, internal decomposition, ignored remainder and partial restoration |
 | Variadic inputs | Key/value order, dynamic paths/count checks, complete contributions, origins and formation/commit timing |
 | Traversal and general spread | Source/cursor proof, zero-input projections, sequential versus accumulated roots, early exit and remaining cleanup |
 | Temporary update loans | Direct authority versus produced-value backing, nested frames, escape, failure and cancellation |
@@ -77,7 +77,7 @@ names do not authorize hidden effects, root stability or target primitives.
 
 The [const contract](../spec/language/constant-evaluation.md) owns eligibility and publication.
 Extend the [required initializer boundary](../compiler/crates/nocter-checking/README.md#required-private-initializers)
-with remaining aggregate forms and early structural dependencies. As ordinary
+with fixed arrays, enums and early structural dependencies. As ordinary
 generic/witness schemas are admitted, qualify condition derivation, per-conformance witness facts,
 exact-generation exports and substitution over that same authority. Preserve runtime-valid
 instances whose const condition is false; distinguish those from definition-time known forbidden operations and missing ordinary capabilities.
